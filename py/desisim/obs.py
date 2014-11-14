@@ -7,6 +7,8 @@ import fitsio
 import sqlite3
 import fcntl
 
+from . import targets
+
 def get_next_tile():
     """
     Return tileid of next tile to observe
@@ -39,40 +41,8 @@ def get_fibermap(tileid=None, nfiber=5000):
     
     BUGS: 5000 should not be hardcoded default
     """
-    #- Load target densities
-    fx = open(os.getenv('DESIMODEL')+'/data/targets/targets.dat')
-    tgt = yaml.load(fx)
-    n = tgt['ntarget_lrg'] + tgt['ntarget_boss'] + \
-        tgt['ntarget_elg'] + tgt['ntarget_qso'] + \
-        tgt['ntarget_lya'] + tgt['ntarget_badqso']
-        
-    #- 2% standard stars, 8% sky guaranteed
-    nsky = int(0.08 * nfiber)
-    nstd = int(0.02 * nfiber)
-    
-    #- LRGs ELGs QSOs
-    nlrg = np.random.poisson(0.90 * tgt['ntarget_lrg'] / n * nfiber)
-    nlrg_boss = np.random.poisson(0.90 * tgt['ntarget_boss'] / n * nfiber)
-    
-    nqso = np.random.poisson(0.90 * (tgt['ntarget_qso'] + tgt['ntarget_lya']) / n * nfiber)
-    nqso_bad = np.random.poisson(0.90 * (tgt['ntarget_badqso']) / n * nfiber)
-    
-    nelg = nfiber - (nlrg+nlrg_boss+nqso+nqso_bad+nsky+nstd)
-    
-    sim_objtype  = ['SKY']*nsky + ['STD']*nstd
-    sim_objtype += ['ELG']*nelg
-    sim_objtype += ['LRG']*nlrg + ['LRG_BOSS']*nlrg_boss
-    sim_objtype += ['QSO']*nqso + ['QSO_BAD']*nqso_bad
-    assert(len(sim_objtype) == nfiber)
-    np.random.shuffle(sim_objtype)
-    
-    objtype = list()
-    for x in sim_objtype:
-        if x == 'QSO_BAD':
-            objtype.append('QSO')
-        else:
-            objtype.append(x)
-    
+    true_objtype, target_objtype, z = targets.sample_targets(nfiber)
+
     #- Load fiber -> positioner mapping
     fiberpos = fitsio.read(os.getenv('DESIMODEL')+'/data/focalplane/fiberpos.fits', upper=True)
     
@@ -81,8 +51,8 @@ def get_fibermap(tileid=None, nfiber=5000):
     fibermap['FIBER'] = np.arange(nfiber, dtype='i4')
     fibermap['POSITIONER'] = fiberpos['POSITIONER'][0:nfiber]
     fibermap['TARGETID'] = np.random.randint(sys.maxint, size=nfiber)
-    fibermap['OBJTYPE'] = np.array(objtype)
-    fibermap['SIM_OBJTYPE'] = np.array(sim_objtype)
+    fibermap['OBJTYPE'] = np.array(target_objtype)
+    fibermap['SIM_OBJTYPE'] = np.array(true_objtype)
     fibermap['TARGET_MASK0'] = np.zeros(nfiber, dtype='i8')
     fibermap['RA'] = np.zeros(nfiber, dtype='f8')
     fibermap['DEC'] = np.zeros(nfiber, dtype='f8')
@@ -174,8 +144,8 @@ def get_night(t=None):
     #- format that as YEARMMDD
     return time.strftime('%Y%m%d', night)
     
-#- I'm not really sure this is a good idea.  I'm sure I will want to change
-#- the schema later...
+#- I'm not really sure this is a good idea.
+#- I'm sure I will want to change the schema later...
 def update_obslog(obstype='science', expid=None, dateobs=None, tileid=-1, ra=0.0, dec=0.0):
     """
     Update obslog with a new exposure
