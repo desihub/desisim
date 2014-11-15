@@ -13,7 +13,6 @@ import sys
 import os
 import numpy as np
 import optparse
-import multiprocessing as MP
 import random
 
 import fitsio

@@ -35,13 +35,13 @@ def simulate(simfile, nspec=None):
 
     if nspec is None:
         nspec = data.FLUX.shape[0]
-        nspec = 3 ### DEBUG ###
+        nspec = 5 ### TEST: Just simulate a few spectra for debugging ###
 
     #- Load PSF
     psfdir = os.environ['DESIMODEL'] + '/data/specpsf'
     psf = load_psf(psfdir+'/psf-'+camera[0]+'.fits')
 
-    img = psf.project((data.PHOT.T+data.SKYPHOT)[0:nspec], data.WAVE)
+    img = psf.project(data.WAVE, (data.PHOT.T+data.SKYPHOT)[0:nspec])
     
     outdir = os.path.split(simfile)[0]
     outfile = '{}/simpix-{}-{:08d}.fits'.format(outdir, camera, expid)
@@ -77,7 +77,7 @@ def new_exposure(verbose=False):
     night, expid, tileid, fibermap = get_next_obs()
 
     #-----
-    #- Trim for debugging
+    #- TEST: Trim for debugging
     fibermap = fibermap[0:1000]
     #-----
 
