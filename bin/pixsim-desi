@@ -28,6 +28,7 @@ from specter.throughput import load_throughput
 import specter.util
 
 from desisim.obs import get_next_obs
+from desisim import pixsim
 
 #- Parse options
 parser = optparse.OptionParser(
@@ -35,8 +36,10 @@ parser = optparse.OptionParser(
     epilog = "See $SPECTER_DIR/doc/datamodel.md for input format details"
     )
     
-parser.add_option(      "--randseed", type="int", default=0, help="random number seed")
-parser.add_option("--debug", action="store_true", help="start ipython after running")
+parser.add_option("--randseed", type="int", default=0, help="random number seed")
+### parser.add_option("--debug", action="store_true", help="start ipython after running")
+parser.add_option("--verbose", action="store_true", help="print more stuff")
+parser.add_option("--newexp", action="store_true", help="Create new exposure")
 
 opts, args = parser.parse_args()
 
@@ -54,93 +57,19 @@ if not envOK:
 random.seed(opts.randseed)
 np.random.seed(opts.randseed)
 
-#- Load PSFs and throughputs
-print "Loading PSFs and throughputs"
-psfdir = os.environ['DESIMODEL'] + '/data/specpsf'
-thrudir = os.environ['DESIMODEL'] + '/data/throughput'
-psf = dict()
-thru = dict()
-for channel in ('b', 'r', 'z'):
-    psf[channel] = load_psf(psfdir+'/psf-'+channel+'.fits')
-    thru[channel] = load_throughput(thrudir+'/thru-'+channel+'.fits')
+if opts.newexp:
+    night, expid = pixsim.new_exposure(verbose=opts.verbose)
 
-#- Other DESI parameters
-params = yaml.load(open(os.environ['DESIMODEL']+'/data/desi.yaml'))
-
-#- What to do
-night, expid, tileid, fibermap = get_next_obs()
-
-#-----
-#- Trim for debugging
-fibermap = fibermap[0:1000]
-#-----
-
-#- Create output directory if needed
-outdir = '{}/{}/'.format(os.getenv('DESI_SPECTRO_SIM'), night)
-if not os.path.exists(outdir):
-    os.makedirs(outdir)
-    
-#- Write fibermap
-fibermap_file = '{}/fibermap-{:08d}.fits'.format(outdir, expid)
-
-hdr = fits.Header()
-hdr.append( ('TILEID', tileid, 'Tile ID') )
-hdr.append( ('EXPID',  expid, 'Exposure number') )
-#- TODO: code versions...
-    
-print "Writing " + os.path.basename(fibermap_file)
-fits.writeto(fibermap_file, fibermap, header=hdr)
-
-#- Get object spectra
-print "Getting template spectra"
-dw = 0.1
-wavebrz = np.arange(round(psf['b'].wmin, 1), psf['z'].wmax, dw)
-### spectra = get_templates(wavebrz, fibermap['_SIMTYPE'], fibermap['_SIMZ'])
-nspec = len(fibermap)
-spectra = np.zeros( (nspec, len(wavebrz)) )
-
-#- Load sky [Magic knowledge of units 1e-17 erg/s/cm2/A/arcsec2]
-skyfile = os.getenv('DESIMODEL')+'/data/spectra/spec-sky.dat'
-skywave, skyflux_brz = np.loadtxt(skyfile, unpack=True)
-
-for channel in ('b', 'r', 'z'):
-    wmin = psf[channel].wmin
-    wmax = psf[channel].wmax
-    ii = np.where( (wmin <= wavebrz) & (wavebrz <= wmax) )[0]
-    wave = wavebrz[ii]
-    
-    flux = spectra[:, ii]
-    
-    phot = thru[channel].photons(wave, flux, units='1e-17 erg/s/cm2/A',
-            objtype=fibermap['_SIMTYPE'], exptime=params['exptime'])
-        
-    skyflux = np.interp(wave, skywave, skyflux_brz)
-    skyphot = thru[channel].photons(wave, skyflux, units='1e-17 erg/s/cm2/A/arcsec^2',
-        objtype='SKY', exptime=params['exptime'])
-        
-    nspec_per_cam = 500
-    for ispec in range(0, nspec, nspec_per_cam):
-        camera = channel + str(ispec//nspec_per_cam)
-        ii = slice(ispec, ispec+nspec_per_cam)
-        fluxtable = Table([wave, flux[ii].T, phot[ii].T, skyflux, skyphot],
-                        names=['WAVE', 'FLUX', 'PHOT', 'SKYFLUX', 'SKYPHOT'])
-
-        simflux_file = '{}/simflux-{}-{:08d}.fits'.format(outdir, camera, expid)
-        print "Writing " + os.path.basename(simflux_file)
-    
-        #- fits bug requires creation of HDU to get all header keywords first
-        hdu = fits.BinTableHDU(fluxtable._data, name=camera.upper())
-        hdu.header.append( ('CAMERA', camera, 'Spectograph Camera') )
-        fits.writeto(simflux_file, hdu.data, hdu.header)
-
-print "Wrote output to "+outdir
+#- Actually do the pixel simulation
+for simfile in args:
+    pixsim.simulate(simfile)
 
 #-------------------------------------------------------------------------
-if opts.debug:
-    #--- DEBUG ---
-    from pylab import *
-    ion()
-    import IPython
-    IPython.embed()
-    #--- DEBUG ---
+# if opts.debug:
+#     #--- DEBUG ---
+#     from pylab import *
+#     ion()
+#     import IPython
+#     IPython.embed()
+#     #--- DEBUG ---
     
