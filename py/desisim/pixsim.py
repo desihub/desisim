@@ -11,7 +11,7 @@ from specter.psf import load_psf
 from specter.throughput import load_throughput
 import specter.util
 
-from desisim.obs import get_next_obs
+from desisim import obs
 
 def _parse_filename(filename):
     """
@@ -25,127 +25,169 @@ def _parse_filename(filename):
         return x[0], x[1].lower(), int(x[2])
         
 
-def simulate(simfile, nspec=None):
+def simulate(fibermap_file, camera, verbose=False):
     """
     Simulate spectra
-    """
-    #- Load input data
-    _, camera, expid = _parse_filename(simfile)
-    data = fits.getdata(simfile, camera.upper()).view(np.recarray)
-
-    if nspec is None:
-        nspec = data.FLUX.shape[0]
-        nspec = 5 ### TEST: Just simulate a few spectra for debugging ###
-
-    #- Load PSF
-    psfdir = os.environ['DESIMODEL'] + '/data/specpsf'
-    psf = load_psf(psfdir+'/psf-'+camera[0]+'.fits')
-
-    img = psf.project(data.WAVE, (data.PHOT.T+data.SKYPHOT)[0:nspec])
     
-    outdir = os.path.split(simfile)[0]
-    outfile = '{}/simpix-{}-{:08d}.fits'.format(outdir, camera, expid)
-    fits.writeto(outfile, img, clobber=True)
+    TODO: more flexible input interface
+    """
+    assert os.path.exists(fibermap_file)
+    assert len(camera) == 2
+    
+    #- camera b0 -> channel b, ispec 0
+    channel = camera[0]
+    ispec = int(camera[1])
+    assert channel.lower() in 'brz'
+    assert 0 <= ispec < 10
+    
+    if verbose:
+        print "Reading input files"
+    
+    #- Load PSF and throughput
+    psfdir = os.environ['DESIMODEL'] + '/data/specpsf'
+    thrudir = os.environ['DESIMODEL'] + '/data/throughput'
+    psf = load_psf(psfdir+'/psf-'+channel+'.fits')
+    thru = load_throughput(thrudir+'/thru-'+channel+'.fits')
 
-def new_exposure(verbose=False):
+    #- Other DESI parameters
+    params = yaml.load(open(os.environ['DESIMODEL']+'/data/desi.yaml'))
+    nspec = params['spectro']['nfibers']
+
+    outdir = os.path.split(fibermap_file)[0]
+    fibermap = fits.getdata(fibermap_file, 'FIBERMAP')
+    
+    #- Trim to just the fibers for this spectrograph
+    fibermap = fibermap[nspec*ispec:nspec*(ispec+1)]
+
+    #- Get expid from FIBERMAP
+    fmhdr = fits.getheader(fibermap_file, 'FIBERMAP')
+    expid = fmhdr['EXPID']
+    
+    #-----
+    #- TEST: trim while testing
+    fibermap = fibermap[0:2]
+    #-----
+
+    if verbose:
+        print 'Applying throughput'
+        
+    dw = 0.1
+    wave = np.arange(round(psf.wmin, 1), psf.wmax, dw)
+    ### flux = get_templates(wave, fibermap['_SIMTYPE'], fibermap['_SIMZ'])
+    nspec = len(fibermap)
+    flux = np.zeros( (nspec, len(wave)) )
+
+    #- Load sky [Magic knowledge of units 1e-17 erg/s/cm2/A/arcsec2]
+    skyfile = os.getenv('DESIMODEL')+'/data/spectra/spec-sky.dat'
+    skywave, skyflux = np.loadtxt(skyfile, unpack=True)
+    skyflux = np.interp(wave, skywave, skyflux)
+
+    phot = thru.photons(wave, flux, units='1e-17 erg/s/cm2/A',
+            objtype=fibermap['_SIMTYPE'], exptime=params['exptime'])
+    
+    skyphot = thru.photons(wave, skyflux, units='1e-17 erg/s/cm2/A/arcsec^2',
+        objtype='SKY', exptime=params['exptime'])
+    
+    tmp = Table([wave, flux.T, phot.T, skyflux, skyphot],
+                names=['WAVE', 'FLUX', 'PHOT', 'SKYFLUX', 'SKYPHOT'])
+    ### spectra = tmp._data.view(np.recarray)
+    spectra = tmp._data
+
+    #- TODO: propagate fibermap header info
+    #- TODO: code versions
+    #- TODO: column units
+
+    #- Write spectra table
+    #- fits bug requires creation of HDU to get all header keywords first
+    simfile = '{}/sim-{}-{:08d}.fits'.format(outdir, camera, expid)
+    hdu = fits.BinTableHDU(spectra, name=camera.upper()+'-SPECTRA')
+    hdu.header.append( ('CAMERA', camera, 'Spectograph Camera') )
+    fits.writeto(simfile, hdu.data, hdu.header, clobber=True)
+
+    #- Project to image and append that to file
+    if verbose:
+        print "Projecting photons onto CCD"
+    img = psf.project(spectra['WAVE'], (spectra['PHOT'].T+spectra['SKYPHOT']))
+    hdu = fits.ImageHDU(img, name=camera.upper()+'-PIX')
+    
+    fits.append(simfile, hdu.data, header=hdu.header)
+    
+    if verbose:
+        print "Wrote "+simfile
+        
+    #- Add noise
+    if verbose:
+        print "Adding noise"
+
+    rdnoise = params['ccd'][channel]['readnoise']
+    var = img + rdnoise**2
+    img += np.random.poisson(img)
+    img += np.random.normal(scale=rdnoise, size=img.shape)
+    
+    #- Write the final noisy image file
+    #- Pixels
+    outfile = '{}/proc-{}-{:08d}.fits'.format(outdir, camera, expid)
+    hdu = fits.ImageHDU(img, header=fmhdr, name=camera.upper())
+    fits.writeto(outfile, hdu.data, hdu.header, clobber=True)
+
+    #- Inverse variance (IVAR)
+    hdu = fits.ImageHDU(1.0/var, name=camera.upper()+'IVAR')
+    fits.append(outfile, hdu.data, hdu.header, clobber=True)
+
+    #- Mask (currently just zeros)
+    mask = np.zeros(img.shape, dtype=np.int32)
+    hdu = fits.ImageHDU(mask, name=camera.upper()+'MASK')
+    fits.append(outfile, hdu.data, hdu.header, clobber=True)
+
+    if verbose:
+        print "Wrote "+outfile
+    
+def new_exposure(night=None, expid=None, tileid=None, verbose=False):
     """
     Setup new exposure to simulate
     
     Writes
-        $DESI_SPECTRO_SIM/{night}/fibermap-{expid}.fits
-        $DESI_SPECTRO_SIM/{night}/simflux-{camera}-{expid}.fits
+        $DESI_SPECTRO_SIM/$PIXPROD/{night}/fibermap-{expid}.fits
+        $DESI_SPECTRO_SIM/$PIXPROD/{night}/simflux-{camera}-{expid}.fits
         
     Returns tuple (night, expid)
     """
-    
-    #- Load PSFs and throughputs
-    if verbose:
-        print "Loading PSFs and throughputs"
+    #- Get night, expid, and tileid if needed
+    if night is None:
+        night = obs.get_night()
         
-    psfdir = os.environ['DESIMODEL'] + '/data/specpsf'
-    thrudir = os.environ['DESIMODEL'] + '/data/throughput'
-    psf = dict()
-    thru = dict()
-    for channel in ('b', 'r', 'z'):
-        psf[channel] = load_psf(psfdir+'/psf-'+channel+'.fits')
-        thru[channel] = load_throughput(thrudir+'/thru-'+channel+'.fits')
-
-    #- Other DESI parameters
-    params = yaml.load(open(os.environ['DESIMODEL']+'/data/desi.yaml'))
-
-    #- What to do
-    night, expid, tileid, fibermap = get_next_obs()
-
-    #-----
-    #- TEST: Trim for debugging
-    fibermap = fibermap[0:1000]
-    #-----
+    if expid is None:
+        expid = obs.get_next_expid()
+        
+    if tileid is None:
+        tileid = obs.get_next_tileid()
+    
+    #- Get fibermap table
+    ### fibermap = obs.get_fibermap()
+    fibermap = obs.get_fibermap(tileid=tileid, nfiber=1000)   #- TEST
 
     #- Create output directory if needed
-    outdir = '{}/{}/'.format(os.getenv('DESI_SPECTRO_SIM'), night)
+    outdir = '{}/{}/{}/'.format(
+        os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'), night )
+        
     if not os.path.exists(outdir):
         os.makedirs(outdir)
     
     #- Write fibermap
     fibermap_file = '{}/fibermap-{:08d}.fits'.format(outdir, expid)
 
-    hdr = fits.Header()
-    hdr.append( ('TILEID', tileid, 'Tile ID') )
-    hdr.append( ('EXPID',  expid, 'Exposure number') )
+    #- Create HDU to get required header keywords
+    hdu = fits.BinTableHDU(fibermap, name='FIBERMAP')
+    hdu.header.append( ('TILEID', tileid, 'Tile ID') )
+    hdu.header.append( ('EXPID',  expid, 'Exposure number') )
+    hdu.header.append( ('NIGHT',  expid, 'Night YEARMMDD') )
     #- TODO: code versions...
     
     if verbose:
         print "Writing " + os.path.basename(fibermap_file)
         
-    fits.writeto(fibermap_file, fibermap, header=hdr)
-
-    #- Get object spectra
-    if verbose:
-        print "Getting template spectra"
-        
-    dw = 0.1
-    wavebrz = np.arange(round(psf['b'].wmin, 1), psf['z'].wmax, dw)
-    ### spectra = get_templates(wavebrz, fibermap['_SIMTYPE'], fibermap['_SIMZ'])
-    nspec = len(fibermap)
-    spectra = np.zeros( (nspec, len(wavebrz)) )
-
-    #- Load sky [Magic knowledge of units 1e-17 erg/s/cm2/A/arcsec2]
-    skyfile = os.getenv('DESIMODEL')+'/data/spectra/spec-sky.dat'
-    skywave, skyflux_brz = np.loadtxt(skyfile, unpack=True)
-
-    for channel in ('b', 'r', 'z'):
-        wmin = psf[channel].wmin
-        wmax = psf[channel].wmax
-        ii = np.where( (wmin <= wavebrz) & (wavebrz <= wmax) )[0]
-        wave = wavebrz[ii]
+    fits.writeto(fibermap_file, hdu.data, header=hdu.header)
     
-        flux = spectra[:, ii]
-    
-        phot = thru[channel].photons(wave, flux, units='1e-17 erg/s/cm2/A',
-                objtype=fibermap['_SIMTYPE'], exptime=params['exptime'])
-        
-        skyflux = np.interp(wave, skywave, skyflux_brz)
-        skyphot = thru[channel].photons(wave, skyflux, units='1e-17 erg/s/cm2/A/arcsec^2',
-            objtype='SKY', exptime=params['exptime'])
-        
-        nspec_per_cam = 500
-        for ispec in range(0, nspec, nspec_per_cam):
-            camera = channel + str(ispec//nspec_per_cam)
-            ii = slice(ispec, ispec+nspec_per_cam)
-            fluxtable = Table([wave, flux[ii].T, phot[ii].T, skyflux, skyphot],
-                            names=['WAVE', 'FLUX', 'PHOT', 'SKYFLUX', 'SKYPHOT'])
+    return fibermap_file
 
-            simflux_file = '{}/simflux-{}-{:08d}.fits'.format(outdir, camera, expid)
-            if verbose:
-                print "Writing " + os.path.basename(simflux_file)
-    
-            #- fits bug requires creation of HDU to get all header keywords first
-            hdu = fits.BinTableHDU(fluxtable._data, name=camera.upper())
-            hdu.header.append( ('CAMERA', camera, 'Spectograph Camera') )
-            fits.writeto(simflux_file, hdu.data, hdu.header)
-
-    if verbose:
-        print "Wrote output to "+outdir
-        
-    return night, expid
 

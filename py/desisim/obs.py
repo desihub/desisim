@@ -10,7 +10,11 @@ import time
 
 from . import targets
 
-def get_next_tile():
+def _proddir():
+    """Return $DESI_SPECTRO_SIM/$PIXPROD/"""
+    return os.getenv('DESI_SPECTRO_SIM') + '/' + os.getenv('PIXPROD') + '/'
+
+def get_next_tileid():
     """
     Return tileid of next tile to observe
     
@@ -23,7 +27,7 @@ def get_next_tile():
     tiles = tiles[tiles['IN_DESI'] > 0]
 
     #- If obslog doesn't exist yet, start at tile 0
-    dbfile = os.getenv('DESI_SPECTRO_SIM')+'/etc/obslog.sqlite'
+    dbfile = _proddir()+'/etc/obslog.sqlite'
     if not os.path.exists(dbfile):
         return 0
     
@@ -68,8 +72,8 @@ def get_fibermap(tileid=None, nfiber=5000):
     #- convert fibermap into numpy ndarray with named columns
     ### keys = fibermap.keys()
     #- Ensure a friendly order of columns
-    keys = ['FIBER', 'POSITIONER', 'TARGETID', 'OBJTYPE', '_SIMTYPE', '_SIMZ',
-        'TARGET_MASK0', 'RA', 'DEC', 'XFOCAL', 'YFOCAL']
+    keys = ['FIBER', 'POSITIONER', 'TARGETID', 'OBJTYPE', 'TARGET_MASK0',
+            'RA', 'DEC', 'XFOCAL', 'YFOCAL', '_SIMTYPE', '_SIMZ']
     assert set(keys) == set(fibermap.keys())
     dtype = zip(keys, [fibermap[k].dtype for k in keys])
     cols = [fibermap[k] for k in keys]
@@ -90,12 +94,12 @@ def get_next_obs(t=None):
     Increments exposure ID counter.
     """
     expid = get_next_expid()
-    tileid = get_next_tile()
+    tileid = get_next_tileid()
     return get_night(t), expid, tileid, get_fibermap(tileid)
 
 def get_next_expid(n=None):
     """
-    Return the next exposure ID to use from $DESI_SPECTRO_SIM/etc/next_expid.txt
+    Return the next exposure ID to use from {proddir}/etc/next_expid.txt
     and update the exposure ID in that file.
     
     Use file locking to prevent multiple readers from getting the same
@@ -110,10 +114,10 @@ def get_next_expid(n=None):
         probably not threadsafe.
     """
     #- Full path to next_expid.txt file
-    filename = os.getenv('DESI_SPECTRO_SIM')+'/etc/next_expid.txt'
+    filename = _proddir()+'/etc/next_expid.txt'
     
-    if not os.path.exists(os.getenv('DESI_SPECTRO_SIM')+'/etc/'):
-        os.makedirs(os.getenv('DESI_SPECTRO_SIM')+'/etc/')
+    if not os.path.exists(_proddir()+'/etc/'):
+        os.makedirs(_proddir()+'/etc/')
 
     #- Create file if needed; is this threadsafe?  Probably not.
     if not os.path.exists(filename):
@@ -178,7 +182,7 @@ def update_obslog(obstype='science', expid=None, dateobs=None, tileid=-1, ra=0.0
     returns tuple (expid, dateobs)
     """
     #- Connect to sqlite database file and create DB if needed
-    dbfile = os.path.join(os.environ['DESI_SPECTRO_SIM'], 'etc', 'obslog.sqlite')
+    dbfile = _proddir()+'/etc/obslog.sqlite'
     db = sqlite3.connect(dbfile)
     db.execute("""\
     CREATE TABLE IF NOT EXISTS obslog (
