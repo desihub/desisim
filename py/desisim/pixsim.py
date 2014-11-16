@@ -29,6 +29,9 @@ def simulate(fibermap_file, camera, verbose=False):
     """
     Simulate spectra
     
+    Writes
+        $DESI_SPECTRO_SIM/$PIXPROD/{night}/simflux-{camera}-{expid}.fits
+    
     TODO: more flexible input interface
     """
     assert os.path.exists(fibermap_file)
@@ -62,10 +65,10 @@ def simulate(fibermap_file, camera, verbose=False):
     #- Get expid from FIBERMAP
     fmhdr = fits.getheader(fibermap_file, 'FIBERMAP')
     expid = fmhdr['EXPID']
-    
+
     #-----
-    #- TEST: trim while testing
-    fibermap = fibermap[0:2]
+    #- TEST: trim for speed while testing
+    fibermap = fibermap[0:3]
     #-----
 
     if verbose:
@@ -85,7 +88,7 @@ def simulate(fibermap_file, camera, verbose=False):
     phot = thru.photons(wave, flux, units='1e-17 erg/s/cm2/A',
             objtype=fibermap['_SIMTYPE'], exptime=params['exptime'])
     
-    skyphot = thru.photons(wave, skyflux, units='1e-17 erg/s/cm2/A/arcsec^2',
+    skyphot = thru.photons(wave, skyflux, units='1e-17 erg/s/cm2/A/arcsec2',
         objtype='SKY', exptime=params['exptime'])
     
     tmp = Table([wave, flux.T, phot.T, skyflux, skyphot],
@@ -93,7 +96,6 @@ def simulate(fibermap_file, camera, verbose=False):
     ### spectra = tmp._data.view(np.recarray)
     spectra = tmp._data
 
-    #- TODO: propagate fibermap header info
     #- TODO: code versions
     #- TODO: column units
 
@@ -103,6 +105,15 @@ def simulate(fibermap_file, camera, verbose=False):
     hdu = fits.BinTableHDU(spectra, name=camera.upper()+'-SPECTRA')
     hdu.header.append( ('CAMERA', camera, 'Spectograph Camera') )
     fits.writeto(simfile, hdu.data, hdu.header, clobber=True)
+
+    comments = dict(
+        WAVE = 'Wavelength [Angstroms]',
+        FLUX = 'Object flux [1e-17 erg/s/cm^2/A]',
+        PHOT = 'Object photons per bin (not per A)',
+        SKYFLUX = 'Sky flux [1e-17 erg/s/cm^2/A/arcsec^2]',
+        SKYPHOT = 'Sky photons per bin (not per A)',
+    )
+    _add_table_comments(simfile, 1, comments)
 
     #- Project to image and append that to file
     if verbose:
@@ -148,9 +159,8 @@ def new_exposure(night=None, expid=None, tileid=None, verbose=False):
     
     Writes
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/fibermap-{expid}.fits
-        $DESI_SPECTRO_SIM/$PIXPROD/{night}/simflux-{camera}-{expid}.fits
         
-    Returns tuple (night, expid)
+    Returns full path to filename of fibermap file written
     """
     #- Get night, expid, and tileid if needed
     if night is None:
@@ -163,8 +173,8 @@ def new_exposure(night=None, expid=None, tileid=None, verbose=False):
         tileid = obs.get_next_tileid()
     
     #- Get fibermap table
-    ### fibermap = obs.get_fibermap()
-    fibermap = obs.get_fibermap(tileid=tileid, nfiber=1000)   #- TEST
+    fibermap = obs.get_fibermap()
+    ### fibermap = obs.get_fibermap(tileid=tileid, nfiber=1000)   #- TEST
 
     #- Create output directory if needed
     outdir = '{}/{}/{}/'.format(
@@ -180,7 +190,7 @@ def new_exposure(night=None, expid=None, tileid=None, verbose=False):
     hdu = fits.BinTableHDU(fibermap, name='FIBERMAP')
     hdu.header.append( ('TILEID', tileid, 'Tile ID') )
     hdu.header.append( ('EXPID',  expid, 'Exposure number') )
-    hdu.header.append( ('NIGHT',  expid, 'Night YEARMMDD') )
+    hdu.header.append( ('NIGHT',  str(night), 'Night YEARMMDD') )
     #- TODO: code versions...
     
     if verbose:
@@ -188,6 +198,42 @@ def new_exposure(night=None, expid=None, tileid=None, verbose=False):
         
     fits.writeto(fibermap_file, hdu.data, header=hdu.header)
     
+    #- Update columns with comment fields
+    comments = dict(
+        FIBER        = "Fiber ID [0-4999]",
+        POSITIONER   = "Positioner ID [0-4999]",
+        TARGETID     = "Unique target ID",
+        OBJTYPE      = "Target type [ELG, LRG, QSO, STD, STAR]",
+        TARGET_MASK0 = "Targeting bit mask",
+        RA           = "Right ascension [degrees]",
+        DEC          = "Declination [degrees]",
+        XFOCAL       = "x location on focal plane [mm]",
+        YFOCAL       = "y location on focal plane [mm]",
+        _SIMTYPE     = "True object type to simulate",
+        _SIMZ        = "True redshift at which to simulate spectrum",
+    )
+    _add_table_comments(fibermap_file, 1, comments)
+    
     return fibermap_file
 
-
+def _add_table_comments(filename, hdu, comments):
+    """
+    Add comments to auto-generated FITS binary table column keywords.
+    
+    filename : FITS file to update
+    hdu : HDU number with the table
+    comments : dictionary of colname:comment
+    """
+    fx = fits.open(filename, mode='update')
+    for i in range(1,100):
+        key = 'TTYPE'+str(i)
+        if key not in fx[hdu].header:
+            break
+        else:
+            value = fx[hdu].header[key]
+            if value in comments:
+                fx[hdu].header[key] = (value, comments[value])
+    
+    fx.flush()
+    fx.close()
+    

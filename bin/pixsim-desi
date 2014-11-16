@@ -66,6 +66,7 @@ np.random.seed(opts.randseed)
 
 if opts.newexp:
     fibermap_file = pixsim.new_exposure(night=opts.night, expid=opts.expid, verbose=opts.verbose)
+    print fibermap_file
 
 if opts.fibermap:
     pixsim.simulate(opts.fibermap, camera=opts.camera, verbose=opts.verbose)
