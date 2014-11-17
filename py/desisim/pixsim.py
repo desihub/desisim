@@ -96,14 +96,15 @@ def simulate(fibermap_file, camera, verbose=False):
     ### spectra = tmp._data.view(np.recarray)
     spectra = tmp._data
 
-    #- TODO: code versions
     #- TODO: column units
 
     #- Write spectra table
     #- fits bug requires creation of HDU to get all header keywords first
     simfile = '{}/sim-{}-{:08d}.fits'.format(outdir, camera, expid)
-    hdu = fits.BinTableHDU(spectra, name=camera.upper()+'-SPECTRA')
+    hdu = fits.BinTableHDU(spectra, header=fmhdr, name=camera.upper()+'-SPECTRA')
     hdu.header.append( ('CAMERA', camera, 'Spectograph Camera') )
+    hdu.header.append( ('VSPECTER', '0.0.0', 'TODO: Specter version') )
+    hdu.header.append( ('EXPTIME', params['exptime'], 'Exposure time [sec]') )
     fits.writeto(simfile, hdu.data, hdu.header, clobber=True)
 
     comments = dict(
@@ -119,9 +120,15 @@ def simulate(fibermap_file, camera, verbose=False):
     if verbose:
         print "Projecting photons onto CCD"
     img = psf.project(spectra['WAVE'], (spectra['PHOT'].T+spectra['SKYPHOT']))
-    hdu = fits.ImageHDU(img, name=camera.upper()+'-PIX')
+    hdu = fits.ImageHDU(img, header=fmhdr, name=camera.upper()+'-PIX')
+    hdu.header.append( ('CAMERA', camera, 'Spectograph Camera') )
+    hdu.header.append( ('VSPECTER', '0.0.0', 'TODO: Specter version') )
+    hdu.header.append( ('EXPTIME', params['exptime'], 'Exposure time [sec]') )
     
     fits.append(simfile, hdu.data, header=hdu.header)
+
+    #- NOTE: this does not enforce that the info in simfile is actually
+    #- complete enough for generating the final noisy outfile.
     
     if verbose:
         print "Wrote "+simfile
@@ -139,6 +146,9 @@ def simulate(fibermap_file, camera, verbose=False):
     #- Pixels
     outfile = '{}/proc-{}-{:08d}.fits'.format(outdir, camera, expid)
     hdu = fits.ImageHDU(img, header=fmhdr, name=camera.upper())
+    hdu.header.append( ('CAMERA', camera, 'Spectograph Camera') )
+    hdu.header.append( ('VSPECTER', '0.0.0', 'TODO: Specter version') )
+    hdu.header.append( ('EXPTIME', params['exptime'], 'Exposure time [sec]') )
     fits.writeto(outfile, hdu.data, hdu.header, clobber=True)
 
     #- Inverse variance (IVAR)
@@ -191,6 +201,9 @@ def new_exposure(night=None, expid=None, tileid=None, verbose=False):
     hdu.header.append( ('TILEID', tileid, 'Tile ID') )
     hdu.header.append( ('EXPID',  expid, 'Exposure number') )
     hdu.header.append( ('NIGHT',  str(night), 'Night YEARMMDD') )
+    hdu.header.append( ('DATE-OBS',  '2000-01-01T00:00:00', 'TODO: date obs in UTC (or TAI?)') )
+    hdu.header.append( ('VPIXSIM',  '0.0.0', 'TODO: pixsim version') )
+    hdu.header.append( ('VDMODEL',  '0.0.0', 'TODO: desimodel version') )
     #- TODO: code versions...
     
     if verbose:

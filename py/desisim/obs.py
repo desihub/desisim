@@ -188,7 +188,7 @@ def update_obslog(obstype='science', expid=None, dateobs=None, tileid=-1, ra=0.0
     CREATE TABLE IF NOT EXISTS obslog (
         expid INTEGER PRIMARY KEY,
         dateobs DATETIME,                   -- seconds since Unix Epoch (1970)
-        night TEXT,                         -- YEAR-MM-DD
+        night TEXT,                         -- YEARMMDD
         obstype TEXT DEFAULT "science",
         tileid INTEGER DEFAULT -1,
         ra REAL DEFAULT 0.0,
