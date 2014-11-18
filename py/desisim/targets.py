@@ -8,7 +8,6 @@ import numpy as np
 import sys
 import fitsio
 import random
-import pylab
 import desisim.cosmology
 import desisim.interpolation
 import astropy.units 
