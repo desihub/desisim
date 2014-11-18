@@ -4,8 +4,6 @@ Utility functions for interpolation of spectra over different wavelength grid
 
 import numpy as np
 import sys
-import pylab
-#from subprocess import call # for debugging
 #import time # for debugging
 
 def bin_bounds(x) :
