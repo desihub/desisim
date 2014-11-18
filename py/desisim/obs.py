@@ -6,10 +6,15 @@ import yaml
 import fitsio
 import sqlite3
 import fcntl
+import time
 
 from . import targets
 
-def get_next_tile():
+def _proddir():
+    """Return $DESI_SPECTRO_SIM/$PIXPROD/"""
+    return os.getenv('DESI_SPECTRO_SIM') + '/' + os.getenv('PIXPROD') + '/'
+
+def get_next_tileid():
     """
     Return tileid of next tile to observe
     
@@ -21,8 +26,12 @@ def get_next_tile():
     tiles = fitsio.read(footprint)
     tiles = tiles[tiles['IN_DESI'] > 0]
 
+    #- If obslog doesn't exist yet, start at tile 0
+    dbfile = _proddir()+'/etc/obslog.sqlite'
+    if not os.path.exists(dbfile):
+        return 0
+    
     #- Read obslog to get tiles that have already been observed
-    dbfile = os.getenv('DESI_SPECTRO_SIM')+'/etc/obslog.sqlite'
     db = sqlite3.connect(dbfile)
     result = db.execute('SELECT tileid FROM obslog')
     obstiles = set( [row[0] for row in result] )
@@ -52,7 +61,8 @@ def get_fibermap(tileid=None, nfiber=5000):
     fibermap['POSITIONER'] = fiberpos['POSITIONER'][0:nfiber]
     fibermap['TARGETID'] = np.random.randint(sys.maxint, size=nfiber)
     fibermap['OBJTYPE'] = np.array(target_objtype)
-    fibermap['SIM_OBJTYPE'] = np.array(true_objtype)
+    fibermap['_SIMTYPE'] = np.array(true_objtype)
+    fibermap['_SIMZ'] = z
     fibermap['TARGET_MASK0'] = np.zeros(nfiber, dtype='i8')
     fibermap['RA'] = np.zeros(nfiber, dtype='f8')
     fibermap['DEC'] = np.zeros(nfiber, dtype='f8')
@@ -60,7 +70,11 @@ def get_fibermap(tileid=None, nfiber=5000):
     fibermap['YFOCAL'] = fiberpos['Y'][0:nfiber]
 
     #- convert fibermap into numpy ndarray with named columns
-    keys = fibermap.keys()
+    ### keys = fibermap.keys()
+    #- Ensure a friendly order of columns
+    keys = ['FIBER', 'POSITIONER', 'TARGETID', 'OBJTYPE', 'TARGET_MASK0',
+            'RA', 'DEC', 'XFOCAL', 'YFOCAL', '_SIMTYPE', '_SIMZ']
+    assert set(keys) == set(fibermap.keys())
     dtype = zip(keys, [fibermap[k].dtype for k in keys])
     cols = [fibermap[k] for k in keys]
     rows = zip(*cols)
@@ -68,18 +82,24 @@ def get_fibermap(tileid=None, nfiber=5000):
     
     return fibermap
     
-def get_next_obs():
+def get_next_obs(t=None):
     """
-    Return expid, tileid, fibermap for next observation to perform.
+    Return night, expid, tileid, fibermap for next observation to perform.
+    
+    Optional inputs:
+    t : time.struct_time tuple of integers
+        (year, month, day, hour, min, sec, weekday, dayofyear, DSTflag)
+        default is time.localtime(), i.e. now
     
     Increments exposure ID counter.
     """
-    tileid = get_next_tile()
-    return get_next_expid(), tileid, get_fibermap(tileid)
+    expid = get_next_expid()
+    tileid = get_next_tileid()
+    return get_night(t), expid, tileid, get_fibermap(tileid)
 
 def get_next_expid(n=None):
     """
-    Return the next exposure ID to use from $DESI_SPECTRO_SIM/etc/next_expid.txt
+    Return the next exposure ID to use from {proddir}/etc/next_expid.txt
     and update the exposure ID in that file.
     
     Use file locking to prevent multiple readers from getting the same
@@ -94,7 +114,10 @@ def get_next_expid(n=None):
         probably not threadsafe.
     """
     #- Full path to next_expid.txt file
-    filename = os.getenv('DESI_SPECTRO_SIM')+'/etc/next_expid.txt'
+    filename = _proddir()+'/etc/next_expid.txt'
+    
+    if not os.path.exists(_proddir()+'/etc/'):
+        os.makedirs(_proddir()+'/etc/')
 
     #- Create file if needed; is this threadsafe?  Probably not.
     if not os.path.exists(filename):
@@ -159,13 +182,13 @@ def update_obslog(obstype='science', expid=None, dateobs=None, tileid=-1, ra=0.0
     returns tuple (expid, dateobs)
     """
     #- Connect to sqlite database file and create DB if needed
-    dbfile = os.path.join(os.environ['DESI_SPECTRO_SIM'], 'etc', 'obslog.sqlite')
+    dbfile = _proddir()+'/etc/obslog.sqlite'
     db = sqlite3.connect(dbfile)
     db.execute("""\
     CREATE TABLE IF NOT EXISTS obslog (
         expid INTEGER PRIMARY KEY,
         dateobs DATETIME,                   -- seconds since Unix Epoch (1970)
-        night TEXT,                         -- YEAR-MM-DD
+        night TEXT,                         -- YEARMMDD
         obstype TEXT DEFAULT "science",
         tileid INTEGER DEFAULT -1,
         ra REAL DEFAULT 0.0,

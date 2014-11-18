@@ -1,0 +1,82 @@
+#!/usr/bin/env python
+
+"""
+Simulate DESI spectrograph CCD images given input spectra and PSF
+
+First step: organize inputs
+
+pixsim-desi --newexp [--night YEARMMDD --expid EXPID]
+pixsim-desi --camera b0 --fibermap FIBERMAP_FILE.fits
+
+pixsim-desi --camera b0 --night 20141114 --expid 2
+
+Stephen Bailey, LBL
+January 2014
+"""
+
+import sys
+import os
+import numpy as np
+import optparse
+import random
+
+import fitsio
+import yaml
+
+from astropy.io import fits
+from astropy.table import Table
+
+import specter
+from specter.psf import load_psf
+from specter.throughput import load_throughput
+import specter.util
+
+from desisim.obs import get_next_obs
+from desisim import pixsim
+
+#- Parse options
+parser = optparse.OptionParser(
+    usage = "%prog [options]",
+    epilog = "See $SPECTER_DIR/doc/datamodel.md for input format details"
+    )
+    
+parser.add_option("--newexp", action="store_true", help="Create new exposure")
+parser.add_option("--expid", type=int, help="exposure id")
+parser.add_option("--night", type=str, help="YEARMMDD")
+parser.add_option("--fibermap", type=str, help="fiber map file")
+parser.add_option("--camera", type=str, help="camera (e.g. b0, r5, z9)")
+parser.add_option("--verbose", action="store_true", help="print more stuff")
+parser.add_option("--randseed", type=int, default=0, help="random number seed")
+
+opts, args = parser.parse_args()
+
+#- Check environment
+envOK = True
+for envvar in ('DESIMODEL', 'PIXPROD', 'DESI_SPECTRO_SIM'):
+    if envvar not in os.environ:
+        print "ERROR: %s is required" % envvar
+        envOK = False
+if not envOK:
+    print "Set those environment variable(s) and then try again"
+    sys.exit(1)
+
+#- Initialize random seeds
+random.seed(opts.randseed)
+np.random.seed(opts.randseed)
+
+if opts.newexp:
+    fibermap_file = pixsim.new_exposure(night=opts.night, expid=opts.expid, verbose=opts.verbose)
+    print fibermap_file
+
+if opts.fibermap:
+    pixsim.simulate(opts.fibermap, camera=opts.camera, verbose=opts.verbose)
+
+#-------------------------------------------------------------------------
+# if opts.debug:
+#     #--- DEBUG ---
+#     from pylab import *
+#     ion()
+#     import IPython
+#     IPython.embed()
+#     #--- DEBUG ---
+    
