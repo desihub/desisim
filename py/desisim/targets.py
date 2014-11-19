@@ -140,15 +140,16 @@ def get_templates(wave, objtype, redshift):
     
     #- Store the list of known objtype and associated template filename
     known_filenames_for_objtypes={}
-    try :
-        known_filenames_for_objtypes["LRG"]=os.getenv("DESI_LRG_TEMPLATES")
-        known_filenames_for_objtypes["ELG"]=os.getenv("DESI_ELG_TEMPLATES")
-        known_filenames_for_objtypes["STAR"]=os.getenv("DESI_STAR_TEMPLATES")
-        #known_filenames_for_objtypes["QSO"]=os.getenv("unknown")
-    except :
-        print sys.exc_info()
-        print "ERROR in targets.get_templates when getting environments variables"
-        sys.exit(12) # need a better exception here 
+    missing_template_env = list()
+    for xobj in set(objtype):
+        key = 'DESI_'+xobj+'_TEMPLATES'
+        if key in os.environ:
+            known_filenames_for_objtypes[key] = os.getenv(key)
+        else:
+            missing_template_env.append(key)
+            
+    if len(missing_template_env) > 0:
+        raise EnvironmentError("Missing env vars "+str(missing_template_env))
     
     #- allocate spectra
     spectra=np.zeros((len(objtype), len(wave)))
@@ -179,7 +180,7 @@ def get_templates(wave, objtype, redshift):
         print loglam.size,number_of_spectra_in_file
         
         #- now loop on requested entries
-        for obj_req, z, index in zip(objtype,redshift,np.arange(redshift.size)) :
+        for obj_req, z, index in zip(objtype,redshift,np.arange(len(redshift))) :
             
             #- check match objtype of file we have opened 
             if obj_req != obj :
