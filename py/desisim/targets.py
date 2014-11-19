@@ -144,7 +144,7 @@ def get_templates(wave, objtype, redshift):
     for xobj in set(objtype):
         key = 'DESI_'+xobj+'_TEMPLATES'
         if key in os.environ:
-            known_filenames_for_objtypes[key] = os.getenv(key)
+            known_filenames_for_objtypes[xobj] = os.getenv(key)
         else:
             missing_template_env.append(key)
             
@@ -198,6 +198,9 @@ def get_templates(wave, objtype, redshift):
             
             #- ratio of luminosity distance between redshift z and 10pc
             dl_ratio=(10*astropy.units.pc)/desisim.cosmology.fiducial_cosmology.luminosity_distance(z)
+            
+            #- decompose units to dimensionless ratio
+            dl_ratio = dl_ratio.decompose().value
             
             #- factor 1/(1+z) because energy density per unit observed wavelength
             scale=dl_ratio**2/(1.+z)
