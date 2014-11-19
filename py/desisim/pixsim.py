@@ -163,7 +163,7 @@ def simulate(fibermap_file, camera, verbose=False):
     if verbose:
         print "Wrote "+outfile
     
-def new_exposure(night=None, expid=None, tileid=None, verbose=False):
+def new_fibermap_file(night=None, expid=None, tileid=None, verbose=False):
     """
     Setup new exposure to simulate
     
@@ -183,7 +183,7 @@ def new_exposure(night=None, expid=None, tileid=None, verbose=False):
         tileid = obs.get_next_tileid()
     
     #- Get fibermap table
-    fibermap = obs.get_fibermap()
+    fibermap, tele_ra, tele_dec = obs.get_fibermap(tileid)
     ### fibermap = obs.get_fibermap(tileid=tileid, nfiber=1000)   #- TEST
 
     #- Create output directory if needed
@@ -204,6 +204,11 @@ def new_exposure(night=None, expid=None, tileid=None, verbose=False):
     hdu.header.append( ('DATE-OBS',  '2000-01-01T00:00:00', 'TODO: date obs in UTC (or TAI?)') )
     hdu.header.append( ('VPIXSIM',  '0.0.0', 'TODO: pixsim version') )
     hdu.header.append( ('VDMODEL',  '0.0.0', 'TODO: desimodel version') )
+    hdu.header.append( ('VOPTICS',  '0.0.0', 'TODO: optics model version') )
+    hdu.header.append( ('VFIBVCAM', '0.0.0', 'TODO: fiber view code version') )
+    hdu.header.append( ('TELERA',   tele_ra, 'Telescope central RA [deg]') )
+    hdu.header.append( ('TELEDEC', tele_dec, 'Telescope central dec [deg]') )
+    hdu.header.append( ('HEXPDROT', 0.0, 'TODO: hexapod rotation [deg]') )
     #- TODO: code versions...
     
     if verbose:
@@ -215,13 +220,22 @@ def new_exposure(night=None, expid=None, tileid=None, verbose=False):
     comments = dict(
         FIBER        = "Fiber ID [0-4999]",
         POSITIONER   = "Positioner ID [0-4999]",
+        SPECTROID    = "Spectrograph ID [0-9]",
         TARGETID     = "Unique target ID",
-        OBJTYPE      = "Target type [ELG, LRG, QSO, STD, STAR]",
+        TARGETCAT    = "Name/version of the target catalog",
+        OBJTYPE      = "Target type [ELG, LRG, QSO, STD, STAR, SKY]",
+        LAMBDAREF    = "Reference wavelength at which to align fiber",
         TARGET_MASK0 = "Targeting bit mask",
-        RA           = "Right ascension [degrees]",
-        DEC          = "Declination [degrees]",
-        XFOCAL       = "x location on focal plane [mm]",
-        YFOCAL       = "y location on focal plane [mm]",
+        RA_TARGET    = "Target right ascension [degrees]",
+        DEC_TARGET   = "Target declination [degrees]",
+        X_TARGET     = "X on focal plane derived from (RA,DEC)_TARGET",
+        Y_TARGET     = "Y on focal plane derived from (RA,DEC)_TARGET",
+        X_FVCOBS     = "X location observed by Fiber View Cam [mm]",
+        Y_FVCOBS     = "Y location observed by Fiber View Cam [mm]",
+        X_FVCERR     = "X location uncertainty from Fiber View Cam [mm]",
+        Y_FVCERR     = "Y location uncertainty from Fiber View Cam [mm]",
+        RA_OBS       = "RA of obs from (X,Y)_FVCOBS and optics [deg]",
+        DEC_OBS      = "dec of obs from (X,Y)_FVCOBS and optics [deg]",
         _SIMTYPE     = "True object type to simulate",
         _SIMZ        = "True redshift at which to simulate spectrum",
     )

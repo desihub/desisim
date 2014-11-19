@@ -48,39 +48,57 @@ def get_fibermap(tileid=None, nfiber=5000):
     
     Columns FIBER OBJTYPE RA DEC XFOCAL YFOCAL TARGET_MASK0
     
-    BUGS: 5000 should not be hardcoded default
+    TODO:
+      - 5000 should not be hardcoded default
+      - tileid is currently ignored
     """
     true_objtype, target_objtype, z = targets.sample_targets(nfiber)
 
     #- Load fiber -> positioner mapping
     fiberpos = fitsio.read(os.getenv('DESIMODEL')+'/data/focalplane/fiberpos.fits', upper=True)
     
+    #- Telescope RA and dec
+    tele_ra = tele_dec = 0.0
+    
     #- Make a fake fibermap
     fibermap = dict()
     fibermap['FIBER'] = np.arange(nfiber, dtype='i4')
     fibermap['POSITIONER'] = fiberpos['POSITIONER'][0:nfiber]
+    fibermap['SPECTROID'] = fiberpos['SPECTROGRAPH'][0:nfiber]
     fibermap['TARGETID'] = np.random.randint(sys.maxint, size=nfiber)
+    fibermap['TARGETCAT'] = np.zeros(nfiber, dtype='|S20')
     fibermap['OBJTYPE'] = np.array(target_objtype)
+    fibermap['LAMBDAREF'] = np.ones(nfiber, dtype=np.float32)*5400
+    fibermap['TARGET_MASK0'] = np.zeros(nfiber, dtype='i8')
+    fibermap['RA_TARGET'] = np.zeros(nfiber, dtype='f8')
+    fibermap['DEC_TARGET'] = np.zeros(nfiber, dtype='f8')
+    fibermap['X_TARGET'] = fiberpos['X'][0:nfiber]
+    fibermap['Y_TARGET'] = fiberpos['Y'][0:nfiber]
+    fibermap['X_FVCOBS'] = fibermap['X_TARGET']
+    fibermap['Y_FVCOBS'] = fibermap['Y_TARGET']
+    fibermap['X_FVCERR'] = np.zeros(nfiber, dtype=np.float32)
+    fibermap['Y_FVCERR'] = np.zeros(nfiber, dtype=np.float32)
+    fibermap['RA_OBS'] = fibermap['RA_TARGET']
+    fibermap['DEC_OBS'] = fibermap['DEC_TARGET']
     fibermap['_SIMTYPE'] = np.array(true_objtype)
     fibermap['_SIMZ'] = z
-    fibermap['TARGET_MASK0'] = np.zeros(nfiber, dtype='i8')
-    fibermap['RA'] = np.zeros(nfiber, dtype='f8')
-    fibermap['DEC'] = np.zeros(nfiber, dtype='f8')
-    fibermap['XFOCAL'] = fiberpos['X'][0:nfiber]
-    fibermap['YFOCAL'] = fiberpos['Y'][0:nfiber]
 
     #- convert fibermap into numpy ndarray with named columns
     ### keys = fibermap.keys()
     #- Ensure a friendly order of columns
-    keys = ['FIBER', 'POSITIONER', 'TARGETID', 'OBJTYPE', 'TARGET_MASK0',
-            'RA', 'DEC', 'XFOCAL', 'YFOCAL', '_SIMTYPE', '_SIMZ']
+    keys = ['FIBER', 'POSITIONER', 'SPECTROID', 'TARGETID', 'TARGETCAT',
+            'OBJTYPE', 'LAMBDAREF', 'TARGET_MASK0',
+            'RA_TARGET', 'DEC_TARGET', 'RA_OBS', 'DEC_OBS',
+            'X_TARGET', 'Y_TARGET',
+            'X_FVCOBS', 'Y_FVCOBS', 'X_FVCERR', 'Y_FVCERR',
+            '_SIMTYPE', '_SIMZ']
     assert set(keys) == set(fibermap.keys())
     dtype = zip(keys, [fibermap[k].dtype for k in keys])
     cols = [fibermap[k] for k in keys]
     rows = zip(*cols)
     fibermap = np.array(rows, dtype)
     
-    return fibermap
+    return fibermap, tele_ra, tele_dec
     
 def get_next_obs(t=None):
     """

@@ -65,8 +65,12 @@ random.seed(opts.randseed)
 np.random.seed(opts.randseed)
 
 if opts.newexp:
-    fibermap_file = pixsim.new_exposure(night=opts.night, expid=opts.expid, verbose=opts.verbose)
+    fibermap_file = pixsim.new_fibermap_file(night=opts.night, expid=opts.expid, verbose=opts.verbose)
     print fibermap_file
+
+if opts.camera is None:
+    print "ERROR: You must specify a --camera [b0, r5, ... z9]"
+    sys.exit(1)
 
 if opts.fibermap:
     pixsim.simulate(opts.fibermap, camera=opts.camera, verbose=opts.verbose)
