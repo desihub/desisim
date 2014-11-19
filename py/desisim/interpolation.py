@@ -5,6 +5,7 @@ Utility functions for interpolation of spectra over different wavelength grid
 import numpy as np
 import sys
 #import time # for debugging
+import pylab
 
 def bin_bounds(x) :
     if x.size<2 :
@@ -36,8 +37,6 @@ def bin_bounds(x) :
 # options 
 # left=value for expolation to the left, if None, use input_flux_density[0], default=0
 # right=value for expolation to the right, if None, use input_flux_density[-1], default=0
-#
-# the code is a bit slow
 #
 def general_interpolate_flux_density(output_x,input_x,input_flux_density,left=0.,right=0.) :
     
@@ -85,16 +84,10 @@ def general_interpolate_flux_density(output_x,input_x,input_flux_density,left=0.
     del twp
     
     # compute output flux as weighted mean
-    # can we do this faster without an explicit loop??
-    #start = time.time()
-    output_flux=np.zeros(ow.size)
-    weightf=weight*tf
-    for i,owmi,owpi in zip(np.arange(ow.size),owm,owp) :
-        index=(tw>=owmi)&(tw<=owpi)
-        sw=np.sum(weight[index])
-        output_flux[i]=np.sum(weightf[index])/(sw+(sw==0))
-    #stop = time.time()
-    #print "done method 1 in",(stop-start)
+    bins=np.append(owm,owp[-1])
+    output_flux,bin_edges=np.histogram(tw,bins,weights=weight*tf)
+    sw,bin_edges=np.histogram(tw,bins,weights=weight)
+    output_flux=output_flux/(sw+(sw==0))
             
     del tw
     del tf
