@@ -12,6 +12,7 @@ import desisim.cosmology
 import desisim.interpolation
 import astropy.units 
 import math
+import string
 
 def sample_nz(objtype, n):
     """
@@ -178,6 +179,38 @@ def get_templates(wave, objtype, redshift):
         file_restframe_wave=10**loglam
         number_of_spectra_in_file=header["NAXIS2"]
         print loglam.size,number_of_spectra_in_file
+
+
+        extra_normalization=None
+        ignore_redshift_for_distance=False
+        
+        # check objtype and version in file and possibly adapt normalization 
+        objtype_in_file=string.strip(header["OBJTYPE"])
+        version_in_file=string.strip(header["VERSION"])
+        
+        if objtype_in_file=="ELG" and version_in_file=="v1.2" :
+
+            print "WARNING in targets.get_templates : need to alter normalization of template for ELG v1.2 because normalized to m_stell = 1 Msol"
+            print "WARNING in targets.get_templates : use gaussian distrib of log10(m_stell) based on obs. frame. template, with mean[log10(m_stell)]=10.25 (actually median) and rms [log10(m_stell)]=0.485"
+            extra_normalization=10**np.random.normal(loc=10.25,scale=0.485,size=len(redshift))
+        
+        elif objtype_in_file=="LRG" and version_in_file=="v1.0" :
+
+            print "WARNING in targets.get_templates : need to alter normalization of template for LRG v1.0 because normalized to m_stell = 1 Msol"
+            print "ERROR in targets.get_templates : but I don't know what distribution of log10(m_stell) to use!"
+            sys.exit(12) # need a better exception here 
+            
+        elif objtype_in_file=="STELLAR" and version_in_file=="v1.0" :
+            ignore_redshifts=True
+            
+            print "WARNING in targets.get_templates : will use a hard-coded range of distances for stars"
+            print "ERROR in targets.get_templates : but I don't know what distribution to use!"
+            sys.exit(12) # need a better exception here 
+        
+        else :
+            print "ERROR in targets.get_templates, objtype %s with version %s (in the header of %s) is new and need to be checked, please edit the python code"%(objtype_in_file,version_in_file,filename)
+            sys.exit(12) # need a better exception here  
+        
         
         #- now loop on requested entries
         for obj_req, z, index in zip(objtype,redshift,np.arange(len(redshift))) :
@@ -186,6 +219,10 @@ def get_templates(wave, objtype, redshift):
             if obj_req != obj :
                 continue
             
+            #- warning for stars
+            if z>0 and ignore_redshift_for_distance :
+                print "WARNING we will not use the redshift to get a distance for objtype=%s, we'll do only a shift of wavelenth"%objtype_in_file
+                
             #- take one random row in file
             entry=int(random.random()*number_of_spectra_in_file)           
             
@@ -193,38 +230,46 @@ def get_templates(wave, objtype, redshift):
             restframe_spectrum=file[0][entry:entry+1,:][0]
             # print obj,z,entry,restframe_spectrum.shape
             
-            #- use fiducial cosmology to get luminosity distance
-            dl=desisim.cosmology.fiducial_cosmology.luminosity_distance(z)
-            
-            #- ratio of luminosity distance between redshift z and 10pc
-            dl_ratio=(10*astropy.units.pc)/desisim.cosmology.fiducial_cosmology.luminosity_distance(z)
-            
-            #- decompose units to dimensionless ratio
-            dl_ratio = dl_ratio.decompose().value
-            
-            #- factor 1/(1+z) because energy density per unit observed wavelength
-            scale=dl_ratio**2/(1.+z)
+            if ignore_redshift_for_distance :
 
-            # just if someone wonders,
-            # templates are SEDs at 10pc : phi_0 = ergs/s/cm2/A at d=10pc , z=0
-            # luminosity is L (ergs/s/A) = (4*pi*(10pc)^2) * phi_0
-            # dd=distance from source , dl=(1+z)*dd=luminosity distance
-            # number of photons per unit area (of energy,time interval,wave interval E_e,dt_e,dwave_e at emission)
-            # dn_photons = L/(4*pi*(dd(z))^2)/E_e*dt_e*dwave_e
-            #            = L/(4*pi*(dd(z))^2)/E_r*dt_r*dwave_r/(1+z)^3
-            # phi_obs = observed SED in ergs/s/cm2/A :
-            # phi_obs = E_r*dn_photons/(dt_r*dwave_r)
-            #         = L/(4*pi*(dd(z))^2)/(1+z)^3
-            #         = phi_0*(10pc/dd(z))^2/(1+z)^3
-            #         = phi_0*(10pc/(dl(z)/(1+z))^2/(1+z)^3
-            #         = phi_0*(10pc/dl(z))^2/(1+z)
+                scale=1.
+
+            else :
+
+                #- use fiducial cosmology to get luminosity distance
+                dl=desisim.cosmology.fiducial_cosmology.luminosity_distance(z)
+                
+                #- ratio of luminosity distance between redshift z and 10pc
+                dl_ratio=(10*astropy.units.pc)/desisim.cosmology.fiducial_cosmology.luminosity_distance(z)
             
+                #- decompose units to dimensionless ratio
+                dl_ratio = dl_ratio.decompose().value
             
+                #- factor 1/(1+z) because energy density per unit observed wavelength
+                scale=dl_ratio**2/(1.+z)
+
+                # just if someone wonders,
+                # templates are SEDs at 10pc : phi_0 = ergs/s/cm2/A at d=10pc , z=0
+                # luminosity is L (ergs/s/A) = (4*pi*(10pc)^2) * phi_0
+                # dd=distance from source , dl=(1+z)*dd=luminosity distance
+                # number of photons per unit area (of energy,time interval,wave interval E_e,dt_e,dwave_e at emission)
+                # dn_photons = L/(4*pi*(dd(z))^2)/E_e*dt_e*dwave_e
+                #            = L/(4*pi*(dd(z))^2)/E_r*dt_r*dwave_r/(1+z)^3
+                # phi_obs = observed SED in ergs/s/cm2/A :
+                # phi_obs = E_r*dn_photons/(dt_r*dwave_r)
+                #         = L/(4*pi*(dd(z))^2)/(1+z)^3
+                #         = phi_0*(10pc/dd(z))^2/(1+z)^3
+                #         = phi_0*(10pc/(dl(z)/(1+z))^2/(1+z)^3
+                #         = phi_0*(10pc/dl(z))^2/(1+z)
+            
+                
             #- observer frame wave
             file_obsframe_wave=(1.+z)*file_restframe_wave
             
             #- use interpolation routine that conserves flux
             spectra[index]=desisim.interpolation.general_interpolate_flux_density(wave,file_obsframe_wave,scale*restframe_spectrum)
             
+            if extra_normalization != None :
+                spectra[index] *= extra_normalization[index]
     
     return spectra
