@@ -34,6 +34,8 @@ import specter.util
 from desisim.obs import get_next_obs
 from desisim import pixsim
 
+
+
 #- Parse options
 parser = optparse.OptionParser(
     usage = "%prog [options]",
@@ -68,11 +70,11 @@ if opts.newexp:
     fibermap_file = pixsim.new_fibermap_file(night=opts.night, expid=opts.expid, verbose=opts.verbose)
     print fibermap_file
 
-if opts.camera is None:
-    print "ERROR: You must specify a --camera [b0, r5, ... z9]"
-    sys.exit(1)
-
 if opts.fibermap:
+    if opts.camera is None:
+        print "ERROR: You must specify a --camera [b0, r5, ... z9]"
+        sys.exit(1)
+
     pixsim.simulate(opts.fibermap, camera=opts.camera, verbose=opts.verbose)
 
 #-------------------------------------------------------------------------
