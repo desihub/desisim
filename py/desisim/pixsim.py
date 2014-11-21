@@ -1,4 +1,6 @@
 import os
+import time
+
 import numpy as np
 
 import yaml
@@ -162,7 +164,7 @@ def simulate(fibermap_file, camera, verbose=False):
 
     if verbose:
         print "Wrote "+outfile
-    
+        
 def new_fibermap_file(night=None, expid=None, tileid=None, verbose=False):
     """
     Setup new exposure to simulate
@@ -173,17 +175,21 @@ def new_fibermap_file(night=None, expid=None, tileid=None, verbose=False):
     Returns full path to filename of fibermap file written
     """
     #- Get night, expid, and tileid if needed
+    dateobs = time.gmtime()
+    dateobs_str = time.strftime("%Y-%m-%dT%H:%M:%S", dateobs)
     if night is None:
-        night = obs.get_night()
+        night = obs.get_night(utc=dateobs)
         
     if expid is None:
         expid = obs.get_next_expid()
         
     if tileid is None:
-        tileid = obs.get_next_tileid()
+        tileid, tele_ra, tele_dec = obs.get_next_tile()
+    else:
+        tele_ra, tele_dec = obs.get_tile_radec(tileid)
     
     #- Get fibermap table
-    fibermap, tele_ra, tele_dec = obs.get_fibermap(tileid)
+    fibermap = obs.get_fibermap(tileid)
     ### fibermap = obs.get_fibermap(tileid=tileid, nfiber=1000)   #- TEST
 
     #- Create output directory if needed
@@ -201,7 +207,6 @@ def new_fibermap_file(night=None, expid=None, tileid=None, verbose=False):
     hdu.header.append( ('TILEID', tileid, 'Tile ID') )
     hdu.header.append( ('EXPID',  expid, 'Exposure number') )
     hdu.header.append( ('NIGHT',  str(night), 'Night YEARMMDD') )
-    hdu.header.append( ('DATE-OBS',  '2000-01-01T00:00:00', 'TODO: date obs in UTC (or TAI?)') )
     hdu.header.append( ('VPIXSIM',  '0.0.0', 'TODO: pixsim version') )
     hdu.header.append( ('VDMODEL',  '0.0.0', 'TODO: desimodel version') )
     hdu.header.append( ('VOPTICS',  '0.0.0', 'TODO: optics model version') )
@@ -209,7 +214,7 @@ def new_fibermap_file(night=None, expid=None, tileid=None, verbose=False):
     hdu.header.append( ('TELERA',   tele_ra, 'Telescope central RA [deg]') )
     hdu.header.append( ('TELEDEC', tele_dec, 'Telescope central dec [deg]') )
     hdu.header.append( ('HEXPDROT', 0.0, 'TODO: hexapod rotation [deg]') )
-    #- TODO: code versions...
+    hdu.header.append( ('DATE-OBS', dateobs_str, 'Date of observation in UTC') )
     
     if verbose:
         print "Writing " + os.path.basename(fibermap_file)
@@ -240,6 +245,10 @@ def new_fibermap_file(night=None, expid=None, tileid=None, verbose=False):
         _SIMZ        = "True redshift at which to simulate spectrum",
     )
     _add_table_comments(fibermap_file, 1, comments)
+    
+    #- Update obslog with this entry
+    obs.update_obslog(obstype='science', expid=expid, dateobs=dateobs,
+        tileid=tileid, ra=tele_ra, dec=tele_dec)
     
     return fibermap_file
 

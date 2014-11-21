@@ -31,7 +31,6 @@ from specter.psf import load_psf
 from specter.throughput import load_throughput
 import specter.util
 
-from desisim.obs import get_next_obs
 from desisim import pixsim
 
 
@@ -69,13 +68,22 @@ np.random.seed(opts.randseed)
 if opts.newexp:
     fibermap_file = pixsim.new_fibermap_file(night=opts.night, expid=opts.expid, verbose=opts.verbose)
     print fibermap_file
+    sys.exit(0)
 
 if opts.fibermap:
     if opts.camera is None:
         print "ERROR: You must specify a --camera [b0, r5, ... z9]"
         sys.exit(1)
 
-    pixsim.simulate(opts.fibermap, camera=opts.camera, verbose=opts.verbose)
+    #- Check path
+    fmfile = opts.fibermap
+    if not os.path.exists(fmfile):
+        fmfile = os.getenv('DESI_SPECTRO_SIM')+'/'+os.getenv('PIXPROD')+'/'+fmfile
+        if not os.path.exists(fmfile):
+            print "ERROR: unable to find", opts.fibermap
+            sys.exit(1)
+        
+    pixsim.simulate(fmfile, camera=opts.camera, verbose=opts.verbose)
 
 #-------------------------------------------------------------------------
 # if opts.debug:

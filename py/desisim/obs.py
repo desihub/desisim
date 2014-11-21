@@ -3,10 +3,10 @@
 import os, sys
 import numpy as np
 import yaml
-import fitsio
 import sqlite3
 import fcntl
 import time
+from astropy.io import fits
 
 from . import targets
 
@@ -14,16 +14,16 @@ def _proddir():
     """Return $DESI_SPECTRO_SIM/$PIXPROD/"""
     return os.getenv('DESI_SPECTRO_SIM') + '/' + os.getenv('PIXPROD') + '/'
 
-def get_next_tileid():
+def get_next_tile():
     """
-    Return tileid of next tile to observe
+    Return tileid, ra, dec of next tile to observe
     
     Note: simultaneous calls will return the same tileid;
           it does *not* reserve the tileid
     """
     #- Read DESI tiling and trim to just tiles in DESI footprint
     footprint = os.getenv('DESIMODEL')+'/data/footprint/desi-tiles.fits'
-    tiles = fitsio.read(footprint)
+    tiles = fits.getdata(footprint)
     tiles = tiles[tiles['IN_DESI'] > 0]
 
     #- If obslog doesn't exist yet, start at tile 0
@@ -38,9 +38,17 @@ def get_next_tileid():
     db.close()
     
     #- Just pick the next tile in sequential order
-    nexttile = min(set(tiles['TILEID']) - obstiles)
+    nexttile = int(min(set(tiles['TILEID']) - obstiles))
+    i = np.where(tiles['TILEID'] == nexttile)[0][0]
         
-    return nexttile
+    return nexttile, tiles[i]['RA'], tiles[i]['DEC']
+    
+def get_tile_radec(tileid):
+    footprint = os.getenv('DESIMODEL')+'/data/footprint/desi-tiles.fits'
+    tiles = fits.getdata(footprint)
+    i = np.where(tiles['TILEID'] == tileid)[0][0]
+    return tiles[i]['RA'], tiles[i]['DEC']
+    
     
 def get_fibermap(tileid=None, nfiber=5000):
     """
@@ -55,11 +63,12 @@ def get_fibermap(tileid=None, nfiber=5000):
     true_objtype, target_objtype, z = targets.sample_targets(nfiber)
 
     #- Load fiber -> positioner mapping
-    fiberpos = fitsio.read(os.getenv('DESIMODEL')+'/data/focalplane/fiberpos.fits', upper=True)
-    
-    #- Telescope RA and dec
-    tele_ra = tele_dec = 0.0
-    
+    fiberpos = fits.getdata(os.getenv('DESIMODEL')+'/data/focalplane/fiberpos.fits', upper=True)
+            
+    #- Where is this tile on the sky
+    #- NOTE: more file I/O; seems clumsy
+    tilera, tiledec = get_tile_radec(tileid)
+                        
     #- Make a fake fibermap
     fibermap = dict()
     fibermap['FIBER'] = np.arange(nfiber, dtype='i4')
@@ -70,8 +79,8 @@ def get_fibermap(tileid=None, nfiber=5000):
     fibermap['OBJTYPE'] = np.array(target_objtype)
     fibermap['LAMBDAREF'] = np.ones(nfiber, dtype=np.float32)*5400
     fibermap['TARGET_MASK0'] = np.zeros(nfiber, dtype='i8')
-    fibermap['RA_TARGET'] = np.zeros(nfiber, dtype='f8')
-    fibermap['DEC_TARGET'] = np.zeros(nfiber, dtype='f8')
+    fibermap['RA_TARGET'] = np.ones(nfiber, dtype='f8') * tilera   #- TODO
+    fibermap['DEC_TARGET'] = np.ones(nfiber, dtype='f8') * tiledec #- TODO
     fibermap['X_TARGET'] = fiberpos['X'][0:nfiber]
     fibermap['Y_TARGET'] = fiberpos['Y'][0:nfiber]
     fibermap['X_FVCOBS'] = fibermap['X_TARGET']
@@ -98,23 +107,8 @@ def get_fibermap(tileid=None, nfiber=5000):
     rows = zip(*cols)
     fibermap = np.array(rows, dtype)
     
-    return fibermap, tele_ra, tele_dec
+    return fibermap
     
-def get_next_obs(t=None):
-    """
-    Return night, expid, tileid, fibermap for next observation to perform.
-    
-    Optional inputs:
-    t : time.struct_time tuple of integers
-        (year, month, day, hour, min, sec, weekday, dayofyear, DSTflag)
-        default is time.localtime(), i.e. now
-    
-    Increments exposure ID counter.
-    """
-    expid = get_next_expid()
-    tileid = get_next_tileid()
-    return get_night(t), expid, tileid, get_fibermap(tileid)
-
 def get_next_expid(n=None):
     """
     Return the next exposure ID to use from {proddir}/etc/next_expid.txt
@@ -165,23 +159,29 @@ def get_next_expid(n=None):
     else:
         return range(expid, expid+n)
     
-def get_night(t=None):
+def get_night(t=None, utc=None):
     """
     Return YEARMMDD for tonight.  The night roles over at local noon.
     i.e. 1am and 11am is the previous date; 1pm is the current date.
     
     Optional inputs:
-    t : time.struct_time tuple of integers
+    t : local time.struct_time tuple of integers
         (year, month, day, hour, min, sec, weekday, dayofyear, DSTflag)
         default is time.localtime(), i.e. now
+    utc : time.struct_time tuple for UTC instead of localtime
     
     Note: this only has one second accuracy; good enough for sims but *not*
           to be used for actual DESI ops.
     """
-    if t is None:
+    #- convert t to localtime or fetch localtime if needed
+    if utc is not None:
+        t = time.localtime(time.mktime(utc) - time.timezone)
+    elif t is None:
         t = time.localtime()
-    #- what date/time was it 12 hours ago? "Night" rolls over at noon.
+        
+    #- what date/time was it 12 hours ago? "Night" rolls over at noon local
     night = time.localtime(time.mktime(t) - 12*3600)
+    
     #- format that as YEARMMDD
     return time.strftime('%Y%m%d', night)
     
