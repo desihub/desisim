@@ -15,8 +15,12 @@ from __future__ import print_function, absolute_import, division, unicode_litera
 import numpy as np
 import os
 import multiprocessing as mp
+import Queue
+
+#Queue.Queue(30000000)
 
 from astropy.io import fits
+
 flg_xdb = True
 try: 
     from xastropy.xutils import xdebug as xdb
@@ -87,7 +91,7 @@ def do_boss_lya_parallel(istart, iend, output, debug=False, cut_Lya=True):
     datdir =  os.environ.get('BOSSPATH')+'/DR10/BOSSLyaDR10_spectra_v2.1/'
     jj = 0
     for ii in range(istart,iend):
-        if (ii % 100) == 0:
+        if (ii % 1000) == 0:
             print('ii = {:d}'.format(ii))
         # Spectrum file
         pnm = str(t_boss['PLATE'][ii])
@@ -131,8 +135,10 @@ def do_boss_lya_parallel(istart, iend, output, debug=False, cut_Lya=True):
             xdb.set_trace()
 
     #xdb.set_trace()
+    print('Done with my subset {:d}, {:d}'.format(istart,iend))
     if output is not None:
         output.put((istart,iend,pca_val))
+        #output.put(None)
     
 ## #################################    
 ## #################################    
@@ -150,12 +156,13 @@ if __name__ == '__main__':
     bcat_hdu = fits.open(boss_cat_fil)
     t_boss = bcat_hdu[1].data
     nqso = len(t_boss)
-    nqso = 45  # Testing
+    #nqso = 4500  # Testing
 
     output = mp.Queue()
     processes = []
-    nproc = 4
+    nproc = 8
     nsub = nqso // nproc
+    
     # Setup the Processes
     for ii in range(nproc):
         # Generate
@@ -173,12 +180,16 @@ if __name__ == '__main__':
     for p in processes:
         p.start()
 
+    # Get process results from the output queue
+    print('Grabbing Output')
+    results = [output.get() for p in processes]
+    #xdb.set_trace()
+
     # Exit the completed processes
+    print('Joining')
     for p in processes:
         p.join()
 
-    # Get process results from the output queue
-    results = [output.get() for p in processes]
 
     # Bring together
     #sorted(results, key=lambda result: result[0])
@@ -186,4 +197,23 @@ if __name__ == '__main__':
     pca_val = np.zeros((nqso, 4))
     for ir in results:
         pca_val[ir[0]:ir[1],:] = ir[2]
+
+    # Write to disk as a binary FITS table
+    col0 = fits.Column(name='PCA0',format='E',array=pca_val[:,0])
+    col1 = fits.Column(name='PCA1',format='E',array=pca_val[:,1])
+    col2 = fits.Column(name='PCA2',format='E',array=pca_val[:,2])
+    col3 = fits.Column(name='PCA3',format='E',array=pca_val[:,3])
+    cols = fits.ColDefs([col0, col1, col2, col3])
+    tbhdu = fits.BinTableHDU.from_columns(cols)
+
+    prihdr = fits.Header()
+    prihdr['OBSERVER'] = 'Edwin Hubble'
+    prihdr['COMMENT'] = "Here's some commentary about this FITS file."
+    prihdu = fits.PrimaryHDU(header=prihdr)
+
+    thdulist = fits.HDUList([prihdu, tbhdu])
+    thdulist.writeto('BOSS_DR10Lya_PCA_values.fits',clobber=True)
+
+    # Done
     xdb.set_trace()
+    print('All done')
