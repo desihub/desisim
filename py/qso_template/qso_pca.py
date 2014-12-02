@@ -14,6 +14,7 @@ from __future__ import print_function, absolute_import, division, unicode_litera
 
 import numpy as np
 import os
+import multiprocessing as mp
 
 from astropy.io import fits
 flg_xdb = True
@@ -61,7 +62,7 @@ def fit_eigen(flux,ivar,eigen_flux):
     return acoeff
 
 ##
-def do_boss_lya(debug=False):
+def do_boss_lya_parallel(istart, iend, output, debug=False):
     '''
     Generate PCA coeff for the BOSS Lya DR10 dataset, v2.1
     '''
@@ -74,12 +75,13 @@ def do_boss_lya(debug=False):
     t_boss = bcat_hdu[1].data
     nqso = len(t_boss)
 
-    pca_val = np.zeros((nqso, 4))
+    pca_val = np.zeros((iend-istart, 4))
 
     # Loop us -- Should spawn on multiple CPU
     #for ii in range(nqso):
     datdir =  os.environ.get('BOSSPATH')+'/DR10/BOSSLyaDR10_spectra_v2.1/'
-    for ii in range(1000):
+    jj = 0
+    for ii in range(istart,iend):
         if (ii % 100) == 0:
             print('ii = {:d}'.format(ii))
         # Spectrum file
@@ -106,7 +108,8 @@ def do_boss_lya(debug=False):
 
         # FIT
         acoeff = fit_eigen(flux, ivar, eigen_flux)
-        pca_val[ii,:] = acoeff
+        pca_val[jj,:] = acoeff
+        jj += 1
 
         # Check
         if debug is True:
@@ -115,13 +118,52 @@ def do_boss_lya(debug=False):
                 xdb.xplot(wrest, flux, model)
             xdb.set_trace()
 
-    xdb.set_trace()
+    #xdb.set_trace()
+    output.put((istart,iend,pca_val))
     
 ## #################################    
 ## #################################    
 ## TESTING
 ## #################################    
 if __name__ == '__main__':
-    # Run
-    do_boss_lya()#debug=True)
 
+    # Run
+    #do_boss_lya()#debug=True)
+
+    # Parallel
+    boss_cat_fil = os.environ.get('BOSSPATH')+'/DR10/BOSSLyaDR10_cat_v2.1.fits.gz'
+    bcat_hdu = fits.open(boss_cat_fil)
+    t_boss = bcat_hdu[1].data
+    nqso = len(t_boss)
+    nqso = 800  # Testing
+
+    output = mp.Queue()
+    processes = []
+    nproc = 4
+    nsub = nqso // nproc
+    # Setup the Processes
+    for ii in range(nproc):
+        # Generate
+        istrt = ii * nsub
+        if ii == (nproc-1):
+            iend = nqso
+        else:
+            iend = (ii+1)*nsub
+        #xdb.set_trace()
+        process = mp.Process(target=do_boss_lya_parallel,
+                               args=(istrt,iend,output))
+        processes.append(process)
+
+    # Run processes
+    for p in processes:
+        p.start()
+
+    # Exit the completed processes
+    for p in processes:
+        p.join()
+
+    # Get process results from the output queue
+    print('Got here')
+    results = [output.get() for p in processes]
+    # Combine
+    xdb.set_trace()
