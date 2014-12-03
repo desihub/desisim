@@ -1,12 +1,12 @@
 """
 #;+ 
 #; NAME:
-#; qso_pca
+#; fit_boss_qsos
 #;    Version 1.0
 #;
 #; PURPOSE:
-#;    Module for generate QSO PCA templates
-#;   24-Nov-2014 by JXP
+#;    Module for Fitting PCA to the BOSS QSOs
+#;   01-Dec-2014 by JXP
 #;-
 #;------------------------------------------------------------------------------
 """
