@@ -26,6 +26,8 @@ from astropy.io import fits
 
 from xastropy.plotting import utils as xputils
 
+import fit_boss_qsos as fbq
+
 try: 
     from xastropy.xutils import xdebug as xdb
 except ImportError:
@@ -42,7 +44,7 @@ def fig_boss_pca_coeff(outfil=None, boss_fil=None):
 
     # Read FITS table
     if boss_fil is None:
-        boss_fil = 'BOSS_DR10Lya_PCA_values.fits.gz'
+        boss_fil = 'BOSS_DR10Lya_PCA_values_nocut.fits.gz'
     hdu = fits.open(boss_fil)
     pca_coeff = hdu[1].data
     #xdb.set_trace()
@@ -70,9 +72,9 @@ def fig_boss_pca_coeff(outfil=None, boss_fil=None):
     if outfil != None:
         pp = PdfPages(outfil)
 
-    plt.figure(figsize=(4, 5.5))
+    plt.figure(figsize=(5.5, 4))
     plt.clf()
-    gs = gridspec.GridSpec(3, 2)
+    gs = gridspec.GridSpec(2, 3)
 
 
     # Looping
@@ -134,7 +136,7 @@ def fig_boss_x_vs_pca(outfil=None, boss_fil=None, flg=0):
 
     # Read PCA FITS table
     if boss_fil is None:
-        boss_fil = 'BOSS_DR10Lya_PCA_values.fits.gz'
+        boss_fil = 'BOSS_DR10Lya_PCA_values_nocut.fits.gz'
     hdu = fits.open(boss_fil)
     pca_coeff = hdu[1].data
 
@@ -175,7 +177,6 @@ def fig_boss_x_vs_pca(outfil=None, boss_fil=None, flg=0):
     plt.clf()
     gs = gridspec.GridSpec(2, 2)
 
-
     # Looping
     for ii in range(4):
 
@@ -209,6 +210,188 @@ def fig_boss_x_vs_pca(outfil=None, boss_fil=None, flg=0):
         plt.show()
 
 
+# ##################### #####################
+# ##################### #####################
+# Plots BOSS PCZ Eigenvectors
+def fig_boss_eigen(outfil=None, boss_fil=None, flg=0):
+    '''
+    flg = 0:  Redshift
+    flg = 1:  imag
+    '''
+
+    # Todo
+    #   Include NHI on the label
+    # Imports
+
+    # Read
+    eigen, eigen_wave = fbq.read_qso_eigen()
+
+    # Initialize
+    ymnx = ((0.0, 10),
+            (-1, 1),
+            (-1, 1),
+            (-1, 1))
+                
+    # Start the plot
+    if outfil != None:
+        pp = PdfPages(outfil)
+
+    plt.figure(figsize=(8, 5))
+    plt.clf()
+    gs = gridspec.GridSpec(4, 1)
+    #xdb.set_trace()
+
+    # Looping
+    for ii in range(4):
+
+        # Axis
+        ax = plt.subplot(gs[ii])
+        #ax = plt.subplot(gs[ii//2,ii%2])
+
+        ylbl=str('Eigen'+str(ii))
+
+        # Labels
+        if ii == 3:
+            ax.set_xlabel('Rest Wavelength')
+        else: 
+            ax.get_xaxis().set_ticks([])
+        ax.set_ylabel(ylbl)
+
+        ax.set_xlim((400., 8000))
+
+        # Data
+
+        # Values
+        ax.plot( eigen_wave, eigen[ii,:], 'k-',drawstyle='steps-mid', linewidth=0.5)
+
+    # Layout and save
+    plt.tight_layout(pad=0.2,h_pad=0.0,w_pad=0.25)
+    if outfil != None:
+        pp.savefig(bbox_inches='tight')
+        pp.close()
+    else: 
+        plt.show()
+
+# ##################### #####################
+# ##################### #####################
+# Plots i vs zQSO
+def fig_boss_i_vs_z(outfil=None, boss_fil=None, flg=0):
+    '''
+    '''
+
+    # Todo
+    #   Include NHI on the label
+    # Imports
+
+    # Read BOSS catalog table
+    boss_cat_fil = os.environ.get('BOSSPATH')+'/DR10/BOSSLyaDR10_cat_v2.1.fits.gz'
+    bcat_hdu = fits.open(boss_cat_fil)
+    t_boss = bcat_hdu[1].data
+    #xdb.set_trace()
+    zQSO = t_boss['z_pipe']
+    xmnx = [2., 4.]
+    xlbl=str(r'$z_{\rm QSO}$')
+    tmp = t_boss['PSFMAG']
+    imag = tmp[:,3] # i-band mag
+    ylbl=str('i mag')
+    ymnx = [17.,22.5]
+    
+    # Initialize
+                
+    ms = 1. # point size
+    scl = 100.
+            
+    
+    # Start the plot
+    if outfil != None:
+        pp = PdfPages(outfil)
+
+    plt.figure(figsize=(4, 4))
+    plt.clf()
+    gs = gridspec.GridSpec(1, 1)
+
+    # Looping
+    ax = plt.subplot(gs[0])
+
+    # Labels
+    ax.set_xlabel(xlbl)
+    ax.set_ylabel(ylbl)
+
+    #xdb.set_trace()
+    ax.hist2d(zQSO, imag, bins=100, norm=LogNorm(), range=[xmnx, ymnx])
+
+    # Font size
+    #xputils.set_fontsize(ax,8.)
+
+    # Layout and save
+    plt.tight_layout(pad=0.2,h_pad=0.1,w_pad=0.25)
+    if outfil != None:
+        pp.savefig(bbox_inches='tight')
+        pp.close()
+    else: 
+        plt.show()
+
+# ##################### #####################
+# ##################### #####################
+# Plots DESI templates at a range of z and imag
+def fig_desi_templ_z_i(outfil=None, boss_fil=None, flg=0):
+    '''
+    flg = 0:  Redshift
+    flg = 1:  imag
+    '''
+
+    # Todo
+    #   Include NHI on the label
+    # Imports
+
+
+    # Initialize
+    ymnx = ((0.0, 10),
+            (-1, 1),
+            (-1, 1),
+            (-1, 1))
+                
+    # Start the plot
+    if outfil != None:
+        pp = PdfPages(outfil)
+
+    plt.figure(figsize=(8, 5))
+    plt.clf()
+    gs = gridspec.GridSpec(4, 1)
+    #xdb.set_trace()
+
+    # Looping
+    for ii in range(4):
+
+        # Axis
+        ax = plt.subplot(gs[ii])
+        #ax = plt.subplot(gs[ii//2,ii%2])
+
+        ylbl=str('Eigen'+str(ii))
+
+        # Labels
+        if ii == 3:
+            ax.set_xlabel('Rest Wavelength')
+        else: 
+            ax.get_xaxis().set_ticks([])
+        ax.set_ylabel(ylbl)
+
+        ax.set_xlim((400., 8000))
+
+        # Data
+
+        # Values
+        ax.plot( eigen_wave, eigen[ii,:], 'k-',drawstyle='steps-mid', linewidth=0.5)
+
+    # Layout and save
+    plt.tight_layout(pad=0.2,h_pad=0.0,w_pad=0.25)
+    if outfil != None:
+        pp.savefig(bbox_inches='tight')
+        pp.close()
+    else: 
+        plt.show()
+
+
 #### ########################## #########################
 #### ########################## #########################
 #### ########################## #########################
@@ -217,9 +400,11 @@ def fig_boss_x_vs_pca(outfil=None, boss_fil=None, flg=0):
 if __name__ == '__main__':
 
     flg_fig = 0 
-    flg_fig += 1  # PCA vs PCA
-    flg_fig += 2**1  # PCA vs z
-    flg_fig += 2**2  # PCA vs i
+    #flg_fig += 1  # PCA vs PCA
+    #flg_fig += 2**1  # PCA vs z
+    #flg_fig += 2**2  # PCA vs i
+    #flg_fig += 2**3  # Eigenvectors
+    flg_fig += 2**4  # z vs i for BOSS
 
     # PCA vs PCA
     if (flg_fig % 2) == 1:
@@ -232,3 +417,11 @@ if __name__ == '__main__':
     # PCA vs imag
     if (flg_fig % 2**3) >= 2**2:
         fig_boss_x_vs_pca(outfil='fig_boss_imag_vs_pca.pdf',flg=1)
+
+    # Eigenvectors
+    if (flg_fig % 2**4) >= 2**3:
+        fig_boss_eigen(outfil='fig_boss_eigen.pdf')
+
+    # z vs i
+    if (flg_fig % 2**5) >= 2**4:
+        fig_boss_i_vs_z(outfil='fig_boss_i_vs_z.pdf')

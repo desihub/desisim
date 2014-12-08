@@ -62,9 +62,14 @@ def fit_eigen(flux,ivar,eigen_flux):
     return acoeff
 
 ##
-def do_boss_lya_parallel(istart, iend, output, debug=False):
+def do_boss_lya_parallel(istart, iend, output, debug=False, cut_Lya=True):
     '''
     Generate PCA coeff for the BOSS Lya DR10 dataset, v2.1
+
+    Parameters
+    ----------
+    cut_Lya: boolean (True)
+      Avoid using the Lya forest in the analysis
     '''
     # Eigen
     eigen, eigen_wave = read_qso_eigen()
@@ -99,27 +104,35 @@ def do_boss_lya_parallel(istart, iend, output, debug=False):
         zqso = t_boss['z_pipe'][ii]
 
         wrest  = wave / (1+zqso)
-        npix = len(wrest)
+        wlya = 1215. 
 
+        # Cut Lya forest?
+        if cut_Lya is True:
+            Ly_imn = np.argmin(np.abs(wrest-wlya))
+        else:
+            Ly_imn = 0
+            
         # Pack
-        imn = np.argmin(np.abs(wrest[0]-eigen_wave))
+        imn = np.argmin(np.abs(wrest[Ly_imn]-eigen_wave))
+        npix = len(wrest[Ly_imn:])
         imx = npix+imn
         eigen_flux = eigen[:,imn:imx]
 
         # FIT
-        acoeff = fit_eigen(flux, ivar, eigen_flux)
+        acoeff = fit_eigen(flux[Ly_imn:], ivar[Ly_imn:], eigen_flux)
         pca_val[jj,:] = acoeff
         jj += 1
 
         # Check
         if debug is True:
-            model = np.dot(eigen_flux.T,acoeff)
+            model = np.dot(eigen.T,acoeff)
             if flg_xdb is True:
-                xdb.xplot(wrest, flux, model)
+                xdb.xplot(wrest, flux, xtwo=eigen_wave, ytwo=model)
             xdb.set_trace()
 
     #xdb.set_trace()
-    output.put((istart,iend,pca_val))
+    if output is not None:
+        output.put((istart,iend,pca_val))
     
 ## #################################    
 ## #################################    
@@ -128,14 +141,16 @@ def do_boss_lya_parallel(istart, iend, output, debug=False):
 if __name__ == '__main__':
 
     # Run
-    #do_boss_lya()#debug=True)
+    #do_boss_lya_parallel(0,10,None,debug=True,cut_Lya=True)
+    #xdb.set_trace()
 
+    ## ############################
     # Parallel
     boss_cat_fil = os.environ.get('BOSSPATH')+'/DR10/BOSSLyaDR10_cat_v2.1.fits.gz'
     bcat_hdu = fits.open(boss_cat_fil)
     t_boss = bcat_hdu[1].data
     nqso = len(t_boss)
-    nqso = 800  # Testing
+    nqso = 45  # Testing
 
     output = mp.Queue()
     processes = []
@@ -163,7 +178,12 @@ if __name__ == '__main__':
         p.join()
 
     # Get process results from the output queue
-    print('Got here')
     results = [output.get() for p in processes]
-    # Combine
+
+    # Bring together
+    #sorted(results, key=lambda result: result[0])
+    #all_is = [ir[0] for ir in results]
+    pca_val = np.zeros((nqso, 4))
+    for ir in results:
+        pca_val[ir[0]:ir[1],:] = ir[2]
     xdb.set_trace()
