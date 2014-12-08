@@ -66,7 +66,7 @@ def fit_eigen(flux,ivar,eigen_flux):
     return acoeff
 
 ##
-def do_boss_lya_parallel(istart, iend, output, debug=False, cut_Lya=True):
+def do_boss_lya_parallel(istart, iend, cut_Lya, output, debug=False):
     '''
     Generate PCA coeff for the BOSS Lya DR10 dataset, v2.1
 
@@ -85,6 +85,9 @@ def do_boss_lya_parallel(istart, iend, output, debug=False, cut_Lya=True):
     nqso = len(t_boss)
 
     pca_val = np.zeros((iend-istart, 4))
+
+    if cut_Lya is False:
+        print('do_boss: Not cutting the Lya Forest in the fit')
 
     # Loop us -- Should spawn on multiple CPU
     #for ii in range(nqso):
@@ -163,6 +166,8 @@ if __name__ == '__main__':
     nproc = 8
     nsub = nqso // nproc
     
+    cut_Lya = False
+
     # Setup the Processes
     for ii in range(nproc):
         # Generate
@@ -173,7 +178,7 @@ if __name__ == '__main__':
             iend = (ii+1)*nsub
         #xdb.set_trace()
         process = mp.Process(target=do_boss_lya_parallel,
-                               args=(istrt,iend,output))
+                               args=(istrt,iend,cut_Lya, output))
         processes.append(process)
 
     # Run processes
@@ -212,8 +217,12 @@ if __name__ == '__main__':
     prihdu = fits.PrimaryHDU(header=prihdr)
 
     thdulist = fits.HDUList([prihdu, tbhdu])
-    thdulist.writeto('BOSS_DR10Lya_PCA_values.fits',clobber=True)
+    if cut_Lya is False:
+        outfil = 'BOSS_DR10Lya_PCA_values_nocut.fits'
+    else:
+        outfil = 'BOSS_DR10Lya_PCA_values.fits'
+    thdulist.writeto(outfil, clobber=True)
 
     # Done
-    xdb.set_trace()
+    #xdb.set_trace()
     print('All done')

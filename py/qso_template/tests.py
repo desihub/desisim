@@ -120,12 +120,15 @@ Now Python with simple approach following Dan F-M http://dan.iel.fm/emcee/curren
 """
 
 C = np.diag(1./ivar)
+Cinv = np.diag(ivar)
 A = eigen_flux.T
 y = flux
 
-alpha = np.dot(A.T, np.linalg.solve(C, A))  # Numerical Recipe notation
+#alpha = np.dot(A.T, np.linalg.solve(C, A))  # Numerical Recipe notation
+alpha = np.dot(A.T, np.dot(Cinv,A))
 cov = np.linalg.inv(alpha)
-beta = np.dot(A.T, np.linalg.solve(C, y))
+#beta = np.dot(A.T, np.linalg.solve(C, y))
+beta = np.dot(A.T, np.dot(Cinv, y))
 acoeff = np.dot(cov, beta)
 
 print('acoeff = {:g}, {:g}, {:g}, {:g}'.format(*acoeff))
