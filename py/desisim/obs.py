@@ -29,16 +29,17 @@ def get_next_tile():
     #- If obslog doesn't exist yet, start at tile 0
     dbfile = _proddir()+'/etc/obslog.sqlite'
     if not os.path.exists(dbfile):
-        return 0
-    
-    #- Read obslog to get tiles that have already been observed
-    db = sqlite3.connect(dbfile)
-    result = db.execute('SELECT tileid FROM obslog')
-    obstiles = set( [row[0] for row in result] )
-    db.close()
+        obstiles = set()
+    else:
+        #- Read obslog to get tiles that have already been observed
+        db = sqlite3.connect(dbfile)
+        result = db.execute('SELECT tileid FROM obslog')
+        obstiles = set( [row[0] for row in result] )
+        db.close()
     
     #- Just pick the next tile in sequential order
     nexttile = int(min(set(tiles['TILEID']) - obstiles))
+
     i = np.where(tiles['TILEID'] == nexttile)[0][0]
         
     return nexttile, tiles[i]['RA'], tiles[i]['DEC']
@@ -139,7 +140,7 @@ def get_next_expid(n=None):
     
     #- Open the file, but get exclusive lock before reading
     f0 = open(filename)
-    fcntl.flock(f0, fcntl.LOCK_EX)
+    ### fcntl.flock(f0, fcntl.LOCK_EX)
     expid = int(f0.readline())
     
     #- Write update expid to the file
@@ -151,7 +152,7 @@ def get_next_expid(n=None):
     fw.close()
     
     #- Release the file lock
-    fcntl.flock(f0, fcntl.LOCK_UN)
+    ### fcntl.flock(f0, fcntl.LOCK_UN)
     f0.close()
     
     if n is None:
