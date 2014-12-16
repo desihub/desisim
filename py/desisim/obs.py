@@ -7,49 +7,87 @@ import sqlite3
 import fcntl
 import time
 from astropy.io import fits
+from astropy.table import Table
 
 from . import targets
+from . import io
 
-def _proddir():
-    """Return $DESI_SPECTRO_SIM/$PIXPROD/"""
-    return os.getenv('DESI_SPECTRO_SIM') + '/' + os.getenv('PIXPROD') + '/'
-
-def get_next_tile():
+def get_targets(tileid=None, nfiber=5000):
+    """Return n targets ...
+    
+    return fibermap, truthtable, simflux
+    
+    TODO: document better
     """
-    Return tileid, ra, dec of next tile to observe
-    
-    Note: simultaneous calls will return the same tileid;
-          it does *not* reserve the tileid
-    """
-    #- Read DESI tiling and trim to just tiles in DESI footprint
-    footprint = os.getenv('DESIMODEL')+'/data/footprint/desi-tiles.fits'
-    tiles = fits.getdata(footprint)
-    tiles = tiles[tiles['IN_DESI'] > 0]
+    #- Get the initial fibermap
+    fibermap = get_fibermap(tileid, nfiber)
 
-    #- If obslog doesn't exist yet, start at tile 0
-    dbfile = _proddir()+'/etc/obslog.sqlite'
-    if not os.path.exists(dbfile):
-        return 0
-    
-    #- Read obslog to get tiles that have already been observed
-    db = sqlite3.connect(dbfile)
-    result = db.execute('SELECT tileid FROM obslog')
-    obstiles = set( [row[0] for row in result] )
-    db.close()
-    
-    #- Just pick the next tile in sequential order
-    nexttile = int(min(set(tiles['TILEID']) - obstiles))
-    i = np.where(tiles['TILEID'] == nexttile)[0][0]
+    #- Get object flux
+    dw = 0.2
+    wave = np.arange(round(thru.wavemin, 1), thru.wavemax, dw)
+    nwave = len(wave)
+    nspec = len(fibermap)
+    flux = np.zeros( (nspec, len(wave)) )    
+    redshift = np.zeros(nspec, dtype='f4')
+    templateid = np.zeros(nspec, dtype='i4')
+    o2flux = np.zeros(nspec, dtype='f4')
+
+    #- Sample templates and fill in magnitudes
+    for objtype in set(fibermap['_OBJTYPE']):
+        if objtype == 'SKY':
+            continue
+            
+        ii = np.where(fibermap['_OBJTYPE'] == objtype)[0]
+        try:
+            simflux, meta = io.read_templates(wave, objtype, len(ii))
+        except ValueError:
+            print "ERROR: unable to load {} templates".format(objtype)
+            continue
+            
+        flux[ii] = simflux
         
-    return nexttile, tiles[i]['RA'], tiles[i]['DEC']
+        #- STD don't have redshift Z; others do
+        if 'Z' in meta:
+            redshift[ii] = meta['Z']
+
+        #- Only ELGs have [OII] flux
+        if objtype == 'ELG':
+            o2flux[ii] = meta['OII_3727']
+        
+        #- Everyone had a templateid and some sort of magnitude    
+        templateid[ii] = meta['TEMPLATEID']
+        for x in ('SDSS_R', 'DECAM_R', 'DECAM_Z'):
+            if x in meta.dtype.names:
+                fibermap['MAG'][ii] = meta[x]
+                fibermap['MAGSYS'][ii] = x
+                break
     
-def get_tile_radec(tileid):
-    footprint = os.getenv('DESIMODEL')+'/data/footprint/desi-tiles.fits'
-    tiles = fits.getdata(footprint)
-    i = np.where(tiles['TILEID'] == tileid)[0][0]
-    return tiles[i]['RA'], tiles[i]['DEC']
-    
-    
+    #- Convert into a structured ndarray
+    dtype = [
+        ('REDSHIFT', redshift.dtype),
+        ('TEMPLATEID', templateid.dtype),
+        ('O2FLUX', o2flux.dtype),
+    ]
+    truth = np.zeros(nfiber, dtype=dtype)
+    truth['REDSHIFT'] = redshift
+    truth['TEMPLATEID'] = templateid
+    truth['O2FLUX'] = o2flux
+        
+    return fibermap, truth, flux
+
+#- for the future
+# def ndarray_from_columns(keys, columns):
+#     nrow = len(columns[0])
+#     dtype = list()
+#     for name, col in zip(keys, columns):
+#         dtype.append( (name, col.dtype) )
+#     
+#     result = np.zeros(nrow, dtype=dtype)
+#     for name, col in zip(keys, columns):
+#         result[name] = col
+# 
+#     return result
+
 def get_fibermap(tileid=None, nfiber=5000):
     """
     Return a fake fibermap ndarray for this tileid
@@ -60,7 +98,7 @@ def get_fibermap(tileid=None, nfiber=5000):
       - 5000 should not be hardcoded default
       - tileid is currently ignored
     """
-    true_objtype, target_objtype, z = targets.sample_targets(nfiber)
+    true_objtype, target_objtype = targets.sample_targets(nfiber)
 
     #- Load fiber -> positioner mapping
     fiberpos = fits.getdata(os.getenv('DESIMODEL')+'/data/focalplane/fiberpos.fits', upper=True)
@@ -89,8 +127,9 @@ def get_fibermap(tileid=None, nfiber=5000):
     fibermap['Y_FVCERR'] = np.zeros(nfiber, dtype=np.float32)
     fibermap['RA_OBS'] = fibermap['RA_TARGET']
     fibermap['DEC_OBS'] = fibermap['DEC_TARGET']
-    fibermap['_SIMTYPE'] = np.array(true_objtype)
-    fibermap['_SIMZ'] = z
+    #- The following columns do not get filled in here
+    fibermap['MAGSYS'] = np.zeros(nfiber, dtype='S10')
+    fibermap['MAG'] = np.zeros(nfiber, dtype=np.float32)
 
     #- convert fibermap into numpy ndarray with named columns
     ### keys = fibermap.keys()
@@ -100,7 +139,8 @@ def get_fibermap(tileid=None, nfiber=5000):
             'RA_TARGET', 'DEC_TARGET', 'RA_OBS', 'DEC_OBS',
             'X_TARGET', 'Y_TARGET',
             'X_FVCOBS', 'Y_FVCOBS', 'X_FVCERR', 'Y_FVCERR',
-            '_SIMTYPE', '_SIMZ']
+            'MAGSYS', 'MAG',  #- make better
+            ]
     assert set(keys) == set(fibermap.keys())
     dtype = zip(keys, [fibermap[k].dtype for k in keys])
     cols = [fibermap[k] for k in keys]
@@ -108,6 +148,170 @@ def get_fibermap(tileid=None, nfiber=5000):
     fibermap = np.array(rows, dtype)
     
     return fibermap
+    
+    
+def new_exposure(fibermap_file, dateobs=None, camera=None):
+    """
+    TODO: this is currently deprecated
+    TODO: document
+    
+    TODO: refactor to not need to read throughputs and project sky photons
+        every time
+    """
+    #- parse camera b0 -> channel b, ispec 0
+    channel = camera[0]
+    ispec = int(camera[1])
+    assert channel.lower() in 'brz'
+    assert 0 <= ispec < 10
+    
+    #- Load throughput
+    thru = io.load_throughput(channel)
+
+    #- Other DESI parameters
+    params = io.load_desiparams()
+    nspec = params['spectro']['nfibers']
+
+    #- Read fibermap file
+    outdir = os.path.split(fibermap_file)[0]
+    fibermap = fits.getdata(fibermap_file, 'FIBERMAP')
+    fmhdr = fits.getheader(fibermap_file, 'FIBERMAP')
+    
+    #- Trim to just the fibers for this spectrograph
+    fibermap = fibermap[nspec*ispec:nspec*(ispec+1)]
+
+    #- Get expid from FIBERMAP
+    expid = fmhdr['EXPID']
+
+    #- Get object flux
+    dw = 0.2
+    wave = np.arange(round(thru.wavemin, 1), thru.wavemax, dw)
+    nwave = len(wave)
+    nspec = len(fibermap)
+    flux = np.zeros( (nspec, len(wave)) )
+    z = np.zeros(nspec, dtype='f4')
+    mag = np.zeros(nspec, dtype='f4')
+    magtype = np.zeros(nspec, dtype='S8')
+    templateid = np.zeros(nspec, dtype='i4')
+    o2flux = np.zeros(nspec, dtype='f4')
+    for objtype in set(fibermap['_SIMTYPE']):
+        if objtype == 'SKY':
+            continue
+            
+        ii = np.where(fibermap['_SIMTYPE'] == objtype)[0]
+        try:
+            simflux, meta = io.read_templates(wave, objtype, len(ii))
+        except ValueError:
+            print "ERROR: unable to load {} templates".format(objtype)
+            continue
+            
+        flux[ii] = simflux
+        
+        #- STD don't have redshift Z; others do
+        if 'Z' in meta:
+            z[ii] = meta['Z']
+            
+        templateid[ii] = meta['TEMPLATEID']
+        if objtype == 'ELG':
+            o2flux[ii] = meta['OII_3727']
+            
+        for x in ('SDSS_R', 'DECAM_R', 'DECAM_Z'):
+            if x in meta.dtype.names:
+                mag[ii] = meta[x]
+                magtype[ii] = x
+                break
+
+    #- Load sky [Magic knowledge of units 1e-17 erg/s/cm2/A/arcsec2]
+    skyfile = os.getenv('DESIMODEL')+'/data/spectra/spec-sky.dat'
+    skywave, skyflux = np.loadtxt(skyfile, unpack=True)
+    skyflux = np.interp(wave, skywave, skyflux)
+
+    #- Project flux to photons
+    phot = thru.photons(wave, flux, units='1e-17 erg/s/cm2/A',
+            objtype=fibermap['_SIMTYPE'], exptime=params['exptime'])
+    
+    skyphot = thru.photons(wave, skyflux, units='1e-17 erg/s/cm2/A/arcsec2',
+        objtype='SKY', exptime=params['exptime'])
+    
+    #- Convert sky into 2D; someday it may vary
+    skyflux = np.tile(skyflux, nspec).reshape((nspec, nwave))
+    skyphot = np.tile(skyphot, nspec).reshape((nspec, nwave))
+    
+    #- Use astropy Table as a convenient way to create an ndarray
+    tmp = Table([flux, phot, skyflux, skyphot, z, mag, magtype, templateid, o2flux],
+                names=['FLUX', 'PHOT', 'SKYFLUX', 'SKYPHOT', 'Z', 'MAG', 'MAGTYPE', 'TEMPLATEID', 'OII_3727'])
+    spectra = tmp._data
+
+
+    #- Extend fmhdr with additional keywords
+    
+    hdr = fmhdr
+    hdr['CAMERA'] = (camera, 'Spectograph Camera')
+    hdr['VSPECTER'] = ('0.0.0', 'TODO: Specter version')
+    hdr['EXPTIME'] = (params['exptime'], 'Exposure time [sec]')
+    hdr['CRVAL1'] = (wave[0], 'Starting wavelength [Angstroms]')
+    hdr['CDELT1'] = (dw, 'Wavelength step [Angstroms]')
+    hdr['LOGLAM'] = (0, 'Linear wavelength grid')
+    hdr['WAVEUNIT'] = ('Angstrom', 'wavelength units')
+    hdr['AIRORVAC'] = ('vac', 'wavelengths in vacuum (vac) or air')
+
+    comments = dict(
+        FLUX = 'Object flux [1e-17 erg/s/cm^2/A]',
+        PHOT = 'Object photons per bin (not per A)',
+        SKYFLUX = 'Sky flux [1e-17 erg/s/cm^2/A/arcsec^2]',
+        SKYPHOT = 'Sky photons per bin (not per A)',
+    )
+    units = dict(
+        FLUX = '1e-17 erg/s/cm^2/A',
+        PHOT = 'counts/bin',
+        SKYFLUX = '1e-17 erg/s/cm^2/A/arcsec^2',
+        SKYPHOT = 'counts/bin',
+    )
+
+    simfile = '{}/sim-{}-{:08d}.fits'.format(outdir, camera, expid)
+    io.write_bintable(simfile, spectra, hdr,
+        comments=comments, units=units,
+        extname=camera.upper()+"-SPECTRA", clobber=True)
+        
+    return simfile
+
+
+def get_next_tile():
+    """
+    Return tileid, ra, dec of next tile to observe
+    
+    Note: simultaneous calls will return the same tileid;
+          it does *not* reserve the tileid
+    """
+    #- Read DESI tiling and trim to just tiles in DESI footprint
+    footprint = os.getenv('DESIMODEL')+'/data/footprint/desi-tiles.fits'
+    tiles = fits.getdata(footprint)
+    tiles = tiles[tiles['IN_DESI'] > 0]
+
+    #- If obslog doesn't exist yet, start at tile 0
+    dbfile = io.simdir()+'/etc/obslog.sqlite'
+    if not os.path.exists(dbfile):
+        return 0
+    
+    #- Read obslog to get tiles that have already been observed
+    db = sqlite3.connect(dbfile)
+    result = db.execute('SELECT tileid FROM obslog')
+    obstiles = set( [row[0] for row in result] )
+    db.close()
+    
+    #- Just pick the next tile in sequential order
+    nexttile = int(min(set(tiles['TILEID']) - obstiles))
+    i = np.where(tiles['TILEID'] == nexttile)[0][0]
+        
+    return nexttile, tiles[i]['RA'], tiles[i]['DEC']
+    
+def get_tile_radec(tileid):
+    footprint = os.getenv('DESIMODEL')+'/data/footprint/desi-tiles.fits'
+    tiles = fits.getdata(footprint)
+    if tileid in tiles['TILEID']:
+        i = np.where(tiles['TILEID'] == tileid)[0][0]
+        return tiles[i]['RA'], tiles[i]['DEC']
+    else:
+        return (0.0, 0.0)
     
 def get_next_expid(n=None):
     """
@@ -126,10 +330,10 @@ def get_next_expid(n=None):
         probably not threadsafe.
     """
     #- Full path to next_expid.txt file
-    filename = _proddir()+'/etc/next_expid.txt'
+    filename = io.simdir()+'/etc/next_expid.txt'
     
-    if not os.path.exists(_proddir()+'/etc/'):
-        os.makedirs(_proddir()+'/etc/')
+    if not os.path.exists(io.simdir()+'/etc/'):
+        os.makedirs(io.simdir()+'/etc/')
 
     #- Create file if needed; is this threadsafe?  Probably not.
     if not os.path.exists(filename):
@@ -200,7 +404,7 @@ def update_obslog(obstype='science', expid=None, dateobs=None, tileid=-1, ra=0.0
     returns tuple (expid, dateobs)
     """
     #- Connect to sqlite database file and create DB if needed
-    dbfile = _proddir()+'/etc/obslog.sqlite'
+    dbfile = io.simdir()+'/etc/obslog.sqlite'
     db = sqlite3.connect(dbfile)
     db.execute("""\
     CREATE TABLE IF NOT EXISTS obslog (
@@ -232,3 +436,4 @@ def update_obslog(obstype='science', expid=None, dateobs=None, tileid=-1, ra=0.0
     
     return expid, dateobs
     
+

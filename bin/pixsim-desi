@@ -19,6 +19,7 @@ import os
 import numpy as np
 import optparse
 import random
+import time
 
 import fitsio
 import yaml
@@ -31,9 +32,7 @@ from specter.psf import load_psf
 from specter.throughput import load_throughput
 import specter.util
 
-from desisim import pixsim
-
-
+from desisim import pixsim, obs, io
 
 #- Parse options
 parser = optparse.OptionParser(
@@ -44,10 +43,11 @@ parser = optparse.OptionParser(
 parser.add_option("--newexp", action="store_true", help="Create new exposure")
 parser.add_option("--expid", type=int, help="exposure id")
 parser.add_option("--night", type=str, help="YEARMMDD")
-parser.add_option("--fibermap", type=str, help="fiber map file")
+parser.add_option("--simfile", type=str, help="input sim file")
 parser.add_option("--camera", type=str, help="camera (e.g. b0, r5, z9)")
 parser.add_option("--verbose", action="store_true", help="print more stuff")
 parser.add_option("--randseed", type=int, default=0, help="random number seed")
+parser.add_option("--nspec", type=int, help="Number of spectra to simulate", default=5000)
 
 opts, args = parser.parse_args()
 
@@ -61,29 +61,48 @@ if not envOK:
     print "Set those environment variable(s) and then try again"
     sys.exit(1)
 
+if opts.camera is None:
+    opts.camera = list()
+    for arm in ['b', 'r', 'z']:
+        for ispec in range(10):
+            opts.camera.append(arm+str(ispec))
+else:
+    opts.camera = opts.camera.split(',')
+
 #- Initialize random seeds
 random.seed(opts.randseed)
 np.random.seed(opts.randseed)
 
 if opts.newexp:
-    fibermap_file = pixsim.new_fibermap_file(night=opts.night, expid=opts.expid, verbose=opts.verbose)
-    print fibermap_file
+    tileid = obs.get_next_tile()
+    if opts.expid is None:
+        opts.expid = obs.get_next_expid()
+    dateobs = time.gmtime()
+    night = obs.get_night(utc=dateobs)
+    fibermap = obs.get_fibermap(tileid)
+
+    #- Get the input spectra
+    fibermap, truth, simflux = obs.get_targets(opts.nspec)    
+    
+    #- Write the fiber file then append the truth table
+    fiberfile = io.write_fibermap(fibermap, opts.expid, night, dateobs, tileid=tileid)
+    io.fits.append(fiberfile, truth)
+    
+    #-- HERE --
+    #- Need to refactor obs.new_exposure
+    #- io.write_inspec(simflux, expid, night, dateobs, ...)
+    #- io.write_specin(...)
+    
+    print fiberfile
+    
+    for camera in opts.camera:
+        simfile = obs.new_exposure(fiberfile, dateobs=dateobs, camera=camera)
+        print simfile
+    
     sys.exit(0)
 
-if opts.fibermap:
-    if opts.camera is None:
-        print "ERROR: You must specify a --camera [b0, r5, ... z9]"
-        sys.exit(1)
-
-    #- Check path
-    fmfile = opts.fibermap
-    if not os.path.exists(fmfile):
-        fmfile = os.getenv('DESI_SPECTRO_SIM')+'/'+os.getenv('PIXPROD')+'/'+fmfile
-        if not os.path.exists(fmfile):
-            print "ERROR: unable to find", opts.fibermap
-            sys.exit(1)
-        
-    pixsim.simulate(fmfile, camera=opts.camera, verbose=opts.verbose)
+if opts.simfile:
+    pixsim.simulate(opts.simfile, verbose=opts.verbose, nspec=opts.nspec)
 
 #-------------------------------------------------------------------------
 # if opts.debug:
