@@ -5,7 +5,6 @@ Utility functions for interpolation of spectra over different wavelength grid
 import numpy as np
 import sys
 #import time # for debugging
-import pylab
 
 def bin_bounds(x) :
     if x.size<2 :
@@ -22,23 +21,30 @@ def bin_bounds(x) :
     del tx
     return x_minus,x_plus
 
-# input_x is a SORTED vector, not necessarily linearly spaced
-# output_x is a SORTED vector, not necessarily linearly spaced
-# both must represent the same quantity with the same unit
-# input_flux_density =  dflux/dx sampled at input_x
-# this interpolation conserves flux such that, on average
-# output_flux_density = input_flux_density 
-# 
-# this interpolation sheme is a simple average in a x interval which boundaries 
-# are placed at the mid-distance between consecutive x points.
-# the advantage with respect to other methods is that the weights are all positive
-# or null, such that there is no anti-correlation in the output (only positive correlation)
-#
-# options 
-# left=value for expolation to the left, if None, use input_flux_density[0], default=0
-# right=value for expolation to the right, if None, use input_flux_density[-1], default=0
-#
-def general_interpolate_flux_density(output_x,input_x,input_flux_density,left=0.,right=0.) :
+def resample_flux(output_x,input_x,input_flux_density,left=0.,right=0.) :
+    """
+    Returns a flux conserving resampling of an input flux density.
+     
+    Inputs:   
+    input_x is a SORTED vector, not necessarily linearly spaced
+    output_x is a SORTED vector, not necessarily linearly spaced
+    both must represent the same quantity with the same unit
+    input_flux_density =  dflux/dx sampled at input_x
+    
+    This interpolation conserves flux such that, on average,
+    output_flux_density = input_flux_density 
+    
+    This interpolation scheme is a simple average in an x interval
+    for which boundaries are placed at the mid-distance between
+    consecutive x points.  The advantage with respect to other
+    methods is that the weights are all positive or null, such
+    that there is no anti-correlation in the output
+    (only positive correlation)
+    
+    Options: 
+    left=value for expolation to the left, if None, use input_flux_density[0], default=0
+    right=value for expolation to the right, if None, use input_flux_density[-1], default=0
+    """
     
     # shorter names
     ow=output_x
