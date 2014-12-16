@@ -12,6 +12,82 @@ from astropy.table import Table
 from . import targets
 from . import io
 
+def get_targets(tileid=None, nfiber=5000):
+    """Return n targets ...
+    
+    return fibermap, truthtable, simflux
+    
+    TODO: document better
+    """
+    #- Get the initial fibermap
+    fibermap = get_fibermap(tileid, nfiber)
+
+    #- Get object flux
+    dw = 0.2
+    wave = np.arange(round(thru.wavemin, 1), thru.wavemax, dw)
+    nwave = len(wave)
+    nspec = len(fibermap)
+    flux = np.zeros( (nspec, len(wave)) )    
+    redshift = np.zeros(nspec, dtype='f4')
+    templateid = np.zeros(nspec, dtype='i4')
+    o2flux = np.zeros(nspec, dtype='f4')
+
+    #- Sample templates and fill in magnitudes
+    for objtype in set(fibermap['_OBJTYPE']):
+        if objtype == 'SKY':
+            continue
+            
+        ii = np.where(fibermap['_OBJTYPE'] == objtype)[0]
+        try:
+            simflux, meta = io.read_templates(wave, objtype, len(ii))
+        except ValueError:
+            print "ERROR: unable to load {} templates".format(objtype)
+            continue
+            
+        flux[ii] = simflux
+        
+        #- STD don't have redshift Z; others do
+        if 'Z' in meta:
+            redshift[ii] = meta['Z']
+
+        #- Only ELGs have [OII] flux
+        if objtype == 'ELG':
+            o2flux[ii] = meta['OII_3727']
+        
+        #- Everyone had a templateid and some sort of magnitude    
+        templateid[ii] = meta['TEMPLATEID']
+        for x in ('SDSS_R', 'DECAM_R', 'DECAM_Z'):
+            if x in meta.dtype.names:
+                fibermap['MAG'][ii] = meta[x]
+                fibermap['MAGSYS'][ii] = x
+                break
+    
+    #- Convert into a structured ndarray
+    dtype = [
+        ('REDSHIFT', redshift.dtype),
+        ('TEMPLATEID', templateid.dtype),
+        ('O2FLUX', o2flux.dtype),
+    ]
+    truth = np.zeros(nfiber, dtype=dtype)
+    truth['REDSHIFT'] = redshift
+    truth['TEMPLATEID'] = templateid
+    truth['O2FLUX'] = o2flux
+        
+    return fibermap, truth, flux
+
+#- for the future
+# def ndarray_from_columns(keys, columns):
+#     nrow = len(columns[0])
+#     dtype = list()
+#     for name, col in zip(keys, columns):
+#         dtype.append( (name, col.dtype) )
+#     
+#     result = np.zeros(nrow, dtype=dtype)
+#     for name, col in zip(keys, columns):
+#         result[name] = col
+# 
+#     return result
+
 def get_fibermap(tileid=None, nfiber=5000):
     """
     Return a fake fibermap ndarray for this tileid
@@ -51,7 +127,9 @@ def get_fibermap(tileid=None, nfiber=5000):
     fibermap['Y_FVCERR'] = np.zeros(nfiber, dtype=np.float32)
     fibermap['RA_OBS'] = fibermap['RA_TARGET']
     fibermap['DEC_OBS'] = fibermap['DEC_TARGET']
-    fibermap['_SIMTYPE'] = np.array(true_objtype)
+    #- The following columns do not get filled in here
+    fibermap['MAGSYS'] = np.zeros(nfiber, dtype='S10')
+    fibermap['MAG'] = np.zeros(nfiber, dtype=np.float32)
 
     #- convert fibermap into numpy ndarray with named columns
     ### keys = fibermap.keys()
@@ -61,7 +139,8 @@ def get_fibermap(tileid=None, nfiber=5000):
             'RA_TARGET', 'DEC_TARGET', 'RA_OBS', 'DEC_OBS',
             'X_TARGET', 'Y_TARGET',
             'X_FVCOBS', 'Y_FVCOBS', 'X_FVCERR', 'Y_FVCERR',
-            '_SIMTYPE']
+            'MAGSYS', 'MAG',  #- make better
+            ]
     assert set(keys) == set(fibermap.keys())
     dtype = zip(keys, [fibermap[k].dtype for k in keys])
     cols = [fibermap[k] for k in keys]
@@ -73,6 +152,7 @@ def get_fibermap(tileid=None, nfiber=5000):
     
 def new_exposure(fibermap_file, dateobs=None, camera=None):
     """
+    TODO: this is currently deprecated
     TODO: document
     
     TODO: refactor to not need to read throughputs and project sky photons
@@ -126,7 +206,7 @@ def new_exposure(fibermap_file, dateobs=None, camera=None):
             
         flux[ii] = simflux
         
-        #- STD don't have Z; others do
+        #- STD don't have redshift Z; others do
         if 'Z' in meta:
             z[ii] = meta['Z']
             

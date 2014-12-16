@@ -47,7 +47,7 @@ parser.add_option("--simfile", type=str, help="input sim file")
 parser.add_option("--camera", type=str, help="camera (e.g. b0, r5, z9)")
 parser.add_option("--verbose", action="store_true", help="print more stuff")
 parser.add_option("--randseed", type=int, default=0, help="random number seed")
-parser.add_option("--nspec", type=int, help="Number of spectra to simulate")
+parser.add_option("--nspec", type=int, help="Number of spectra to simulate", default=5000)
 
 opts, args = parser.parse_args()
 
@@ -80,12 +80,19 @@ if opts.newexp:
     dateobs = time.gmtime()
     night = obs.get_night(utc=dateobs)
     fibermap = obs.get_fibermap(tileid)
+
+    #- Get the input spectra
+    fibermap, truth, simflux = obs.get_targets(opts.nspec)    
     
-    #- Trim for testing
-    if opts.nspec is not None:
-        fibermap = fibermap[0:opts.nspec]
-    
+    #- Write the fiber file then append the truth table
     fiberfile = io.write_fibermap(fibermap, opts.expid, night, dateobs, tileid=tileid)
+    io.fits.append(fiberfile, truth)
+    
+    #-- HERE --
+    #- Need to refactor obs.new_exposure
+    #- io.write_inspec(simflux, expid, night, dateobs, ...)
+    #- io.write_specin(...)
+    
     print fiberfile
     
     for camera in opts.camera:
