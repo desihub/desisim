@@ -142,6 +142,93 @@ def do_boss_lya_parallel(istart, iend, cut_Lya, output, debug=False):
     if output is not None:
         output.put((istart,iend,pca_val))
         #output.put(None)
+
+##
+def do_sdss_lya_parallel(istart, iend, cut_Lya, output, debug=False):
+    '''
+    Generate PCA coeff for the SDSS DR7 dataset, 0.5<z<2
+
+    Parameters
+    ----------
+    cut_Lya: boolean (True)
+      Avoid using the Lya forest in the analysis
+    '''
+    # Eigen
+    eigen, eigen_wave = read_qso_eigen()
+
+    # Open the BOSS catalog file
+    sdss_cat_fil = os.environ.get('SDSSPATH')+'/DR7_QSO/dr7_qso.fits.gz'
+    bcat_hdu = fits.open(sdss_cat_fil)
+    t_sdss = bcat_hdu[1].data
+    nqso = len(t_sdss)
+
+    pca_val = np.zeros((iend-istart, 4))
+
+    if cut_Lya is False:
+        print('do_sdss: Not cutting the Lya Forest in the fit')
+
+    # Loop us -- Should spawn on multiple CPU
+    #for ii in range(nqso):
+    datdir =  os.environ.get('SDSSPATH')+'/DR7_QSO/spectro/1d_26/'
+    jj = 0
+    for ii in range(istart,iend):
+        if (ii % 1000) == 0:
+            print('SDSS ii = {:d}'.format(ii))
+        # Spectrum file
+        pnm = str(t_sdss['PLATE'][ii]).rjust(4,str('0'))
+        fnm = str(t_sdss['FIBERID'][ii]).rjust(3,str('0'))
+        mjd = str(t_sdss['MJD'][ii])
+        sfil = datdir+pnm+'/1d/spSpec-'
+        sfil = sfil+mjd+'-'+pnm+'-'+fnm+'.fit.gz'
+        # Read spectrum
+        spec_hdu = fits.open(sfil)
+        head = spec_hdu[0].header
+        iwave = head['CRVAL1']
+        cdelt = head['CD1_1']
+
+        t = spec_hdu[0].data
+        flux = t[0,:]
+        sig = t[2,:]
+        npix = len(flux)
+        wave = 10.**(iwave + np.arange(npix)*cdelt)
+        ivar = np.zeros(npix)
+        gd = np.where(sig>0.)[0]
+        ivar[gd] = 1./sig[gd]**2
+        zqso = t_sdss['z'][ii]
+
+        wrest  = wave / (1+zqso)
+        wlya = 1215. 
+
+        # Cut Lya forest?
+        if cut_Lya is True:
+            Ly_imn = np.argmin(np.abs(wrest-wlya))
+        else:
+            Ly_imn = 0
+            
+        # Pack
+        imn = np.argmin(np.abs(wrest[Ly_imn]-eigen_wave))
+        npix = len(wrest[Ly_imn:])
+        imx = npix+imn
+        eigen_flux = eigen[:,imn:imx]
+
+        # FIT
+        acoeff = fit_eigen(flux[Ly_imn:], ivar[Ly_imn:], eigen_flux)
+        pca_val[jj,:] = acoeff
+        jj += 1
+
+        # Check
+        if debug is True:
+            model = np.dot(eigen.T,acoeff)
+            xdb.set_trace()
+            if flg_xdb is True:
+                xdb.xplot(wrest, flux, xtwo=eigen_wave, ytwo=model)
+            xdb.set_trace()
+
+    #xdb.set_trace()
+    print('Done with my subset {:d}, {:d}'.format(istart,iend))
+    if output is not None:
+        output.put((istart,iend,pca_val))
+        #output.put(None)
     
 ## #################################    
 ## #################################    
@@ -153,13 +240,26 @@ if __name__ == '__main__':
     #do_boss_lya_parallel(0,10,None,debug=True,cut_Lya=True)
     #xdb.set_trace()
 
+    flg = 0 # 0=BOSS, 1=SDSS
+
     ## ############################
     # Parallel
-    boss_cat_fil = os.environ.get('BOSSPATH')+'/DR10/BOSSLyaDR10_cat_v2.1.fits.gz'
-    bcat_hdu = fits.open(boss_cat_fil)
-    t_boss = bcat_hdu[1].data
-    nqso = len(t_boss)
-    #nqso = 4500  # Testing
+    if flg == 0:
+        boss_cat_fil = os.environ.get('BOSSPATH')+'/DR10/BOSSLyaDR10_cat_v2.1.fits.gz'
+        bcat_hdu = fits.open(boss_cat_fil)
+        t_boss = bcat_hdu[1].data
+        nqso = len(t_boss)
+    elif flg == 1:
+        sdss_cat_fil = os.environ.get('SDSSPATH')+'/DR7_QSO/dr7_qso.fits.gz'
+        scat_hdu = fits.open(sdss_cat_fil)
+        t_sdss = scat_hdu[1].data
+        nqso = len(t_sdss)
+        outfil = 'SDSS_DR7Lya_PCA_values_nocut.fits'
+
+    nqso = 450  # Testing
+
+    #do_sdss_lya_parallel(0, nqso, False, None)
+    #xdb.set_trace()
 
     output = mp.Queue()
     processes = []
@@ -177,18 +277,23 @@ if __name__ == '__main__':
         else:
             iend = (ii+1)*nsub
         #xdb.set_trace()
-        process = mp.Process(target=do_boss_lya_parallel,
-                               args=(istrt,iend,cut_Lya, output))
+        if flg == 0:
+            process = mp.Process(target=do_boss_lya_parallel,
+                                args=(istrt,iend,cut_Lya, output))
+        elif flg == 1:
+            process = mp.Process(target=do_sdss_lya_parallel,
+                                args=(istrt,iend,cut_Lya, output))
         processes.append(process)
 
     # Run processes
     for p in processes:
         p.start()
 
+    #xdb.set_trace()
     # Get process results from the output queue
     print('Grabbing Output')
     results = [output.get() for p in processes]
-    #xdb.set_trace()
+    xdb.set_trace()
 
     # Exit the completed processes
     print('Joining')
@@ -217,10 +322,11 @@ if __name__ == '__main__':
     prihdu = fits.PrimaryHDU(header=prihdr)
 
     thdulist = fits.HDUList([prihdu, tbhdu])
-    if cut_Lya is False:
-        outfil = 'BOSS_DR10Lya_PCA_values_nocut.fits'
-    else:
-        outfil = 'BOSS_DR10Lya_PCA_values.fits'
+    if not (outfil in locals()):
+        if cut_Lya is False:
+            outfil = 'BOSS_DR10Lya_PCA_values_nocut.fits'
+        else:
+            outfil = 'BOSS_DR10Lya_PCA_values.fits'
     thdulist.writeto(outfil, clobber=True)
 
     # Done
