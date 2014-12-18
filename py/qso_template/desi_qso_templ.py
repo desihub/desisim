@@ -19,6 +19,8 @@ from astropy.io import fits
 
 import fit_boss_qsos as fbq
 
+from xastropy.stats import basic as xstat_b
+
 flg_xdb = True
 try: 
     from xastropy.xutils import xdebug as xdb
@@ -168,6 +170,187 @@ def fig_desi_templ_z_i(outfil=None, boss_fil=None, flg=0):
     else: 
         plt.show()
 
+##
+def desi_qso_templates(z_wind=0.2, zmnx=(2.,4.), outfil=None, Ntempl=100,
+                       boss_pca_fil=None):
+    '''
+    Generate 'mean' templates at given z,i
+
+    Parameters
+    ----------
+    z_wind: float (0.2) 
+      Window for sampling
+    zmnx: tuple  ( (2,4) )
+      Min/max for generation
+    Ntempl: int  (100)
+      Number of draws per redshift window
+    '''
+    # Cosmology
+    from astropy import cosmology 
+    cosmo = cosmology.core.FlatLambdaCDM(70., 0.3)
+    # PCA values
+    if boss_pca_fil is None:
+        boss_pca_fil = 'BOSS_DR10Lya_PCA_values_nocut.fits.gz'
+    hdu = fits.open(boss_pca_fil)
+    pca_coeff = hdu[1].data
+
+    # BOSS Eigenvectors
+    eigen, eigen_wave = fbq.read_qso_eigen()
+    npix = len(eigen_wave)
+    chkpix = np.where((eigen_wave > 900.) & (eigen_wave < 5000.) )[0]
+    lambda_912 = 911.76
+    pix912 = np.argmin( np.abs(eigen_wave-lambda_912) )
+
+    # Open the BOSS catalog file
+    boss_cat_fil = os.environ.get('BOSSPATH')+'/DR10/BOSSLyaDR10_cat_v2.1.fits.gz'
+    bcat_hdu = fits.open(boss_cat_fil)
+    t_boss = bcat_hdu[1].data
+    nqso = len(t_boss)
+    zQSO = t_boss['z_pipe']
+
+
+    # Outfil
+    if outfil is None:
+        outfil = 'DESI_QSO_Templates_v1.1.fits'
+
+    # Loop on redshift
+    z0 = np.arange(zmnx[0],zmnx[1],z_wind)
+    z1 = z0 + z_wind
+
+    pca_list = ['PCA0', 'PCA1', 'PCA2', 'PCA3']
+    PCA_mean = np.zeros(4)
+    PCA_sig = np.zeros(4)
+    PCA_rand = np.zeros( (4,Ntempl*2) )
+
+    final_spec = np.zeros( (npix, Ntempl * len(z0)) )
+    final_wave = np.zeros( (npix, Ntempl * len(z0)) )
+    final_z = np.zeros( Ntempl * len(z0) )
+
+    seed = -1422
+    for ii in range(len(z0)):
+        # Random z values and wavelengths
+        zrand = np.random.uniform( z0[ii], z1[ii], Ntempl*2)
+        wave = np.outer(eigen_wave, 1+zrand)
+
+        # MFP (Worseck+14)
+        mfp = 37. * ( (1+zrand)/5. )**(-5.4) # Physical Mpc
+
+        # Grab PCA mean + sigma
+        idx = np.where( (zQSO >= z0[ii]) & (zQSO < z1[ii]) )[0]
+
+        # Get PCA stats and random values
+        for ipca in pca_list:
+            jj = pca_list.index(ipca)
+            if jj == 0: # Use bounds for PCA0 [avoids negative values]
+                xmnx = xstat_b.perc( pca_coeff[ipca][idx], per=0.95 )
+                PCA_rand[jj,:] = np.random.uniform( xmnx[0], xmnx[1], Ntempl*2)
+            else:
+                PCA_mean[jj] = np.mean(pca_coeff[ipca][idx])
+                PCA_sig[jj] = np.std(pca_coeff[ipca][idx])
+                # Draws
+                PCA_rand[jj,:] = np.random.uniform( PCA_mean[jj] - 2*PCA_sig[jj],
+                                        PCA_mean[jj] + 2*PCA_sig[jj], Ntempl*2)
+
+        # Generate the templates (2*Ntempl)
+        spec = np.dot(eigen.T,PCA_rand)
+
+        # Take first good Ntempl
+
+        # Truncate, MFP, Fill
+        ngd = 0
+        for kk in range(2*Ntempl):
+            # Any zero values?
+            mn = np.min(spec[chkpix,kk])
+            if mn < 0.:
+                continue
+            # MFP
+            z912 = wave[0:pix912,kk]/lambda_912 - 1.
+            phys_dist = np.fabs( cosmo.lookback_distance(z912) -
+                            cosmo.lookback_distance(zrand[kk]) ) # Mpc
+            #xdb.set_trace()
+            spec[0:pix912,kk] = spec[0:pix912,kk] * np.exp(-phys_dist.value/mfp[kk]) 
+            # Write
+            final_spec[:, ii*Ntempl+ngd] = spec[:,kk]
+            final_wave[:, ii*Ntempl+ngd] = wave[:,kk]
+            final_z[ii*Ntempl+ngd] = zrand[kk]
+            ngd += 1
+            if ngd == Ntempl:
+                break
+
+    #xdb.set_trace()
+    return final_wave, final_spec, final_z
+
+# ##################### #####################
+# ##################### #####################
+# Plots DESI templates at a range of z and imag
+def chk_desi_qso_templates(infil=None, outfil=None, Ntempl=100):
+    '''
+    '''
+    # Get the templates
+    if infil is None:
+        final_wave, final_spec, final_z = desi_qso_templates(Ntempl=Ntempl)
+    sz = final_spec.shape
+    npage = sz[1] // Ntempl
+
+    # Imports
+    import matplotlib as mpl
+    mpl.rcParams['font.family'] = 'stixgeneral'
+    from matplotlib.backends.backend_pdf import PdfPages
+    from matplotlib import pyplot as plt
+    import matplotlib.gridspec as gridspec
+    from matplotlib.colors import LogNorm
+
+    # Eigen (for wavelengths)
+    xmnx = (3600., 10000.)
+                
+    # Start the plot
+    if outfil != None:
+        pp = PdfPages(outfil)
+
+    #xdb.set_trace()
+
+    # Looping
+    for ii in range(npage):
+    #for ii in range(1):
+        i0 = ii * Ntempl
+        i1 = i0 + Ntempl
+        ymx = 0.
+
+        plt.figure(figsize=(8, 5))
+        plt.clf()
+        gs = gridspec.GridSpec(1, 1)
+
+        # Axis
+        ax = plt.subplot(gs[0])
+        #ax = plt.subplot(gs[ii//2,ii%2])
+
+        # Labels
+        ax.set_xlabel('Wavelength')
+        ax.set_ylabel('Flux')
+        ax.set_xlim(xmnx)
+
+        # Data
+        #for jj in range(i0,i1):
+        for jj in range(i0,i0+20):
+            ax.plot( final_wave[:,jj], final_spec[:,jj],
+                     '-',drawstyle='steps-mid', linewidth=0.5)
+            ymx = max( ymx, np.max(final_spec[:,jj]) )
+        ax.set_ylim( (0., ymx*1.05) )
+        # Label
+        zmin = np.min(final_z[i0:i1])
+        zmax = np.max(final_z[i0:i1])
+        zlbl = 'z=[{:g},{:g}]'.format(zmin,zmax)
+        ax.text(7000., ymx*0.7, zlbl)
+
+        # Layout and save
+        plt.tight_layout(pad=0.2,h_pad=0.0,w_pad=0.25)
+        if outfil != None:
+            pp.savefig()#bbox_inches='tight')
+            plt.close()
+        else: 
+            plt.show()
+
+    pp.close()
     
 ## #################################    
 ## #################################    
@@ -178,7 +361,9 @@ if __name__ == '__main__':
     # Run
     flg_test = 0 
     #flg_test += 1  # Mean templates with z,imag
-    flg_test += 2  # Mean templates with z,imag
+    #flg_test += 2  # Mean template fig
+    #flg_test += 2**2  # v1.1 templates for z=2-4
+    flg_test += 2**3  # Check v1.1 templates for z=2-4
 
     # Make Mean templates
     if (flg_test % 2) == 1:
@@ -188,6 +373,14 @@ if __name__ == '__main__':
     # Mean template fig
     if (flg_test % 2**2) >= 2**1:
         fig_desi_templ_z_i(outfil='fig_desi_templ_z_i.pdf')
+
+    # Make z=2-4 templates; v1.1
+    if (flg_test % 2**3) >= 2**2:
+        aa,bb,cc = desi_qso_templates()
+
+    # Check z=2-4 templates; v1.1
+    if (flg_test % 2**4) >= 2**3:
+        chk_desi_qso_templates(outfil='chk_desi_qso_templates.pdf')
 
 
     # Done
