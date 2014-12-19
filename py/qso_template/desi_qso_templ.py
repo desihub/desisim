@@ -328,8 +328,11 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, Ntempl=500,
         #xdb.xplot(final_wave[:,ii], final_spec[:,ii], xtwo=10.**log_wave, ytwo=rebin_spec[:,ii])
         #xdb.set_trace()
 
+    # Transpose for consistency
+    out_spec = np.array(rebin_spec.T, dtype='float32')
+
     # Write
-    hdu = fits.PrimaryHDU(rebin_spec)
+    hdu = fits.PrimaryHDU(out_spec)
     hdu.header.set('PROJECT', 'DESI QSO TEMPLATES')
     hdu.header.set('VERSION', '1.1')
     hdu.header.set('OBJTYPE', 'QSO')
@@ -343,10 +346,11 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, Ntempl=500,
     hdu.header.set('WAVEUNIT', 'Angstrom', ' wavelength units')
 
     idval = range(totN)
-    col0 = fits.Column(name='idval',format='K', array=idval)
-    col1 = fits.Column(name='zQSO',format='E',array=final_z)
+    col0 = fits.Column(name='TEMPLATEID',format='K', array=idval)
+    col1 = fits.Column(name='Z',format='E',array=final_z)
     cols = fits.ColDefs([col0, col1])
     tbhdu = fits.BinTableHDU.from_columns(cols)
+    tbhdu.header.set('EXTNAME','METADATA')
 
     hdulist = fits.HDUList([hdu, tbhdu])
     hdulist.writeto(outfil, clobber=True)
