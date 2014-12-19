@@ -174,7 +174,7 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, Ntempl=500,
                        boss_pca_fil=None, wvmnx=(3500., 10000.),
                        sdss_pca_fil=None, no_write=False):
     '''
-    Generate 10000 templates for DESI from z=0.4 to 4 
+    Generate 9000 templates for DESI from z=0.4 to 4 
 
     Parameters
     ----------
@@ -196,7 +196,7 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, Ntempl=500,
     boss_pca_coeff = hdu[1].data
 
     if sdss_pca_fil is None:
-        sdss_pca_fil = 'SDSS_DR7Lya_PCA_values_nocut.fits'
+        sdss_pca_fil = 'SDSS_DR7Lya_PCA_values_nocut.fits.gz'
     hdu2 = fits.open(sdss_pca_fil)
     sdss_pca_coeff = hdu2[1].data
     
@@ -220,7 +220,7 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, Ntempl=500,
     t_sdss = scat_hdu[1].data
     sdss_zQSO = t_sdss['z']
     if len(sdss_pca_coeff) != len(sdss_zQSO):
-        print('Need to run all SDSS models!')
+        print('Need to finish running the SDSS models!')
         sdss_zQSO = sdss_zQSO[0:len(sdss_pca_coeff)]
 
     # Outfil
@@ -302,6 +302,9 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, Ntempl=500,
             ngd += 1
             if ngd == Ntempl:
                 break
+        if ngd != Ntempl:
+            print('Did not make enough!')
+            xdb.set_trace()
 
     if no_write is True: # Mainly for plotting
         return final_wave, final_spec, final_z
@@ -365,7 +368,7 @@ def chk_desi_qso_templates(infil=None, outfil=None, Ntempl=100):
     '''
     # Get the templates
     if infil is None:
-        final_wave, final_spec, final_z = desi_qso_templates(Ntempl=Ntempl, zmnx=(0.4,0.8),
+        final_wave, final_spec, final_z = desi_qso_templates(Ntempl=Ntempl, #zmnx=(0.4,0.8),
                                                              no_write=True)
     sz = final_spec.shape
     npage = sz[1] // Ntempl
@@ -454,7 +457,7 @@ if __name__ == '__main__':
 
     # Make z=2-4 templates; v1.1
     if (flg_test % 2**3) >= 2**2:
-        aa,bb,cc = desi_qso_templates(zmnx=(2.,2.4))
+        aa,bb,cc = desi_qso_templates() #zmnx=(2.,2.4))
 
     # Check z=0.4-4 templates; v1.1
     if (flg_test % 2**4) >= 2**3:

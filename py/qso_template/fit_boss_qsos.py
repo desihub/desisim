@@ -335,7 +335,8 @@ def failed_parallel():
     #xdb.set_trace()
     print('All done')
 
-def stack_fits(flg=0):
+# ########
+def splice_fits(flg=0):
     '''
     Splices together the various PCA fits for SDSS or BOSS
 
@@ -356,6 +357,7 @@ def stack_fits(flg=0):
     files = glob.glob(outroot+'*')
 
     for ifil in files:
+        print('Reading {:s}'.format(ifil))
         hdu = fits.open(ifil)
         tab = Table(hdu[1].data)
         #

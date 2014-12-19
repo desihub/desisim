@@ -4,7 +4,7 @@ import os
 from astropy.io import fits
 
 flg = 1 # SDSS
-nproc = 4
+nproc = 8
 
 ## ############################
 # "Parallel"
@@ -23,7 +23,7 @@ elif flg == 1:
     nqso = len(t_sdss)
     outroot = 'Output/SDSS_DR7Lya_PCA_values_nocut'
 
-nqso = 20000  # Testing
+#nqso = 800 #20000  # Testing
 nsub = nqso // nproc
     
 cut_Lya = False
