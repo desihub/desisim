@@ -342,12 +342,14 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, Ntempl=500,
     hdu.header.set('VELSCALE', velpixsize, ' pixel size in km/s')
     hdu.header.set('WAVEUNIT', 'Angstrom', ' wavelength units')
 
-    prihdu = fits.PrimaryHDU(header=prihdr)
+    idval = range(totN)
+    col0 = fits.Column(name='idval',format='K', array=idval)
+    col1 = fits.Column(name='zQSO',format='E',array=final_z)
+    cols = fits.ColDefs([col0, col1])
+    tbhdu = fits.BinTableHDU.from_columns(cols)
 
-    table_hdu = fits.BinTableHDU.from_columns(np.array(full_tab.filled()))
-    thdulist = fits.HDUList([prihdu, table_hdu])
-    print('Writing {:s} table, with {:d} rows'.format(outfil,len(full_tab)))
-    thdulist.writeto(outfil, clobber=True)
+    hdulist = fits.HDUList([hdu, tbhdu])
+    hdulist.writeto(outfil, clobber=True)
 
     return final_wave, final_spec, final_z
 
