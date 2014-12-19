@@ -1,7 +1,8 @@
 import os
 import time
 
-import specter  #- for throughput, psf
+import specter.psf
+import specter.throughput
 import yaml     #- for desi.yaml
 from astropy.io import fits
 import numpy as np
