@@ -36,7 +36,7 @@ except ImportError:
 # ##################### #####################
 # ##################### #####################
 # Plots the PCA coeff against one another from BOSS DR10 QSOs
-def fig_boss_pca_coeff(outfil=None, boss_fil=None):
+def fig_boss_pca_coeff(outfil=None, boss_fil=None,scl=100.):
 
     # Todo
     #   Include NHI on the label
@@ -58,7 +58,6 @@ def fig_boss_pca_coeff(outfil=None, boss_fil=None):
     #        (-2.1, 0.9))
                 
     ms = 1. # point size
-    scl = 100.
             
     allxi = [0,0,0,1,1,2]
     allyi = [1,2,3,2,3,3]
@@ -404,7 +403,9 @@ if __name__ == '__main__':
     #flg_fig += 2**1  # PCA vs z
     #flg_fig += 2**2  # PCA vs i
     #flg_fig += 2**3  # Eigenvectors
-    flg_fig += 2**4  # z vs i for BOSS
+    #flg_fig += 2**4  # z vs i for BOSS
+
+    flg_fig += 2**10  # SDSS: PCA vs PCA
 
     # PCA vs PCA
     if (flg_fig % 2) == 1:
@@ -425,3 +426,12 @@ if __name__ == '__main__':
     # z vs i
     if (flg_fig % 2**5) >= 2**4:
         fig_boss_i_vs_z(outfil='fig_boss_i_vs_z.pdf')
+
+    # #######
+    # SDSS FIGURES
+
+    # #######
+    # PCA vs PCA
+    sdss_fil = 'SDSS_DR7Lya_PCA_values_nocut.fits'
+    if (flg_fig % 2**11) >= 2**10:
+        fig_boss_pca_coeff(outfil='fig_sdss_pca.pdf', boss_fil=sdss_fil, scl=1.)

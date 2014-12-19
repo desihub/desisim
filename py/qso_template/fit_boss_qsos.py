@@ -93,9 +93,11 @@ def do_boss_lya_parallel(istart, iend, cut_Lya, output, debug=False):
     #for ii in range(nqso):
     datdir =  os.environ.get('BOSSPATH')+'/DR10/BOSSLyaDR10_spectra_v2.1/'
     jj = 0
+    print('istart = {:d}'.format(istart))
     for ii in range(istart,iend):
-        if (ii % 1000) == 0:
+        if (ii % 100) == 0:
             print('ii = {:d}'.format(ii))
+        #print('ii = {:d}'.format(ii))
         # Spectrum file
         pnm = str(t_boss['PLATE'][ii])
         fnm = str(t_boss['FIBERID'][ii]).rjust(4,str('0'))
@@ -125,8 +127,11 @@ def do_boss_lya_parallel(istart, iend, cut_Lya, output, debug=False):
         imx = npix+imn
         eigen_flux = eigen[:,imn:imx]
 
+
         # FIT
-        acoeff = fit_eigen(flux[Ly_imn:], ivar[Ly_imn:], eigen_flux)
+        tflux = flux[Ly_imn:]
+        tivar = ivar[Ly_imn:]
+        acoeff = fit_eigen(tflux, ivar, eigen_flux)
         pca_val[jj,:] = acoeff
         jj += 1
 
@@ -137,11 +142,14 @@ def do_boss_lya_parallel(istart, iend, cut_Lya, output, debug=False):
                 xdb.xplot(wrest, flux, xtwo=eigen_wave, ytwo=model)
             xdb.set_trace()
 
+
     #xdb.set_trace()
     print('Done with my subset {:d}, {:d}'.format(istart,iend))
     if output is not None:
         output.put((istart,iend,pca_val))
         #output.put(None)
+    else:
+        return pca_val
 
 ##
 def do_sdss_lya_parallel(istart, iend, cut_Lya, output, debug=False):
@@ -219,7 +227,6 @@ def do_sdss_lya_parallel(istart, iend, cut_Lya, output, debug=False):
         # Check
         if debug is True:
             model = np.dot(eigen.T,acoeff)
-            xdb.set_trace()
             if flg_xdb is True:
                 xdb.xplot(wrest, flux, xtwo=eigen_wave, ytwo=model)
             xdb.set_trace()
@@ -229,17 +236,14 @@ def do_sdss_lya_parallel(istart, iend, cut_Lya, output, debug=False):
     if output is not None:
         output.put((istart,iend,pca_val))
         #output.put(None)
-    
-## #################################    
-## #################################    
-## TESTING
-## #################################    
-if __name__ == '__main__':
+    else:
+        return pca_val
 
-    # Run
-    #do_boss_lya_parallel(0,10,None,debug=True,cut_Lya=True)
-    #xdb.set_trace()
-
+def failed_parallel():
+    '''
+    Collision with np.dot
+    Might fix with  OPENBLAS_NUM_THREADS=1
+    '''
     flg = 0 # 0=BOSS, 1=SDSS
 
     ## ############################
@@ -256,14 +260,13 @@ if __name__ == '__main__':
         nqso = len(t_sdss)
         outfil = 'SDSS_DR7Lya_PCA_values_nocut.fits'
 
-    nqso = 450  # Testing
+    nqso = 40  # Testing
 
-    #do_sdss_lya_parallel(0, nqso, False, None)
-    #xdb.set_trace()
+    #do_boss_lya_parallel(0,nqso, False, None,debug=False)
 
     output = mp.Queue()
     processes = []
-    nproc = 8
+    nproc = 1
     nsub = nqso // nproc
     
     cut_Lya = False
@@ -289,18 +292,17 @@ if __name__ == '__main__':
     for p in processes:
         p.start()
 
-    #xdb.set_trace()
-    # Get process results from the output queue
     print('Grabbing Output')
     results = [output.get() for p in processes]
-    xdb.set_trace()
 
+    # Get process results from the output queue
     # Exit the completed processes
     print('Joining')
     for p in processes:
         p.join()
 
 
+    xdb.set_trace()
     # Bring together
     #sorted(results, key=lambda result: result[0])
     #all_is = [ir[0] for ir in results]
@@ -332,3 +334,95 @@ if __name__ == '__main__':
     # Done
     #xdb.set_trace()
     print('All done')
+
+def stack_fits(flg=0):
+    '''
+    Splices together the various PCA fits for SDSS or BOSS
+
+    flg: int (0)
+      0=BOSS, 1=SDSS
+    '''
+    import glob
+    from  astropy.table.table import Table
+
+    if flg == 0:
+        outroot = 'Output/BOSS_DR10Lya_PCA_values_nocut'
+        outfil = 'BOSS_DR10Lya_PCA_values_nocut.fits'
+    elif flg ==1:
+        outroot = 'Output/SDSS_DR7Lya_PCA_values_nocut'
+        outfil = 'SDSS_DR7Lya_PCA_values_nocut.fits'
+
+    # Get all the files
+    files = glob.glob(outroot+'*')
+
+    for ifil in files:
+        hdu = fits.open(ifil)
+        tab = Table(hdu[1].data)
+        #
+        if not 'full_tab' in locals():
+            full_tab = tab
+        else:
+            #xdb.set_trace()
+            for row in tab:
+                full_tab.add_row(row)
+    # Write
+    prihdr = fits.Header()
+    if flg == 0:
+        prihdr['PROJECT'] = 'BOSS: z>2 quasars'
+    elif flg == 1:
+        prihdr['PROJECT'] = 'SDSS: Meant for z<2 quasars'
+    prihdr['COMMENT'] = 'PCA fits to the quasars'
+    prihdu = fits.PrimaryHDU(header=prihdr)
+
+    table_hdu = fits.BinTableHDU.from_columns(np.array(full_tab.filled()))
+    thdulist = fits.HDUList([prihdu, table_hdu])
+    print('Writing {:s} table, with {:d} rows'.format(outfil,len(full_tab)))
+    thdulist.writeto(outfil, clobber=True)
+
+    
+## ################
+if __name__ == '__main__':
+    '''
+    flg: int (0)
+      0=BOSS, 1=SDSS
+    '''
+    import sys
+    
+    flg = int(sys.argv[1])
+    istrt = int(sys.argv[2])
+    iend = int(sys.argv[3])
+    outfil = str(sys.argv[4])
+
+    cut_Lya = False
+    
+    # Run
+    #do_boss_lya_parallel(0,10, False, None,debug=True)
+    #xdb.set_trace()
+    #do_sdss_lya_parallel(0, 10, False, None, debug=True)
+
+    ## ############################
+    if flg == 0:
+        pca_val = do_boss_lya_parallel(istrt,iend,cut_Lya, None)
+    elif flg == 1:
+        pca_val = do_sdss_lya_parallel(istrt,iend,cut_Lya, None)
+
+    # Write to disk as a binary FITS table
+    col0 = fits.Column(name='PCA0',format='E',array=pca_val[:,0])
+    col1 = fits.Column(name='PCA1',format='E',array=pca_val[:,1])
+    col2 = fits.Column(name='PCA2',format='E',array=pca_val[:,2])
+    col3 = fits.Column(name='PCA3',format='E',array=pca_val[:,3])
+    cols = fits.ColDefs([col0, col1, col2, col3])
+    tbhdu = fits.BinTableHDU.from_columns(cols)
+
+    prihdr = fits.Header()
+    prihdr['OBSERVER'] = 'Edwin Hubble'
+    prihdr['COMMENT'] = "Here's some commentary about this FITS file."
+    prihdu = fits.PrimaryHDU(header=prihdr)
+
+    thdulist = fits.HDUList([prihdu, tbhdu])
+    thdulist.writeto(outfil, clobber=True)
+
+    # Done
+    #xdb.set_trace()
+    print('All done')
+
