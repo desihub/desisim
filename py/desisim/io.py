@@ -49,8 +49,8 @@ def write_fibermap(fibermap, expid, night, dateobs, tileid=None):
         Y_FVCERR     = "Y location uncertainty from Fiber View Cam [mm]",
         RA_OBS       = "RA of obs from (X,Y)_FVCOBS and optics [deg]",
         DEC_OBS      = "dec of obs from (X,Y)_FVCOBS and optics [deg]",
-        _SIMTYPE     = "True object type to simulate",
-        _SIMZ        = "True redshift at which to simulate spectrum",
+        MAG          = "magitude",
+        MAGSYS       = "magnitude system (SDSS, DECAM, WISE, BOK, MOSAIC)"
     )
 
     #- Extra header keywords
@@ -85,7 +85,67 @@ def read_fibermap(night, expid):
     return fibermap, hdr
 
 #-------------------------------------------------------------------------
+def write_simfile(meta, truth, expid, night):
+    #- Where should this go?
+    outdir = simdir(night, mkdir=True)      
+    outfile = '{}/simspec-{:08d}.fits'.format(outdir, expid)
+
+    #- Object flux
+    hdr = fits.Header()
+    wave = truth['WAVE']
+    hdr['CRVAL1']    = (wave[0], 'Starting wavelength [Angstroms]')
+    hdr['CDELT1']    = (wave[1]-wave[0], 'Wavelength step [Angstroms]')
+    hdr['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
+    hdr['LOGLAM']    = (0, 'linear wavelength steps, not log10')
+    hdr['EXTNAME']   = ('FLUX', 'Object flux [erg/s/cm2/A]')
+    fits.writeto(outfile, truth['FLUX'], header=hdr, clobber=True)
+    
+    #- Sky flux
+    hdr['EXTNAME'] = ('SKYFLUX', 'Sky flux [erg/s/cm2/A/arcsec2]')
+    hdu = fits.ImageHDU(truth['SKYFLUX'], header=hdr)
+    fits.append(outfile, hdu.data, header=hdu.header)
+    
+    #- Metadata table
+    comments = dict(
+        OBJTYPE     = 'Object type (ELG, LRG, QSO, STD, STAR)',
+        REDSHIFT    = 'true object redshift',
+        TEMPLATEID  = 'input template ID',
+        O2FLUX      = '[OII] flux [erg/s/cm2]',
+    )
+    
+    units = dict(
+        # OBJTYPE     = 'Object type (ELG, LRG, QSO, STD, STAR)',
+        # REDSHIFT    = 'true object redshift',
+        # TEMPLATEID  = 'input template ID',
+        O2FLUX      = 'erg/s/cm2',
+    )
+    
+    write_bintable(outfile, meta, header=None, extname="META",
+        comments=comments, units=units)
+        
+    #- ...
+    #- HERE
+    #- ...
+                            
+    return outfile
+
+# META
+# FLUX-1
+# PHOT-B1
+# PHOT-R1
+# PHOT-Z1
+
+# def read_simfile(expid, night, camera=None):
+#     datadir = simdir(night, mkdir=True)      
+#     simfile = '{}/simspec-{:08d}.fits'.format(datadir, expid)
+#     meta = fits.getdata(simfile, 'META')
+#     simflux = fits.getdata(simfile, 'SIMFLUX')
+    
+
+#-------------------------------------------------------------------------
 #- desimodel
+#- These should probably move to desimodel itself,
+#- except that brings in extra dependencies for desimodel.
 
 def load_throughput(channel):
     thrudir = os.getenv('DESIMODEL') + '/data/throughput'
@@ -97,6 +157,24 @@ def load_psf(channel):
 
 def load_desiparams():
     return yaml.load(open(os.getenv('DESIMODEL')+'/data/desi.yaml'))
+
+_tiles = None
+def load_tiles(onlydesi=True):
+    """
+    Return DESI tiles structure from desimodel
+    
+    if onlydesi is True, trim to just the tiles in the DESI footprint
+    """
+    global _tiles
+    if _tiles is None:
+        footprint = os.getenv('DESIMODEL')+'/data/footprint/desi-tiles.fits'
+        _tiles = fits.getdata(footprint)
+    
+    if onlydesi:
+        return _tiles[_tiles['IN_DESI'] > 0]
+    else:
+        return _tiles
+        
 
 #-------------------------------------------------------------------------
 #- spectral templates
@@ -123,7 +201,7 @@ def read_templates(wave, objtype, n, randseed=1):
     """    
     key = 'DESI_'+objtype.upper()+'_TEMPLATES'
     if key not in os.environ:
-        raise ValueError(key+" not set; can't find templates")
+        raise ValueError("ERROR: $"+key+" not set; can't find "+objtype+" templates")
         
     infile = os.getenv(key)
     hdr = fits.getheader(infile)
@@ -153,12 +231,23 @@ def read_templates(wave, objtype, n, randseed=1):
 #-------------------------------------------------------------------------
 #- Utility functions
 
-def write_bintable(filename, data, header, comments=None, units=None,
+def write_bintable(filename, data, header=None, comments=None, units=None,
                    extname=None, clobber=False):
     """
     Utility function to write a binary table and get the comments and units
     in the FITS header too.
     """
+    #- Convert data from dictionary of columns to ndarray if needed
+    if isinstance(data, dict):
+        dtype = list()
+        for key in data:
+            dtype.append( (key, data[key].dtype, data[key].shape) )
+        nrows = len(data[key])  #- use last column to get length
+        xdata = np.empty(nrows, dtype=dtype)
+        for key in data:
+            xdata[key] = data[key]
+        data = xdata
+    
     #- Write the data and header
     hdu = fits.BinTableHDU(data, header=header, name=extname)
     if clobber:
@@ -184,7 +273,7 @@ def write_bintable(filename, data, header, comments=None, units=None,
             if value in comments:
                 hdu.header[key] = (value, comments[value])
             if value in units:
-                hdu.header['TUNIT'+str(i)] = (value, units[value])
+                hdu.header['TUNIT'+str(i)] = (units[value], value+' units')
     
     #- Write updated header and close file
     fx.flush()

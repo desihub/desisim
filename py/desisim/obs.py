@@ -12,68 +12,137 @@ from astropy.table import Table
 from . import targets
 from . import io
 
-def get_targets(tileid=None, nfiber=5000):
-    """Return n targets ...
-    
-    return fibermap, truthtable, simflux
-    
-    TODO: document better
+def get_targets(nspec, tileid=None):
     """
-    #- Get the initial fibermap
-    fibermap = get_fibermap(tileid, nfiber)
+    Returns:
+        fibermap
+        truth table
+    """
+    if tileid is None:
+        tileid = get_next_tileid()
 
-    #- Get object flux
+    tile_ra, tile_dec = get_tile_radec(tileid)
+    
+    #- Get distribution of target types
+    true_objtype, target_objtype = targets.sample_targets(nspec)
+    
+    #- Get DESI wavelength coverage
+    wavemin = io.load_throughput('b').wavemin
+    wavemax = io.load_throughput('z').wavemax
     dw = 0.2
-    wave = np.arange(round(thru.wavemin, 1), thru.wavemax, dw)
+    wave = np.arange(round(wavemin, 1), wavemax, dw)
     nwave = len(wave)
-    nspec = len(fibermap)
-    flux = np.zeros( (nspec, len(wave)) )    
-    redshift = np.zeros(nspec, dtype='f4')
-    templateid = np.zeros(nspec, dtype='i4')
-    o2flux = np.zeros(nspec, dtype='f4')
+    
+    truth = dict()
+    truth['FLUX'] = np.zeros( (nspec, len(wave)) )
+    truth['REDSHIFT'] = np.zeros(nspec, dtype='f4')
+    truth['TEMPLATEID'] = np.zeros(nspec, dtype='i4')
+    truth['O2FLUX'] = np.zeros(nspec, dtype='f4')
+    truth['OBJTYPE'] = np.zeros(nspec, dtype='S10')
+    #- Note: unlike other elements, first index of WAVE isn't spectrum index
+    truth['WAVE'] = wave
+    
+    fibermap = dict()
+    fibermap['MAG'] = np.zeros(nspec, dtype='f4')
+    fibermap['MAGSYS'] = np.zeros(nspec, dtype='S10')
+    fibermap['OBJTYPE'] = np.zeros(nspec, dtype='S10')
+    
+    for objtype in set(true_objtype):
+        ii = np.where(true_objtype == objtype)[0]
+        fibermap['OBJTYPE'][ii] = target_objtype[ii]
+        truth['OBJTYPE'][ii] = true_objtype[ii]
 
-    #- Sample templates and fill in magnitudes
-    for objtype in set(fibermap['_OBJTYPE']):
         if objtype == 'SKY':
             continue
-            
-        ii = np.where(fibermap['_OBJTYPE'] == objtype)[0]
+                    
         try:
             simflux, meta = io.read_templates(wave, objtype, len(ii))
-        except ValueError:
-            print "ERROR: unable to load {} templates".format(objtype)
+        except ValueError, e:
+            print e
             continue
             
-        flux[ii] = simflux
+        truth['FLUX'][ii] = simflux
         
         #- STD don't have redshift Z; others do
-        if 'Z' in meta:
-            redshift[ii] = meta['Z']
+        if 'Z' in meta.dtype.names:
+            truth['REDSHIFT'][ii] = meta['Z']
+        else:
+            print "No redshifts for", objtype, len(ii)
 
         #- Only ELGs have [OII] flux
         if objtype == 'ELG':
-            o2flux[ii] = meta['OII_3727']
+            truth['O2FLUX'][ii] = meta['OII_3727']
         
         #- Everyone had a templateid and some sort of magnitude    
-        templateid[ii] = meta['TEMPLATEID']
+        #- TODO: make this better!
+        truth['TEMPLATEID'][ii] = meta['TEMPLATEID']
         for x in ('SDSS_R', 'DECAM_R', 'DECAM_Z'):
             if x in meta.dtype.names:
                 fibermap['MAG'][ii] = meta[x]
                 fibermap['MAGSYS'][ii] = x
                 break
     
-    #- Convert into a structured ndarray
-    dtype = [
-        ('REDSHIFT', redshift.dtype),
-        ('TEMPLATEID', templateid.dtype),
-        ('O2FLUX', o2flux.dtype),
-    ]
-    truth = np.zeros(nfiber, dtype=dtype)
-    truth['REDSHIFT'] = redshift
-    truth['TEMPLATEID'] = templateid
-    truth['O2FLUX'] = o2flux
+    #- Load fiber -> positioner mapping and tile information
+    #- NOTE: multiple file I/O here; seems clumsy
+    fiberpos = fits.getdata(os.getenv('DESIMODEL')+'/data/focalplane/fiberpos.fits', upper=True)
+                        
+    #- Fill in the rest of the fibermap structure
+    fibermap['FIBER'] = np.arange(nspec, dtype='i4')
+    fibermap['POSITIONER'] = fiberpos['POSITIONER'][0:nspec]
+    fibermap['SPECTROID'] = fiberpos['SPECTROGRAPH'][0:nspec]
+    fibermap['TARGETID'] = np.random.randint(sys.maxint, size=nspec)
+    fibermap['TARGETCAT'] = np.zeros(nspec, dtype='|S20')
+    fibermap['LAMBDAREF'] = np.ones(nspec, dtype=np.float32)*5400
+    fibermap['TARGET_MASK0'] = np.zeros(nspec, dtype='i8')
+    fibermap['RA_TARGET'] = np.ones(nspec, dtype='f8') * tile_ra   #- TODO
+    fibermap['DEC_TARGET'] = np.ones(nspec, dtype='f8') * tile_dec #- TODO
+    fibermap['X_TARGET'] = fiberpos['X'][0:nspec]
+    fibermap['Y_TARGET'] = fiberpos['Y'][0:nspec]
+    fibermap['X_FVCOBS'] = fibermap['X_TARGET']
+    fibermap['Y_FVCOBS'] = fibermap['Y_TARGET']
+    fibermap['X_FVCERR'] = np.zeros(nspec, dtype=np.float32)
+    fibermap['Y_FVCERR'] = np.zeros(nspec, dtype=np.float32)
+    fibermap['RA_OBS'] = fibermap['RA_TARGET']
+    fibermap['DEC_OBS'] = fibermap['DEC_TARGET']
+    
+    return fibermap, truth
+
+#- Utility function; should probably be moved elsewhere
+def _dict2ndarray(data, columns=None):
+    """
+    Convert a dictionary of ndarrays into a structured ndarray
+    
+    Args:
+        data: input dictionary, each value is an ndarray
+        columns: optional list of column names
         
-    return fibermap, truth, flux
+    Notes:
+        data[key].shape[0] must be the same for every key
+        every entry in columns must be a key of data
+    
+    Example
+        d = dict(x=np.arange(10), y=np.arange(10)/2)
+        nddata = _dict2ndarray(d, columns=['x', 'y'])
+    """
+    if columns is None:
+        columns = data.keys()
+        
+    dtype = list()
+    for key in columns:
+        ### dtype.append( (key, data[key].dtype, data[key].shape) )
+        if data[key].ndim == 1:
+            dtype.append( (key, data[key].dtype) )
+        else:
+            dtype.append( (key, data[key].dtype, data[key].shape[1:]) )
+        
+    nrows = len(data[key])  #- use last column to get length    
+    xdata = np.empty(nrows, dtype=dtype)
+    
+    for key in columns:
+        xdata[key] = data[key]
+    
+    return xdata
+        
 
 #- for the future
 # def ndarray_from_columns(keys, columns):
@@ -88,204 +157,122 @@ def get_targets(tileid=None, nfiber=5000):
 # 
 #     return result
 
-def get_fibermap(tileid=None, nfiber=5000):
+#- For the future, ensure a friendly order of columns
+# keys = ['FIBER', 'POSITIONER', 'SPECTROID', 'TARGETID', 'TARGETCAT',
+#         'OBJTYPE', 'LAMBDAREF', 'TARGET_MASK0',
+#         'RA_TARGET', 'DEC_TARGET', 'RA_OBS', 'DEC_OBS',
+#         'X_TARGET', 'Y_TARGET',
+#         'X_FVCOBS', 'Y_FVCOBS', 'X_FVCERR', 'Y_FVCERR',
+#         'MAGSYS', 'MAG',  #- make better
+#         '_OBJTYPE'
+#         ]
+# assert set(keys) == set(fibermap.keys())
+# dtype = zip(keys, [fibermap[k].dtype for k in keys])
+# cols = [fibermap[k] for k in keys]
+# rows = zip(*cols)
+# fibermap = np.array(rows, dtype)
+
+
+def new_exposure(nspec=5000):
     """
-    Return a fake fibermap ndarray for this tileid
-    
-    Columns FIBER OBJTYPE RA DEC XFOCAL YFOCAL TARGET_MASK0
-    
-    TODO:
-      - 5000 should not be hardcoded default
-      - tileid is currently ignored
+    DOCUMENT
     """
-    true_objtype, target_objtype = targets.sample_targets(nfiber)
-
-    #- Load fiber -> positioner mapping
-    fiberpos = fits.getdata(os.getenv('DESIMODEL')+'/data/focalplane/fiberpos.fits', upper=True)
-            
-    #- Where is this tile on the sky
-    #- NOTE: more file I/O; seems clumsy
-    tilera, tiledec = get_tile_radec(tileid)
-                        
-    #- Make a fake fibermap
-    fibermap = dict()
-    fibermap['FIBER'] = np.arange(nfiber, dtype='i4')
-    fibermap['POSITIONER'] = fiberpos['POSITIONER'][0:nfiber]
-    fibermap['SPECTROID'] = fiberpos['SPECTROGRAPH'][0:nfiber]
-    fibermap['TARGETID'] = np.random.randint(sys.maxint, size=nfiber)
-    fibermap['TARGETCAT'] = np.zeros(nfiber, dtype='|S20')
-    fibermap['OBJTYPE'] = np.array(target_objtype)
-    fibermap['LAMBDAREF'] = np.ones(nfiber, dtype=np.float32)*5400
-    fibermap['TARGET_MASK0'] = np.zeros(nfiber, dtype='i8')
-    fibermap['RA_TARGET'] = np.ones(nfiber, dtype='f8') * tilera   #- TODO
-    fibermap['DEC_TARGET'] = np.ones(nfiber, dtype='f8') * tiledec #- TODO
-    fibermap['X_TARGET'] = fiberpos['X'][0:nfiber]
-    fibermap['Y_TARGET'] = fiberpos['Y'][0:nfiber]
-    fibermap['X_FVCOBS'] = fibermap['X_TARGET']
-    fibermap['Y_FVCOBS'] = fibermap['Y_TARGET']
-    fibermap['X_FVCERR'] = np.zeros(nfiber, dtype=np.float32)
-    fibermap['Y_FVCERR'] = np.zeros(nfiber, dtype=np.float32)
-    fibermap['RA_OBS'] = fibermap['RA_TARGET']
-    fibermap['DEC_OBS'] = fibermap['DEC_TARGET']
-    #- The following columns do not get filled in here
-    fibermap['MAGSYS'] = np.zeros(nfiber, dtype='S10')
-    fibermap['MAG'] = np.zeros(nfiber, dtype=np.float32)
-
-    #- convert fibermap into numpy ndarray with named columns
-    ### keys = fibermap.keys()
-    #- Ensure a friendly order of columns
-    keys = ['FIBER', 'POSITIONER', 'SPECTROID', 'TARGETID', 'TARGETCAT',
-            'OBJTYPE', 'LAMBDAREF', 'TARGET_MASK0',
-            'RA_TARGET', 'DEC_TARGET', 'RA_OBS', 'DEC_OBS',
-            'X_TARGET', 'Y_TARGET',
-            'X_FVCOBS', 'Y_FVCOBS', 'X_FVCERR', 'Y_FVCERR',
-            'MAGSYS', 'MAG',  #- make better
-            ]
-    assert set(keys) == set(fibermap.keys())
-    dtype = zip(keys, [fibermap[k].dtype for k in keys])
-    cols = [fibermap[k] for k in keys]
-    rows = zip(*cols)
-    fibermap = np.array(rows, dtype)
     
-    return fibermap
+    expid = get_next_expid()
+    dateobs = time.gmtime()
+    night = get_night(utc=dateobs)
+    tileid = get_next_tileid()
     
-    
-def new_exposure(fibermap_file, dateobs=None, camera=None):
-    """
-    TODO: this is currently deprecated
-    TODO: document
-    
-    TODO: refactor to not need to read throughputs and project sky photons
-        every time
-    """
-    #- parse camera b0 -> channel b, ispec 0
-    channel = camera[0]
-    ispec = int(camera[1])
-    assert channel.lower() in 'brz'
-    assert 0 <= ispec < 10
-    
-    #- Load throughput
-    thru = io.load_throughput(channel)
-
-    #- Other DESI parameters
-    params = io.load_desiparams()
-    nspec = params['spectro']['nfibers']
-
-    #- Read fibermap file
-    outdir = os.path.split(fibermap_file)[0]
-    fibermap = fits.getdata(fibermap_file, 'FIBERMAP')
-    fmhdr = fits.getheader(fibermap_file, 'FIBERMAP')
-    
-    #- Trim to just the fibers for this spectrograph
-    fibermap = fibermap[nspec*ispec:nspec*(ispec+1)]
-
-    #- Get expid from FIBERMAP
-    expid = fmhdr['EXPID']
-
-    #- Get object flux
-    dw = 0.2
-    wave = np.arange(round(thru.wavemin, 1), thru.wavemax, dw)
+    fibermap, truth = get_targets(nspec, tileid=tileid)
+    flux = truth['FLUX']
+    wave = truth['WAVE']
     nwave = len(wave)
-    nspec = len(fibermap)
-    flux = np.zeros( (nspec, len(wave)) )
-    z = np.zeros(nspec, dtype='f4')
-    mag = np.zeros(nspec, dtype='f4')
-    magtype = np.zeros(nspec, dtype='S8')
-    templateid = np.zeros(nspec, dtype='i4')
-    o2flux = np.zeros(nspec, dtype='f4')
-    for objtype in set(fibermap['_SIMTYPE']):
-        if objtype == 'SKY':
-            continue
-            
-        ii = np.where(fibermap['_SIMTYPE'] == objtype)[0]
-        try:
-            simflux, meta = io.read_templates(wave, objtype, len(ii))
-        except ValueError:
-            print "ERROR: unable to load {} templates".format(objtype)
-            continue
-            
-        flux[ii] = simflux
-        
-        #- STD don't have redshift Z; others do
-        if 'Z' in meta:
-            z[ii] = meta['Z']
-            
-        templateid[ii] = meta['TEMPLATEID']
-        if objtype == 'ELG':
-            o2flux[ii] = meta['OII_3727']
-            
-        for x in ('SDSS_R', 'DECAM_R', 'DECAM_Z'):
-            if x in meta.dtype.names:
-                mag[ii] = meta[x]
-                magtype[ii] = x
-                break
-
+    
+    params = io.load_desiparams()
+    
     #- Load sky [Magic knowledge of units 1e-17 erg/s/cm2/A/arcsec2]
     skyfile = os.getenv('DESIMODEL')+'/data/spectra/spec-sky.dat'
     skywave, skyflux = np.loadtxt(skyfile, unpack=True)
     skyflux = np.interp(wave, skywave, skyflux)
+    truth['SKYFLUX'] = skyflux
 
-    #- Project flux to photons
-    phot = thru.photons(wave, flux, units='1e-17 erg/s/cm2/A',
-            objtype=fibermap['_SIMTYPE'], exptime=params['exptime'])
-    
-    skyphot = thru.photons(wave, skyflux, units='1e-17 erg/s/cm2/A/arcsec2',
-        objtype='SKY', exptime=params['exptime'])
-    
-    #- Convert sky into 2D; someday it may vary
-    skyflux = np.tile(skyflux, nspec).reshape((nspec, nwave))
-    skyphot = np.tile(skyphot, nspec).reshape((nspec, nwave))
-    
-    #- Use astropy Table as a convenient way to create an ndarray
-    tmp = Table([flux, phot, skyflux, skyphot, z, mag, magtype, templateid, o2flux],
-                names=['FLUX', 'PHOT', 'SKYFLUX', 'SKYPHOT', 'Z', 'MAG', 'MAGTYPE', 'TEMPLATEID', 'OII_3727'])
-    spectra = tmp._data
-
-
-    #- Extend fmhdr with additional keywords
-    
-    hdr = fmhdr
-    hdr['CAMERA'] = (camera, 'Spectograph Camera')
-    hdr['VSPECTER'] = ('0.0.0', 'TODO: Specter version')
-    hdr['EXPTIME'] = (params['exptime'], 'Exposure time [sec]')
-    hdr['CRVAL1'] = (wave[0], 'Starting wavelength [Angstroms]')
-    hdr['CDELT1'] = (dw, 'Wavelength step [Angstroms]')
-    hdr['LOGLAM'] = (0, 'Linear wavelength grid')
-    hdr['WAVEUNIT'] = ('Angstrom', 'wavelength units')
-    hdr['AIRORVAC'] = ('vac', 'wavelengths in vacuum (vac) or air')
-
-    comments = dict(
-        FLUX = 'Object flux [1e-17 erg/s/cm^2/A]',
-        PHOT = 'Object photons per bin (not per A)',
-        SKYFLUX = 'Sky flux [1e-17 erg/s/cm^2/A/arcsec^2]',
-        SKYPHOT = 'Sky photons per bin (not per A)',
-    )
-    units = dict(
-        FLUX = '1e-17 erg/s/cm^2/A',
-        PHOT = 'counts/bin',
-        SKYFLUX = '1e-17 erg/s/cm^2/A/arcsec^2',
-        SKYPHOT = 'counts/bin',
-    )
-
-    simfile = '{}/sim-{}-{:08d}.fits'.format(outdir, camera, expid)
-    io.write_bintable(simfile, spectra, hdr,
-        comments=comments, units=units,
-        extname=camera.upper()+"-SPECTRA", clobber=True)
+    for channel in ('B', 'R', 'Z'):
+        thru = io.load_throughput(channel)
         
-    return simfile
-
-
-def get_next_tile():
+        ii = np.where( (thru.wavemin <= wave) & (wave <= thru.wavemax) )[0]
+        
+        #- Project flux to photons
+        phot = thru.photons(wave[ii], flux[:,ii], units='1e-17 erg/s/cm2/A',
+                objtype=truth['OBJTYPE'], exptime=params['exptime'])
+                
+        truth['PHOT_'+channel] = phot
+        truth['WAVE_'+channel] = wave[ii]
+    
+        #- Project sky flux to photons
+        skyphot = thru.photons(wave[ii], skyflux[ii], units='1e-17 erg/s/cm2/A/arcsec2',
+            objtype='SKY', exptime=params['exptime'])
+    
+        #- 2D version
+        ### truth['SKYPHOT_'+channel] = np.tile(skyphot, nspec).reshape((nspec, len(ii)))
+        #- 1D version
+        truth['SKYPHOT_'+channel] = skyphot
+        
+    #- NOTE: someday skyflux and skyphot may be 2D instead of 1D
+    
+    #- Convert to ndarrays to get nice column order in output files
+    columns = (
+        'OBJTYPE',
+        'TARGETCAT',
+        'TARGETID',
+        'TARGET_MASK0',
+        'MAG',
+        'MAGSYS',
+        'SPECTROID',
+        'POSITIONER',
+        'FIBER',
+        'LAMBDAREF',
+        'RA_TARGET',
+        'DEC_TARGET',
+        'RA_OBS',
+        'DEC_OBS',
+        'X_TARGET',
+        'Y_TARGET',
+        'X_FVCOBS',
+        'Y_FVCOBS',
+        'Y_FVCERR',
+        'X_FVCERR',
+        )
+    fibermap = _dict2ndarray(fibermap, columns)
+    
+    #- Extract the metadata part of the truth dictionary into a table
+    columns = (
+        'OBJTYPE',
+        'REDSHIFT',
+        'TEMPLATEID',
+        'O2FLUX',
+    )
+    meta = _dict2ndarray(truth, columns)
+        
+    #- Write fibermap
+    fiberfile = io.write_fibermap(fibermap, expid, night, dateobs, tileid=tileid)
+    print fiberfile
+    
+    #- Write simfile
+    simfile = io.write_simfile(meta, truth, expid, night)
+    print simfile
+    
+    return fibermap, truth
+    
+    
+def get_next_tileid():
     """
-    Return tileid, ra, dec of next tile to observe
+    Return tileid of next tile to observe
     
     Note: simultaneous calls will return the same tileid;
           it does *not* reserve the tileid
     """
     #- Read DESI tiling and trim to just tiles in DESI footprint
-    footprint = os.getenv('DESIMODEL')+'/data/footprint/desi-tiles.fits'
-    tiles = fits.getdata(footprint)
-    tiles = tiles[tiles['IN_DESI'] > 0]
+    tiles = io.load_tiles()
 
     #- If obslog doesn't exist yet, start at tile 0
     dbfile = io.simdir()+'/etc/obslog.sqlite'
@@ -299,14 +286,11 @@ def get_next_tile():
     db.close()
     
     #- Just pick the next tile in sequential order
-    nexttile = int(min(set(tiles['TILEID']) - obstiles))
-    i = np.where(tiles['TILEID'] == nexttile)[0][0]
-        
-    return nexttile, tiles[i]['RA'], tiles[i]['DEC']
+    nexttile = int(min(set(tiles['TILEID']) - obstiles))        
+    return nexttile
     
 def get_tile_radec(tileid):
-    footprint = os.getenv('DESIMODEL')+'/data/footprint/desi-tiles.fits'
-    tiles = fits.getdata(footprint)
+    tiles = io.load_tiles()
     if tileid in tiles['TILEID']:
         i = np.where(tiles['TILEID'] == tileid)[0][0]
         return tiles[i]['RA'], tiles[i]['DEC']

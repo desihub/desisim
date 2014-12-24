@@ -55,7 +55,7 @@ opts, args = parser.parse_args()
 envOK = True
 for envvar in ('DESIMODEL', 'PIXPROD', 'DESI_SPECTRO_SIM'):
     if envvar not in os.environ:
-        print "ERROR: %s is required" % envvar
+        print "ERROR: $%s is required" % envvar
         envOK = False
 if not envOK:
     print "Set those environment variable(s) and then try again"
@@ -79,24 +79,17 @@ if opts.newexp:
         opts.expid = obs.get_next_expid()
     dateobs = time.gmtime()
     night = obs.get_night(utc=dateobs)
-    fibermap = obs.get_fibermap(tileid)
 
     #- Get the input spectra
-    fibermap, truth, simflux = obs.get_targets(opts.nspec)    
+    fibermap, truth, simflux = obs.get_targets(tileid, opts.nspec)    
     
     #- Write the fiber file then append the truth table
     fiberfile = io.write_fibermap(fibermap, opts.expid, night, dateobs, tileid=tileid)
     io.fits.append(fiberfile, truth)
     
-    #-- HERE --
-    #- Need to refactor obs.new_exposure
-    #- io.write_inspec(simflux, expid, night, dateobs, ...)
-    #- io.write_specin(...)
-    
-    print fiberfile
-    
+    print fiberfile    
     for camera in opts.camera:
-        simfile = obs.new_exposure(fiberfile, dateobs=dateobs, camera=camera)
+        simfile = obs.new_exposure(fibermap, truth, simflux, dateobs=dateobs, camera=camera)
         print simfile
     
     sys.exit(0)
