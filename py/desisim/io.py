@@ -86,6 +86,19 @@ def read_fibermap(night, expid):
 
 #-------------------------------------------------------------------------
 def write_simfile(meta, truth, expid, night):
+    """
+    Write $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
+    
+    Args:
+        meta : metadata table to write to "META" HDU
+        truth : dictionary with keys:
+            FLUX - 2D array [nspec, nwave] in erg/s/cm2/A
+            WAVE - 1D array of vacuum wavelengths [Angstroms]
+            SKYFLUX - array of sky flux [erg/s/cm2/A/arcsec],
+                      either 1D [nwave] or 2D [nspec, nwave]
+            PHOT_{B,R,Z} - 2D array [nspec, nwave] of object photons/bin
+            SKYPHOT_{B,R,Z} - 1D or 2D array of sky photons/bin
+    """
     #- Where should this go?
     outdir = simdir(night, mkdir=True)      
     outfile = '{}/simspec-{:08d}.fits'.format(outdir, expid)
@@ -122,10 +135,25 @@ def write_simfile(meta, truth, expid, night):
     
     write_bintable(outfile, meta, header=None, extname="META",
         comments=comments, units=units)
+
+    #- Write object photon and sky photons for each channel
+    for channel in ['B', 'R', 'Z']:
+        hdr = fits.Header()
+        wave = truth['WAVE_'+channel]
+        hdr['CRVAL1']    = (wave[0], 'Starting wavelength [Angstroms]')
+        hdr['CDELT1']    = (wave[1]-wave[0], 'Wavelength step [Angstroms]')
+        hdr['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
+        hdr['LOGLAM']    = (0, 'linear wavelength steps, not log10')
         
-    #- ...
-    #- HERE
-    #- ...
+        extname = 'PHOT_'+channel
+        hdr['EXTNAME']   = (extname, channel+' channel object photons per bin')
+        hdu = fits.ImageHDU(truth[extname], header=hdr)
+        fits.append(outfile, hdu.data, header=hdu.header)
+
+        extname = 'SKYPHOT_'+channel
+        hdr['EXTNAME']   = (extname, channel+' channel sky photons per bin')
+        hdu = fits.ImageHDU(truth[extname], header=hdr)
+        fits.append(outfile, hdu.data, header=hdu.header)
                             
     return outfile
 

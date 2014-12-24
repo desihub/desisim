@@ -175,7 +175,19 @@ def _dict2ndarray(data, columns=None):
 
 def new_exposure(nspec=5000):
     """
-    DOCUMENT
+    Create a new exposure and output input simulation files.
+    Does not generate pixel-level simulations or noisy spectra.
+    
+    Args:
+        nspec (optional): integer number of spectra to simulate
+    
+    Writes:
+        $DESI_SPECTRO_SIM/$PIXPROD/{night}/fibermap-{expid}.fits
+        $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
+        
+    Returns:
+        fibermap numpy structured array
+        truth dictionary
     """
     
     expid = get_next_expid()
