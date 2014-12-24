@@ -50,7 +50,7 @@ def write_fibermap(fibermap, expid, night, dateobs, tileid=None):
         RA_OBS       = "RA of obs from (X,Y)_FVCOBS and optics [deg]",
         DEC_OBS      = "dec of obs from (X,Y)_FVCOBS and optics [deg]",
         MAG          = "magitude",
-        MAGSYS       = "magnitude system (SDSS, DECAM, WISE, BOK, MOSAIC)"
+        MAGSYS       = "SDSS, DECAM, WISE, BOK, MOSAIC, ..."
     )
 
     #- Extra header keywords
@@ -85,7 +85,9 @@ def read_fibermap(night, expid):
     return fibermap, hdr
 
 #-------------------------------------------------------------------------
-def write_simfile(meta, truth, expid, night):
+#- simspec
+
+def write_simspec(meta, truth, expid, night):
     """
     Write $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
     
@@ -157,18 +159,6 @@ def write_simfile(meta, truth, expid, night):
                             
     return outfile
 
-# META
-# FLUX-1
-# PHOT-B1
-# PHOT-R1
-# PHOT-Z1
-
-# def read_simfile(expid, night, camera=None):
-#     datadir = simdir(night, mkdir=True)      
-#     simfile = '{}/simspec-{:08d}.fits'.format(datadir, expid)
-#     meta = fits.getdata(simfile, 'META')
-#     simflux = fits.getdata(simfile, 'SIMFLUX')
-    
 
 #-------------------------------------------------------------------------
 #- desimodel
@@ -318,6 +308,18 @@ def simdir(night='', mkdir=False):
         
     return dirname
     
+def _parse_filename(filename):
+    """
+    Parse filename and return (prefix, expid) or (prefix, camera, expid)
+    """
+    base = os.path.basename(os.path.splitext(filename)[0])
+    x = base.split('-')
+    if len(x) == 2:
+        return x[0], None, int(x[1])
+    elif len(x) == 3:
+        return x[0], x[1].lower(), int(x[2])
+        
+
 
 #-------------------------------------------------------------------------
 # def _add_table_comments(filename, hdu, comments):

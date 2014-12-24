@@ -2,36 +2,28 @@ import os
 import time
 
 import numpy as np
-
 import yaml
-
 from astropy.io import fits
-from astropy.table import Table
-
-import specter
-from specter.psf import load_psf
-from specter.throughput import load_throughput
-import specter.util
 
 from desisim import obs, io
 
-def _parse_filename(filename):
-    """
-    Parse filename and return (prefix, expid) or (prefix, camera, expid)
-    """
-    base = os.path.basename(os.path.splitext(filename)[0])
-    x = base.split('-')
-    if len(x) == 2:
-        return x[0], None, int(x[1])
-    elif len(x) == 3:
-        return x[0], x[1].lower(), int(x[2])
-        
-
 def simulate(night, expid, camera, nspec=None, verbose=False):
     """
-    Simulate spectra
+    Run pixel-level simulation of input spectra
+    
+    Args:
+        night : YEARMMDD string
+        expid : integer exposure id
+        camera : e.g. b0, r1, z9
+        nspec (optional) : number of spectra to simulate
+        verbose (optional) : if True, print status messages
 
-    DOCUMENT
+    Reads:
+        $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
+        
+    Writes:
+        $DESI_SPECTRO_SIM/$PIXPROD/{night}/simpix-{camera}-{expid}.fits
+        $DESI_SPECTRO_SIM/$PIXPROD/{night}/pix-{camera}-{expid}.fits
     """
     simdir = io.simdir(night)
     simfile = '{}/simspec-{:08d}.fits'.format(simdir, expid)
@@ -44,9 +36,9 @@ def simulate(night, expid, camera, nspec=None, verbose=False):
     assert channel in 'BRZ'
     assert 0 <= ispec < 10
     
-    hdr = io.fits.getheader(simfile, 'PHOT_'+channel)
-    phot  = io.fits.getdata(simfile, 'PHOT_'+channel)
-    phot += io.fits.getdata(simfile, 'SKYPHOT_'+channel)
+    hdr = fits.getheader(simfile, 'PHOT_'+channel)
+    phot = fits.getdata(simfile, 'PHOT_'+channel)
+    phot += fits.getdata(simfile, 'SKYPHOT_'+channel)
     
     nwave = phot.shape[1]
     wave = hdr['CRVAL1'] + np.arange(nwave)*hdr['CDELT1']
@@ -94,7 +86,7 @@ def simulate(night, expid, camera, nspec=None, verbose=False):
     
     #- Write the final noisy image file
     #- Pixels
-    outfile = '{}/proc-{}-{:08d}.fits'.format(simdir, camera, expid)
+    outfile = '{}/pix-{}-{:08d}.fits'.format(simdir, camera, expid)
     hdu = fits.ImageHDU(img, header=hdr, name=camera.upper())
     hdu.header.append( ('CAMERA', camera, 'Spectograph Camera') )
     hdu.header.append( ('VSPECTER', '0.0.0', 'TODO: Specter version') )

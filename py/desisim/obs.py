@@ -254,8 +254,11 @@ def new_exposure(nspec=5000):
     print fiberfile
     
     #- Write simfile
-    simfile = io.write_simfile(meta, truth, expid, night)
+    simfile = io.write_simspec(meta, truth, expid, night)
     print simfile
+
+    #- Update obslog that we succeeded with this exposure
+    update_obslog('science', expid, dateobs, tileid)
     
     return fibermap, truth
     
@@ -371,7 +374,8 @@ def get_night(t=None, utc=None):
     
 #- I'm not really sure this is a good idea.
 #- I'm sure I will want to change the schema later...
-def update_obslog(obstype='science', expid=None, dateobs=None, tileid=-1, ra=0.0, dec=0.0):
+def update_obslog(obstype='science', expid=None, dateobs=None,
+    tileid=-1, ra=None, dec=None):
     """
     Update obslog with a new exposure
     
@@ -379,7 +383,7 @@ def update_obslog(obstype='science', expid=None, dateobs=None, tileid=-1, ra=0.0
     expid   : integer exposure ID, default from get_next_expid()
     dateobs : time.struct_time tuple; default time.localtime()
     tileid  : integer TileID, default -1, i.e. not a DESI tile
-    ra, dec : float (ra, dec) coordinates, default (0,0)
+    ra, dec : float (ra, dec) coordinates, default tile ra,dec or (0,0)
     
     returns tuple (expid, dateobs)
     """
@@ -405,7 +409,14 @@ def update_obslog(obstype='science', expid=None, dateobs=None, tileid=-1, ra=0.0
     if dateobs is None:
         dateobs = time.localtime()
 
-    night = get_night(dateobs)
+    if ra is None:
+        assert (dec is None)
+        if tileid < 0:
+            ra, dec = (0.0, 0.0)
+        else:
+            ra, dec = get_tile_radec(tileid)
+            
+    night = get_night(utc=dateobs)
         
     insert = """\
     INSERT INTO obslog(expid,dateobs,night,obstype,tileid,ra,dec)

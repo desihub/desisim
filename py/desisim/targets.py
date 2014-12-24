@@ -14,6 +14,69 @@ import astropy.units
 import math
 import string
 
+def sample_targets(nobj):
+    """
+    Return a random sampling of object types (ELG, LRG, QSO, STD, BAD_QSO)
+    
+    Args:
+        nobj : number of objects to generate
+        
+    Returns:
+        (true_objtype, target_objtype)
+        
+    where
+        true_objtype   : array of what type the objects actually are
+        target_objtype : array of type they were targeted as
+
+    Notes:
+    - Actual fiber assignment will result in higher relative fractions of
+      LRGs and QSOs in early passes and more ELGs in later passes.
+    """
+
+    #- Load target densities
+    #- TODO: what about nobs_boss (BOSS-like LRGs)?
+    fx = open(os.getenv('DESIMODEL')+'/data/targets/targets.dat')
+    tgt = yaml.load(fx)
+    fx.close()
+    ntgt = float(tgt['nobs_lrg'] + tgt['nobs_elg'] + \
+                 tgt['nobs_qso'] + tgt['nobs_lya'] + tgt['ntarget_badqso'])
+        
+    #- Fraction of sky and standard star targets is guaranteed
+    nsky = int(tgt['frac_sky'] * nobj)
+    nstd = int(tgt['frac_std'] * nobj)
+    
+    #- Number of science fibers available
+    nsci = nobj - (nsky+nstd)
+    
+    #- LRGs ELGs QSOs
+    nlrg = np.random.poisson(nsci * tgt['nobs_lrg'] / ntgt)
+    
+    nqso = np.random.poisson(nsci * (tgt['nobs_qso'] + tgt['nobs_lya']) / ntgt)
+    nqso_bad = np.random.poisson(nsci * (tgt['ntarget_badqso']) / ntgt)
+    
+    nelg = nobj - (nlrg+nqso+nqso_bad+nsky+nstd)
+    
+    true_objtype  = ['SKY']*nsky + ['STD']*nstd
+    true_objtype += ['ELG']*nelg
+    true_objtype += ['LRG']*nlrg
+    true_objtype += ['QSO']*nqso + ['QSO_BAD']*nqso_bad
+    assert(len(true_objtype) == nobj)
+    np.random.shuffle(true_objtype)
+    
+    target_objtype = list()
+    for x in true_objtype:
+        if x == 'QSO_BAD':
+            target_objtype.append('QSO')
+        else:
+            target_objtype.append(x)
+
+    target_objtype = np.array(target_objtype)
+    true_objtype = np.array(true_objtype)
+
+    return true_objtype, target_objtype
+
+#-------------------------------------------------------------------------
+#- Currently unused, but keep around for now
 def sample_nz(objtype, n):
     """
     Given `objtype` = 'LRG', 'ELG', 'QSO', 'STAR', 'STD'
@@ -51,57 +114,3 @@ def sample_nz(objtype, n):
     return np.interp(x, cdf, zhi)
 
     
-def sample_targets(nfiber):
-    """
-    Return tuple of arrays of true_objtype, target_objtype
-    
-    true_objtype   : array of what type the objects actually are
-    target_objtype : array of type they were targeted as
-
-    Notes:
-    - Actual fiber assignment will result in higher relative fractions of
-      LRGs and QSOs in early passes and more ELGs in later passes.
-    - This could be expanded to include magnitude and color distributions
-    """
-
-    #- Load target densities
-    #- TODO: what about nobs_boss (BOSS-like LRGs)?
-    fx = open(os.getenv('DESIMODEL')+'/data/targets/targets.dat')
-    tgt = yaml.load(fx)
-    fx.close()
-    ntgt = float(tgt['nobs_lrg'] + tgt['nobs_elg'] + \
-                 tgt['nobs_qso'] + tgt['nobs_lya'] + tgt['ntarget_badqso'])
-        
-    #- Fraction of sky and standard star targets is guaranteed
-    nsky = int(tgt['frac_sky'] * nfiber)
-    nstd = int(tgt['frac_std'] * nfiber)
-    
-    #- Number of science fibers available
-    nsci = nfiber - (nsky+nstd)
-    
-    #- LRGs ELGs QSOs
-    nlrg = np.random.poisson(nsci * tgt['nobs_lrg'] / ntgt)
-    
-    nqso = np.random.poisson(nsci * (tgt['nobs_qso'] + tgt['nobs_lya']) / ntgt)
-    nqso_bad = np.random.poisson(nsci * (tgt['ntarget_badqso']) / ntgt)
-    
-    nelg = nfiber - (nlrg+nqso+nqso_bad+nsky+nstd)
-    
-    true_objtype  = ['SKY']*nsky + ['STD']*nstd
-    true_objtype += ['ELG']*nelg
-    true_objtype += ['LRG']*nlrg
-    true_objtype += ['QSO']*nqso + ['QSO_BAD']*nqso_bad
-    assert(len(true_objtype) == nfiber)
-    np.random.shuffle(true_objtype)
-    
-    target_objtype = list()
-    for x in true_objtype:
-        if x == 'QSO_BAD':
-            target_objtype.append('QSO')
-        else:
-            target_objtype.append(x)
-
-    target_objtype = np.array(target_objtype)
-    true_objtype = np.array(true_objtype)
-
-    return true_objtype, target_objtype
