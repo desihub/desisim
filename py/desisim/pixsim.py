@@ -27,52 +27,51 @@ def _parse_filename(filename):
         return x[0], x[1].lower(), int(x[2])
         
 
-def simulate(simfile, nspec=None, verbose=False):
+def simulate(night, expid, camera, nspec=None, verbose=False):
     """
     Simulate spectra
-    
-    Writes
-        $DESI_SPECTRO_SIM/$PIXPROD/{night}/simflux-{camera}-{expid}.fits
-    
-    TODO: more flexible input interface
+
+    DOCUMENT
     """
-    assert os.path.exists(simfile)
+    simdir = io.simdir(night)
+    simfile = '{}/simspec-{:08d}.fits'.format(simdir, expid)
 
     if verbose:
         print "Reading input files"
-    
-    hdr = fits.getheader(simfile, 1)
-    spectra = fits.getdata(simfile, 1)
-    nspec, nwave = spectra['FLUX'].shape
-    
-    wave = hdr['CRVAL1'] + np.arange(nwave)*hdr['CDELT1']
-    
-    #- camera b0 -> channel b, ispec 0
-    camera = hdr['camera']
-    channel = camera[0]
+
+    channel = camera[0].upper()
     ispec = int(camera[1])
-    assert channel.lower() in 'brz'
+    assert channel in 'BRZ'
     assert 0 <= ispec < 10
+    
+    hdr = io.fits.getheader(simfile, 'PHOT_'+channel)
+    phot  = io.fits.getdata(simfile, 'PHOT_'+channel)
+    phot += io.fits.getdata(simfile, 'SKYPHOT_'+channel)
+    
+    nwave = phot.shape[1]
+    wave = hdr['CRVAL1'] + np.arange(nwave)*hdr['CDELT1']
     
     #- Load PSF and DESI parameters
     psf = io.load_psf(channel)
     params = io.load_desiparams()
-    nspec = params['spectro']['nfibers']
+    nfibers = params['spectro']['nfibers']
+
+    #- Trim to just the spectra for this spectrograph
+    if nspec is None:
+        ii = slice(nfibers*ispec, nfibers*(ispec+1))
+        phot = phot[ii]
+    else:
+        ii = slice(nfibers*ispec, nfibers*ispec + nspec)
+        phot = phot[ii]
 
     #- Project to image and append that to file
     if verbose:
         print "Projecting photons onto CCD"
         
-    phot = spectra['PHOT']+spectra['SKYPHOT']
-    if nspec is not None:
-        phot = phot[0:nspec]
-        
     #- Project photons onto the CCD
     img = psf.project(wave, phot)
 
-    outdir = io.simdir(hdr['NIGHT'])
-    expid = hdr['EXPID']
-    simpixfile = '{}/simpix-{}-{:08d}.fits'.format(outdir, camera, expid)
+    simpixfile = '{}/simpix-{}-{:08d}.fits'.format(simdir, camera, expid)
     
     hdu = fits.PrimaryHDU(img, header=hdr)
     tmp = '/'.join(simfile.split('/')[-3:])  #- last 3 elements of path
@@ -88,14 +87,14 @@ def simulate(simfile, nspec=None, verbose=False):
     if verbose:
         print "Adding noise"
 
-    rdnoise = params['ccd'][channel]['readnoise']
+    rdnoise = params['ccd'][channel.lower()]['readnoise']
     var = img + rdnoise**2
     img += np.random.poisson(img)
     img += np.random.normal(scale=rdnoise, size=img.shape)
     
     #- Write the final noisy image file
     #- Pixels
-    outfile = '{}/proc-{}-{:08d}.fits'.format(outdir, camera, expid)
+    outfile = '{}/proc-{}-{:08d}.fits'.format(simdir, camera, expid)
     hdu = fits.ImageHDU(img, header=hdr, name=camera.upper())
     hdu.header.append( ('CAMERA', camera, 'Spectograph Camera') )
     hdu.header.append( ('VSPECTER', '0.0.0', 'TODO: Specter version') )

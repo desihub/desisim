@@ -157,22 +157,6 @@ def _dict2ndarray(data, columns=None):
 # 
 #     return result
 
-#- For the future, ensure a friendly order of columns
-# keys = ['FIBER', 'POSITIONER', 'SPECTROID', 'TARGETID', 'TARGETCAT',
-#         'OBJTYPE', 'LAMBDAREF', 'TARGET_MASK0',
-#         'RA_TARGET', 'DEC_TARGET', 'RA_OBS', 'DEC_OBS',
-#         'X_TARGET', 'Y_TARGET',
-#         'X_FVCOBS', 'Y_FVCOBS', 'X_FVCERR', 'Y_FVCERR',
-#         'MAGSYS', 'MAG',  #- make better
-#         '_OBJTYPE'
-#         ]
-# assert set(keys) == set(fibermap.keys())
-# dtype = zip(keys, [fibermap[k].dtype for k in keys])
-# cols = [fibermap[k] for k in keys]
-# rows = zip(*cols)
-# fibermap = np.array(rows, dtype)
-
-
 def new_exposure(nspec=5000):
     """
     Create a new exposure and output input simulation files.

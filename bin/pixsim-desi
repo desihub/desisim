@@ -43,7 +43,7 @@ parser = optparse.OptionParser(
 parser.add_option("--newexp", action="store_true", help="Create new exposure")
 parser.add_option("--expid", type=int, help="exposure id")
 parser.add_option("--night", type=str, help="YEARMMDD")
-parser.add_option("--simfile", type=str, help="input sim file")
+### parser.add_option("--simfile", type=str, help="input sim file")
 parser.add_option("--camera", type=str, help="camera (e.g. b0, r5, z9)")
 parser.add_option("--verbose", action="store_true", help="print more stuff")
 parser.add_option("--randseed", type=int, default=0, help="random number seed")
@@ -74,28 +74,11 @@ random.seed(opts.randseed)
 np.random.seed(opts.randseed)
 
 if opts.newexp:
-    tileid = obs.get_next_tile()
-    if opts.expid is None:
-        opts.expid = obs.get_next_expid()
-    dateobs = time.gmtime()
-    night = obs.get_night(utc=dateobs)
-
-    #- Get the input spectra
-    fibermap, truth, simflux = obs.get_targets(tileid, opts.nspec)    
-    
-    #- Write the fiber file then append the truth table
-    fiberfile = io.write_fibermap(fibermap, opts.expid, night, dateobs, tileid=tileid)
-    io.fits.append(fiberfile, truth)
-    
-    print fiberfile    
-    for camera in opts.camera:
-        simfile = obs.new_exposure(fibermap, truth, simflux, dateobs=dateobs, camera=camera)
-        print simfile
-    
+    obs.new_exposure(opts.nspec)    
     sys.exit(0)
 
-if opts.simfile:
-    pixsim.simulate(opts.simfile, verbose=opts.verbose, nspec=opts.nspec)
+for camera in opts.camera:
+    pixsim.simulate(opts.night, opts.expid, camera, verbose=opts.verbose, nspec=opts.nspec)
 
 #-------------------------------------------------------------------------
 # if opts.debug:
