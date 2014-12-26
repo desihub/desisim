@@ -14,7 +14,7 @@ import astropy.units
 import math
 import string
 
-def sample_targets(nobj):
+def sample_objtype(nobj):
     """
     Return a random sampling of object types (ELG, LRG, QSO, STD, BAD_QSO)
     
@@ -74,6 +74,104 @@ def sample_targets(nobj):
     true_objtype = np.array(true_objtype)
 
     return true_objtype, target_objtype
+
+def get_targets(nspec, tileid=None):
+    """
+    Returns:
+        fibermap
+        truth table
+        
+    TODO: document this better
+    """
+    if tileid is None:
+        tileid = get_next_tileid()
+
+    tile_ra, tile_dec = get_tile_radec(tileid)
+    
+    #- Get distribution of target types
+    true_objtype, target_objtype = sample_objtype(nspec)
+    
+    #- Get DESI wavelength coverage
+    wavemin = io.load_throughput('b').wavemin
+    wavemax = io.load_throughput('z').wavemax
+    dw = 0.2
+    wave = np.arange(round(wavemin, 1), wavemax, dw)
+    nwave = len(wave)
+    
+    truth = dict()
+    truth['FLUX'] = np.zeros( (nspec, len(wave)) )
+    truth['REDSHIFT'] = np.zeros(nspec, dtype='f4')
+    truth['TEMPLATEID'] = np.zeros(nspec, dtype='i4')
+    truth['O2FLUX'] = np.zeros(nspec, dtype='f4')
+    truth['OBJTYPE'] = np.zeros(nspec, dtype='S10')
+    #- Note: unlike other elements, first index of WAVE isn't spectrum index
+    truth['WAVE'] = wave
+    
+    fibermap = dict()
+    fibermap['MAG'] = np.zeros(nspec, dtype='f4')
+    fibermap['MAGSYS'] = np.zeros(nspec, dtype='S10')
+    fibermap['OBJTYPE'] = np.zeros(nspec, dtype='S10')
+    
+    for objtype in set(true_objtype):
+        ii = np.where(true_objtype == objtype)[0]
+        fibermap['OBJTYPE'][ii] = target_objtype[ii]
+        truth['OBJTYPE'][ii] = true_objtype[ii]
+
+        if objtype == 'SKY':
+            continue
+                    
+        try:
+            simflux, meta = io.read_templates(wave, objtype, len(ii))
+        except ValueError, e:
+            print e
+            continue
+            
+        truth['FLUX'][ii] = simflux
+        
+        #- STD don't have redshift Z; others do
+        if 'Z' in meta.dtype.names:
+            truth['REDSHIFT'][ii] = meta['Z']
+        else:
+            print "No redshifts for", objtype, len(ii)
+
+        #- Only ELGs have [OII] flux
+        if objtype == 'ELG':
+            truth['O2FLUX'][ii] = meta['OII_3727']
+        
+        #- Everyone had a templateid and some sort of magnitude    
+        #- TODO: make this better!
+        truth['TEMPLATEID'][ii] = meta['TEMPLATEID']
+        for x in ('SDSS_R', 'DECAM_R', 'DECAM_Z'):
+            if x in meta.dtype.names:
+                fibermap['MAG'][ii] = meta[x]
+                fibermap['MAGSYS'][ii] = x
+                break
+    
+    #- Load fiber -> positioner mapping and tile information
+    #- NOTE: multiple file I/O here; seems clumsy
+    fiberpos = fits.getdata(os.getenv('DESIMODEL')+'/data/focalplane/fiberpos.fits', upper=True)
+                        
+    #- Fill in the rest of the fibermap structure
+    fibermap['FIBER'] = np.arange(nspec, dtype='i4')
+    fibermap['POSITIONER'] = fiberpos['POSITIONER'][0:nspec]
+    fibermap['SPECTROID'] = fiberpos['SPECTROGRAPH'][0:nspec]
+    fibermap['TARGETID'] = np.random.randint(sys.maxint, size=nspec)
+    fibermap['TARGETCAT'] = np.zeros(nspec, dtype='|S20')
+    fibermap['LAMBDAREF'] = np.ones(nspec, dtype=np.float32)*5400
+    fibermap['TARGET_MASK0'] = np.zeros(nspec, dtype='i8')
+    fibermap['RA_TARGET'] = np.ones(nspec, dtype='f8') * tile_ra   #- TODO
+    fibermap['DEC_TARGET'] = np.ones(nspec, dtype='f8') * tile_dec #- TODO
+    fibermap['X_TARGET'] = fiberpos['X'][0:nspec]
+    fibermap['Y_TARGET'] = fiberpos['Y'][0:nspec]
+    fibermap['X_FVCOBS'] = fibermap['X_TARGET']
+    fibermap['Y_FVCOBS'] = fibermap['Y_TARGET']
+    fibermap['X_FVCERR'] = np.zeros(nspec, dtype=np.float32)
+    fibermap['Y_FVCERR'] = np.zeros(nspec, dtype=np.float32)
+    fibermap['RA_OBS'] = fibermap['RA_TARGET']
+    fibermap['DEC_OBS'] = fibermap['DEC_TARGET']
+    
+    return fibermap, truth
+
 
 #-------------------------------------------------------------------------
 #- Currently unused, but keep around for now
