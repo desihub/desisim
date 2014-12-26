@@ -7,27 +7,179 @@ import sqlite3
 import fcntl
 import time
 from astropy.io import fits
+from astropy.table import Table
 
-from . import targets
+from targets import get_targets
+from . import io
 
-def _proddir():
-    """Return $DESI_SPECTRO_SIM/$PIXPROD/"""
-    return os.getenv('DESI_SPECTRO_SIM') + '/' + os.getenv('PIXPROD') + '/'
-
-def get_next_tile():
+#- Utility function; should probably be moved elsewhere
+def _dict2ndarray(data, columns=None):
     """
-    Return tileid, ra, dec of next tile to observe
+    Convert a dictionary of ndarrays into a structured ndarray
+    
+    Args:
+        data: input dictionary, each value is an ndarray
+        columns: optional list of column names
+        
+    Notes:
+        data[key].shape[0] must be the same for every key
+        every entry in columns must be a key of data
+    
+    Example
+        d = dict(x=np.arange(10), y=np.arange(10)/2)
+        nddata = _dict2ndarray(d, columns=['x', 'y'])
+    """
+    if columns is None:
+        columns = data.keys()
+        
+    dtype = list()
+    for key in columns:
+        ### dtype.append( (key, data[key].dtype, data[key].shape) )
+        if data[key].ndim == 1:
+            dtype.append( (key, data[key].dtype) )
+        else:
+            dtype.append( (key, data[key].dtype, data[key].shape[1:]) )
+        
+    nrows = len(data[key])  #- use last column to get length    
+    xdata = np.empty(nrows, dtype=dtype)
+    
+    for key in columns:
+        xdata[key] = data[key]
+    
+    return xdata
+        
+
+#- for the future
+# def ndarray_from_columns(keys, columns):
+#     nrow = len(columns[0])
+#     dtype = list()
+#     for name, col in zip(keys, columns):
+#         dtype.append( (name, col.dtype) )
+#     
+#     result = np.zeros(nrow, dtype=dtype)
+#     for name, col in zip(keys, columns):
+#         result[name] = col
+# 
+#     return result
+
+def new_exposure(nspec=5000):
+    """
+    Create a new exposure and output input simulation files.
+    Does not generate pixel-level simulations or noisy spectra.
+    
+    Args:
+        nspec (optional): integer number of spectra to simulate
+    
+    Writes:
+        $DESI_SPECTRO_SIM/$PIXPROD/{night}/fibermap-{expid}.fits
+        $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
+        
+    Returns:
+        fibermap numpy structured array
+        truth dictionary
+    """
+    
+    expid = get_next_expid()
+    dateobs = time.gmtime()
+    night = get_night(utc=dateobs)
+    tileid = get_next_tileid()
+    
+    fibermap, truth = get_targets(nspec, tileid=tileid)
+    flux = truth['FLUX']
+    wave = truth['WAVE']
+    nwave = len(wave)
+    
+    params = io.load_desiparams()
+    
+    #- Load sky [Magic knowledge of units 1e-17 erg/s/cm2/A/arcsec2]
+    skyfile = os.getenv('DESIMODEL')+'/data/spectra/spec-sky.dat'
+    skywave, skyflux = np.loadtxt(skyfile, unpack=True)
+    skyflux = np.interp(wave, skywave, skyflux)
+    truth['SKYFLUX'] = skyflux
+
+    for channel in ('B', 'R', 'Z'):
+        thru = io.load_throughput(channel)
+        
+        ii = np.where( (thru.wavemin <= wave) & (wave <= thru.wavemax) )[0]
+        
+        #- Project flux to photons
+        phot = thru.photons(wave[ii], flux[:,ii], units='1e-17 erg/s/cm2/A',
+                objtype=truth['OBJTYPE'], exptime=params['exptime'])
+                
+        truth['PHOT_'+channel] = phot
+        truth['WAVE_'+channel] = wave[ii]
+    
+        #- Project sky flux to photons
+        skyphot = thru.photons(wave[ii], skyflux[ii], units='1e-17 erg/s/cm2/A/arcsec2',
+            objtype='SKY', exptime=params['exptime'])
+    
+        #- 2D version
+        ### truth['SKYPHOT_'+channel] = np.tile(skyphot, nspec).reshape((nspec, len(ii)))
+        #- 1D version
+        truth['SKYPHOT_'+channel] = skyphot
+        
+    #- NOTE: someday skyflux and skyphot may be 2D instead of 1D
+    
+    #- Convert to ndarrays to get nice column order in output files
+    columns = (
+        'OBJTYPE',
+        'TARGETCAT',
+        'TARGETID',
+        'TARGET_MASK0',
+        'MAG',
+        'FILTER',
+        'SPECTROID',
+        'POSITIONER',
+        'FIBER',
+        'LAMBDAREF',
+        'RA_TARGET',
+        'DEC_TARGET',
+        'RA_OBS',
+        'DEC_OBS',
+        'X_TARGET',
+        'Y_TARGET',
+        'X_FVCOBS',
+        'Y_FVCOBS',
+        'Y_FVCERR',
+        'X_FVCERR',
+        )
+    fibermap = _dict2ndarray(fibermap, columns)
+    
+    #- Extract the metadata part of the truth dictionary into a table
+    columns = (
+        'OBJTYPE',
+        'REDSHIFT',
+        'TEMPLATEID',
+        'O2FLUX',
+    )
+    meta = _dict2ndarray(truth, columns)
+        
+    #- Write fibermap
+    fiberfile = io.write_fibermap(fibermap, expid, night, dateobs, tileid=tileid)
+    print fiberfile
+    
+    #- Write simfile
+    simfile = io.write_simspec(meta, truth, expid, night)
+    print simfile
+
+    #- Update obslog that we succeeded with this exposure
+    update_obslog('science', expid, dateobs, tileid)
+    
+    return fibermap, truth
+    
+    
+def get_next_tileid():
+    """
+    Return tileid of next tile to observe
     
     Note: simultaneous calls will return the same tileid;
           it does *not* reserve the tileid
     """
     #- Read DESI tiling and trim to just tiles in DESI footprint
-    footprint = os.getenv('DESIMODEL')+'/data/footprint/desi-tiles.fits'
-    tiles = fits.getdata(footprint)
-    tiles = tiles[tiles['IN_DESI'] > 0]
+    tiles = io.load_tiles()
 
     #- If obslog doesn't exist yet, start at tile 0
-    dbfile = _proddir()+'/etc/obslog.sqlite'
+    dbfile = io.simdir()+'/etc/obslog.sqlite'
     if not os.path.exists(dbfile):
         return 0
     
@@ -38,76 +190,8 @@ def get_next_tile():
     db.close()
     
     #- Just pick the next tile in sequential order
-    nexttile = int(min(set(tiles['TILEID']) - obstiles))
-    i = np.where(tiles['TILEID'] == nexttile)[0][0]
-        
-    return nexttile, tiles[i]['RA'], tiles[i]['DEC']
-    
-def get_tile_radec(tileid):
-    footprint = os.getenv('DESIMODEL')+'/data/footprint/desi-tiles.fits'
-    tiles = fits.getdata(footprint)
-    i = np.where(tiles['TILEID'] == tileid)[0][0]
-    return tiles[i]['RA'], tiles[i]['DEC']
-    
-    
-def get_fibermap(tileid=None, nfiber=5000):
-    """
-    Return a fake fibermap ndarray for this tileid
-    
-    Columns FIBER OBJTYPE RA DEC XFOCAL YFOCAL TARGET_MASK0
-    
-    TODO:
-      - 5000 should not be hardcoded default
-      - tileid is currently ignored
-    """
-    true_objtype, target_objtype, z = targets.sample_targets(nfiber)
-
-    #- Load fiber -> positioner mapping
-    fiberpos = fits.getdata(os.getenv('DESIMODEL')+'/data/focalplane/fiberpos.fits', upper=True)
-            
-    #- Where is this tile on the sky
-    #- NOTE: more file I/O; seems clumsy
-    tilera, tiledec = get_tile_radec(tileid)
-                        
-    #- Make a fake fibermap
-    fibermap = dict()
-    fibermap['FIBER'] = np.arange(nfiber, dtype='i4')
-    fibermap['POSITIONER'] = fiberpos['POSITIONER'][0:nfiber]
-    fibermap['SPECTROID'] = fiberpos['SPECTROGRAPH'][0:nfiber]
-    fibermap['TARGETID'] = np.random.randint(sys.maxint, size=nfiber)
-    fibermap['TARGETCAT'] = np.zeros(nfiber, dtype='|S20')
-    fibermap['OBJTYPE'] = np.array(target_objtype)
-    fibermap['LAMBDAREF'] = np.ones(nfiber, dtype=np.float32)*5400
-    fibermap['TARGET_MASK0'] = np.zeros(nfiber, dtype='i8')
-    fibermap['RA_TARGET'] = np.ones(nfiber, dtype='f8') * tilera   #- TODO
-    fibermap['DEC_TARGET'] = np.ones(nfiber, dtype='f8') * tiledec #- TODO
-    fibermap['X_TARGET'] = fiberpos['X'][0:nfiber]
-    fibermap['Y_TARGET'] = fiberpos['Y'][0:nfiber]
-    fibermap['X_FVCOBS'] = fibermap['X_TARGET']
-    fibermap['Y_FVCOBS'] = fibermap['Y_TARGET']
-    fibermap['X_FVCERR'] = np.zeros(nfiber, dtype=np.float32)
-    fibermap['Y_FVCERR'] = np.zeros(nfiber, dtype=np.float32)
-    fibermap['RA_OBS'] = fibermap['RA_TARGET']
-    fibermap['DEC_OBS'] = fibermap['DEC_TARGET']
-    fibermap['_SIMTYPE'] = np.array(true_objtype)
-    fibermap['_SIMZ'] = z
-
-    #- convert fibermap into numpy ndarray with named columns
-    ### keys = fibermap.keys()
-    #- Ensure a friendly order of columns
-    keys = ['FIBER', 'POSITIONER', 'SPECTROID', 'TARGETID', 'TARGETCAT',
-            'OBJTYPE', 'LAMBDAREF', 'TARGET_MASK0',
-            'RA_TARGET', 'DEC_TARGET', 'RA_OBS', 'DEC_OBS',
-            'X_TARGET', 'Y_TARGET',
-            'X_FVCOBS', 'Y_FVCOBS', 'X_FVCERR', 'Y_FVCERR',
-            '_SIMTYPE', '_SIMZ']
-    assert set(keys) == set(fibermap.keys())
-    dtype = zip(keys, [fibermap[k].dtype for k in keys])
-    cols = [fibermap[k] for k in keys]
-    rows = zip(*cols)
-    fibermap = np.array(rows, dtype)
-    
-    return fibermap
+    nexttile = int(min(set(tiles['TILEID']) - obstiles))        
+    return nexttile
     
 def get_next_expid(n=None):
     """
@@ -126,10 +210,10 @@ def get_next_expid(n=None):
         probably not threadsafe.
     """
     #- Full path to next_expid.txt file
-    filename = _proddir()+'/etc/next_expid.txt'
+    filename = io.simdir()+'/etc/next_expid.txt'
     
-    if not os.path.exists(_proddir()+'/etc/'):
-        os.makedirs(_proddir()+'/etc/')
+    if not os.path.exists(io.simdir()+'/etc/'):
+        os.makedirs(io.simdir()+'/etc/')
 
     #- Create file if needed; is this threadsafe?  Probably not.
     if not os.path.exists(filename):
@@ -187,7 +271,8 @@ def get_night(t=None, utc=None):
     
 #- I'm not really sure this is a good idea.
 #- I'm sure I will want to change the schema later...
-def update_obslog(obstype='science', expid=None, dateobs=None, tileid=-1, ra=0.0, dec=0.0):
+def update_obslog(obstype='science', expid=None, dateobs=None,
+    tileid=-1, ra=None, dec=None):
     """
     Update obslog with a new exposure
     
@@ -195,12 +280,12 @@ def update_obslog(obstype='science', expid=None, dateobs=None, tileid=-1, ra=0.0
     expid   : integer exposure ID, default from get_next_expid()
     dateobs : time.struct_time tuple; default time.localtime()
     tileid  : integer TileID, default -1, i.e. not a DESI tile
-    ra, dec : float (ra, dec) coordinates, default (0,0)
+    ra, dec : float (ra, dec) coordinates, default tile ra,dec or (0,0)
     
     returns tuple (expid, dateobs)
     """
     #- Connect to sqlite database file and create DB if needed
-    dbfile = _proddir()+'/etc/obslog.sqlite'
+    dbfile = io.simdir()+'/etc/obslog.sqlite'
     db = sqlite3.connect(dbfile)
     db.execute("""\
     CREATE TABLE IF NOT EXISTS obslog (
@@ -221,7 +306,14 @@ def update_obslog(obstype='science', expid=None, dateobs=None, tileid=-1, ra=0.0
     if dateobs is None:
         dateobs = time.localtime()
 
-    night = get_night(dateobs)
+    if ra is None:
+        assert (dec is None)
+        if tileid < 0:
+            ra, dec = (0.0, 0.0)
+        else:
+            ra, dec = io.get_tile_radec(tileid)
+            
+    night = get_night(utc=dateobs)
         
     insert = """\
     INSERT INTO obslog(expid,dateobs,night,obstype,tileid,ra,dec)
@@ -232,3 +324,4 @@ def update_obslog(obstype='science', expid=None, dateobs=None, tileid=-1, ra=0.0
     
     return expid, dateobs
     
+

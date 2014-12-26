@@ -14,6 +14,203 @@ import astropy.units
 import math
 import string
 
+from . import io
+
+def sample_objtype(nobj):
+    """
+    Return a random sampling of object types (ELG, LRG, QSO, STD, BAD_QSO)
+    
+    Args:
+        nobj : number of objects to generate
+        
+    Returns:
+        (true_objtype, target_objtype)
+        
+    where
+        true_objtype   : array of what type the objects actually are
+        target_objtype : array of type they were targeted as
+
+    Notes:
+    - Actual fiber assignment will result in higher relative fractions of
+      LRGs and QSOs in early passes and more ELGs in later passes.
+    """
+
+    #- Load target densities
+    #- TODO: what about nobs_boss (BOSS-like LRGs)?
+    fx = open(os.getenv('DESIMODEL')+'/data/targets/targets.dat')
+    tgt = yaml.load(fx)
+    fx.close()
+    ntgt = float(tgt['nobs_lrg'] + tgt['nobs_elg'] + \
+                 tgt['nobs_qso'] + tgt['nobs_lya'] + tgt['ntarget_badqso'])
+        
+    #- Fraction of sky and standard star targets is guaranteed
+    nsky = int(tgt['frac_sky'] * nobj)
+    nstd = int(tgt['frac_std'] * nobj)
+    
+    #- Number of science fibers available
+    nsci = nobj - (nsky+nstd)
+    
+    #- LRGs ELGs QSOs
+    nlrg = np.random.poisson(nsci * tgt['nobs_lrg'] / ntgt)
+    
+    nqso = np.random.poisson(nsci * (tgt['nobs_qso'] + tgt['nobs_lya']) / ntgt)
+    nqso_bad = np.random.poisson(nsci * (tgt['ntarget_badqso']) / ntgt)
+    
+    nelg = nobj - (nlrg+nqso+nqso_bad+nsky+nstd)
+    
+    true_objtype  = ['SKY']*nsky + ['STD']*nstd
+    true_objtype += ['ELG']*nelg
+    true_objtype += ['LRG']*nlrg
+    true_objtype += ['QSO']*nqso + ['QSO_BAD']*nqso_bad
+    assert(len(true_objtype) == nobj)
+    np.random.shuffle(true_objtype)
+    
+    target_objtype = list()
+    for x in true_objtype:
+        if x == 'QSO_BAD':
+            target_objtype.append('QSO')
+        else:
+            target_objtype.append(x)
+
+    target_objtype = np.array(target_objtype)
+    true_objtype = np.array(true_objtype)
+
+    return true_objtype, target_objtype
+
+def get_targets(nspec, tileid=None):
+    """
+    Returns:
+        fibermap
+        truth table
+        
+    TODO: document this better
+    """
+    if tileid is None:
+        tile_ra, tile_dec = 0.0, 0.0
+    else:
+        tile_ra, tile_dec = io.get_tile_radec(tileid)
+    
+    #- Get distribution of target types
+    true_objtype, target_objtype = sample_objtype(nspec)
+    
+    #- Get DESI wavelength coverage
+    wavemin = io.load_throughput('b').wavemin
+    wavemax = io.load_throughput('z').wavemax
+    dw = 0.2
+    wave = np.arange(round(wavemin, 1), wavemax, dw)
+    nwave = len(wave)
+    
+    truth = dict()
+    truth['FLUX'] = np.zeros( (nspec, len(wave)) )
+    truth['REDSHIFT'] = np.zeros(nspec, dtype='f4')
+    truth['TEMPLATEID'] = np.zeros(nspec, dtype='i4')
+    truth['O2FLUX'] = np.zeros(nspec, dtype='f4')
+    truth['OBJTYPE'] = np.zeros(nspec, dtype='S10')
+    #- Note: unlike other elements, first index of WAVE isn't spectrum index
+    truth['WAVE'] = wave
+    
+    fibermap = dict()
+    nmag = 5
+    fibermap['MAG'] = np.zeros((nspec, nmag), dtype='f4')
+    fibermap['FILTER'] = np.zeros((nspec, nmag), dtype='S10')
+    fibermap['OBJTYPE'] = np.zeros(nspec, dtype='S10')
+    
+    for objtype in set(true_objtype):
+        ii = np.where(true_objtype == objtype)[0]
+        fibermap['OBJTYPE'][ii] = target_objtype[ii]
+        truth['OBJTYPE'][ii] = true_objtype[ii]
+
+        if objtype == 'SKY':
+            continue
+                    
+        try:
+            simflux, meta = io.read_templates(wave, objtype, len(ii))
+        except ValueError, e:
+            print e
+            continue
+            
+        truth['FLUX'][ii] = simflux
+        
+        #- STD don't have redshift Z; others do
+        #- In principle we should also have redshifts (radial velocities)
+        #- for standards as well.
+        if 'Z' in meta.dtype.names:
+            truth['REDSHIFT'][ii] = meta['Z']
+        elif objtype != 'STD':
+            print "No redshifts for", objtype, len(ii)
+
+        #- Only ELGs have [OII] flux
+        if objtype == 'ELG':
+            truth['O2FLUX'][ii] = meta['OII_3727']
+        
+        #- Everyone had a templateid
+        truth['TEMPLATEID'][ii] = meta['TEMPLATEID']
+        
+        #- Extract magnitudes from colors
+        #- TODO: make this more consistent at the input level
+        
+        #- Standard Stars have SDSS magnitudes
+        if objtype == 'STD':
+            magr = meta['SDSS_R']
+            magi = magr - meta['SDSS_RI']
+            magz = magi - meta['SDSS_IZ']
+            magg = magr - meta['SDSS_GR']  #- R-G, not G-R ?
+            magu = magg - meta['SDSS_UG']
+
+            mags = np.vstack( [magu, magg, magr, magi, magz] ).T
+            filters = ['SDSS_U', 'SDSS_G', 'SDSS_R', 'SDSS_I', 'SDSS_Z']
+
+            fibermap['MAG'][ii] = mags
+            fibermap['FILTER'][ii] = filters
+        #- LRGs
+        elif objtype == 'LRG':
+            magz = meta['DECAM_Z']
+            magr = magz - meta['DECAM_RZ']
+            magw = magr - meta['DECAM_RW1']
+            
+            fibermap['MAG'][ii, 0:3] = np.vstack( [magr, magz, magw] ).T
+            fibermap['FILTER'][ii, 0:3] = ['DECAM_R', 'DECAM_Z', 'WISE_W1']
+            
+        #- ELGs
+        elif objtype == 'ELG':
+            magr = meta['DECAM_R']
+            magg = magr - meta['DECAM_GR']
+            magz = magr - meta['DECAM_RZ']
+            fibermap['MAG'][ii, 0:3] = np.vstack( [magg, magr, magz] ).T
+            fibermap['FILTER'][ii, 0:3] = ['DECAM_G', 'DECAM_R', 'DECAM_Z']
+        
+        elif objtype == 'QSO':
+            #- QSO templates don't have magnitudes yet
+            pass
+                
+    #- Load fiber -> positioner mapping and tile information
+    #- NOTE: multiple file I/O here; seems clumsy
+    fiberpos = io.load_fiberpos()
+                        
+    #- Fill in the rest of the fibermap structure
+    fibermap['FIBER'] = np.arange(nspec, dtype='i4')
+    fibermap['POSITIONER'] = fiberpos['POSITIONER'][0:nspec]
+    fibermap['SPECTROID'] = fiberpos['SPECTROGRAPH'][0:nspec]
+    fibermap['TARGETID'] = np.random.randint(sys.maxint, size=nspec)
+    fibermap['TARGETCAT'] = np.zeros(nspec, dtype='|S20')
+    fibermap['LAMBDAREF'] = np.ones(nspec, dtype=np.float32)*5400
+    fibermap['TARGET_MASK0'] = np.zeros(nspec, dtype='i8')
+    fibermap['RA_TARGET'] = np.ones(nspec, dtype='f8') * tile_ra   #- TODO
+    fibermap['DEC_TARGET'] = np.ones(nspec, dtype='f8') * tile_dec #- TODO
+    fibermap['X_TARGET'] = fiberpos['X'][0:nspec]
+    fibermap['Y_TARGET'] = fiberpos['Y'][0:nspec]
+    fibermap['X_FVCOBS'] = fibermap['X_TARGET']
+    fibermap['Y_FVCOBS'] = fibermap['Y_TARGET']
+    fibermap['X_FVCERR'] = np.zeros(nspec, dtype=np.float32)
+    fibermap['Y_FVCERR'] = np.zeros(nspec, dtype=np.float32)
+    fibermap['RA_OBS'] = fibermap['RA_TARGET']
+    fibermap['DEC_OBS'] = fibermap['DEC_TARGET']
+    
+    return fibermap, truth
+
+
+#-------------------------------------------------------------------------
+#- Currently unused, but keep around for now
 def sample_nz(objtype, n):
     """
     Given `objtype` = 'LRG', 'ELG', 'QSO', 'STAR', 'STD'
@@ -51,225 +248,3 @@ def sample_nz(objtype, n):
     return np.interp(x, cdf, zhi)
 
     
-def sample_targets(nfiber):
-    """
-    Return tuple of arrays of true_objtype, target_objtype, z
-    
-    true_objtype   : array of what type the objects actually are
-    target_objtype : array of type they were targeted as
-    z : true object redshifts
-    
-    Notes:
-    - Actual fiber assignment will result in higher relative fractions of
-      LRGs and QSOs in early passes and more ELGs in later passes.
-    - This could be expanded to include magnitude and color distributions
-    """
-
-    #- Load target densities
-    #- TODO: what about nobs_boss (BOSS-like LRGs)?
-    fx = open(os.getenv('DESIMODEL')+'/data/targets/targets.dat')
-    tgt = yaml.load(fx)
-    n = float(tgt['nobs_lrg'] + tgt['nobs_elg'] + \
-              tgt['nobs_qso'] + tgt['nobs_lya'] + tgt['ntarget_badqso'])
-        
-    #- Fraction of sky and standard star targets is guaranteed
-    nsky = int(tgt['frac_sky'] * nfiber)
-    nstd = int(tgt['frac_std'] * nfiber)
-    
-    #- Number of science fibers available
-    nsci = nfiber - (nsky+nstd)
-    
-    #- LRGs ELGs QSOs
-    nlrg = np.random.poisson(nsci * tgt['nobs_lrg'] / n)
-    
-    nqso = np.random.poisson(nsci * (tgt['nobs_qso'] + tgt['nobs_lya']) / n)
-    nqso_bad = np.random.poisson(nsci * (tgt['ntarget_badqso']) / n)
-    
-    nelg = nfiber - (nlrg+nqso+nqso_bad+nsky+nstd)
-    
-    true_objtype  = ['SKY']*nsky + ['STD']*nstd
-    true_objtype += ['ELG']*nelg
-    true_objtype += ['LRG']*nlrg
-    true_objtype += ['QSO']*nqso + ['QSO_BAD']*nqso_bad
-    assert(len(true_objtype) == nfiber)
-    np.random.shuffle(true_objtype)
-    
-    target_objtype = list()
-    for x in true_objtype:
-        if x == 'QSO_BAD':
-            target_objtype.append('QSO')
-        else:
-            target_objtype.append(x)
-
-    target_objtype = np.array(target_objtype)
-    true_objtype = np.array(true_objtype)
-
-    #- Fill in z distributions; default 0 for STAR, STD, QSO_BAD
-    z = np.zeros(nfiber)
-    for objtype in ('ELG', 'LRG', 'QSO'):
-        ii = np.where(true_objtype == objtype)[0]
-        z[ii] = sample_nz(objtype, len(ii))
-    
-    return true_objtype, target_objtype, z
-    
-    
-def get_templates(wave, objtype, redshift):
-    """
-    Return a set of template spectra
-    
-    Inputs:
-    - wave : observer frame wavelength array in Angstroms
-    - objtype : array of object types (LRG, ELG, QSO, STAR)
-    - redshift : array of redshifts for these objects
-    
-    Returns 2D array of spectra[len(objtype), len(wave)]
-    """
-
-    #- Look for templates in
-    #- $DESI_LRG_TEMPLATES, $DESI_ELG_TEMPLATES, etc.
-    #- If those envars aren't set, default to most recent version number in
-    #- $DESI_SPECTRO_TEMPLATES/{objtype}_templates/{version}/*.fits[.gz]
-    
-    #- Randomly subsample those templates to get nspec of them    
-
-    
-    #- Allow objtype to be a single string instead of an array of strings
-    if isinstance(objtype, str):
-        objtype = [objtype,] * len(redshift)
-    else:
-        assert len(redshift) == len(objtype)
-    
-    #- Store the list of known objtype and associated template filename
-    known_filenames_for_objtypes={}
-    missing_template_env = list()
-    for xobj in set(objtype):
-        key = 'DESI_'+xobj+'_TEMPLATES'
-        if key in os.environ:
-            known_filenames_for_objtypes[xobj] = os.getenv(key)
-        else:
-            missing_template_env.append(key)
-            
-    if len(missing_template_env) > 0:
-        raise EnvironmentError("Missing env vars "+str(missing_template_env))
-    
-    #- allocate spectra
-    spectra=np.zeros((len(objtype), len(wave)))
-    
-    #- open only once each type to minimize IO
-    for obj in set(objtype) :
-        
-        try :
-            filename=known_filenames_for_objtypes[obj]
-        except KeyError, e:
-            print "ERROR in targets.get_templates, unknown objtype '%s'"%obj
-            print "known objtypes are",known_filenames_for_objtypes.keys
-            raise e
-        
-        print filename
-        file=fitsio.FITS(filename)
-        header = file[0].read_header()
-
-        if header["CTYPE1"] != 'WAVE-WAV' or header["CUNIT1"] != 'Angstrom' \
-                or  header["BUNIT"] != 'erg/s/cm2/A' \
-                or  header["FLUXUNIT"] != 'erg/s/cm2/A' :
-            print "ERROR in targets.get_templates, sorry, something has changed in the template files since implementation, need to review this function"
-            sys.exit(12) # need a better exception here 
-                
-        loglam=header["CDELT1"]*np.arange(header["NAXIS1"])+header["CRVAL1"]
-        file_restframe_wave=10**loglam
-        number_of_spectra_in_file=header["NAXIS2"]
-        print loglam.size,number_of_spectra_in_file
-
-
-        extra_normalization=None
-        ignore_redshift_for_distance=False
-        
-        # check objtype and version in file and possibly adapt normalization 
-        objtype_in_file=string.strip(header["OBJTYPE"])
-        version_in_file=string.strip(header["VERSION"])
-        
-        if objtype_in_file=="ELG" and version_in_file=="v1.2" :
-
-            print "WARNING in targets.get_templates : need to alter normalization of template for ELG v1.2 because normalized to m_stell = 1 Msol"
-            print "WARNING in targets.get_templates : use gaussian distrib of log10(m_stell) based on obs. frame. template, with mean[log10(m_stell)]=10.25 (actually median) and rms [log10(m_stell)]=0.485"
-            extra_normalization=10**np.random.normal(loc=10.25,scale=0.485,size=len(redshift))
-        
-        elif objtype_in_file=="LRG" and version_in_file=="v1.0" :
-
-            print "WARNING in targets.get_templates : need to alter normalization of template for LRG v1.0 because normalized to m_stell = 1 Msol"
-            print "ERROR in targets.get_templates : but I don't know what distribution of log10(m_stell) to use!"
-            sys.exit(12) # need a better exception here 
-            
-        elif objtype_in_file=="STELLAR" and version_in_file=="v1.0" :
-            ignore_redshifts=True
-            
-            print "WARNING in targets.get_templates : will use a hard-coded range of distances for stars"
-            print "ERROR in targets.get_templates : but I don't know what distribution to use!"
-            sys.exit(12) # need a better exception here 
-        
-        else :
-            print "ERROR in targets.get_templates, objtype %s with version %s (in the header of %s) is new and need to be checked, please edit the python code"%(objtype_in_file,version_in_file,filename)
-            sys.exit(12) # need a better exception here  
-        
-        
-        #- now loop on requested entries
-        for obj_req, z, index in zip(objtype,redshift,np.arange(len(redshift))) :
-            
-            #- check match objtype of file we have opened 
-            if obj_req != obj :
-                continue
-            
-            #- warning for stars
-            if z>0 and ignore_redshift_for_distance :
-                print "WARNING we will not use the redshift to get a distance for objtype=%s, we'll do only a shift of wavelenth"%objtype_in_file
-                
-            #- take one random row in file
-            entry=int(random.random()*number_of_spectra_in_file)           
-            
-            #- read only one entry of the file
-            restframe_spectrum=file[0][entry:entry+1,:][0]
-            # print obj,z,entry,restframe_spectrum.shape
-            
-            if ignore_redshift_for_distance :
-
-                scale=1.
-
-            else :
-
-                #- use fiducial cosmology to get luminosity distance
-                dl=desisim.cosmology.fiducial_cosmology.luminosity_distance(z)
-                
-                #- ratio of luminosity distance between redshift z and 10pc
-                dl_ratio=(10*astropy.units.pc)/desisim.cosmology.fiducial_cosmology.luminosity_distance(z)
-            
-                #- decompose units to dimensionless ratio
-                dl_ratio = dl_ratio.decompose().value
-            
-                #- factor 1/(1+z) because energy density per unit observed wavelength
-                scale=dl_ratio**2/(1.+z)
-
-                # just if someone wonders,
-                # templates are SEDs at 10pc : phi_0 = ergs/s/cm2/A at d=10pc , z=0
-                # luminosity is L (ergs/s/A) = (4*pi*(10pc)^2) * phi_0
-                # dd=distance from source , dl=(1+z)*dd=luminosity distance
-                # number of photons per unit area (of energy,time interval,wave interval E_e,dt_e,dwave_e at emission)
-                # dn_photons = L/(4*pi*(dd(z))^2)/E_e*dt_e*dwave_e
-                #            = L/(4*pi*(dd(z))^2)/E_r*dt_r*dwave_r/(1+z)^3
-                # phi_obs = observed SED in ergs/s/cm2/A :
-                # phi_obs = E_r*dn_photons/(dt_r*dwave_r)
-                #         = L/(4*pi*(dd(z))^2)/(1+z)^3
-                #         = phi_0*(10pc/dd(z))^2/(1+z)^3
-                #         = phi_0*(10pc/(dl(z)/(1+z))^2/(1+z)^3
-                #         = phi_0*(10pc/dl(z))^2/(1+z)
-            
-                
-            #- observer frame wave
-            file_obsframe_wave=(1.+z)*file_restframe_wave
-            
-            #- use interpolation routine that conserves flux
-            spectra[index]=desisim.interpolation.general_interpolate_flux_density(wave,file_obsframe_wave,scale*restframe_spectrum)
-            
-            if extra_normalization != None :
-                spectra[index] *= extra_normalization[index]
-    
-    return spectra
