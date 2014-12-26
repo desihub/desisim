@@ -14,6 +14,8 @@ import astropy.units
 import math
 import string
 
+from . import io
+
 def sample_objtype(nobj):
     """
     Return a random sampling of object types (ELG, LRG, QSO, STD, BAD_QSO)
@@ -84,9 +86,9 @@ def get_targets(nspec, tileid=None):
     TODO: document this better
     """
     if tileid is None:
-        tileid = get_next_tileid()
-
-    tile_ra, tile_dec = get_tile_radec(tileid)
+        tile_ra, tile_dec = 0.0, 0.0
+    else:
+        tile_ra, tile_dec = io.get_tile_radec(tileid)
     
     #- Get distribution of target types
     true_objtype, target_objtype = sample_objtype(nspec)
@@ -108,8 +110,9 @@ def get_targets(nspec, tileid=None):
     truth['WAVE'] = wave
     
     fibermap = dict()
-    fibermap['MAG'] = np.zeros(nspec, dtype='f4')
-    fibermap['MAGSYS'] = np.zeros(nspec, dtype='S10')
+    nmag = 5
+    fibermap['MAG'] = np.zeros((nspec, nmag), dtype='f4')
+    fibermap['FILTER'] = np.zeros((nspec, nmag), dtype='S10')
     fibermap['OBJTYPE'] = np.zeros(nspec, dtype='S10')
     
     for objtype in set(true_objtype):
@@ -129,27 +132,60 @@ def get_targets(nspec, tileid=None):
         truth['FLUX'][ii] = simflux
         
         #- STD don't have redshift Z; others do
+        #- In principle we should also have redshifts (radial velocities)
+        #- for standards as well.
         if 'Z' in meta.dtype.names:
             truth['REDSHIFT'][ii] = meta['Z']
-        else:
+        elif objtype != 'STD':
             print "No redshifts for", objtype, len(ii)
 
         #- Only ELGs have [OII] flux
         if objtype == 'ELG':
             truth['O2FLUX'][ii] = meta['OII_3727']
         
-        #- Everyone had a templateid and some sort of magnitude    
-        #- TODO: make this better!
+        #- Everyone had a templateid
         truth['TEMPLATEID'][ii] = meta['TEMPLATEID']
-        for x in ('SDSS_R', 'DECAM_R', 'DECAM_Z'):
-            if x in meta.dtype.names:
-                fibermap['MAG'][ii] = meta[x]
-                fibermap['MAGSYS'][ii] = x
-                break
-    
+        
+        #- Extract magnitudes from colors
+        #- TODO: make this more consistent at the input level
+        
+        #- Standard Stars have SDSS magnitudes
+        if objtype == 'STD':
+            magr = meta['SDSS_R']
+            magi = magr - meta['SDSS_RI']
+            magz = magi - meta['SDSS_IZ']
+            magg = magr - meta['SDSS_GR']  #- R-G, not G-R ?
+            magu = magg - meta['SDSS_UG']
+
+            mags = np.vstack( [magu, magg, magr, magi, magz] ).T
+            filters = ['SDSS_U', 'SDSS_G', 'SDSS_R', 'SDSS_I', 'SDSS_Z']
+
+            fibermap['MAG'][ii] = mags
+            fibermap['FILTER'][ii] = filters
+        #- LRGs
+        elif objtype == 'LRG':
+            magz = meta['DECAM_Z']
+            magr = magz - meta['DECAM_RZ']
+            magw = magr - meta['DECAM_RW1']
+            
+            fibermap['MAG'][ii, 0:3] = np.vstack( [magr, magz, magw] ).T
+            fibermap['FILTER'][ii, 0:3] = ['DECAM_R', 'DECAM_Z', 'WISE_W1']
+            
+        #- ELGs
+        elif objtype == 'ELG':
+            magr = meta['DECAM_R']
+            magg = magr - meta['DECAM_GR']
+            magz = magr - meta['DECAM_RZ']
+            fibermap['MAG'][ii, 0:3] = np.vstack( [magg, magr, magz] ).T
+            fibermap['FILTER'][ii, 0:3] = ['DECAM_G', 'DECAM_R', 'DECAM_Z']
+        
+        elif objtype == 'QSO':
+            #- QSO templates don't have magnitudes yet
+            pass
+                
     #- Load fiber -> positioner mapping and tile information
     #- NOTE: multiple file I/O here; seems clumsy
-    fiberpos = fits.getdata(os.getenv('DESIMODEL')+'/data/focalplane/fiberpos.fits', upper=True)
+    fiberpos = io.load_fiberpos()
                         
     #- Fill in the rest of the fibermap structure
     fibermap['FIBER'] = np.arange(nspec, dtype='i4')

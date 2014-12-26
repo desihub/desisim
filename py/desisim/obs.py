@@ -127,7 +127,7 @@ def new_exposure(nspec=5000):
         'TARGETID',
         'TARGET_MASK0',
         'MAG',
-        'MAGSYS',
+        'FILTER',
         'SPECTROID',
         'POSITIONER',
         'FIBER',
@@ -192,14 +192,6 @@ def get_next_tileid():
     #- Just pick the next tile in sequential order
     nexttile = int(min(set(tiles['TILEID']) - obstiles))        
     return nexttile
-    
-def get_tile_radec(tileid):
-    tiles = io.load_tiles()
-    if tileid in tiles['TILEID']:
-        i = np.where(tiles['TILEID'] == tileid)[0][0]
-        return tiles[i]['RA'], tiles[i]['DEC']
-    else:
-        return (0.0, 0.0)
     
 def get_next_expid(n=None):
     """
@@ -319,7 +311,7 @@ def update_obslog(obstype='science', expid=None, dateobs=None,
         if tileid < 0:
             ra, dec = (0.0, 0.0)
         else:
-            ra, dec = get_tile_radec(tileid)
+            ra, dec = io.get_tile_radec(tileid)
             
     night = get_night(utc=dateobs)
         

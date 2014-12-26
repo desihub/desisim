@@ -1,4 +1,5 @@
 import os
+import os.path
 import time
 
 import numpy as np
@@ -35,18 +36,28 @@ def simulate(night, expid, camera, nspec=None, verbose=False):
     ispec = int(camera[1])
     assert channel in 'BRZ'
     assert 0 <= ispec < 10
-    
+
+    #- Load DESI parameters
+    params = io.load_desiparams()
+    nfibers = params['spectro']['nfibers']
+
+    #- Check that this camera has simulated spectra
     hdr = fits.getheader(simfile, 'PHOT_'+channel)
+    nspec = hdr['NAXIS2']
+    if ispec*nfibers >= nspec:
+        print "ERROR: camera {} not in the {} spectra in {}/{}".format(
+            camera, nspec, night, os.path.basename(simfile))
+        return
+
+    #- Load input photon data
     phot = fits.getdata(simfile, 'PHOT_'+channel)
     phot += fits.getdata(simfile, 'SKYPHOT_'+channel)
     
     nwave = phot.shape[1]
     wave = hdr['CRVAL1'] + np.arange(nwave)*hdr['CDELT1']
     
-    #- Load PSF and DESI parameters
+    #- Load PSF
     psf = io.load_psf(channel)
-    params = io.load_desiparams()
-    nfibers = params['spectro']['nfibers']
 
     #- Trim to just the spectra for this spectrograph
     if nspec is None:

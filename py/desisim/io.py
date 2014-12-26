@@ -50,13 +50,19 @@ def write_fibermap(fibermap, expid, night, dateobs, tileid=None):
         RA_OBS       = "RA of obs from (X,Y)_FVCOBS and optics [deg]",
         DEC_OBS      = "dec of obs from (X,Y)_FVCOBS and optics [deg]",
         MAG          = "magitude",
-        MAGSYS       = "SDSS, DECAM, WISE, BOK, MOSAIC, ..."
+        FILTER       = "SDSS_R, DECAM_Z, WISE1, etc."
     )
 
     #- Extra header keywords
     hdr = fits.Header()
     if tileid is not None:
         hdr['TILEID']   = (tileid, 'Tile ID')
+        tele_ra, tele_dec = get_tile_radec(tileid)
+        hdr['TELERA']   = (tele_ra, 'Telescope central RA [deg]')
+        hdr['TELEDEC']  = (tele_dec, 'Telescope central dec [deg]')
+    else:
+        hdr['TELERA']   = (0.0, 'Telescope central RA [deg]')
+        hdr['TELEDEC']  = (0.0, 'Telescope central dec [deg]')        
         
     hdr['EXPID']    = (expid, 'Exposure number')
     hdr['NIGHT']    = (str(night), 'Night YEARMMDD')
@@ -67,11 +73,6 @@ def write_fibermap(fibermap, expid, night, dateobs, tileid=None):
     dateobs_str = time.strftime('%Y-%m-%dT%H:%M:%S', dateobs)
     hdr['DATE-OBS'] = (dateobs_str, 'Date of observation in UTC')
 
-    #- TODO: Refactor.  tele_ra,dec comes from obs.get_tile_radec(),
-    #- but obs itself imports io.  Can't have circular dependency.
-    # hdr['TELERA']   = (tele_ra, 'Telescope central RA [deg]')
-    # hdr['TELEDEC']  = (tele_dec, 'Telescope central dec [deg]')
-    
     write_bintable(outfile, fibermap, hdr, comments=comments,
         extname="FIBERMAP", clobber=True)
         
@@ -165,16 +166,41 @@ def write_simspec(meta, truth, expid, night):
 #- These should probably move to desimodel itself,
 #- except that brings in extra dependencies for desimodel.
 
+_thru = dict()
 def load_throughput(channel):
-    thrudir = os.getenv('DESIMODEL') + '/data/throughput'
-    return specter.throughput.load_throughput(thrudir+'/thru-'+channel+'.fits')
+    channel = channel.lower()
+    global _thru
+    if channel not in _thru:
+        thrudir = os.getenv('DESIMODEL') + '/data/throughput'
+        _thru[channel] = specter.throughput.load_throughput(thrudir+'/thru-'+channel+'.fits')
+    
+    return _thru[channel]
 
+_psf = dict()
 def load_psf(channel):
-    psfdir = os.getenv('DESIMODEL') + '/data/specpsf'
-    return specter.psf.load_psf(psfdir+'/psf-'+channel+'.fits')
+    channel = channel.lower()
+    global _psf
+    if channel not in _psf:
+        psfdir = os.getenv('DESIMODEL') + '/data/specpsf'
+        _psf[channel] = specter.psf.load_psf(psfdir+'/psf-'+channel+'.fits')
+    
+    return _psf[channel]
 
+_params = None
 def load_desiparams():
-    return yaml.load(open(os.getenv('DESIMODEL')+'/data/desi.yaml'))
+    global _params
+    if _params is None:
+        _params = yaml.load(open(os.getenv('DESIMODEL')+'/data/desi.yaml'))
+        
+    return _params
+
+_fiberpos = None
+def load_fiberpos():
+    global _fiberpos
+    if _fiberpos is None:
+        _fiberpos = fits.getdata(os.getenv('DESIMODEL')+'/data/focalplane/fiberpos.fits', upper=True)
+    
+    return _fiberpos
 
 _tiles = None
 def load_tiles(onlydesi=True):
@@ -192,7 +218,20 @@ def load_tiles(onlydesi=True):
         return _tiles[_tiles['IN_DESI'] > 0]
     else:
         return _tiles
-        
+
+def get_tile_radec(tileid):
+    """
+    Return (ra, dec) in degrees for the requested tileid.
+    
+    If tileid is not in DESI, return (0.0, 0.0)
+    TODO: should it raise and exception instead?
+    """
+    tiles = load_tiles()
+    if tileid in tiles['TILEID']:
+        i = np.where(tiles['TILEID'] == tileid)[0][0]
+        return tiles[i]['RA'], tiles[i]['DEC']
+    else:
+        return (0.0, 0.0)   
 
 #-------------------------------------------------------------------------
 #- spectral templates
@@ -255,16 +294,17 @@ def write_bintable(filename, data, header=None, comments=None, units=None,
     Utility function to write a binary table and get the comments and units
     in the FITS header too.
     """
+    
     #- Convert data from dictionary of columns to ndarray if needed
-    if isinstance(data, dict):
-        dtype = list()
-        for key in data:
-            dtype.append( (key, data[key].dtype, data[key].shape) )
-        nrows = len(data[key])  #- use last column to get length
-        xdata = np.empty(nrows, dtype=dtype)
-        for key in data:
-            xdata[key] = data[key]
-        data = xdata
+    # if isinstance(data, dict):
+    #     dtype = list()
+    #     for key in data:
+    #         dtype.append( (key, data[key].dtype, data[key].shape) )
+    #     nrows = len(data[key])  #- use last column to get length
+    #     xdata = np.empty(nrows, dtype=dtype)
+    #     for key in data:
+    #         xdata[key] = data[key]            
+    #     data = xdata
     
     #- Write the data and header
     hdu = fits.BinTableHDU(data, header=header, name=extname)
