@@ -11,11 +11,9 @@ from desisim import obs, io
 
 def _project(args):
     psf, wave, phot, specmin = args
-    print 'starting', time.asctime(), specmin, phot.shape
     nspec = phot.shape[0]
     xyrange = psf.xyrange( [specmin, specmin+nspec], wave )
     img = psf.project(wave, phot, specmin=specmin, xyrange=xyrange)
-    print 'ending', time.asctime()
     return (xyrange, img)
     
 def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None):
@@ -93,17 +91,16 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None):
             ncpu = mp.cpu_count() / 2
             
         iispec = np.linspace(0, nspec, ncpu+1).astype(int)
+
         args = list()
         for i in range(ncpu):
             if iispec[i+1] > iispec[i]:
-                print time.asctime(), i, iispec[i], iispec[i+1]
                 args.append( [psf, wave, phot[iispec[i]:iispec[i+1]], iispec[i]] )
             
         pool = mp.Pool(ncpu)
         xy_subimg = pool.map(_project, args)
         img = np.zeros( (psf.npix_y, psf.npix_x) )
         for xyrange, subimg in xy_subimg:
-            print time.asctime(), xyrange
             xmin, xmax, ymin, ymax = xyrange
             img[ymin:ymax, xmin:xmax] += subimg
     

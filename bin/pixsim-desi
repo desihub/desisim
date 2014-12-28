@@ -48,7 +48,7 @@ parser.add_option("--night", type=str, help="YEARMMDD")
 parser.add_option("--camera", type=str, help="camera (e.g. b0, r5, z9)")
 parser.add_option("--verbose", action="store_true", help="print more stuff")
 parser.add_option("--randseed", type=int, help="random number seed [%default]", default=0)
-parser.add_option("--nspec", type=int, help="Number of spectra to simulate [%default]", default=5000)
+parser.add_option("--nspec", type=int, help="Number of spectra to simulate [%default]", default=500)
 parser.add_option("--ncpu",  type=int, help="Number of cpu cores to use [%default]", default=multiprocessing.cpu_count() / 2)
 
 opts, args = parser.parse_args()
