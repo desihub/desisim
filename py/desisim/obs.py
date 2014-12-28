@@ -62,7 +62,7 @@ def _dict2ndarray(data, columns=None):
 # 
 #     return result
 
-def new_exposure(nspec=5000):
+def new_exposure(nspec=5000, expid=None):
     """
     Create a new exposure and output input simulation files.
     Does not generate pixel-level simulations or noisy spectra.
@@ -78,8 +78,9 @@ def new_exposure(nspec=5000):
         fibermap numpy structured array
         truth dictionary
     """
-    
-    expid = get_next_expid()
+    if expid is None:
+        expid = get_next_expid()
+        
     dateobs = time.gmtime()
     night = get_night(utc=dateobs)
     tileid = get_next_tileid()
@@ -208,6 +209,8 @@ def get_next_expid(n=None):
     BUGS:
       * if etc/next_expid.txt doesn't exist, initial file creation is
         probably not threadsafe.
+      * File locking mechanism doesn't work on NERSC Edison, to turned off
+        for now.
     """
     #- Full path to next_expid.txt file
     filename = io.simdir()+'/etc/next_expid.txt'

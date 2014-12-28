@@ -1,6 +1,7 @@
 import os
 import os.path
 import time
+### import multiprocessing as mp
 
 import numpy as np
 import yaml
@@ -8,7 +9,16 @@ from astropy.io import fits
 
 from desisim import obs, io
 
-def simulate(night, expid, camera, nspec=None, verbose=False):
+def _project(args):
+    psf, wave, phot, specmin = args
+    print 'starting', time.asctime(), specmin, phot.shape
+    nspec = phot.shape[0]
+    xyrange = psf.xyrange( [specmin, specmin+nspec], wave )
+    img = psf.project(wave, phot, specmin=specmin, xyrange=xyrange)
+    print 'ending', time.asctime()
+    return (xyrange, img)
+    
+def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None):
     """
     Run pixel-level simulation of input spectra
     
@@ -18,6 +28,7 @@ def simulate(night, expid, camera, nspec=None, verbose=False):
         camera : e.g. b0, r1, z9
         nspec (optional) : number of spectra to simulate
         verbose (optional) : if True, print status messages
+        ncpu (optional) : number of CPU cores to use
 
     Reads:
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
@@ -43,10 +54,10 @@ def simulate(night, expid, camera, nspec=None, verbose=False):
 
     #- Check that this camera has simulated spectra
     hdr = fits.getheader(simfile, 'PHOT_'+channel)
-    nspec = hdr['NAXIS2']
-    if ispec*nfibers >= nspec:
+    nspec_in = hdr['NAXIS2']
+    if ispec*nfibers >= nspec_in:
         print "ERROR: camera {} not in the {} spectra in {}/{}".format(
-            camera, nspec, night, os.path.basename(simfile))
+            camera, nspec_in, night, os.path.basename(simfile))
         return
 
     #- Load input photon data
@@ -72,7 +83,31 @@ def simulate(night, expid, camera, nspec=None, verbose=False):
         print "Projecting photons onto CCD"
         
     #- Project photons onto the CCD
-    img = psf.project(wave, phot)
+    if ncpu < 0:
+        #- Serial version
+        img = psf.project(wave, phot)
+    else:
+        #- multiprocessing version
+        import multiprocessing as mp
+        if ncpu is None:
+            ncpu = mp.cpu_count() / 2
+            
+        iispec = np.linspace(0, nspec, ncpu+1).astype(int)
+        args = list()
+        for i in range(ncpu):
+            if iispec[i+1] > iispec[i]:
+                print time.asctime(), i, iispec[i], iispec[i+1]
+                args.append( [psf, wave, phot[iispec[i]:iispec[i+1]], iispec[i]] )
+            
+        pool = mp.Pool(ncpu)
+        xy_subimg = pool.map(_project, args)
+        img = np.zeros( (psf.npix_y, psf.npix_x) )
+        for xyrange, subimg in xy_subimg:
+            print time.asctime(), xyrange
+            xmin, xmax, ymin, ymax = xyrange
+            img[ymin:ymax, xmin:xmax] += subimg
+    
+    #-------------------------------------------------------------------------
 
     simpixfile = '{}/simpix-{}-{:08d}.fits'.format(simdir, camera, expid)
     
