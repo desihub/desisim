@@ -62,13 +62,16 @@ def _dict2ndarray(data, columns=None):
 # 
 #     return result
 
-def new_exposure(nspec=5000, expid=None):
+def new_exposure(nspec=5000, expid=None, tileid=None, airmass=1.0):
     """
     Create a new exposure and output input simulation files.
     Does not generate pixel-level simulations or noisy spectra.
     
     Args:
         nspec (optional): integer number of spectra to simulate
+        expid (optional): positive integer exposure ID
+        tileid (optional): tile ID
+        airmass (optional): airmass, default 1.0
     
     Writes:
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/fibermap-{expid}.fits
@@ -80,10 +83,12 @@ def new_exposure(nspec=5000, expid=None):
     """
     if expid is None:
         expid = get_next_expid()
+    
+    if tileid is None:
+        tileid = get_next_tileid()
         
     dateobs = time.gmtime()
     night = get_night(utc=dateobs)
-    tileid = get_next_tileid()
     
     fibermap, truth = get_targets(nspec, tileid=tileid)
     flux = truth['FLUX']
@@ -105,14 +110,16 @@ def new_exposure(nspec=5000, expid=None):
         
         #- Project flux to photons
         phot = thru.photons(wave[ii], flux[:,ii], units='1e-17 erg/s/cm2/A',
-                objtype=truth['OBJTYPE'], exptime=params['exptime'])
+                objtype=truth['OBJTYPE'], exptime=params['exptime'],
+                airmass=airmass)
                 
         truth['PHOT_'+channel] = phot
         truth['WAVE_'+channel] = wave[ii]
     
         #- Project sky flux to photons
-        skyphot = thru.photons(wave[ii], skyflux[ii], units='1e-17 erg/s/cm2/A/arcsec2',
-            objtype='SKY', exptime=params['exptime'])
+        skyphot = thru.photons(wave[ii], skyflux[ii]*airmass,
+            units='1e-17 erg/s/cm2/A/arcsec2',
+            objtype='SKY', exptime=params['exptime'], airmass=airmass)
     
         #- 2D version
         ### truth['SKYPHOT_'+channel] = np.tile(skyphot, nspec).reshape((nspec, len(ii)))
