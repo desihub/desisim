@@ -93,7 +93,7 @@ def write_simspec(meta, truth, expid, night):
     Write $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
     
     Args:
-        meta : metadata table to write to "META" HDU
+        meta : metadata table to write to "METADATA" HDU
         truth : dictionary with keys:
             FLUX - 2D array [nspec, nwave] in erg/s/cm2/A
             WAVE - 1D array of vacuum wavelengths [Angstroms]
@@ -136,7 +136,7 @@ def write_simspec(meta, truth, expid, night):
         O2FLUX      = 'erg/s/cm2',
     )
     
-    write_bintable(outfile, meta, header=None, extname="META",
+    write_bintable(outfile, meta, header=None, extname="METADATA",
         comments=comments, units=units)
 
     #- Write object photon and sky photons for each channel
@@ -160,7 +160,15 @@ def write_simspec(meta, truth, expid, night):
                             
     return outfile
 
-
+#-------------------------------------------------------------------------
+#- Parse header to make wavelength array
+def load_wavelength(filename, extname):
+    hdr = fits.getheader(filename, extname)
+    wave = hdr['CRVAL1'] + np.arange(hdr['NAXIS1'])*hdr['CDELT1']
+    if hdr['LOGLAM'] == 1:
+        wave = 10**wave
+    return wave
+    
 #-------------------------------------------------------------------------
 #- desimodel
 #- These should probably move to desimodel itself,
