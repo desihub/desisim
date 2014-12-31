@@ -130,19 +130,21 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None):
     #- Write the final noisy image file
     #- Pixels
     outfile = '{}/pix-{}-{:08d}.fits'.format(simdir, camera, expid)
-    hdu = fits.ImageHDU(img, header=hdr, name=camera.upper())
+    hdu = fits.PrimaryHDU(img, header=hdr)
     hdu.header.append( ('CAMERA', camera, 'Spectograph Camera') )
     hdu.header.append( ('VSPECTER', '0.0.0', 'TODO: Specter version') )
     hdu.header.append( ('EXPTIME', params['exptime'], 'Exposure time [sec]') )
+    hdu.header.append(('RDNOISE', rdnoise, 'Read noise [electrons]'))
     fits.writeto(outfile, hdu.data, hdu.header, clobber=True)
 
     #- Inverse variance (IVAR)
-    hdu = fits.ImageHDU(1.0/var, name=camera.upper()+'IVAR')
+    hdu = fits.ImageHDU(1.0/var, name='IVAR')
+    hdu.header.append(('RDNOISE', rdnoise, 'Read noise [electrons]'))
     fits.append(outfile, hdu.data, hdu.header, clobber=True)
 
     #- Mask (currently just zeros)
     mask = np.zeros(img.shape, dtype=np.int32)
-    hdu = fits.ImageHDU(mask, name=camera.upper()+'MASK')
+    hdu = fits.ImageHDU(mask, name='MASK')
     fits.append(outfile, hdu.data, hdu.header, clobber=True)
 
     if verbose:
