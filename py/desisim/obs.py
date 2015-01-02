@@ -174,8 +174,7 @@ def new_exposure(nspec=5000, expid=None, tileid=None, airmass=1.0):
     update_obslog('science', expid, dateobs, tileid)
     
     return fibermap, truth
-    
-    
+
 def get_next_tileid():
     """
     Return tileid of next tile to observe
