@@ -9,49 +9,6 @@ from astropy.io import fits
 
 from desisim import obs, io
 
-#- Helper function for multiprocessing parallel project
-def _project(args):
-    psf, wave, phot, specmin = args
-    nspec = phot.shape[0]
-    xyrange = psf.xyrange( [specmin, specmin+nspec], wave )
-    img = psf.project(wave, phot, specmin=specmin, xyrange=xyrange)
-    return (xyrange, img)
-
-#- Move this into specter itself?
-def parallel_project(psf, wave, phot, ncpu=None):
-    """
-    Using psf, project phot[nspec, nw] vs. wave[nw] onto image
-    
-    Return 2D image
-    """
-    #- Project photons onto the CCD
-    if ncpu < 0:
-        #- Serial version
-        img = psf.project(wave, phot)
-    else:
-        #- multiprocessing version
-        import multiprocessing as mp
-        if ncpu is None:
-            ncpu = mp.cpu_count() / 2
-            
-        nspec = phot.shape[0]
-        iispec = np.linspace(0, nspec, ncpu+1).astype(int)
-
-        args = list()
-        for i in range(ncpu):
-            if iispec[i+1] > iispec[i]:
-                args.append( [psf, wave, phot[iispec[i]:iispec[i+1]], iispec[i]] )
-            
-        pool = mp.Pool(ncpu)
-        xy_subimg = pool.map(_project, args)
-        img = np.zeros( (psf.npix_y, psf.npix_x) )
-        for xyrange, subimg in xy_subimg:
-            xmin, xmax, ymin, ymax = xyrange
-            img[ymin:ymax, xmin:xmax] += subimg
-            
-    return img
-    
-    
 def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None):
     """
     Run pixel-level simulation of input spectra
@@ -127,6 +84,24 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None):
         print "Wrote "+pixfile
 
 def new_arcexp(nspec=None, nspectrographs=10, ncpu=None):
+    """
+    Run pixel simulation of new arc lamp exposure
+    
+    Args:
+        nspec : number of spectra to simulate
+        nspectrographs : number of spectrographs to simulate [1-10]
+        ncpu : number of CPU cores to use
+    
+    Writes to $DESI_SPECTRO_SIM/$PIXPROD/
+        simpix-{camera}-{expid}.fits - noiseless simulated image
+        pix-{camera}-{expid}.fits - noisy image, ivar, mask
+        
+    Updates $DESI_SPECTRO_SIM/$PIXPROD/etc/obslog.sqlite and next_expid.txt
+
+    Bugs:
+        Uses hardcoded arc lamp spectrum in
+        $DESI_ROOT/spectro/templates/calib/v0.1/arc-lines-average.fits
+    """
     
     expid = obs.get_next_expid()
     dateobs = time.gmtime()
@@ -159,6 +134,24 @@ def new_arcexp(nspec=None, nspectrographs=10, ncpu=None):
     obs.update_obslog('arc', expid, dateobs)
 
 def new_flatexp(nspec=None, nspectrographs=10, ncpu=None):
+    """
+    Run pixel simulation of new flat lamp exposure
+    
+    Args:
+        nspec : number of spectra to simulate
+        nspectrographs : number of spectrographs to simulate [1-10]
+        ncpu : number of CPU cores to use
+    
+    Writes to $DESI_SPECTRO_SIM/$PIXPROD/
+        simpix-{camera}-{expid}.fits - noiseless simulated image
+        pix-{camera}-{expid}.fits - noisy image, ivar, mask
+        
+    Updates $DESI_SPECTRO_SIM/$PIXPROD/etc/obslog.sqlite and next_expid.txt
+    
+    Bugs:
+        Uses hardcoded flat lamp spectrum in
+        $DESI_ROOT/spectro/templates/calib/v0.1/flat-3100K-quartz-iodine.fits
+    """
     expid = obs.get_next_expid()
     dateobs = time.gmtime()
     night = obs.get_night(utc=dateobs)
@@ -190,6 +183,63 @@ def new_flatexp(nspec=None, nspectrographs=10, ncpu=None):
     #- Update obslog that we succeeded with this exposure
     obs.update_obslog('flat', expid, dateobs)
         
+
+#-------------------------------------------------------------------------
+
+#- Helper function for multiprocessing parallel project
+def _project(args):
+    """
+    Helper function to project photons onto a subimage
+    
+    Args:
+        tuple/array of [psf, wave, phot, specmin]
+    
+    Returns (xyrange, subimage) such that
+        xmin, xmax, ymin, ymax = xyrange
+        image[ymin:ymax, xmin:xmax] += subimage
+    """
+    psf, wave, phot, specmin = args
+    nspec = phot.shape[0]
+    xyrange = psf.xyrange( [specmin, specmin+nspec], wave )
+    img = psf.project(wave, phot, specmin=specmin, xyrange=xyrange)
+    return (xyrange, img)
+
+#- Move this into specter itself?
+def parallel_project(psf, wave, phot, ncpu=None):
+    """
+    Using psf, project phot[nspec, nw] vs. wave[nw] onto image
+    
+    Return 2D image
+    """
+    if ncpu < 0:
+        #- Serial version
+        img = psf.project(wave, phot)
+    else:
+        #- multiprocessing version
+        import multiprocessing as mp
+        if ncpu is None:
+            #- on a Mac, 1/2 cores is about the same speed as all of them
+            ncpu = mp.cpu_count() / 2
+            
+        #- Split the spectra into ncpu groups
+        nspec = phot.shape[0]
+        iispec = np.linspace(0, nspec, ncpu+1).astype(int)
+        args = list()
+        for i in range(ncpu):
+            if iispec[i+1] > iispec[i]:  #- can fail if nspec < ncpu
+                args.append( [psf, wave, phot[iispec[i]:iispec[i+1]], iispec[i]] )
+
+        #- Create pool of workers to do the projection using _project
+        #- xyrange, subimg = _project( [psf, wave, phot, specmin] )
+        pool = mp.Pool(ncpu)
+        xy_subimg = pool.map(_project, args)
+        img = np.zeros( (psf.npix_y, psf.npix_x) )
+        for xyrange, subimg in xy_subimg:
+            xmin, xmax, ymin, ymax = xyrange
+            img[ymin:ymax, xmin:xmax] += subimg
+            
+    return img
+    
 def _write_simpix(img, camera, flavor, night, expid, header=None):
     """
     Add noise to input image and write output files.
