@@ -171,9 +171,10 @@ def new_flatexp(nspec=None, nspectrographs=10, ncpu=None):
     for channel in ('b', 'r', 'z'):
         psf = io.load_psf(channel)
         thru = io.load_throughput(channel)
-        phot = thru.photons(wave, flux, units=hdr['BUNIT'])
+        phot = thru.photons(wave, flux, units=hdr['BUNIT'], objtype='CALIB')
         ### img = psf.project(wave, phot)
-        img = parallel_project(psf, wave, phot, ncpu=ncpu)
+        ii = (psf.wmin <= wave) & (wave <= psf.wmax)
+        img = parallel_project(psf, wave[ii], phot[:,ii], ncpu=ncpu)
         
         for i in range(nspectrographs):
             camera = channel+str(i)
