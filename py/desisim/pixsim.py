@@ -8,6 +8,7 @@ import yaml
 from astropy.io import fits
 
 from desisim import obs, io
+from desisim.interpolation import resample_flux
 
 def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None):
     """
@@ -171,6 +172,14 @@ def new_flatexp(nspec=None, nspectrographs=10, ncpu=None, channel=None,
     flux = fits.getdata(infile, 0)
     hdr = fits.getheader(infile, 0)
     wave = io.load_wavelength(infile, 0)
+    
+    #- resample to 0.2 A grid
+    dw = 0.2
+    ww = np.arange(wave[0], wave[-1]+dw/2, dw)
+    flux = resample_flux(ww, wave, flux)
+    wave = ww
+    
+    #- Convert to 2D for projection
     flux = np.tile(flux, nspec).reshape(nspec, len(wave))
 
     if channel is None:
