@@ -211,16 +211,17 @@ def parallel_project(psf, wave, phot, ncpu=None):
     
     Return 2D image
     """
+    import multiprocessing as mp
+    if ncpu is None:
+        #- on a Mac, 1/2 cores is about the same speed as all of them
+        ncpu = mp.cpu_count() / 2
+            
     if ncpu < 0:
         #- Serial version
+        ### print "Serial project"
         img = psf.project(wave, phot)
     else:
         #- multiprocessing version
-        import multiprocessing as mp
-        if ncpu is None:
-            #- on a Mac, 1/2 cores is about the same speed as all of them
-            ncpu = mp.cpu_count() / 2
-            
         #- Split the spectra into ncpu groups
         nspec = phot.shape[0]
         iispec = np.linspace(0, nspec, ncpu+1).astype(int)
@@ -231,6 +232,8 @@ def parallel_project(psf, wave, phot, ncpu=None):
 
         #- Create pool of workers to do the projection using _project
         #- xyrange, subimg = _project( [psf, wave, phot, specmin] )
+        ### print "parallel_project {} groups with {} CPU cores".format(len(args), ncpu)
+
         pool = mp.Pool(ncpu)
         xy_subimg = pool.map(_project, args)
         img = np.zeros( (psf.npix_y, psf.npix_x) )
