@@ -347,6 +347,7 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, Ntempl=500,
     hdu.header.set('AIRORVAC', 'vac', ' wavelengths in vacuum (vac) or air')
     hdu.header.set('VELSCALE', velpixsize, ' pixel size in km/s')
     hdu.header.set('WAVEUNIT', 'Angstrom', ' wavelength units')
+    hdu.header.set('BUNIT', '1e-17 erg/s/cm2/A', ' flux unit')
 
     idval = range(totN)
     col0 = fits.Column(name='TEMPLATEID',format='K', array=idval)
