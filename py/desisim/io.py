@@ -6,6 +6,7 @@ import specter.throughput
 import yaml     #- for desi.yaml
 from astropy.io import fits
 import numpy as np
+import multiprocessing
 
 from desisim.interpolation import resample_flux
 
@@ -244,6 +245,10 @@ def get_tile_radec(tileid):
 #-------------------------------------------------------------------------
 #- spectral templates
 
+#- Utility function to wrap resample_flux for multiprocessing map
+def _resample_flux(args):
+    return resample_flux(*args)
+
 def read_templates(wave, objtype, n, randseed=1):
     """
     Returns n templates of type objtype sampled at wave
@@ -278,16 +283,33 @@ def read_templates(wave, objtype, n, randseed=1):
     randindex = np.arange(ntemplates)
     np.random.shuffle(randindex)
     
-    outflux = np.zeros([n, len(wave)])
+    # outflux = np.zeros([n, len(wave)])
+    # outmeta = np.empty(n, dtype=meta.dtype)
+    # for i in range(n):
+    #     j = randindex[i%ntemplates]
+    #     if 'Z' in meta:
+    #         z = meta['Z'][j]
+    #     else:
+    #         z = 0.0
+    #     outflux[i] = resample_flux(wave, ww*(1+z), flux[j])
+    #     outmeta[i] = meta[j]
+        
+    #- Assemble list of args to pass to multiprocesssing map
+    args = list()
     outmeta = np.empty(n, dtype=meta.dtype)
     for i in range(n):
         j = randindex[i%ntemplates]
+        outmeta[i] = meta[j]
         if 'Z' in meta:
             z = meta['Z'][j]
         else:
             z = 0.0
-        outflux[i] = resample_flux(wave, ww*(1+z), flux[j])
-        outmeta[i] = meta[j]
+
+        args.append( (wave, ww*(1+z), flux[j]) )
+        
+    ncpu = multiprocessing.cpu_count() // 2
+    pool = multiprocessing.Pool(ncpu)
+    outflux = pool.map(_resample_flux, args)        
         
     return outflux, outmeta
     
