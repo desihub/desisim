@@ -134,7 +134,8 @@ def new_arcexp(nspec=None, nspectrographs=10, ncpu=None):
     #- Update obslog that we succeeded with this exposure
     obs.update_obslog('arc', expid, dateobs)
 
-def new_flatexp(nspec=None, nspectrographs=10, ncpu=None):
+def new_flatexp(nspec=None, nspectrographs=10, ncpu=None, channel=None,
+        expid=None):
     """
     Run pixel simulation of new flat lamp exposure
     
@@ -142,6 +143,8 @@ def new_flatexp(nspec=None, nspectrographs=10, ncpu=None):
         nspec : number of spectra to simulate
         nspectrographs : number of spectrographs to simulate [1-10]
         ncpu : number of CPU cores to use
+        channel (optional) : 'b', 'r', or 'z'.  Defaults to all.
+        expid (optional) : integer exposure id; default to get next available.
     
     Writes to $DESI_SPECTRO_SIM/$PIXPROD/
         simpix-{camera}-{expid}.fits - noiseless simulated image
@@ -153,7 +156,9 @@ def new_flatexp(nspec=None, nspectrographs=10, ncpu=None):
         Uses hardcoded flat lamp spectrum in
         $DESI_ROOT/spectro/templates/calib/v0.1/flat-3100K-quartz-iodine.fits
     """
-    expid = obs.get_next_expid()
+    if expid is None:
+        expid = obs.get_next_expid()
+
     dateobs = time.gmtime()
     night = obs.get_night(utc=dateobs)
     simdir = io.simdir(night, mkdir=True)
@@ -176,8 +181,13 @@ def new_flatexp(nspec=None, nspectrographs=10, ncpu=None):
     
     #- Convert to 2D for projection
     flux = np.tile(flux, nspec).reshape(nspec, len(wave))
+
+    if channel is None:
+        channels = ['b', 'r', 'z']
+    else:
+        channels = [channel,]
     
-    for channel in ('b', 'r', 'z'):
+    for channel in channels:
         psf = io.load_psf(channel)
         thru = io.load_throughput(channel)
         phot = thru.photons(wave, flux, units=hdr['BUNIT'], objtype='CALIB')
