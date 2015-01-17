@@ -46,11 +46,12 @@ if setup_keywords['version'].endswith('dev'):
     #
     # Try to obtain svn information.
     #
-    try:
-        from desiUtil.install import get_svn_devstr
-        setup_keywords['version'] += get_svn_devstr()
-    except ImportError:
-        pass
+    if 'github' not in setup_keywords['url'].lower():
+        try:
+            from desiUtil.install import get_svn_devstr
+            setup_keywords['version'] += get_svn_devstr(setup_keywords['name'])
+        except ImportError:
+            pass
 #
 # Set other keywords for the setup function.  These are automated, & should
 # be left alone unless you are an expert.
