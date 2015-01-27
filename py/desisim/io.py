@@ -89,7 +89,7 @@ def read_fibermap(night, expid):
 #-------------------------------------------------------------------------
 #- simspec
 
-def write_simspec(meta, truth, expid, night):
+def write_simspec(meta, truth, expid, night, header=None):
     """
     Write $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
     
@@ -109,6 +109,10 @@ def write_simspec(meta, truth, expid, night):
 
     #- Object flux
     hdr = fits.Header()
+    if header is not None:
+        for key, value in header.items():
+            hdr[key] = value
+            
     wave = truth['WAVE']
     hdr['CRVAL1']    = (wave[0], 'Starting wavelength [Angstroms]')
     hdr['CDELT1']    = (wave[1]-wave[0], 'Wavelength step [Angstroms]')
