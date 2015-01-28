@@ -287,6 +287,7 @@ def read_templates(wave, objtype, n, randseed=1):
     randindex = np.arange(ntemplates)
     np.random.shuffle(randindex)
     
+    #- Serial version
     # outflux = np.zeros([n, len(wave)])
     # outmeta = np.empty(n, dtype=meta.dtype)
     # for i in range(n):
@@ -298,6 +299,7 @@ def read_templates(wave, objtype, n, randseed=1):
     #     outflux[i] = resample_flux(wave, ww*(1+z), flux[j])
     #     outmeta[i] = meta[j]
         
+    #- Multiprocessing version
     #- Assemble list of args to pass to multiprocesssing map
     args = list()
     outmeta = np.empty(n, dtype=meta.dtype)
@@ -308,10 +310,10 @@ def read_templates(wave, objtype, n, randseed=1):
             z = meta['Z'][j]
         else:
             z = 0.0
-
+    
         args.append( (wave, ww*(1+z), flux[j]) )
         
-    ncpu = multiprocessing.cpu_count() // 2
+    ncpu = multiprocessing.cpu_count() // 2   #- avoid hyperthreading
     pool = multiprocessing.Pool(ncpu)
     outflux = pool.map(_resample_flux, args)        
         

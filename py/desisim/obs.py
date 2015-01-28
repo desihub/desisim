@@ -62,50 +62,6 @@ def _dict2ndarray(data, columns=None):
 # 
 #     return result
 
-#- Project flux to photons
-def _photons(d):
-    try:
-        thru = d['thru']
-        phot = thru.photons(d['wave'], d['flux'],
-                    units=d['units'], objtype=d['objtype'],
-                    exptime=d['exptime'], airmass=d['airmass'])
-        return phot
-    except Exception, e:
-        import traceback
-        print '-'*60
-        print '-- Error in _photons'
-        traceback.print_exc()
-        print '-'*60
-        raise e
-        
-
-def parallel_photons(thru, wave, flux, units, objtype, exptime, airmass, ncpu=None):
-    import multiprocessing as mp
-    if ncpu is None:
-        #- on a Mac, 1/2 cores is about the same speed as all of them
-        ncpu = mp.cpu_count() / 2
-
-    if flux.ndim == 1:
-        raise ValueError('flux should be 2D flux[nspec, nwave]')
-
-    nspec = flux.shape[0]
-    iispec = np.linspace(0, nspec, ncpu+1).astype(int)
-    if isinstance(objtype, str):
-        objtype = [objtype,]*nspec
-        
-    args = list()
-    for i in range(ncpu):
-        if iispec[i+1] > iispec[i]:  #- can fail if nspec < ncpu
-            xx = slice(iispec[i], iispec[i+1])
-            d = dict(thru=thru, wave=wave, flux=flux[xx],
-                units=units, objtype=objtype[xx],
-                exptime=exptime, airmass=airmass)
-            args.append(d)
-
-    pool = mp.Pool(ncpu)
-    phot = pool.map(_photons, args)
-    return np.vstack(phot)
-
 def new_exposure(nspec=5000, expid=None, tileid=None, airmass=1.0, exptime=None):
     """
     Create a new exposure and output input simulation files.
@@ -156,20 +112,14 @@ def new_exposure(nspec=5000, expid=None, tileid=None, airmass=1.0, exptime=None)
         ii = np.where( (thru.wavemin <= wave) & (wave <= thru.wavemax) )[0]
         
         #- Project flux to photons
-        print channel, 'projecting object flux to photons'
         phot = thru.photons(wave[ii], flux[:,ii], units='1e-17 erg/s/cm2/A',
                 objtype=truth['OBJTYPE'], exptime=exptime,
                 airmass=airmass)
-                
-        # phot = parallel_photons(thru, wave[ii], flux[:,ii],
-        #         units='1e-17 erg/s/cm2/A', objtype=truth['OBJTYPE'],
-        #         exptime=params['exptime'], airmass=airmass)
                 
         truth['PHOT_'+channel] = phot
         truth['WAVE_'+channel] = wave[ii]
     
         #- Project sky flux to photons
-        print channel, 'projecting sky flux to photons'
         skyphot = thru.photons(wave[ii], skyflux[ii]*airmass,
             units='1e-17 erg/s/cm2/A/arcsec2',
             objtype='SKY', exptime=exptime, airmass=airmass)
