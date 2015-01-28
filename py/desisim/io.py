@@ -6,6 +6,7 @@ import specter.throughput
 import yaml     #- for desi.yaml
 from astropy.io import fits
 import numpy as np
+import multiprocessing
 
 from desisim.interpolation import resample_flux
 
@@ -88,7 +89,7 @@ def read_fibermap(night, expid):
 #-------------------------------------------------------------------------
 #- simspec
 
-def write_simspec(meta, truth, expid, night):
+def write_simspec(meta, truth, expid, night, header=None):
     """
     Write $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
     
@@ -108,6 +109,10 @@ def write_simspec(meta, truth, expid, night):
 
     #- Object flux
     hdr = fits.Header()
+    if header is not None:
+        for key, value in header.items():
+            hdr[key] = value
+            
     wave = truth['WAVE']
     hdr['CRVAL1']    = (wave[0], 'Starting wavelength [Angstroms]')
     hdr['CDELT1']    = (wave[1]-wave[0], 'Wavelength step [Angstroms]')
@@ -244,6 +249,10 @@ def get_tile_radec(tileid):
 #-------------------------------------------------------------------------
 #- spectral templates
 
+#- Utility function to wrap resample_flux for multiprocessing map
+def _resample_flux(args):
+    return resample_flux(*args)
+
 def read_templates(wave, objtype, n, randseed=1):
     """
     Returns n templates of type objtype sampled at wave
@@ -278,16 +287,35 @@ def read_templates(wave, objtype, n, randseed=1):
     randindex = np.arange(ntemplates)
     np.random.shuffle(randindex)
     
-    outflux = np.zeros([n, len(wave)])
+    #- Serial version
+    # outflux = np.zeros([n, len(wave)])
+    # outmeta = np.empty(n, dtype=meta.dtype)
+    # for i in range(n):
+    #     j = randindex[i%ntemplates]
+    #     if 'Z' in meta:
+    #         z = meta['Z'][j]
+    #     else:
+    #         z = 0.0
+    #     outflux[i] = resample_flux(wave, ww*(1+z), flux[j])
+    #     outmeta[i] = meta[j]
+        
+    #- Multiprocessing version
+    #- Assemble list of args to pass to multiprocesssing map
+    args = list()
     outmeta = np.empty(n, dtype=meta.dtype)
     for i in range(n):
         j = randindex[i%ntemplates]
+        outmeta[i] = meta[j]
         if 'Z' in meta:
             z = meta['Z'][j]
         else:
             z = 0.0
-        outflux[i] = resample_flux(wave, ww*(1+z), flux[j])
-        outmeta[i] = meta[j]
+    
+        args.append( (wave, ww*(1+z), flux[j]) )
+        
+    ncpu = multiprocessing.cpu_count() // 2   #- avoid hyperthreading
+    pool = multiprocessing.Pool(ncpu)
+    outflux = pool.map(_resample_flux, args)        
         
     return outflux, outmeta
     
