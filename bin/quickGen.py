@@ -17,7 +17,7 @@
 #********************************
 
 import argparse
-import os
+import os,errno
 import os.path
 import numpy as np
 import astropy.io.fits as pyfits
@@ -32,36 +32,73 @@ parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpForm
 
 
 parser.add_argument("--input",type=str, help="input spectra")
-parser.add_argument("--model",type=str, help='object models: ELG, LRG, QSO, STD')
-
 parser.add_argument("--fiberfile",type=str, help='fiber map file')
 parser.add_argument("--exptime", type=int, help="exposure time")
-parser.add_argument("--nspectra",type=int, help='no. of spectra to be simulated, starting from first')
-parser.add_argument("--nstart", type=int, default=None,help='starting spectra # for simulation')
+parser.add_argument("--nspectra",type=int,default=500,help='no. of spectra to be simulated, starting from first')
+parser.add_argument("--nstart", type=int, default=0,help='starting spectra # for simulation')
 parser.add_argument("--airmass",type=float, help="airmass")
 args = parser.parse_args()
 
 #must import desimodel
 if 'DESIMODEL' not in os.environ:
-        raise RuntimeError('The environment variable DESIMODEL must be set.')
+    raise RuntimeError('The environment variable DESIMODEL must be set.')
 DESIMODEL_DIR=os.environ['DESIMODEL'] 
 
+DESI_SPECTRO_REDUX_DIR="./quickGen"
+
+if 'DESI_SPECTRO_REDUX' not in os.environ:
+
+    print 'DESI_MODEL_REDUX environment is not set.'
+    
+else:
+    DESI_SPECTRO_REDUX_DIR=os.environ['DESI_SPECTRO_REDUX']
+
+if os.path.exists(DESI_SPECTRO_REDUX_DIR):
+
+    if not os.path.isdir(DESI_SPECTRO_REDUX_DIR):
+        raise RuntimeError("Path %s Not a directory"%DESI_SPECTRO_REDUX_DIR)
+else:
+    try:
+        os.makedirs(DESI_SPECTRO_REDUX_DIR)
+    except:
+        raise
+        
+print "Saving output files under %s"%DESI_SPECTRO_REDUX_DIR
+
+PRODNAME_DIR='prodname'
+if 'PRODNAME' not in os.environ:
+    print 'PRODNAME environment is not set.'
+    PRODNAME_DIR=PRODNAME_DIR
+else:
+    PRODNAME_DIR=os.environ['PRODNAME']
+prodDir=os.path.join(DESI_SPECTRO_REDUX_DIR,[PRODNAME_DIR])
+if os.path.exists(prodDir):
+
+    if not os.path.isdir(prodDir):
+        raise RuntimeError("Path %s Not a directory"%prodDir)
+else:
+    try:
+        os.makedirs(prodDir)
+    except:
+        raise
+
 if args.input is None:
-	print('sys.stderr,"ERROR -i/--input filename required"')
+    print('sys.stderr,"ERROR -i/--input filename required"')
 
 #read fibermapfile to get objecttype, may be more info if needed
 if args.fiberfile:
-	print "Opening fiber file %s"%(args.fiberfile)
-	fiber_hdulist=pyfits.open(args.fiberfile)
-	objtype=fiber_hdulist[1].data['OBJTYPE'].copy()
-	#need to replace STD object types with STAR since quicksim expects star instead of std
-	stdindx=np.where(objtype=='STD') # match STD with STAR
-	objtype[stdindx]='STAR'
-	#print objtype[0],type(objtype[0]),type(objtype),objtype.shape
-	fiber_hdulist.close()
+    print "Opening fiber file %s"%(args.fiberfile)
+    fiber_hdulist=pyfits.open(args.fiberfile)
+    objtype=fiber_hdulist[1].data['OBJTYPE'].copy()
+    #need to replace STD object types with STAR since quicksim expects star instead of std
+    stdindx=np.where(objtype=='STD') # match STD with STAR
+    objtype[stdindx]='STAR'
+    #print objtype[0],type(objtype[0]),type(objtype),objtype.shape
+    NIGHT=fiber_hdulist[1]['NIGHT']
+    EXPID=fiber_hdulist[1]['EXPID']
+    fiber_hdulist.close()
 else:
-	objtype=[args.model]
-	fiber_hdulist=None
+    fiber_hdulist=None
 
 #read the input file (simspec file)
 print 'Now Reading the input file',args.input
@@ -77,19 +114,9 @@ print "wavelength range:", wavelengths[0], "to", wavelengths[-1]
 nspec=data.shape[0]
 nwave=data.shape[1]
 
-EXPID=expid=args.input.split("-")[-1].split(".")[0]
-print EXPID
-
 # Here we will run for single CCD(500 x 3 in total). Fewer spectra can be run using 'nspectra' and 'nstart' options
 
 spectrograph=0
-
-if args.nstart is None:
-	args.nstart=0
-#print " simulating from spectra: ", args.nstart
-	
-if args.nspectra is None:
-	args.nspectra = 500
 
 print " simulating spectra",args.nstart, "to", args.nspectra+args.nstart-1
 
@@ -109,14 +136,14 @@ observedWavelengths=results.wave
 
 # Define wavelimits for B,R,Z camera(by hand this time), later simulated data is cropped within these limits
 
-waveLimits={0:(3569,5949),1:(5625,7741),2:(7435,9834)}
+waveLimits={'b':(3569,5949),'r':(5625,7741),'z':(7435,9834)}
 # Get the camera ranges from quicksim outputs 
-brange,=np.where((observedWavelengths>=waveLimits[0][0])&(observedWavelengths<=waveLimits[0][1]))
-rrange,=np.where((observedWavelengths>=waveLimits[1][0])&(observedWavelengths<=waveLimits[1][1]))
-zrange,=np.where((observedWavelengths>=waveLimits[2][0])&(observedWavelengths<=waveLimits[2][1]))
+brange,=np.where((observedWavelengths>=waveLimits['b'][0])&(observedWavelengths<=waveLimits['b'][1]))
+rrange,=np.where((observedWavelengths>=waveLimits['r'][0])&(observedWavelengths<=waveLimits['r'][1]))
+zrange,=np.where((observedWavelengths>=waveLimits['z'][0])&(observedWavelengths<=waveLimits['z'][1]))
 
 #number of points in each camera
-armLimits={0:waveLimits[0],1:waveLimits[1],2:waveLimits[2]}
+#armLimits={0:waveLimits['b'],1:waveLimits['r'],2:waveLimits[2]}
 # save the observation wavelengths
 bwaves=observedWavelengths[brange]
 rwaves=observedWavelengths[rrange]
@@ -127,7 +154,7 @@ rmaxbin,=rrange.shape
 maxbin=max(bmaxbin,zmaxbin,rmaxbin)
 
 print "Bins for B:", bmaxbin,"  ","R:", rmaxbin,"  ", "Z:", zmaxbin
-print "Arm Limits", armLimits
+#print "Arm Limits", armLimits
 
 #print "shapes ivar=",results.ivar.shape," nobj=", results.nobj.shape, "nsky=", results.nsky.shape, "rdnoise=", results.rdnoise.shape, " dknoise=", results.dknoise.shape," wave=",results.wave.shape,"srcflux=",results.srcflux.shape,"obsflux=",results.obsflux.shape
 
@@ -136,235 +163,243 @@ print "Arm Limits", armLimits
 
 # Object Photons
 
-NOBJ=np.zeros((maxbin,results.nobj.shape[1],500))
-NOBJ[:bmaxbin,0,args.nstart]=results.nobj[brange,0]
-NOBJ[:rmaxbin,1,args.nstart]=results.nobj[rrange,1]
-NOBJ[:zmaxbin,2,args.nstart]=results.nobj[zrange,2]
+nobj=np.zeros((maxbin,results.nobj.shape[1],500))
+nobj[:bmaxbin,0,args.nstart]=results.nobj[brange,0]
+nobj[:rmaxbin,1,args.nstart]=results.nobj[rrange,1]
+nobj[:zmaxbin,2,args.nstart]=results.nobj[zrange,2]
 
 # Sky Photons
 
-NSKY=np.zeros((maxbin,3,500))
-NSKY[:bmaxbin,0,args.nstart]=results.nsky[brange,0]
-NSKY[:rmaxbin,1,args.nstart]=results.nsky[rrange,1]
-NSKY[:zmaxbin,2,args.nstart]=results.nsky[zrange,2]
+nsky=np.zeros((maxbin,3,500))
+nsky[:bmaxbin,0,args.nstart]=results.nsky[brange,0]
+nsky[:rmaxbin,1,args.nstart]=results.nsky[rrange,1]
+nsky[:zmaxbin,2,args.nstart]=results.nsky[zrange,2]
 
 # Inverse Variance (Object+Sky Photons)
 
-NIVAR=np.zeros((maxbin,3,500))
-NIVAR[:bmaxbin,0,args.nstart]=1/((results.nobj[brange,0])+(results.nsky[brange,0])+(results.rdnoise[brange,0])**2.0+(results.dknoise[brange,0])**2.0)
-NIVAR[:rmaxbin,1,args.nstart]=1/((results.nobj[rrange,1])+(results.nsky[rrange,1])+(results.rdnoise[rrange,1])**2.0+(results.dknoise[rrange,1])**2.0)
-NIVAR[:zmaxbin,2,args.nstart]=1/((results.nobj[zrange,2])+(results.nsky[zrange,2])+(results.rdnoise[zrange,2])**2.0+(results.dknoise[zrange,2])**2.0)
+nivar=np.zeros((maxbin,3,500))
+nivar[:bmaxbin,0,args.nstart]=1/((results.nobj[brange,0])+(results.nsky[brange,0])+(results.rdnoise[brange,0])**2.0+(results.dknoise[brange,0])**2.0)
+nivar[:rmaxbin,1,args.nstart]=1/((results.nobj[rrange,1])+(results.nsky[rrange,1])+(results.rdnoise[rrange,1])**2.0+(results.dknoise[rrange,1])**2.0)
+nivar[:zmaxbin,2,args.nstart]=1/((results.nobj[zrange,2])+(results.nsky[zrange,2])+(results.rdnoise[zrange,2])**2.0+(results.dknoise[zrange,2])**2.0)
 
 # Inverse Variance in Sky counts
 
-SKY_IVAR=np.zeros((maxbin,3,500)) # Multiply by 25, decreasing the error by a factor of 5.
-SKY_IVAR[:bmaxbin,0,args.nstart]=25*1/((results.nsky[brange,0])+(results.rdnoise[brange,0])**2.0+(results.dknoise[brange,0])**2.0)
-SKY_IVAR[:rmaxbin,1,args.nstart]=25*1/((results.nsky[rrange,1])+(results.rdnoise[rrange,1])**2.0+(results.dknoise[rrange,1])**2.0)
-SKY_IVAR[:zmaxbin,2,args.nstart]=25*1/((results.nsky[zrange,2])+(results.rdnoise[zrange,2])**2.0+(results.dknoise[zrange,2])**2.0)
+sky_ivar=np.zeros((maxbin,3,500)) # Multiply by 25, decreasing the error by a factor of 5.
+sky_ivar[:bmaxbin,0,args.nstart]=25*1/((results.nsky[brange,0])+(results.rdnoise[brange,0])**2.0+(results.dknoise[brange,0])**2.0)
+sky_ivar[:rmaxbin,1,args.nstart]=25*1/((results.nsky[rrange,1])+(results.rdnoise[rrange,1])**2.0+(results.dknoise[rrange,1])**2.0)
+sky_ivar[:zmaxbin,2,args.nstart]=25*1/((results.nsky[zrange,2])+(results.rdnoise[zrange,2])**2.0+(results.dknoise[zrange,2])**2.0)
 
 # Calibrated Object Flux ( in units of 10^-17 ergs/s/cm2/A)
 
-CFRAME_OBSERVEDFLUX=np.zeros((maxbin,3,500))
-CFRAME_OBSERVEDFLUX[:bmaxbin,0,args.nstart]=results.obsflux[brange]
-CFRAME_OBSERVEDFLUX[:rmaxbin,1,args.nstart]=results.obsflux[rrange]
-CFRAME_OBSERVEDFLUX[:zmaxbin,2,args.nstart]=results.obsflux[zrange]
+cframe_observedflux=np.zeros((maxbin,3,500))
+cframe_observedflux[:bmaxbin,0,args.nstart]=results.obsflux[brange]
+cframe_observedflux[:rmaxbin,1,args.nstart]=results.obsflux[rrange]
+cframe_observedflux[:zmaxbin,2,args.nstart]=results.obsflux[zrange]
 
 # Inverse Variance in Object Flux (in units of [10^-17 ergs/s/cm2/A]^-2)
 
-CFRAME_IVAR=np.zeros((maxbin,3,500))
-CFRAME_IVAR[:bmaxbin,0,args.nstart]=results.ivar[brange]
-CFRAME_IVAR[:rmaxbin,1,args.nstart]=results.ivar[rrange]
-CFRAME_IVAR[:zmaxbin,2,args.nstart]=results.ivar[zrange]
+cframe_ivar=np.zeros((maxbin,3,500))
+cframe_ivar[:bmaxbin,0,args.nstart]=results.ivar[brange]
+cframe_ivar[:rmaxbin,1,args.nstart]=results.ivar[rrange]
+cframe_ivar[:zmaxbin,2,args.nstart]=results.ivar[zrange]
 	
-# Random Gaussian Noise to NOBJ+NSKY
+# Random Gaussian Noise to nobj+nsky
 
-RAND_NOISE=np.zeros((maxbin,3,500))
+rand_noise=np.zeros((maxbin,3,500))
 np.random.seed(0)
-RAND_NOISE[:bmaxbin,0,args.nstart]=np.random.normal(np.zeros(bmaxbin),np.ones(bmaxbin)/np.sqrt(NIVAR[:bmaxbin,0,args.nstart]),bmaxbin)
-RAND_NOISE[:rmaxbin,1,args.nstart]=np.random.normal(np.zeros(rmaxbin),np.ones(rmaxbin)/np.sqrt(NIVAR[:rmaxbin,1,args.nstart]),rmaxbin)
-RAND_NOISE[:zmaxbin,2,args.nstart]=np.random.normal(np.zeros(zmaxbin),np.ones(zmaxbin)/np.sqrt(NIVAR[:zmaxbin,2,args.nstart]),zmaxbin)
+rand_noise[:bmaxbin,0,args.nstart]=np.random.normal(np.zeros(bmaxbin),np.ones(bmaxbin)/np.sqrt(nivar[:bmaxbin,0,args.nstart]),bmaxbin)
+rand_noise[:rmaxbin,1,args.nstart]=np.random.normal(np.zeros(rmaxbin),np.ones(rmaxbin)/np.sqrt(nivar[:rmaxbin,1,args.nstart]),rmaxbin)
+rand_noise[:zmaxbin,2,args.nstart]=np.random.normal(np.zeros(zmaxbin),np.ones(zmaxbin)/np.sqrt(nivar[:zmaxbin,2,args.nstart]),zmaxbin)
 
 # Random Gaussian Noise to SKY only
 
-SKY_RAND_NOISE=np.zeros((maxbin,3,500))
-SKY_RAND_NOISE[:bmaxbin,0,args.nstart]=np.random.normal(np.zeros(bmaxbin),np.ones(bmaxbin)/np.sqrt(SKY_IVAR[:bmaxbin,0,args.nstart]),bmaxbin)
-SKY_RAND_NOISE[:rmaxbin,1,args.nstart]=np.random.normal(np.zeros(rmaxbin),np.ones(rmaxbin)/np.sqrt(SKY_IVAR[:rmaxbin,1,args.nstart]),rmaxbin)
-SKY_RAND_NOISE[:zmaxbin,2,args.nstart]=np.random.normal(np.zeros(zmaxbin),np.ones(zmaxbin)/np.sqrt(SKY_IVAR[:zmaxbin,2,args.nstart]),zmaxbin)
+sky_rand_noise=np.zeros((maxbin,3,500))
+sky_rand_noise[:bmaxbin,0,args.nstart]=np.random.normal(np.zeros(bmaxbin),np.ones(bmaxbin)/np.sqrt(sky_ivar[:bmaxbin,0,args.nstart]),bmaxbin)
+sky_rand_noise[:rmaxbin,1,args.nstart]=np.random.normal(np.zeros(rmaxbin),np.ones(rmaxbin)/np.sqrt(sky_ivar[:rmaxbin,1,args.nstart]),rmaxbin)
+sky_rand_noise[:zmaxbin,2,args.nstart]=np.random.normal(np.zeros(zmaxbin),np.ones(zmaxbin)/np.sqrt(sky_ivar[:zmaxbin,2,args.nstart]),zmaxbin)
 
 # Now repeat the simulation for all spectra
  
 for i in xrange(args.nstart+1,min(args.nspectra+args.nstart,objtype.shape[0]-args.nstart)): # Exclusive
-	print "Simulating %d object type=%s"%(i,objtype[i])
-	specObj=sim.SpectralFluxDensity(wavelengths,spectra[i,:])
-	results=qsim.simulate(sourceType=objtype[i].lower(),sourceSpectrum=specObj,airmass=args.airmass,expTime=args.exptime)
-	#print results.nobj.shape,results.nsky.shape,results.wave.shape
+    print "Simulating %d object type=%s"%(i,objtype[i])
+    specObj=sim.SpectralFluxDensity(wavelengths,spectra[i,:])
+    results=qsim.simulate(sourceType=objtype[i].lower(),sourceSpectrum=specObj,airmass=args.airmass,expTime=args.exptime)
+    #print results.nobj.shape,results.nsky.shape,results.wave.shape
 	
-	NOBJ[:bmaxbin,0,i]=results.nobj[brange,0]
-	NOBJ[:rmaxbin,1,i]=results.nobj[rrange,1]
-	NOBJ[:zmaxbin,2,i]=results.nobj[zrange,2]
+    nobj[:bmaxbin,0,i]=results.nobj[brange,0]
+    nobj[:rmaxbin,1,i]=results.nobj[rrange,1]
+    nobj[:zmaxbin,2,i]=results.nobj[zrange,2]
 
-	NSKY[:bmaxbin,0,i]=results.nsky[brange,0]
-	NSKY[:rmaxbin,1,i]=results.nsky[rrange,1]
-	NSKY[:zmaxbin,2,i]=results.nsky[zrange,2]
+    nsky[:bmaxbin,0,i]=results.nsky[brange,0]
+    nsky[:rmaxbin,1,i]=results.nsky[rrange,1]
+    nsky[:zmaxbin,2,i]=results.nsky[zrange,2]
 
-	NIVAR[:bmaxbin,0,i]=1/((results.nobj[brange,0])+(results.nsky[brange,0])+(results.rdnoise[brange,0])**2.0+(results.dknoise[brange,0])**2.0)
-	NIVAR[:rmaxbin,1,i]=1/((results.nobj[rrange,1])+(results.nsky[rrange,1])+(results.rdnoise[rrange,1])**2.0+(results.dknoise[rrange,1])**2.0)
-	NIVAR[:zmaxbin,2,i]=1/((results.nobj[zrange,2])+(results.nsky[zrange,2])+(results.rdnoise[zrange,2])**2.0+(results.dknoise[zrange,2])**2.0)
+    nivar[:bmaxbin,0,i]=1/((results.nobj[brange,0])+(results.nsky[brange,0])+(results.rdnoise[brange,0])**2.0+(results.dknoise[brange,0])**2.0)
+    nivar[:rmaxbin,1,i]=1/((results.nobj[rrange,1])+(results.nsky[rrange,1])+(results.rdnoise[rrange,1])**2.0+(results.dknoise[rrange,1])**2.0)
+    nivar[:zmaxbin,2,i]=1/((results.nobj[zrange,2])+(results.nsky[zrange,2])+(results.rdnoise[zrange,2])**2.0+(results.dknoise[zrange,2])**2.0)
 
 
-	SKY_IVAR[:bmaxbin,0,i]=25*1/((results.nsky[brange,0])+(results.rdnoise[brange,0])**2.0+(results.dknoise[brange,0])**2.0)
-	SKY_IVAR[:rmaxbin,1,i]=25*1/((results.nsky[rrange,1])+(results.rdnoise[rrange,1])**2.0+(results.dknoise[rrange,1])**2.0)
-	SKY_IVAR[:zmaxbin,2,i]=25*1/((results.nsky[zrange,2])+(results.rdnoise[zrange,2])**2.0+(results.dknoise[zrange,2])**2.0)
+    sky_ivar[:bmaxbin,0,i]=25*1/((results.nsky[brange,0])+(results.rdnoise[brange,0])**2.0+(results.dknoise[brange,0])**2.0)
+    sky_ivar[:rmaxbin,1,i]=25*1/((results.nsky[rrange,1])+(results.rdnoise[rrange,1])**2.0+(results.dknoise[rrange,1])**2.0)
+    sky_ivar[:zmaxbin,2,i]=25*1/((results.nsky[zrange,2])+(results.rdnoise[zrange,2])**2.0+(results.dknoise[zrange,2])**2.0)
 
-	CFRAME_IVAR[:bmaxbin,0,i]=results.ivar[brange]
-	CFRAME_IVAR[:rmaxbin,1,i]=results.ivar[rrange]
-	CFRAME_IVAR[:zmaxbin,2,i]=results.ivar[zrange]
-	CFRAME_OBSERVEDFLUX[:bmaxbin,0,i]=results.obsflux[brange]
-	CFRAME_OBSERVEDFLUX[:rmaxbin,1,i]=results.obsflux[rrange]
-	CFRAME_OBSERVEDFLUX[:zmaxbin,2,i]=results.obsflux[zrange]
-
-	np.random.seed(0)
+    cframe_ivar[:bmaxbin,0,i]=results.ivar[brange]
+    cframe_ivar[:rmaxbin,1,i]=results.ivar[rrange]
+    cframe_ivar[:zmaxbin,2,i]=results.ivar[zrange]
+    cframe_observedflux[:bmaxbin,0,i]=results.obsflux[brange]
+    cframe_observedflux[:rmaxbin,1,i]=results.obsflux[rrange]
+    cframe_observedflux[:zmaxbin,2,i]=results.obsflux[zrange]
 	
-	RAND_NOISE[:bmaxbin,0,i]=np.random.normal(np.zeros(bmaxbin),np.ones(bmaxbin)/np.sqrt(NIVAR[:bmaxbin,0,i]),bmaxbin)
-	RAND_NOISE[:rmaxbin,1,i]=np.random.normal(np.zeros(rmaxbin),np.ones(rmaxbin)/np.sqrt(NIVAR[:rmaxbin,1,i]),rmaxbin)
-	RAND_NOISE[:zmaxbin,2,i]=np.random.normal(np.zeros(zmaxbin),np.ones(zmaxbin)/np.sqrt(NIVAR[:zmaxbin,2,i]),zmaxbin)
+    rand_noise[:bmaxbin,0,i]=np.random.normal(np.zeros(bmaxbin),np.ones(bmaxbin)/np.sqrt(nivar[:bmaxbin,0,i]),bmaxbin)
+    rand_noise[:rmaxbin,1,i]=np.random.normal(np.zeros(rmaxbin),np.ones(rmaxbin)/np.sqrt(nivar[:rmaxbin,1,i]),rmaxbin)
+    rand_noise[:zmaxbin,2,i]=np.random.normal(np.zeros(zmaxbin),np.ones(zmaxbin)/np.sqrt(nivar[:zmaxbin,2,i]),zmaxbin)
 
-	SKY_RAND_NOISE[:bmaxbin,0,i]=np.random.normal(np.zeros(bmaxbin),np.ones(bmaxbin)/np.sqrt(SKY_IVAR[:bmaxbin,0,i]),bmaxbin)
-	SKY_RAND_NOISE[:rmaxbin,1,i]=np.random.normal(np.zeros(rmaxbin),np.ones(rmaxbin)/np.sqrt(SKY_IVAR[:rmaxbin,1,i]),rmaxbin)
-	SKY_RAND_NOISE[:zmaxbin,2,i]=np.random.normal(np.zeros(zmaxbin),np.ones(zmaxbin)/np.sqrt(SKY_IVAR[:zmaxbin,2,i]),zmaxbin)
+    sky_rand_noise[:bmaxbin,0,i]=np.random.normal(np.zeros(bmaxbin),np.ones(bmaxbin)/np.sqrt(sky_ivar[:bmaxbin,0,i]),bmaxbin)
+    sky_rand_noise[:rmaxbin,1,i]=np.random.normal(np.zeros(rmaxbin),np.ones(rmaxbin)/np.sqrt(sky_ivar[:rmaxbin,1,i]),rmaxbin)
+    sky_rand_noise[:zmaxbin,2,i]=np.random.normal(np.zeros(zmaxbin),np.ones(zmaxbin)/np.sqrt(sky_ivar[:zmaxbin,2,i]),zmaxbin)
 
+# set the path before writing the files
 
-armName={0:"b",1:"r",2:"z"}
-armWaves={0:bwaves,1:rwaves,2:zwaves}
-armBins={0:bmaxbin,1:rmaxbin,2:zmaxbin}
-armRange={0:brange,1:rrange,2:zrange}
+directoryPath=DESI_SPECTRO_REDUX_DIR+'/'+PRODNAME_DIR+'/exposures/'+'NIGHT'+'/'+EXPID+'/' # NIGHT has to come from input
+#if os.path.exists(directoryPath):
+try:
+    os.makedirs(directoryPath)
+except OSError as exc: 
+    if exc.errno == errno.EEXIST and os.path.isdir(directoryPath):
+        pass
+    else: raise
 
-print " Length of Armbins", armBins[0],armBins[1],armBins[2]
-#print NOBJ[:armBins[0],0,:].shape
+armName={"b":0,"r":1,"z":2}
+armWaves={"b":bwaves,"r":rwaves,"z":zwaves}
+armBins={"b":bmaxbin,"r":rmaxbin,"z":zmaxbin}
+#armRange={"b":brange,"r":rrange,"z":zrange}
 
-	#Need Four Files to write: May need to configure which ones to output, rather than all. 
-	#1. frame file: (x3)
-	#2. skymodel file:(x3)
-	#3. flux calibration vector file (x3)
-	#4. cframe file
-for arm in range(0,3):	
+print " Length of Armbins", armBins["b"],armBins["r"],armBins["z"]
+#print nobj[:armBins[0],0,:].shape
+
+    #Need Four Files to write: May need to configure which ones to output, rather than all. 
+    #1. frame file: (x3)
+    #2. skymodel file:(x3)
+    #3. flux calibration vector file (x3)
+    #4. cframe file
+for arm in ["b","r","z"]:	
 
 ############----------frame file------------------ 
 
-	framefileName="frame-%s%s-%s.fits"%(armName[arm],spectrograph,EXPID)
+    framefileName="frame-%s%s-%s.fits"%(arm,spectrograph,EXPID)
 
-	PrimaryImage=pyfits.PrimaryHDU(NOBJ[:armBins[arm],arm,:]+NSKY[:armBins[arm],arm,:]+RAND_NOISE[:armBins[arm],arm,:]) # This is object+sky photon counts + Random Noise (from NIVAR)
+    PrimaryImage=pyfits.PrimaryHDU(nobj[:armBins[arm],armName[arm],:]+nsky[:armBins[arm],armName[arm],:]+rand_noise[:armBins[arm],armName[arm],:]) # This is object+sky photon counts + Random Noise (from nivar)
 
-	print "Shapes ",framefileName,(armBins[arm],args.nspectra)
-	NIVARImage=pyfits.ImageHDU(data=NIVAR[:armBins[arm],arm,:],name="IVAR")
-	WaveImage=pyfits.ImageHDU(data=armWaves[arm],name="WAVELENGTH")
+    print "Shapes ",framefileName,(armBins[arm],args.nspectra)
+    nivarImage=pyfits.ImageHDU(data=nivar[:armBins[arm],armName[arm],:],name="IVAR")
+    WaveImage=pyfits.ImageHDU(data=armWaves[arm],name="WAVELENGTH")
 
-       	#HDU0- object+sky Counts
+    #HDU0- object+sky Counts
 
-	PrimaryImage.header["NAXIS1"]=(armBins[arm],"Number of wavelength samples")
-	PrimaryImage.header["NAXIS2"]=(args.nspectra,"Number of extracted spectra")
-	PrimaryImage.header["EXTNAME"]="FLUX"
-	PrimaryImage.header["CRVAL1"]=(armLimits[arm][0],"Starting wavelength [Angstroms]")
-	PrimaryImage.header["CDELT1"]=(hdr["CDELT1"],"Wavelength step [Angstroms]")
-	PrimaryImage.header["AIRORVAC"]=("vac","Vacuum wavelengths")
-	PrimaryImage.header["LOGLAM"]=(0,"linear wavelength steps, not log10")
-	PrimaryImage.header["SIMFILE"]=(args.input,"Input simulation file")
-	PrimaryImage.header["CAMERA"]=(armName[arm]+str(spectrograph),"Spectograph Camera")
-	PrimaryImage.header["VSPECTER"]=0
-	PrimaryImage.header["EXPTIME"]=(args.exptime,"Exposure time [sec]")
-	PrimaryImage.header["RDNOISE"]=(0,"Read noise [electrons]")#results.rdnoise[armRange[arm],arm]???
-	PrimaryImage.header["FLAVOR"]=("science","Exposure type (arc, flat, science)")
-	PrimaryImage.header["SPECMIN"]=(0,"First spectrum")
-	PrimaryImage.header["SPECMAX"]=(min(args.nspectra,objtype.shape[0])-1,"Last spectrum")
-	PrimaryImage.header["NSPEC"]=(min(args.nspectra,objtype.shape[0]),"Number of spectra")
-	PrimaryImage.header["WAVEMIN"]=(min(armWaves[arm]),"First wavelength [Angstroms]")
-	PrimaryImage.header["WAVEMAX"]=(max(armWaves[arm]),"Last wavelength [Angstroms]")
-	PrimaryImage.header["WAVESTEP"]=(np.gradient(armWaves[arm])[0],"Wavelength step size [Angstroms]")
-	PrimaryImage.header["SPECTER"]=0
-	PrimaryImage.header["IN_PSF"]=(".../desimodel/trunk/data/specpsf/psf-"+armName[arm]+".fits","Input spectral PSF")
-	PrimaryImage.header["IN_IMG"]=("...im/alpha-3/20150107/pix-"+armName[arm]+"0-"+EXPID+".fits","Input image")
+    PrimaryImage.header["NAXIS1"]=(armBins[arm],"Number of wavelength samples")
+    PrimaryImage.header["NAXIS2"]=(args.nspectra,"Number of extracted spectra")
+    PrimaryImage.header["EXTNAME"]="FLUX"
+    PrimaryImage.header["CRVAL1"]=(waveLimits[arm][0],"Starting wavelength [Angstroms]")
+    PrimaryImage.header["CDELT1"]=(hdr["CDELT1"],"Wavelength step [Angstroms]")
+    PrimaryImage.header["AIRORVAC"]=("vac","Vacuum wavelengths")
+    PrimaryImage.header["LOGLAM"]=(0,"linear wavelength steps, not log10")
+    PrimaryImage.header["SIMFILE"]=(args.input,"Input simulation file")
+    PrimaryImage.header["CAMERA"]=(arm+str(spectrograph),"Spectograph Camera")
+    PrimaryImage.header["VSPECTER"]=0
+    PrimaryImage.header["EXPTIME"]=(args.exptime,"Exposure time [sec]")
+    PrimaryImage.header["RDNOISE"]=(0,"Read noise [electrons]")
+    PrimaryImage.header["FLAVOR"]=("science","Exposure type (arc, flat, science)")
+    PrimaryImage.header["SPECMIN"]=(0,"First spectrum")
+    PrimaryImage.header["SPECMAX"]=(min(args.nspectra,objtype.shape[0])-1,"Last spectrum")
+    PrimaryImage.header["NSPEC"]=(min(args.nspectra,objtype.shape[0]),"Number of spectra") 
+    PrimaryImage.header["WAVEMIN"]=(min(armWaves[arm]),"First wavelength [Angstroms]")
+    PrimaryImage.header["WAVEMAX"]=(max(armWaves[arm]),"Last wavelength [Angstroms]")
+    PrimaryImage.header["WAVESTEP"]=(np.gradient(armWaves[arm])[0],"Wavelength step size [Angstroms]")
+    PrimaryImage.header["SPECTER"]=0
+    #PrimaryImage.header["IN_PSF"]=(".../desimodel/trunk/data/specpsf/psf-"+arm+".fits","Input spectral PSF")
+    #PrimaryImage.header["IN_IMG"]=("...im/alpha-3/20150107/pix-"+arm+"0-"+EXPID+".fits","Input image")
 
-       # HDU1 - Inverse Variance (on Object+Sky)
+    # HDU1 - Inverse Variance (on Object+Sky)
 
-	NIVARImage.header["NAXIS1"]=(armBins[arm],"Number of wavlengths")
-	NIVARImage.header["NAXIS2"]=(args.nspectra,"Number of spectra")
-	NIVARImage.header["EXTNAME"]="IVAR"
+    nivarImage.header["NAXIS1"]=(armBins[arm],"Number of wavlengths")
+    nivarImage.header["NAXIS2"]=(args.nspectra,"Number of spectra")
+    nivarImage.header["EXTNAME"]="IVAR"
 
-        # HDU2 - Wavelength
+    # HDU2 - Wavelength
 
-	WaveImage.header["NAXIS1"]=(armBins[arm],"Number of wavelengths")
-	WaveImage.header["EXTNAME"]="WAVELENGTH"
+    WaveImage.header["NAXIS1"]=(armBins[arm],"Number of wavelengths")
+    WaveImage.header["EXTNAME"]="WAVELENGTH"
 
-	framehdulist=pyfits.HDUList([PrimaryImage,NIVARImage,WaveImage])
-	prihdr=framehdulist[0].header
-	framehdulist.writeto(framefileName,clobber=True)
-	framehdulist.close()
+    framehdulist=pyfits.HDUList([PrimaryImage,nivarImage,WaveImage])
+    prihdr=framehdulist[0].header
+    framehdulist.writeto(directoryPath+framefileName,clobber=True)
+    framehdulist.close()
 
 #######------------------skymodel file--------------------------
 
-        skyfileName="skymodel-%s%s-%s.fits"%(armName[arm],spectrograph,EXPID)
-	skyImage=pyfits.PrimaryHDU(NSKY[:armBins[arm],arm,:]+SKY_RAND_NOISE[:armBins[arm],arm,:]) # SKY counts+ Random Noise
-	skyIvar=pyfits.ImageHDU(data=SKY_IVAR[:armBins[arm],arm,:],name="IVAR")
+    skyfileName="skymodel-%s%s-%s.fits"%(arm,spectrograph,EXPID)
+    skyImage=pyfits.PrimaryHDU(nsky[:armBins[arm],armName[arm],:]+sky_rand_noise[:armBins[arm],armName[arm],:]) # SKY counts+ Random Noise
+    skyIvar=pyfits.ImageHDU(data=sky_ivar[:armBins[arm],armName[arm],:],name="IVAR")
 
 	#HDU0 - Sky Photons	
-	skyImage.header["NAXIS1"]=armBins[arm]
-	skyImage.header["NAXIS2"]=args.nspectra
-	skyImage.header["CRVAL1"]=(armLimits[arm][0],"Starting wavelength [Angstroms]")
-	skyImage.header["CDELT1"]=(np.gradient(armWaves[arm])[0],"Wavelength step size [Angstroms]")
-	skyImage.header["EXTNAME"]='SKY_PHOTONS' #What to call this?
+    skyImage.header["NAXIS1"]=armBins[arm]
+    skyImage.header["NAXIS2"]=args.nspectra
+    skyImage.header["CRVAL1"]=(waveLimits[arm][0],"Starting wavelength [Angstroms]")
+    skyImage.header["CDELT1"]=(np.gradient(armWaves[arm])[0],"Wavelength step size [Angstroms]")
+    skyImage.header["EXTNAME"]='SKY_PHOTONS' #What to call this?
 
-	#HDU1 - Inverse Variance(sky)
-	skyIvar.header["NAXIS"]=armBins[arm]
-	skyIvar.header["EXTNAME"]='IVAR'
+    #HDU1 - Inverse Variance(sky)
+    skyIvar.header["NAXIS"]=armBins[arm]
+    skyIvar.header["EXTNAME"]='IVAR'
 	
-	skyhdulist=pyfits.HDUList([skyImage,skyIvar])
-	prihdr=skyhdulist[0].header
-	skyhdulist.writeto(skyfileName,clobber=True)
-	skyhdulist.close()
+    skyhdulist=pyfits.HDUList([skyImage,skyIvar])
+    prihdr=skyhdulist[0].header
+    skyhdulist.writeto(directoryPath+skyfileName,clobber=True)
+    skyhdulist.close()
 
 ######-------------------------cframe file---------------------------
 
 
-	cframeFileName="cframe-%s%s-%s.fits"%(armName[arm],spectrograph,EXPID)
-	cframeImage=pyfits.PrimaryHDU(CFRAME_OBSERVEDFLUX[:armBins[arm],arm,:])
-	fluxIvarImage=pyfits.ImageHDU(data=CFRAME_IVAR[:armBins[arm],arm,:],name="IVAR")
-		#maskImage=pyfits.ImageHDU(data=???,name="MASK")
+    cframeFileName="cframe-%s%s-%s.fits"%(arm,spectrograph,EXPID)
+    cframeImage=pyfits.PrimaryHDU(cframe_observedflux[:armBins[arm],armName[arm],:])
+    fluxIvarImage=pyfits.ImageHDU(data=cframe_ivar[:armBins[arm],armName[arm],:],name="IVAR")
+    #maskImage=pyfits.ImageHDU(data=???,name="MASK")
 
-	#HDU0 - Calibrated Flux ( erg/s/cm2/A)
+    #HDU0 - Calibrated Flux ( erg/s/cm2/A)
 	
-        cframeImage.header["NAXIS1"]=armBins[arm]
-	cframeImage.header["CRVAL1"]=armLimits[arm][0]
-	cframeImage.header["EXTNAME"]=("FLUX","erg/s/cm2/A")
+    cframeImage.header["NAXIS1"]=armBins[arm]
+    cframeImage.header["CRVAL1"]=waveLimits[arm][0]
+    cframeImage.header["EXTNAME"]=("FLUX","erg/s/cm2/A")
 	
-        #HDU1 - Inverse Variance in Flux (erg/s/cm2/A)^-2
-	fluxIvarImage.header["NAXIS"]=0
-	fluxIvarImage.header["EXTNAME"]=('IVAR',"(erg/s/cm2/A)^-2")
+    #HDU1 - Inverse Variance in Flux (erg/s/cm2/A)^-2
+    fluxIvarImage.header["NAXIS"]=0
+    fluxIvarImage.header["EXTNAME"]=('IVAR',"(erg/s/cm2/A)^-2")
 	
-	cframehduList=pyfits.HDUList([cframeImage,fluxIvarImage])
-	prihdr=cframehduList[0].header
-	cframehduList.writeto(cframeFileName,clobber=True)
-	cframehduList.close()
+    cframehduList=pyfits.HDUList([cframeImage,fluxIvarImage])
+    prihdr=cframehduList[0].header
+    cframehduList.writeto(directoryPath+cframeFileName,clobber=True)
+    cframehduList.close()
 
 ########--------------------calibration vector file-----------------
 	
-	calibVectorFile="fluxcalib-%s%s-%s.fits"%(armName[arm],spectrograph,EXPID)
-	calibImage=pyfits.PrimaryHDU(CFRAME_OBSERVEDFLUX[:armBins[arm],arm,:]/NOBJ[:armBins[arm],arm,:])
+    calibVectorFile="fluxcalib-%s%s-%s.fits"%(arm,spectrograph,EXPID)
+    calibImage=pyfits.PrimaryHDU(cframe_observedflux[:armBins[arm],armName[arm],:]/nobj[:armBins[arm],armName[arm],:])
 
-	#calibMetadata=pyfits.ImageHDU(???)
+    #calibMetadata=pyfits.ImageHDU(???)
 
-	#HDU0-Calibration Vector
-	calibImage.header["NAXIS1"]=armBins[arm]
-	calibImage.header["NAXIS2"]=args.nspectra
-	calibImage.header["CRVAL1"]=0
-	calibImage.header["CDELT1"]=0
-	calibImage.header["EXTNAME"]='CALIB'
+    #HDU0-Calibration Vector
+    calibImage.header["NAXIS1"]=armBins[arm]
+    calibImage.header["NAXIS2"]=args.nspectra
+    calibImage.header["CRVAL1"]=0
+    calibImage.header["CDELT1"]=0
+    calibImage.header["EXTNAME"]='CALIB'
 
-	#HDU1 - Metadata(???)- Details to go here!!!
+    #HDU1 - Metadata(???)- Details to go here!!!
 	
-	calibhdulist=pyfits.HDUList([calibImage])
-	prihdr=calibhdulist[0].header
-	calibhdulist.writeto(calibVectorFile,clobber=True)
-	calibhdulist.close()
+    calibhdulist=pyfits.HDUList([calibImage])
+    prihdr=calibhdulist[0].header
+    calibhdulist.writeto(directoryPath+calibVectorFile,clobber=True)
+    calibhdulist.close()
 	
 #spectrograph=spectrograph+1	
 		
