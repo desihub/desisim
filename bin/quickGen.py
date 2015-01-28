@@ -17,7 +17,7 @@
 #********************************
 
 import argparse
-import os,errno
+import os
 import os.path
 import numpy as np
 import astropy.io.fits as pyfits
@@ -44,6 +44,29 @@ if 'DESIMODEL' not in os.environ:
     raise RuntimeError('The environment variable DESIMODEL must be set.')
 DESIMODEL_DIR=os.environ['DESIMODEL'] 
 
+
+# Look for Directory tree/ environment set up
+# Directory Tree is $DESI_SPECTRO_REDUX/$PRODNAME/exposures/NIGHT/EXPID/*.fits
+
+#But read fibermap file and extract the headers needed for Directory tree
+
+#read fibermapfile to get objecttype,NIGHT and EXPID....
+if args.fiberfile:
+    print "Opening fiber file %s"%(args.fiberfile)
+    fiber_hdulist=pyfits.open(args.fiberfile)
+    objtype=fiber_hdulist[1].data['OBJTYPE'].copy()
+    #need to replace STD object types with STAR since quicksim expects star instead of std
+    stdindx=np.where(objtype=='STD') # match STD with STAR
+    objtype[stdindx]='STAR'
+    #print objtype[0],type(objtype[0]),type(objtype),objtype.shape
+    NIGHT=fiber_hdulist[1].header['NIGHT']
+    EXPID=fiber_hdulist[1].header['EXPID']
+    fiber_hdulist.close()
+else:
+    fiber_hdulist=None
+
+
+#----------DESI_SPECTRO_REDUX--------
 DESI_SPECTRO_REDUX_DIR="./quickGen"
 
 if 'DESI_SPECTRO_REDUX' not in os.environ:
@@ -65,40 +88,65 @@ else:
         
 print "Saving output files under %s"%DESI_SPECTRO_REDUX_DIR
 
+#---------PRODNAME-----------------
+
 PRODNAME_DIR='prodname'
 if 'PRODNAME' not in os.environ:
     print 'PRODNAME environment is not set.'
-    PRODNAME_DIR=PRODNAME_DIR
 else:
     PRODNAME_DIR=os.environ['PRODNAME']
-prodDir=os.path.join(DESI_SPECTRO_REDUX_DIR,[PRODNAME_DIR])
-if os.path.exists(prodDir):
+prod_Dir=os.path.join(DESI_SPECTRO_REDUX_DIR,PRODNAME_DIR)
 
-    if not os.path.isdir(prodDir):
-        raise RuntimeError("Path %s Not a directory"%prodDir)
+if os.path.exists(prod_Dir):
+
+    if not os.path.isdir(prod_Dir):
+        raise RuntimeError("Path %s Not a directory"%prod_Dir)
 else:
     try:
-        os.makedirs(prodDir)
+        os.makedirs(prod_Dir)
+    except:
+        raise
+
+#----------exposures-------------
+
+exposure_Dir=os.path.join(prod_Dir,'exposures')
+if os.path.exists(exposure_Dir):
+    if not os.path.isdir(exposure_Dir):
+        raise RuntimeError("Path %s Not a directory"%exposure_DIR)
+else:
+    try:
+        os.makedirs(exposure_Dir)
+    except:
+        raise
+
+#----------NIGHT--------------
+
+NIGHT_DIR=os.path.join(exposure_Dir,NIGHT)
+if os.path.exists(NIGHT_DIR):
+    if not os.path.isdir(NIGHT_DIR):
+        raise RuntimeError("Path %s Not a directory"%NIGHT_DIR)
+else:
+    try:
+        os.makedirs(NIGHT_DIR)
+    except:
+        raise
+
+#---------EXPID-----------
+
+EXPID_DIR=os.path.join(NIGHT_DIR,"%09d"%EXPID)
+if os.path.exists(EXPID_DIR):
+    if not os.path.isdir(EXPID_DIR):
+        raise RuntimeError("Path %s Not a directory"%EXPID_DIR)
+else:
+    try:
+        os.makedirs(EXPID_DIR)
     except:
         raise
 
 if args.input is None:
     print('sys.stderr,"ERROR -i/--input filename required"')
 
-#read fibermapfile to get objecttype, may be more info if needed
-if args.fiberfile:
-    print "Opening fiber file %s"%(args.fiberfile)
-    fiber_hdulist=pyfits.open(args.fiberfile)
-    objtype=fiber_hdulist[1].data['OBJTYPE'].copy()
-    #need to replace STD object types with STAR since quicksim expects star instead of std
-    stdindx=np.where(objtype=='STD') # match STD with STAR
-    objtype[stdindx]='STAR'
-    #print objtype[0],type(objtype[0]),type(objtype),objtype.shape
-    NIGHT=fiber_hdulist[1]['NIGHT']
-    EXPID=fiber_hdulist[1]['EXPID']
-    fiber_hdulist.close()
-else:
-    fiber_hdulist=None
+
 
 #read the input file (simspec file)
 print 'Now Reading the input file',args.input
@@ -142,9 +190,7 @@ brange,=np.where((observedWavelengths>=waveLimits['b'][0])&(observedWavelengths<
 rrange,=np.where((observedWavelengths>=waveLimits['r'][0])&(observedWavelengths<=waveLimits['r'][1]))
 zrange,=np.where((observedWavelengths>=waveLimits['z'][0])&(observedWavelengths<=waveLimits['z'][1]))
 
-#number of points in each camera
-#armLimits={0:waveLimits['b'],1:waveLimits['r'],2:waveLimits[2]}
-# save the observation wavelengths
+# save the observation wavelengths for each camera
 bwaves=observedWavelengths[brange]
 rwaves=observedWavelengths[rrange]
 zwaves=observedWavelengths[zrange]
@@ -152,11 +198,6 @@ bmaxbin,=brange.shape
 zmaxbin,=zrange.shape
 rmaxbin,=rrange.shape
 maxbin=max(bmaxbin,zmaxbin,rmaxbin)
-
-print "Bins for B:", bmaxbin,"  ","R:", rmaxbin,"  ", "Z:", zmaxbin
-#print "Arm Limits", armLimits
-
-#print "shapes ivar=",results.ivar.shape," nobj=", results.nobj.shape, "nsky=", results.nsky.shape, "rdnoise=", results.rdnoise.shape, " dknoise=", results.dknoise.shape," wave=",results.wave.shape,"srcflux=",results.srcflux.shape,"obsflux=",results.obsflux.shape
 
 
 # Now break the simulated outputs in three different ranges.  
@@ -258,35 +299,24 @@ for i in xrange(args.nstart+1,min(args.nspectra+args.nstart,objtype.shape[0]-arg
     sky_rand_noise[:rmaxbin,1,i]=np.random.normal(np.zeros(rmaxbin),np.ones(rmaxbin)/np.sqrt(sky_ivar[:rmaxbin,1,i]),rmaxbin)
     sky_rand_noise[:zmaxbin,2,i]=np.random.normal(np.zeros(zmaxbin),np.ones(zmaxbin)/np.sqrt(sky_ivar[:zmaxbin,2,i]),zmaxbin)
 
-# set the path before writing the files
-
-directoryPath=DESI_SPECTRO_REDUX_DIR+'/'+PRODNAME_DIR+'/exposures/'+'NIGHT'+'/'+EXPID+'/' # NIGHT has to come from input
-#if os.path.exists(directoryPath):
-try:
-    os.makedirs(directoryPath)
-except OSError as exc: 
-    if exc.errno == errno.EEXIST and os.path.isdir(directoryPath):
-        pass
-    else: raise
-
 armName={"b":0,"r":1,"z":2}
 armWaves={"b":bwaves,"r":rwaves,"z":zwaves}
 armBins={"b":bmaxbin,"r":rmaxbin,"z":zmaxbin}
-#armRange={"b":brange,"r":rrange,"z":zrange}
 
-print " Length of Armbins", armBins["b"],armBins["r"],armBins["z"]
-#print nobj[:armBins[0],0,:].shape
+#Need Four Files to write: May need to configure which ones to output, rather than all. 
+#1. frame file: (x3)
+#2. skymodel file:(x3)
+#3. flux calibration vector file (x3)
+#4. cframe file
 
-    #Need Four Files to write: May need to configure which ones to output, rather than all. 
-    #1. frame file: (x3)
-    #2. skymodel file:(x3)
-    #3. flux calibration vector file (x3)
-    #4. cframe file
+#All files will be written here:
+filePath=EXPID_DIR+'/'
+
 for arm in ["b","r","z"]:	
 
 ############----------frame file------------------ 
 
-    framefileName="frame-%s%s-%s.fits"%(arm,spectrograph,EXPID)
+    framefileName="frame-%s%s-%09d.fits"%(arm,spectrograph,EXPID)
 
     PrimaryImage=pyfits.PrimaryHDU(nobj[:armBins[arm],armName[arm],:]+nsky[:armBins[arm],armName[arm],:]+rand_noise[:armBins[arm],armName[arm],:]) # This is object+sky photon counts + Random Noise (from nivar)
 
@@ -332,12 +362,12 @@ for arm in ["b","r","z"]:
 
     framehdulist=pyfits.HDUList([PrimaryImage,nivarImage,WaveImage])
     prihdr=framehdulist[0].header
-    framehdulist.writeto(directoryPath+framefileName,clobber=True)
+    framehdulist.writeto(filePath+framefileName,clobber=True)
     framehdulist.close()
 
 #######------------------skymodel file--------------------------
 
-    skyfileName="skymodel-%s%s-%s.fits"%(arm,spectrograph,EXPID)
+    skyfileName="skymodel-%s%s-%09d.fits"%(arm,spectrograph,EXPID)
     skyImage=pyfits.PrimaryHDU(nsky[:armBins[arm],armName[arm],:]+sky_rand_noise[:armBins[arm],armName[arm],:]) # SKY counts+ Random Noise
     skyIvar=pyfits.ImageHDU(data=sky_ivar[:armBins[arm],armName[arm],:],name="IVAR")
 
@@ -354,13 +384,13 @@ for arm in ["b","r","z"]:
 	
     skyhdulist=pyfits.HDUList([skyImage,skyIvar])
     prihdr=skyhdulist[0].header
-    skyhdulist.writeto(directoryPath+skyfileName,clobber=True)
+    skyhdulist.writeto(filePath+skyfileName,clobber=True)
     skyhdulist.close()
 
 ######-------------------------cframe file---------------------------
 
 
-    cframeFileName="cframe-%s%s-%s.fits"%(arm,spectrograph,EXPID)
+    cframeFileName="cframe-%s%s-%09d.fits"%(arm,spectrograph,EXPID)
     cframeImage=pyfits.PrimaryHDU(cframe_observedflux[:armBins[arm],armName[arm],:])
     fluxIvarImage=pyfits.ImageHDU(data=cframe_ivar[:armBins[arm],armName[arm],:],name="IVAR")
     #maskImage=pyfits.ImageHDU(data=???,name="MASK")
@@ -377,12 +407,12 @@ for arm in ["b","r","z"]:
 	
     cframehduList=pyfits.HDUList([cframeImage,fluxIvarImage])
     prihdr=cframehduList[0].header
-    cframehduList.writeto(directoryPath+cframeFileName,clobber=True)
+    cframehduList.writeto(filePath+cframeFileName,clobber=True)
     cframehduList.close()
 
 ########--------------------calibration vector file-----------------
 	
-    calibVectorFile="fluxcalib-%s%s-%s.fits"%(arm,spectrograph,EXPID)
+    calibVectorFile="fluxcalib-%s%s-%09d.fits"%(arm,spectrograph,EXPID)
     calibImage=pyfits.PrimaryHDU(cframe_observedflux[:armBins[arm],armName[arm],:]/nobj[:armBins[arm],armName[arm],:])
 
     #calibMetadata=pyfits.ImageHDU(???)
@@ -398,7 +428,7 @@ for arm in ["b","r","z"]:
 	
     calibhdulist=pyfits.HDUList([calibImage])
     prihdr=calibhdulist[0].header
-    calibhdulist.writeto(directoryPath+calibVectorFile,clobber=True)
+    calibhdulist.writeto(filePath+calibVectorFile,clobber=True)
     calibhdulist.close()
 	
 #spectrograph=spectrograph+1	
