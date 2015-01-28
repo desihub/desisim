@@ -62,7 +62,7 @@ def _dict2ndarray(data, columns=None):
 # 
 #     return result
 
-def new_exposure(nspec=5000, expid=None, tileid=None, airmass=1.0):
+def new_exposure(nspec=5000, expid=None, tileid=None, airmass=1.0, exptime=None):
     """
     Create a new exposure and output input simulation files.
     Does not generate pixel-level simulations or noisy spectra.
@@ -97,6 +97,9 @@ def new_exposure(nspec=5000, expid=None, tileid=None, airmass=1.0):
     
     params = io.load_desiparams()
     
+    if exptime is None:
+        exptime = params['exptime']
+    
     #- Load sky [Magic knowledge of units 1e-17 erg/s/cm2/A/arcsec2]
     skyfile = os.getenv('DESIMODEL')+'/data/spectra/spec-sky.dat'
     skywave, skyflux = np.loadtxt(skyfile, unpack=True)
@@ -110,7 +113,7 @@ def new_exposure(nspec=5000, expid=None, tileid=None, airmass=1.0):
         
         #- Project flux to photons
         phot = thru.photons(wave[ii], flux[:,ii], units='1e-17 erg/s/cm2/A',
-                objtype=truth['OBJTYPE'], exptime=params['exptime'],
+                objtype=truth['OBJTYPE'], exptime=exptime,
                 airmass=airmass)
                 
         truth['PHOT_'+channel] = phot
@@ -119,7 +122,7 @@ def new_exposure(nspec=5000, expid=None, tileid=None, airmass=1.0):
         #- Project sky flux to photons
         skyphot = thru.photons(wave[ii], skyflux[ii]*airmass,
             units='1e-17 erg/s/cm2/A/arcsec2',
-            objtype='SKY', exptime=params['exptime'], airmass=airmass)
+            objtype='SKY', exptime=exptime, airmass=airmass)
     
         #- 2D version
         ### truth['SKYPHOT_'+channel] = np.tile(skyphot, nspec).reshape((nspec, len(ii)))
@@ -167,7 +170,11 @@ def new_exposure(nspec=5000, expid=None, tileid=None, airmass=1.0):
     print fiberfile
     
     #- Write simfile
-    simfile = io.write_simspec(meta, truth, expid, night)
+    hdr = dict(
+        AIRMASS=(airmass, 'Airmass at middle of exposure'),
+        EXPTIME=(exptime, 'Exposure time [sec]')
+        )
+    simfile = io.write_simspec(meta, truth, expid, night, header=hdr)
     print simfile
 
     #- Update obslog that we succeeded with this exposure

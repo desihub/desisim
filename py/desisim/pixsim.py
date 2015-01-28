@@ -201,7 +201,7 @@ def new_flatexp(nspec=None, nspectrographs=10, ncpu=None, channel=None,
         
         for i in range(nspectrographs):
             camera = channel+str(i)
-            pixfile = _write_simpix(img, camera, 'arc', night, expid)
+            pixfile = _write_simpix(img, camera, 'flat', night, expid)
             print pixfile
 
     #- Update obslog that we succeeded with this exposure
