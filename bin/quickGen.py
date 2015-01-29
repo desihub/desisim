@@ -71,7 +71,7 @@ DESI_SPECTRO_REDUX_DIR="./quickGen"
 
 if 'DESI_SPECTRO_REDUX' not in os.environ:
 
-    print 'DESI_MODEL_REDUX environment is not set.'
+    print 'DESI_SPECTRO_REDUX environment is not set.'
     
 else:
     DESI_SPECTRO_REDUX_DIR=os.environ['DESI_SPECTRO_REDUX']
@@ -86,8 +86,6 @@ else:
     except:
         raise
         
-print "Saving output files under %s"%DESI_SPECTRO_REDUX_DIR
-
 #---------PRODNAME-----------------
 
 PRODNAME_DIR='prodname'
@@ -262,7 +260,8 @@ sky_rand_noise[:zmaxbin,2,args.nstart]=np.random.normal(np.zeros(zmaxbin),np.one
 # Now repeat the simulation for all spectra
  
 for i in xrange(args.nstart+1,min(args.nspectra+args.nstart,objtype.shape[0]-args.nstart)): # Exclusive
-    print "Simulating %d object type=%s"%(i,objtype[i])
+    print "\rSimulating %d object type=%s"%(i,objtype[i]),
+    sys.stdout.flush()
     specObj=sim.SpectralFluxDensity(wavelengths,spectra[i,:])
     results=qsim.simulate(sourceType=objtype[i].lower(),sourceSpectrum=specObj,airmass=args.airmass,expTime=args.exptime)
     #print results.nobj.shape,results.nsky.shape,results.wave.shape
@@ -298,6 +297,8 @@ for i in xrange(args.nstart+1,min(args.nspectra+args.nstart,objtype.shape[0]-arg
     sky_rand_noise[:bmaxbin,0,i]=np.random.normal(np.zeros(bmaxbin),np.ones(bmaxbin)/np.sqrt(sky_ivar[:bmaxbin,0,i]),bmaxbin)
     sky_rand_noise[:rmaxbin,1,i]=np.random.normal(np.zeros(rmaxbin),np.ones(rmaxbin)/np.sqrt(sky_ivar[:rmaxbin,1,i]),rmaxbin)
     sky_rand_noise[:zmaxbin,2,i]=np.random.normal(np.zeros(zmaxbin),np.ones(zmaxbin)/np.sqrt(sky_ivar[:zmaxbin,2,i]),zmaxbin)
+
+print
 
 armName={"b":0,"r":1,"z":2}
 armWaves={"b":bwaves,"r":rwaves,"z":zwaves}
@@ -431,6 +432,8 @@ for arm in ["b","r","z"]:
     calibhdulist.writeto(filePath+calibVectorFile,clobber=True)
     calibhdulist.close()
 	
+print "Wrote files to", filePath	
+
 #spectrograph=spectrograph+1	
 		
 
