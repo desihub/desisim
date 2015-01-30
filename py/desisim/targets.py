@@ -10,6 +10,7 @@ import fitsio
 import random
 import desisim.cosmology
 import desisim.interpolation
+from desimodel.focalplane import FocalPlane
 import astropy.units 
 import math
 import string
@@ -186,7 +187,16 @@ def get_targets(nspec, tileid=None):
     #- Load fiber -> positioner mapping and tile information
     #- NOTE: multiple file I/O here; seems clumsy
     fiberpos = io.load_fiberpos()
-                        
+
+    #- Where are these targets?  Centered on positioners for now.
+    x = fiberpos['X'][0:nspec]
+    y = fiberpos['Y'][0:nspec]
+    fp = FocalPlane(tile_ra, tile_dec)
+    ra = np.zeros(nspec)
+    dec = np.zeros(nspec)
+    for i in range(nspec):
+        ra[i], dec[i] = fp.xy2radec(x[i], y[i])
+    
     #- Fill in the rest of the fibermap structure
     fibermap['FIBER'] = np.arange(nspec, dtype='i4')
     fibermap['POSITIONER'] = fiberpos['POSITIONER'][0:nspec]
@@ -195,10 +205,10 @@ def get_targets(nspec, tileid=None):
     fibermap['TARGETCAT'] = np.zeros(nspec, dtype='|S20')
     fibermap['LAMBDAREF'] = np.ones(nspec, dtype=np.float32)*5400
     fibermap['TARGET_MASK0'] = np.zeros(nspec, dtype='i8')
-    fibermap['RA_TARGET'] = np.ones(nspec, dtype='f8') * tile_ra   #- TODO
-    fibermap['DEC_TARGET'] = np.ones(nspec, dtype='f8') * tile_dec #- TODO
-    fibermap['X_TARGET'] = fiberpos['X'][0:nspec]
-    fibermap['Y_TARGET'] = fiberpos['Y'][0:nspec]
+    fibermap['RA_TARGET'] = ra
+    fibermap['DEC_TARGET'] = dec
+    fibermap['X_TARGET'] = x
+    fibermap['Y_TARGET'] = y
     fibermap['X_FVCOBS'] = fibermap['X_TARGET']
     fibermap['Y_FVCOBS'] = fibermap['Y_TARGET']
     fibermap['X_FVCERR'] = np.zeros(nspec, dtype=np.float32)
