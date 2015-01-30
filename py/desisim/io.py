@@ -119,11 +119,11 @@ def write_simspec(meta, truth, expid, night, header=None):
     hdr['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
     hdr['LOGLAM']    = (0, 'linear wavelength steps, not log10')
     hdr['EXTNAME']   = ('FLUX', 'Object flux [erg/s/cm2/A]')
-    fits.writeto(outfile, truth['FLUX'], header=hdr, clobber=True)
+    fits.writeto(outfile, truth['FLUX'].astype(np.float32), header=hdr, clobber=True)
     
     #- Sky flux
     hdr['EXTNAME'] = ('SKYFLUX', 'Sky flux [erg/s/cm2/A/arcsec2]')
-    hdu = fits.ImageHDU(truth['SKYFLUX'], header=hdr)
+    hdu = fits.ImageHDU(truth['SKYFLUX'].astype(np.float32), header=hdr)
     fits.append(outfile, hdu.data, header=hdu.header)
     
     #- Metadata table
@@ -155,12 +155,12 @@ def write_simspec(meta, truth, expid, night, header=None):
         
         extname = 'PHOT_'+channel
         hdr['EXTNAME']   = (extname, channel+' channel object photons per bin')
-        hdu = fits.ImageHDU(truth[extname], header=hdr)
+        hdu = fits.ImageHDU(truth[extname].astype(np.float32), header=hdr)
         fits.append(outfile, hdu.data, header=hdu.header)
 
         extname = 'SKYPHOT_'+channel
         hdr['EXTNAME']   = (extname, channel+' channel sky photons per bin')
-        hdu = fits.ImageHDU(truth[extname], header=hdr)
+        hdu = fits.ImageHDU(truth[extname].astype(np.float32), header=hdr)
         fits.append(outfile, hdu.data, header=hdu.header)
                             
     return outfile
