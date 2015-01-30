@@ -263,8 +263,9 @@ def read_templates(wave, objtype, n, randseed=1):
       - n : number of templates to return
     
     Returns flux[n, len(wave)], meta[n]
-    
-    where meta is a metadata table from the input template file
+
+    where flux is in units of 1e-17 erg/s/cm2/A/[arcsec^2] and    
+    meta is a metadata table from the input template file
     with redshift, mags, etc.
     
     Requires $DESI_{objtype}_TEMPLATES to be set, pointing to a file that
@@ -282,6 +283,18 @@ def read_templates(wave, objtype, n, randseed=1):
     flux = fits.getdata(infile, 0)
     meta = fits.getdata(infile, 1).view(np.recarray)
     ww = 10**(hdr['CRVAL1'] + np.arange(hdr['NAXIS1'])*hdr['CDELT1'])
+
+    #- Check flux units
+    fluxunits = hdr['BUNIT']
+    if not fluxunits.startswith('1e-17 erg'):
+        if fluxunits.startswith('erg'):
+            flux *= 1e17
+        else:
+            #- check for '1e-16 erg/s/cm2/A' style units
+            scale, units = fluxunits.split()
+            assert units.startswith('erg')
+            scale = float(scale)
+            flux *= (scale*1e17)
 
     ntemplates = flux.shape[0]
     randindex = np.arange(ntemplates)
