@@ -127,7 +127,7 @@ def new_exposure(nspec=5000, expid=None, tileid=None, airmass=1.0, exptime=None)
         #- 2D version
         ### truth['SKYPHOT_'+channel] = np.tile(skyphot, nspec).reshape((nspec, len(ii)))
         #- 1D version
-        truth['SKYPHOT_'+channel] = skyphot
+        truth['SKYPHOT_'+channel] = skyphot.astype(np.float32)
         
     #- NOTE: someday skyflux and skyphot may be 2D instead of 1D
     
