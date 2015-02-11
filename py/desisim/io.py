@@ -12,6 +12,7 @@ from desisim.interpolation import resample_flux
 
 #-------------------------------------------------------------------------
 #- Fibermap
+#- TODO: use desispec.io instead
 
 def write_fibermap(fibermap, expid, night, dateobs, tileid=None):
     """    
@@ -176,8 +177,7 @@ def load_wavelength(filename, extname):
     
 #-------------------------------------------------------------------------
 #- desimodel
-#- These should probably move to desimodel itself,
-#- except that brings in extra dependencies for desimodel.
+#- TODO: Move these to desimodel
 
 _thru = dict()
 def load_throughput(channel):
@@ -309,7 +309,10 @@ def read_templates(wave, objtype, n, randseed=1):
     #         z = meta['Z'][j]
     #     else:
     #         z = 0.0
-    #     outflux[i] = resample_flux(wave, ww*(1+z), flux[j])
+    #     if objtype == 'QSO':
+    #         outflux[i] = resample_flux(wave, ww, flux[j])
+    #     else:
+    #         outflux[i] = resample_flux(wave, ww*(1+z), flux[j])
     #     outmeta[i] = meta[j]
         
     #- Multiprocessing version
@@ -319,12 +322,16 @@ def read_templates(wave, objtype, n, randseed=1):
     for i in range(n):
         j = randindex[i%ntemplates]
         outmeta[i] = meta[j]
-        if 'Z' in meta:
+        if 'Z' in meta.dtype.names:
             z = meta['Z'][j]
         else:
             z = 0.0
     
-        args.append( (wave, ww*(1+z), flux[j]) )
+        #- ELG, LRG require shifting wave by (1+z); QSOs don't
+        if objtype == 'QSO':
+            args.append( (wave, ww, flux[j]) )
+        else:
+            args.append( (wave, ww*(1+z), flux[j]) )
         
     ncpu = multiprocessing.cpu_count() // 2   #- avoid hyperthreading
     pool = multiprocessing.Pool(ncpu)

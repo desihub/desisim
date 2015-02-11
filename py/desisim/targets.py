@@ -2,20 +2,16 @@
 Utility functions for working with simulated targets
 """
 
-import yaml
 import os
-import numpy as np
 import sys
-import fitsio
-import random
-import desisim.cosmology
-import desisim.interpolation
-from desimodel.focalplane import FocalPlane
-import astropy.units 
-import math
-import string
 
-from . import io
+import numpy as np
+import yaml
+
+from desimodel.focalplane import FocalPlane
+from desispec import brick
+
+from desisim import io
 
 def sample_objtype(nobj):
     """
@@ -215,6 +211,7 @@ def get_targets(nspec, tileid=None):
     fibermap['Y_FVCERR'] = np.zeros(nspec, dtype=np.float32)
     fibermap['RA_OBS'] = fibermap['RA_TARGET']
     fibermap['DEC_OBS'] = fibermap['DEC_TARGET']
+    fibermap['BRICKNAME'] = brick.brickname(ra, dec)
     
     return fibermap, truth
 
