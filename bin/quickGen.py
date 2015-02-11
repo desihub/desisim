@@ -318,10 +318,10 @@ for arm in ["b","r","z"]:
 
     framefileName="frame-%s%s-%09d.fits"%(arm,spectrograph,EXPID)
 
-    PrimaryImage=pyfits.PrimaryHDU(nobj[:armBins[arm],armName[arm],:]+nsky[:armBins[arm],armName[arm],:]+rand_noise[:armBins[arm],armName[arm],:]) # This is object+sky photon counts + Random Noise (from nivar)
+    PrimaryImage=pyfits.PrimaryHDU(np.transpose(nobj[:armBins[arm],armName[arm],:]+nsky[:armBins[arm],armName[arm],:]+rand_noise[:armBins[arm],armName[arm],:])) # This is object+sky photon counts + Random Noise (from nivar)
 
     print "Shapes ",framefileName,(armBins[arm],args.nspectra)
-    nivarImage=pyfits.ImageHDU(data=nivar[:armBins[arm],armName[arm],:],name="IVAR")
+    nivarImage=pyfits.ImageHDU(data=np.transpose(nivar[:armBins[arm],armName[arm],:]),name="IVAR")
     WaveImage=pyfits.ImageHDU(data=armWaves[arm],name="WAVELENGTH")
 
     #HDU0- object+sky Counts
@@ -368,8 +368,8 @@ for arm in ["b","r","z"]:
 #######------------------skymodel file--------------------------
 
     skyfileName="skymodel-%s%s-%09d.fits"%(arm,spectrograph,EXPID)
-    skyImage=pyfits.PrimaryHDU(nsky[:armBins[arm],armName[arm],:]+sky_rand_noise[:armBins[arm],armName[arm],:]) # SKY counts+ Random Noise
-    skyIvar=pyfits.ImageHDU(data=sky_ivar[:armBins[arm],armName[arm],:],name="IVAR")
+    skyImage=pyfits.PrimaryHDU(np.transpose(nsky[:armBins[arm],armName[arm],:]+sky_rand_noise[:armBins[arm],armName[arm],:])) # SKY counts+ Random Noise
+    skyIvar=pyfits.ImageHDU(data=np.transpose(sky_ivar[:armBins[arm],armName[arm],:]),name="IVAR")
 
 	#HDU0 - Sky Photons	
     skyImage.header["NAXIS1"]=armBins[arm]
@@ -391,8 +391,8 @@ for arm in ["b","r","z"]:
 
 
     cframeFileName="cframe-%s%s-%09d.fits"%(arm,spectrograph,EXPID)
-    cframeImage=pyfits.PrimaryHDU(cframe_observedflux[:armBins[arm],armName[arm],:])
-    fluxIvarImage=pyfits.ImageHDU(data=cframe_ivar[:armBins[arm],armName[arm],:],name="IVAR")
+    cframeImage=pyfits.PrimaryHDU(np.transpose(cframe_observedflux[:armBins[arm],armName[arm],:]))
+    fluxIvarImage=pyfits.ImageHDU(data=np.transpose(cframe_ivar[:armBins[arm],armName[arm],:]),name="IVAR")
     #maskImage=pyfits.ImageHDU(data=???,name="MASK")
 
     #HDU0 - Calibrated Flux ( erg/s/cm2/A)
@@ -413,7 +413,7 @@ for arm in ["b","r","z"]:
 ########--------------------calibration vector file-----------------
 	
     calibVectorFile="fluxcalib-%s%s-%09d.fits"%(arm,spectrograph,EXPID)
-    calibImage=pyfits.PrimaryHDU(cframe_observedflux[:armBins[arm],armName[arm],:]/nobj[:armBins[arm],armName[arm],:])
+    calibImage=pyfits.PrimaryHDU(np.transpose(cframe_observedflux[:armBins[arm],armName[arm],:]/nobj[:armBins[arm],armName[arm],:]))
 
     #calibMetadata=pyfits.ImageHDU(???)
 
@@ -431,6 +431,8 @@ for arm in ["b","r","z"]:
     calibhdulist.writeto(filePath+calibVectorFile,clobber=True)
     calibhdulist.close()
 	
+print "Wrote files to", filePath
+ 
 #spectrograph=spectrograph+1	
 		
 
