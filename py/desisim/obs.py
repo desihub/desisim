@@ -153,6 +153,7 @@ def new_exposure(nspec=5000, expid=None, tileid=None, airmass=1.0, exptime=None)
         'Y_FVCOBS',
         'Y_FVCERR',
         'X_FVCERR',
+        'BRICKNAME',
         )
     fibermap = _dict2ndarray(fibermap, columns)
     
