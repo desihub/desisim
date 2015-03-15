@@ -12,6 +12,7 @@ from desisim.interpolation import resample_flux
 
 #-------------------------------------------------------------------------
 #- Fibermap
+#- TODO: use desispec.io instead
 
 def write_fibermap(fibermap, expid, night, dateobs, tileid=None):
     """    
@@ -119,11 +120,11 @@ def write_simspec(meta, truth, expid, night, header=None):
     hdr['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
     hdr['LOGLAM']    = (0, 'linear wavelength steps, not log10')
     hdr['EXTNAME']   = ('FLUX', 'Object flux [erg/s/cm2/A]')
-    fits.writeto(outfile, truth['FLUX'], header=hdr, clobber=True)
+    fits.writeto(outfile, truth['FLUX'].astype(np.float32), header=hdr, clobber=True)
     
     #- Sky flux
     hdr['EXTNAME'] = ('SKYFLUX', 'Sky flux [erg/s/cm2/A/arcsec2]')
-    hdu = fits.ImageHDU(truth['SKYFLUX'], header=hdr)
+    hdu = fits.ImageHDU(truth['SKYFLUX'].astype(np.float32), header=hdr)
     fits.append(outfile, hdu.data, header=hdu.header)
     
     #- Metadata table
@@ -155,12 +156,12 @@ def write_simspec(meta, truth, expid, night, header=None):
         
         extname = 'PHOT_'+channel
         hdr['EXTNAME']   = (extname, channel+' channel object photons per bin')
-        hdu = fits.ImageHDU(truth[extname], header=hdr)
+        hdu = fits.ImageHDU(truth[extname].astype(np.float32), header=hdr)
         fits.append(outfile, hdu.data, header=hdu.header)
 
         extname = 'SKYPHOT_'+channel
         hdr['EXTNAME']   = (extname, channel+' channel sky photons per bin')
-        hdu = fits.ImageHDU(truth[extname], header=hdr)
+        hdu = fits.ImageHDU(truth[extname].astype(np.float32), header=hdr)
         fits.append(outfile, hdu.data, header=hdu.header)
                             
     return outfile
@@ -176,8 +177,7 @@ def load_wavelength(filename, extname):
     
 #-------------------------------------------------------------------------
 #- desimodel
-#- These should probably move to desimodel itself,
-#- except that brings in extra dependencies for desimodel.
+#- TODO: Move these to desimodel
 
 _thru = dict()
 def load_throughput(channel):
@@ -263,8 +263,9 @@ def read_templates(wave, objtype, n, randseed=1):
       - n : number of templates to return
     
     Returns flux[n, len(wave)], meta[n]
-    
-    where meta is a metadata table from the input template file
+
+    where flux is in units of 1e-17 erg/s/cm2/A/[arcsec^2] and    
+    meta is a metadata table from the input template file
     with redshift, mags, etc.
     
     Requires $DESI_{objtype}_TEMPLATES to be set, pointing to a file that
@@ -283,6 +284,18 @@ def read_templates(wave, objtype, n, randseed=1):
     meta = fits.getdata(infile, 1).view(np.recarray)
     ww = 10**(hdr['CRVAL1'] + np.arange(hdr['NAXIS1'])*hdr['CDELT1'])
 
+    #- Check flux units
+    fluxunits = hdr['BUNIT']
+    if not fluxunits.startswith('1e-17 erg'):
+        if fluxunits.startswith('erg'):
+            flux *= 1e17
+        else:
+            #- check for '1e-16 erg/s/cm2/A' style units
+            scale, units = fluxunits.split()
+            assert units.startswith('erg')
+            scale = float(scale)
+            flux *= (scale*1e17)
+
     ntemplates = flux.shape[0]
     randindex = np.arange(ntemplates)
     np.random.shuffle(randindex)
@@ -296,7 +309,10 @@ def read_templates(wave, objtype, n, randseed=1):
     #         z = meta['Z'][j]
     #     else:
     #         z = 0.0
-    #     outflux[i] = resample_flux(wave, ww*(1+z), flux[j])
+    #     if objtype == 'QSO':
+    #         outflux[i] = resample_flux(wave, ww, flux[j])
+    #     else:
+    #         outflux[i] = resample_flux(wave, ww*(1+z), flux[j])
     #     outmeta[i] = meta[j]
         
     #- Multiprocessing version
@@ -306,12 +322,16 @@ def read_templates(wave, objtype, n, randseed=1):
     for i in range(n):
         j = randindex[i%ntemplates]
         outmeta[i] = meta[j]
-        if 'Z' in meta:
+        if 'Z' in meta.dtype.names:
             z = meta['Z'][j]
         else:
             z = 0.0
     
-        args.append( (wave, ww*(1+z), flux[j]) )
+        #- ELG, LRG require shifting wave by (1+z); QSOs don't
+        if objtype == 'QSO':
+            args.append( (wave, ww, flux[j]) )
+        else:
+            args.append( (wave, ww*(1+z), flux[j]) )
         
     ncpu = multiprocessing.cpu_count() // 2   #- avoid hyperthreading
     pool = multiprocessing.Pool(ncpu)

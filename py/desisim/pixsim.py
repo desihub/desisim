@@ -1,3 +1,4 @@
+import sys
 import os
 import os.path
 import time
@@ -84,7 +85,7 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None):
     if verbose:
         print "Wrote "+pixfile
 
-def new_arcexp(nspec=None, nspectrographs=10, ncpu=None):
+def new_arcexp(nspec=None, nspectrographs=10, ncpu=None, expid=None):
     """
     Run pixel simulation of new arc lamp exposure
     
@@ -103,8 +104,10 @@ def new_arcexp(nspec=None, nspectrographs=10, ncpu=None):
         Uses hardcoded arc lamp spectrum in
         $DESI_ROOT/spectro/templates/calib/v0.1/arc-lines-average.fits
     """
-    
-    expid = obs.get_next_expid()
+   
+    if expid is None:
+        expid = obs.get_next_expid()
+        
     dateobs = time.gmtime()
     night = obs.get_night(utc=dateobs)
     simdir = io.simdir(night, mkdir=True)
@@ -190,10 +193,11 @@ def new_flatexp(nspec=None, nspectrographs=10, ncpu=None, channel=None,
     for channel in channels:
         psf = io.load_psf(channel)
         thru = io.load_throughput(channel)
-        phot = thru.photons(wave, flux, units=hdr['BUNIT'], objtype='CALIB')
-        ### img = psf.project(wave, phot)
         ii = (psf.wmin <= wave) & (wave <= psf.wmax)
-        img = parallel_project(psf, wave[ii], phot[:,ii], ncpu=ncpu)
+        phot = thru.photons(wave[ii], flux[:,ii], units=hdr['BUNIT'], objtype='CALIB')
+
+        ### img = psf.project(wave, phot)
+        img = parallel_project(psf, wave[ii], phot, ncpu=ncpu)
         
         for i in range(nspectrographs):
             camera = channel+str(i)
@@ -218,11 +222,19 @@ def _project(args):
         xmin, xmax, ymin, ymax = xyrange
         image[ymin:ymax, xmin:xmax] += subimage
     """
-    psf, wave, phot, specmin = args
-    nspec = phot.shape[0]
-    xyrange = psf.xyrange( [specmin, specmin+nspec], wave )
-    img = psf.project(wave, phot, specmin=specmin, xyrange=xyrange)
-    return (xyrange, img)
+    try:
+        psf, wave, phot, specmin = args
+        nspec = phot.shape[0]
+        xyrange = psf.xyrange( [specmin, specmin+nspec], wave )
+        img = psf.project(wave, phot, specmin=specmin, xyrange=xyrange)
+        return (xyrange, img)
+    except Exception, e:
+        import traceback
+        print '-'*60
+        print 'ERROR in _project', psf.wmin, psf.wmax, wave[0], wave[-1], phot.shape, specmin
+        traceback.print_exc()
+        print '-'*60
+        raise e
 
 #- Move this into specter itself?
 def parallel_project(psf, wave, phot, ncpu=None):
@@ -235,7 +247,7 @@ def parallel_project(psf, wave, phot, ncpu=None):
     if ncpu is None:
         #- on a Mac, 1/2 cores is about the same speed as all of them
         ncpu = mp.cpu_count() / 2
-            
+
     if ncpu < 0:
         #- Serial version
         ### print "Serial project"
@@ -247,7 +259,7 @@ def parallel_project(psf, wave, phot, ncpu=None):
         iispec = np.linspace(0, nspec, ncpu+1).astype(int)
         args = list()
         for i in range(ncpu):
-            if iispec[i+1] > iispec[i]:  #- can fail if nspec < ncpu
+            if iispec[i+1] > iispec[i]:  #- can be false if nspec < ncpu
                 args.append( [psf, wave, phot[iispec[i]:iispec[i+1]], iispec[i]] )
 
         #- Create pool of workers to do the projection using _project
