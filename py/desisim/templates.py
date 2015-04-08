@@ -68,7 +68,8 @@ class emspectrum:
     Class for building a complete nebular emission-line spectrum. 
     """
 
-    def __init__(self, minwave=3650.0, maxwave=6700.0, linesigma=200.0, zshift=0.0):
+    def __init__(self, minwave=3650.0, maxwave=6700.0, linesigma=75.0,
+                 zshift=0.0, oiidoubletratio=0.75, oiiihbeta=-0.4):
         """
         Initialize the emission-line spectrum class with default values.
         """
@@ -78,6 +79,8 @@ class emspectrum:
         self.maxwave = np.log10(maxwave)
         self.linesigma = linesigma
         self.zshift = zshift
+        self.oiidoubletratio = oiidoubletratio
+        self.oiiihbeta = oiiihbeta
         self.npix = (self.maxwave-self.minwave)/self.pixsize+1
 
     def wavelength(self):
@@ -120,13 +123,35 @@ class emspectrum:
             line['flux'][ii] = abundfactor*1.367E-12*nlyc* \
             emdata['emissivity'][ii]/emdata['emissivity'][isha]
 
+        # add in the forbidden lines, starting with [OIII] 5007, with
+        # no scatter
+        line.add_row(['[OIII]_5007',5006.842,0.0,0.0,0.0])
+        line[-1]['ratio'] = 10**self.oiiihbeta
+        line[-1]['flux'] = line['flux'][ishb]*line[-1]['ratio']
+
+        # next get [OII] 3727, but then split it into the [OII]
+        # 3726,29 doublet according to the desired doublet ratio 
+        coeff = np.asarray([0.45476,0.44351,-0.74810,-0.52131])
+        oiihbeta = 10**np.polyval(coeff,self.oiiihbeta)
+        oiiflux = oiihbeta*line['flux'][ishb]
+
+        factor = self.oiidoubletratio/(1.0+self.oiidoubletratio)
+        line.add_row(['[OII]_3726',3726.032,0.0,0.0,0.0])
+        line[-1]['ratio'] = oiihbeta*factor
+        line[-1]['flux'] = oiiflux*factor
+        
+        factor = 1.0/(1.0+self.oiidoubletratio)
+        line.add_row(['[OII]_3729',3728.814,0.0,0.0,0.0])
+        line[-1]['ratio'] = oiihbeta*factor
+        line[-1]['flux'] = oiiflux*factor
+
         return line
 
     def emlines(self):
         """
         Build an emission-line spectrum
         """
-        sigma = self.linesigma/light/np.log(10) # line-width [log-10 Angstrom]
+        log10sigma = self.linesigma/light/np.log(10) # line-width [log-10 Angstrom]
 
         log10wave = em.wavelength()
         line = em.linedata()
@@ -135,11 +160,11 @@ class emspectrum:
         for ii in range(len(line)):
             amp = line['flux'][ii]/line['wave'][ii]/np.log(10) # line-amplitude [erg/s/cm2/A]
             thislinewave = np.log10(line['wave'][ii]*(1.0+self.zshift))
-            print thislinewave, amp
+            line['amp'] = amp/(np.sqrt(2.0*np.pi)*log10sigma)  # [erg/s/A]
 
             # [erg/s/cm2/A, rest]
-            emspectrum += amp*np.exp(-0.5*(log10wave-thislinewave)**2/sigma**2)\
-                          /(np.sqrt(2.0*np.pi)*sigma)
+            emspectrum += amp*np.exp(-0.5*(log10wave-thislinewave)**2/log10sigma**2)\
+                          /(np.sqrt(2.0*np.pi)*log10sigma)
 
         return emspectrum
 
@@ -184,11 +209,16 @@ class emspectrum:
 
 if __name__ == '__main__':
 
-    em = emspectrum()
+    # In the Monte Carlo simulation linesigma, oiidoubletratio,
+    # oiiihbeta should be drawn from a uniform (or log-normal)
+    # distribution
+
+    em = emspectrum(linesigma=75.0, oiidoubletratio=0.75, oiiihbeta=-0.4)
+    line = em.linedata()
     log10wave = em.wavelength()
     emspectrum = em.emlines()
 
     plt.clf()
     plt.plot(10**log10wave,emspectrum)
-    #plt.xlim([6400,6700])
+    #plt.xlim([3500,4100])
     plt.show(block=False)
