@@ -1,0 +1,84 @@
+#!/usr/bin/env python
+
+"""
+Generate simulated galaxy templates.
+
+J. Moustakas
+2015 Apr
+
+Give examples..
+"""
+
+import os
+import sys
+from optparse import OptionParser
+
+import numpy as np
+import matplotlib.pyplot as plt
+from astropy.table import Table
+
+from desisim.templates import emspectrum
+from desispec.interpolation import resample_flux
+
+# parse the simulation parameters from the command line and choose a
+# reasonable set of default values
+parser = OptionParser(
+    usage = '%prog [options]',
+    description = 'This is a neat piece of code.',
+    epilog = 'Not sure what this does!')
+
+parser.add_option('--nmodel', default=30, type=long,
+                  help='Number of model (template) spectra to generate [%default]')
+parser.add_option('--oiiihbeta_range', default=(-0.5,0.0), type=float, nargs=2, 
+                  help='Logarithmic minimum and maximum [OIII]/Hbeta ratio [%default]')
+parser.add_option('--oiiratio_meansig', default=(0.75,0.05), type=float, nargs=2, 
+                  help='Mean and sigma of [OII] 3729/3726 doublet ratio [%default]')
+parser.add_option('--linesigma_meansig', default=(75.0,20.0), type=float, nargs=2, 
+                  help='Mean and sigma of emission-line width [%default km/s]')
+opts, args = parser.parse_args()
+
+# check environment
+envOK = True
+for envvar in ('DESI_ELG_TEMPLATES', 'PIXPROD', 'DESI_SPECTRO_SIM'):
+    if envvar not in os.environ:
+        print "ERROR: $%s is required" % envvar
+        envOK = False
+if not envOK:
+    print "Set those environment variable(s) and then try again"
+    sys.exit(1)
+
+    
+# pack the simulation parameters into a binary table
+# ...
+
+# if nmodel is extremely large then we might have to split this into
+# chunks
+
+# draw random values
+oiiihbeta = np.random.uniform(opts.oiiihbeta_range[0],opts.oiiihbeta_range[1],opts.nmodel)
+oiiratio = np.random.normal(opts.oiiratio_meansig[0],opts.oiiratio_meansig[1],opts.nmodel)
+linesigma = np.random.normal(opts.linesigma_meansig[0],opts.linesigma_meansig[1],opts.nmodel)
+
+# read the continuum models
+
+
+
+## build a default spectrum in order to initialize the
+## emission-line data and output wavelength array
+em = emspectrum()
+log10wave = em.wavelength()
+
+for ii in range(opts.nmodel):
+
+    # initialize the simulation parameters for this spectrum
+    print ii, oiiihbeta[ii], linesigma[ii], oiiratio[ii]
+    em.__init__(linesigma=linesigma[ii], oiiratio=oiiratio[ii],
+                oiiihbeta=oiiihbeta[ii])
+
+    # build the emission-line spectrum
+    emflux = em.emlines()
+    
+    #plt.clf()
+    #plt.plot(10**log10wave,emflux,'r')
+    ##plt.xlim([3600,4100])
+    #plt.show()
