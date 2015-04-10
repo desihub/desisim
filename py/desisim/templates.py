@@ -7,13 +7,12 @@ J. Moustakas
 
 from os import getenv
 from os.path import join
+
 #import specter.io as io
 import numpy as np
 import matplotlib.pyplot as plt
 
-light = 2.99792458E5
-
-class filter:
+class filter():
     """
     Define the filter class.  Could add additional functions
     to compute the filter effective wavelength, the Vega 
@@ -63,7 +62,7 @@ class filter:
         flux /= np.trapz(self.interp(wave1)*wave1,wave1)
         return flux
     
-class emspectrum:
+class emspectrum():
     """
     Class for building a complete nebular emission-line spectrum. 
     """
@@ -97,9 +96,14 @@ class emspectrum:
         nHeI = 0.0897 # adopted n(HeI)/n(HI) abundance ratio (see Kotulla+09)
         nlyc = 1.0 # fiducial number of Lyman-continuum photons (sec^-1)
 
+        nii_doublet = 2.93579  # [NII] 6584/6548 doublet ratio
+        oiii_doublet = 2.88750 # [OIII] 5007/4959 doublet ratio
+        sii_doublet = 1.3      # [SII] 6716/6731 doublet ratio (depends on density)
+
         # read the file which contains the hydrogen and helium emissivities
         emfile = join(getenv('DESISIM'),'data','hydrogen_helium_emissivities.dat')
-        emdata = ascii.read(emfile,comment='#',names=['name','wave','emissivity','transition'])
+        emdata = ascii.read(emfile,comment='#',names=['name',
+                    'wave','emissivity','transition'])
         nline = len(emdata)
 
         isha = np.where(emdata['name']=='Halpha')
@@ -123,27 +127,56 @@ class emspectrum:
             line['flux'][ii] = abundfactor*1.367E-12*nlyc* \
             emdata['emissivity'][ii]/emdata['emissivity'][isha]
 
-        # add in the forbidden lines, starting with [OIII] 5007, with
-        # no scatter
+        # add in the forbidden lines, starting with [OIII] 5007 
         line.add_row(['[OIII]_5007',5006.842,0.0,0.0,0.0])
-        line[-1]['ratio'] = 10**self.oiiihbeta
-        line[-1]['flux'] = line['flux'][ishb]*line[-1]['ratio']
+        line[-1]['ratio'] = 10**self.oiiihbeta # NB: no scatter
+        line[-1]['flux'] = line[-1]['ratio']*line['flux'][ishb]
 
-        # next get [OII] 3727, but then split it into the [OII]
-        # 3726,29 doublet according to the desired doublet ratio 
+        line.add_row(['[OIII]_4959',4958.911,0.0,0.0,0.0])
+        line[-1]['ratio'] = line[-2]['ratio']/oiii_doublet
+        line[-1]['flux'] = line[-2]['flux']/oiii_doublet
+
+        # add the [NII] 6548,6584 doublet (with no scatter)
+        coeff = np.asarray([-0.20248,-0.73766,-0.53829])
+        line.add_row(['[NII]_6584',6583.458,0.0,0.0,0.0])
+        line[-1]['ratio'] = 10**np.polyval(coeff,self.oiiihbeta)
+        line[-1]['flux'] = line[-1]['ratio']*line['flux'][ishb]
+
+        line.add_row(['[NII]_6548',6548.043,0.0,0.0,0.0])
+        line[-1]['ratio'] = line[-2]['ratio']/nii_doublet
+        line[-1]['flux'] = line[-2]['flux']/nii_doublet
+
+        # add the [SII] 6716,6731 doublet (with no scatter)
+        coeff = np.asarray([-0.23058,-0.32967,-0.64326])
+        line.add_row(['[SII]_6716',6716.440,0.0,0.0,0.0])
+        line[-1]['ratio'] = 10**np.polyval(coeff,self.oiiihbeta)
+        line[-1]['flux'] = line[-1]['ratio']*line['flux'][ishb]
+
+        line.add_row(['[SII]_6731',6730.815,0.0,0.0,0.0])
+        line[-1]['ratio'] = line[-2]['ratio']/sii_doublet
+        line[-1]['flux'] = line[-2]['flux']/sii_doublet
+
+        # add [NeIII] 3869 (with no scatter)
+        coeff = np.asarray([-1.1647,1.0876])
+        line.add_row(['[NeIII]_3869',3868.752,0.0,0.0,0.0])
+        line[-1]['ratio'] = 10**np.polyval(coeff,self.oiiihbeta)
+        line[-1]['flux'] = line[-1]['ratio']*line['flux'][ishb]
+
+        # add [OII] 3727, split into the individual [OII] 3726,3729
+        # lines according to the desired doublet ratio
         coeff = np.asarray([0.45476,0.44351,-0.74810,-0.52131])
-        oiihbeta = 10**np.polyval(coeff,self.oiiihbeta)
-        oiiflux = oiihbeta*line['flux'][ishb]
+        oiihbeta = 10**np.polyval(coeff,self.oiiihbeta) # [OII]/Hbeta
+        oiiflux = oiihbeta*line['flux'][ishb]           # [OII] flux
 
         factor = self.oiidoubletratio/(1.0+self.oiidoubletratio)
         line.add_row(['[OII]_3726',3726.032,0.0,0.0,0.0])
-        line[-1]['ratio'] = oiihbeta*factor
-        line[-1]['flux'] = oiiflux*factor
+        line[-1]['ratio'] = factor*oiihbeta
+        line[-1]['flux'] = factor*oiiflux
         
         factor = 1.0/(1.0+self.oiidoubletratio)
         line.add_row(['[OII]_3729',3728.814,0.0,0.0,0.0])
-        line[-1]['ratio'] = oiihbeta*factor
-        line[-1]['flux'] = oiiflux*factor
+        line[-1]['ratio'] = factor*oiihbeta
+        line[-1]['flux'] = factor*oiiflux
 
         return line
 
@@ -168,13 +201,13 @@ class emspectrum:
 
         return emspectrum
 
-#def get_maggies(wave,flux,filter):
-#    """
-#    Convolve an input SED (wave,flux) with the filter transmission 
-#    curve and return maggies.
-#    """
-#    maggies = filter.get_flux(wave,flux)/filter.ABzpt
-#    return maggies
+def get_maggies(wave,flux,filter):
+    """
+    Convolve an input SED (wave,flux) with the filter transmission 
+    curve and return maggies.
+    """
+    maggies = filter.get_flux(wave,flux)/filter.ABzpt
+    return maggies
 
 #def read_templates(objtype,version):
 #    """
@@ -209,16 +242,42 @@ class emspectrum:
 
 if __name__ == '__main__':
 
+    import sys
+    from optparse import OptionParser
+
+    light = 2.99792458E5
+
     # In the Monte Carlo simulation linesigma, oiidoubletratio,
     # oiiihbeta should be drawn from a uniform (or log-normal)
     # distribution
 
-    em = emspectrum(linesigma=75.0, oiidoubletratio=0.75, oiiihbeta=-0.4)
+    # parse the simulation parameters from the command line or choose a
+    # reasonable set of default values
+    parser = OptionParser(usage='%prog',description='This is a neat piece of code.')
+    parser.add_option('--nmodel', default=3, type=long, action="store",
+                      help='Number of model (template) spectra to generate')
+    parser.add_option('--oiiihbeta_range', type=float, nargs=2, action="store",
+                      help='Minimum and maximum logarithmic [OIII]/Hbeta ratios to consider (default "-0.5 0.0")')
+    opt, args = parser.parse_args()
+
+    if opt.oiiihbeta_range is None:
+        oiiihbeta_range = (-0.5,0.0)
+
+    # draw random values
+    oiiihbeta = np.random.uniform(oiiihbeta_range[0],oiiihbeta_range[1],nmodel)
+
+    # build a default spectrum in order to initialize the
+    # emission-line data and output wavelength array
+    em = emspectrum()
     line = em.linedata()
     log10wave = em.wavelength()
-    emspectrum = em.emlines()
 
-    plt.clf()
-    plt.plot(10**log10wave,emspectrum)
-    #plt.xlim([3500,4100])
-    plt.show(block=False)
+    for ii in range(nmodel):
+        em = emspectrum(linesigma=75.0, oiidoubletratio=0.75, oiiihbeta=oiiihbeta[ii])
+        emspectrum = em.emlines()
+
+        plt.clf()
+        plt.plot(10**log10wave,emspectrum)
+        #plt.xlim([6500,6800])
+        #plt.ylim([0,1E-12])
+        plt.show(block=True)
