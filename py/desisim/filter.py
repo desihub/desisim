@@ -8,6 +8,9 @@ J. Moustakas
 2014 Dec
 """
 
+import os
+import numpy as np
+
 class filter:
     """
     Define the filter class.  Could add additional functions
@@ -16,7 +19,7 @@ class filter:
     astLib.astSED package.
     """
 
-    def __init__(self,filtername):
+    def __init__(self,filtername=None):
         """
         Initialize the filter class.  Reads and stores a single
         filter curve.  Also constructs an interpolation object 
@@ -25,6 +28,9 @@ class filter:
 
         from astropy.io import ascii
         from scipy.interpolate import interp1d
+
+        if filtername is None:
+            print('Need to specify FILTERNAME!')
 
         # raise an exception if FILTERNAME does not exist; could list
         # the available filters
