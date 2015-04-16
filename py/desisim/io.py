@@ -458,7 +458,6 @@ def read_base_templates(objtype='elg', observed=False, continuum=False):
             objfile = objfile.replace('templates_','continuum_templates_')
         if observed is True:
             objfile = objfile.replace('templates_','templates_obs_')
-    print(objfile)
 
     if os.path.isfile(objfile) is False:
         raise ValueError('ERROR: Templates file %s not found', objfile)
