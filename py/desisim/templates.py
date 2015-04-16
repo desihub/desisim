@@ -1,20 +1,18 @@
 """
-Functions to generate simulated galaxy templates.
-
-J. Moustakas
-2014 Dec
+Functions to help generate spectral templates of galaxies, quasars, and stars. 
 """
+
+from __future__ import division, print_function
 
 import os
 import numpy as np
 
 light = 2.99792458E5
 
-class emspectrum:
+class EMSpectrum:
     """
     Class for building a complete nebular emission-line spectrum. 
     """
-
     def __init__(self, minwave=3650.0, maxwave=6700.0, linesigma=75.0,
                  zshift=0.0, oiiratio=0.75, oiiihbeta=-0.4):
         """
@@ -149,6 +147,9 @@ class emspectrum:
                       /(np.sqrt(2.0*np.pi)*log10sigma)
 
         return emspec
+
+class 
+
 
 #def read_templates(objtype,version):
 #    """

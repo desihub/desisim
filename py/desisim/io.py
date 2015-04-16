@@ -4,11 +4,14 @@ import time
 import specter.psf
 import specter.throughput
 import yaml     #- for desi.yaml
+
 from astropy.io import fits
+
 import numpy as np
 import multiprocessing
 
-from desisim.interpolation import resample_flux
+from desispec.log import get_logger
+from desispec.interpolation import resample_flux
 
 #-------------------------------------------------------------------------
 #- Fibermap
@@ -169,6 +172,7 @@ def write_simspec(meta, truth, expid, night, header=None):
 #-------------------------------------------------------------------------
 #- Parse header to make wavelength array
 def load_wavelength(filename, extname):
+    # Moustakas - duplicate of desispec.io.util.header2wave
     hdr = fits.getheader(filename, extname)
     wave = hdr['CRVAL1'] + np.arange(hdr['NAXIS1'])*hdr['CDELT1']
     if hdr['LOGLAM'] == 1:
@@ -253,6 +257,7 @@ def get_tile_radec(tileid):
 def _resample_flux(args):
     return resample_flux(*args)
 
+# Moustakas - this will need to be rewritten
 def read_templates(wave, objtype, n, randseed=1):
     """
     Returns n templates of type objtype sampled at wave
@@ -346,6 +351,7 @@ def read_templates(wave, objtype, n, randseed=1):
 
 def write_bintable(filename, data, header=None, comments=None, units=None,
                    extname=None, clobber=False):
+    # Moustakas - duplicate of desispec.io.util.write_bintable
     """
     Utility function to write a binary table and get the comments and units
     in the FITS header too.
@@ -415,8 +421,54 @@ def _parse_filename(filename):
     elif len(x) == 3:
         return x[0], x[1].lower(), int(x[2])
         
+# Moustakas - this will need to be rewritten
+def read_base_templates(objtype='elg', observed=False, continuum=False):
+    """
+    Returns the base templates for each objtype
+    
+    Optional Inputs:
+      - wave : array of wavelengths to sample
+      - objtype : 'ELG', 'LRG', 'QSO', 'STD', or 'STAR'
+      - n : number of templates to return
+    
+    Returns flux[n, len(wave)], meta[n]
 
+    where flux is in units of 1e-17 erg/s/cm2/A/[arcsec^2] and    
+    meta is a metadata table from the input template file
+    with redshift, mags, etc.
+    
+    Requires $DESI_{objtype}_TEMPLATES to be set, pointing to a file that
+    has the observer frame flux in HDU 0 and a metadata table for these
+    objects in HDU 1.  This code randomly samples n spectra from that file.
+    
+    TO DO: add a setable randseed for random reproducibility.
+    """
+    from astropy.table import Table
+    from desispec.io.util import header2wave
 
+    key = 'DESI_'+objtype.upper()+'_TEMPLATES'
+    if key not in os.environ:
+        raise ValueError('ERROR: $%s environment variable not set', key)
+
+    objfile = os.getenv(key)
+
+    # Handle special cases for the ELG templates.
+    if objtype.upper()=='ELG':
+        if continuum is True:
+            objfile = objfile.replace('templates_','continuum_templates_')
+        if observed is True:
+            objfile = objfile.replace('templates_','templates_obs_')
+    print(objfile)
+
+    if os.path.isfile(objfile) is False:
+        raise ValueError('ERROR: Templates file %s not found', objfile)
+
+    flux, hdr = fits.getdata(objfile, 0, header=True)
+    meta = Table(fits.getdata(objfile, 1))
+    wave = header2wave(hdr)
+
+    return flux, wave, meta
+    
 #-------------------------------------------------------------------------
 # def _add_table_comments(filename, hdu, comments):
 #     """

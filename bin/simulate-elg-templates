@@ -3,21 +3,24 @@
 """
 Generate simulated galaxy templates.
 
-J. Moustakas
-2015 Apr
-
-Give examples..
+Give examples...
 """
+
+from __future__ import division, print_function
+
 import os
 import sys
+import numpy as np
+
 from optparse import OptionParser
 
-import numpy as np
 import matplotlib.pyplot as plt
 from astropy.io import fits
 from astropy.table import Table
 
-from desisim.templates import emspectrum
+from desispec.log import get_logger
+
+from desisim.templates import EMSpectrum
 from desisim.filter import filter
 from desispec.interpolation import resample_flux
 
@@ -42,7 +45,9 @@ parser.add_option('--rmag_range', default=(21.0,23.5), type=float, nargs=2,
                   help='Minimum and maximum redshift [%default]')
 parser.add_option('--ewoii_range', default=(0.1,30.0), type=float, nargs=2, 
                   help='Minimum and maximum rest-frame [OII] 3727 equivalent width [%default]') 
+
 opts, args = parser.parse_args()
+log = get_logger()
 
 # check environment
 envOK = True
@@ -77,17 +82,16 @@ ww = 10**(hdr['CRVAL1'] + np.arange(hdr['NAXIS1'])*hdr['CDELT1'])
 
 ## build a default spectrum in order to initialize the
 ## emission-line data and output wavelength array
-em = emspectrum()
 
 for ii in range(opts.nmodel):
 
     # initialize the simulation parameters for this spectrum
     print ii, oiiihbeta[ii], linesigma[ii], oiiratio[ii]
-    em.__init__(linesigma=linesigma[ii], oiiratio=oiiratio[ii],
+    EM = EMSpectrum(linesigma=linesigma[ii], oiiratio=oiiratio[ii],
                 oiiihbeta=oiiihbeta[ii])
 
     # build the emission-line spectrum
-    emflux = em.emlines()
+    emflux = EM.emlines()
     
     #plt.clf()
     #log10wave = em.wavelength()
