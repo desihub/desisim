@@ -8,6 +8,7 @@ from __future__ import division, print_function
 
 import os
 import sys
+from pprint import pprint
 import scipy as sci
 import triangle
 import numpy as np
@@ -26,9 +27,11 @@ cflux, cwave, cmeta = read_base_templates(observed=True)
 # 
 d4000 = cmeta['D4000']
 ewoii = np.log10(cmeta['OII_3727_EW'])
-bins, stats = medxbin(d4000,ewoii,0.05,minpts=100)
+bins, stats = medxbin(d4000,ewoii,0.05,minpts=20,xmin=1.0,xmax=1.7)
+
 coeff = sci.polyfit(bins,stats['median'],2)
-print(stats['median'], stats['sigma'])
+print(coeff,len(bins))
+#print(stats['median'], stats['sigma'])
 
 # build the plot
 
@@ -37,8 +40,10 @@ fig = plt.figure(figsize=(8,7))
 hist2d = triangle.hist2d(d4000, ewoii)
 plt.xlim([1.0,1.8])
 plt.xlabel('D$_{n}$(4000)',fontsize=18)
-plt.ylabel('EW([O II] $\lambda\lambda3726,29$) ($\AA$, rest-frame)',
+plt.ylabel('log_{10} EW([O II] $\lambda\lambda3726,29$) ($\AA$, rest-frame)',
            fontsize=18)
+plt.text(0.95,0.9,coeff,horizontalalignment='right',color='black',
+         transform=plt.gca().transAxes,fontsize=18)
 plt.errorbar(bins,stats['median'],yerr=stats['sigma'],fmt='bo',markersize=8)
 plt.plot(bins,sci.polyval(coeff,bins),color='red')
 #hist2d = triangle.hist2d(np.array([d4000,ewoii]).transpose())
