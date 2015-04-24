@@ -1,99 +1,23 @@
+"""
+I/O routines
+"""
+
 import os
 import time
 
-import specter.psf
-import specter.throughput
-import yaml     #- for desi.yaml
-
 from astropy.io import fits
-
 import numpy as np
 import multiprocessing
 
-from desispec.log import get_logger
 from desispec.interpolation import resample_flux
-
-#-------------------------------------------------------------------------
-#- Fibermap
-#- TODO: use desispec.io instead
-
-def write_fibermap(fibermap, expid, night, dateobs, tileid=None):
-    """    
-    Writes
-        $DESI_SPECTRO_SIM/$PIXPROD/{night}/fibermap-{expid}.fits
-       
-    Inputs:
-      - fibermap : ndarray with named columns of fibermap data
-      - expid : exposure ID (integer)
-      - night : string YEARMMDD
-      - dateobs : time tuple with UTC time; see time.gmtime()
-        
-    Returns full path to filename of fibermap file written
-    """
-    #- Where should this be written?  Create dir if needed.
-    outdir = simdir(night, mkdir=True)      
-    outfile = '{}/fibermap-{:08d}.fits'.format(outdir, expid)
-
-    #- Comments for fibermap columns
-    comments = dict(
-        FIBER        = "Fiber ID [0-4999]",
-        POSITIONER   = "Positioner ID [0-4999]",
-        SPECTROID    = "Spectrograph ID [0-9]",
-        TARGETID     = "Unique target ID",
-        TARGETCAT    = "Name/version of the target catalog",
-        OBJTYPE      = "Target type [ELG, LRG, QSO, STD, STAR, SKY]",
-        LAMBDAREF    = "Reference wavelength at which to align fiber",
-        TARGET_MASK0 = "Targeting bit mask",
-        RA_TARGET    = "Target right ascension [degrees]",
-        DEC_TARGET   = "Target declination [degrees]",
-        X_TARGET     = "X on focal plane derived from (RA,DEC)_TARGET",
-        Y_TARGET     = "Y on focal plane derived from (RA,DEC)_TARGET",
-        X_FVCOBS     = "X location observed by Fiber View Cam [mm]",
-        Y_FVCOBS     = "Y location observed by Fiber View Cam [mm]",
-        X_FVCERR     = "X location uncertainty from Fiber View Cam [mm]",
-        Y_FVCERR     = "Y location uncertainty from Fiber View Cam [mm]",
-        RA_OBS       = "RA of obs from (X,Y)_FVCOBS and optics [deg]",
-        DEC_OBS      = "dec of obs from (X,Y)_FVCOBS and optics [deg]",
-        MAG          = "magitude",
-        FILTER       = "SDSS_R, DECAM_Z, WISE1, etc."
-    )
-
-    #- Extra header keywords
-    hdr = fits.Header()
-    if tileid is not None:
-        hdr['TILEID']   = (tileid, 'Tile ID')
-        tele_ra, tele_dec = get_tile_radec(tileid)
-        hdr['TELERA']   = (tele_ra, 'Telescope central RA [deg]')
-        hdr['TELEDEC']  = (tele_dec, 'Telescope central dec [deg]')
-    else:
-        hdr['TELERA']   = (0.0, 'Telescope central RA [deg]')
-        hdr['TELEDEC']  = (0.0, 'Telescope central dec [deg]')        
-        
-    hdr['EXPID']    = (expid, 'Exposure number')
-    hdr['NIGHT']    = (str(night), 'Night YEARMMDD')
-    hdr['VDMODEL']  = ('0.0.0', 'TODO: desimodel version')
-    hdr['VOPTICS']  = ('0.0.0', 'TODO: optics model version')
-    hdr['VFIBVCAM'] = ('0.0.0', 'TODO: fiber view code version')
-    hdr['HEXPDROT'] = (0.0, 'TODO: hexapod rotation [deg]')
-    dateobs_str = time.strftime('%Y-%m-%dT%H:%M:%S', dateobs)
-    hdr['DATE-OBS'] = (dateobs_str, 'Date of observation in UTC')
-
-    write_bintable(outfile, fibermap, hdr, comments=comments,
-        extname="FIBERMAP", clobber=True)
-        
-    return outfile
-
-def read_fibermap(night, expid):
-    infile = '{}/fibermap-{:08d}.fits'.format(simdir(night), expid)
-    
-    fibermap = fits.getdata(infile, 'FIBERMAP')
-    hdr = fits.getheader(infile, 'FIBERMAP')
-    return fibermap, hdr
+from desispec.io.util import write_bintable
+import desispec.io
+import desimodel.io
 
 #-------------------------------------------------------------------------
 #- simspec
 
-def write_simspec(meta, truth, expid, night, header=None):
+def write_simspec(meta, truth, expid, night, header=None, outfile=None):
     """
     Write $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
     
@@ -106,47 +30,58 @@ def write_simspec(meta, truth, expid, night, header=None):
                       either 1D [nwave] or 2D [nspec, nwave]
             PHOT_{B,R,Z} - 2D array [nspec, nwave] of object photons/bin
             SKYPHOT_{B,R,Z} - 1D or 2D array of sky photons/bin
+        expid : integer exposure ID
+        night : string YEARMMDD
+        header : optional dictionary of header items to add to output
+        outfile : optional filename to write (otherwise auto-derived)
+        
+    Returns:
+        full file path of output file written
+        
     """
     #- Where should this go?
-    outdir = simdir(night, mkdir=True)      
-    outfile = '{}/simspec-{:08d}.fits'.format(outdir, expid)
+    if outfile is None:
+        outdir = simdir(night, mkdir=True)      
+        outfile = '{}/simspec-{:08d}.fits'.format(outdir, expid)
 
-    #- Object flux
-    hdr = fits.Header()
-    if header is not None:
-        for key, value in header.items():
-            hdr[key] = value
+    #- Object flux HDU (which might be just a header, e.g. for an arc)
+    hdr = desispec.io.util.fitsheader(header)
             
     wave = truth['WAVE']
     hdr['CRVAL1']    = (wave[0], 'Starting wavelength [Angstroms]')
     hdr['CDELT1']    = (wave[1]-wave[0], 'Wavelength step [Angstroms]')
     hdr['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
     hdr['LOGLAM']    = (0, 'linear wavelength steps, not log10')
-    hdr['EXTNAME']   = ('FLUX', 'Object flux [erg/s/cm2/A]')
-    fits.writeto(outfile, truth['FLUX'].astype(np.float32), header=hdr, clobber=True)
+    if 'FLUX' in truth:
+        hdr['EXTNAME']   = ('FLUX', 'Object flux [erg/s/cm2/A]')
+        fits.writeto(outfile, truth['FLUX'].astype(np.float32), header=hdr, clobber=True)
+    else:
+        fits.writeto(outfile, np.zeros(0), header=hdr, clobber=True)
     
-    #- Sky flux
-    hdr['EXTNAME'] = ('SKYFLUX', 'Sky flux [erg/s/cm2/A/arcsec2]')
-    hdu = fits.ImageHDU(truth['SKYFLUX'].astype(np.float32), header=hdr)
-    fits.append(outfile, hdu.data, header=hdu.header)
+    #- Sky flux HDU
+    if 'SKYFLUX' in truth:
+        hdr['EXTNAME'] = ('SKYFLUX', 'Sky flux [erg/s/cm2/A/arcsec2]')
+        hdu = fits.ImageHDU(truth['SKYFLUX'].astype(np.float32), header=hdr)
+        fits.append(outfile, hdu.data, header=hdu.header)
     
-    #- Metadata table
-    comments = dict(
-        OBJTYPE     = 'Object type (ELG, LRG, QSO, STD, STAR)',
-        REDSHIFT    = 'true object redshift',
-        TEMPLATEID  = 'input template ID',
-        O2FLUX      = '[OII] flux [erg/s/cm2]',
-    )
+    #- Metadata table HDU
+    if meta is not None:
+        comments = dict(
+            OBJTYPE     = 'Object type (ELG, LRG, QSO, STD, STAR)',
+            REDSHIFT    = 'true object redshift',
+            TEMPLATEID  = 'input template ID',
+            O2FLUX      = '[OII] flux [erg/s/cm2]',
+        )
     
-    units = dict(
-        # OBJTYPE     = 'Object type (ELG, LRG, QSO, STD, STAR)',
-        # REDSHIFT    = 'true object redshift',
-        # TEMPLATEID  = 'input template ID',
-        O2FLUX      = 'erg/s/cm2',
-    )
+        units = dict(
+            # OBJTYPE     = 'Object type (ELG, LRG, QSO, STD, STAR)',
+            # REDSHIFT    = 'true object redshift',
+            # TEMPLATEID  = 'input template ID',
+            O2FLUX      = 'erg/s/cm2',
+        )
     
-    write_bintable(outfile, meta, header=None, extname="METADATA",
-        comments=comments, units=units)
+        write_bintable(outfile, meta, header=None, extname="METADATA",
+            comments=comments, units=units)
 
     #- Write object photon and sky photons for each channel
     for channel in ['B', 'R', 'Z']:
@@ -163,78 +98,87 @@ def write_simspec(meta, truth, expid, night, header=None):
         fits.append(outfile, hdu.data, header=hdu.header)
 
         extname = 'SKYPHOT_'+channel
-        hdr['EXTNAME']   = (extname, channel+' channel sky photons per bin')
-        hdu = fits.ImageHDU(truth[extname].astype(np.float32), header=hdr)
-        fits.append(outfile, hdu.data, header=hdu.header)
+        if extname in truth:
+            hdr['EXTNAME']   = (extname, channel+' channel sky photons per bin')
+            hdu = fits.ImageHDU(truth[extname].astype(np.float32), header=hdr)
+            fits.append(outfile, hdu.data, header=hdu.header)
                             
     return outfile
-
-#-------------------------------------------------------------------------
-#- Parse header to make wavelength array
-def load_wavelength(filename, extname):
-    # Moustakas - duplicate of desispec.io.util.header2wave
-    hdr = fits.getheader(filename, extname)
-    wave = hdr['CRVAL1'] + np.arange(hdr['NAXIS1'])*hdr['CDELT1']
-    if hdr['LOGLAM'] == 1:
-        wave = 10**wave
-    return wave
     
+#- TODO: this is more than just I/O.  Refactor.
+def write_simpix(img, camera, flavor, night, expid, header=None):
+    """
+    Add noise to input image and write output simpix and pix files.
+    
+    Args:
+        img : 2D noiseless image array
+        camera : e.g. b0, r1, z9
+        flavor : arc or flat
+        night  : YEARMMDD string
+        expid  : integer exposure id
+        
+    Writes to $DESI_SPECTRO_SIM/$PIXPROD/{night}/
+        simpix-{camera}-{expid}.fits
+        pix-{camera}-{expid}.fits
+        
+    Returns:
+        filepath to pix*.fits file that was written
+    """
+
+    outdir = simdir(night, mkdir=True)
+    params = desimodel.io.load_desiparams()
+    channel = camera[0].lower()
+
+    #- Add noise, generate inverse variance and mask
+    rdnoise = params['ccd'][channel]['readnoise']
+    pix = np.random.poisson(img) + np.random.normal(scale=rdnoise, size=img.shape)
+    ivar = 1.0/(pix.clip(0) + rdnoise**2)
+    mask = np.zeros(img.shape, dtype=np.int32)
+
+    #-----
+    #- Write noiseless image to simpix file
+    simpixfile = '{}/simpix-{}-{:08d}.fits'.format(outdir, camera, expid)
+
+    hdu = fits.PrimaryHDU(img, header=header)
+    hdu.header['VSPECTER'] = ('0.0.0', 'TODO: Specter version')
+    fits.writeto(simpixfile, hdu.data, header=hdu.header, clobber=True)
+
+    #- Add x y trace locations from PSF
+    psffile = '{}/data/specpsf/psf-{}.fits'.format(os.getenv('DESIMODEL'), channel)
+    psfxy = fits.open(psffile)
+    fits.append(simpixfile, psfxy['XCOEFF'].data, header=psfxy['XCOEFF'].header)
+    fits.append(simpixfile, psfxy['YCOEFF'].data, header=psfxy['YCOEFF'].header)
+
+    #-----
+    #- Write simulated raw data to pix file
+
+    #- Primary HDU: noisy image
+    outfile = '{}/pix-{}-{:08d}.fits'.format(outdir, camera, expid)
+    hdulist = fits.HDUList()
+    hdu = fits.PrimaryHDU(pix, header=header)
+    hdu.header.append( ('CAMERA', camera, 'Spectograph Camera') )
+    hdu.header.append( ('VSPECTER', '0.0.0', 'TODO: Specter version') )
+    hdu.header.append( ('EXPTIME', params['exptime'], 'Exposure time [sec]') )
+    hdu.header.append( ('RDNOISE', rdnoise, 'Read noise [electrons]'))
+    hdu.header.append( ('FLAVOR', flavor, 'Exposure type (arc, flat, science)'))
+    hdulist.append(hdu)
+
+    #- IVAR: Inverse variance (IVAR)
+    hdu = fits.ImageHDU(ivar, name='IVAR')
+    hdu.header.append(('RDNOISE', rdnoise, 'Read noise [electrons]'))
+    hdulist.append(hdu)
+
+    #- MASK: currently just zeros
+    hdu = fits.CompImageHDU(mask, name='MASK')
+    hdulist.append(hdu)
+
+    hdulist.writeto(outfile, clobber=True)
+
+    return outfile
+    
+
 #-------------------------------------------------------------------------
 #- desimodel
-#- TODO: Move these to desimodel
-
-_thru = dict()
-def load_throughput(channel):
-    channel = channel.lower()
-    global _thru
-    if channel not in _thru:
-        thrudir = os.getenv('DESIMODEL') + '/data/throughput'
-        _thru[channel] = specter.throughput.load_throughput(thrudir+'/thru-'+channel+'.fits')
-    
-    return _thru[channel]
-
-_psf = dict()
-def load_psf(channel):
-    channel = channel.lower()
-    global _psf
-    if channel not in _psf:
-        psfdir = os.getenv('DESIMODEL') + '/data/specpsf'
-        _psf[channel] = specter.psf.load_psf(psfdir+'/psf-'+channel+'.fits')
-    
-    return _psf[channel]
-
-_params = None
-def load_desiparams():
-    global _params
-    if _params is None:
-        _params = yaml.load(open(os.getenv('DESIMODEL')+'/data/desi.yaml'))
-        
-    return _params
-
-_fiberpos = None
-def load_fiberpos():
-    global _fiberpos
-    if _fiberpos is None:
-        _fiberpos = fits.getdata(os.getenv('DESIMODEL')+'/data/focalplane/fiberpos.fits', upper=True)
-    
-    return _fiberpos
-
-_tiles = None
-def load_tiles(onlydesi=True):
-    """
-    Return DESI tiles structure from desimodel
-    
-    if onlydesi is True, trim to just the tiles in the DESI footprint
-    """
-    global _tiles
-    if _tiles is None:
-        footprint = os.getenv('DESIMODEL')+'/data/footprint/desi-tiles.fits'
-        _tiles = fits.getdata(footprint)
-    
-    if onlydesi:
-        return _tiles[_tiles['IN_DESI'] > 0]
-    else:
-        return _tiles
 
 def get_tile_radec(tileid):
     """
@@ -243,7 +187,7 @@ def get_tile_radec(tileid):
     If tileid is not in DESI, return (0.0, 0.0)
     TODO: should it raise and exception instead?
     """
-    tiles = load_tiles()
+    tiles = desimodel.io.load_tiles()
     if tileid in tiles['TILEID']:
         i = np.where(tiles['TILEID'] == tileid)[0][0]
         return tiles[i]['RA'], tiles[i]['DEC']
@@ -257,7 +201,6 @@ def get_tile_radec(tileid):
 def _resample_flux(args):
     return resample_flux(*args)
 
-# Moustakas - this will need to be rewritten
 def read_templates(wave, objtype, n, randseed=1):
     """
     Returns n templates of type objtype sampled at wave
@@ -349,56 +292,6 @@ def read_templates(wave, objtype, n, randseed=1):
 #-------------------------------------------------------------------------
 #- Utility functions
 
-def write_bintable(filename, data, header=None, comments=None, units=None,
-                   extname=None, clobber=False):
-    # Moustakas - duplicate of desispec.io.util.write_bintable
-    """
-    Utility function to write a binary table and get the comments and units
-    in the FITS header too.
-    """
-    
-    #- Convert data from dictionary of columns to ndarray if needed
-    # if isinstance(data, dict):
-    #     dtype = list()
-    #     for key in data:
-    #         dtype.append( (key, data[key].dtype, data[key].shape) )
-    #     nrows = len(data[key])  #- use last column to get length
-    #     xdata = np.empty(nrows, dtype=dtype)
-    #     for key in data:
-    #         xdata[key] = data[key]            
-    #     data = xdata
-    
-    #- Write the data and header
-    hdu = fits.BinTableHDU(data, header=header, name=extname)
-    if clobber:
-        fits.writeto(filename, hdu.data, hdu.header, clobber=True)
-    else:
-        fits.append(filename, hdu.data, hdu.header)
-
-    #- Allow comments and units to be None
-    if comments is None:
-        comments = dict()
-    if units is None:
-        units = dict()
-
-    #- Reopen the file to add the comments and units
-    fx = fits.open(filename, mode='update')
-    hdu = fx[extname]
-    for i in xrange(1,999):
-        key = 'TTYPE'+str(i)
-        if key not in hdu.header:
-            break
-        else:
-            value = hdu.header[key]
-            if value in comments:
-                hdu.header[key] = (value, comments[value])
-            if value in units:
-                hdu.header['TUNIT'+str(i)] = (units[value], value+' units')
-    
-    #- Write updated header and close file
-    fx.flush()
-    fx.close()
-
 def simdir(night='', mkdir=False):
     """
     Return $DESI_SPECTRO_SIM/$PIXPROD/{night}
@@ -421,73 +314,5 @@ def _parse_filename(filename):
     elif len(x) == 3:
         return x[0], x[1].lower(), int(x[2])
         
-# Moustakas - this will need to be rewritten
-def read_base_templates(objtype='elg', observed=False, continuum=False):
-    """
-    Returns the base templates for each objtype
-    
-    Optional Inputs:
-      - wave : array of wavelengths to sample
-      - objtype : 'ELG', 'LRG', 'QSO', 'STD', or 'STAR'
-      - n : number of templates to return
-    
-    Returns flux[n, len(wave)], meta[n]
-
-    where flux is in units of 1e-17 erg/s/cm2/A/[arcsec^2] and    
-    meta is a metadata table from the input template file
-    with redshift, mags, etc.
-    
-    Requires $DESI_{objtype}_TEMPLATES to be set, pointing to a file that
-    has the observer frame flux in HDU 0 and a metadata table for these
-    objects in HDU 1.  This code randomly samples n spectra from that file.
-    
-    TO DO: add a setable randseed for random reproducibility.
-    """
-    from astropy.table import Table
-    from desispec.io.util import header2wave
-
-    key = 'DESI_'+objtype.upper()+'_TEMPLATES'
-    if key not in os.environ:
-        raise ValueError('ERROR: $%s environment variable not set', key)
-
-    objfile = os.getenv(key)
-
-    # Handle special cases for the ELG templates.
-    if objtype.upper()=='ELG':
-        if continuum is True:
-            objfile = objfile.replace('templates_','continuum_templates_')
-        if observed is True:
-            objfile = objfile.replace('templates_','templates_obs_')
-
-    if os.path.isfile(objfile) is False:
-        raise ValueError('ERROR: Templates file %s not found', objfile)
-
-    flux, hdr = fits.getdata(objfile, 0, header=True)
-    meta = Table(fits.getdata(objfile, 1))
-    wave = header2wave(hdr)
-
-    return flux, wave, meta
-    
-#-------------------------------------------------------------------------
-# def _add_table_comments(filename, hdu, comments):
-#     """
-#     Add comments to auto-generated FITS binary table column keywords.
-#     
-#     filename : FITS file to update
-#     hdu : HDU number with the table
-#     comments : dictionary of colname:comment
-#     """
-#     fx = fits.open(filename, mode='update')
-#     for i in range(1,100):
-#         key = 'TTYPE'+str(i)
-#         if key not in fx[hdu].header:
-#             break
-#         else:
-#             value = fx[hdu].header[key]
-#             if value in comments:
-#                 fx[hdu].header[key] = (value, comments[value])
-#     
-#     fx.flush()
-#     fx.close()
     
 
