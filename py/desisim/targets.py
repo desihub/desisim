@@ -9,7 +9,10 @@ import numpy as np
 import yaml
 
 from desimodel.focalplane import FocalPlane
+import desimodel.io
+
 from desispec import brick
+from desispec.io.fibermap import empty_fibermap
 
 from desisim import io
 
@@ -91,8 +94,8 @@ def get_targets(nspec, tileid=None):
     true_objtype, target_objtype = sample_objtype(nspec)
     
     #- Get DESI wavelength coverage
-    wavemin = io.load_throughput('b').wavemin
-    wavemax = io.load_throughput('z').wavemax
+    wavemin = desimodel.io.load_throughput('b').wavemin
+    wavemax = desimodel.io.load_throughput('z').wavemax
     dw = 0.2
     wave = np.arange(round(wavemin, 1), wavemax, dw)
     nwave = len(wave)
@@ -106,11 +109,7 @@ def get_targets(nspec, tileid=None):
     #- Note: unlike other elements, first index of WAVE isn't spectrum index
     truth['WAVE'] = wave
     
-    fibermap = dict()
-    nmag = 5
-    fibermap['MAG'] = np.zeros((nspec, nmag), dtype='f4')
-    fibermap['FILTER'] = np.zeros((nspec, nmag), dtype='S10')
-    fibermap['OBJTYPE'] = np.zeros(nspec, dtype='S10')
+    fibermap = empty_fibermap(nspec)
     
     for objtype in set(true_objtype):
         ii = np.where(true_objtype == objtype)[0]
@@ -181,8 +180,7 @@ def get_targets(nspec, tileid=None):
             pass
                 
     #- Load fiber -> positioner mapping and tile information
-    #- NOTE: multiple file I/O here; seems clumsy
-    fiberpos = io.load_fiberpos()
+    fiberpos = desimodel.io.load_fiberpos()
 
     #- Where are these targets?  Centered on positioners for now.
     x = fiberpos['X'][0:nspec]
@@ -193,25 +191,26 @@ def get_targets(nspec, tileid=None):
     for i in range(nspec):
         ra[i], dec[i] = fp.xy2radec(x[i], y[i])
     
-    #- Fill in the rest of the fibermap structure
-    fibermap['FIBER'] = np.arange(nspec, dtype='i4')
-    fibermap['POSITIONER'] = fiberpos['POSITIONER'][0:nspec]
-    fibermap['SPECTROID'] = fiberpos['SPECTROGRAPH'][0:nspec]
-    fibermap['TARGETID'] = np.random.randint(sys.maxint, size=nspec)
-    fibermap['TARGETCAT'] = np.zeros(nspec, dtype='|S20')
-    fibermap['LAMBDAREF'] = np.ones(nspec, dtype=np.float32)*5400
-    fibermap['TARGET_MASK0'] = np.zeros(nspec, dtype='i8')
-    fibermap['RA_TARGET'] = ra
-    fibermap['DEC_TARGET'] = dec
-    fibermap['X_TARGET'] = x
-    fibermap['Y_TARGET'] = y
-    fibermap['X_FVCOBS'] = fibermap['X_TARGET']
-    fibermap['Y_FVCOBS'] = fibermap['Y_TARGET']
-    fibermap['X_FVCERR'] = np.zeros(nspec, dtype=np.float32)
-    fibermap['Y_FVCERR'] = np.zeros(nspec, dtype=np.float32)
-    fibermap['RA_OBS'] = fibermap['RA_TARGET']
-    fibermap['DEC_OBS'] = fibermap['DEC_TARGET']
-    fibermap['BRICKNAME'] = brick.brickname(ra, dec)
+    # #- Fill in the rest of the fibermap structure
+    # #- This is now provided by desispec.io.empty_fibermap()
+    # fibermap['FIBER'] = np.arange(nspec, dtype='i4')
+    # fibermap['POSITIONER'] = fiberpos['POSITIONER'][0:nspec]
+    # fibermap['SPECTROID'] = fiberpos['SPECTROGRAPH'][0:nspec]
+    # fibermap['TARGETID'] = np.random.randint(sys.maxint, size=nspec)
+    # fibermap['TARGETCAT'] = np.zeros(nspec, dtype='|S20')
+    # fibermap['LAMBDAREF'] = np.ones(nspec, dtype=np.float32)*5400
+    # fibermap['TARGET_MASK0'] = np.zeros(nspec, dtype='i8')
+    # fibermap['RA_TARGET'] = ra
+    # fibermap['DEC_TARGET'] = dec
+    # fibermap['X_TARGET'] = x
+    # fibermap['Y_TARGET'] = y
+    # fibermap['X_FVCOBS'] = fibermap['X_TARGET']
+    # fibermap['Y_FVCOBS'] = fibermap['Y_TARGET']
+    # fibermap['X_FVCERR'] = np.zeros(nspec, dtype=np.float32)
+    # fibermap['Y_FVCERR'] = np.zeros(nspec, dtype=np.float32)
+    # fibermap['RA_OBS'] = fibermap['RA_TARGET']
+    # fibermap['DEC_OBS'] = fibermap['DEC_TARGET']
+    # fibermap['BRICKNAME'] = brick.brickname(ra, dec)
     
     return fibermap, truth
 

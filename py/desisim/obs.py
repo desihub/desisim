@@ -9,60 +9,14 @@ import time
 from astropy.io import fits
 from astropy.table import Table
 
+import desimodel.io
+import desispec.io
+from desispec.interpolation import resample_flux
+
 from targets import get_targets
 from . import io
 
-#- Utility function; should probably be moved elsewhere
-def _dict2ndarray(data, columns=None):
-    """
-    Convert a dictionary of ndarrays into a structured ndarray
-    
-    Args:
-        data: input dictionary, each value is an ndarray
-        columns: optional list of column names
-        
-    Notes:
-        data[key].shape[0] must be the same for every key
-        every entry in columns must be a key of data
-    
-    Example
-        d = dict(x=np.arange(10), y=np.arange(10)/2)
-        nddata = _dict2ndarray(d, columns=['x', 'y'])
-    """
-    if columns is None:
-        columns = data.keys()
-        
-    dtype = list()
-    for key in columns:
-        ### dtype.append( (key, data[key].dtype, data[key].shape) )
-        if data[key].ndim == 1:
-            dtype.append( (key, data[key].dtype) )
-        else:
-            dtype.append( (key, data[key].dtype, data[key].shape[1:]) )
-        
-    nrows = len(data[key])  #- use last column to get length    
-    xdata = np.empty(nrows, dtype=dtype)
-    
-    for key in columns:
-        xdata[key] = data[key]
-    
-    return xdata
-        
-
-#- for the future
-# def ndarray_from_columns(keys, columns):
-#     nrow = len(columns[0])
-#     dtype = list()
-#     for name, col in zip(keys, columns):
-#         dtype.append( (name, col.dtype) )
-#     
-#     result = np.zeros(nrow, dtype=dtype)
-#     for name, col in zip(keys, columns):
-#         result[name] = col
-# 
-#     return result
-
-def new_exposure(nspec=5000, expid=None, tileid=None, airmass=1.0, exptime=None):
+def new_exposure(flavor, nspec=5000, expid=None, tileid=None, airmass=1.0, exptime=None):
     """
     Create a new exposure and output input simulation files.
     Does not generate pixel-level simulations or noisy spectra.
@@ -90,96 +44,114 @@ def new_exposure(nspec=5000, expid=None, tileid=None, airmass=1.0, exptime=None)
     dateobs = time.gmtime()
     night = get_night(utc=dateobs)
     
-    fibermap, truth = get_targets(nspec, tileid=tileid)
-    flux = truth['FLUX']
-    wave = truth['WAVE']
-    nwave = len(wave)
-    
-    params = io.load_desiparams()
-    
-    if exptime is None:
-        exptime = params['exptime']
-    
-    #- Load sky [Magic knowledge of units 1e-17 erg/s/cm2/A/arcsec2]
-    skyfile = os.getenv('DESIMODEL')+'/data/spectra/spec-sky.dat'
-    skywave, skyflux = np.loadtxt(skyfile, unpack=True)
-    skyflux = np.interp(wave, skywave, skyflux)
-    truth['SKYFLUX'] = skyflux
+    params = desimodel.io.load_desiparams()    
+    if flavor == 'arc':
+        infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.1/arc-lines-average.fits'
+        d = fits.getdata(infile, 1)
+        wave = d['AIRWAVE']
+        phot = d['ELECTRONS']
+        
+        truth = dict(WAVE=wave)
+        meta = None
+        fibermap = desispec.io.fibermap.empty_fibermap(nspec)
+        for channel in ('B', 'R', 'Z'):
+            thru = desimodel.io.load_throughput(channel)        
+            ii = np.where( (thru.wavemin <= wave) & (wave <= thru.wavemax) )[0]
+            truth['WAVE_'+channel] = wave[ii]
+            truth['PHOT_'+channel] = np.tile(phot[ii], nspec).reshape(nspec, len(ii))
 
-    for channel in ('B', 'R', 'Z'):
-        thru = io.load_throughput(channel)
+    elif flavor == 'flat':
+        infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.1/flat-3100K-quartz-iodine.fits'
+        flux = fits.getdata(infile, 0)
+        hdr = fits.getheader(infile, 0)
+        wave = desispec.io.util.header2wave(hdr)
+
+        #- resample to 0.2 A grid
+        dw = 0.2
+        ww = np.arange(wave[0], wave[-1]+dw/2, dw)
+        flux = resample_flux(ww, wave, flux)
+        wave = ww
+
+        #- Convert to 2D for projection
+        flux = np.tile(flux, nspec).reshape(nspec, len(wave))
+
+        truth = dict(WAVE=wave, FLUX=flux)
+        meta = None
+        fibermap = desispec.io.fibermap.empty_fibermap(nspec)
+        for channel in ('B', 'R', 'Z'):
+            psf = desimodel.io.load_psf(channel)
+            thru = desimodel.io.load_throughput(channel)
+            ii = (psf.wmin <= wave) & (wave <= psf.wmax)
+            phot = thru.photons(wave[ii], flux[:,ii], units=hdr['BUNIT'], objtype='CALIB')
         
-        ii = np.where( (thru.wavemin <= wave) & (wave <= thru.wavemax) )[0]
+            truth['WAVE_'+channel] = wave[ii]
+            truth['PHOT_'+channel] = phot
         
-        #- Project flux to photons
-        phot = thru.photons(wave[ii], flux[:,ii], units='1e-17 erg/s/cm2/A',
-                objtype=truth['OBJTYPE'], exptime=exptime,
-                airmass=airmass)
+    elif flavor == 'science':
+        fibermap, truth = get_targets(nspec, tileid=tileid)
+        flux = truth['FLUX']
+        wave = truth['WAVE']
+        nwave = len(wave)
+    
+        if exptime is None:
+            exptime = params['exptime']
+    
+        #- Load sky [Magic knowledge of units 1e-17 erg/s/cm2/A/arcsec2]
+        skyfile = os.getenv('DESIMODEL')+'/data/spectra/spec-sky.dat'
+        skywave, skyflux = np.loadtxt(skyfile, unpack=True)
+        skyflux = np.interp(wave, skywave, skyflux)
+        truth['SKYFLUX'] = skyflux
+
+        for channel in ('B', 'R', 'Z'):
+            thru = desimodel.io.load_throughput(channel)
+        
+            ii = np.where( (thru.wavemin <= wave) & (wave <= thru.wavemax) )[0]
+        
+            #- Project flux to photons
+            phot = thru.photons(wave[ii], flux[:,ii], units='1e-17 erg/s/cm2/A',
+                    objtype=truth['OBJTYPE'], exptime=exptime,
+                    airmass=airmass)
                 
-        truth['PHOT_'+channel] = phot
-        truth['WAVE_'+channel] = wave[ii]
+            truth['PHOT_'+channel] = phot
+            truth['WAVE_'+channel] = wave[ii]
     
-        #- Project sky flux to photons
-        skyphot = thru.photons(wave[ii], skyflux[ii]*airmass,
-            units='1e-17 erg/s/cm2/A/arcsec2',
-            objtype='SKY', exptime=exptime, airmass=airmass)
+            #- Project sky flux to photons
+            skyphot = thru.photons(wave[ii], skyflux[ii]*airmass,
+                units='1e-17 erg/s/cm2/A/arcsec2',
+                objtype='SKY', exptime=exptime, airmass=airmass)
     
-        #- 2D version
-        ### truth['SKYPHOT_'+channel] = np.tile(skyphot, nspec).reshape((nspec, len(ii)))
-        #- 1D version
-        truth['SKYPHOT_'+channel] = skyphot.astype(np.float32)
+            #- 2D version
+            ### truth['SKYPHOT_'+channel] = np.tile(skyphot, nspec).reshape((nspec, len(ii)))
+            #- 1D version
+            truth['SKYPHOT_'+channel] = skyphot.astype(np.float32)
         
-    #- NOTE: someday skyflux and skyphot may be 2D instead of 1D
-    
-    #- Convert to ndarrays to get nice column order in output files
-    columns = (
-        'OBJTYPE',
-        'TARGETCAT',
-        'TARGETID',
-        'TARGET_MASK0',
-        'MAG',
-        'FILTER',
-        'SPECTROID',
-        'POSITIONER',
-        'FIBER',
-        'LAMBDAREF',
-        'RA_TARGET',
-        'DEC_TARGET',
-        'RA_OBS',
-        'DEC_OBS',
-        'X_TARGET',
-        'Y_TARGET',
-        'X_FVCOBS',
-        'Y_FVCOBS',
-        'Y_FVCERR',
-        'X_FVCERR',
-        'BRICKNAME',
+        #- NOTE: someday skyflux and skyphot may be 2D instead of 1D
+        
+        #- Extract the metadata part of the truth dictionary into a table
+        columns = (
+            'OBJTYPE',
+            'REDSHIFT',
+            'TEMPLATEID',
+            'O2FLUX',
         )
-    fibermap = _dict2ndarray(fibermap, columns)
-    
-    #- Extract the metadata part of the truth dictionary into a table
-    columns = (
-        'OBJTYPE',
-        'REDSHIFT',
-        'TEMPLATEID',
-        'O2FLUX',
-    )
-    meta = _dict2ndarray(truth, columns)
+        meta = _dict2ndarray(truth, columns)
         
     #- Write fibermap
-    fiberfile = io.write_fibermap(fibermap, expid, night, dateobs, tileid=tileid)
+    fiberfile = desispec.io.findfile('fibermap', night, expid)
+    desispec.io.write_fibermap(fiberfile, fibermap)
     print fiberfile
     
     #- Write simfile
     hdr = dict(
         AIRMASS=(airmass, 'Airmass at middle of exposure'),
-        EXPTIME=(exptime, 'Exposure time [sec]')
+        EXPTIME=(exptime, 'Exposure time [sec]'),
+        FLAVOR=(flavor, 'exposure flavor [arc, flat, science]'),
         )
     simfile = io.write_simspec(meta, truth, expid, night, header=hdr)
     print simfile
 
     #- Update obslog that we succeeded with this exposure
-    update_obslog('science', expid, dateobs, tileid)
+    update_obslog(flavor, expid, dateobs, tileid)
     
     return fibermap, truth
 
@@ -191,7 +163,7 @@ def get_next_tileid():
           it does *not* reserve the tileid
     """
     #- Read DESI tiling and trim to just tiles in DESI footprint
-    tiles = io.load_tiles()
+    tiles = desimodel.io.load_tiles()
 
     #- If obslog doesn't exist yet, start at tile 0
     dbfile = io.simdir()+'/etc/obslog.sqlite'
@@ -340,5 +312,57 @@ def update_obslog(obstype='science', expid=None, dateobs=None,
     db.commit()
     
     return expid, dateobs
+
+#-------------------------------------------------------------------------
+#- Utility function; should probably be moved elsewhere
+def _dict2ndarray(data, columns=None):
+    """
+    Convert a dictionary of ndarrays into a structured ndarray
     
+    Args:
+        data: input dictionary, each value is an ndarray
+        columns: optional list of column names
+        
+    Notes:
+        data[key].shape[0] must be the same for every key
+        every entry in columns must be a key of data
+    
+    Example
+        d = dict(x=np.arange(10), y=np.arange(10)/2)
+        nddata = _dict2ndarray(d, columns=['x', 'y'])
+    """
+    if columns is None:
+        columns = data.keys()
+        
+    dtype = list()
+    for key in columns:
+        ### dtype.append( (key, data[key].dtype, data[key].shape) )
+        if data[key].ndim == 1:
+            dtype.append( (key, data[key].dtype) )
+        else:
+            dtype.append( (key, data[key].dtype, data[key].shape[1:]) )
+        
+    nrows = len(data[key])  #- use last column to get length    
+    xdata = np.empty(nrows, dtype=dtype)
+    
+    for key in columns:
+        xdata[key] = data[key]
+    
+    return xdata
+        
+
+#- for the future
+# def ndarray_from_columns(keys, columns):
+#     nrow = len(columns[0])
+#     dtype = list()
+#     for name, col in zip(keys, columns):
+#         dtype.append( (name, col.dtype) )
+#     
+#     result = np.zeros(nrow, dtype=dtype)
+#     for name, col in zip(keys, columns):
+#         result[name] = col
+# 
+#     return result
+
+
 
