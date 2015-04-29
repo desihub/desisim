@@ -30,5 +30,5 @@ def version():
         return __version__
 
 #- This requires making a system call every time desisim is loaded.  Yuck.
-__version__ = version()
+# __version__ = version()
         

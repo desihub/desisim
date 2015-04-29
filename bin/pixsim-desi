@@ -51,7 +51,7 @@ opts, args = parser.parse_args()
 envOK = True
 for envvar in ('DESIMODEL', 'PIXPROD', 'DESI_SPECTRO_SIM'):
     if envvar not in os.environ:
-        log.FATAL("${} is required".format(envvar))
+        log.fatal("${} is required".format(envvar))
         envOK = False
 if not envOK:
     print "Set those environment variable(s) and then try again"
