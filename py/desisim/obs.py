@@ -16,7 +16,8 @@ from desispec.interpolation import resample_flux
 from targets import get_targets
 from . import io
 
-def new_exposure(flavor, nspec=5000, expid=None, tileid=None, airmass=1.0, exptime=None):
+def new_exposure(flavor, nspec=5000, expid=None, tileid=None, airmass=1.0, \
+    exptime=None):
     """
     Create a new exposure and output input simulation files.
     Does not generate pixel-level simulations or noisy spectra.
@@ -89,6 +90,7 @@ def new_exposure(flavor, nspec=5000, expid=None, tileid=None, airmass=1.0, expti
         
     elif flavor == 'science':
         fibermap, truth = get_targets(nspec, tileid=tileid)
+            
         flux = truth['FLUX']
         wave = truth['WAVE']
         nwave = len(wave)
@@ -136,9 +138,20 @@ def new_exposure(flavor, nspec=5000, expid=None, tileid=None, airmass=1.0, expti
         )
         meta = _dict2ndarray(truth, columns)
         
+    #- (end indentation for arc/flat/science flavors)
+        
     #- Write fibermap
+    telera, teledec = io.get_tile_radec(tileid)
+    hdr = dict(
+        NIGHT = (night, 'Night of observation YEARMMDD'),
+        EXPID = (expid, 'DESI exposure ID'),
+        TILEID = (tileid, 'DESI tile ID'),
+        FLAVOR = (flavor, 'Flavor [arc, flat, science, ...]'),
+        TELERA = (telera, 'Telescope pointing RA [degrees]'),
+        TELEDEC = (teledec, 'Telescope pointing dec [degrees]'),
+        )
     fiberfile = desispec.io.findfile('fibermap', night, expid)
-    desispec.io.write_fibermap(fiberfile, fibermap)
+    desispec.io.write_fibermap(fiberfile, fibermap, header=hdr)
     print fiberfile
     
     #- Write simfile
@@ -274,7 +287,11 @@ def update_obslog(obstype='science', expid=None, dateobs=None,
     returns tuple (expid, dateobs)
     """
     #- Connect to sqlite database file and create DB if needed
-    dbfile = io.simdir()+'/etc/obslog.sqlite'
+    dbdir = io.simdir() + '/etc'
+    if not os.path.exists(dbdir):
+        os.makedirs(dbdir)
+        
+    dbfile = dbdir+'/obslog.sqlite'
     db = sqlite3.connect(dbfile)
     db.execute("""\
     CREATE TABLE IF NOT EXISTS obslog (
@@ -305,7 +322,7 @@ def update_obslog(obstype='science', expid=None, dateobs=None,
     night = get_night(utc=dateobs)
         
     insert = """\
-    INSERT INTO obslog(expid,dateobs,night,obstype,tileid,ra,dec)
+    INSERT OR REPLACE INTO obslog(expid,dateobs,night,obstype,tileid,ra,dec)
     VALUES (?,?,?,?,?,?,?)
     """
     db.execute(insert, (expid, time.mktime(dateobs), night, obstype, tileid, ra, dec))

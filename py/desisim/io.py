@@ -201,14 +201,15 @@ def get_tile_radec(tileid):
 def _resample_flux(args):
     return resample_flux(*args)
 
-def read_templates(wave, objtype, n, randseed=1):
+def read_templates(wave, objtype, nspec=None, randseed=1, infile=None):
     """
     Returns n templates of type objtype sampled at wave
     
     Inputs:
       - wave : array of wavelengths to sample
       - objtype : 'ELG', 'LRG', 'QSO', 'STD', or 'STAR'
-      - n : number of templates to return
+      - nspec : number of templates to return
+      - infile : (optional) input template file (see below)
     
     Returns flux[n, len(wave)], meta[n]
 
@@ -216,17 +217,19 @@ def read_templates(wave, objtype, n, randseed=1):
     meta is a metadata table from the input template file
     with redshift, mags, etc.
     
-    Requires $DESI_{objtype}_TEMPLATES to be set, pointing to a file that
-    has the observer frame flux in HDU 0 and a metadata table for these
-    objects in HDU 1.  This code randomly samples n spectra from that file.
+    If infile is None, then $DESI_{objtype}_TEMPLATES must be set, pointing to
+    a file that has the observer frame flux in HDU 0 and a metadata table for
+    these objects in HDU 1. This code randomly samples n spectra from that file.
     
     TO DO: add a setable randseed for random reproducibility.
-    """    
-    key = 'DESI_'+objtype.upper()+'_TEMPLATES'
-    if key not in os.environ:
-        raise ValueError("ERROR: $"+key+" not set; can't find "+objtype+" templates")
+    """
+    if infile is None:
+        key = 'DESI_'+objtype.upper()+'_TEMPLATES'
+        if key not in os.environ:
+            raise ValueError("ERROR: $"+key+" not set; can't find "+objtype+" templates")
         
-    infile = os.getenv(key)
+        infile = os.getenv(key)
+
     hdr = fits.getheader(infile)
     flux = fits.getdata(infile, 0)
     meta = fits.getdata(infile, 1).view(np.recarray)
@@ -248,6 +251,9 @@ def read_templates(wave, objtype, n, randseed=1):
     randindex = np.arange(ntemplates)
     np.random.shuffle(randindex)
     
+    if nspec is None:
+        nspec = flux.shape[0]
+    
     #- Serial version
     # outflux = np.zeros([n, len(wave)])
     # outmeta = np.empty(n, dtype=meta.dtype)
@@ -266,8 +272,8 @@ def read_templates(wave, objtype, n, randseed=1):
     #- Multiprocessing version
     #- Assemble list of args to pass to multiprocesssing map
     args = list()
-    outmeta = np.empty(n, dtype=meta.dtype)
-    for i in range(n):
+    outmeta = np.empty(nspec, dtype=meta.dtype)
+    for i in range(nspec):
         j = randindex[i%ntemplates]
         outmeta[i] = meta[j]
         if 'Z' in meta.dtype.names:

@@ -79,7 +79,8 @@ random.seed(opts.randseed)
 np.random.seed(opts.randseed)
 
 if opts.flavor is not None:
-    obs.new_exposure(opts.flavor, opts.nspec, expid=opts.expid, tileid=opts.tileid, airmass=opts.airmass)
+    obs.new_exposure(opts.flavor, opts.nspec, expid=opts.expid, \
+        tileid=opts.tileid, airmass=opts.airmass)
     sys.exit(0)
 
 for camera in opts.camera:

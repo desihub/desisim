@@ -33,6 +33,7 @@ def sample_objtype(nobj):
     Notes:
     - Actual fiber assignment will result in higher relative fractions of
       LRGs and QSOs in early passes and more ELGs in later passes.
+    - Also ensures at least 2 sky and 1 stdstar, even if nobj is small
     """
 
     #- Load target densities
@@ -46,6 +47,13 @@ def sample_objtype(nobj):
     #- Fraction of sky and standard star targets is guaranteed
     nsky = int(tgt['frac_sky'] * nobj)
     nstd = int(tgt['frac_std'] * nobj)
+    
+    #- Assure at least 2 sky and 1 std
+    if nobj >= 3:
+        if nstd < 1:
+            nstd = 1
+        if nsky < 2:
+            nsky = 2
     
     #- Number of science fibers available
     nsci = nobj - (nsky+nstd)
@@ -121,8 +129,8 @@ def get_targets(nspec, tileid=None):
                     
         try:
             simflux, meta = io.read_templates(wave, objtype, len(ii))
-        except ValueError, e:
-            print e
+        except ValueError, err:
+            print err
             continue
             
         truth['FLUX'][ii] = simflux
@@ -191,26 +199,25 @@ def get_targets(nspec, tileid=None):
     for i in range(nspec):
         ra[i], dec[i] = fp.xy2radec(x[i], y[i])
     
-    # #- Fill in the rest of the fibermap structure
-    # #- This is now provided by desispec.io.empty_fibermap()
-    # fibermap['FIBER'] = np.arange(nspec, dtype='i4')
-    # fibermap['POSITIONER'] = fiberpos['POSITIONER'][0:nspec]
-    # fibermap['SPECTROID'] = fiberpos['SPECTROGRAPH'][0:nspec]
-    # fibermap['TARGETID'] = np.random.randint(sys.maxint, size=nspec)
-    # fibermap['TARGETCAT'] = np.zeros(nspec, dtype='|S20')
-    # fibermap['LAMBDAREF'] = np.ones(nspec, dtype=np.float32)*5400
-    # fibermap['TARGET_MASK0'] = np.zeros(nspec, dtype='i8')
-    # fibermap['RA_TARGET'] = ra
-    # fibermap['DEC_TARGET'] = dec
-    # fibermap['X_TARGET'] = x
-    # fibermap['Y_TARGET'] = y
-    # fibermap['X_FVCOBS'] = fibermap['X_TARGET']
-    # fibermap['Y_FVCOBS'] = fibermap['Y_TARGET']
-    # fibermap['X_FVCERR'] = np.zeros(nspec, dtype=np.float32)
-    # fibermap['Y_FVCERR'] = np.zeros(nspec, dtype=np.float32)
-    # fibermap['RA_OBS'] = fibermap['RA_TARGET']
-    # fibermap['DEC_OBS'] = fibermap['DEC_TARGET']
-    # fibermap['BRICKNAME'] = brick.brickname(ra, dec)
+    #- Fill in the rest of the fibermap structure
+    fibermap['FIBER'] = np.arange(nspec, dtype='i4')
+    fibermap['POSITIONER'] = fiberpos['POSITIONER'][0:nspec]
+    fibermap['SPECTROID'] = fiberpos['SPECTROGRAPH'][0:nspec]
+    fibermap['TARGETID'] = np.random.randint(sys.maxint, size=nspec)
+    fibermap['TARGETCAT'] = np.zeros(nspec, dtype='|S20')
+    fibermap['LAMBDAREF'] = np.ones(nspec, dtype=np.float32)*5400
+    fibermap['TARGET_MASK0'] = np.zeros(nspec, dtype='i8')
+    fibermap['RA_TARGET'] = ra
+    fibermap['DEC_TARGET'] = dec
+    fibermap['X_TARGET'] = x
+    fibermap['Y_TARGET'] = y
+    fibermap['X_FVCOBS'] = fibermap['X_TARGET']
+    fibermap['Y_FVCOBS'] = fibermap['Y_TARGET']
+    fibermap['X_FVCERR'] = np.zeros(nspec, dtype=np.float32)
+    fibermap['Y_FVCERR'] = np.zeros(nspec, dtype=np.float32)
+    fibermap['RA_OBS'] = fibermap['RA_TARGET']
+    fibermap['DEC_OBS'] = fibermap['DEC_TARGET']
+    fibermap['BRICKNAME'] = brick.brickname(ra, dec)
     
     return fibermap, truth
 
