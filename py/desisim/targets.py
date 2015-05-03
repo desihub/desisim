@@ -9,7 +9,10 @@ import numpy as np
 import yaml
 
 from desimodel.focalplane import FocalPlane
+import desimodel.io
+
 from desispec import brick
+from desispec.io.fibermap import empty_fibermap
 
 from desisim import io
 
@@ -30,6 +33,7 @@ def sample_objtype(nobj):
     Notes:
     - Actual fiber assignment will result in higher relative fractions of
       LRGs and QSOs in early passes and more ELGs in later passes.
+    - Also ensures at least 2 sky and 1 stdstar, even if nobj is small
     """
 
     #- Load target densities
@@ -43,6 +47,13 @@ def sample_objtype(nobj):
     #- Fraction of sky and standard star targets is guaranteed
     nsky = int(tgt['frac_sky'] * nobj)
     nstd = int(tgt['frac_std'] * nobj)
+    
+    #- Assure at least 2 sky and 1 std
+    if nobj >= 3:
+        if nstd < 1:
+            nstd = 1
+        if nsky < 2:
+            nsky = 2
     
     #- Number of science fibers available
     nsci = nobj - (nsky+nstd)
@@ -91,8 +102,8 @@ def get_targets(nspec, tileid=None):
     true_objtype, target_objtype = sample_objtype(nspec)
     
     #- Get DESI wavelength coverage
-    wavemin = io.load_throughput('b').wavemin
-    wavemax = io.load_throughput('z').wavemax
+    wavemin = desimodel.io.load_throughput('b').wavemin
+    wavemax = desimodel.io.load_throughput('z').wavemax
     dw = 0.2
     wave = np.arange(round(wavemin, 1), wavemax, dw)
     nwave = len(wave)
@@ -106,11 +117,7 @@ def get_targets(nspec, tileid=None):
     #- Note: unlike other elements, first index of WAVE isn't spectrum index
     truth['WAVE'] = wave
     
-    fibermap = dict()
-    nmag = 5
-    fibermap['MAG'] = np.zeros((nspec, nmag), dtype='f4')
-    fibermap['FILTER'] = np.zeros((nspec, nmag), dtype='S10')
-    fibermap['OBJTYPE'] = np.zeros(nspec, dtype='S10')
+    fibermap = empty_fibermap(nspec)
     
     for objtype in set(true_objtype):
         ii = np.where(true_objtype == objtype)[0]
@@ -122,8 +129,8 @@ def get_targets(nspec, tileid=None):
                     
         try:
             simflux, meta = io.read_templates(wave, objtype, len(ii))
-        except ValueError, e:
-            print e
+        except ValueError, err:
+            print err
             continue
             
         truth['FLUX'][ii] = simflux
@@ -181,8 +188,7 @@ def get_targets(nspec, tileid=None):
             pass
                 
     #- Load fiber -> positioner mapping and tile information
-    #- NOTE: multiple file I/O here; seems clumsy
-    fiberpos = io.load_fiberpos()
+    fiberpos = desimodel.io.load_fiberpos()
 
     #- Where are these targets?  Centered on positioners for now.
     x = fiberpos['X'][0:nspec]

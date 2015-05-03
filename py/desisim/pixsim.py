@@ -1,3 +1,7 @@
+"""
+Tools for DESI pixel level simulations using specter
+"""
+
 import sys
 import os
 import os.path
@@ -8,10 +12,11 @@ import numpy as np
 import yaml
 from astropy.io import fits
 
-from desisim import obs, io
-from desisim.interpolation import resample_flux
+import desimodel.io
 
-def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None):
+from desisim import obs, io
+
+def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None, trimxy=None):
     """
     Run pixel-level simulation of input spectra
     
@@ -42,7 +47,7 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None):
     assert 0 <= ispec < 10
 
     #- Load DESI parameters
-    params = io.load_desiparams()
+    params = desimodel.io.load_desiparams()
     nfibers = params['spectro']['nfibers']
 
     #- Check that this camera has simulated spectra
@@ -55,13 +60,16 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None):
 
     #- Load input photon data
     phot = fits.getdata(simfile, 'PHOT_'+channel)
-    phot += fits.getdata(simfile, 'SKYPHOT_'+channel)
+    try:
+        phot += fits.getdata(simfile, 'SKYPHOT_'+channel)
+    except KeyError:
+        pass  #- arcs and flats don't have SKYPHOT
     
     nwave = phot.shape[1]
     wave = hdr['CRVAL1'] + np.arange(nwave)*hdr['CDELT1']
     
     #- Load PSF
-    psf = io.load_psf(channel)
+    psf = desimodel.io.load_psf(channel)
 
     #- Trim to just the spectra for this spectrograph
     if nspec is None:
@@ -71,143 +79,31 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None):
         ii = slice(nfibers*ispec, nfibers*ispec + nspec)
         phot = phot[ii]
 
+    #- check if simulation has less than 500 input spectra
+    if phot.shape[0] < nspec:
+        nspec = phot.shape[0]
+
     #- Project to image and append that to file
     if verbose:
         print "Projecting photons onto CCD"
         
     img = parallel_project(psf, wave, phot, ncpu=ncpu)
+    
+    if trimxy:
+        xmin, xmax, ymin, ymax = psf.xyrange((0,nspec), wave)
+        img = img[0:ymax, 0:xmax]
+        # img = img[ymin:ymax, xmin:xmax]
+        # hdr['CRVAL1'] = xmin+1
+        # hdr['CRVAL2'] = ymin+1
 
     #- Add noise and write output files
     tmp = '/'.join(simfile.split('/')[-3:])  #- last 3 elements of path
     hdr['SIMFILE'] = (tmp, 'Input simulation file')
-    pixfile = _write_simpix(img, camera, 'science', night, expid, header=hdr)
+    pixfile = io.write_simpix(img, camera, 'science', night, expid, header=hdr)
 
     if verbose:
         print "Wrote "+pixfile
-
-def new_arcexp(nspec=None, nspectrographs=10, ncpu=None, expid=None):
-    """
-    Run pixel simulation of new arc lamp exposure
-    
-    Args:
-        nspec : number of spectra to simulate
-        nspectrographs : number of spectrographs to simulate [1-10]
-        ncpu : number of CPU cores to use
-    
-    Writes to $DESI_SPECTRO_SIM/$PIXPROD/
-        simpix-{camera}-{expid}.fits - noiseless simulated image
-        pix-{camera}-{expid}.fits - noisy image, ivar, mask
         
-    Updates $DESI_SPECTRO_SIM/$PIXPROD/etc/obslog.sqlite and next_expid.txt
-
-    Bugs:
-        Uses hardcoded arc lamp spectrum in
-        $DESI_ROOT/spectro/templates/calib/v0.1/arc-lines-average.fits
-    """
-   
-    if expid is None:
-        expid = obs.get_next_expid()
-        
-    dateobs = time.gmtime()
-    night = obs.get_night(utc=dateobs)
-    simdir = io.simdir(night, mkdir=True)
-
-    params = io.load_desiparams()
-    if nspec is None:
-        nspec = params['spectro']['nfibers']
-    
-    #- Load input arc template in non-standard format [HARDCODE!]
-    infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.1/arc-lines-average.fits'
-    d = fits.getdata(infile, 1)
-    wave = d['AIRWAVE']
-    phot = np.tile(d['ELECTRONS'], nspec).reshape(nspec, len(wave))
-
-    for channel in ('b', 'r', 'z'):
-        psf = io.load_psf(channel)
-
-        #- Noiseless image
-        ### img = psf.project(w, phot)
-        img = parallel_project(psf, wave, phot, ncpu=ncpu)
-
-        for i in range(nspectrographs):
-            camera = channel+str(i)
-            pixfile = _write_simpix(img, camera, 'arc', night, expid)
-            print pixfile
-
-    #- Update obslog that we succeeded with this exposure
-    obs.update_obslog('arc', expid, dateobs)
-
-def new_flatexp(nspec=None, nspectrographs=10, ncpu=None, channel=None,
-        expid=None):
-    """
-    Run pixel simulation of new flat lamp exposure
-    
-    Args:
-        nspec : number of spectra to simulate
-        nspectrographs : number of spectrographs to simulate [1-10]
-        ncpu : number of CPU cores to use
-        channel (optional) : 'b', 'r', or 'z'.  Defaults to all.
-        expid (optional) : integer exposure id; default to get next available.
-    
-    Writes to $DESI_SPECTRO_SIM/$PIXPROD/
-        simpix-{camera}-{expid}.fits - noiseless simulated image
-        pix-{camera}-{expid}.fits - noisy image, ivar, mask
-        
-    Updates $DESI_SPECTRO_SIM/$PIXPROD/etc/obslog.sqlite and next_expid.txt
-    
-    Bugs:
-        Uses hardcoded flat lamp spectrum in
-        $DESI_ROOT/spectro/templates/calib/v0.1/flat-3100K-quartz-iodine.fits
-    """
-    if expid is None:
-        expid = obs.get_next_expid()
-
-    dateobs = time.gmtime()
-    night = obs.get_night(utc=dateobs)
-    simdir = io.simdir(night, mkdir=True)
-
-    params = io.load_desiparams()
-    if nspec is None:
-        nspec = params['spectro']['nfibers']
-
-    #- Load input arc template in non-standard format [HARDCODE!]
-    infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.1/flat-3100K-quartz-iodine.fits'
-    flux = fits.getdata(infile, 0)
-    hdr = fits.getheader(infile, 0)
-    wave = io.load_wavelength(infile, 0)
-    
-    #- resample to 0.2 A grid
-    dw = 0.2
-    ww = np.arange(wave[0], wave[-1]+dw/2, dw)
-    flux = resample_flux(ww, wave, flux)
-    wave = ww
-    
-    #- Convert to 2D for projection
-    flux = np.tile(flux, nspec).reshape(nspec, len(wave))
-
-    if channel is None:
-        channels = ['b', 'r', 'z']
-    else:
-        channels = [channel,]
-    
-    for channel in channels:
-        psf = io.load_psf(channel)
-        thru = io.load_throughput(channel)
-        ii = (psf.wmin <= wave) & (wave <= psf.wmax)
-        phot = thru.photons(wave[ii], flux[:,ii], units=hdr['BUNIT'], objtype='CALIB')
-
-        ### img = psf.project(wave, phot)
-        img = parallel_project(psf, wave[ii], phot, ncpu=ncpu)
-        
-        for i in range(nspectrographs):
-            camera = channel+str(i)
-            pixfile = _write_simpix(img, camera, 'flat', night, expid)
-            print pixfile
-
-    #- Update obslog that we succeeded with this exposure
-    obs.update_obslog('flat', expid, dateobs)
-        
-
 #-------------------------------------------------------------------------
 
 #- Helper function for multiprocessing parallel project
@@ -274,68 +170,4 @@ def parallel_project(psf, wave, phot, ncpu=None):
             img[ymin:ymax, xmin:xmax] += subimg
             
     return img
-    
-def _write_simpix(img, camera, flavor, night, expid, header=None):
-    """
-    Add noise to input image and write output files.
-    
-    Args:
-        img : 2D noiseless image array
-        camera : e.g. b0, r1, z9
-        flavor : arc or flat
-        night  : YEARMMDD string
-        expid  : integer exposure id
-        
-    Writes to $DESI_SPECTRO_SIM/$PIXPROD/{night}/
-        simpix-{camera}-{expid}.fits
-        pix-{camera}-{expid}.fits
-    """
-
-    simdir = io.simdir(night, mkdir=True)
-    params = io.load_desiparams()
-    channel = camera[0].lower()
-
-    #- Add noise, generate inverse variance and mask
-    rdnoise = params['ccd'][channel]['readnoise']
-    pix = np.random.poisson(img) + np.random.normal(scale=rdnoise, size=img.shape)
-    ivar = 1.0/(pix.clip(0) + rdnoise**2)
-    mask = np.zeros(img.shape, dtype=np.int32)
-
-    #-----
-    #- Write noiseless image to simpix file
-    simpixfile = '{}/simpix-{}-{:08d}.fits'.format(simdir, camera, expid)
-
-    hdu = fits.PrimaryHDU(img, header=header)
-    hdu.header['VSPECTER'] = ('0.0.0', 'TODO: Specter version')
-    fits.writeto(simpixfile, hdu.data, header=hdu.header, clobber=True)
-
-    #- Add x y trace locations from PSF
-    psffile = '{}/data/specpsf/psf-{}.fits'.format(os.getenv('DESIMODEL'), channel)
-    psfxy = fits.open(psffile)
-    fits.append(simpixfile, psfxy['XCOEFF'].data, header=psfxy['XCOEFF'].header)
-    fits.append(simpixfile, psfxy['YCOEFF'].data, header=psfxy['YCOEFF'].header)
-
-    #-----
-    #- Write simulated raw data to pix file
-
-    #- Primary HDU: noisy image
-    outfile = '{}/pix-{}-{:08d}.fits'.format(simdir, camera, expid)
-    hdu = fits.PrimaryHDU(pix, header=header)
-    hdu.header.append( ('CAMERA', camera, 'Spectograph Camera') )
-    hdu.header.append( ('VSPECTER', '0.0.0', 'TODO: Specter version') )
-    hdu.header.append( ('EXPTIME', params['exptime'], 'Exposure time [sec]') )
-    hdu.header.append( ('RDNOISE', rdnoise, 'Read noise [electrons]'))
-    hdu.header.append( ('FLAVOR', flavor, 'Exposure type (arc, flat, science)'))
-    fits.writeto(outfile, hdu.data, hdu.header, clobber=True)
-
-    #- IVAR: Inverse variance (IVAR)
-    hdu = fits.ImageHDU(ivar, name='IVAR')
-    hdu.header.append(('RDNOISE', rdnoise, 'Read noise [electrons]'))
-    fits.append(outfile, hdu.data, hdu.header, clobber=True)
-
-    #- MASK: currently just zeros
-    hdu = fits.ImageHDU(mask, name='MASK')
-    fits.append(outfile, hdu.data, hdu.header, clobber=True)
-
-    return outfile
     
