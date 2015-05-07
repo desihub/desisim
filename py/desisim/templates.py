@@ -9,7 +9,7 @@ import numpy as np
 
 light = 2.99792458E5
 
-class EMSpectrum:
+class EMSpectrum():
     """
     Class for building a complete nebular emission-line spectrum. 
     """
@@ -148,37 +148,38 @@ class EMSpectrum:
 
         return emspec
 
-class 
+def read_templates(objtype='elg', observed=False, continuum=False, kcorrections=False):
+    """
+    Returns the base templates for each objtype
+    """
+    from astropy.io import fits
+    from astropy.table import Table
+    from desispec.io.util import header2wave
 
+    key = 'DESI_'+objtype.upper()+'_TEMPLATES'
+    if key not in os.environ:
+        raise ValueError('ERROR: $%s environment variable not set', key)
 
-#def read_templates(objtype,version):
-#    """
-#    Read the parent templates.
-#    """
-#
-#    # Need to add error checking.
-#    templatepath = join(getenv('DESI_ROOT'),'spectro',
-#                        'templates',objtype+'_templates',version)
-#    templatefile = templatepath+'/'+objtype+'_templates_'+version+'.fits'
-#    templatefile = templatepath+'/test.fits'
-#    print('Reading '+templatefile+')'
-#    #models = io.read_simspec(templatefile)
-#    #return models
-#    bob = 0
-#    return bob
-#
-#def build_elgs():
-#    """
-#    Generate and write out a set of simulated ELG spectra.
-#    Inputs:
-#    - ...
-#    Returns ...
-#    """
-#    
-#    objtype = 'elg'
-#    version = 'v1.2'
-#
-#    # Read the parent templates
-#    #models = read_templates(objtype,version)
-#    #return models
+    objfile = os.getenv(key)
 
+    # Optionally read the K-corrections.
+    if kcorrections is True:
+        kcorrfile = objfile.replace('templates_','templates_kcorr_')
+        kcorr = fits.getdata(kcorrfile, 0)
+
+    # Handle special cases for the ELG & BGS templates.
+    if objtype.upper()=='ELG' or objtype.upper()=='BGS':
+        if continuum is True:
+            objfile = objfile.replace('templates_','continuum_templates_')
+        if observed is True:
+            objfile = objfile.replace('templates_','templates_obs_')
+
+    if os.path.isfile(objfile) is False:
+        raise ValueError('ERROR: Templates file %s not found', objfile)
+
+    flux, hdr = fits.getdata(objfile, 0, header=True)
+    meta = Table(fits.getdata(objfile, 1))
+    wave = header2wave(hdr)
+
+    # What do I do here if I don't want KCORR?!?
+    return flux, wave, meta, kcorr

@@ -9,8 +9,8 @@
 \usepackage{footnote}
 %\usepackage{deluxetable}
 
-\newcommand{\oii}{[O~II]}
-\newcommand{\oiilam}{[O~II]~\ensuremath{\lambda\lambda3726,29}}
+\newcommand{\oii}{[O~{\sc ii}]}
+\newcommand{\oiilam}{[O~{\sc ii}]~\ensuremath{\lambda\lambda3726,29}}
 \newcommand{\apj}{ApJ}
 \newcommand{\pasp}{PASP}
 \newcommand{\apjs}{ApJS}
@@ -35,9 +35,10 @@ to generate simulated galaxy templates for emission-line galaxies
 end-to-end spectral simulations for DESI, although there are many
 other potential applications (e.g., optimizing target selection).
 
-This note builds upon the effort documented in {\tt
+This note builds upon the original (static) set of ELG templates
+documented in {\tt
   DESI-doc-870-v1}\footnote{https://desi.lbl.gov/DocDB/cgi-bin/private/RetrieveFile?docid=870;filename=elg-templates.pdf;version=1},
-which describes the first set of templates.  
+which describes the first set of templates.
 
 
 
@@ -388,14 +389,17 @@ sample, and a number of (significant!) bug fixes.  Also note that the
 previous versions of ELG templates are not backwards-compatible with
 the current version!
 
-%\clearpage
-%\begin{figure}
-%\centering
-%\includegraphics[width=0.8\textwidth]{figures/elg_ages.pdf}
-%\caption{Relative flux vs rest-frame wavelength for six representative
-%  solar-metallicity templates as a function of SSP
-%  age. \label{fig:ages}}
-%\end{figure}
+\begin{figure}
+\centering
+\includegraphics[width=0.8\textwidth]{figures/d4000_ewoii.pdf}
+\caption{Rest-frame \oii{} equivalent width vs.~the $4000$-\AA{}
+  break, $D_{n}(4000)$.  The blue points and uncertainties indicate
+  the running median and standard deviation in $0.05$-wide bins of
+  $D_{n}(4000)$, while the red curve is a third-order polynomial fit
+  to the points with the coefficients given in the
+  legend.  The dispersion is relatively uniform with $D_{n}(4000)$
+  with a mean value of $0.31$~dex.  \label{fig:d4000}} 
+\end{figure}
 
 \bibliographystyle{apj}
 \bibliography{/Users/ioannis/bibdesk/ioannis}
