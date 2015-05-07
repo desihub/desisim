@@ -4,8 +4,15 @@
 Generate simulated galaxy templates.
 
 Give examples...
-"""
 
+
+ToDo:
+ * Include a minimum [OII] flux cut
+ * Allow the user to modify the grz color cuts.
+ * Allow the priors on the emission-line parameters to be varied.
+ * Make the random seed an optional input so the templates are reproducible.
+ * Should I worry about the emission-line strengths when synthesizing grz?
+"""
 from __future__ import division, print_function
 
 import os
@@ -21,8 +28,7 @@ from scipy.interpolate import interp1d
 
 from desispec.log import get_logger
 
-from desisim.templates import EMSpectrum
-from desisim.templates import read_templates
+from desisim.templates import (EMSpectrum, read_templates)
 from desisim.filter import filter
 from imaginglss.analysis import cuts
 from desispec.interpolation import resample_flux
@@ -35,7 +41,7 @@ parser = OptionParser(
     description = 'This is a neat piece of code.',
     epilog = 'Not sure what this does!')
 
-parser.add_option('--nmodel', default=5, type=long,
+parser.add_option('--nmodel', default=2, type=long,
                   help='Number of model (template) spectra to generate [%default]')
 parser.add_option('--objtype', default='elg', 
                   help='Object type to simulate (elg, lrg, bgs, star) [%default]')
@@ -65,25 +71,21 @@ for envvar in ['DESI_'+objtype.upper()+'_TEMPLATES']:
 if not envOK:
     sys.exit(1)
 
-# Initialize the grz filter profiles. Need an exception if this fails!
+# Initialize the filter profiles. Need an exception if reading these fails!
 gfilt = filter(filtername='decam_g.txt')
 rfilt = filter(filtername='decam_r.txt')
 zfilt = filter(filtername='decam_z.txt')
+w1filt = filter(filtername='wise_w1.txt')
 
-# Read the rest-frame continuum basis spectra and K-corrections.  Need an
-# exception if this failed!
-baseflux, basewave, basemeta, basekcorr = read_templates(objtype=objtype,continuum=True,kcorrections=True)
-#baseflux, basewave, basemeta = read_templates(objtype=objtype,continuum=True)
+# Read the rest-frame continuum basis spectra.  Need an exception if this
+# fails!
+baseflux, basewave, basemeta = read_templates(objtype=objtype,continuum=True)
 nbase = len(basemeta)
 
 # Split the desired number of models into chunks because not all models will
 # satisfy the grz color and [OII] flux cuts.
 
-# ToDo:
-# * Include a minimum [OII] flux cut
-# * Allow the user to modify the grz color cuts.
-
-nchunk = min(opts.nmodel,500)
+nchunk = min(opts.nmodel,10)
 
 nobj = 0
 while nobj<opts.nmodel:
@@ -91,73 +93,60 @@ while nobj<opts.nmodel:
     # satisfy the grz color and [OII] flux cuts.
     these = np.random.randint(0,nbase-1,nchunk)
 
+    # Assume the emission-line priors are uncorrelated.
+    oiiihbeta = np.random.uniform(opts.oiiihbeta_range[0],opts.oiiihbeta_range[1],nchunk)
+    oiiratio = np.random.normal(opts.oiiratio_meansig[0],opts.oiiratio_meansig[1],nchunk)
+    linesigma = np.random.normal(opts.linesigma_meansig[0],opts.linesigma_meansig[1],nchunk)
+
     redshift = np.random.uniform(opts.redshift_range[0],opts.redshift_range[1],nchunk)
     rmag = np.random.uniform(opts.rmag_range[0],opts.rmag_range[1],nchunk)
 
     d4000 = basemeta['D4000'][these]
-    ewoii = 10.0**np.polyval([1.1074,-4.7338,5.6585],d4000) # rest-frame, Angstrom
+    ewoii = 10.0**(np.polyval([1.1074,-4.7338,5.6585],d4000)+np.random.normal(0.0,0.3)) # rest-frame, Angstrom
 
     # The only way to not have to loop here would be to pre-compute the
     # K-corrections on a uniform redshift grid.
     for ii, iobj in enumerate(these):
         zfactor = 1.0+redshift[ii]
         wave = basewave*zfactor
-        flux = baseflux[iobj,:]/zfactor
-        
-        rflux = 10.0**(-0.4*(rmag[ii]-22.5)) # nanomaggies
-        rnorm = rflux/rfilt.get_maggies(wave,flux)
-        gflux = gfilt.get_maggies(wave,flux)*rnorm
-        zflux = zfilt.get_maggies(wave,flux)*rnorm
-        oiiflux = basemeta['OII_CONTINUUM'][iobj]*ewoii[ii]*rnorm*10**(-0.4*22.5) # erg/s/cm2
+
+        # Normalize so the spectrum has the right r-band magnitude.
+        rnorm = 10.0**(-0.4*rmag[ii])/rfilt.get_maggies(wave,baseflux[iobj,:])
+        flux = baseflux[iobj,:]*rnorm # [erg/s/cm2/A, observed]
+
+        rflux = 10.0**(-0.4*(rmag[ii]-22.5))                # nanomaggies
+        gflux = gfilt.get_maggies(wave,flux)*10**(0.4*22.5) # nanomaggies
+        zflux = zfilt.get_maggies(wave,flux)*10**(0.4*22.5) # nanomaggies
+
+        oiiflux = basemeta['OII_CONTINUUM'][iobj]*ewoii[ii]*rnorm # [erg/s/cm2]
 
         grzmask = cuts.Fluxes.ELG(gflux=gflux,rflux=rflux,zflux=zflux)
         oiimask = [1] # generalize this
+        print(rflux,gflux,zflux,oiiflux,grzmask)
 
         # Build the final template if the grz color and [OII] flux cuts are
         # satisfied.
         if all(grzmask) and all(oiimask):
-            print(iobj)
-            nobj = nobj+1
+            print(nobj, redshift[ii], rmag[ii], d4000[ii], ewoii[ii], oiiflux)
+            EM = EMSpectrum(linesigma=linesigma[ii], oiiratio=oiiratio[ii],
+                            oiiihbeta=oiiihbeta[ii], oiiflux=oiiflux)
+            emwave1 = 10.0**EM.wavelength()
+            emflux1 = EM.emlines()
+            emflux = resample_flux(wave/zfactor,emwave1,emflux1) # [erg/s/cm2/A, observed]
+
+            outflux = flux + emflux
+
+            # Synthesize photometry.
 
             plt.clf()
-            plt.loglog(wave,flux,'r')
+            plt.plot(wave,outflux,'r')
+            #plt.plot(wave,emflux,'g')
+            #plt.plot(emwave1,emflux1,'b')
+            plt.xlim([5000,12000])
+            plt.ylim([0,outflux.max()])
             plt.show()
 
+            nobj = nobj+1
 
-## draw random values assuming that these quantities are uncorrelated
-#oiiihbeta = np.random.uniform(opts.oiiihbeta_range[0],opts.oiiihbeta_range[1],opts.nmodel)
-#oiiratio = np.random.normal(opts.oiiratio_meansig[0],opts.oiiratio_meansig[1],opts.nmodel)
-#linesigma = np.random.normal(opts.linesigma_meansig[0],opts.linesigma_meansig[1],opts.nmodel)
-#
-## pack simulation parameters into a binary table
-## ...
-#
-### build a default spectrum in order to initialize the
-### emission-line data and output wavelength array
-#
-#for ii in range(opts.nmodel):
-#
-#    # initialize the simulation parameters for this spectrum
-#    print(ii, oiiihbeta[ii], linesigma[ii], oiiratio[ii])
-#    EM = EMSpectrum(linesigma=linesigma[ii], oiiratio=oiiratio[ii],
-#                oiiihbeta=oiiihbeta[ii])
-#
-#    # build the emission-line spectrum
-#    emflux = EM.emlines()
-#    
-#    plt.clf()
-#    log10wave = EM.wavelength()
-#    plt.plot(10**log10wave,emflux,'r')
-#    #plt.xlim([3600,4100])
-#    plt.show()
+# Write out or return?
 
-#baseflux, basewave, basemeta, basekcorr = read_templates(objtype=objtype,
-#                                                         continuum=True,
-#                                                         kcorrections=True)
-#    # grz color cuts
-#    gr = -2.5*np.log10(interp1d(basekcorr['REDSHIFT'][0],basekcorr['GMAGGIES'][0,these,:])(redshift)/
-#                       interp1d(basekcorr['REDSHIFT'][0],basekcorr['RMAGGIES'][0,these,:])(redshift))
-#    rz = -2.5*np.log10(interp1d(basekcorr['REDSHIFT'][0],basekcorr['RMAGGIES'][0,these,:])(redshift)/
-#                       interp1d(basekcorr['REDSHIFT'][0],basekcorr['ZMAGGIES'][0,these,:])(redshift))
-#    gflux = 10.0**(-0.4*(rmag + gr))
-#    zflux = 10.0**(-0.4*(rmag - rz))

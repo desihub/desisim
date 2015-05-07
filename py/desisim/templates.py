@@ -14,7 +14,8 @@ class EMSpectrum():
     Class for building a complete nebular emission-line spectrum. 
     """
     def __init__(self, minwave=3650.0, maxwave=6700.0, linesigma=75.0,
-                 zshift=0.0, oiiratio=0.75, oiiihbeta=-0.4):
+                 zshift=0.0, oiiratio=0.75, oiiihbeta=-0.4,
+                 oiiflux=None, hbetaflux=None):
         """
         Initialize the emission-line spectrum class with default values.
         """
@@ -24,8 +25,10 @@ class EMSpectrum():
         self.maxwave = np.log10(maxwave)
         self.linesigma = linesigma
         self.zshift = zshift
-        self.oiiratio = oiiratio
+        self.oiiratio = oiiratio # = 3726/3729
         self.oiiihbeta = oiiihbeta
+        self.oiiflux = oiiflux
+        self.hbetaflux = hbetaflux
         self.npix = (self.maxwave-self.minwave)/self.pixsize+1
 
     def wavelength(self):
@@ -46,7 +49,8 @@ class EMSpectrum():
         oiii_doublet = 2.88750 # [OIII] 5007/4959 doublet ratio
         sii_doublet = 1.3      # [SII] 6716/6731 doublet ratio (depends on density)
 
-        # read the file which contains the hydrogen and helium emissivities
+        # Read the file which contains the hydrogen and helium emissivities.
+        # Need to throw an exception if this file is not found!
         emfile = os.path.join(os.getenv('DESISIM'),'data',
                               'hydrogen_helium_emissivities.dat')
         emdata = ascii.read(emfile,comment='#',names=['name',
@@ -56,8 +60,11 @@ class EMSpectrum():
         isha = np.where(emdata['name']=='Halpha')[0]
         ishb = np.where(emdata['name']=='Hbeta')[0]
             
-        # initialize and then fill the line-information table
-        line = Table(emdata.columns[0:2])
+        # Initialize and then fill the line-information table.
+        #line = Table(emdata.columns[0:2])
+        line = Table()
+        line['name'] = Column(emdata['name'],dtype='a15')
+        line['wave'] = Column(emdata['wave'])
         line['flux'] = Column(dtype='f8',length=nline)  # integrated line-flux [erg/s]
         line['amp'] = Column(dtype='f8',length=nline)   # amplitude
         line['ratio'] = Column(emdata['emissivity']/emdata['emissivity'][ishb],
@@ -113,19 +120,38 @@ class EMSpectrum():
         # lines according to the desired doublet ratio
         coeff = np.asarray([-0.52131,-0.74810,0.44351,0.45476])
         oiihbeta = 10**np.polyval(coeff,self.oiiihbeta) # [OII]/Hbeta
-        oiiflux = oiihbeta*line['flux'][ishb][0]        # [OII] flux
-        #print oiiflux, line['flux'][ishb][0], oiihbeta
+        oiiflux1 = oiihbeta*line['flux'][ishb][0]       # [OII] flux
+        #print oiiflux1, line['flux'][ishb][0], oiihbeta
 
         factor = self.oiiratio/(1.0+self.oiiratio)
         line.add_row(['[OII]_3726',3726.032,0.0,0.0,0.0])
         line[-1]['ratio'] = factor*oiihbeta
-        line[-1]['flux'] = factor*oiiflux
+        line[-1]['flux'] = factor*oiiflux1
         
         factor = 1.0/(1.0+self.oiiratio)
         line.add_row(['[OII]_3729',3728.814,0.0,0.0,0.0])
         line[-1]['ratio'] = factor*oiihbeta
-        line[-1]['flux'] = factor*oiiflux
+        line[-1]['flux'] = factor*oiiflux1
 
+        # Add more lines here...
+
+        # Optionally normalize everything to a desired integrated [OII] 3727 or
+        # H-beta flux.  Note that the H-beta normalization trumps the [OII]
+        # normalization!
+        if self.oiiflux is not None:
+            is3729 = np.where(line['name']=='[OII]_3729')[0]
+            factor = self.oiiflux/(1.0+self.oiiratio)/line[is3729]['flux']
+            for ii in range(len(line)):
+                line['flux'][ii] *= factor
+                line['amp'][ii] *= factor
+                
+        if self.hbetaflux is not None:
+            ishbeta = np.where(line['name']=='Hbeta')[0]
+            factor = self.hbetaflux/line[ishbeta]['flux']
+            for ii in range(len(line)):
+                line['flux'][ii] *= factor
+                line['amp'][ii] *= factor
+                
         return line
 
     def emlines(self):
@@ -165,7 +191,6 @@ def read_templates(objtype='elg', observed=False, continuum=False, kcorrections=
     # Optionally read the K-corrections.
     if kcorrections is True:
         kcorrfile = objfile.replace('templates_','templates_kcorr_')
-        kcorr = fits.getdata(kcorrfile, 0)
 
     # Handle special cases for the ELG & BGS templates.
     if objtype.upper()=='ELG' or objtype.upper()=='BGS':
@@ -181,5 +206,8 @@ def read_templates(objtype='elg', observed=False, continuum=False, kcorrections=
     meta = Table(fits.getdata(objfile, 1))
     wave = header2wave(hdr)
 
-    # What do I do here if I don't want KCORR?!?
-    return flux, wave, meta, kcorr
+    if kcorrections is False:
+        return flux, wave, meta
+    else:
+        kcorr = fits.getdata(kcorrfile, 0)
+        return flux, wave, meta, kcorr
