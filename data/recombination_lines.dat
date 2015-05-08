@@ -1,0 +1,50 @@
+## J. Moustakas, Siena, 2015 May 7
+## 
+## Line-ratios with respect to H-beta (assuming case B
+## recombination) for H and He recombination lines
+## (see ISEDFIT_NEBULAR in https://github.com/moustakas/impro).
+## Assumes a 0.0897 He/H abundance ratio (see Kotulla+09).
+# 1 name
+# 2 wave [rest-frame wavelength in air, Angstrom]
+# 3 ratio [ratio with respect to H-beta]
+     Lyalpha    1215.670    23.5465587
+      Halpha    6562.800     2.8631579
+       Hbeta    4861.325     1.0000000
+      Hgamma    4340.464     0.4683401
+      Hdelta    4101.734     0.2589474
+    Hepsilon    3970.072     0.1590283
+          H8    3889.049     0.1050202
+          H9    3835.384     0.0731255
+         H10    3797.898     0.0530283
+         H11    3770.630     0.0397166
+         H12    3750.151     0.0305344
+         H13    3734.368     0.0239919
+         H14    3721.938     0.0192065
+         H15    3711.971     0.0156113
+         H16    3703.852     0.0128664
+         H17    3697.152     0.0107368
+         H18    3691.554     0.0090526
+     Paalpha   18751.010     0.3386235
+      Pabeta   12818.080     0.1632389
+     Pagamma   10938.095     0.0904453
+     Padelta   10049.373     0.0554575
+   Paepsilon    9545.972     0.0365668
+         Pa9    9229.014     0.0254332
+        Pa10    9014.910     0.0184291
+        Pa11    8862.783     0.0137895
+         P12    8750.473     0.0105992
+     Bralpha   40511.570     0.0802105
+      Brbeta   26251.510     0.0454656
+     Brgamma   21655.290     0.0278138
+     Brdelta   19445.562     0.0182591
+    HeI_3188    3187.740     0.0407608
+    HeI_3389    3888.650     0.1027011
+    HeI_3965    3964.730     0.0102265
+    HeI_4026    4026.210     0.0211576
+    HeI_4471    4471.500     0.0444505
+    HeI_4922    4921.930     0.0119987
+    HeI_5016    5015.680     0.0256898
+    HeI_5876    5875.670     0.1186800
+    HeI_6678    6678.150     0.0336066
+    HeI_7065    7065.250     0.0217386
+   HeI_10830   10830.250     0.2404832

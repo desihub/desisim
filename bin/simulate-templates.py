@@ -47,13 +47,13 @@ parser.add_option('--objtype', default='elg',
                   help='Object type to simulate (elg, lrg, bgs, star) [%default]')
 parser.add_option('--oiiihbeta_range', default=(-0.5,0.0), type=float, nargs=2, 
                   help='Logarithmic minimum and maximum [OIII]/Hbeta ratio [%default]')
-parser.add_option('--oiiratio_meansig', default=(0.73,0.05), type=float, nargs=2, 
+parser.add_option('--oiiratio_meansig', default=(0.73,0.05), type=float, nargs=2,
                   help='Mean and sigma of [OII] 3729/3726 doublet ratio [%default]')
 parser.add_option('--linesigma_meansig', default=(75.0,20.0), type=float, nargs=2, 
                   help='Mean and sigma of emission-line width [%default km/s]')
-parser.add_option('--redshift_range', default=(0.6,1.6), type=float, nargs=2, 
+parser.add_option('--redshift_range', default=(0.6,1.6), type=float, nargs=2,
                   help='Minimum and maximum redshift [%default]')
-parser.add_option('--rmag_range', default=(21.0,23.5), type=float, nargs=2, 
+parser.add_option('--rmag_range', default=(21.0,23.5), type=float, nargs=2,
                   help='Minimum and maximum magnitude range [%default]')
 
 opts, args = parser.parse_args()
@@ -61,11 +61,10 @@ log = get_logger()
 
 objtype = opts.objtype
 
-# check environment
+# Check that the right environment variables are set.
 envOK = True
 for envvar in ['DESI_'+objtype.upper()+'_TEMPLATES']:
     if envvar not in os.environ:
-        print('Hi!')
         print('Missing ${} environment variable'.format(envvar))
         envOK = False
 if not envOK:
@@ -82,9 +81,8 @@ w1filt = filter(filtername='wise_w1.txt')
 baseflux, basewave, basemeta = read_templates(objtype=objtype,continuum=True)
 nbase = len(basemeta)
 
-# Split the desired number of models into chunks because not all models will
-# satisfy the grz color and [OII] flux cuts.
-
+# Split the desired number of models into manageable chunks in case NMODEL is a
+# very large number.
 nchunk = min(opts.nmodel,10)
 
 nobj = 0
@@ -93,16 +91,18 @@ while nobj<opts.nmodel:
     # satisfy the grz color and [OII] flux cuts.
     these = np.random.randint(0,nbase-1,nchunk)
 
+    # Assign uniform redshift and r-magnitude distributions.
+    redshift = np.random.uniform(opts.redshift_range[0],opts.redshift_range[1],nchunk)
+    rmag = np.random.uniform(opts.rmag_range[0],opts.rmag_range[1],nchunk)
+
     # Assume the emission-line priors are uncorrelated.
     oiiihbeta = np.random.uniform(opts.oiiihbeta_range[0],opts.oiiihbeta_range[1],nchunk)
     oiiratio = np.random.normal(opts.oiiratio_meansig[0],opts.oiiratio_meansig[1],nchunk)
     linesigma = np.random.normal(opts.linesigma_meansig[0],opts.linesigma_meansig[1],nchunk)
 
-    redshift = np.random.uniform(opts.redshift_range[0],opts.redshift_range[1],nchunk)
-    rmag = np.random.uniform(opts.rmag_range[0],opts.rmag_range[1],nchunk)
-
     d4000 = basemeta['D4000'][these]
-    ewoii = 10.0**(np.polyval([1.1074,-4.7338,5.6585],d4000)+np.random.normal(0.0,0.3)) # rest-frame, Angstrom
+    ewoii = 10.0**(np.polyval([1.1074,-4.7338,5.6585],d4000)+ # rest-frame, Angstrom
+                   np.random.normal(0.0,0.3)) 
 
     # The only way to not have to loop here would be to pre-compute the
     # K-corrections on a uniform redshift grid.
@@ -139,7 +139,7 @@ while nobj<opts.nmodel:
             # Synthesize photometry.
 
             plt.clf()
-            plt.plot(wave,outflux,'r')
+            plt.plot(wave[0::10],outflux[0::10],'r')
             #plt.plot(wave,emflux,'g')
             #plt.plot(emwave1,emflux1,'b')
             plt.xlim([5000,12000])
@@ -148,5 +148,7 @@ while nobj<opts.nmodel:
 
             nobj = nobj+1
 
-# Write out or return?
-
+# Write out or return?  Write these out with 0.2 A binning.
+# Add the version number to the metadata header
+# Create the EM spectrum just once
+# vacuum wavelengths!

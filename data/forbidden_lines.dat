@@ -1,0 +1,15 @@
+## J. Moustakas, Siena, 2015 May 7
+##
+## Table of forbidden nebular emission lines and their rest-frame
+## wavelengths.
+## 
+# 1 name
+# 2 wave [laboratory wavelength in air, Angstroms]
+[OIII]_5007 5006.842
+[OIII]_4959 4958.911
+ [NII]_6584 6583.458
+ [NII]_6548 6548.043
+ [SII]_6716 6716.440
+ [SII]_6731 6730.815
+ [OII]_3726 3726.032
+ [OII]_3729 3728.814
