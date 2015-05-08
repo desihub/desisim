@@ -78,10 +78,10 @@ class EMSpectrum():
         # normalize [OIII] 4959, 5007 
         is4959 = np.where(line['name']=='[OIII]_4959')[0]
         is5007 = np.where(line['name']=='[OIII]_5007')[0]
-        line[is5007]['ratio'] = 10**self.oiiihbeta # NB: no scatter
-        print(line[is5007]['ratio'], self.oiiihbeta)
+        line['ratio'][is5007] = 10**self.oiiihbeta # NB: no scatter
+        print(line['ratio'][is5007], self.oiiihbeta)
 
-        line[is4959]['ratio'] = line[is5007]['ratio']/self.oiiidoublet
+        line['ratio'][is4959] = line['ratio'][is5007]/self.oiiidoublet
 
         # normalize [NII] 6548,6584
         is6548 = np.where(line['name']=='[NII]_6548')[0]
@@ -89,9 +89,9 @@ class EMSpectrum():
         coeff = np.asarray([-0.53829,-0.73766,-0.20248])
         disp = 0.1 # dex
 
-        line[is6584]['ratio'] = 10**(np.polyval(coeff,self.oiiihbeta)+
+        line['ratio'][is6584] = 10**(np.polyval(coeff,self.oiiihbeta)+
                                           np.random.normal(0.0,disp))
-        line[is6548]['ratio'] = line[is6584]['ratio']/self.niidoublet
+        line['ratio'][is6548] = line['ratio'][is6584]/self.niidoublet
 
         # normalize [SII] 6716,6731
         is6716 = np.where(line['name']=='[SII]_6716')[0]
@@ -99,16 +99,16 @@ class EMSpectrum():
         coeff = np.asarray([-0.64326,-0.32967,-0.23058])
         disp = 0.1 # dex
 
-        line[is6716]['ratio'] = 10**(np.polyval(coeff,self.oiiihbeta)+
+        line['ratio'][is6716] = 10**(np.polyval(coeff,self.oiiihbeta)+
                                           np.random.normal(0.0,disp))
-        line[is6731]['ratio'] = line[is6716]['ratio']/self.siidoublet
+        line['ratio'][is6731] = line['ratio'][is6716]/self.siidoublet
 
         # normalize [NeIII] 3869
         is3869 = np.where(line['name']=='[NeIII]_3869')[0]
         coeff = np.asarray([1.0876,-1.1647])
         disp = 0.1 # dex
 
-        line[is3869]['ratio'] = 10**(np.polyval(coeff,self.oiiihbeta)+
+        line['ratio'][is3869] = 10**(np.polyval(coeff,self.oiiihbeta)+
                                           np.random.normal(0.0,disp))
 
         # normalize [OII] 3727, split into [OII] 3726,3729
@@ -122,8 +122,8 @@ class EMSpectrum():
 
         factor1 = self.oiidoublet/(1.0+self.oiidoublet)
         factor2 = 1.0/(1.0+self.oiidoublet)
-        line[is3726]['ratio'] = factor1*oiihbeta
-        line[is3729]['ratio'] = factor2*oiihbeta
+        line['ratio'][is3726] = factor1*oiihbeta
+        line['ratio'][is3729] = factor2*oiihbeta
         
         ## Finally normalize the full spectrum to the desired integrated [OII]
         ## 3727 or H-beta flux.  Note that the H-beta normalization trumps the
