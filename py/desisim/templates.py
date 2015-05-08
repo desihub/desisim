@@ -15,158 +15,153 @@ class EMSpectrum():
 
     ToDo: Allow for AGN-like emission-line ratios.
     """
-    def __init__(self, minwave=3650.0, maxwave=6700.0, 
-                 zshift=0.0, oiiratio=0.75, oiiihbeta=-0.4,
-                 oiiflux=None, hbetaflux=None):
+    def __init__(self):
         """
-        Initialize the emission-line spectrum class with default values.
+        Initialize the emission-line spectrum class.
         """
         from astropy.io import ascii
-        from astropy.table import Table, Column
+        from astropy.table import Table, Column, vstack
 
-        self.pixsize_kms = 20.0 # pixel size [km/s]
+        # Read the file which contains the recombination and forbidden lines. 
+        # Need to throw an exception if this file is not found!
+        recombfile = os.path.join(os.getenv('DESISIM'),'data','recombination_lines.dat')
+        forbidfile = os.path.join(os.getenv('DESISIM'),'data','forbidden_lines.dat')
+
+        recombdata = ascii.read(recombfile,names=['name','wave','ratio'])
+        forbiddata = ascii.read(forbidfile,names=['name','wave','ratio'])
+        emdata = vstack([recombdata,forbiddata],join_type='exact')
+        nline = len(emdata)
+
+        # Initialize and populate the line-information table.
+        self.line = Table()
+        self.line['name'] = Column(emdata['name'],dtype='a15')
+        self.line['wave'] = Column(emdata['wave'])
+        self.line['ratio'] = Column(emdata['ratio'])
+        self.line['flux'] = Column(dtype='f8',length=nline)  # integrated line-flux
+        self.line['amp'] = Column(dtype='f8',length=nline)   # amplitude
+
+    def normalize(self, oiiihbeta=-0.4, oiidoublet=0.75, siidoublet=1.3, 
+                  oiiflux=None, hbetaflux=None):
+        """
+        Normalize the emission-line spectrum.
+
+        This step involves three main pieces.  First, the ratio of the
+        forbidden emission line-strengths relative to H-beta are derived
+        using an input [OIII] 5007/H-beta ratio and the empirical
+        relations documented elsewhere.  Second, the requested [OII]
+        3726,29 and [SII] 6716,31 doublet ratios are imposed.  And
+        finally the full emission-line spectrum is self-consistently
+        normalized to *either* an integrated [OII] 3726,29 line-flux
+        *or* an integrated H-beta line-flux.  Generally an ELG and LRG
+        spectrum will be normalized using [OII] while the a BGS spectrum
+        will be normalized using H-beta.
+
+        ToDo: All the random seed to be fixed.
+        """
+        self.oiiihbeta = oiiihbeta   # *logarithmic* [OIII] 5007/H-beta line-ratio
+        self.oiidoublet = oiidoublet # [OII] 3726/3729 doublet ratio (depends on density)
+        self.siidoublet = siidoublet # [SII] 6716/6731 doublet ratio (depends on density)
+
+        self.oiiidoublet = 2.8875    # [OIII] 5007/4959 doublet ratio (set by atomic physics)
+        self.niidoublet = 2.93579    # [NII] 6584/6548 doublet ratio (set by atomic physics)
+
+        if (oiiflux is None) and (hbetaflux is None):
+            oiiflux = 1E-17
+
+        self.oiiflux = oiiflux
+        self.hbetaflux = hbetaflux
+
+        line = self.line
+
+        ishbeta = np.where(line['name']=='Hbeta')[0]
+
+        # normalize [OIII] 4959, 5007 
+        is4959 = np.where(line['name']=='[OIII]_4959')[0]
+        is5007 = np.where(line['name']=='[OIII]_5007')[0]
+        line[is5007]['ratio'] = 10**self.oiiihbeta # NB: no scatter
+        print(line[is5007]['ratio'], self.oiiihbeta)
+
+        line[is4959]['ratio'] = line[is5007]['ratio']/self.oiiidoublet
+
+        # normalize [NII] 6548,6584
+        is6548 = np.where(line['name']=='[NII]_6548')[0]
+        is6584 = np.where(line['name']=='[NII]_6584')[0]
+        coeff = np.asarray([-0.53829,-0.73766,-0.20248])
+        disp = 0.1 # dex
+
+        line[is6584]['ratio'] = 10**(np.polyval(coeff,self.oiiihbeta)+
+                                          np.random.normal(0.0,disp))
+        line[is6548]['ratio'] = line[is6584]['ratio']/self.niidoublet
+
+        # normalize [SII] 6716,6731
+        is6716 = np.where(line['name']=='[SII]_6716')[0]
+        is6731 = np.where(line['name']=='[SII]_6731')[0]
+        coeff = np.asarray([-0.64326,-0.32967,-0.23058])
+        disp = 0.1 # dex
+
+        line[is6716]['ratio'] = 10**(np.polyval(coeff,self.oiiihbeta)+
+                                          np.random.normal(0.0,disp))
+        line[is6731]['ratio'] = line[is6716]['ratio']/self.siidoublet
+
+        # normalize [NeIII] 3869
+        is3869 = np.where(line['name']=='[NeIII]_3869')[0]
+        coeff = np.asarray([1.0876,-1.1647])
+        disp = 0.1 # dex
+
+        line[is3869]['ratio'] = 10**(np.polyval(coeff,self.oiiihbeta)+
+                                          np.random.normal(0.0,disp))
+
+        # normalize [OII] 3727, split into [OII] 3726,3729
+        is3726 = np.where(line['name']=='[OII]_3726')[0]
+        is3729 = np.where(line['name']=='[OII]_3729')[0]
+        coeff = np.asarray([-0.52131,-0.74810,0.44351,0.45476])
+        disp = 0.1 # dex
+
+        oiihbeta = 10**(np.polyval(coeff,self.oiiihbeta)+ # [OII] 3727/Hbeta
+                        np.random.normal(0.0,disp)) 
+
+        factor1 = self.oiidoublet/(1.0+self.oiidoublet)
+        factor2 = 1.0/(1.0+self.oiidoublet)
+        line[is3726]['ratio'] = factor1*oiihbeta
+        line[is3729]['ratio'] = factor2*oiihbeta
+        
+        ## Finally normalize the full spectrum to the desired integrated [OII]
+        ## 3727 or H-beta flux.  Note that the H-beta normalization trumps the
+        ## [OII] normalization!
+        #if self.oiiflux is not None:
+        #    factor = self.oiiflux/(1.0+self.oiidoublet)/line[is3729]['flux']
+        #    for ii in range(len(line)):
+        #        line['flux'][ii] *= factor
+        #        line['amp'][ii] *= factor
+        #        
+        #if self.hbetaflux is not None:
+        #    factor = self.hbetaflux/line[ishbeta]['flux']
+        #    for ii in range(len(line)):
+        #        line['flux'][ii] *= factor
+        #        line['amp'][ii] *= factor
+
+        return line
+
+    def wavelength(self, minwave=3650.0, maxwave=6700.0, pixsize_kms=20.0):
+        """
+        Generate the default emission-line wavelength array.
+        """
+        self.pixsize_kms = pixsize_kms # pixel size [km/s]
         self.pixsize = self.pixsize_kms/light/np.log(10) # pixel size [log-10 A]
         self.minwave = np.log10(minwave)
         self.maxwave = np.log10(maxwave)
         self.npix = (self.maxwave-self.minwave)/self.pixsize+1
 
-        self.zshift = zshift
-        self.oiiratio = oiiratio # = 3726/3729
-        self.oiiihbeta = oiiihbeta
-
-        self.nHeI = 0.0897          # adopted n(HeI)/n(HI) abundance ratio (see Kotulla+09)
-        self.nlyc = 1.0             # fiducial number of Lyman-continuum photons (sec^-1)
-        self.nii_doublet = 2.93579  # [NII] 6584/6548 doublet ratio
-        self.oiii_doublet = 2.88750 # [OIII] 5007/4959 doublet ratio
-        self.sii_doublet = 1.3      # [SII] 6716/6731 doublet ratio (depends on density)
-
-        self.oiiflux = oiiflux
-        self.hbetaflux = hbetaflux
-
-        # Read the file which contains the hydrogen and helium emissivities.
-        # Need to throw an exception if this file is not found!
-        emfile = os.path.join(os.getenv('DESISIM'),'data','forbidden_lines.dat')
-
-        emfile = os.path.join(os.getenv('DESISIM'),'data',
-                              'hydrogen_helium_emissivities.dat')
-        emdata = ascii.read(emfile,comment='#',names=
-                            ['name','wave','emissivity','transition'])
-
-        isha = np.where(emdata['name']=='Halpha')[0]
-        ishb = np.where(emdata['name']=='Hbeta')[0]
-        nline = len(emdata)
-
-        # Initialize and populate the line-information table.
-        #line = Table(emdata.columns[0:2])
-        self.line = Table()
-        self.line['name'] = Column(emdata['name'],dtype='a15')
-        self.line['wave'] = Column(emdata['wave'])
-        self.line['flux'] = Column(dtype='f8',length=nline)  # integrated line-flux [erg/s]
-        self.line['amp'] = Column(dtype='f8',length=nline)   # amplitude
-        # ratio with respect to H-beta
-        self.line['ratio'] = Column(emdata['emissivity']/emdata['emissivity'][ishb]) 
-
-        # Calculate the luminosity of each line (in erg/s/A) given N(Lyc)
-        # (adopted conversion is from Kennicutt 1998, but see also Leitherer &
-        # Heckman 1995 and Hao+2011).  This step is technically not necessary
-        # since we normalize the line-fluxes in EMSpectrum.linedata(), so this
-        # could be made optional or dropped altogether.
-        for ii in range(nline):
-            if 'HeI_' in self.line['name'][ii]:
-                abundfactor = self.nHeI
-            else:
-                abundfactor = 1.0
-            self.line['flux'][ii] = abundfactor*1.367E-12*self.nlyc* \
-            emdata['emissivity'][ii]/emdata['emissivity'][isha]
-
-    def wavelength(self):
-        """
-        Generate the default emission-line wavelength array.
-        """
         wave = np.linspace(self.minwave,self.maxwave,self.npix) # log10 spacing
         return wave
 
-    def linedata(self):
-
-        # add in the forbidden lines, starting with [OIII] 5007 
-        self.line.add_row(['[OIII]_5007',5006.842,0.0,0.0,0.0])
-        self.line[-1]['ratio'] = 10**self.oiiihbeta # NB: no scatter
-        self.line[-1]['flux'] = self.line[-1]['ratio']*self.line['flux'][ishb]
-
-        self.line.add_row(['[OIII]_4959',4958.911,0.0,0.0,0.0])
-        self.line[-1]['ratio'] = self.line[-2]['ratio']/self.oiii_doublet
-        self.line[-1]['flux'] = self.line[-2]['flux']/self.oiii_doublet
-
-        # add the [NII] 6548,6584 doublet (with no scatter)
-        coeff = np.asarray([-0.53829,-0.73766,-0.20248])
-        self.line.add_row(['[NII]_6584',6583.458,0.0,0.0,0.0])
-        self.line[-1]['ratio'] = 10**np.polyval(coeff,self.oiiihbeta)
-        self.line[-1]['flux'] = self.line[-1]['ratio']*self.line['flux'][ishb]
-
-        self.line.add_row(['[NII]_6548',6548.043,0.0,0.0,0.0])
-        self.line[-1]['ratio'] = self.line[-2]['ratio']/self.nii_doublet
-        self.line[-1]['flux'] = self.line[-2]['flux']/self.nii_doublet
-
-        # add the [SII] 6716,6731 doublet (with no scatter)
-        coeff = np.asarray([-0.64326,-0.32967,-0.23058])
-        self.line.add_row(['[SII]_6716',6716.440,0.0,0.0,0.0])
-        self.line[-1]['ratio'] = 10**np.polyval(coeff,self.oiiihbeta)
-        self.line[-1]['flux'] = self.line[-1]['ratio']*self.line['flux'][ishb]
-
-        self.line.add_row(['[SII]_6731',6730.815,0.0,0.0,0.0])
-        self.line[-1]['ratio'] = self.line[-2]['ratio']/self.sii_doublet
-        self.line[-1]['flux'] = self.line[-2]['flux']/self.sii_doublet
-
-        # add [NeIII] 3869 (with no scatter)
-        coeff = np.asarray([1.0876,-1.1647])
-        self.line.add_row(['[NeIII]_3869',3868.752,0.0,0.0,0.0])
-        self.line[-1]['ratio'] = 10**np.polyval(coeff,self.oiiihbeta)
-        self.line[-1]['flux'] = self.line[-1]['ratio']*self.line['flux'][ishb]
-
-        # add [OII] 3727, split into the individual [OII] 3726,3729
-        # self.lines according to the desired doublet ratio
-        coeff = np.asarray([-0.52131,-0.74810,0.44351,0.45476])
-        oiihbeta = 10**np.polyval(coeff,self.oiiihbeta) # [OII]/Hbeta
-        oiiflux1 = oiihbeta*self.line['flux'][ishb][0]       # [OII] flux
-        #print oiiflux1, self.line['flux'][ishb][0], oiihbeta
-
-        factor = self.oiiratio/(1.0+self.oiiratio)
-        self.line.add_row(['[OII]_3726',3726.032,0.0,0.0,0.0])
-        self.line[-1]['ratio'] = factor*oiihbeta
-        self.line[-1]['flux'] = factor*oiiflux1
-        
-        factor = 1.0/(1.0+self.oiiratio)
-        self.line.add_row(['[OII]_3729',3728.814,0.0,0.0,0.0])
-        self.line[-1]['ratio'] = factor*oiihbeta
-        self.line[-1]['flux'] = factor*oiiflux1
-
-        # Add more self.lines here...
-
-        # Push this to its own normalization function!
-
-        # Optionally normalize everything to a desired integrated [OII] 3727 or
-        # H-beta flux.  Note that the H-beta normalization trumps the [OII]
-        # normalization!
-        if self.oiiflux is not None:
-            is3729 = np.where(self.line['name']=='[OII]_3729')[0]
-            factor = self.oiiflux/(1.0+self.oiiratio)/self.line[is3729]['flux']
-            for ii in range(len(self.line)):
-                self.line['flux'][ii] *= factor
-                self.line['amp'][ii] *= factor
-                
-        if self.hbetaflux is not None:
-            ishbeta = np.where(self.line['name']=='Hbeta')[0]
-            factor = self.hbetaflux/self.line[ishbeta]['flux']
-            for ii in range(len(self.line)):
-                self.line['flux'][ii] *= factor
-                self.line['amp'][ii] *= factor
-                
-        return self.line
-
-    def emlines(self, linesigma=75.0):
+    def emlines(self, linesigma=75.0, zshift=0.0):
         """
         Build an emission-line spectrum.
         """
+        self.linesigma = linesigma
+        self.zshift = zshift
+        
         line = self.linedata()
         log10wave = self.wavelength()
         log10sigma = linesigma/light/np.log(10) # line-width [log-10 Angstrom]

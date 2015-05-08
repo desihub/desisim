@@ -4,9 +4,12 @@
 ## recombination) for H and He recombination lines
 ## (see ISEDFIT_NEBULAR in https://github.com/moustakas/impro).
 ## Assumes a 0.0897 He/H abundance ratio (see Kotulla+09).
+## 
+## The wavelengths are laboratory wavelengths in air (Angstrom).
+## 
 # 1 name
-# 2 wave [rest-frame wavelength in air, Angstrom]
-# 3 ratio [ratio with respect to H-beta]
+# 2 wave
+# 3 ratio
      Lyalpha    1215.670    23.5465587
       Halpha    6562.800     2.8631579
        Hbeta    4861.325     1.0000000
