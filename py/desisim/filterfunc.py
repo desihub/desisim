@@ -11,15 +11,15 @@ J. Moustakas
 import os
 import numpy as np
 
-class filter:
+class filterfunc():
     """
-    Define the filter class.  Could add additional functions
+    Define the filterfunc class.  Could add additional functions
     to compute the filter effective wavelength, the Vega 
     zeropoints, etc.  Pieces of the code below are based on the 
     astLib.astSED package.
     """
 
-    def __init__(self,filtername=None):
+    def __init__(self, filtername=None):
         """
         Initialize the filter class.  Reads and stores a single
         filter curve.  Also constructs an interpolation object 
@@ -47,9 +47,9 @@ class filter:
         # calculate the AB zeropoint flux for this filter
         ABwave = np.logspace(1.0,8.0,1E5) # Angstroms
         ABflux = 2.99792E18*3.631E-20*np.ones(1E5)/(ABwave**2)
-        self.ABzpt = filter.get_flux(self,ABwave,ABflux)
+        self.ABzpt = self.get_flux(ABwave,ABflux)
 
-    def get_flux(self,wave,flux):
+    def get_flux(self, wave, flux):
         """
         Convolve an input SED (wave,flux) with the filter transmission 
         curve.  The output is the *unnormalized* flux.  In general this 
@@ -67,7 +67,7 @@ class filter:
         flux /= np.trapz(self.interp(wave1)*wave1,wave1)
         return flux
     
-    def get_maggies(self,wave,flux):
+    def get_maggies(self, wave, flux):
         """
         Convolve an input SED (wave,flux) with the filter transmission 
         curve and return maggies.
