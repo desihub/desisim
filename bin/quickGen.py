@@ -16,16 +16,11 @@ import argparse
 import os
 import os.path
 import numpy as np
-import scipy
+import scipy.sparse as sp
 import astropy.io.fits as pyfits
 import sys
 import desimodel.simulate as sim
 from desispec.io import fibermap,frame,util
-
-#from desispec.io import write_frame
-#from desispec.io import read_fibermap
-#from desispec.io import read_sky
-#from desispec.io import subtract_sky
 
 
 #- Parse arguments
@@ -50,6 +45,7 @@ DESIMODEL_DIR=os.environ['DESIMODEL']
 
 # Look for Directory tree/ environment set up
 # Directory Tree is $DESI_SPECTRO_REDUX/$PRODNAME/exposures/NIGHT/EXPID/*.fits
+# Perhaps can be synced with desispec findfile?
 
 #But read fibermap file and extract the headers needed for Directory tree
 
@@ -181,8 +177,10 @@ qsim=sim.Quick(basePath=DESIMODEL_DIR)
 
 print "Simulating Spectrum",args.nstart," of spectrograph",spectrograph, "object type:", objtype[args.nstart]
 
-results,resolution_matrix=qsim.simulate(sourceType=objtype[args.nstart].lower(),sourceSpectrum=specObj0,airmass=args.airmass,expTime=args.exptime)
+results=qsim.simulate(sourceType=objtype[args.nstart].lower(),sourceSpectrum=specObj0,airmass=args.airmass,expTime=args.exptime)
 observedWavelengths=results.wave
+origin_wavelength=qsim.wavelengthGrid
+
 # Define wavelimits for B,R,Z camera(by hand this time), later simulated data is cropped within these limits
 
 waveLimits={'b':(3569,5949),'r':(5625,7741),'z':(7435,9834)}
@@ -200,10 +198,6 @@ zmaxbin,=zrange.shape
 rmaxbin,=rrange.shape
 maxbin=max(bmaxbin,zmaxbin,rmaxbin)
 
-#resolution matrix for three bands
-resolution_b=resolution_matrix[0][brange[0]:brange[-1]+1,brange[0]:brange[-1]+1].dot(np.identity(bmaxbin))
-resolution_r=resolution_matrix[1][rrange[0]:rrange[-1]+1,rrange[0]:rrange[-1]+1].dot(np.identity(rmaxbin))
-resolution_z=resolution_matrix[2][zrange[0]:zrange[-1]+1,zrange[0]:zrange[-1]+1].dot(np.identity(zmaxbin))
 
 # Now break the simulated outputs in three different ranges.  
 
@@ -264,10 +258,53 @@ sky_rand_noise[:bmaxbin,0,args.nstart]=np.random.normal(np.zeros(bmaxbin),np.one
 sky_rand_noise[:rmaxbin,1,args.nstart]=np.random.normal(np.zeros(rmaxbin),np.ones(rmaxbin)/np.sqrt(sky_ivar[:rmaxbin,1,args.nstart]),rmaxbin)
 sky_rand_noise[:zmaxbin,2,args.nstart]=np.random.normal(np.zeros(zmaxbin),np.ones(zmaxbin)/np.sqrt(sky_ivar[:zmaxbin,2,args.nstart]),zmaxbin)
 
+#construct resolution matrix from sigma_vs_wavelength. First resample to respective sigmas vs wavelengths
 
-# resolution data
+sigma_b_vs_wave=sim.WavelengthFunction(origin_wavelength,qsim.cameras[0].sigma_wave).getResampledValues(bwaves)
+sigma_r_vs_wave=sim.WavelengthFunction(origin_wavelength,qsim.cameras[1].sigma_wave).getResampledValues(rwaves)
+sigma_z_vs_wave=sim.WavelengthFunction(origin_wavelength,qsim.cameras[2].sigma_wave).getResampledValues(zwaves)
+
+#This definition follows form qsim
+
+def resolution_matrix(sigma_vs_wavelength,wavelengthGrid,throughput):
+        nhalf = 50
+        nbins = wavelengthGrid.size
+        sparseData = np.empty((2*nhalf*nbins,))
+        sparseIndices = np.empty((2*nhalf*nbins,),dtype=np.int32)
+        sparseIndPtr = np.empty((nbins+1,),dtype=np.int32)
+        nextIndex = 0
+        for bin in range(nbins):
+            sparseIndPtr[bin] = nextIndex
+            if bin >= nhalf and bin < nbins-nhalf and throughput[bin] > 0:
+                lam = wavelengthGrid[bin]
+                sigma = sigma_vs_wavelength[bin]
+                if sigma > 0:
+                    psf = np.exp(-0.5*((wavelengthGrid[bin-nhalf:bin+nhalf]-lam)/sigma)**2)
+                    psf /= np.sum(psf)
+                    rng = slice(nextIndex,nextIndex+psf.size)
+                    sparseIndices[rng] = range(bin-nhalf,bin+nhalf)
+                    sparseData[rng] = psf
+                    nextIndex += psf.size
+        sparseIndPtr[-1] = nextIndex
+        resolution = sp.csc_matrix((sparseData,sparseIndices,sparseIndPtr),(nbins,nbins)).tocsr()
+        return resolution
+
+# resample camera throughput 
+throughput_b=sim.WavelengthFunction(origin_wavelength,qsim.cameras[0].throughput).getResampledValues(bwaves)
+throughput_r=sim.WavelengthFunction(origin_wavelength,qsim.cameras[1].throughput).getResampledValues(rwaves)
+throughput_z=sim.WavelengthFunction(origin_wavelength,qsim.cameras[2].throughput).getResampledValues(zwaves)
+
+#Sparse Matrices in three bands
+
+resolution_b=resolution_matrix(sigma_b_vs_wave,bwaves,throughput_b).dot(np.identity(bmaxbin))
+resolution_r=resolution_matrix(sigma_r_vs_wave,rwaves,throughput_r).dot(np.identity(rmaxbin))
+resolution_z=resolution_matrix(sigma_z_vs_wave,zwaves,throughput_z).dot(np.identity(zmaxbin))
+
+#print resolution_b.shape,resolution_r.shape,resolution_z.shape
+
+# resolution data in format as desired for frame file
 resolution_data=np.zeros((maxbin,3,21,500))
-diags=np.arange(10,-11,-1) # Confirm this order??
+diags=np.arange(10,-11,-1)
 
 for j,i in enumerate(diags):
     if i < 0:
@@ -284,10 +321,10 @@ for j,i in enumerate(diags):
 # Now repeat the simulation for all spectra
  
 for i in xrange(args.nstart+1,min(args.nspectra+args.nstart,objtype.shape[0]-args.nstart)): # Exclusive
-    print "\rSimulating %d object type=%s"%(i,objtype[i]),
+    print "\rSimulating spectrum %d,  object type=%s"%(i,objtype[i]),
     sys.stdout.flush()
     specObj=sim.SpectralFluxDensity(wavelengths,spectra[i,:])
-    results,resolution_matrix=qsim.simulate(sourceType=objtype[i].lower(),sourceSpectrum=specObj,airmass=args.airmass,expTime=args.exptime)
+    results=qsim.simulate(sourceType=objtype[i].lower(),sourceSpectrum=specObj,airmass=args.airmass,expTime=args.exptime)
 	
     nobj[:bmaxbin,0,i]=results.nobj[brange,0]
     nobj[:rmaxbin,1,i]=results.nobj[rrange,1]
@@ -323,9 +360,20 @@ for i in xrange(args.nstart+1,min(args.nspectra+args.nstart,objtype.shape[0]-arg
     sky_rand_noise[:rmaxbin,1,i]=np.random.normal(np.zeros(rmaxbin),np.ones(rmaxbin)/np.sqrt(sky_ivar[:rmaxbin,1,i]),rmaxbin)
     sky_rand_noise[:zmaxbin,2,i]=np.random.normal(np.zeros(zmaxbin),np.ones(zmaxbin)/np.sqrt(sky_ivar[:zmaxbin,2,i]),zmaxbin)
 
-    resolution_b=resolution_matrix[0][brange[0]:brange[-1]+1,brange[0]:brange[-1]+1].dot(np.identity(bmaxbin))
-    resolution_r=resolution_matrix[1][rrange[0]:rrange[-1]+1,rrange[0]:rrange[-1]+1].dot(np.identity(rmaxbin))
-    resolution_z=resolution_matrix[2][zrange[0]:zrange[-1]+1,zrange[0]:zrange[-1]+1].dot(np.identity(zmaxbin))
+
+#resolution 
+ 
+    # first resample the sigma_vs_wavelength for each fiber
+    sigma_b_vs_wave=sim.WavelengthFunction(origin_wavelength,qsim.cameras[0].sigma_wave).getResampledValues(bwaves)
+    sigma_r_vs_wave=sim.WavelengthFunction(origin_wavelength,qsim.cameras[1].sigma_wave).getResampledValues(rwaves)
+    sigma_z_vs_wave=sim.WavelengthFunction(origin_wavelength,qsim.cameras[2].sigma_wave).getResampledValues(zwaves)
+ 
+    #Sparse Matrices
+    resolution_b=resolution_matrix(sigma_b_vs_wave,bwaves,throughput_b).dot(np.identity(bmaxbin))
+    resolution_r=resolution_matrix(sigma_r_vs_wave,rwaves,throughput_r).dot(np.identity(rmaxbin))
+    resolution_z=resolution_matrix(sigma_z_vs_wave,zwaves,throughput_z).dot(np.identity(zmaxbin))
+ 
+    #data 
     for j,k in enumerate(diags):
         if k < 0:
             resolution_data[:k+bmaxbin-maxbin,0,j,i]=np.diagonal(resolution_b,offset=k)
@@ -341,6 +389,8 @@ for i in xrange(args.nstart+1,min(args.nspectra+args.nstart,objtype.shape[0]-arg
 armName={"b":0,"r":1,"z":2}
 armWaves={"b":bwaves,"r":rwaves,"z":zwaves}
 armBins={"b":bmaxbin,"r":rmaxbin,"z":zmaxbin}
+
+
 #armResolution={"b":resolution[:,0,:,:],"r":resolution[:,1,:,:],"z":resolution[:,2,:,:]}
 
 #Need Four Files to write: May need to configure which ones to output, rather than all. 
@@ -350,12 +400,14 @@ armBins={"b":bmaxbin,"r":rmaxbin,"z":zmaxbin}
 #4. cframe file
 
 #All files will be written here:
+# Need to sync with write in desispec.io ? But there are few issues to be accounted.
+
 filePath=EXPID_DIR+'/'
 
 for arm in ["b","r","z"]:	
 
 ############----------frame file------------------ 
-    ###write frame file
+    ###write frame file 
 
 
     framefileName="frame-%s%s-%08d.fits"%(arm,spectrograph,EXPID)
