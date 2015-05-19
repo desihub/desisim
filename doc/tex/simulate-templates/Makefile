@@ -24,7 +24,7 @@ BIB = bibtex
 #
 # Base name of the document.
 #
-DOCUMENT = simulate-elgs
+DOCUMENT = simulate-templates
 #
 # This line helps prevent make from getting confused in the case where you
 # have a file named 'clean'.

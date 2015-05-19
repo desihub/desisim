@@ -11,7 +11,6 @@ import os
 import numpy as np
 
 from desispec.log import get_logger
-
 log = get_logger()
 
 class ELG():
@@ -25,14 +24,16 @@ class ELG():
 
         Only a linearly-spaced output wavelength array is currently supported.
 
+        TODO (@moustakas): Incorporate size and concentration information.
+
         Args:
           nmodel (int, optional): Number of models to generate (default 50). 
           minwave (float, optional): minimum value of the output wavelength
-            array [Angstrom, default 3600].
+            array [default 3600 Angstrom].
           maxwave (float, optional): minimum value of the output wavelength
-            array [Angstrom, default 10000].
+            array [default 10000 Angstrom].
           cdelt (float, optional): spacing of the output wavelength array
-            [Angstrom/pixel, default 2].
+            [default 2 Angstrom/pixel].
     
         Attributes:
           nmodel (int): See Args.
@@ -70,30 +71,50 @@ class ELG():
         self.zfilt = filt(filtername='decam_z.txt')
         self.w1filt = filt(filtername='wise_w1.txt')
 
-    def make_templates(self,
-                       zrange=(0.6,1.6),rmagrange=(21.0,23.5),
-                       oiiihbrange=(-0.5,0.0),
-                       oiidoublet_meansig=(0.73,0.05),
-                       linesigma_meansig=(80.0,20.0),
-                       minoiiflux=1e-18,
-                       outfile=None):
-        """
-        Build Monte Carlo sets of ELG templates.
+    def make_templates(self, zrange=(0.6,1.6), rmagrange=(21.0,23.5),
+                       oiiihbrange=(-0.5,0.1), oiidoublet_meansig=(0.73,0.05),
+                       linesigma_meansig=(80.0,20.0), minoiiflux=1E-17,
+                       colorcuts=True, outfile=None):
+        """Build Monte Carlo set of ELG spectra/templates.
 
-        Need error checking on the input values (e.g., min is less than max,
-        etc.).
+        This function chooses random subsets of the ELG continuum spectra, constructs
+        an emission-line spectrum, redshifts, and then finally normalizes the spectrum
+        to a specific r-band magnitude.
 
-        Need a way to alter the grz color cuts.
+        Args:
+          zrange (float, optional): Minimum and maximum redshift range.  Defaults
+            to a uniform distribution between (0.6,1.6).
+          rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
+            magnitude range.  Defaults to a uniform distribution between (21,23.5).
+          oiiihbrange (float, optional): Minimum and maximum logarithmic
+            [OIII] 5007/H-beta line-ratio.  Defaults to a uniform distribution
+            between (-0.5,0.1).
+        
+          oiidoublet_meansig (float, optional): Mean and sigma values for the (Gaussian) 
+            [OII] 3726/3729 doublet ratio distribution.  Defaults to (0.73,0.05).
+          linesigma_meansig (float, optional): Mean and sigma values for the (Gaussian) 
+            emission-line velocity width distribution.  Defaults to (80,20) km/s.
 
-        Optionally write the results out to a file.
+          colorcuts (bool, optional): Only select objects that satisfy the fiducial grz
+            color-cuts cuts (default True).
+          minoiiflux (float, optional): Minimum [OII] 3727 flux [default 1E-17 erg/s/cm2].
+            Set this parameter to zero to not have a minimum flux cut.
+        
+          outfile (str, optional): Write the template spectra (with header information) and
+            the corresponding meta-data table to this file (default None).
+
+        Returns:
+          
+
+        Raises:
+          dd
+
         """
         from astropy.table import Table, Column
 
-        from desispec.interpolation import resample_flux
         from desisim.templates import EMSpectrum
+        from desispec.interpolation import resample_flux
         from imaginglss.analysis import cuts
-
-        #import matplotlib.pyplot as plt
 
         # Initialize the EMSpectrum object with the same wavelength array as
         # the "base" (continuum) templates so that we don't have to resample. 
@@ -101,18 +122,19 @@ class ELG():
        
         # Initialize the output flux array and metadata Table.
         outflux = np.zeros([self.nmodel,len(self.wave)]) # [erg/s/cm2/A]
-        meta = dict()
-        meta['TEMPLATEID'] = np.zeros(self.nmodel,dtype='i4')
-        meta['REDSHIFT'] = np.zeros(self.nmodel,dtype='f4')
-        meta['GMAG'] = np.zeros(self.nmodel,dtype='f4')
-        meta['RMAG'] = np.zeros(self.nmodel,dtype='f4')
-        meta['ZMAG'] = np.zeros(self.nmodel,dtype='f4')
-        meta['OIIFLUX'] = np.zeros(self.nmodel,dtype='f4')
-        meta['EWOII'] = np.zeros(self.nmodel,dtype='f4')
-        meta['OIIIHBETA'] = np.zeros(self.nmodel,dtype='f4')
-        meta['OIIDOUBLET'] = np.zeros(self.nmodel,dtype='f4')
-        meta['LINESIGMA'] = np.zeros(self.nmodel,dtype='f4')
-        meta['D4000'] = np.zeros(self.nmodel,dtype='f4')
+
+        meta = Table()
+        meta['TEMPLATEID'] = Column(np.zeros(self.nmodel,dtype='i4'))
+        meta['REDSHIFT'] = Column(np.zeros(self.nmodel,dtype='f4'))
+        meta['GMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
+        meta['RMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
+        meta['ZMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
+        meta['OIIFLUX'] = Column(np.zeros(self.nmodel,dtype='f4'))
+        meta['EWOII'] = Column(np.zeros(self.nmodel,dtype='f4'))
+        meta['OIIIHBETA'] = Column(np.zeros(self.nmodel,dtype='f4'))
+        meta['OIIDOUBLET'] = Column(np.zeros(self.nmodel,dtype='f4'))
+        meta['LINESIGMA'] = Column(np.zeros(self.nmodel,dtype='f4'))
+        meta['D4000'] = Column(np.zeros(self.nmodel,dtype='f4'))
 
         nobj = 0
         nbase = len(self.basemeta)
@@ -157,18 +179,19 @@ class ELG():
                 rflux = 10.0**(-0.4*(rmag[ii]-22.5))                      
                 gflux = self.gfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                 zflux = self.zfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
-                zoiiflux = oiiflux*rnorm
+                zoiiflux = oiiflux*rnorm # [erg/s/cm2]
 
-                grzmask = cuts.Fluxes.ELG(gflux=gflux,rflux=rflux,zflux=zflux)
-                oiimask = [zoiiflux>=minoiiflux]
+                if colorcuts:
+                    grzmask = cuts.Fluxes.ELG(gflux=gflux,rflux=rflux,zflux=zflux)
+                else:
+                    grzmask = [True]
+                oiimask = [zoiiflux>minoiiflux]
 
-                print(ii, iobj, nobj)
+                # Not sure why this print statement doesn't work!
+                #print('Building model {}/{}'.format(nobj,self.nmodel-1),end='\r')
                 if all(grzmask) and all(oiimask):
                     outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
                     
-                    #plt.plot(self.wave,outflux[nobj,:])
-                    #plt.show()
-
                     meta['TEMPLATEID'][nobj] = nobj
                     meta['REDSHIFT'][nobj] = redshift[ii]
                     meta['GMAG'][nobj] = -2.5*np.log10(gflux)+22.5
@@ -184,7 +207,8 @@ class ELG():
                     nobj = nobj+1
 
                 # If we have enough models get out!
-                if nobj>=(self.nmodel-1): break
+                if nobj>=(self.nmodel-1):
+                    break
 
         # Optionally write out and then return.
         if outfile is not None:
@@ -200,7 +224,6 @@ class ELG():
         """
         from astropy.io import fits
         from desispec.io import util
-        from desisim.obs import _dict2ndarray
 
         if outfile is None:
             pass
@@ -240,9 +263,8 @@ class ELG():
             OIIIHBETA = 'dex',
             LINESIGMA = 'km/s',
             )
-    
-        outmeta = _dict2ndarray(meta)
-        util.write_bintable(outfile, outmeta, header=None, extname='METADATA',
+
+        util.write_bintable(outfile, meta, header=None, extname='METADATA',
                             comments=comments, units=units)
 
 class EMSpectrum():
@@ -490,14 +512,16 @@ def read_base_templates(objtype='ELG', observed=False, emlines=False):
 
     # Handle special cases for the ELG & BGS templates.
     if objtype.upper()=='ELG' or objtype.upper()=='BGS':
-        if emlines is not True:
-            objfile = objfile.replace('templates_','continuum_templates_')
-        if observed is True:
+        if observed:
             objfile = objfile.replace('templates_','templates_obs_')
+        elif emlines is not True:
+            objfile = objfile.replace('templates_','continuum_templates_')
 
-    if not os.path.isfile(objfile):
+    if os.path.isfile(objfile):
+        log.info('Reading {}'.format(objfile))
+    else: 
         log.error('Base templates file {} not found'.format(objfile))
-        raise IOError
+        raise IOError()
 
     flux, hdr = fits.getdata(objfile, 0, header=True)
     meta = Table(fits.getdata(objfile, 1))

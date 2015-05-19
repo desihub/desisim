@@ -11,7 +11,7 @@ def medxbin(x,y,binsize,minpts=20,xmin=None,xmax=None):
     Compute the median (and other statistics) in fixed bins along the x-axis. 
     """
     import numpy as np
-    import scipy as sci
+    from scipy import ptp
 
     # Need an exception if there are fewer than three arguments.
 
@@ -21,7 +21,7 @@ def medxbin(x,y,binsize,minpts=20,xmin=None,xmax=None):
         xmax = x.max()
     #print(xmin,xmax)
 
-    nbin = long(sci.ptp(x)/binsize)
+    nbin = long(ptp(x)/binsize)
     bins = np.linspace(xmin,xmax,nbin)
     idx  = np.digitize(x,bins)
     #print(nbin, bins, xmin, xmax)
