@@ -10,7 +10,7 @@ import numpy as np
 import multiprocessing
 
 from desispec.interpolation import resample_flux
-from desispec.io.util import write_bintable
+from desispec.io.util import write_bintable, header2wave
 import desispec.io
 import desimodel.io
 
@@ -46,7 +46,7 @@ def write_simspec(meta, truth, expid, night, header=None, outfile=None):
 
     #- Object flux HDU (which might be just a header, e.g. for an arc)
     hdr = desispec.io.util.fitsheader(header)
-            
+
     wave = truth['WAVE']
     hdr['CRVAL1']    = (wave[0], 'Starting wavelength [Angstroms]')
     hdr['CDELT1']    = (wave[1]-wave[0], 'Wavelength step [Angstroms]')
@@ -91,7 +91,7 @@ def write_simspec(meta, truth, expid, night, header=None, outfile=None):
         hdr['CDELT1']    = (wave[1]-wave[0], 'Wavelength step [Angstroms]')
         hdr['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
         hdr['LOGLAM']    = (0, 'linear wavelength steps, not log10')
-        
+
         extname = 'PHOT_'+channel
         hdr['EXTNAME']   = (extname, channel+' channel object photons per bin')
         hdu = fits.ImageHDU(truth[extname].astype(np.float32), header=hdr)
@@ -102,8 +102,99 @@ def write_simspec(meta, truth, expid, night, header=None, outfile=None):
             hdr['EXTNAME']   = (extname, channel+' channel sky photons per bin')
             hdu = fits.ImageHDU(truth[extname].astype(np.float32), header=hdr)
             fits.append(outfile, hdu.data, header=hdu.header)
-                            
+
     return outfile
+
+class SimSpec(object):
+    """Lightweight wrapper object for simspec data"""
+    def __init__(self, flavor, wave, phot, flux=None, skyflux=None,
+                 skyphot=None, metadata=None, header=None):
+        """
+        Args:
+            flavor : 'arc', 'flat', or 'science'
+            wave : dictionary with per-channel wavelength grids, keyed by
+                'b', 'r', 'z'.  Optionally also has 'brz' key for channel
+                independent wavelength grid
+            phot : dictinoary with per-channel photon counts per bin
+
+        Optional:
+            flux : channel-independent flux [erg/s/cm^2/A]
+            skyflux : channel-indepenent sky flux [erg/s/cm^2/A/arcsec^2]
+            skyphot : dictionary with per-channel sky photon counts per bin
+            metadata : table of metadata information about these spectra
+            header : FITS header from HDU0
+
+        notes:
+          * input arguments become attributes
+          * wave[channel] is the wavelength grid for phot[channel] and
+                skyphot[channel] where channel = 'b', 'r', or 'z'
+          * wave['brz'] is the wavelength grid for flux and skyflux
+        """
+        assert flavor in ('arc', 'flat', 'science')
+        for channel in ('b', 'r', 'z'):
+            assert wave[channel].ndim == 1
+            assert phot[channel].ndim == 2
+            assert wave[channel].shape[0] == phot[channel].shape[1]
+
+        assert phot['b'].shape[0] == phot['r'].shape[0] == phot['z'].shape[0]
+
+        self.flavor = flavor
+        self.nspec = phot['b'].shape[0]
+        self.wave = wave
+        self.phot = phot
+
+        #- Optional items; may be None
+        self.skyphot = skyphot
+        self.flux = flux
+        self.skyflux = skyflux
+        self.metadata = metadata
+        self.header = header
+
+def read_simspec(filename):
+    """
+    Read simspec data from filename and return SimSpec object
+    """
+
+    fx = fits.open(filename)
+    hdr = fx[0].header
+    flavor = hdr['FLAVOR']
+
+    #- All flavors have photons
+    wave = dict()
+    phot = dict()
+    for channel in ('b', 'r', 'z'):
+        extname = 'PHOT_'+channel.upper()
+        wave[channel] = header2wave(fx[extname].header)
+        phot[channel] = fx[extname].data
+
+    if flavor == 'arc':
+        fx.close()
+        return SimSpec(flavor, wave, phot, header=hdr)
+
+    elif flavor == 'flat':
+        wave['brz'] = header2wave(fx['FLUX'].header)
+        flux = fx['FLUX'].data
+        fx.close()
+        return SimSpec(flavor, wave, phot, flux=flux, header=hdr)
+
+    elif flavor == 'science':
+        wave['brz'] = header2wave(fx['FLUX'].header)
+        flux = fx['FLUX'].data
+        metadata = fx['METADATA'].data
+        skyflux = fx['SKYFLUX'].data
+        skyphot = dict()
+        for channel in ('b', 'r', 'z'):
+            extname = 'SKYPHOT_'+channel.upper()
+            skyphot[channel] = fx[extname].data
+
+        fx.close()
+        return SimSpec(flavor, wave, phot, flux=flux, skyflux=skyflux,
+            skyphot=skyphot, metadata=metadata, header=hdr)
+
+    else:
+        raise ValueError('unknown flavor '+flavor)
+
+    
     
 #- TODO: this is more than just I/O.  Refactor.
 def write_simpix(img, camera, flavor, night, expid, header=None):
@@ -175,7 +266,7 @@ def write_simpix(img, camera, flavor, night, expid, header=None):
     hdulist.writeto(outfile, clobber=True)
 
     return outfile
-    
+
 
 #-------------------------------------------------------------------------
 #- desimodel
