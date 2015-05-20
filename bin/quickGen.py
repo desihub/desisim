@@ -155,7 +155,7 @@ spectrograph=0
 print 'Now Reading the input file',args.input
 simspec = desisim.io.read_simspec(args.input)
 wavelengths = simspec.wave['brz']
-spectra = simspec.flux / 1e-17  #- input flux in units of 1e-17 erg/s/cm^2/A
+spectra = simspec.flux
 
 # hdulist=pyfits.open(args.input)
 # data=hdulist[0].data
@@ -349,14 +349,10 @@ for j,i in enumerate(diags):
  
 print
 for i in xrange(args.nstart,min(args.nspectra+args.nstart,objtype.shape[0]-args.nstart)): # Exclusive
-    ## print "\rSimulating spectrum %d,  object type=%s"%(i,objtype[i]),
-    print "Simulating spectrum %d,  object type=%s"%(i,objtype[i])
+    print "\rSimulating spectrum %d,  object type=%s"%(i,objtype[i]),
     sys.stdout.flush()
     specObj=sim.SpectralFluxDensity(wavelengths,spectra[i,:])
     results=qsim.simulate(sourceType=objtype[i].lower(),sourceSpectrum=specObj,airmass=args.airmass,expTime=args.exptime)
-    print "OK"
-    sys.stdout.flush()
-	
     nobj[:bmaxbin,0,i]=results.nobj[brange,0]
     nobj[:rmaxbin,1,i]=results.nobj[rrange,1]
     nobj[:zmaxbin,2,i]=results.nobj[zrange,2]
