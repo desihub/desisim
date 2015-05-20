@@ -21,8 +21,10 @@ import astropy.io.fits as pyfits
 import sys
 import desimodel.simulate as sim
 import desispec
+import desisim.io
 from desispec.resolution import Resolution
-from desispec.io.fluxcalibration import write_flux_calibration
+from desispec.io import write_flux_calibration, write_fiberflat
+from desispec.interpolation import resample_flux
 
 
 #- Parse arguments
@@ -146,25 +148,29 @@ else:
 #if args.input is None:
 #    print('sys.stderr,"ERROR -i/--input filename required"')
 
-
+#- TODO: make this an option
+spectrograph=0
 
 #read the input file (simspec file)
 print 'Now Reading the input file',args.input
+simspec = desisim.io.read_simspec(args.input)
+wavelengths = simspec.wave['brz']
+spectra = simspec.flux / 1e-17  #- input flux in units of 1e-17 erg/s/cm^2/A
 
-hdulist=pyfits.open(args.input)
-data=hdulist[0].data
-hdr=hdulist[0].header
-wavelengths=hdr["CRVAL1"]+hdr["CDELT1"]*np.arange(len(data[1,:]))
-spectra=data/1.0e-17# flux in units of 1.0e-17 ergs/cm^2/s/A
+# hdulist=pyfits.open(args.input)
+# data=hdulist[0].data
+# hdr=hdulist[0].header
+# wavelengths=hdr["CRVAL1"]+hdr["CDELT1"]*np.arange(len(data[1,:]))
+# spectra=data/1.0e-17# flux in units of 1.0e-17 ergs/cm^2/s/A
 
 #print "File Shape:", data.shape
 print "wavelength range:", wavelengths[0], "to", wavelengths[-1]
-nspec=data.shape[0]
-nwave=data.shape[1]
+# nspec=data.shape[0]
+# nwave=data.shape[1]
+nspec = simspec.nspec
+nwave = len(simspec.wave['brz'])
 
 # Here we will run for single CCD(500 x 3 in total). Fewer spectra can be run using 'nspectra' and 'nstart' options
-
-spectrograph=0
 
 print " simulating spectra",args.nstart, "to", args.nspectra+args.nstart-1
 
@@ -176,15 +182,35 @@ print "Initializing QuickSim"
 specObj0=sim.SpectralFluxDensity(wavelengths,spectra[args.nstart,:])
 qsim=sim.Quick(basePath=DESIMODEL_DIR)
 
-print "Simulating Spectrum",args.nstart," of spectrograph",spectrograph, "object type:", objtype[args.nstart]
+# print "Simulating Spectrum",args.nstart," of spectrograph",spectrograph, "object type:", objtype[args.nstart]
 
-results=qsim.simulate(sourceType=objtype[args.nstart].lower(),sourceSpectrum=specObj0,airmass=args.airmass,expTime=args.exptime)
+#- simulate a fake object 0 just to get wavelength grids etc setup
+results=qsim.simulate(sourceType='star',sourceSpectrum=specObj0,airmass=args.airmass,expTime=args.exptime)
 observedWavelengths=results.wave
 origin_wavelength=qsim.wavelengthGrid
+waveLimits={'b':(3569,5949),'r':(5625,7741),'z':(7435,9834)}
+
+#- Check if input simspec is for a continuum flat lamp instead of science
+if simspec.flavor == 'flat':
+    print "Simulating flat lamp exposure"
+    for channel in ('b', 'r', 'z'):
+        camera = channel+str(spectrograph)
+        outfile = desispec.io.findfile('fiberflat', NIGHT, EXPID, camera)
+        ii = (waveLimits[channel][0] <= observedWavelengths) & (observedWavelengths <= waveLimits[channel][1])
+        wave = observedWavelengths[ii]
+        dw = np.gradient(simspec.wave[channel])
+        meanspec = resample_flux(wave, simspec.wave[channel], np.average(simspec.phot[channel]/dw, axis=0))
+        fiberflat = np.random.normal(loc=0.0, scale=1.0/np.sqrt(meanspec), size=(nspec, len(wave)))
+        ivar = np.tile(1.0/meanspec, nspec).reshape(nspec, len(meanspec))
+        mask = np.zeros((simspec.nspec, len(wave)))
+        
+        write_fiberflat(outfile, fiberflat, ivar, mask, meanspec, wave, header=None)
+        print "Wrote "+outfile
+    
+    sys.exit(0)    
 
 # Define wavelimits for B,R,Z camera(by hand this time), later simulated data is cropped within these limits
 
-waveLimits={'b':(3569,5949),'r':(5625,7741),'z':(7435,9834)}
 # Get the camera ranges from quicksim outputs 
 brange,=np.where((observedWavelengths>=waveLimits['b'][0])&(observedWavelengths<=waveLimits['b'][1]))
 rrange,=np.where((observedWavelengths>=waveLimits['r'][0])&(observedWavelengths<=waveLimits['r'][1]))
@@ -321,11 +347,15 @@ for j,i in enumerate(diags):
 
 # Now repeat the simulation for all spectra
  
-for i in xrange(args.nstart+1,min(args.nspectra+args.nstart,objtype.shape[0]-args.nstart)): # Exclusive
-    print "\rSimulating spectrum %d,  object type=%s"%(i,objtype[i]),
+print
+for i in xrange(args.nstart,min(args.nspectra+args.nstart,objtype.shape[0]-args.nstart)): # Exclusive
+    ## print "\rSimulating spectrum %d,  object type=%s"%(i,objtype[i]),
+    print "Simulating spectrum %d,  object type=%s"%(i,objtype[i])
     sys.stdout.flush()
     specObj=sim.SpectralFluxDensity(wavelengths,spectra[i,:])
     results=qsim.simulate(sourceType=objtype[i].lower(),sourceSpectrum=specObj,airmass=args.airmass,expTime=args.exptime)
+    print "OK"
+    sys.stdout.flush()
 	
     nobj[:bmaxbin,0,i]=results.nobj[brange,0]
     nobj[:rmaxbin,1,i]=results.nobj[rrange,1]
@@ -370,6 +400,7 @@ for i in xrange(args.nstart+1,min(args.nspectra+args.nstart,objtype.shape[0]-arg
     sigma_z_vs_wave=sim.WavelengthFunction(origin_wavelength,qsim.cameras[2].sigma_wave).getResampledValues(zwaves)
  
     #Sparse Matrices
+    #- TODO: this part is slow
     resolution_b=resolution_matrix(sigma_b_vs_wave,bwaves,throughput_b).dot(np.identity(bmaxbin))
     resolution_r=resolution_matrix(sigma_r_vs_wave,rwaves,throughput_r).dot(np.identity(rmaxbin))
     resolution_z=resolution_matrix(sigma_z_vs_wave,zwaves,throughput_z).dot(np.identity(zmaxbin))
@@ -385,6 +416,7 @@ for i in xrange(args.nstart+1,min(args.nspectra+args.nstart,objtype.shape[0]-arg
             resolution_data[k:bmaxbin,0,j,i]=np.diagonal(resolution_b,offset=k)
             resolution_data[k:rmaxbin,1,j,i]=np.diagonal(resolution_r,offset=k)
             resolution_data[k:zmaxbin,2,j,i]=np.diagonal(resolution_z,offset=k)
+
 
 
 armName={"b":0,"r":1,"z":2}
