@@ -20,7 +20,9 @@ import scipy.sparse as sp
 import astropy.io.fits as pyfits
 import sys
 import desimodel.simulate as sim
-from desispec.io import fibermap,frame,util
+import desispec
+from desispec.resolution import Resolution
+from desispec.io.fluxcalibration import write_flux_calibration
 
 
 #- Parse arguments
@@ -53,7 +55,7 @@ DESIMODEL_DIR=os.environ['DESIMODEL']
 if args.fiberfile:
  
     print "Reading fibermap file %s"%(args.fiberfile)
-    tbdata,hdr=fibermap.read_fibermap(args.fiberfile)
+    tbdata,hdr=desispec.io.fibermap.read_fibermap(args.fiberfile)
     fiber_hdulist=pyfits.open(args.fiberfile)
     objtype=tbdata['OBJTYPE'].copy()
     #need to replace STD object types with STAR since quicksim expects star instead of std
@@ -108,42 +110,42 @@ else:
 
 #----------exposures-------------
 
-exposure_Dir=os.path.join(prod_Dir,'exposures')
-if os.path.exists(exposure_Dir):
-    if not os.path.isdir(exposure_Dir):
-        raise RuntimeError("Path %s Not a directory"%exposure_DIR)
-else:
-    try:
-        os.makedirs(exposure_Dir)
-    except:
-        raise
+#exposure_Dir=os.path.join(prod_Dir,'exposures')
+#if os.path.exists(exposure_Dir):
+#    if not os.path.isdir(exposure_Dir):
+#        raise RuntimeError("Path %s Not a directory"%exposure_DIR)
+#else:
+#    try:
+#        os.makedirs(exposure_Dir)
+#    except:
+#        raise
 
 #----------NIGHT--------------
 
-NIGHT_DIR=os.path.join(exposure_Dir,NIGHT)
-if os.path.exists(NIGHT_DIR):
-    if not os.path.isdir(NIGHT_DIR):
-        raise RuntimeError("Path %s Not a directory"%NIGHT_DIR)
-else:
-    try:
-        os.makedirs(NIGHT_DIR)
-    except:
-        raise
+#NIGHT_DIR=os.path.join(exposure_Dir,NIGHT)
+#if os.path.exists(NIGHT_DIR):
+#    if not os.path.isdir(NIGHT_DIR):
+#        raise RuntimeError("Path %s Not a directory"%NIGHT_DIR)
+#else:
+#    try:
+#        os.makedirs(NIGHT_DIR)
+#    except:
+#        raise
 
 #---------EXPID-----------
 
-EXPID_DIR=os.path.join(NIGHT_DIR,"%08d"%EXPID)
-if os.path.exists(EXPID_DIR):
-    if not os.path.isdir(EXPID_DIR):
-        raise RuntimeError("Path %s Not a directory"%EXPID_DIR)
-else:
-    try:
-        os.makedirs(EXPID_DIR)
-    except:
-        raise
-
-if args.input is None:
-    print('sys.stderr,"ERROR -i/--input filename required"')
+#EXPID_DIR=os.path.join(NIGHT_DIR,"%08d"%EXPID)
+#if os.path.exists(EXPID_DIR):
+#    if not os.path.isdir(EXPID_DIR):
+#        raise RuntimeError("Path %s Not a directory"%EXPID_DIR)
+#else:
+#    try:
+#        os.makedirs(EXPID_DIR)
+#    except:
+#        raise
+#
+#if args.input is None:
+#    print('sys.stderr,"ERROR -i/--input filename required"')
 
 
 
@@ -402,86 +404,74 @@ armBins={"b":bmaxbin,"r":rmaxbin,"z":zmaxbin}
 #All files will be written here:
 # Need to sync with write in desispec.io ? But there are few issues to be accounted.
 
-filePath=EXPID_DIR+'/'
+#filePath=EXPID_DIR+'/'
+
+def do_convolve(wave,resolution,flux):
+    nwave=len(wave)
+    R=Resolution(resolution)
+    convolved=R.dot(flux)
+    return convolved
+
 
 for arm in ["b","r","z"]:	
 
-############----------frame file------------------ 
-    ###write frame file 
+############--------------------------------------------------------- 
+    ###frame file 
 
+    framefileName=desispec.io.findfile("frame",NIGHT,EXPID,"%s%s"%(arm,spectrograph))
+    frame_flux=np.transpose(nobj[:armBins[arm],armName[arm],args.nstart:args.nstart+args.nspectra]+nsky[:armBins[arm],armName[arm],args.nstart:args.nstart+args.nspectra]+rand_noise[:armBins[arm],armName[arm],args.nstart:args.nstart+args.nspectra])
+    frame_ivar=np.transpose(nivar[:armBins[arm],armName[arm],args.nstart:args.nstart+args.nspectra])
+    resol=np.transpose(resolution_data[:armBins[arm],armName[arm],:,args.nstart:args.nstart+args.nspectra])
+    # write frame file
+    desispec.io.frame.write_frame(framefileName,frame_flux,frame_ivar,armWaves[arm],resol,header=None)
 
-    framefileName="frame-%s%s-%08d.fits"%(arm,spectrograph,EXPID)
-    #framefileName=(NIGHT,EXPID,arm)
-    frame.write_frame(filePath+framefileName,np.transpose(nobj[:armBins[arm],armName[arm],:]+nsky[:armBins[arm],armName[arm],:]+rand_noise[:armBins[arm],armName[arm],:]),np.transpose(nivar[:armBins[arm],armName[arm],:]),armWaves[arm],np.transpose(resolution_data[:armBins[arm],armName[arm],:,:]),header=None)
-#-----------------------------------------------------
-    #sky file 
-    skyfileName="skymodel-%s%s-%09d.fits"%(arm,spectrograph,EXPID)
-    skyImage=pyfits.PrimaryHDU(np.transpose(nsky[:armBins[arm],armName[arm],:]+sky_rand_noise[:armBins[arm],armName[arm],:])) # SKY counts+ Random Noise
-    skyIvar=pyfits.ImageHDU(data=np.transpose(sky_ivar[:armBins[arm],armName[arm],:]),name="IVAR")
-
-	#HDU0 - Sky Photons	
-    skyImage.header["NAXIS1"]=armBins[arm]
-    skyImage.header["NAXIS2"]=args.nspectra
-    skyImage.header["CRVAL1"]=(waveLimits[arm][0],"Starting wavelength [Angstroms]")
-    skyImage.header["CDELT1"]=(np.gradient(armWaves[arm])[0],"Wavelength step size [Angstroms]")
-    skyImage.header["EXTNAME"]='SKY_PHOTONS' #What to call this?
-
-    #HDU1 - Inverse Variance(sky)
-    skyIvar.header["NAXIS"]=armBins[arm]
-    skyIvar.header["EXTNAME"]='IVAR'
-	
-    skyhdulist=pyfits.HDUList([skyImage,skyIvar])
-    prihdr=skyhdulist[0].header
-    skyhdulist.writeto(filePath+skyfileName,clobber=True)
-    skyhdulist.close()
-
-######-------------------------cframe file---------------------------
-### write flux_calibration file
+############--------------------------------------------------------
+    #cframe file
     
-
-    cframeFileName="cframe-%s%s-%09d.fits"%(arm,spectrograph,EXPID)
-    cframeImage=pyfits.PrimaryHDU(np.transpose(cframe_observedflux[:armBins[arm],armName[arm],:]))
-    fluxIvarImage=pyfits.ImageHDU(data=np.transpose(cframe_ivar[:armBins[arm],armName[arm],:]),name="IVAR")
-    #maskImage=pyfits.ImageHDU(data=???,name="MASK")
-
-    #HDU0 - Calibrated Flux ( erg/s/cm2/A)
-	
-    cframeImage.header["NAXIS1"]=armBins[arm]
-    cframeImage.header["CRVAL1"]=waveLimits[arm][0]
-    cframeImage.header["EXTNAME"]=("FLUX","erg/s/cm2/A")
-	
-    #HDU1 - Inverse Variance in Flux (erg/s/cm2/A)^-2
-    fluxIvarImage.header["NAXIS"]=0
-    fluxIvarImage.header["EXTNAME"]=('IVAR',"(erg/s/cm2/A)^-2")
-	
-    cframehduList=pyfits.HDUList([cframeImage,fluxIvarImage])
-    prihdr=cframehduList[0].header
-    cframehduList.writeto(filePath+cframeFileName,clobber=True)
-    cframehduList.close()
-
-########--------------------calibration vector file-----------------
-	
-    calibVectorFile="fluxcalib-%s%s-%08d.fits"%(arm,spectrograph,EXPID)
-    calibImage=pyfits.PrimaryHDU(np.transpose(cframe_observedflux[:armBins[arm],armName[arm],:]/nobj[:armBins[arm],armName[arm],:])) # Runtime Warning for invalid denominator(0?), mask them?
+    cframeFileName=desispec.io.findfile("cframe",NIGHT,EXPID,"%s%s"%(arm,spectrograph))
+    cframeFlux=np.transpose(cframe_observedflux[:armBins[arm],armName[arm],args.nstart:args.nstart+args.nspectra])
+    cframeIvar=np.transpose(cframe_ivar[:armBins[arm],armName[arm],args.nstart:args.nstart+args.nspectra])
     
+    # write cframe file
+    desispec.io.frame.write_frame(cframeFileName,cframeFlux,cframeIvar,armWaves[arm],resol,header=None)
+
+############-----------------------------------------------------
+    #sky file (for now taking only 1D, should change to (nspec,nwave) format)
     
+    skyfileName=desispec.io.findfile("sky",NIGHT,EXPID,"%s%s"%(arm,spectrograph))
+    skyflux=np.transpose(nsky[:armBins[arm],armName[arm],10]+sky_rand_noise[:armBins[arm],armName[arm],10])
+    skyivar=np.transpose(sky_ivar[:armBins[arm],armName[arm],10])
+    skymask=0
+    cskyflux=do_convolve(armWaves[arm],np.transpose(resolution_data[:armBins[arm],armName[arm],:,10]),skyflux)
+    cskyivar=do_convolve(armWaves[arm],np.transpose(resolution_data[:armBins[arm],armName[arm],:,10]),skyivar)
+    
+    #write sky file 
+    desispec.io.sky.write_sky(skyfileName,skyflux,skyivar,skymask,cskyflux,cskyivar,armWaves[arm],header=None)
 
-    #HDU0-Calibration Vector
-    calibImage.header["NAXIS1"]=armBins[arm]
-    calibImage.header["NAXIS2"]=args.nspectra
-    calibImage.header["CRVAL1"]=0
-    calibImage.header["CDELT1"]=0
-    calibImage.header["EXTNAME"]='CALIB'
+############----------------------------------------------------------
+    #calibration vector file
 
-    #HDU1 - Metadata(???)- Details to go here!!!
-	
-    calibhdulist=pyfits.HDUList([calibImage])
-    prihdr=calibhdulist[0].header
-    calibhdulist.writeto(filePath+calibVectorFile,clobber=True)
-    calibhdulist.close()
-	
+    calibVectorFile=desispec.io.findfile("calib",NIGHT,EXPID,"%s%s"%(arm,spectrograph))
+    calibration=np.transpose(cframe_observedflux[:armBins[arm],armName[arm],args.nstart:args.nstart+args.nspectra]/nobj[:armBins[arm],armName[arm],args.nstart:args.nstart+args.nspectra])
+    # Gives RuntimeWarning: invalid value encountered in divide. Correct?
+
+    calibivar=np.transpose(cframe_ivar[:armBins[arm],armName[arm],args.nstart:args.nstart+args.nspectra])*calibration
+    #mask=(1/calibivar>0).astype(long)??
+    mask=0.
+    n_spec=calibration.shape[0]
+    n_wave=calibration.shape[1]
+    ccalibration=np.zeros((n_spec,n_wave))
+    ccalibivar=np.zeros((n_spec,n_wave))
+    for i in range(n_spec):
+        ccalibration[i,:]=do_convolve(armWaves[arm],np.transpose(resolution_data[:armBins[arm],armName[arm],:,i]),calibration[i,:])
+        ccalibivar[i,:]=do_convolve(armWaves[arm],np.transpose(resolution_data[:armBins[arm],armName[arm],:,i]),calibivar[i,:])
+    #header from the frame file??
+    head=pyfits.getheader(framefileName)
+    #print head
+    # write result
+    write_flux_calibration(calibVectorFile,calibration, calibivar, mask, ccalibration, ccalibivar,armWaves[arm],head)
+    
+filePath=os.path.join(prod_Dir,'exposures',NIGHT,"%08d"%EXPID)
 print "Wrote files to", filePath
  
 #spectrograph=spectrograph+1	
-	
-
