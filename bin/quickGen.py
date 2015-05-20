@@ -155,7 +155,8 @@ hdulist=pyfits.open(args.input)
 data=hdulist[0].data
 hdr=hdulist[0].header
 wavelengths=hdr["CRVAL1"]+hdr["CDELT1"]*np.arange(len(data[1,:]))
-spectra=data/1.0e-17# flux in units of 1.0e-17 ergs/cm^2/s/A
+### spectra=data/1.0e-17# flux in units of 1.0e-17 ergs/cm^2/s/A
+spectra = data
 
 #print "File Shape:", data.shape
 print "wavelength range:", wavelengths[0], "to", wavelengths[-1]
@@ -326,7 +327,7 @@ for i in xrange(args.nstart+1,min(args.nspectra+args.nstart,objtype.shape[0]-arg
     sys.stdout.flush()
     specObj=sim.SpectralFluxDensity(wavelengths,spectra[i,:])
     results=qsim.simulate(sourceType=objtype[i].lower(),sourceSpectrum=specObj,airmass=args.airmass,expTime=args.exptime)
-	
+
     nobj[:bmaxbin,0,i]=results.nobj[brange,0]
     nobj[:rmaxbin,1,i]=results.nobj[rrange,1]
     nobj[:zmaxbin,2,i]=results.nobj[zrange,2]
