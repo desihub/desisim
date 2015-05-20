@@ -56,7 +56,6 @@ if args.fiberfile:
  
     print "Reading fibermap file %s"%(args.fiberfile)
     tbdata,hdr=desispec.io.fibermap.read_fibermap(args.fiberfile)
-    fiber_hdulist=pyfits.open(args.fiberfile)
     objtype=tbdata['OBJTYPE'].copy()
     #need to replace STD object types with STAR since quicksim expects star instead of std
     stdindx=np.where(objtype=='STD') # match STD with STAR
@@ -441,7 +440,7 @@ for arm in ["b","r","z"]:
     skyfileName=desispec.io.findfile("sky",NIGHT,EXPID,"%s%s"%(arm,spectrograph))
     skyflux=np.transpose(nsky[:armBins[arm],armName[arm],10]+sky_rand_noise[:armBins[arm],armName[arm],10])
     skyivar=np.transpose(sky_ivar[:armBins[arm],armName[arm],10])
-    skymask=0
+    skymask=np.zeros(skyflux.shape, dtype=int)
     cskyflux=do_convolve(armWaves[arm],np.transpose(resolution_data[:armBins[arm],armName[arm],:,10]),skyflux)
     cskyivar=do_convolve(armWaves[arm],np.transpose(resolution_data[:armBins[arm],armName[arm],:,10]),skyivar)
     
@@ -457,7 +456,7 @@ for arm in ["b","r","z"]:
 
     calibivar=np.transpose(cframe_ivar[:armBins[arm],armName[arm],args.nstart:args.nstart+args.nspectra])*calibration
     #mask=(1/calibivar>0).astype(long)??
-    mask=0.
+    mask=np.zeros(calibration.shape, dtype=int)
     n_spec=calibration.shape[0]
     n_wave=calibration.shape[1]
     ccalibration=np.zeros((n_spec,n_wave))
