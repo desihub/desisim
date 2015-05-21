@@ -110,45 +110,6 @@ else:
     except:
         raise
 
-#----------exposures-------------
-
-#exposure_Dir=os.path.join(prod_Dir,'exposures')
-#if os.path.exists(exposure_Dir):
-#    if not os.path.isdir(exposure_Dir):
-#        raise RuntimeError("Path %s Not a directory"%exposure_DIR)
-#else:
-#    try:
-#        os.makedirs(exposure_Dir)
-#    except:
-#        raise
-
-#----------NIGHT--------------
-
-#NIGHT_DIR=os.path.join(exposure_Dir,NIGHT)
-#if os.path.exists(NIGHT_DIR):
-#    if not os.path.isdir(NIGHT_DIR):
-#        raise RuntimeError("Path %s Not a directory"%NIGHT_DIR)
-#else:
-#    try:
-#        os.makedirs(NIGHT_DIR)
-#    except:
-#        raise
-
-#---------EXPID-----------
-
-#EXPID_DIR=os.path.join(NIGHT_DIR,"%08d"%EXPID)
-#if os.path.exists(EXPID_DIR):
-#    if not os.path.isdir(EXPID_DIR):
-#        raise RuntimeError("Path %s Not a directory"%EXPID_DIR)
-#else:
-#    try:
-#        os.makedirs(EXPID_DIR)
-#    except:
-#        raise
-#
-#if args.input is None:
-#    print('sys.stderr,"ERROR -i/--input filename required"')
-
 #- TODO: make this an option
 spectrograph=0
 
@@ -212,85 +173,57 @@ if simspec.flavor == 'flat':
 
 # Define wavelimits for B,R,Z camera(by hand this time), later simulated data is cropped within these limits
 
-# Get the camera ranges from quicksim outputs 
-brange,=np.where((observedWavelengths>=waveLimits['b'][0])&(observedWavelengths<=waveLimits['b'][1]))
-rrange,=np.where((observedWavelengths>=waveLimits['r'][0])&(observedWavelengths<=waveLimits['r'][1]))
-zrange,=np.where((observedWavelengths>=waveLimits['z'][0])&(observedWavelengths<=waveLimits['z'][1]))
+# Get the camera ranges from quicksim outputs and save the outputs for each camera
+waveRange=dict()
+waveMaxbin=dict()
+waves=dict()
+for i,channel in enumerate(['b','r','z']):
+    waveRange[channel],=np.where((observedWavelengths>=waveLimits[channel][0])&(observedWavelengths<=waveLimits[channel][1]))
+    waveMaxbin[channel],=waveRange[channel].shape
+    waves[channel]=observedWavelengths[waveRange[channel]]
 
-# save the observation wavelengths for each camera
-bwaves=observedWavelengths[brange]
-rwaves=observedWavelengths[rrange]
-zwaves=observedWavelengths[zrange]
-bmaxbin,=brange.shape
-zmaxbin,=zrange.shape
-rmaxbin,=rrange.shape
-maxbin=max(bmaxbin,zmaxbin,rmaxbin)
+maxbin=max(waveMaxbin['b'],waveMaxbin['r'],waveMaxbin['z'])
+print maxbin
 
-# Now break the simulated outputs in three different ranges.  
+# Now break the simulated outputs in three different ranges. 
 
-# Object Photons
+nobj=np.zeros((500,3,maxbin))     # Object Photons
+nsky=np.zeros((500,3,maxbin))      # sky photons
+nivar=np.zeros((500,3,maxbin))     # inverse variance  (object+sky)
+sky_ivar=np.zeros((500,3,maxbin)) # inverse variance of sky
+cframe_observedflux=np.zeros((500,3,maxbin))    # calibrated object flux
+cframe_ivar=np.zeros((500,3,maxbin))    # inverse variance of calibrated object flux
+frame_rand_noise=np.zeros((500,3,maxbin))     # random Gaussian noise to nobj+nsky
+sky_rand_noise=np.zeros((500,3,maxbin))  # random Gaussian noise to sky only
+cframe_rand_noise=np.zeros((500,3,maxbin))  # random Gaussian noise to calibrated flux
 
-nobj=np.zeros((maxbin,results.nobj.shape[1],500))
-nobj[:bmaxbin,0,args.nstart]=results.nobj[brange,0]
-nobj[:rmaxbin,1,args.nstart]=results.nobj[rrange,1]
-nobj[:zmaxbin,2,args.nstart]=results.nobj[zrange,2]
-
-# Sky Photons
-
-nsky=np.zeros((maxbin,3,500))
-nsky[:bmaxbin,0,args.nstart]=results.nsky[brange,0]
-nsky[:rmaxbin,1,args.nstart]=results.nsky[rrange,1]
-nsky[:zmaxbin,2,args.nstart]=results.nsky[zrange,2]
-
-# Inverse Variance (Object+Sky Photons)
-
-nivar=np.zeros((maxbin,3,500))
-nivar[:bmaxbin,0,args.nstart]=1/((results.nobj[brange,0])+(results.nsky[brange,0])+(results.rdnoise[brange,0])**2.0+(results.dknoise[brange,0])**2.0)
-nivar[:rmaxbin,1,args.nstart]=1/((results.nobj[rrange,1])+(results.nsky[rrange,1])+(results.rdnoise[rrange,1])**2.0+(results.dknoise[rrange,1])**2.0)
-nivar[:zmaxbin,2,args.nstart]=1/((results.nobj[zrange,2])+(results.nsky[zrange,2])+(results.rdnoise[zrange,2])**2.0+(results.dknoise[zrange,2])**2.0)
-
-# Inverse Variance in Sky counts
-
-sky_ivar=np.zeros((maxbin,3,500)) # Multiply by 25, decreasing the error by a factor of 5.
-sky_ivar[:bmaxbin,0,args.nstart]=25*1/((results.nsky[brange,0])+(results.rdnoise[brange,0])**2.0+(results.dknoise[brange,0])**2.0)
-sky_ivar[:rmaxbin,1,args.nstart]=25*1/((results.nsky[rrange,1])+(results.rdnoise[rrange,1])**2.0+(results.dknoise[rrange,1])**2.0)
-sky_ivar[:zmaxbin,2,args.nstart]=25*1/((results.nsky[zrange,2])+(results.rdnoise[zrange,2])**2.0+(results.dknoise[zrange,2])**2.0)
-
-# Calibrated Object Flux ( in units of 10^-17 ergs/s/cm2/A)
-
-cframe_observedflux=np.zeros((maxbin,3,500))
-cframe_observedflux[:bmaxbin,0,args.nstart]=results.obsflux[brange]
-cframe_observedflux[:rmaxbin,1,args.nstart]=results.obsflux[rrange]
-cframe_observedflux[:zmaxbin,2,args.nstart]=results.obsflux[zrange]
-
-# Inverse Variance in Object Flux (in units of [10^-17 ergs/s/cm2/A]^-2)
-
-cframe_ivar=np.zeros((maxbin,3,500))
-cframe_ivar[:bmaxbin,0,args.nstart]=results.ivar[brange]
-cframe_ivar[:rmaxbin,1,args.nstart]=results.ivar[rrange]
-cframe_ivar[:zmaxbin,2,args.nstart]=results.ivar[zrange]
-	
-# Random Gaussian Noise to nobj+nsky
-
-rand_noise=np.zeros((maxbin,3,500))
+# Now initial values
 np.random.seed(0)
-rand_noise[:bmaxbin,0,args.nstart]=np.random.normal(np.zeros(bmaxbin),np.ones(bmaxbin)/np.sqrt(nivar[:bmaxbin,0,args.nstart]),bmaxbin)
-rand_noise[:rmaxbin,1,args.nstart]=np.random.normal(np.zeros(rmaxbin),np.ones(rmaxbin)/np.sqrt(nivar[:rmaxbin,1,args.nstart]),rmaxbin)
-rand_noise[:zmaxbin,2,args.nstart]=np.random.normal(np.zeros(zmaxbin),np.ones(zmaxbin)/np.sqrt(nivar[:zmaxbin,2,args.nstart]),zmaxbin)
 
-# Random Gaussian Noise to SKY only
+for i,channel in enumerate(['b','r','z']):
+    nobj[args.nstart,i,:waveMaxbin[channel]]=results.nobj[waveRange[channel],i]
 
-sky_rand_noise=np.zeros((maxbin,3,500))
-sky_rand_noise[:bmaxbin,0,args.nstart]=np.random.normal(np.zeros(bmaxbin),np.ones(bmaxbin)/np.sqrt(sky_ivar[:bmaxbin,0,args.nstart]),bmaxbin)
-sky_rand_noise[:rmaxbin,1,args.nstart]=np.random.normal(np.zeros(rmaxbin),np.ones(rmaxbin)/np.sqrt(sky_ivar[:rmaxbin,1,args.nstart]),rmaxbin)
-sky_rand_noise[:zmaxbin,2,args.nstart]=np.random.normal(np.zeros(zmaxbin),np.ones(zmaxbin)/np.sqrt(sky_ivar[:zmaxbin,2,args.nstart]),zmaxbin)
+    nsky[args.nstart,i,:waveMaxbin[channel]]=results.nsky[waveRange[channel],i]
+
+    nivar[args.nstart,i,:waveMaxbin[channel]]=1/((results.nobj[waveRange[channel],i])+(results.nsky[waveRange[channel],i])+(results.rdnoise[waveRange[channel],i])**2.0+(results.dknoise[waveRange[channel],i])**2.0)
+
+    sky_ivar[args.nstart,i,:waveMaxbin[channel]]=25*1/((results.nsky[waveRange[channel],i])+(results.rdnoise[waveRange[channel],i])**2.0+(results.dknoise[waveRange[channel],i])**2.0)
+
+    cframe_observedflux[args.nstart,i,:waveMaxbin[channel]]=results.obsflux[waveRange[channel]]
+
+    cframe_ivar[args.nstart,i,:waveMaxbin[channel]]=results.ivar[waveRange[channel]]
+
+    frame_rand_noise[args.nstart,i,:waveMaxbin[channel]]=np.random.normal(np.zeros(waveMaxbin[channel]),np.ones(waveMaxbin[channel])/np.sqrt(nivar[args.nstart,i,:waveMaxbin[channel]]),waveMaxbin[channel])
+
+    sky_rand_noise[args.nstart,i,:waveMaxbin[channel]]=np.random.normal(np.zeros(waveMaxbin[channel]),np.ones(waveMaxbin[channel])/np.sqrt(sky_ivar[args.nstart,i,:waveMaxbin[channel]]),waveMaxbin[channel])
+
+    cframe_rand_noise[args.nstart,i,:waveMaxbin[channel]]=np.random.normal(np.zeros(waveMaxbin[channel]),np.ones(waveMaxbin[channel])/np.sqrt(cframe_ivar[args.nstart,i,:waveMaxbin[channel]]),waveMaxbin[channel])    
 
 #construct resolution matrix from sigma_vs_wavelength. First resample to respective sigmas vs wavelengths
 
-sigma_b_vs_wave=sim.WavelengthFunction(origin_wavelength,qsim.cameras[0].sigma_wave).getResampledValues(bwaves)
-sigma_r_vs_wave=sim.WavelengthFunction(origin_wavelength,qsim.cameras[1].sigma_wave).getResampledValues(rwaves)
-sigma_z_vs_wave=sim.WavelengthFunction(origin_wavelength,qsim.cameras[2].sigma_wave).getResampledValues(zwaves)
-
+sigma_vs_wave = dict()
+for i, channel in enumerate( ['b', 'r', 'z'] ):
+    sigma_vs_wave[channel] = sim.WavelengthFunction(origin_wavelength, qsim.cameras[i].sigma_wave).getResampledValues(waves[channel])
 
 #- Resolution data from gaussian sigmas
 def _calc_resolution_data(sigma, wavelengths, nspec):
@@ -328,68 +261,40 @@ def _calc_resolution_data(sigma, wavelengths, nspec):
 
 #-------------------------------------------------------------------------
 
-# resample camera throughput 
-# throughput_b=sim.WavelengthFunction(origin_wavelength,qsim.cameras[0].throughput).getResampledValues(bwaves)
-# throughput_r=sim.WavelengthFunction(origin_wavelength,qsim.cameras[1].throughput).getResampledValues(rwaves)
-# throughput_z=sim.WavelengthFunction(origin_wavelength,qsim.cameras[2].throughput).getResampledValues(zwaves)
-
-#print resolution_b.shape,resolution_r.shape,resolution_z.shape
-
 # resolution data in format as desired for frame file
+nspec=args.nspectra
 resolution_data = dict()
-sigma_b_vs_wave=sim.WavelengthFunction(origin_wavelength,qsim.cameras[0].sigma_wave).getResampledValues(bwaves)
-resolution_data['b'] = _calc_resolution_data(sigma_b_vs_wave, bwaves, nspec)
-resolution_data['r'] = _calc_resolution_data(sigma_r_vs_wave, rwaves, nspec)
-resolution_data['z'] = _calc_resolution_data(sigma_z_vs_wave, zwaves, nspec)
+for i, channel in enumerate( ['b', 'r', 'z'] ):
+    resolution_data[channel] = _calc_resolution_data(sigma_vs_wave[channel], waves[channel], nspec)
+
 
 # Now repeat the simulation for all spectra
  
-print
-for i in xrange(args.nstart,min(args.nspectra+args.nstart,objtype.shape[0]-args.nstart)): # Exclusive
-    print "\rSimulating spectrum %d,  object type=%s"%(i,objtype[i]),
+for j in xrange(args.nstart,min(args.nspectra+args.nstart,objtype.shape[0]-args.nstart)): # Exclusive
+    print "\rSimulating spectrum %d,  object type=%s"%(j,objtype[j]),
     sys.stdout.flush()
-    specObj=sim.SpectralFluxDensity(wavelengths,spectra[i,:])
-    results=qsim.simulate(sourceType=objtype[i].lower(),sourceSpectrum=specObj,airmass=args.airmass,expTime=args.exptime)
-    nobj[:bmaxbin,0,i]=results.nobj[brange,0]
-    nobj[:rmaxbin,1,i]=results.nobj[rrange,1]
-    nobj[:zmaxbin,2,i]=results.nobj[zrange,2]
+    specObj=sim.SpectralFluxDensity(wavelengths,spectra[j,:])
+    results=qsim.simulate(sourceType=objtype[j].lower(),sourceSpectrum=specObj,airmass=args.airmass,expTime=args.exptime)
+    for i,channel in enumerate(['b','r','z']):
+        nobj[j,i,:waveMaxbin[channel]]=results.nobj[waveRange[channel],i]
 
-    nsky[:bmaxbin,0,i]=results.nsky[brange,0]
-    nsky[:rmaxbin,1,i]=results.nsky[rrange,1]
-    nsky[:zmaxbin,2,i]=results.nsky[zrange,2]
+        nsky[j,i,:waveMaxbin[channel]]=results.nsky[waveRange[channel],i]
 
-    nivar[:bmaxbin,0,i]=1/((results.nobj[brange,0])+(results.nsky[brange,0])+(results.rdnoise[brange,0])**2.0+(results.dknoise[brange,0])**2.0)
-    nivar[:rmaxbin,1,i]=1/((results.nobj[rrange,1])+(results.nsky[rrange,1])+(results.rdnoise[rrange,1])**2.0+(results.dknoise[rrange,1])**2.0)
-    nivar[:zmaxbin,2,i]=1/((results.nobj[zrange,2])+(results.nsky[zrange,2])+(results.rdnoise[zrange,2])**2.0+(results.dknoise[zrange,2])**2.0)
+        nivar[j,i,:waveMaxbin[channel]]=1/((results.nobj[waveRange[channel],i])+(results.nsky[waveRange[channel],i])+(results.rdnoise[waveRange[channel],i])**2.0+(results.dknoise[waveRange[channel],i])**2.0)
 
+        sky_ivar[j,i,:waveMaxbin[channel]]=25*1/((results.nsky[waveRange[channel],i])+(results.rdnoise[waveRange[channel],i])**2.0+(results.dknoise[waveRange[channel],i])**2.0)
 
-    sky_ivar[:bmaxbin,0,i]=25*1/((results.nsky[brange,0])+(results.rdnoise[brange,0])**2.0+(results.dknoise[brange,0])**2.0)
-    sky_ivar[:rmaxbin,1,i]=25*1/((results.nsky[rrange,1])+(results.rdnoise[rrange,1])**2.0+(results.dknoise[rrange,1])**2.0)
-    sky_ivar[:zmaxbin,2,i]=25*1/((results.nsky[zrange,2])+(results.rdnoise[zrange,2])**2.0+(results.dknoise[zrange,2])**2.0)
+        cframe_observedflux[j,i,:waveMaxbin[channel]]=results.obsflux[waveRange[channel]]
 
+        cframe_ivar[j,i,:waveMaxbin[channel]]=results.ivar[waveRange[channel]]
 
-    cframe_observedflux[:bmaxbin,0,i]=results.obsflux[brange]
-    cframe_observedflux[:rmaxbin,1,i]=results.obsflux[rrange]
-    cframe_observedflux[:zmaxbin,2,i]=results.obsflux[zrange]
+        frame_rand_noise[j,i,:waveMaxbin[channel]]=np.random.normal(np.zeros(waveMaxbin[channel]),np.ones(waveMaxbin[channel])/np.sqrt(nivar[j,i,:waveMaxbin[channel]]),waveMaxbin[channel])
 
-    cframe_ivar[:bmaxbin,0,i]=results.ivar[brange]
-    cframe_ivar[:rmaxbin,1,i]=results.ivar[rrange]
-    cframe_ivar[:zmaxbin,2,i]=results.ivar[zrange]
-	
-    rand_noise[:bmaxbin,0,i]=np.random.normal(np.zeros(bmaxbin),np.ones(bmaxbin)/np.sqrt(nivar[:bmaxbin,0,i]),bmaxbin)
-    rand_noise[:rmaxbin,1,i]=np.random.normal(np.zeros(rmaxbin),np.ones(rmaxbin)/np.sqrt(nivar[:rmaxbin,1,i]),rmaxbin)
-    rand_noise[:zmaxbin,2,i]=np.random.normal(np.zeros(zmaxbin),np.ones(zmaxbin)/np.sqrt(nivar[:zmaxbin,2,i]),zmaxbin)
+        sky_rand_noise[j,i,:waveMaxbin[channel]]=np.random.normal(np.zeros(waveMaxbin[channel]),np.ones(waveMaxbin[channel])/np.sqrt(sky_ivar[j,i,:waveMaxbin[channel]]),waveMaxbin[channel])
 
-    sky_rand_noise[:bmaxbin,0,i]=np.random.normal(np.zeros(bmaxbin),np.ones(bmaxbin)/np.sqrt(sky_ivar[:bmaxbin,0,i]),bmaxbin)
-    sky_rand_noise[:rmaxbin,1,i]=np.random.normal(np.zeros(rmaxbin),np.ones(rmaxbin)/np.sqrt(sky_ivar[:rmaxbin,1,i]),rmaxbin)
-    sky_rand_noise[:zmaxbin,2,i]=np.random.normal(np.zeros(zmaxbin),np.ones(zmaxbin)/np.sqrt(sky_ivar[:zmaxbin,2,i]),zmaxbin)
+        cframe_rand_noise[j,i,:waveMaxbin[channel]]=np.random.normal(np.zeros(waveMaxbin[channel]),np.ones(waveMaxbin[channel])/np.sqrt(cframe_ivar[j,i,:waveMaxbin[channel]]),waveMaxbin[channel])
 
 armName={"b":0,"r":1,"z":2}
-armWaves={"b":bwaves,"r":rwaves,"z":zwaves}
-armBins={"b":bmaxbin,"r":rmaxbin,"z":zmaxbin}
-
-
-#armResolution={"b":resolution[:,0,:,:],"r":resolution[:,1,:,:],"z":resolution[:,2,:,:]}
 
 #Need Four Files to write: May need to configure which ones to output, rather than all. 
 #1. frame file: (x3)
@@ -397,62 +302,64 @@ armBins={"b":bmaxbin,"r":rmaxbin,"z":zmaxbin}
 #3. flux calibration vector file (x3)
 #4. cframe file
 
-#All files will be written here:
-# Need to sync with write in desispec.io ? But there are few issues to be accounted.
-
-#filePath=EXPID_DIR+'/'
-
 def do_convolve(wave,resolution,flux):
+    """
+    Returns the convolved flux
+    Args:
+        wave : wavelength for the given channel
+        resolution : resolution data for single fiber
+        flux: single fiber flux
+    """
     R=Resolution(resolution)
     convolved=R.dot(flux)
     return convolved
 
 
-for arm in ["b","r","z"]:	
+for channel in ["b","r","z"]:	
 
 ############--------------------------------------------------------- 
     ###frame file 
 
-    framefileName=desispec.io.findfile("frame",NIGHT,EXPID,"%s%s"%(arm,spectrograph))
-    frame_flux=np.transpose(nobj[:armBins[arm],armName[arm],args.nstart:args.nstart+args.nspectra]+nsky[:armBins[arm],armName[arm],args.nstart:args.nstart+args.nspectra]+rand_noise[:armBins[arm],armName[arm],args.nstart:args.nstart+args.nspectra])
-    frame_ivar=np.transpose(nivar[:armBins[arm],armName[arm],args.nstart:args.nstart+args.nspectra])
+    framefileName=desispec.io.findfile("frame",NIGHT,EXPID,"%s%s"%(channel,spectrograph))
+    frame_flux=nobj[args.nstart:args.nstart+args.nspectra-1,armName[channel],:waveMaxbin[channel]]+nsky[args.nstart:args.nstart+args.nspectra-1,armName[channel],:waveMaxbin[channel]]+frame_rand_noise[args.nstart:args.nstart+args.nspectra-1,armName[channel],:waveMaxbin[channel]]
+    frame_ivar=nivar[args.nstart:args.nstart+args.nspectra-1,armName[channel],:waveMaxbin[channel]]
     # write frame file
-    desispec.io.frame.write_frame(framefileName,frame_flux,frame_ivar,armWaves[arm],resolution_data[arm],header=None)
+    desispec.io.frame.write_frame(framefileName,frame_flux,frame_ivar,waves[channel],resolution_data[channel],header=None)
 
 ############--------------------------------------------------------
     #cframe file
     
-    cframeFileName=desispec.io.findfile("cframe",NIGHT,EXPID,"%s%s"%(arm,spectrograph))
-    cframeFlux=np.transpose(cframe_observedflux[:armBins[arm],armName[arm],args.nstart:args.nstart+args.nspectra])
-    cframeIvar=np.transpose(cframe_ivar[:armBins[arm],armName[arm],args.nstart:args.nstart+args.nspectra])
+    cframeFileName=desispec.io.findfile("cframe",NIGHT,EXPID,"%s%s"%(channel,spectrograph))
+    cframeFlux=cframe_observedflux[args.nstart:args.nstart+args.nspectra-1,armName[channel],:waveMaxbin[channel]]+cframe_rand_noise[args.nstart:args.nstart+args.nspectra-1,armName[channel],:waveMaxbin[channel]]
+    cframeIvar=cframe_ivar[args.nstart:args.nstart+args.nspectra-1,armName[channel],:waveMaxbin[channel]]
     
     # write cframe file
-    desispec.io.frame.write_frame(cframeFileName,cframeFlux,cframeIvar,armWaves[arm],resolution_data[arm],header=None)
+    desispec.io.frame.write_frame(cframeFileName,cframeFlux,cframeIvar,waves[channel],resolution_data[channel],header=None)
 
 ############-----------------------------------------------------
     #sky file (for now taking only 1D, should change to (nspec,nwave) format)
     #- TODO: this will get refactored to 2D outputs
     
     isky = 0
-    skyfileName=desispec.io.findfile("sky",NIGHT,EXPID,"%s%s"%(arm,spectrograph))
-    skyflux=np.transpose(nsky[:armBins[arm],armName[arm],isky]+sky_rand_noise[:armBins[arm],armName[arm],isky])
-    skyivar=np.transpose(sky_ivar[:armBins[arm],armName[arm],isky])
+    skyfileName=desispec.io.findfile("sky",NIGHT,EXPID,"%s%s"%(channel,spectrograph))
+    skyflux=nsky[isky,armName[channel],:waveMaxbin[channel]]+sky_rand_noise[isky,armName[channel],:waveMaxbin[channel]]
+    skyivar=sky_ivar[isky,armName[channel],:waveMaxbin[channel]]
     skymask=np.zeros(skyflux.shape, dtype=int)
-    cskyflux=do_convolve(armWaves[arm],resolution_data[arm][isky],skyflux)
-    cskyivar=do_convolve(armWaves[arm],resolution_data[arm][isky],skyivar)  #- wrong to convolve ivar like this; fix in refactor
+    cskyflux=do_convolve(waves[channel],resolution_data[channel][isky],skyflux)
+    cskyivar=do_convolve(waves[channel],resolution_data[channel][isky],skyivar)  #- wrong to convolve ivar like this; fix in refactor
     
     #write sky file 
-    desispec.io.sky.write_sky(skyfileName,skyflux,skyivar,skymask,cskyflux,cskyivar,armWaves[arm],header=None)
+    desispec.io.sky.write_sky(skyfileName,skyflux,skyivar,skymask,cskyflux,cskyivar,waves[channel],header=None)
 
 ############----------------------------------------------------------
     #calibration vector file
     #- TODO: this will get refactored into 2D outputs
 
-    calibVectorFile=desispec.io.findfile("calib",NIGHT,EXPID,"%s%s"%(arm,spectrograph))
-    calibration=np.transpose(cframe_observedflux[:armBins[arm],armName[arm],args.nstart:args.nstart+args.nspectra]/nobj[:armBins[arm],armName[arm],args.nstart:args.nstart+args.nspectra])
+    calibVectorFile=desispec.io.findfile("calib",NIGHT,EXPID,"%s%s"%(channel,spectrograph))
+    calibration=cframe_observedflux[args.nstart:args.nstart+args.nspectra-1,armName[channel],:waveMaxbin[channel]]/nobj[args.nstart:args.nstart+args.nspectra-1,armName[channel],:waveMaxbin[channel]]
     # Gives RuntimeWarning: invalid value encountered in divide. Correct?
 
-    calibivar=np.transpose(cframe_ivar[:armBins[arm],armName[arm],args.nstart:args.nstart+args.nspectra])*calibration
+    calibivar=cframe_ivar[args.nstart:args.nstart+args.nspectra-1,armName[channel],:waveMaxbin[channel]]*calibration
     #mask=(1/calibivar>0).astype(long)??
     mask=np.zeros(calibration.shape, dtype=int)
     n_spec=calibration.shape[0]
@@ -460,13 +367,12 @@ for arm in ["b","r","z"]:
     ccalibration=np.zeros((n_spec,n_wave))
     ccalibivar=np.zeros((n_spec,n_wave))
     for i in range(n_spec):
-        ccalibration[i,:]=do_convolve(armWaves[arm],resolution_data[arm][i],calibration[i,:])
-        ccalibivar[i,:]=do_convolve(armWaves[arm],resolution_data[arm][i],calibivar[i,:])  #- fix in refactor
+        ccalibration[i,:]=do_convolve(waves[channel],resolution_data[channel][i],calibration[i,:])
+        ccalibivar[i,:]=do_convolve(waves[channel],resolution_data[channel][i],calibivar[i,:])  #- fix in refactor
     #header from the frame file??
     head=pyfits.getheader(framefileName)
-    #print head
     # write result
-    write_flux_calibration(calibVectorFile,calibration, calibivar, mask, ccalibration, ccalibivar,armWaves[arm],head)
+    write_flux_calibration(calibVectorFile,calibration, calibivar, mask, ccalibration, ccalibivar,waves[channel],head)
     
 filePath=os.path.join(prod_Dir,'exposures',NIGHT,"%08d"%EXPID)
 print "Wrote files to", filePath
