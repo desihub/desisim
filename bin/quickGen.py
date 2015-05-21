@@ -321,8 +321,8 @@ for channel in ["b","r","z"]:
     ###frame file 
 
     framefileName=desispec.io.findfile("frame",NIGHT,EXPID,"%s%s"%(channel,spectrograph))
-    frame_flux=nobj[args.nstart:args.nstart+args.nspectra-1,armName[channel],:waveMaxbin[channel]]+nsky[args.nstart:args.nstart+args.nspectra-1,armName[channel],:waveMaxbin[channel]]+frame_rand_noise[args.nstart:args.nstart+args.nspectra-1,armName[channel],:waveMaxbin[channel]]
-    frame_ivar=nivar[args.nstart:args.nstart+args.nspectra-1,armName[channel],:waveMaxbin[channel]]
+    frame_flux=nobj[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]+nsky[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]+frame_rand_noise[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]
+    frame_ivar=nivar[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]
     # write frame file
     desispec.io.frame.write_frame(framefileName,frame_flux,frame_ivar,waves[channel],resolution_data[channel],header=None)
 
@@ -330,8 +330,8 @@ for channel in ["b","r","z"]:
     #cframe file
     
     cframeFileName=desispec.io.findfile("cframe",NIGHT,EXPID,"%s%s"%(channel,spectrograph))
-    cframeFlux=cframe_observedflux[args.nstart:args.nstart+args.nspectra-1,armName[channel],:waveMaxbin[channel]]+cframe_rand_noise[args.nstart:args.nstart+args.nspectra-1,armName[channel],:waveMaxbin[channel]]
-    cframeIvar=cframe_ivar[args.nstart:args.nstart+args.nspectra-1,armName[channel],:waveMaxbin[channel]]
+    cframeFlux=cframe_observedflux[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]+cframe_rand_noise[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]
+    cframeIvar=cframe_ivar[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]
     
     # write cframe file
     desispec.io.frame.write_frame(cframeFileName,cframeFlux,cframeIvar,waves[channel],resolution_data[channel],header=None)
@@ -356,10 +356,10 @@ for channel in ["b","r","z"]:
     #- TODO: this will get refactored into 2D outputs
 
     calibVectorFile=desispec.io.findfile("calib",NIGHT,EXPID,"%s%s"%(channel,spectrograph))
-    calibration=cframe_observedflux[args.nstart:args.nstart+args.nspectra-1,armName[channel],:waveMaxbin[channel]]/nobj[args.nstart:args.nstart+args.nspectra-1,armName[channel],:waveMaxbin[channel]]
+    calibration=cframe_observedflux[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]/nobj[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]
     # Gives RuntimeWarning: invalid value encountered in divide. Correct?
 
-    calibivar=cframe_ivar[args.nstart:args.nstart+args.nspectra-1,armName[channel],:waveMaxbin[channel]]*calibration
+    calibivar=cframe_ivar[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]*calibration
     #mask=(1/calibivar>0).astype(long)??
     mask=np.zeros(calibration.shape, dtype=int)
     n_spec=calibration.shape[0]
