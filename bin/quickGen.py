@@ -371,8 +371,10 @@ for channel in ["b","r","z"]:
         ccalibivar[i,:]=do_convolve(waves[channel],resolution_data[channel][i],calibivar[i,:])  #- fix in refactor
     #header from the frame file??
     head=pyfits.getheader(framefileName)
-    # write result
-    write_flux_calibration(calibVectorFile,calibration, calibivar, mask, ccalibration, ccalibivar,waves[channel],head)
+
+    # write result - current format just wants 1D deconvolved vectors;
+    # the next version will want the 2D vectors we have here but this is ok for now
+    write_flux_calibration(calibVectorFile,calibration[0], calibivar[0], mask[0], ccalibration[0], ccalibivar[0], waves[channel], head)
     
 filePath=os.path.join(prod_Dir,'exposures',NIGHT,"%08d"%EXPID)
 print "Wrote files to", filePath
