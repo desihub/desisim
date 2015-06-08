@@ -26,7 +26,7 @@ import desisim.io
 from desispec.resolution import Resolution
 from desispec.io import write_flux_calibration, write_fiberflat
 from desispec.interpolation import resample_flux
-
+import matplotlib.pyplot as plt
 
 #- Parse arguments
 parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -138,7 +138,6 @@ print " simulating spectra",args.nstart, "to", args.nspectra+args.nstart-1
 
 print "************************************************"
 
-
 # Run Simulation for first Spectrum
 print "Initializing QuickSim"
 specObj0=sim.SpectralFluxDensity(wavelengths,spectra[args.nstart,:])
@@ -147,7 +146,7 @@ qsim=sim.Quick(basePath=DESIMODEL_DIR)
 # print "Simulating Spectrum",args.nstart," of spectrograph",spectrograph, "object type:", objtype[args.nstart]
 
 #- simulate a fake object 0 just to get wavelength grids etc setup
-results=qsim.simulate(sourceType='star',sourceSpectrum=specObj0,airmass=args.airmass,expTime=args.exptime)
+results=qsim.simulate(sourceType=objtype[0].lower(),sourceSpectrum=specObj0,airmass=args.airmass,expTime=args.exptime)
 observedWavelengths=results.wave
 origin_wavelength=qsim.wavelengthGrid
 waveLimits={'b':(3569,5949),'r':(5625,7741),'z':(7435,9834)}
@@ -209,10 +208,10 @@ for i,channel in enumerate(['b','r','z']):
 
     sky_ivar[args.nstart,i,:waveMaxbin[channel]]=25*1/((results.nsky[waveRange[channel],i])+(results.rdnoise[waveRange[channel],i])**2.0+(results.dknoise[waveRange[channel],i])**2.0)
 
-    cframe_observedflux[args.nstart,i,:waveMaxbin[channel]]=results.obsflux[waveRange[channel]]
+    cframe_observedflux[args.nstart,i,:waveMaxbin[channel]]=results.obsflux[waveRange[channel]]*1.0e-17
 
-    cframe_ivar[args.nstart,i,:waveMaxbin[channel]]=results.ivar[waveRange[channel]]
-
+    cframe_ivar[args.nstart,i,:waveMaxbin[channel]]=results.ivar[waveRange[channel]]*1.0e34
+    
     frame_rand_noise[args.nstart,i,:waveMaxbin[channel]]=np.random.normal(np.zeros(waveMaxbin[channel]),np.ones(waveMaxbin[channel])/np.sqrt(nivar[args.nstart,i,:waveMaxbin[channel]]),waveMaxbin[channel])
 
     sky_rand_noise[args.nstart,i,:waveMaxbin[channel]]=np.random.normal(np.zeros(waveMaxbin[channel]),np.ones(waveMaxbin[channel])/np.sqrt(sky_ivar[args.nstart,i,:waveMaxbin[channel]]),waveMaxbin[channel])
@@ -271,7 +270,7 @@ for i, channel in enumerate( ['b', 'r', 'z'] ):
 # Now repeat the simulation for all spectra
  
 for j in xrange(args.nstart,min(args.nspectra+args.nstart,objtype.shape[0]-args.nstart)): # Exclusive
-    print "\rSimulating spectrum %d,  object type=%s"%(j,objtype[j]),
+    print "\Simulating spectrum %d,  object type=%s"%(j,objtype[j]),
     sys.stdout.flush()
     specObj=sim.SpectralFluxDensity(wavelengths,spectra[j,:])
     results=qsim.simulate(sourceType=objtype[j].lower(),sourceSpectrum=specObj,airmass=args.airmass,expTime=args.exptime)
@@ -284,15 +283,22 @@ for j in xrange(args.nstart,min(args.nspectra+args.nstart,objtype.shape[0]-args.
 
         sky_ivar[j,i,:waveMaxbin[channel]]=25*1/((results.nsky[waveRange[channel],i])+(results.rdnoise[waveRange[channel],i])**2.0+(results.dknoise[waveRange[channel],i])**2.0)
 
-        cframe_observedflux[j,i,:waveMaxbin[channel]]=results.obsflux[waveRange[channel]]
-
-        cframe_ivar[j,i,:waveMaxbin[channel]]=results.ivar[waveRange[channel]]
-
+        cframe_observedflux[j,i,:waveMaxbin[channel]]=results.obsflux[waveRange[channel]]*1.0e-17
+        print "plotting spec:", j,"   ", "band:",channel
+        plt.plot(waves[channel][:waveMaxbin[channel]],nobj[j,i,:waveMaxbin[channel]])
+        plt.show()
+        plt.plot(waves[channel][:waveMaxbin[channel]],cframe_observedflux[j,i,:waveMaxbin[channel]])
+        plt.show()
+        cframe_ivar[j,i,:waveMaxbin[channel]]=results.ivar[waveRange[channel]]*1.0e34
+        
+        
         frame_rand_noise[j,i,:waveMaxbin[channel]]=np.random.normal(np.zeros(waveMaxbin[channel]),np.ones(waveMaxbin[channel])/np.sqrt(nivar[j,i,:waveMaxbin[channel]]),waveMaxbin[channel])
 
         sky_rand_noise[j,i,:waveMaxbin[channel]]=np.random.normal(np.zeros(waveMaxbin[channel]),np.ones(waveMaxbin[channel])/np.sqrt(sky_ivar[j,i,:waveMaxbin[channel]]),waveMaxbin[channel])
 
         cframe_rand_noise[j,i,:waveMaxbin[channel]]=np.random.normal(np.zeros(waveMaxbin[channel]),np.ones(waveMaxbin[channel])/np.sqrt(cframe_ivar[j,i,:waveMaxbin[channel]]),waveMaxbin[channel])
+        plt.plot(waves[channel][:waveMaxbin[channel]],cframe_observedflux[j,i,:waveMaxbin[channel]]+cframe_rand_noise[j,i,:waveMaxbin[channel]])
+        plt.show()
 
 armName={"b":0,"r":1,"z":2}
 
@@ -314,9 +320,24 @@ def do_convolve(wave,resolution,flux):
     convolved=R.dot(flux)
     return convolved
 
-
 for channel in ["b","r","z"]:	
 
+    #Before writing, convert from counts/bin to counts/A (as in Pixsim output)
+    #Quicksim Default:
+    #FLUX - input spectrum resampled to this binning; no noise added [1e-17 erg/s/sm2/s/Ang] 
+    #COUNTS_OBJ - object counts in 0.5 Ang bin
+    #COUNTS_SKY - sky counts in 0.5 Ang bin
+ 
+    dwave=np.gradient(waves[channel])
+    nobj[:,armName[channel],:waveMaxbin[channel]]/=dwave
+    frame_rand_noise[:,armName[channel],:waveMaxbin[channel]]/=dwave
+    nivar[:,armName[channel],:waveMaxbin[channel]]*=dwave**2
+
+    nsky[:,armName[channel],:waveMaxbin[channel]]/=dwave
+    sky_rand_noise[:,armName[channel],:waveMaxbin[channel]]/=dwave
+    sky_ivar[:,armName[channel],:waveMaxbin[channel]]/=dwave**2
+
+    
 ############--------------------------------------------------------- 
     ###frame file 
 
