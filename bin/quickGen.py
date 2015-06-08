@@ -349,6 +349,7 @@ for channel in ["b","r","z"]:
 
 ############--------------------------------------------------------
     #cframe file
+    #TODO : for sky input spectrum (all zero), quicksim output flux is also zero and also ivar. Need to fix!! 
     
     cframeFileName=desispec.io.findfile("cframe",NIGHT,EXPID,"%s%s"%(channel,spectrograph))
     cframeFlux=cframe_observedflux[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]+cframe_rand_noise[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]
