@@ -284,11 +284,6 @@ for j in xrange(args.nstart,min(args.nspectra+args.nstart,objtype.shape[0]-args.
         sky_ivar[j,i,:waveMaxbin[channel]]=25*1/((results.nsky[waveRange[channel],i])+(results.rdnoise[waveRange[channel],i])**2.0+(results.dknoise[waveRange[channel],i])**2.0)
 
         cframe_observedflux[j,i,:waveMaxbin[channel]]=results.obsflux[waveRange[channel]]*1.0e-17
-        print "plotting spec:", j,"   ", "band:",channel
-        plt.plot(waves[channel][:waveMaxbin[channel]],nobj[j,i,:waveMaxbin[channel]])
-        plt.show()
-        plt.plot(waves[channel][:waveMaxbin[channel]],cframe_observedflux[j,i,:waveMaxbin[channel]])
-        plt.show()
         cframe_ivar[j,i,:waveMaxbin[channel]]=results.ivar[waveRange[channel]]*1.0e34
         
         
@@ -297,8 +292,6 @@ for j in xrange(args.nstart,min(args.nspectra+args.nstart,objtype.shape[0]-args.
         sky_rand_noise[j,i,:waveMaxbin[channel]]=np.random.normal(np.zeros(waveMaxbin[channel]),np.ones(waveMaxbin[channel])/np.sqrt(sky_ivar[j,i,:waveMaxbin[channel]]),waveMaxbin[channel])
 
         cframe_rand_noise[j,i,:waveMaxbin[channel]]=np.random.normal(np.zeros(waveMaxbin[channel]),np.ones(waveMaxbin[channel])/np.sqrt(cframe_ivar[j,i,:waveMaxbin[channel]]),waveMaxbin[channel])
-        plt.plot(waves[channel][:waveMaxbin[channel]],cframe_observedflux[j,i,:waveMaxbin[channel]]+cframe_rand_noise[j,i,:waveMaxbin[channel]])
-        plt.show()
 
 armName={"b":0,"r":1,"z":2}
 
