@@ -16,7 +16,7 @@ from desispec.interpolation import resample_flux
 from targets import get_targets
 from . import io
 
-def new_exposure(flavor, nspec=5000, expid=None, tileid=None, airmass=1.0, \
+def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, airmass=1.0, \
     exptime=None):
     """
     Create a new exposure and output input simulation files.
@@ -24,6 +24,7 @@ def new_exposure(flavor, nspec=5000, expid=None, tileid=None, airmass=1.0, \
     
     Args:
         nspec (optional): integer number of spectra to simulate
+        night (optional): YEARMMDD string
         expid (optional): positive integer exposure ID
         tileid (optional): tile ID
         airmass (optional): airmass, default 1.0
@@ -41,9 +42,14 @@ def new_exposure(flavor, nspec=5000, expid=None, tileid=None, airmass=1.0, \
     
     if tileid is None:
         tileid = get_next_tileid()
-        
-    dateobs = time.gmtime()
-    night = get_night(utc=dateobs)
+
+    if night is None:
+        #- simulation obs time = now, even if sun is up
+        dateobs = time.gmtime()
+        night = get_night(utc=dateobs)
+    else:
+        #- 10pm on night YEARMMDD
+        dateobs = time.strptime(night+':22', '%Y%m%d:%H')
     
     params = desimodel.io.load_desiparams()    
     if flavor == 'arc':
