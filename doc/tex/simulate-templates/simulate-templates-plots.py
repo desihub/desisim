@@ -13,7 +13,6 @@ import argparse
 import numpy as np
 import scipy as sci
 
-import triangle
 import seaborn as sns
 
 from desisim.util import medxbin
@@ -38,32 +37,36 @@ def main():
                          'simulate-templates','figures')
     cflux, cwave, cmeta = read_base_templates(objtype='elg',observed=True)
 
-    # Set sns preferences
-    sns.set_context('talk', font_scale=1.0)
-    sns.set_style('white')
-    sns.set_palette('bright') #deep, muted, bright, pastel, dark, colorblind
+    # Set sns preferences.  Pallet choices: deep, muted, bright, pastel, dark, colorblind
+    sns.set(style='ticks', context='talk', font_scale=1.0, palette='dark')
     
     # Figure: DEEP2 [OII] emission-line velocity width distribution 
     if args.oiiihb:
         from astropy.io import fits
 
         atlas = fits.getdata(os.path.join(os.getenv('IM_PROJECTS_DIR'),'desi','data',
-                                          'atlas-emlines.fits.gz'),ext=1)
+                                          'atlas-emlines.fits.gz'),ext=1)[0]
         sdss = fits.getdata(os.path.join(os.getenv('IM_PROJECTS_DIR'),'desi','data',
-                                          'sdss-emlines.fits.gz'),ext=1)
+                                          'sdss-emlines.fits.gz'),ext=1)[0]
         hii = fits.getdata(os.path.join(os.getenv('IM_PROJECTS_DIR'),'desi','data',
-                                        'hii-emlines.fits.gz'),ext=1)
+                                        'hii-emlines.fits.gz'),ext=1)[0]
 
-        oiiihb = np.array(zip(sdss['OIIIHB'][0,:],hii['OIIIHB'][0,:])).flatten()
-        oiihb = np.array(zip(sdss['OIIHB'][0,:],hii['OIIHB'][0,:])).flatten()
-        niihb = np.array(zip(sdss['NIIHB'][0,:],hii['NIIHB'][0,:])).flatten()
-        siihb = np.array(zip(sdss['SIIHB'][0,:],hii['SIIHB'][0,:])).flatten()
+        oiiihb = np.array(zip(sdss['OIIIHB'][0,:],atlas['OIIIHB'][0,:])).flatten()
+        oiihb  = np.array(zip(sdss['OIIHB'][0,:], atlas['OIIHB'][0,:])).flatten()
+        niihb  = np.array(zip(sdss['NIIHB'][0,:], atlas['NIIHB'][0,:])).flatten()
+        siihb  = np.array(zip(sdss['SIIHB'][0,:], atlas['SIIHB'][0,:])).flatten()
+        #oiiihb = np.array(zip(sdss['OIIIHB'][0,:],hii['OIIIHB'][0,:])).flatten()
+        #oiihb  = np.array(zip(sdss['OIIHB'][0,:], hii['OIIHB'][0,:])).flatten()
+        #niihb  = np.array(zip(sdss['NIIHB'][0,:], hii['NIIHB'][0,:])).flatten()
+        #siihb  = np.array(zip(sdss['SIIHB'][0,:], hii['SIIHB'][0,:])).flatten()
 
-        oiiihbcoeff = sci.polyfit(oiiihb,oiihb,3)
+        oiihbcoeff = sci.polyfit(oiiihb,oiihb,3)
         niihbcoeff = sci.polyfit(oiiihb,niihb,2)
-        siihbcoeff = sci.polyfit(sdss['OIIIHB'][0,:],sdss['SIIHB'][0,:],2)
+        siihbcoeff = sci.polyfit(oiiihb,siihb,2)
         #siihbcoeff = sci.polyfit(oiiihb,siihb,2)
-        print(oiiihbcoeff, niihbcoeff, siihbcoeff)
+        print('[OIII]/Hb vs [OII]/Hb coefficients: ', oiihbcoeff)
+        print('[OIII]/Hb vs [NII]/Hb coefficients: ', niihbcoeff)
+        print('[OIII]/Hb vs [SII]/Hb coefficients: ', siihbcoeff)
 
         xlim = [-1.3,1.2]
         oiiihbaxis = np.linspace(-1.1,1.0,100)
@@ -76,11 +79,10 @@ def main():
 
         ylim = [-1.5,1.0]
         sns.kdeplot(sdss['OIIIHB'][0], sdss['OIIHB'][0], range=[xlim,ylim], ax=ax[0])
-        #triangle.hist2d(sdss['OIIIHB'][0], sdss['OIIHB'][0], range=[xlim,ylim],
-        #                plot_density=False, ax=ax[0])
-        ax[0].plot(hii['OIIIHB'][0], hii['OIIHB'][0], 's', markersize=3)
+        #ax[0].plot(hii['OIIIHB'][0], hii['OIIHB'][0], 's', markersize=2)
+        ax[0].plot(atlas['OIIIHB'][0], atlas['OIIHB'][0], 'o', markersize=2)
 
-        ax[0].plot(oiiihbaxis, sci.polyval(oiiihbcoeff,oiiihbaxis), lw=3)
+        ax[0].plot(oiiihbaxis, sci.polyval(oiihbcoeff,oiiihbaxis), lw=3)
         ax[0].set_xlim(xlim)
         ax[0].set_ylim(ylim)
         #ax[0].xlabel(r'log$_{10}$ ([O III] $\lambda$5007 / H$\beta$)',fontsize=14)
@@ -90,10 +92,9 @@ def main():
 
         # [OIII]/Hb vs [NII]/Hb
         ylim = [-2.0,1.0]
-        #triangle.hist2d(sdss['OIIIHB'][0], sdss['NIIHB'][0],range=[xlim,ylim],
-        #                plot_density=False, ax=ax[1])
         sns.kdeplot(sdss['OIIIHB'][0], sdss['NIIHB'][0],range=[xlim,ylim], ax=ax[1])
-        ax[1].plot(hii['OIIIHB'][0], hii['NIIHB'][0], 's', markersize=3)
+        #ax[1].plot(hii['OIIIHB'][0], hii['NIIHB'][0], 's', markersize=3)
+        ax[1].plot(atlas['OIIIHB'][0], atlas['NIIHB'][0], 'o', markersize=2)
     
         ax[1].plot(oiiihbaxis, sci.polyval(niihbcoeff,oiiihbaxis), lw=3)
         ax[1].set_xlim(xlim)
@@ -102,10 +103,10 @@ def main():
 
         # [OIII]/Hb vs [SII]/Hb
         ylim = [-1.0,0.5]
-        #triangle.hist2d(sdss['OIIIHB'][0], sdss['SIIHB'][0],range=[xlim,ylim],
-        #                plot_density=False, ax=ax[2])
         sns.kdeplot(sdss['OIIIHB'][0], sdss['SIIHB'][0],range=[xlim,ylim], ax=ax[2])
-        ax[2].plot(hii['OIIIHB'][0], hii['SIIHB'][0], 's', markersize=3)
+        #ax[2].plot(hii['OIIIHB'][0], hii['SIIHB'][0], 's', markersize=3)
+        ax[2].plot(atlas['OIIIHB'][0], atlas['SIIHB'][0], 'o', markersize=2)
+
         ax[2].plot(oiiihbaxis, sci.polyval(siihbcoeff,oiiihbaxis), lw=3)
         ax[2].set_xlim(xlim)
         ax[2].set_ylim(ylim)
@@ -132,7 +133,7 @@ def main():
         
         xgauss = np.linspace(sigminmax[0],sigminmax[1],nbin*10)
         fig = plt.figure(figsize=(8,6))
-        plt.bar(10**cbins, ngal, align='center', width=binsz*np.log(10)*10**cbins),
+        plt.bar(10**cbins, ngal, align='center', width=binsz*np.log(10)*10**cbins)
         plt.plot(10**xgauss, gauss(xgauss), '-', lw=3, color='black')
         plt.xlim(10**sigminmax)
         plt.xlabel('log$_{10}$ Emission-line Velocity Width $\sigma$ (km/s)',fontsize=18)

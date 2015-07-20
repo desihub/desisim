@@ -73,8 +73,8 @@ class ELG():
 
     def make_templates(self, zrange=(0.6,1.6), rmagrange=(21.0,23.5),
                        oiiihbrange=(-0.5,0.1), oiidoublet_meansig=(0.73,0.05),
-                       linesigma_meansig=(80.0,20.0), minoiiflux=1E-17,
-                       colorcuts=True, outfile=None):
+                       linesigma_meansig=(1.887,0.175), minoiiflux=1E-17,
+                       comments=None, colorcuts=True, outfile=None):
         """Build Monte Carlo set of ELG spectra/templates.
 
         This function chooses random subsets of the ELG continuum spectra, constructs
@@ -92,8 +92,9 @@ class ELG():
         
           oiidoublet_meansig (float, optional): Mean and sigma values for the (Gaussian) 
             [OII] 3726/3729 doublet ratio distribution.  Defaults to (0.73,0.05).
-          linesigma_meansig (float, optional): Mean and sigma values for the (Gaussian) 
-            emission-line velocity width distribution.  Defaults to (80,20) km/s.
+          linesigma_meansig (float, optional): *Logarithmic* mean and sigma values for the
+            (Gaussian) emission-line velocity width distribution.  Defaults to
+            log10-sigma(=1.887+/0.175) km/s.
 
           colorcuts (bool, optional): Only select objects that satisfy the fiducial grz
             color-cuts cuts (default True).
@@ -182,7 +183,7 @@ class ELG():
                 zoiiflux = oiiflux*rnorm # [erg/s/cm2]
 
                 if colorcuts:
-                    grzmask = cuts.Fluxes.ELG(gflux=gflux,rflux=rflux,zflux=zflux)
+                    grzmask = cuts.Fluxes.ELG(g=gflux,r=rflux,z=zflux)
                 else:
                     grzmask = [True]
                 oiimask = [zoiiflux>minoiiflux]

@@ -1,27 +1,33 @@
-\documentclass[12pt]{article}
-\usepackage{epsfig}
-\usepackage{amssymb}
+\documentclass[11pt]{article}
+\usepackage{epsfig, mdwlist, amssymb}
 \usepackage{fullpage}
-\usepackage{color}
+%\usepackage{color}
 \usepackage{url}
 \usepackage{natbib}
-%\usepackage{emulateapj}
-\usepackage{footnote}
-%\usepackage{deluxetable}
+%%\usepackage{emulateapj}
+%\usepackage{footnote}
+\usepackage{deluxetable}
 
 \newcommand{\oii}{[O~{\sc ii}]}
+\newcommand{\oiii}{[O~{\sc iii}]}
+\newcommand{\nii}{[N~{\sc ii}]}
+\newcommand{\sii}{[N~{\sc ii}]}
+\newcommand{\hei}{He~{\sc i}}
+\newcommand{\simt}{{\tt simulate-templates.py}}
+
 \newcommand{\oiilam}{[O~{\sc ii}]~\ensuremath{\lambda\lambda3726,29}}
+
+\newcommand{\kms}{km~s$^{-1}$}
+
 \newcommand{\apj}{ApJ}
 \newcommand{\pasp}{PASP}
 \newcommand{\apjs}{ApJS}
 \newcommand{\TODO}[1]{{\it \color{red} (#1)}}
 
 \begin{document}
-\title{
-  Simulating Emission-Line Galaxy (ELG) Spectra for DESI 
-}
+\title{Simulating State-of-the-Art Spectral Templates for DESI} 
 
-\author{John Moustakas (Siena)}
+\author{John Moustakas (Siena College)}
 \maketitle
 
 %\abstract{ This technote documents the construction of the preliminary
@@ -29,218 +35,164 @@
 
 \section{Introduction}
 
-This document describes the methodology (and code) which was developed
-to generate simulated galaxy templates for emission-line galaxies
-(ELGs).  The principle purpose of these templates is to facilitate
-end-to-end spectral simulations for DESI, although there are many
-other potential applications (e.g., optimizing target selection).
+This document describes the methodology and code which was developed to generate
+one-dimensional, noiseless, high-resolution spectral templates for DESI.  The
+initial focus of this effort has been on emission-line galaxies (ELG), luminous
+red galaxies (LRG), bright-galaxy survey galaxies (BGS), and stars (STAR), but
+eventually quasars (QSO), including Ly$\alpha$-QSOs, and standard stars (STD)
+will be supported.
 
-This note builds upon the original (static) set of ELG templates
-documented in {\tt
-  DESI-doc-870-v1}\footnote{https://desi.lbl.gov/DocDB/cgi-bin/private/RetrieveFile?docid=870;filename=elg-templates.pdf;version=1},
-which describes the first set of templates.
+The models are based on a combination of empirical constraints (i.e.,
+spectroscopy and photometry of galaxies and quasars over a broad redshift range)
+and state-of-the-art theoretical models.  These templates have a myriad of
+applications, but will be used primarily to help develop and optimize the
+end-to-end DESI spectroscopic pipeline (``data challenges'')---from raw data to
+redshifts and final spectral classifications---as well as to help develop and
+validate various target-selection strategies.
 
-ToDo:
-* Allow AGN-like emission-line ratios.
-* Add (weak) emission lines to the LRG templates.
-* Fix the random seed so the spectrum results are reproducible.
-* Add units tests.
-* Add nebular continuum to the EMSpectrum class.
-* The empirical coefficients in EMSpectrum are hard-coded.
-* Add more emission lines.
+All the code described below, as well as the text of this document and the code
+used to generate the figures are maintained in the public DESI {\tt Github}
+repository {\tt
+  desihub/desisim}\footnote{\url{https://github.com/desihub/desisim}} under the
+{\tt py/desisim} and {\tt doc/tex/simulate-templates} directories, respectively.
 
-In this document: add a table with all the forbidden and recombination lines we
-are using.
+%ToDo:
+%* Allow AGN-like emission-line ratios.
+%* Add (weak) emission lines to the LRG templates.
+%* Fix the random seed so the spectrum results are reproducible.
+%* Add units tests.
+%* Add nebular continuum to the EMSpectrum class.
+%* The empirical coefficients in EMSpectrum are hard-coded.
+%* Add more emission lines.
 
-DESI will obtain high-resolution, observed-frame optical spectroscopy
-of four broad classes of objects: quasars (QSOs), emission-line
-galaxies (ELGs), luminous red galaxies (LRGs), and stars.  Reliable
-spectral templates are critical for several key aspects of the
-Project, including spectral simulations (constructing mock datasets),
-optimization of targeting strategies, redshift fitting, spectral
-classification, and other applications.
+\section{Getting Started Quickly}
 
-The general requirements on the spectral templates for all four
-classes of objects are: (1) broad coverage of physical parameter
-space; (2) wide wavelength coverage (minimum rest-frame
-$\approx0.15-1~\mu$m spectral coverage); (3) high spectral
-resolution (at least $\mathcal{R}\approx4500$); and (4) high
-spectrophotometric fidelity.  
+This section presents several high-level examples so that you can get started
+building templates quickly.  To install the software and its dependencies please
+carefully review Appendix~\ref{sec:install}.  
 
-This document describes the construction of the \emph{preliminary} ELG
-templates for DESI.  These templates were constructed from DEEP2/DR4
-photometry and spectroscopy of a large sample of galaxies at $z\sim1$
-with measurable \oiilam{} nebular emission and extensive broadband
-photometric coverage.
+The only mandatory input required by \simt{} is to specify the number of
+templates/models via the {\tt nmodel} input and, optionally, the object type
+(although the default is {\tt ELG}); the code is initialized with sensible
+defaults for all the other optional inputs.  For example, to generate 100 {\tt
+  ELG} spectra, type
 
-\section{DEEP2 Observations}
+\begin{verbatim}
+% simulate-templates.py --nmodel 100
+\end{verbatim}
 
-The DEEP2 Galaxy Redshift Survey (hereafter, DEEP2) obtained
-high-resolution optical spectroscopy of more than $50,000$
-intermediate-redshift galaxies using the DEIMOS multi-object
-spectrograph on the Keck~2 telescope \citep{newman13a}.  DEEP2
-spectroscopy spans the $\approx6500-9300$~\AA{} observed-frame
-wavelength range at a resolution of $R\approx6000$ with $0.33$~\AA{}
-pixels.  With this instrumental setup, DEEP2 spectroscopy resolved the
-\oiilam{} nebular emission-line doublet for galaxies at
-$z\approx0.7-1.4$.
 
-The public DEEP2 data were retrieved and pre-processed in the
-following way:\footnote{Note that not all of the {\sc idl} code
-  alluded to in this document is checked into the DESI {\sc svn}
-  repository because it is part of my personal research code.
-  However, all of this code can be inspected or retrieved from my
-  public {\tt GitHub} repository:
-  \url{https://github.com/moustakas/moustakas-projects} (see
-  especially the {\tt deep2} and {\tt desi} directories).}
 
-%Redshift and photometric catalogs, as well as 1D and 2D spectra were
-%retrieved from the DEEP2 fourth public data release (DR4)
-%website\footnote{\url{http://deep.ps.uci.edu/dr4}} as described
-%below:
 
-\begin{enumerate}
-\item{First, all the redshift and photometric catalogs are downloaded,
-  as well as the 1D and 2D spectra which were released as part of the
-  fourth public data release (DR4) from
-  \url{http://deep.ps.uci.edu/dr4}.  The full DEEP2 redshift catalog
-  (including duplicate objects) is called {\tt zcat.deep2.dr4.fits.gz}
-  (N=52,989), while the catalog of unique galaxies is called {\tt
-    zcat.deep2.dr4.uniq.fits.gz} (N=50,319).  Among the subset of
-  unique galaxies, N=35,781 have high-quality spectroscopic redshifts,
-  $Q\ge3$ (see \citealt{newman13a} for details).}
-\item{The script {\tt deep2\_check\_spec1d\_dr4} runs through the full
-  catalog of unique objects, checks the fidelity of the 1D spectra,
-  and determines which spectra can be flux-calibrated.\footnote{The
-    code and response functions needed to flux-calibrate the DEEP2
-    spectra to within $\sim10\%$ is not public but can be requested
-    from Jeff Newman (JANewman@pitt.edu).}  This script produces the
-  file {\tt zcat.dr4.goodspec1d.Q34.fits.gz} (N=35,682), which
-  contains the set of (unique!) objects with $Q\ge3$ whose spectra
-  could be flux-calibrated.  Note that this catalog contains $99.8\%$
-  of the original sample of unique galaxies.}
-\item{Finally, the script {\tt build\_deep2\_photo\_catalog} generates
-  a line-matched photometric catalog for this sample by matching
-  against the \citet{matthews13a} extended photometric
-  catalog.\footnote{On the DEEP2/DR4 website the Matthews extended
-    photometric catalog is called {\tt zcat\_ext.uniq.fits.gz}, and
-    the matching is done using the {\sc objno} structure tag.}  This
-  catalog contains $BRI$ photometry and recalibrated $ugriz$
-  photometry from the CFHTLS Wide and Deep surveys.  The overwhelming
-  majority of matching objects ($\approx75\%$) have 8-band photometry
-  ($ugrizBRI$), while the remainder have just three bands of $BRI$
-  photometry.  This script also adds
-  unWISE\footnote{\url{http://unwise.me}} W1 and W2 ($3.4$ and
-  $4.6~\mu$m) photometry to the sample, based on running {\tt The
-    Tractor}\footnote{\url{http://thetractor.org}} in
-  forced-photometry mode at the position of all the DEEP2 sources
-  brighter than $R=24.1$, as well as morphological information (for
-  approximately $10\%$ of the sample) from the Advanced Camera for
-  Surveys General Catalog \citep[ACS-GC;][]{griffith12a}.  The output
-  file produced by this script is called {\tt
-    photo.dr4.goodspec1d.Q34.fits.gz} (N=35,682).}
-\end{enumerate}
+\begin{verbatim}
 
-%The 'zcat.dr4.goodspec1d.Q34.fits.gz' redshift catalog is used in all
-%my subsequent analysis.
+usage: simulate-templates.py [-h] [--nmodel] [--objtype] [--minwave]
+                             [--maxwave] [--cdelt] [--nocolorcuts]
+                             [--notemplates] [--noplot] [--outfile] [--qafile]
+                             [--zrange-elg ] [--rmagrange-elg ] [--minoiiflux]
+                             [--zrange-lrg ] [--zmagrange-lrg ]
+                             [--zrange-bgs ] [--rmagrange-bgs ]
 
-\section{DEEP2 Galaxy Modeling}
+Simulate noiseless, infinite-resolution spectral templates for DESI.
 
-%\subsection{Emission-line fitting}
+optional arguments:
+  -h, --help         show this help message and exit
+  --nmodel           number of model (template) spectra to generate (required
+                     input) (default: None)
+  --objtype          object type (ELG, LRG, QSO, BGS, STD, or STAR) (default:
+                     ELG)
+  --minwave          minimum output wavelength range [Angstrom] (default:
+                     3600)
+  --maxwave          maximum output wavelength range [Angstrom] (default:
+                     10000)
+  --cdelt            dispersion of output wavelength array [Angstrom/pixel]
+                     (default: 2)
+  --nocolorcuts      do not apply color cuts to select objects (only used for
+                     object types ELG, LRG, and QSO) (default: False)
+  --notemplates      do not generate templates (but do generate the diagnostic
+                     plots if OUTFILE exists) (default: False)
+  --noplot           do not generate diagnostic (QA) plots (default: False)
+  --outfile          output FITS file name (default: OBJTYPE-templates.fits)
+  --qafile           output file name for the diagnostic (QA) plots (default:
+                     OBJTYPE-templates.pdf)
 
-With the redshift and photometric catalogs described above in hand, as
-well as the corresponding 1D spectra, the following procedure is
-carried out to model the data:
+options for objtype=ELG:
+  --zrange-elg       minimum and maximum redshift (default: (0.6, 1.6))
+  --rmagrange-elg    Minimum and maximum r-band (AB) magnitude range (default:
+                     (21.0, 23.5))
+  --minoiiflux       Minimum integrated [OII] 3727 flux (default: 1E-17)
 
-\begin{itemize}
-\item{First, the 1D spectra of all 35,682 objects in the {\tt
-    zcat.dr4.goodspec1d.Q34.fits.gz} catalog are fitted using the
-  stellar continuum and emission-line fitting code described in
-  \citet{moustakas10a}.  The spectra are fitted twice, first by
-  allowing the \oiilam{} doublet ratio to be free, and a second time
-  by fixing the \oii~$\lambda3726/$\oii{}~$\lambda3729$ doublet ratio
-  to $0.73$ (the median ratio of galaxies in the sample with
-  well-measured \oii).  Fixing the doublet ratio ensures that
-  lower-S/N \oii{} lines are fitted with two distinct lines, rather
-  than one single broad line.  The spectra are fitted using the script
-  {\tt deep2\_gandalf\_specfit\_dr4}, which runs on each individual
-  DEEP2 mask, and the results are parsed and merged by running the
-  scripts {\tt parse\_deep2\_gandalf\_specfit\_dr4} and {\tt
-    deep2\_merge\_gandalf\_specfit\_dr4}, in that order.  An emission
-  line is considered ``measured'' if the amplitude of the line is
-  $>1.5$ times above the {\sc rms} of the surrounding continuum.  If
-  an emission line is not detected based on this criterion then a
-  $1\sigma$ upper limit is computed.  The output emission-line catalog
-  is called {\tt deep2.ppxf.specdata.dr4\_v1.0.fits.gz} (N=35,682).
-  Finally, the same scripts are run with the {\tt /fixoii} keyword,
-  which generates the corresponding {\tt
-    deep2.ppxf.specdata.fixoii.dr4\_v1.0.fits.gz} (N=35,682) catalog.}
-     
-\item{Next, the $ugrizBRI$ plus unWISE $3.4$ and $4.6~\mu$m broadband
-  photometry of the sample are fitted using the Bayesian spectral
-  energy distribution (SED) modeling code {\tt iSEDfit}
-  \citep{moustakas13a}.\footnote{\url{https://github.com/moustakas/impro}}
-  The script used to do the actual fitting is called {\tt
-    desi\_deep2\_isedfit}.  A fiducial set of prior parameters are
-  adopted, as well as the
-  FSPS\footnote{\url{https://www.cfa.harvard.edu/~cconroy/FSPS.html}}
-  \citep[v2.4;][]{conroy09a, conroy10b} spectral synthesis models
-  based on the MILES\footnote{\url{http://miles.iac.es}} stellar
-  library, which has a resolution of approximately $2.5$~\AA{} FWHM
-  ($\mathcal{R}\approx2200$) between $3600-7500$~\AA; outside this
-  spectral range the FSPS models are based on the BaSeL stellar
-  library, which has a FWHM resolution of roughly $20$~\AA{} FWHM.
-  The output {\tt iSEDfit} catalog is called {\tt
-    desi\_deep2\_fsps\_v2.4\_miles\_chab\_charlot\_sfhgrid01.fits.gz}
-  (N=35,682).  In addition, the best-fitting (maximum likelihood) SEDs
-  are used to compute $K$-corrections, and to estimate the mean
-  continuum flux around $3727$~\AA{} (rest), producing the catalog
-  {\tt
-    desi\_deep2\_fsps\_v2.4\_miles\_chab\_charlot\_sfhgrid01\_kcorr.z0.0.fits.gz}
-  (N=35,682).}
+options for objtype=LRG:
+  --zrange-lrg       minimum and maximum redshift (default: (0.5, 1.1))
+  --zmagrange-lrg    Minimum and maximum z-band (AB) magnitude range (default:
+                     (19.5, 20.6))
 
-\item{The final step in this process combines the spectroscopic
-  (emission-line) and photometric (SED) galaxy modeling results.  The
-  {\tt desi\_deep\_isedfit} script with the {\tt /build\_oiiflux}
-  keyword set generates a master, line-matched catalog of integrated
-  \oii{} fluxes for the sample using the technique described in
-  \citet{zhu09a}.  Briefly, the \oii{} emission-line equivalent width
-  (EW) measured for each galaxy is scaled by the continuum flux around
-  $3727$~\AA{} (rest) inferred from the SED modeling, resulting in
-  integrated \oii{} fluxes in erg~s$^{-1}$~cm$^{-2}$ for all the
-  galaxies were \oii{} could be measured (or where an upper limit
-  could be computed).  The output catalog produced by this script is
-  called {\tt deep2\_oiicat\_VERSION.fits.gz} (N=35,682), where {\tt
-    VERSION} is the template version number.}
-\end{itemize}
+options for objtype=BGS:
+  --zrange-bgs       minimum and maximum redshift (default: (0.01, 0.4))
+  --rmagrange-bgs    Minimum and maximum r-band (AB) magnitude range (default:
+                     (15.0, 19.0))
 
-%In addition, although the DEEP2 spectra have been flux-calibrated to
-%within $\sim10\%$, we still need to account for slit-losses.  I used
-%the technique described in \citet{zhu09a} to estimate the [OII]
-%emission-line flux in physical units.
+\end{verbatim}
 
-\section{ELG Templates}
 
-%Note that the instrumental resolution of the DEEP2/DEIMOS spectra is
-%R~6000 between ~6500-9100 A.
+\subsection{Building Templates for Other Object Types}
 
-%\begin{deluxetable}{ll}
-%\tablecaption{Rest-frame ELG Template Parameters\label{table:rest}} 
-%\tablewidth{0pt}
-%\tablehead{
-%\colhead{Parameter} & \colhead{Value}
-%}
-%\startdata
-%Number of templates     & $7876$ \\
-%Number of pixels        & $31,171$ \\ 
-%Rest-frame wavelength range & $0.125-1.0~\mu$m (vacuum) \\
-%Spectral resolution (emission lines) & Effectively infinite \\
-%Spectral resolution (continuum) & $\approx2200$ \\
-%Pixel size & $20$~km~s$^{-1}$ \\
-%Flux units & erg~s$^{-1}$~cm$^{-2}$~\AA$^{-1}$ at $10$~pc
-%\enddata
-%%\tablenotetext{a}{Cluster coordinates based on the position of the BCG.}
-%\end{deluxetable}
+In general, building 
+
+
+
+What about stars?!
+
+\section{The Details}
+
+The following sections describe each specific DESI spectral class in more
+detail, as well as various planned (and unplanned) avenues for improving the
+models.
+
+%\section{Building a Realistic Emission-Line Spectrum}
+
+\subsection{ELGs}
+
+\begin{figure}
+\centering
+\includegraphics[width=0.8\textwidth]{figures/oiiihb.pdf}
+\caption{Caption. \label{fig:oiiihb}}
+\end{figure}
+
+%DESI aims to measure redshifts for approximately $18$~million ELGs over the
+%redshift range $0.6<z<1.6$, primarily by resolving the \oiilam{} doublet.
+
+The original (preliminary) set of ELG templates for DESI were developed using
+high-resolution spectroscopy and broadband photometry of galaxies from the DEEP2
+survey (see {\tt
+  DESI-doc-870-v1}\footnote{https://desi.lbl.gov/DocDB/cgi-bin/private/RetrieveFile?docid=870;filename=elg-templates.pdf;version=1}
+for details).  Briefly, these templates 
+
+The most significant shortcoming of these templates 
+
+
+\begin{figure}
+\centering
+\includegraphics[width=0.8\textwidth]{figures/linesigma.pdf}
+\caption{Distribution of emission-line velocity widths among DEEP2 galaxies at
+  $z\sim1$.  The distribution is reasonably well-described by a log-normal
+  distribution with mean and standard deviation of
+  $\langle\log_{10}\sigma\rangle=1.877\pm0.175$~\kms{} or
+  $\langle\sigma\rangle=77$~\kms.  \label{fig:linesigma}}
+\end{figure}
+
+\begin{figure}
+\centering
+\includegraphics[width=0.8\textwidth]{figures/d4000_ewoii.pdf}
+\caption{Rest-frame \oii{} equivalent width vs.~the $4000$-\AA{}
+  break, $D_{n}(4000)$.  The blue points and uncertainties indicate
+  the running median and standard deviation in $0.05$-wide bins of
+  $D_{n}(4000)$, while the red curve is a third-order polynomial fit
+  to the points with the coefficients given in the
+  legend.  The dispersion is relatively uniform with $D_{n}(4000)$
+  with a mean value of $0.30$~dex.  {\bf Show the subset of objects
+    that satisfy our grz color cuts!}  \label{fig:d4000}}
+\end{figure}
 
 The ELG templates are constructed by combining the SEDs inferred from
 modeling the broadband photometry with the \oii{} emission-line
@@ -271,50 +223,21 @@ line-ratios.
 
 With these empirically constrained broadband SEDs and nebular
 emission-line spectra in hand, a set of rest-frame and observed-frame
-templates are generated.  Tables~\ref{table:rest} and \ref{table:obs}
-summarize the spectral parameters of the rest-frame and observed-frame
-templates, respectively.  The principle difference between the two
-template sets is that the rest-frame templates have
+templates are generated.  
+
+Tables~\ref{table:rest} and \ref{table:obs} summarize the spectral parameters of
+the rest-frame and observed-frame templates, respectively.  The principle
+difference between the two template sets is that the rest-frame templates have
 constant-$\log_{10}(\lambda)$ ($20$~km~s$^{-1}$) pixels, while the
-observed-frame templates have constant-$\lambda$ ($0.5$~\AA) pixels.
-In addition, the rest-frame templates are normalized to a
-$1~M_{\odot}$ (stellar masss) stellar population at $10$~pc, while the
-observed-frame templates retain the redshift and flux normalization of
-the corresponding DEEP2 galaxy.
+observed-frame templates have constant-$\lambda$ ($0.5$~\AA) pixels.  
+
+In addition, the rest-frame templates are normalized to a $1~M_{\odot}$ (stellar
+masss) stellar population at $10$~pc, while the observed-frame templates retain
+the redshift and flux normalization of the corresponding DEEP2 galaxy.
 
 %Include some figures:
 %* color-redshift plots
 %* many other ideas
-
-%\begin{deluxetable}{ll}
-%\tablecaption{Observed-frame ELG Template Parameters\label{table:obs}} 
-%\tablewidth{0pt}
-%\tablehead{
-%\colhead{Parameter} & \colhead{Value}
-%}
-%\startdata
-%Number of templates     & $7876$ \\
-%Number of pixels        & $15,001$ \\ 
-%Rest-frame wavelength range & $0.35-1.1~\mu$m (vacuum) \\
-%Spectral resolution (emission lines) & Effectively infinite \\
-%Spectral resolution (continuum) & $\approx2200$ \\
-%Pixel size & $0.5$~\AA \\
-%Flux units & erg~s$^{-1}$~cm$^{-2}$~\AA$^{-1}$\\
-%\enddata
-%%\tablenotetext{a}{Cluster coordinates based on the position of the BCG.}
-%\end{deluxetable}
-
-\section{Ancillary Information}
-
-The code used to generate this preliminary set of observed- and
-rest-frame ELG templates has been checked into the DESI {\sc svn}
-repository in {\tt code/spectro/templates/elg\_templates}.  The
-templates can be found on NERSC in {\tt
-  \$\{DESI\_ROOT\}/spectro/templates/elg\_templates/VERSION}, where
-{\tt VERSION} is the template version number (currently v1.2).  
-
-The rest-frame template file, {\tt elg\_templates\_VERSION.fits.gz},
-is a binary FITS table with two extensions:
 
 \begin{enumerate}
 \item{Extension~0: An [{\sc npixel}]$\times$[{\sc ntemplate}] flux
@@ -369,7 +292,20 @@ two extensions:
 }
 \end{enumerate}
 
-\section{Future Improvements}
+\subsection{Luminous Red Galaxy (LRG) Templates} 
+
+
+\subsection{Bright-Galaxy Survey (BGS) Templates} 
+
+\subsection{Quasar (QSO) Templates }
+
+
+\subsection{Stellar Templates (STAR)}
+
+
+\subsection{Standard Stars (STD)}
+
+\subsection{Future Improvements}
 
 Future improvements to these templates may include (in no particular
 order): 
@@ -388,33 +324,147 @@ order):
   space relative to actual observations).}
 \end{enumerate}
 
-\section{Note regarding previous versions}
-
-This TechNote describes the construction of the v1.2 ELG templates.
-The most significant updates with respect to previous undocumented
-versions (v1.0 and v1.1) is the construction of both observed-frame
-and rest-frame templates, the addition of size and morphology
-measurements based on HST imaging for approximately $10\%$ of the
-sample, and a number of (significant!) bug fixes.  Also note that the
-previous versions of ELG templates are not backwards-compatible with
-the current version!
-
-\begin{figure}
-\centering
-\includegraphics[width=0.8\textwidth]{figures/d4000_ewoii.pdf}
-\caption{Rest-frame \oii{} equivalent width vs.~the $4000$-\AA{}
-  break, $D_{n}(4000)$.  The blue points and uncertainties indicate
-  the running median and standard deviation in $0.05$-wide bins of
-  $D_{n}(4000)$, while the red curve is a third-order polynomial fit
-  to the points with the coefficients given in the
-  legend.  The dispersion is relatively uniform with $D_{n}(4000)$
-  with a mean value of $0.30$~dex.  {\bf Show the subset of objects
-    that satisfy our grz color cuts!}  \label{fig:d4000}}
-\end{figure}
 
 \bibliographystyle{apj}
 \bibliography{/Users/ioannis/bibdesk/ioannis}
 %\input{elg-templates.bbl}
+
+
+\clearpage
+\appendix
+
+\section{Installation Instructions}\label{sec:install}
+
+First, be sure you have recent installations of the {\tt astropy} (needed to
+manipulate FITS files), {\tt numpy} (numerical Python library), and {\tt
+  matplotlib} (plotting library) packages, or install (or upgrade) them using
+{\tt pip}:
+\begin{itemize*}
+  \item[\%]{{\tt pip install numpy [--upgrade]}}
+  \item[\%]{{\tt pip install matplotlib [--upgrade]}}
+  \item[\%]{{\tt pip install astropy [--upgrade]}}
+\end{itemize*}
+
+\noindent Next, clone the {\tt desihub/desisim}, {\tt desihub/desispec}, and
+          {\tt desihub/imaginglss} repositories:
+\begin{itemize*}
+  \item[\%]{{\tt mkdir desihub ; cd desihub}}
+  \item[\%]{{\tt git clone https://github.com/desihub/desisim.git}}
+  \item[\%]{{\tt git clone https://github.com/desihub/desispec.git}}
+  \item[\%]{{\tt git clone https://github.com/desihub/imaginglss.git}}
+\end{itemize*}
+
+\noindent The {\tt desispec} package is needed for the standardized set of I/O
+routines which have been written for reading and writing DESI spectra (and the
+associated metadata), while the {\tt imaginglss} package contains the DESI
+target-selection algorithms.\footnote{Note that the target-selection criteria
+  coded in {\tt imaginglss} eventually may be moved to the {\tt desitarget}
+  product.}  Next, add these packages to your {\tt PYTHONPATH} environment.  For
+example, in the {\tt bash} shell add the following lines to your {\tt .bashrc}
+file:
+\begin{itemize*}
+  \item[\%]{{\tt DESIHUB=/path/to/desihub}}
+  \item[\%]{{\tt
+      PYTHONPATH=\$DESIHUB/desisim/py:\$DESIHUB/desispec/py:\$DESIHUB/imaginglss}}
+\end{itemize*}
+
+\noindent If you wish, create an alias which points to the top-level executable
+script, {\tt simulate-templates.py}:
+\begin{itemize*}
+  \item[\%]{{\tt alias simulate-templates \$DESIHUB/desisim/bin/simulate-templates.py}}
+\end{itemize*}
+
+\noindent Finally, create environment variables which point to the latest set of
+continuum (basis) spectra for each object type.  For example, on {\tt NERSC} you
+would define the following variables in your {\tt .bashrc} startup file:
+\begin{itemize*}
+  \item[\%]{{\tt DESI\_ROOT=/project/projectdirs/desi}}
+  \item[\%]{{\tt DESI\_TEMPLATES=\$DESI\_ROOT/spectro/templates}}
+  \item[\%]{{\tt DESI\_ELG\_TEMPLATES=\$DESI\_TEMPLATES/elg\_templates/v1.3/elg\_templates\_v1.3.fits}}
+  \item[\%]{{\tt DESI\_LRG\_TEMPLATES=\$DESI\_TEMPLATES/lrg\_templates/v1.1/lrg\_templates\_v1.1.fits}}
+  \item[\%]{{\tt DESI\_BGS\_TEMPLATES=\$DESI\_TEMPLATES/bgs\_templates/v1.1/bgs\_templates\_v1.0.fits}}
+  \item[\%]{{\tt DESI\_STAR\_TEMPLATES=\$DESI\_TEMPLATES/star\_templates/v1.1/star\_templates\_v1.1.fits}}
+\end{itemize*}
+
+\noindent Alternatively, you can transfer these binary FITS files to your local
+machine or laptop and put them wherever you would like.  \noindent {\bf TODO:
+  Write a test script which ensures everything has been properly
+  installed/configured.}
+
+\section{Tables of Nebular Emission Lines}
+
+The following appendices do stuff.
+
+\begin{deluxetable}{ccc}
+\tablecaption{Nebular recombination lines\label{table:recomb}} 
+\tablewidth{0pt}
+\tablehead{\colhead{Emission Line} & \colhead{Vacuum Wavelength (\AA)} &
+  \colhead{Ratio\tablenotemark{a}}} 
+\startdata
+Ly$\alpha$ & 1215.670 &    23.54656 \\
+\cline{1-3}
+H$\alpha$ & 6564.613 &    2.863158 \\
+    H$\beta$ & 4862.683 &    1.000000 \\
+   H$\gamma$ & 4341.684 &   0.4683401 \\
+   H$\delta$ & 4102.892 &   0.2589474 \\
+ H$\epsilon$ & 3971.195 &   0.1590283 \\
+       H8 & 3890.151 &   0.1050202 \\
+       H9 & 3836.472 &  0.07312550 \\
+      H10 & 3798.976 &  0.05302830 \\
+      H11 & 3771.701 &  0.03971660 \\
+      H12 & 3751.217 &  0.03053440 \\
+      H13 & 3735.430 &  0.02399190 \\
+      H14 & 3722.997 &  0.01920650 \\
+      H15 & 3713.027 &  0.01561130 \\
+      H16 & 3704.906 &  0.01286640 \\
+      H17 & 3698.204 &  0.01073680 \\
+      H18 & 3692.605 & 0.009052600 \\
+\cline{1-3}
+  Pa$\alpha$ & 18756.13 &   0.3386235 \\
+   Pa$\beta$ & 12821.59 &   0.1632389 \\
+  Pa$\gamma$ & 10941.09 &  0.09044530 \\
+  Pa$\delta$ & 10052.13 &  0.05545750 \\
+Pa$\epsilon$ & 9548.591 &  0.03656680 \\
+      Pa9 & 9231.547 &  0.02543320 \\
+     Pa10 & 9017.385 &  0.01842910 \\
+     Pa11 & 8865.217 &  0.01378950 \\
+      P12 & 8752.876 &  0.01059920 \\
+\cline{1-3}
+  Br$\alpha$ & 40522.62 &  0.08021050 \\
+   Br$\beta$ & 26258.67 &  0.04546560 \\
+  Br$\gamma$ & 21661.20 &  0.02781380 \\
+  Br$\delta$ & 19450.87 &  0.01825910 \\
+\cline{1-3}
+\hei~$\lambda3188$ & 3188.662 &  0.04076080 \\
+\hei~$\lambda3389$ & 3889.752 &   0.1027011 \\
+\hei~$\lambda3965$ & 3965.852 &  0.01022650 \\
+\hei~$\lambda4026$ & 4027.348 &  0.02115760 \\
+\hei~$\lambda4471$ & 4472.755 &  0.04445050 \\
+\hei~$\lambda4922$ & 4923.304 &  0.01199870 \\
+\hei~$\lambda5016$ & 5017.079 &  0.02568980 \\
+\hei~$\lambda5876$ & 5877.299 &   0.1186800 \\
+\hei~$\lambda6678$ & 6679.994 &  0.03360660 \\
+\hei~$\lambda7065$ & 7067.198 &  0.02173860 \\
+\hei~$\lambda10830$ & 10833.22 &   0.2404832
+\enddata
+\tablenotetext{a}{Ratio with respect to H$\beta$ assuming case~B recombination.} 
+\end{deluxetable}
+
+\begin{deluxetable}{cc}
+\tablecaption{Nebular forbidden lines\label{table:forb}}
+\tablewidth{0pt}
+\tablehead{\colhead{Emission Line} & \colhead{Vacuum Wavelength (\AA)}}
+\startdata
+ \oii~$\lambda3726$ & 3727.092 \\
+ \oii~$\lambda3729$ & 3729.874 \\
+\oiii~$\lambda5007$ & 5008.239 \\
+\oiii~$\lambda4959$ & 4960.295 \\
+ \nii~$\lambda6584$ & 6585.277 \\
+ \nii~$\lambda6548$ & 6549.852 \\
+ \sii~$\lambda6716$ & 6718.294 \\
+ \sii~$\lambda6731$ & 6732.673
+\enddata
+\end{deluxetable}
 
 \end{document}
 
