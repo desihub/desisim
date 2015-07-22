@@ -14,10 +14,12 @@
 \newcommand{\sii}{[N~{\sc ii}]}
 \newcommand{\hei}{He~{\sc i}}
 \newcommand{\simt}{{\tt simulate-templates.py}}
+\newcommand{\ewoii}{EW([O~{\sc ii}])}
 
 \newcommand{\oiilam}{[O~{\sc ii}]~\ensuremath{\lambda\lambda3726,29}}
 
 \newcommand{\kms}{km~s$^{-1}$}
+\newcommand{\isedfit}{{\tt iSEDfit}}
 
 \newcommand{\apj}{ApJ}
 \newcommand{\pasp}{PASP}
@@ -39,16 +41,16 @@ This document describes the methodology and code which was developed to generate
 one-dimensional, noiseless, high-resolution spectral templates for DESI.  The
 initial focus of this effort has been on emission-line galaxies (ELG), luminous
 red galaxies (LRG), bright-galaxy survey galaxies (BGS), and stars (STAR), but
-eventually quasars (QSO), including Ly$\alpha$-QSOs, and standard stars (STD)
-will be supported.
+eventually quasars (QSO), including Ly$\alpha$-QSOs (QSO$\alpha$), and standard
+stars (STD) will be supported.
 
-The models are based on a combination of empirical constraints (i.e.,
-spectroscopy and photometry of galaxies and quasars over a broad redshift range)
-and state-of-the-art theoretical models.  These templates have a myriad of
-applications, but will be used primarily to help develop and optimize the
-end-to-end DESI spectroscopic pipeline (``data challenges'')---from raw data to
-redshifts and final spectral classifications---as well as to help develop and
-validate various target-selection strategies.
+The spectral templates are constructed using a combination of empirical
+constraints (e.g., spectroscopy and photometry of galaxies and quasars over a
+broad redshift range) and state-of-the-art theoretical models.  These templates
+have a myriad of applications, but will be used primarily to help develop and
+optimize the end-to-end DESI spectroscopic pipeline (``data challenges'')---from
+raw data to redshifts and final spectral classifications---as well as to help
+develop and validate various target-selection strategies.
 
 All the code described below, as well as the text of this document and the code
 used to generate the figures are maintained in the public DESI {\tt Github}
@@ -69,79 +71,25 @@ repository {\tt
 
 This section presents several high-level examples so that you can get started
 building templates quickly.  To install the software and its dependencies please
-carefully review Appendix~\ref{sec:install}.  
+see Appendix~\ref{sec:install}.
 
 The only mandatory input required by \simt{} is to specify the number of
 templates/models via the {\tt nmodel} input and, optionally, the object type
 (although the default is {\tt ELG}); the code is initialized with sensible
-defaults for all the other optional inputs.  For example, to generate 100 {\tt
-  ELG} spectra, type
+defaults for all the other optional inputs.  The following sections demonstrate
+how to build templates for a few different object types.
+
+\subsection{Example: ELGs}
+
+To generate 100 {\tt ELG} spectra 
 
 \begin{verbatim}
-% simulate-templates.py --nmodel 100
+simulate-templates.py --nmodel 100 --objtype ELG
 \end{verbatim}
 
+\subsection{Example: LRGs}
 
-
-
-\begin{verbatim}
-
-usage: simulate-templates.py [-h] [--nmodel] [--objtype] [--minwave]
-                             [--maxwave] [--cdelt] [--nocolorcuts]
-                             [--notemplates] [--noplot] [--outfile] [--qafile]
-                             [--zrange-elg ] [--rmagrange-elg ] [--minoiiflux]
-                             [--zrange-lrg ] [--zmagrange-lrg ]
-                             [--zrange-bgs ] [--rmagrange-bgs ]
-
-Simulate noiseless, infinite-resolution spectral templates for DESI.
-
-optional arguments:
-  -h, --help         show this help message and exit
-  --nmodel           number of model (template) spectra to generate (required
-                     input) (default: None)
-  --objtype          object type (ELG, LRG, QSO, BGS, STD, or STAR) (default:
-                     ELG)
-  --minwave          minimum output wavelength range [Angstrom] (default:
-                     3600)
-  --maxwave          maximum output wavelength range [Angstrom] (default:
-                     10000)
-  --cdelt            dispersion of output wavelength array [Angstrom/pixel]
-                     (default: 2)
-  --nocolorcuts      do not apply color cuts to select objects (only used for
-                     object types ELG, LRG, and QSO) (default: False)
-  --notemplates      do not generate templates (but do generate the diagnostic
-                     plots if OUTFILE exists) (default: False)
-  --noplot           do not generate diagnostic (QA) plots (default: False)
-  --outfile          output FITS file name (default: OBJTYPE-templates.fits)
-  --qafile           output file name for the diagnostic (QA) plots (default:
-                     OBJTYPE-templates.pdf)
-
-options for objtype=ELG:
-  --zrange-elg       minimum and maximum redshift (default: (0.6, 1.6))
-  --rmagrange-elg    Minimum and maximum r-band (AB) magnitude range (default:
-                     (21.0, 23.5))
-  --minoiiflux       Minimum integrated [OII] 3727 flux (default: 1E-17)
-
-options for objtype=LRG:
-  --zrange-lrg       minimum and maximum redshift (default: (0.5, 1.1))
-  --zmagrange-lrg    Minimum and maximum z-band (AB) magnitude range (default:
-                     (19.5, 20.6))
-
-options for objtype=BGS:
-  --zrange-bgs       minimum and maximum redshift (default: (0.01, 0.4))
-  --rmagrange-bgs    Minimum and maximum r-band (AB) magnitude range (default:
-                     (15.0, 19.0))
-
-\end{verbatim}
-
-
-\subsection{Building Templates for Other Object Types}
-
-In general, building 
-
-
-
-What about stars?!
+Give some examples.
 
 \section{The Details}
 
@@ -153,6 +101,43 @@ models.
 
 \subsection{ELGs}
 
+A preliminary set of ELG templates for DESI were developed in 2014 using
+high-resolution spectroscopy and broadband photometry of galaxies from the DEEP2
+survey (see {\tt DESI-doc-870} for extensive
+details).\footnote{https://desi.lbl.gov/DocDB/cgi-bin/private/RetrieveFile?docid=870;filename=elg-templates.pdf;version=1}
+Here we build on those preliminary templates using the same input data, but add
+more flexibility, allowing a much larger range of synthetic templates to be
+generated.
+
+Constructing reliable ELG templates is challenging for two main reasons.  First,
+the optical emission-line spectra of star-forming galaxies can vary
+significantly (up to an order-of-magnitude or more) due to differences in dust
+content, gas-phase abundance, and excitation \citep[e.g.,][]{kewley01a}.  And
+second, the strengths of the nebular emission lines relative to the underlying
+stellar continuum (i.e., the emission-line equivalent width) also exhibit large
+intrinsic variations due to differences in the specific star formation rate
+(star formation rate divided by the stellar mass; see \citealt{kennicutt94a})
+among galaxies.  Moreover, we need to take into account the fact that DESI will
+be targeting ELGs in an epoch ($z\sim1$) when galaxies were dustier and forming
+stars at much higher rates (relative to their stellar mass) compared to local
+star-forming galaxies.
+
+DEEP2 observations of 
+
+As described in {\tt DESI-doc-870}, we have measured the emission lines and fit
+the broadband continuum spectra using \isedfit.
+
+With these issues in mind, we have developed the following procedure for
+generating a broad range of empirically constrained ELG templates, as described
+in more detail below:
+\begin{enumerate*}
+\item{Randomly (i.e., with equal probability) choose a DEEP2 stellar continuum
+  spectrum with measured $4000$-\AA{} break strength $D_{n}(4000)$ (a proxy for
+  specific star-formation rate).}
+\item{Use an empirically calibrated relation between $D_{n}(4000)$ and \oiilam{}
+  emission-line equivalent width (EW), \ewoii.}
+\end{enumerate*}
+
 \begin{figure}
 \centering
 \includegraphics[width=0.8\textwidth]{figures/oiiihb.pdf}
@@ -161,15 +146,6 @@ models.
 
 %DESI aims to measure redshifts for approximately $18$~million ELGs over the
 %redshift range $0.6<z<1.6$, primarily by resolving the \oiilam{} doublet.
-
-The original (preliminary) set of ELG templates for DESI were developed using
-high-resolution spectroscopy and broadband photometry of galaxies from the DEEP2
-survey (see {\tt
-  DESI-doc-870-v1}\footnote{https://desi.lbl.gov/DocDB/cgi-bin/private/RetrieveFile?docid=870;filename=elg-templates.pdf;version=1}
-for details).  Briefly, these templates 
-
-The most significant shortcoming of these templates 
-
 
 \begin{figure}
 \centering
@@ -193,6 +169,8 @@ The most significant shortcoming of these templates
   with a mean value of $0.30$~dex.  {\bf Show the subset of objects
     that satisfy our grz color cuts!}  \label{fig:d4000}}
 \end{figure}
+
+\vspace{1in}
 
 The ELG templates are constructed by combining the SEDs inferred from
 modeling the broadband photometry with the \oii{} emission-line
@@ -327,7 +305,7 @@ order):
 
 \bibliographystyle{apj}
 \bibliography{/Users/ioannis/bibdesk/ioannis}
-%\input{elg-templates.bbl}
+%\input{simulate-templates.bbl}
 
 
 \clearpage
@@ -390,6 +368,59 @@ would define the following variables in your {\tt .bashrc} startup file:
 machine or laptop and put them wherever you would like.  \noindent {\bf TODO:
   Write a test script which ensures everything has been properly
   installed/configured.}
+
+Random seed can be specified.
+
+\begin{verbatim}
+
+usage: simulate-templates.py [-h] [--nmodel] [--objtype] [--minwave]
+                             [--maxwave] [--cdelt] [--nocolorcuts]
+                             [--notemplates] [--noplot] [--outfile] [--qafile]
+                             [--zrange-elg ] [--rmagrange-elg ] [--minoiiflux]
+                             [--zrange-lrg ] [--zmagrange-lrg ]
+                             [--zrange-bgs ] [--rmagrange-bgs ]
+
+Simulate noiseless, infinite-resolution spectral templates for DESI.
+
+optional arguments:
+  -h, --help         show this help message and exit
+  --nmodel           number of model (template) spectra to generate (required
+                     input) (default: None)
+  --objtype          object type (ELG, LRG, QSO, BGS, STD, or STAR) (default:
+                     ELG)
+  --minwave          minimum output wavelength range [Angstrom] (default:
+                     3600)
+  --maxwave          maximum output wavelength range [Angstrom] (default:
+                     10000)
+  --cdelt            dispersion of output wavelength array [Angstrom/pixel]
+                     (default: 2)
+  --nocolorcuts      do not apply color cuts to select objects (only used for
+                     object types ELG, LRG, and QSO) (default: False)
+  --notemplates      do not generate templates (but do generate the diagnostic
+                     plots if OUTFILE exists) (default: False)
+  --noplot           do not generate diagnostic (QA) plots (default: False)
+  --outfile          output FITS file name (default: OBJTYPE-templates.fits)
+  --qafile           output file name for the diagnostic (QA) plots (default:
+                     OBJTYPE-templates.pdf)
+
+options for objtype=ELG:
+  --zrange-elg       minimum and maximum redshift (default: (0.6, 1.6))
+  --rmagrange-elg    Minimum and maximum r-band (AB) magnitude range (default:
+                     (21.0, 23.5))
+  --minoiiflux       Minimum integrated [OII] 3727 flux (default: 1E-17)
+
+options for objtype=LRG:
+  --zrange-lrg       minimum and maximum redshift (default: (0.5, 1.1))
+  --zmagrange-lrg    Minimum and maximum z-band (AB) magnitude range (default:
+                     (19.5, 20.6))
+
+options for objtype=BGS:
+  --zrange-bgs       minimum and maximum redshift (default: (0.01, 0.4))
+  --rmagrange-bgs    Minimum and maximum r-band (AB) magnitude range (default:
+                     (15.0, 19.0))
+
+\end{verbatim}
+
 
 \section{Tables of Nebular Emission Lines}
 

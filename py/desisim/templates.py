@@ -18,13 +18,13 @@ class ELG():
 
     """
     def __init__(self, nmodel=50, minwave=3600.0, maxwave=10000.0,
-                 cdelt=2.0):
+                 cdelt=2.0, seed=None):
         """Read the ELG continuum templates, grzW1 filter profiles and
            initialize the output wavelength array.
 
         Only a linearly-spaced output wavelength array is currently supported.
 
-        TODO (@moustakas): Incorporate size and concentration information.
+        TODO (@moustakas): Incorporate size and morphological priors.
 
         Args:
           nmodel (int, optional): Number of models to generate (default 50). 
@@ -34,9 +34,12 @@ class ELG():
             array [default 10000 Angstrom].
           cdelt (float, optional): spacing of the output wavelength array
             [default 2 Angstrom/pixel].
+          seed (long, optional): input seed for the random numbers
     
         Attributes:
           nmodel (int): See Args.
+          seed (long): See Args.
+          rand (numpy.RandomState): instance of numpy.random.RandomState(seed)
           wave (numpy.ndarray): Output wavelength array constructed from the input
             wavelength arguments [Angstrom].
           baseflux (numpy.ndarray): Array [nbase,npix] of the base rest-frame
@@ -54,6 +57,8 @@ class ELG():
         from desisim.templates import read_base_templates
 
         self.nmodel = nmodel
+        self.seed = seed
+        self.rand = np.random.RandomState(seed=self.seed)
 
         # Initialize the output wavelength array (linear spacing)
         npix = (maxwave-minwave)/cdelt+1
@@ -74,7 +79,7 @@ class ELG():
     def make_templates(self, zrange=(0.6,1.6), rmagrange=(21.0,23.5),
                        oiiihbrange=(-0.5,0.1), oiidoublet_meansig=(0.73,0.05),
                        linesigma_meansig=(1.887,0.175), minoiiflux=1E-17,
-                       comments=None, colorcuts=True, outfile=None):
+                       no_colorcuts=False, header_comments=None, outfile=None):
         """Build Monte Carlo set of ELG spectra/templates.
 
         This function chooses random subsets of the ELG continuum spectra, constructs
@@ -96,10 +101,10 @@ class ELG():
             (Gaussian) emission-line velocity width distribution.  Defaults to
             log10-sigma(=1.887+/0.175) km/s.
 
-          colorcuts (bool, optional): Only select objects that satisfy the fiducial grz
-            color-cuts cuts (default True).
           minoiiflux (float, optional): Minimum [OII] 3727 flux [default 1E-17 erg/s/cm2].
             Set this parameter to zero to not have a minimum flux cut.
+          no_colorcuts (bool, optional): Do not apply the fiducial grz color-cuts
+            cuts (default False).
         
           outfile (str, optional): Write the template spectra (with header information) and
             the corresponding meta-data table to this file (default None).
@@ -119,7 +124,7 @@ class ELG():
 
         # Initialize the EMSpectrum object with the same wavelength array as
         # the "base" (continuum) templates so that we don't have to resample. 
-        EM = EMSpectrum(log10wave=np.log10(self.basewave))
+        EM = EMSpectrum(log10wave=np.log10(self.basewave),seed=self.seed)
        
         # Initialize the output flux array and metadata Table.
         outflux = np.zeros([self.nmodel,len(self.wave)]) # [erg/s/cm2/A]
@@ -143,22 +148,22 @@ class ELG():
 
         while nobj<=(self.nmodel-1):
             # Choose a random subset of the base templates
-            chunkindx = np.random.randint(0,nbase-1,nchunk)
+            chunkindx = self.rand.randint(0,nbase-1,nchunk)
 
             # Assign uniform redshift and r-magnitude distributions.
-            redshift = np.random.uniform(zrange[0],zrange[1],nchunk)
-            rmag = np.random.uniform(rmagrange[0],rmagrange[1],nchunk)
+            redshift = self.rand.uniform(zrange[0],zrange[1],nchunk)
+            rmag = self.rand.uniform(rmagrange[0],rmagrange[1],nchunk)
 
             # Assume the emission-line priors are uncorrelated.
-            oiiihbeta = np.random.uniform(oiiihbrange[0],oiiihbrange[1],nchunk)
-            oiidoublet = np.random.normal(oiidoublet_meansig[0],
+            oiiihbeta = self.rand.uniform(oiiihbrange[0],oiiihbrange[1],nchunk)
+            oiidoublet = self.rand.normal(oiidoublet_meansig[0],
                                           oiidoublet_meansig[1],nchunk)
-            linesigma = np.random.normal(linesigma_meansig[0],
+            linesigma = self.rand.normal(linesigma_meansig[0],
                                          linesigma_meansig[1],nchunk)
 
             d4000 = self.basemeta['D4000'][chunkindx]
             ewoii = 10.0**(np.polyval([1.1074,-4.7338,5.6585],d4000)+ 
-                           np.random.normal(0.0,0.3)) # rest-frame, Angstrom
+                           self.rand.normal(0.0,0.3)) # rest-frame, Angstrom
 
             # Unfortunately we have to loop here.
             for ii, iobj in enumerate(chunkindx):
@@ -182,10 +187,10 @@ class ELG():
                 zflux = self.zfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                 zoiiflux = oiiflux*rnorm # [erg/s/cm2]
 
-                if colorcuts:
-                    grzmask = cuts.Fluxes.ELG(g=gflux,r=rflux,z=zflux)
-                else:
+                if no_colorcuts:
                     grzmask = [True]
+                else:
+                    grzmask = cuts.Fluxes.ELG(g=gflux,r=rflux,z=zflux)
                 oiimask = [zoiiflux>minoiiflux]
 
                 # Not sure why this print statement doesn't work!
@@ -213,12 +218,14 @@ class ELG():
 
         # Optionally write out and then return.
         if outfile is not None:
-            log.info('Writing {}.'.format(outfile))
-            self.write_templates(outflux,self.wave,meta,'elg',outfile=outfile)
+            log.info('Writing {}'.format(outfile))
+            self.write_templates(outflux,self.wave,meta,'elg',outfile=outfile,
+                                 header_comments=header_comments)
 
         return outflux, meta
 
-    def write_templates(self, flux, wave, meta, objtype, outfile=None):
+    def write_templates(self, flux, wave, meta, objtype, outfile=None,
+                        header_comments=None):
         """ Write out simulated galaxy templates.
         
         Should this go in the desisim.io module?
@@ -240,9 +247,12 @@ class ELG():
             BUNIT = ('erg/s/cm2/A', 'spectrum flux units')
             )
         hdr = util.fitsheader(header)
+
+        if header_comments is None:
+            header_comments = dict()
+        #for key in header_comments.keys():
+        #    hdr[key] = header_comments[key]
         fits.writeto(outfile,flux.astype(np.float32),header=hdr,clobber=True)
-    
-        # Add the version number to the metadata header
         
         comments = dict(
             TEMPLATEID = 'template ID',
@@ -272,7 +282,8 @@ class EMSpectrum():
     """Construct a complete nebular emission-line spectrum.
 
     """
-    def __init__(self, minwave=3650.0, maxwave=7075.0, cdelt_kms=20.0, log10wave=None):
+    def __init__(self, minwave=3650.0, maxwave=7075.0, cdelt_kms=20.0,
+                 log10wave=None, seed=None):
         """
         Read the requisite external data files and initialize the output wavelength array.
 
@@ -292,6 +303,7 @@ class EMSpectrum():
             array [Angstrom, default 10000].
           cdelt_kms (float, optional): Spacing of the output wavelength array
             [km/s, default 20].
+          seed (long, optional): input seed for the random numbers
         
           log10wave (numpy.ndarray, optional): Input/output wavelength array
             (log10-Angstrom, default None).
@@ -300,6 +312,8 @@ class EMSpectrum():
           log10wave (numpy.ndarray): Wavelength array constructed from the input arguments.
           line (astropy.Table): Table containing the laboratoy (vacuum) wavelengths and nominal
             line-ratios for several dozen forbidden and recombination nebular emission lines. 
+          seed (long): See Args.
+          rand (numpy.RandomState): instance of numpy.random.RandomState(seed)
 
         Raises:
           IOError: If the required data files are not found.
@@ -308,6 +322,9 @@ class EMSpectrum():
         from astropy.io import ascii
         from astropy.table import Table, Column, vstack
 
+        self.seed = seed
+        self.rand = np.random.RandomState(seed=self.seed)
+        
         # Build a wavelength array if one is not given.
         if log10wave is None:
             cdelt = cdelt_kms/2.99792458E5/np.log(10) # pixel size [log-10 A]
@@ -359,8 +376,6 @@ class EMSpectrum():
         will be normalized using H-beta.  Note that the H-beta normalization
         trumps the [OII] normalization (in the case that both are given).
 
-        TODO (@moustakas): Allow the random seed to be passed so that a given
-        (random) spectrum can be reproduced.
         TODO (@moustakas): Add a suitably scaled nebular continuum spectrum.
         TODO (@moustakas): Add more emission lines.
 
@@ -408,7 +423,7 @@ class EMSpectrum():
         disp = 0.1 # dex
 
         line['ratio'][is6584] = 10**(np.polyval(coeff,oiiihbeta)+
-                                          np.random.normal(0.0,disp))
+                                          self.rand.normal(0.0,disp))
         line['ratio'][is6548] = line['ratio'][is6584]/niidoublet
 
         # Normalize [SII] 6716,6731.
@@ -418,7 +433,7 @@ class EMSpectrum():
         disp = 0.1 # dex
 
         line['ratio'][is6716] = 10**(np.polyval(coeff,oiiihbeta)+
-                                          np.random.normal(0.0,disp))
+                                          self.rand.normal(0.0,disp))
         line['ratio'][is6731] = line['ratio'][is6716]/siidoublet
 
         # Normalize [NeIII] 3869.
@@ -427,7 +442,7 @@ class EMSpectrum():
         disp = 0.1 # dex
 
         line['ratio'][is3869] = 10**(np.polyval(coeff,oiiihbeta)+
-                                          np.random.normal(0.0,disp))
+                                          self.rand.normal(0.0,disp))
 
         # Normalize [OII] 3727, split into [OII] 3726,3729.
         is3726 = np.where(line['name']=='[OII]_3726')[0]
@@ -436,7 +451,7 @@ class EMSpectrum():
         disp = 0.1 # dex
 
         oiihbeta = 10**(np.polyval(coeff,oiiihbeta)+ # [OII] 3727/Hbeta
-                        np.random.normal(0.0,disp)) 
+                        self.rand.normal(0.0,disp)) 
 
         factor1 = oiidoublet/(1.0+oiidoublet) # convert 3727-->3726
         factor2 = 1.0/(1.0+oiidoublet)        # convert 3727-->3729

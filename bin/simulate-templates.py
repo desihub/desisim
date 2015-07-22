@@ -18,10 +18,10 @@ def main():
                                      description='Simulate noiseless, infinite-resolution spectral templates for DESI.')
                                          
 
-    parser.add_argument('--nmodel', type=long, default=None, metavar='', 
+    parser.add_argument('-n','--nmodel', type=long, default=None, metavar='', 
                         help='number of model (template) spectra to generate (required input)')
     # Optional inputs.
-    parser.add_argument('--objtype', type=str, default='ELG', metavar='', 
+    parser.add_argument('-o','--objtype', type=str, default='ELG', metavar='', 
                         help='object type (ELG, LRG, QSO, BGS, STD, or STAR)') 
     parser.add_argument('--minwave', type=float, default=3600, metavar='', 
                         help='minimum output wavelength range [Angstrom]')
@@ -29,14 +29,16 @@ def main():
                         help='maximum output wavelength range [Angstrom]')
     parser.add_argument('--cdelt', type=float, default=2, metavar='', 
                         help='dispersion of output wavelength array [Angstrom/pixel]')
+    parser.add_argument('-s', '--seed', type=long, default=None, metavar='', 
+                        help='random number seed')
     # Boolean keywords.
-    parser.add_argument('--nocolorcuts', action='store_true', 
+    parser.add_argument('--no-colorcuts', action='store_true', 
                         help="""do not apply color cuts to select objects (only used for
                         object types ELG, LRG, and QSO)""")
-    parser.add_argument('--notemplates', action='store_true', 
+    parser.add_argument('--no-templates', action='store_true', 
                         help="""do not generate templates
     (but do generate the diagnostic plots if OUTFILE exists)""")
-    parser.add_argument('--noplot', action='store_true', 
+    parser.add_argument('--no-plots', action='store_true', 
                         help='do not generate diagnostic (QA) plots')
     # Output filenames.
     parser.add_argument('--outfile', type=str, default='OBJTYPE-templates.fits', metavar='', 
@@ -91,17 +93,22 @@ def main():
         outfile = objtype.lower()+'-templates.fits'
     
     log.info('Building {} {} templates.'.format(args.nmodel, objtype))
-    cmd = " ".join(sys.argv)
+
+    # Pack the optional inputs into a dictionary to be added to the output FITS
+    # header.
+    #cmd = " ".join(sys.argv)
+    header_comments = vars(args)
 
     # Call the right Class depending on the object type.
-    if not args.notemplates:
+    if not args.no_templates:
         if objtype == 'ELG':
             from desisim.templates import ELG
             elg = ELG(nmodel=args.nmodel,minwave=args.minwave,maxwave=args.maxwave,
-                      cdelt=args.cdelt)
+                      cdelt=args.cdelt,seed=args.seed)
             elg.make_templates(zrange=args.zrange_elg,rmagrange=args.rmagrange_elg,
                                minoiiflux=args.minoiiflux,outfile=outfile,
-                               comments=cmd)
+                               no_colorcuts=args.no_colorcuts,
+                               header_comments=header_comments)
         elif objtype == 'LRG':
             log.warning('{} objtype not yet supported!'.format(objtype))
             sys.exit(1)
@@ -122,7 +129,7 @@ def main():
             sys.exit(1)
     
     # Generate diagnostic QAplots.
-    if not args.noplot:
+    if not args.no_plots:
         import matplotlib.pyplot as plt
     
         if args.qafile:
@@ -139,6 +146,8 @@ def main():
         int2 = 1.2
 
         plt.plot([1.0,2.0,3.0],[1.0,2.0,3.0],'rs')
+
+        log.info('Writing {}'.format(qafile))
         plt.savefig(qafile)
         
         #indx = np.where((rz>=rzmin)&(gr<=np.polyval([slope1,int1],rz))&
