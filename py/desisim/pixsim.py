@@ -96,10 +96,18 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None, trimxy=
         # hdr['CRVAL1'] = xmin+1
         # hdr['CRVAL2'] = ymin+1
 
-    #- Add noise and write output files
+    #- Prepare header
+    hdr = fits.getheader(simfile, 0)
     tmp = '/'.join(simfile.split('/')[-3:])  #- last 3 elements of path
     hdr['SIMFILE'] = (tmp, 'Input simulation file')
-    pixfile = io.write_simpix(img, camera, 'science', night, expid, header=hdr)
+
+    #- Strip unnecessary keywords
+    for key in ('EXTNAME', 'LOGLAM', 'AIRORVAC', 'CRVAL1', 'CDELT1'):
+        if key in hdr:
+            del hdr[key]
+
+    #- Add noise and write output files
+    pixfile = io.write_simpix(img, camera, night, expid, header=hdr)
 
     if verbose:
         print "Wrote "+pixfile

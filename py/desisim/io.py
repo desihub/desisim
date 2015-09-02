@@ -106,7 +106,7 @@ def write_simspec(meta, truth, expid, night, header=None, outfile=None):
     return outfile
     
 #- TODO: this is more than just I/O.  Refactor.
-def write_simpix(img, camera, flavor, night, expid, header=None):
+def write_simpix(img, camera, night, expid, header):
     """
     Add noise to input image and write output simpix and pix files.
     
@@ -116,6 +116,8 @@ def write_simpix(img, camera, flavor, night, expid, header=None):
         flavor : arc or flat
         night  : YEARMMDD string
         expid  : integer exposure id
+        header : dict-like object that should include FLAVOR and EXPTIME,
+            e.g. from HDU0 FITS header of input simspec file
         
     Writes to $DESI_SPECTRO_SIM/$PIXPROD/{night}/
         simpix-{camera}-{expid}.fits
@@ -155,12 +157,12 @@ def write_simpix(img, camera, flavor, night, expid, header=None):
     #- Primary HDU: noisy image
     outfile = '{}/pix-{}-{:08d}.fits'.format(outdir, camera, expid)
     hdulist = fits.HDUList()
+    if 'EXTNAME' in header:
+        del header['EXTNAME']
     hdu = fits.PrimaryHDU(pix, header=header)
     hdu.header.append( ('CAMERA', camera, 'Spectograph Camera') )
     hdu.header.append( ('VSPECTER', '0.0.0', 'TODO: Specter version') )
-    hdu.header.append( ('EXPTIME', params['exptime'], 'Exposure time [sec]') )
     hdu.header.append( ('RDNOISE', rdnoise, 'Read noise [electrons]'))
-    hdu.header.append( ('FLAVOR', flavor, 'Exposure type (arc, flat, science)'))
     hdulist.append(hdu)
 
     #- IVAR: Inverse variance (IVAR)
@@ -292,7 +294,6 @@ def read_templates(wave, objtype, nspec=None, randseed=1, infile=None):
     outflux = pool.map(_resample_flux, args)        
         
     return outflux, outmeta
-    
     
 
 #-------------------------------------------------------------------------
