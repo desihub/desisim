@@ -32,11 +32,8 @@ parser = optparse.OptionParser(
     epilog = "See $SPECTER_DIR/doc/datamodel.md for input format details"
     )
         
-parser.add_option("--newexp", type=str, dest="flavor", help="create new arc/flat/science")
-parser.add_option("--tileid", type=int, help="tile id")
-parser.add_option("--expid", type=int, help="exposure id")
 parser.add_option("--night", type=str, help="YEARMMDD")
-parser.add_option("--airmass",  type=float, help="Airmass [%default]", default=1.0)
+parser.add_option("--expid", type=int, help="exposure id")
 ### parser.add_option("--simfile", type=str, help="input sim file")
 parser.add_option("--camera", type=str, help="camera (e.g. b0, r5, z9)")
 parser.add_option("--verbose", action="store_true", help="print more stuff")
@@ -66,27 +63,17 @@ if opts.camera is None:
 else:
     opts.camera = opts.camera.split(',')
 
-#- Initialize tileid
-if opts.tileid is None:
-    opts.tileid = obs.get_next_tileid()
-
 #- Initialize random seeds
-if opts.randseed is None:
-    if opts.tileid >= 0:
-        opts.randseed = opts.tileid
+# if opts.randseed is None:
+#     if opts.tileid >= 0:
+#         opts.randseed = opts.tileid
         
 random.seed(opts.randseed)
 np.random.seed(opts.randseed)
 
-if opts.flavor is not None:
-    obs.new_exposure(opts.flavor, opts.nspec,   \
-        night=opts.night, expid=opts.expid,     \
-        tileid=opts.tileid, airmass=opts.airmass)
-    sys.exit(0)
-
 for camera in opts.camera:
-    pixsim.simulate(opts.night, opts.expid, camera,
-        verbose=opts.verbose, nspec=opts.nspec, ncpu=opts.ncpu, trimxy=opts.trimxy)
+    pixsim.simulate(opts.night, opts.expid, camera, verbose=opts.verbose,
+        nspec=opts.nspec, ncpu=opts.ncpu, trimxy=opts.trimxy)
 
 #-------------------------------------------------------------------------
 # if opts.debug:
