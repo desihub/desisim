@@ -165,7 +165,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
     desispec.io.write_fibermap(fiberfile, fibermap, header=hdr)
     print fiberfile
     
-    #- Write simfile
+    #- Write simspec
     hdr = dict(
         AIRMASS=(airmass, 'Airmass at middle of exposure'),
         EXPTIME=(exptime, 'Exposure time [sec]'),
