@@ -44,27 +44,49 @@ def write_simspec(meta, truth, expid, night, header=None, outfile=None):
         outdir = simdir(night, mkdir=True)      
         outfile = '{}/simspec-{:08d}.fits'.format(outdir, expid)
 
-    #- Object flux HDU (which might be just a header, e.g. for an arc)
-    hdr = desispec.io.util.fitsheader(header)
+    #- Primary HDU is just a header from the input
+    hx = fits.HDUList()
+    hx.append(fits.PrimaryHDU(None, header=desispec.io.util.fitsheader(header)))
 
-    wave = truth['WAVE']
-    hdr['CRVAL1']    = (wave[0], 'Starting wavelength [Angstroms]')
-    hdr['CDELT1']    = (wave[1]-wave[0], 'Wavelength step [Angstroms]')
-    hdr['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
-    hdr['LOGLAM']    = (0, 'linear wavelength steps, not log10')
+    #- Object flux HDU (might not exist, e.g. for an arc)
     if 'FLUX' in truth:
-        hdr['EXTNAME']   = ('FLUX', 'Object flux [erg/s/cm2/A]')
-        fits.writeto(outfile, truth['FLUX'].astype(np.float32), header=hdr, clobber=True)
-    else:
-        fits.writeto(outfile, np.zeros(0), header=hdr, clobber=True)
+        x = fits.ImageHDU(truth['WAVE'], name='WAVE')
+        x.header['BUNIT']  = ('Angstrom', 'Wavelength units')
+        x.header['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
+        hx.append(x)
+
+        x = fits.ImageHDU(truth['FLUX'].astype(np.float32), name='FLUX')
+        x.header['BUNIT'] = '1e-17 erg/s/cm2/A'
+        hx.append(x)
     
     #- Sky flux HDU
     if 'SKYFLUX' in truth:
-        hdr['EXTNAME'] = ('SKYFLUX', 'Sky flux [erg/s/cm2/A/arcsec2]')
-        hdu = fits.ImageHDU(truth['SKYFLUX'].astype(np.float32), header=hdr)
-        fits.append(outfile, hdu.data, header=hdu.header)
+        x = fits.ImageHDU(truth['SKYFLUX'].astype(np.float32), name='SKYFLUX')
+        x.header['BUNIT'] = '1e-17 erg/s/cm2/A/arcsec2'
+        hx.append(x)
     
-    #- Metadata table HDU
+    #- Write object photon and sky photons for each channel
+    for channel in ['B', 'R', 'Z']:
+        x = fits.ImageHDU(truth['WAVE_'+channel], name='WAVE_'+channel)
+        x.header['BUNIT']  = ('Angstrom', 'Wavelength units')
+        x.header['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
+        hx.append(x)
+
+        extname = 'PHOT_'+channel
+        x = fits.ImageHDU(truth[extname].astype(np.float32), name=extname)
+        x.header['EXTNAME'] = (extname, channel+' channel object photons per bin')
+        hx.append(x)
+
+        extname = 'SKYPHOT_'+channel
+        if extname in truth:
+            x = fits.ImageHDU(truth[extname].astype(np.float32), name=extname)
+            x.header['EXTNAME'] = (extname, channel+' channel sky photons per bin')
+            hx.append(x)
+
+    #- Write the file
+    hx.writeto(outfile, clobber=True)
+
+    #- Add Metadata table HDU; use write_bintable to get units and comments
     if meta is not None:
         comments = dict(
             OBJTYPE     = 'Object type (ELG, LRG, QSO, STD, STAR)',
@@ -82,26 +104,6 @@ def write_simspec(meta, truth, expid, night, header=None, outfile=None):
     
         write_bintable(outfile, meta, header=None, extname="METADATA",
             comments=comments, units=units)
-
-    #- Write object photon and sky photons for each channel
-    for channel in ['B', 'R', 'Z']:
-        hdr = fits.Header()
-        wave = truth['WAVE_'+channel]
-        hdr['CRVAL1']    = (wave[0], 'Starting wavelength [Angstroms]')
-        hdr['CDELT1']    = (wave[1]-wave[0], 'Wavelength step [Angstroms]')
-        hdr['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
-        hdr['LOGLAM']    = (0, 'linear wavelength steps, not log10')
-
-        extname = 'PHOT_'+channel
-        hdr['EXTNAME']   = (extname, channel+' channel object photons per bin')
-        hdu = fits.ImageHDU(truth[extname].astype(np.float32), header=hdr)
-        fits.append(outfile, hdu.data, header=hdu.header)
-
-        extname = 'SKYPHOT_'+channel
-        if extname in truth:
-            hdr['EXTNAME']   = (extname, channel+' channel sky photons per bin')
-            hdu = fits.ImageHDU(truth[extname].astype(np.float32), header=hdr)
-            fits.append(outfile, hdu.data, header=hdu.header)
 
     return outfile
 
@@ -197,7 +199,7 @@ def read_simspec(filename):
     
     
 #- TODO: this is more than just I/O.  Refactor.
-def write_simpix(img, camera, flavor, night, expid, header=None):
+def write_simpix(img, camera, night, expid, header):
     """
     Add noise to input image and write output simpix and pix files.
     
@@ -207,6 +209,8 @@ def write_simpix(img, camera, flavor, night, expid, header=None):
         flavor : arc or flat
         night  : YEARMMDD string
         expid  : integer exposure id
+        header : dict-like object that should include FLAVOR and EXPTIME,
+            e.g. from HDU0 FITS header of input simspec file
         
     Writes to $DESI_SPECTRO_SIM/$PIXPROD/{night}/
         simpix-{camera}-{expid}.fits
@@ -246,12 +250,12 @@ def write_simpix(img, camera, flavor, night, expid, header=None):
     #- Primary HDU: noisy image
     outfile = '{}/pix-{}-{:08d}.fits'.format(outdir, camera, expid)
     hdulist = fits.HDUList()
+    if 'EXTNAME' in header:
+        del header['EXTNAME']
     hdu = fits.PrimaryHDU(pix, header=header)
     hdu.header.append( ('CAMERA', camera, 'Spectograph Camera') )
     hdu.header.append( ('VSPECTER', '0.0.0', 'TODO: Specter version') )
-    hdu.header.append( ('EXPTIME', params['exptime'], 'Exposure time [sec]') )
     hdu.header.append( ('RDNOISE', rdnoise, 'Read noise [electrons]'))
-    hdu.header.append( ('FLAVOR', flavor, 'Exposure type (arc, flat, science)'))
     hdulist.append(hdu)
 
     #- IVAR: Inverse variance (IVAR)
@@ -383,7 +387,6 @@ def read_templates(wave, objtype, nspec=None, randseed=1, infile=None):
     outflux = pool.map(_resample_flux, args)        
         
     return outflux, outmeta
-    
     
 
 #-------------------------------------------------------------------------
