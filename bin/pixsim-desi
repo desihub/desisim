@@ -14,6 +14,8 @@ Stephen Bailey, LBL
 January 2014
 """
 
+from __future__ import division
+
 import sys
 import os
 import numpy as np
@@ -40,7 +42,7 @@ parser.add_option("--verbose", action="store_true", help="print more stuff")
 parser.add_option("--trimxy", action="store_true", help="Trim image to fit spectra")
 parser.add_option("--randseed", type=int, help="random number seed")
 parser.add_option("--nspec", type=int, help="Number of spectra to simulate [%default]", default=500)
-parser.add_option("--ncpu",  type=int, help="Number of cpu cores to use [%default]", default=multiprocessing.cpu_count() / 2)
+parser.add_option("--ncpu",  type=int, help="Number of cpu cores to use [%default]", default=multiprocessing.cpu_count() // 2)
 
 opts, args = parser.parse_args()
 
@@ -55,25 +57,24 @@ if not envOK:
     sys.exit(1)
 
 if opts.camera is None:
-    opts.camera = ['b0', 'r0', 'z0']
-    # opts.camera = list()
-    # for arm in ['b', 'r', 'z']:
-    #     for ispec in range(10):
-    #         opts.camera.append(arm+str(ispec))
+    opts.camera = list()
+    for arm in ['b', 'r', 'z']:
+        for ispec in range((opts.nspec-1)//500 + 1):
+            opts.camera.append(arm+str(ispec))
 else:
     opts.camera = opts.camera.split(',')
 
-#- Initialize random seeds
-# if opts.randseed is None:
-#     if opts.tileid >= 0:
-#         opts.randseed = opts.tileid
-        
 random.seed(opts.randseed)
 np.random.seed(opts.randseed)
 
 for camera in opts.camera:
+    #- opts.nspec is total; calc how many spectra to simulate on this camera
+    spectrograph = int(camera[-1])
+    nspec = min(opts.nspec - spectrograph*500, 500)
+
+    #- Simulate
     pixsim.simulate(opts.night, opts.expid, camera, verbose=opts.verbose,
-        nspec=opts.nspec, ncpu=opts.ncpu, trimxy=opts.trimxy)
+        nspec=nspec, ncpu=opts.ncpu, trimxy=opts.trimxy)
 
 #-------------------------------------------------------------------------
 # if opts.debug:
