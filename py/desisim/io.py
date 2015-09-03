@@ -165,22 +165,21 @@ def read_simspec(filename):
     wave = dict()
     phot = dict()
     for channel in ('b', 'r', 'z'):
-        extname = 'PHOT_'+channel.upper()
-        wave[channel] = header2wave(fx[extname].header)
-        phot[channel] = fx[extname].data
+        wave[channel] = fx['WAVE_'+channel.upper()].data
+        phot[channel] = fx['PHOT_'+channel.upper()].data
 
     if flavor == 'arc':
         fx.close()
         return SimSpec(flavor, wave, phot, header=hdr)
 
     elif flavor == 'flat':
-        wave['brz'] = header2wave(fx['FLUX'].header)
+        wave['brz'] = fx['WAVE'].data
         flux = fx['FLUX'].data
         fx.close()
         return SimSpec(flavor, wave, phot, flux=flux, header=hdr)
 
     elif flavor == 'science':
-        wave['brz'] = header2wave(fx['FLUX'].header)
+        wave['brz'] = fx['WAVE'].data
         flux = fx['FLUX'].data
         metadata = fx['METADATA'].data
         skyflux = fx['SKYFLUX'].data

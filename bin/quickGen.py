@@ -26,6 +26,8 @@ import desisim.io
 from desispec.resolution import Resolution
 from desispec.io import write_flux_calibration, write_fiberflat
 from desispec.interpolation import resample_flux
+from desispec.frame import Frame
+from desispec.sky import SkyModel
 import matplotlib.pyplot as plt
 
 #- Parse arguments
@@ -36,10 +38,10 @@ parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpForm
 
 parser.add_argument("--input",type=str, help="input spectra")
 parser.add_argument("--fiberfile",type=str, help='fiber map file')
-parser.add_argument("--exptime", type=int, help="exposure time")
+### parser.add_argument("--exptime", type=int, help="exposure time")
 parser.add_argument("--nspectra",type=int,default=500,help='no. of spectra to be simulated, starting from first')
 parser.add_argument("--nstart", type=int, default=0,help='starting spectra # for simulation')
-parser.add_argument("--airmass",type=float, help="airmass")
+### parser.add_argument("--airmass",type=float, help="airmass")
 args = parser.parse_args()
 
 #must import desimodel
@@ -58,7 +60,7 @@ DESIMODEL_DIR=os.environ['DESIMODEL']
 if args.fiberfile:
  
     print "Reading fibermap file %s"%(args.fiberfile)
-    tbdata,hdr=desispec.io.fibermap.read_fibermap(args.fiberfile)
+    tbdata,hdr=desispec.io.fibermap.read_fibermap(args.fiberfile, header=True)
     objtype=tbdata['OBJTYPE'].copy()
     #need to replace STD object types with STAR since quicksim expects star instead of std
     stdindx=np.where(objtype=='STD') # match STD with STAR
@@ -146,7 +148,8 @@ qsim=sim.Quick(basePath=DESIMODEL_DIR)
 # print "Simulating Spectrum",args.nstart," of spectrograph",spectrograph, "object type:", objtype[args.nstart]
 
 #- simulate a fake object 0 just to get wavelength grids etc setup
-results=qsim.simulate(sourceType=objtype[0].lower(),sourceSpectrum=specObj0,airmass=args.airmass,expTime=args.exptime)
+results=qsim.simulate(sourceType=objtype[0].lower(), sourceSpectrum=specObj0,
+    airmass=simspec.header['AIRMASS'], expTime=simspec.header['EXPTIME'])
 observedWavelengths=results.wave
 origin_wavelength=qsim.wavelengthGrid
 waveLimits={'b':(3569,5949),'r':(5625,7741),'z':(7435,9834)}
@@ -273,7 +276,8 @@ for j in xrange(args.nstart,min(args.nspectra+args.nstart,objtype.shape[0]-args.
     print "\Simulating spectrum %d,  object type=%s"%(j,objtype[j]),
     sys.stdout.flush()
     specObj=sim.SpectralFluxDensity(wavelengths,spectra[j,:])
-    results=qsim.simulate(sourceType=objtype[j].lower(),sourceSpectrum=specObj,airmass=args.airmass,expTime=args.exptime)
+    results=qsim.simulate(sourceType=objtype[j].lower(),sourceSpectrum=specObj,
+            airmass=simspec.header['AIRMASS'], expTime=simspec.header['EXPTIME'])
     for i,channel in enumerate(['b','r','z']):
         nobj[j,i,:waveMaxbin[channel]]=results.nobj[waveRange[channel],i]
 
@@ -338,7 +342,8 @@ for channel in ["b","r","z"]:
     frame_flux=nobj[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]+nsky[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]+frame_rand_noise[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]
     frame_ivar=nivar[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]
     # write frame file
-    desispec.io.frame.write_frame(framefileName,frame_flux,frame_ivar,waves[channel],resolution_data[channel],header=None)
+    frame = Frame(waves[channel], frame_flux, frame_ivar, resolution_data=resolution_data[channel])
+    desispec.io.write_frame(framefileName, frame)
 
 ############--------------------------------------------------------
     #cframe file
@@ -349,7 +354,8 @@ for channel in ["b","r","z"]:
     cframeIvar=cframe_ivar[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]
     
     # write cframe file
-    desispec.io.frame.write_frame(cframeFileName,cframeFlux,cframeIvar,waves[channel],resolution_data[channel],header=None)
+    cframe = Frame(waves[channel], cframeFlux, cframeIvar, resolution_data=resolution_data[channel])
+    desispec.io.frame.write_frame(cframeFileName,cframe)
 
 ############-----------------------------------------------------
     #sky file (for now taking only 1D, should change to (nspec,nwave) format)
@@ -364,7 +370,7 @@ for channel in ["b","r","z"]:
     cskyivar=do_convolve(waves[channel],resolution_data[channel][isky],skyivar)  #- wrong to convolve ivar like this; fix in refactor
     
     #write sky file 
-    desispec.io.sky.write_sky(skyfileName,skyflux,skyivar,skymask,cskyflux,cskyivar,waves[channel],header=None)
+    ### desispec.io.sky.write_sky(skyfileName,skyflux,skyivar,skymask,cskyflux,cskyivar,waves[channel],header=None)
 
 ############----------------------------------------------------------
     #calibration vector file
@@ -389,7 +395,7 @@ for channel in ["b","r","z"]:
 
     # write result - current format just wants 1D deconvolved vectors;
     # the next version will want the 2D vectors we have here but this is ok for now
-    write_flux_calibration(calibVectorFile,calibration[0], calibivar[0], mask[0], ccalibration[0], ccalibivar[0], waves[channel], head)
+    ### write_flux_calibration(calibVectorFile,calibration[0], calibivar[0], mask[0], ccalibration[0], ccalibivar[0], waves[channel], head)
     
 filePath=os.path.join(prod_Dir,'exposures',NIGHT,"%08d"%EXPID)
 print "Wrote files to", filePath
