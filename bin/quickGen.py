@@ -27,6 +27,7 @@ from desispec.resolution import Resolution
 from desispec.io import write_flux_calibration, write_fiberflat
 from desispec.interpolation import resample_flux
 from desispec.frame import Frame
+from desispec.fiberflat import FiberFlat
 from desispec.sky import SkyModel
 import matplotlib.pyplot as plt
 
@@ -148,7 +149,7 @@ qsim=sim.Quick(basePath=DESIMODEL_DIR)
 # print "Simulating Spectrum",args.nstart," of spectrograph",spectrograph, "object type:", objtype[args.nstart]
 
 #- simulate a fake object 0 just to get wavelength grids etc setup
-results=qsim.simulate(sourceType=objtype[0].lower(), sourceSpectrum=specObj0,
+results=qsim.simulate(sourceType='star', sourceSpectrum=specObj0,
     airmass=simspec.header['AIRMASS'], expTime=simspec.header['EXPTIME'])
 observedWavelengths=results.wave
 origin_wavelength=qsim.wavelengthGrid
@@ -168,7 +169,8 @@ if simspec.flavor == 'flat':
         ivar = np.tile(1.0/meanspec, nspec).reshape(nspec, len(meanspec))
         mask = np.zeros((simspec.nspec, len(wave)))
         
-        write_fiberflat(outfile, fiberflat, ivar, mask, meanspec, wave, header=None)
+        ff = FiberFlat(wave, fiberflat, ivar, mask, meanspec)        
+        write_fiberflat(outfile, ff)
         print "Wrote "+outfile
     
     sys.exit(0)    
