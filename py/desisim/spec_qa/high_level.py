@@ -71,9 +71,10 @@ def main():
     summ_tab = dsqa_z.summ_stats(simz_tab)
     summ_tab.meta = meta
     summ_tab.write(summ_file,format='ascii.ecsv', 
-        formats=dict(MED_DZ='%8.6f'))#,clobber=True)
+        formats=dict(MED_DZ='%8.6f',EFF='%5.3f',CAT_RATE='%6.4f'))#,clobber=True)
 
     # QA Figures
+    dsqa_z.summ_fig(simz_tab, summ_tab, meta)
 
 
     # Write 

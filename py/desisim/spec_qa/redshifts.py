@@ -28,48 +28,89 @@ from desispec import sky as dspec_sky
 
 from desispec.fiberflat import apply_fiberflat
 
-def calc_stats(simz_tab, objtype):
+def calc_dz(simz_tab):
+    '''Calcualte deltaz/(1+z) for a given simz_tab
+    '''
+    dz = (simz_tab['REDM_Z']-simz_tab['REDSHIFT'])/(1+simz_tab['REDSHIFT'])
+    #
+    return dz
+
+def elg_flux_lim(z, oii_flux):
+    '''Assess which objects pass the ELG flux limit
+    Uses DESI document 318 from August 2014
+
+    Parameters:
+    -----------
+    z: ndarray
+      ELG redshifts
+    oii_flux: ndarray
+      [OII] fluxes
+    '''
+    # Init mask
+    mask = np.array([False]*len(z))
+    # 
+    # Flux limits from document
+    zmin = 0.6
+    zstep = 0.2
+    OII_lim = np.array([10., 9., 9., 9., 9])*1e-17
+    # Get bin
+    zbin = (z-0.6)/zstep
+    gd = np.where((zbin>0.) & (zbin<len(OII_lim)) &
+        (oii_flux>0.))[0]
+    # Fill gd
+    OII_match = np.zeros(len(gd))
+    for igd in gd:
+        OII_match[igd] = OII_lim[int(zbin[igd])]
+    # Query
+    gd_gd = np.where(oii_flux[gd] > OII_match)[0]
+    mask[gd_gd] = True
+    # Return
+    return mask
+
+def calc_stats(simz_tab, objtype, flux_lim=True):
     '''Calculate redshift statistics for a given objtype
 
-	Parameters:
-	-----------
-	objtype: str
-	  Object type, e.g. 'ELG', 'LRG'
+    Parameters:
+    -----------
+    objtype: str
+      Object type, e.g. 'ELG', 'LRG'
+    flux_lim: bool, optional
+      Impose the flux limit for ELGs? [True] 
     '''
-   	# Cut on targets that were analyzed by RedMonster
-    cut_tab = simz_tab[np.where(simz_tab['REDM_Z'].mask == False)[0]]
+    # Cut on targets that were analyzed by RedMonster
 
     # Init
     stat_dict = dict(OBJTYPE=objtype)
 
     # N targets 
-    stat_dict['NTARG'] = len(np.where(simz_tab['OBJTYPE_1']==objtype)[0])
+    obj_tab = slice_simz(simz_tab, objtype=objtype)
+    stat_dict['NTARG'] = len(obj_tab)
 
     # Number of objects with RedMonster
-    gdo = np.where(cut_tab['OBJTYPE_1']==objtype)[0]
-    stat_dict['N_Z'] = len(gdo) 
+    zobj_tab = slice_simz(simz_tab,objtype=objtype,redm=True)
+    stat_dict['N_RM'] = len(zobj_tab) 
 
     # Redshift measured (includes catastrophics)
-    idxz = np.where( (cut_tab['OBJTYPE_1']==objtype) & (cut_tab['REDM_ZWARN']==0))[0]
-    mskz = np.array([True]*len(idxz))
+    #   For ELGs, cut on OII_Flux too
+    survey_tab = slice_simz(simz_tab,objtype=objtype,survey=True)
+    stat_dict['N_SURVEY'] = len(survey_tab) 
 
     # Catastrophic failures
-    dv = catastrophic_dv(objtype) # km/s
-    cat = np.where(np.abs(cut_tab['REDM_Z'][idxz]-cut_tab['REDSHIFT'][idxz])*
-    	3e5/(1+cut_tab['REDSHIFT'][idxz]) > dv)[0]
-    stat_dict['NCAT'] = len(cat)
-    stat_dict['CAT_RATE'] = len(cat)
+    cat_tab = slice_simz(simz_tab,objtype=objtype,
+        survey=True,catastrophic=True)
+    stat_dict['NCAT'] = len(cat_tab)
+    stat_dict['CAT_RATE'] = len(cat_tab)/stat_dict['N_SURVEY']
 
     # Good redshifts
-    mskz[cat] = False
-    gdz = idxz[mskz]
+    gdz_tab = slice_simz(simz_tab,objtype=objtype,
+        survey=True,good=True)
+    stat_dict['N_GDZ'] = len(gdz_tab)
 
     # Efficiency
-    stat_dict['EFF'] = float(len(gdz))/float(stat_dict['N_Z'])
+    stat_dict['EFF'] = float(len(gdz_tab))/float(stat_dict['N_SURVEY'])
 
     # delta z
-    dz = ((cut_tab['REDM_Z'][gdz]-cut_tab['REDSHIFT'][gdz])/ 
-        (1+cut_tab['REDSHIFT'][gdz]))
+    dz = calc_dz(gdz_tab)
     stat_dict['MEAN_DZ'] = np.mean(dz)
     stat_dict['MED_DZ'] = np.median(dz)
     stat_dict['RMS_DZ'] = np.std(dz)
@@ -78,17 +119,76 @@ def calc_stats(simz_tab, objtype):
     return stat_dict
 
 def catastrophic_dv(objtype):
-	'''Pass back catastrophic velocity limit for given objtype
-	From DESI document 318 (August 2015) in docdb
+    '''Pass back catastrophic velocity limit for given objtype
+    From DESI document 318 (August 2014) in docdb
 
-	Parameters:
-	-----------
-	objtype: str
-	  Object type, e.g. 'ELG', 'LRG'
-	'''
-	cat_dict = dict(ELG=1000., LRG=1000.)
-	#
-	return cat_dict[objtype]
+    Parameters:
+    -----------
+    objtype: str
+      Object type, e.g. 'ELG', 'LRG'
+    '''
+    cat_dict = dict(ELG=1000., LRG=1000., QSO=2000.)
+    #
+    return cat_dict[objtype]
+
+def slice_simz(simz_tab, objtype=None, redm=False, survey=False, 
+    catastrophic=False, good=False):
+    '''Slice input simz_tab in one of many ways
+    Parameters:
+    ----------
+    redm: bool, optional
+      RedMonster analysis required?
+    '''
+    # Init
+    nrow = len(simz_tab)
+
+    # Object type
+    if objtype is None:
+        objtype_mask = np.array([True]*nrow)
+    else:
+        objtype_mask = simz_tab['OBJTYPE_1'] == objtype
+    # RedMonster analysis
+    if redm:
+        redm_mask = simz_tab['REDM_Z'].mask == False # Not masked in Table
+    else:
+        redm_mask = np.array([True]*nrow)
+    # Survey
+    if survey:
+        survey_mask = (simz_tab['REDM_Z'].mask == False)
+        # Flux limit
+        elg = np.where((simz_tab['OBJTYPE_1']=='ELG') & survey_mask)[0]
+        elg_mask = elg_flux_lim(simz_tab['REDSHIFT'][elg], 
+            simz_tab['O2FLUX'][elg])
+        # Update
+        survey_mask[elg[~elg_mask]] = False
+    else:
+        survey_mask = np.array([True]*nrow)
+    # Catastrophic/Good (This gets messy...)
+    if (catastrophic or good):
+        if catastrophic:
+            catgd_mask = np.array([False]*nrow)
+        else:
+            catgd_mask = simz_tab['REDM_ZWARN']==0
+        for obj in ['ELG','LRG','QSO']:
+            dv = catastrophic_dv(obj) # km/s
+            omask = np.where((simz_tab['OBJTYPE_1'] == obj)&
+                (simz_tab['REDM_ZWARN']==0))[0]
+            dz = calc_dz(simz_tab[omask]) # dz/1+z
+            cat = np.where(np.abs(dz)*3e5 > dv)[0]
+            # Update
+            if catastrophic:
+                catgd_mask[omask[cat]] = True
+            else:
+                catgd_mask[omask[cat]] = False
+    else:
+        catgd_mask = np.array([True]*nrow) 
+
+    # Final mask
+    mask = objtype_mask & redm_mask & survey_mask & catgd_mask
+
+    # Return
+    return simz_tab[mask]
+
 
 def load_z(fibermap_files, zbest_files, outfil=None):
     '''Load input and output redshift values for a set of exposures
@@ -179,41 +279,49 @@ def load_z(fibermap_files, zbest_files, outfil=None):
 
     # Write?
     if outfil is not None:
-    	simz_tab.write(outfil,overwrite=True)
+        simz_tab.write(outfil,overwrite=True)
     # Return
     return simz_tab # Masked Table
 
 def obj_requirements(zstats, objtype):
-	'''Assess where a given objtype passes the requirements
-	Requirements from Doc 318 (August 2015)
+    '''Assess where a given objtype passes the requirements
+    Requirements from Doc 318 (August 2014)
 
-	Parameters:
-	-----------
-	objtype: str
-	  Object type, e.g. 'ELG', 'LRG'
-	'''
-	# 
-	all_dict=dict(ELG={'RMS_DZ':0.0005, 'MEAN_DZ': 0.0002, 'CAT_RATE': 0.05, 'EFF': 0.95})
-	#
-	req_dict = all_dict[objtype]
+    Parameters:
+    -----------
+    objtype: str
+      Object type, e.g. 'ELG', 'LRG'
+    '''
+    # 
+    all_dict=dict(ELG={'RMS_DZ':0.0005, 'MEAN_DZ': 0.0002, 'CAT_RATE': 0.05, 'EFF': 0.95})
+    #
+    req_dict = all_dict[objtype]
 
-	tst_fail = ''
-	passf = 'PASS'
-	for key in req_dict.keys():
-		if key in ['EFF']: # Greater than requirement
-			if zstats[key] < req_dict[key]:
-				passf = 'FAIL'
-				tst_fail = tst_fail+key+'-'
-		else:
-			if zstats[key] > req_dict[key]:
-				passf = 'FAIL'
-				tst_fail = tst_fail+key+'-'
-	if passf == 'FAIL':
-		tst_fail = tst_fail[:-1]
-		print('OBJ={:s} failed tests {:s}'.format(objtype,tst_fail))
-	#
-	return passf, tst_fail
+    tst_fail = ''
+    passf = 'PASS'
+    for key in req_dict.keys():
+        if key in ['EFF']: # Greater than requirement
+            if zstats[key] < req_dict[key]:
+                passf = 'FAIL'
+                tst_fail = tst_fail+key+'-'
+        else:
+            if zstats[key] > req_dict[key]:
+                passf = 'FAIL'
+                tst_fail = tst_fail+key+'-'
+    if passf == 'FAIL':
+        tst_fail = tst_fail[:-1]
+        print('OBJ={:s} failed tests {:s}'.format(objtype,tst_fail))
+    #
+    return passf, tst_fail
 
+def summ_fig(simz_tab, summ_tab, meta, outfil=None):
+    '''Generate summary summ_fig
+    '''
+
+    if outfil is not None:
+        plt.savefig(outfil)
+    else:
+        plt.close()
 
 def summ_stats(simz_tab, outfil=None):
     '''Generate summary stats 
@@ -227,23 +335,23 @@ def summ_stats(simz_tab, outfil=None):
     ---------
     summ_stats: Table
       Table of summary stats
-  	'''
+    '''
     otypes = ['ELG']  # WILL HAVE TO DEAL WITH QSO_TRACER vs QSO_LYA
 
     rows = []
     for otype in otypes:
-    	# Calculate stats
-    	stat_dict = calc_stats(simz_tab, otype)
-    	# Check requirements
-    	stat_dict['REQ'], tst_fail = obj_requirements(stat_dict,otype)
-    	# Append
-    	rows.append(stat_dict)
+        # Calculate stats
+        stat_dict = calc_stats(simz_tab, otype)
+        # Check requirements
+        stat_dict['REQ'], tst_fail = obj_requirements(stat_dict,otype)
+        # Append
+        rows.append(stat_dict)
 
-	# Generate Table
+    # Generate Table
     stat_tab = Table(rows=rows)
 
     # Reorder
-    stat_tab=stat_tab['OBJTYPE', 'NTARG', 'N_Z', 'MED_DZ', 'NCAT', 'REQ']
+    stat_tab=stat_tab['OBJTYPE', 'NTARG', 'N_SURVEY', 'EFF', 'MED_DZ', 'CAT_RATE', 'REQ']
     # Return
     return stat_tab
 
