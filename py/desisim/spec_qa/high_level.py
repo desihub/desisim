@@ -12,6 +12,7 @@ import sys, os, pdb, glob
 
 from matplotlib import pyplot as plt
 import matplotlib.gridspec as gridspec
+from matplotlib.backends.backend_pdf import PdfPages
 
 from astropy.io import fits
 from astropy.table import Table, vstack, hstack, MaskedColumn
@@ -25,7 +26,7 @@ def get_meta():
     '''Get META data on production
     '''
     # Dummy for now
-    meta = dict(SIMSPECV='9.999')
+    meta = dict(SIMSPECV='9.999', PRODNAME=os.getenv('PRODNAME'))
     return meta
 
 def main():
@@ -68,13 +69,24 @@ def main():
     # Summary stats
     summ_file = dio_meta.specprod_root()+'/QA/sim_z_summ.ascii'
     dio_util.makepath(summ_file)
-    summ_tab = dsqa_z.summ_stats(simz_tab)
+    full_summ_tab = dsqa_z.summ_stats(simz_tab)
+    # Reorder + cut
+    summ_tab=full_summ_tab['OBJTYPE', 'NTARG', 'N_SURVEY', 'EFF', 'MED_DZ', 'CAT_RATE', 'REQ_FINAL']
     summ_tab.meta = meta
+    # Write
     summ_tab.write(summ_file,format='ascii.ecsv', 
         formats=dict(MED_DZ='%8.6f',EFF='%5.3f',CAT_RATE='%6.4f'))#,clobber=True)
 
     # QA Figures
-    dsqa_z.summ_fig(simz_tab, summ_tab, meta)
+    fig_file = dio_meta.specprod_root()+'/QA/sim_z.pdf'
+    dio_util.makepath(fig_file)
+    pp = PdfPages(fig_file)
+    # Summ
+    dsqa_z.summ_fig(simz_tab, full_summ_tab, meta, pp=pp)
+    for objtype in ['ELG','LRG']:
+        dsqa_z.obj_fig(simz_tab, objtype, full_summ_tab, pp=pp)
+    # All done
+    pp.close()
 
 
     # Write 

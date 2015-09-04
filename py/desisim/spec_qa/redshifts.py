@@ -35,6 +35,13 @@ def calc_dz(simz_tab):
     #
     return dz
 
+def calc_dzsig(simz_tab):
+    '''Calcualte deltaz/sig(z) for a given simz_tab
+    '''
+    dzsig = (simz_tab['REDM_Z']-simz_tab['REDSHIFT'])/simz_tab['REDM_ZERR']
+    #
+    return dzsig
+
 def elg_flux_lim(z, oii_flux):
     '''Assess which objects pass the ELG flux limit
     Uses DESI document 318 from August 2014
@@ -131,63 +138,14 @@ def catastrophic_dv(objtype):
     #
     return cat_dict[objtype]
 
-def slice_simz(simz_tab, objtype=None, redm=False, survey=False, 
-    catastrophic=False, good=False):
-    '''Slice input simz_tab in one of many ways
-    Parameters:
-    ----------
-    redm: bool, optional
-      RedMonster analysis required?
-    '''
-    # Init
-    nrow = len(simz_tab)
+def get_sty_otype():
+    '''Styles for plots'''
+    sty_otype = dict(ELG={'color':'green'},
+        LRG={'color':'red'},
+        QSO={'color':'blue'})
+    return sty_otype
 
-    # Object type
-    if objtype is None:
-        objtype_mask = np.array([True]*nrow)
-    else:
-        objtype_mask = simz_tab['OBJTYPE_1'] == objtype
-    # RedMonster analysis
-    if redm:
-        redm_mask = simz_tab['REDM_Z'].mask == False # Not masked in Table
-    else:
-        redm_mask = np.array([True]*nrow)
-    # Survey
-    if survey:
-        survey_mask = (simz_tab['REDM_Z'].mask == False)
-        # Flux limit
-        elg = np.where((simz_tab['OBJTYPE_1']=='ELG') & survey_mask)[0]
-        elg_mask = elg_flux_lim(simz_tab['REDSHIFT'][elg], 
-            simz_tab['O2FLUX'][elg])
-        # Update
-        survey_mask[elg[~elg_mask]] = False
-    else:
-        survey_mask = np.array([True]*nrow)
-    # Catastrophic/Good (This gets messy...)
-    if (catastrophic or good):
-        if catastrophic:
-            catgd_mask = np.array([False]*nrow)
-        else:
-            catgd_mask = simz_tab['REDM_ZWARN']==0
-        for obj in ['ELG','LRG','QSO']:
-            dv = catastrophic_dv(obj) # km/s
-            omask = np.where((simz_tab['OBJTYPE_1'] == obj)&
-                (simz_tab['REDM_ZWARN']==0))[0]
-            dz = calc_dz(simz_tab[omask]) # dz/1+z
-            cat = np.where(np.abs(dz)*3e5 > dv)[0]
-            # Update
-            if catastrophic:
-                catgd_mask[omask[cat]] = True
-            else:
-                catgd_mask[omask[cat]] = False
-    else:
-        catgd_mask = np.array([True]*nrow) 
 
-    # Final mask
-    mask = objtype_mask & redm_mask & survey_mask & catgd_mask
-
-    # Return
-    return simz_tab[mask]
 
 
 def load_z(fibermap_files, zbest_files, outfil=None):
@@ -291,37 +249,284 @@ def obj_requirements(zstats, objtype):
     -----------
     objtype: str
       Object type, e.g. 'ELG', 'LRG'
+    Returns:
+    -------------
+    pf_dict: dict  
+      Pass/fail dict
     '''
+    pf_dict = {}
     # 
-    all_dict=dict(ELG={'RMS_DZ':0.0005, 'MEAN_DZ': 0.0002, 'CAT_RATE': 0.05, 'EFF': 0.95})
-    #
+    all_dict=dict(ELG={'RMS_DZ':0.0005, 'MEAN_DZ': 0.0002, 'CAT_RATE': 0.05, 'EFF': 0.90},
+        LRG={'RMS_DZ':0.0005, 'MEAN_DZ': 0.0002, 'CAT_RATE': 0.05, 'EFF': 0.95})
     req_dict = all_dict[objtype]
 
     tst_fail = ''
     passf = 'PASS'
     for key in req_dict.keys():
+        ipassf = 'PASS'
         if key in ['EFF']: # Greater than requirement
             if zstats[key] < req_dict[key]:
-                passf = 'FAIL'
+                ipassf = 'FAIL'
                 tst_fail = tst_fail+key+'-'
         else:
             if zstats[key] > req_dict[key]:
-                passf = 'FAIL'
+                ipassf = 'FAIL'
                 tst_fail = tst_fail+key+'-'
+        # Update
+        pf_dict[key] = ipassf
+        if ipassf == 'FAIL':
+            passf = 'FAIL'
     if passf == 'FAIL':
         tst_fail = tst_fail[:-1]
         print('OBJ={:s} failed tests {:s}'.format(objtype,tst_fail))
     #
-    return passf, tst_fail
+    pf_dict['FINAL'] = passf
+    return pf_dict
 
-def summ_fig(simz_tab, summ_tab, meta, outfil=None):
-    '''Generate summary summ_fig
+def slice_simz(simz_tab, objtype=None, redm=False, survey=False, 
+    catastrophic=False, good=False):
+    '''Slice input simz_tab in one of many ways
+    Parameters:
+    ----------
+    redm: bool, optional
+      RedMonster analysis required?
     '''
+    # Init
+    nrow = len(simz_tab)
 
+    # Object type
+    if objtype is None:
+        objtype_mask = np.array([True]*nrow)
+    else:
+        objtype_mask = simz_tab['OBJTYPE_1'] == objtype
+    # RedMonster analysis
+    if redm:
+        redm_mask = simz_tab['REDM_Z'].mask == False # Not masked in Table
+    else:
+        redm_mask = np.array([True]*nrow)
+    # Survey
+    if survey:
+        survey_mask = (simz_tab['REDM_Z'].mask == False)
+        # Flux limit
+        elg = np.where((simz_tab['OBJTYPE_1']=='ELG') & survey_mask)[0]
+        elg_mask = elg_flux_lim(simz_tab['REDSHIFT'][elg], 
+            simz_tab['O2FLUX'][elg])
+        # Update
+        survey_mask[elg[~elg_mask]] = False
+    else:
+        survey_mask = np.array([True]*nrow)
+    # Catastrophic/Good (This gets messy...)
+    if (catastrophic or good):
+        if catastrophic:
+            catgd_mask = np.array([False]*nrow)
+        else:
+            catgd_mask = simz_tab['REDM_ZWARN']==0
+        for obj in ['ELG','LRG','QSO']:
+            dv = catastrophic_dv(obj) # km/s
+            omask = np.where((simz_tab['OBJTYPE_1'] == obj)&
+                (simz_tab['REDM_ZWARN']==0))[0]
+            dz = calc_dz(simz_tab[omask]) # dz/1+z
+            cat = np.where(np.abs(dz)*3e5 > dv)[0]
+            # Update
+            if catastrophic:
+                catgd_mask[omask[cat]] = True
+            else:
+                catgd_mask[omask[cat]] = False
+    else:
+        catgd_mask = np.array([True]*nrow) 
+
+    # Final mask
+    mask = objtype_mask & redm_mask & survey_mask & catgd_mask
+
+    # Return
+    return simz_tab[mask]
+
+def obj_fig(simz_tab, objtype, summ_stats, outfil=None, pp=None):
+    """Generate QA plot for a given object type
+    Parameters:
+    simz_tab
+    """
+    from scipy.stats import norm, chi2
+
+    deltaz = 0.00035
+    sobj = np.where(summ_stats['OBJTYPE'] == objtype)[0][0]
+
+    # Plot
+    sty_otype = get_sty_otype()
+    fig = plt.figure(figsize=(8, 6.0))
+    gs = gridspec.GridSpec(2,2)
+
+    survey_tab = slice_simz(simz_tab,objtype=objtype,survey=True)
+    gdz_tab = slice_simz(simz_tab,objtype=objtype, survey=True,good=True)
+
+    # Offset
+    for kk in range(4):
+        ax= plt.subplot(gs[kk])
+        if kk == 0:
+            yval = calc_dzsig(gdz_tab)
+            ylbl = (r'$(z_{\rm red}-z_{\rm true}) / \sigma(z)$')
+            ylim = 4.
+            # Stats
+            xtxt = 0.1
+            ytxt = 1.0
+            for req_tst in ['EFF','CAT_RATE']:
+                ytxt -= 0.12
+                if summ_stats[sobj]['REQ_'+req_tst] == 'FAIL':
+                    tcolor='red'
+                else:
+                    tcolor='green'
+                ax.text(xtxt, ytxt, '{:s}: {:.3f}'.format(req_tst, 
+                    summ_stats[sobj][req_tst]), color=tcolor,
+                    transform=ax.transAxes, ha='left', fontsize='small')
+        else:
+            yval = calc_dz(gdz_tab)
+            ylbl = (r'$(z_{\rm red}-z_{\rm true}) / (1+z)$')
+            ylim = deltaz
+        if kk==1:
+            # Stats
+            xtxt = 0.1
+            ytxt = 1.0
+            for req_tst in ['RMS_DZ','MEAN_DZ']:
+                ytxt -= 0.12
+                if summ_stats[sobj]['REQ_'+req_tst] == 'FAIL':
+                    tcolor='red'
+                else:
+                    tcolor='green'
+                ax.text(xtxt, ytxt, '{:s}: {:.5f}'.format(req_tst, 
+                    summ_stats[sobj][req_tst]), color=tcolor,
+                    transform=ax.transAxes, ha='left', fontsize='small')
+        # Histogram
+        if kk < 2:
+            binsz = ylim/10.
+            i0, i1 = int( np.min(yval) / binsz) - 1, int( np.max(yval) / binsz) + 1
+            rng = tuple( binsz*np.array([i0,i1]) )
+            nbin = i1-i0
+            # Histogram
+            hist, edges = np.histogram(yval, range=rng, bins=nbin)
+            xhist = (edges[1:] + edges[:-1])/2.
+            ax.hist(xhist, color='black', bins=edges, weights=hist, histtype='step')
+            ax.set_xlabel(ylbl)
+            ax.set_xlim(-ylim, ylim)
+
+        else:
+            if kk == 2:
+                lbl = r'$z_{\rm true}$'
+                xval = gdz_tab['REDSHIFT']
+                xmin,xmax=0.6,1.65
+            elif kk == 3:
+                lbl = r'[OII] Flux ($10^{-16}$)'
+                xval = gdz_tab['O2FLUX']*1e16
+                xmin,xmax=0.3,20
+                ax.set_xscale("log", nonposy='clip')
+            # Labels
+            ax.set_xlabel(lbl)
+            ax.set_xlim(xmin,xmax)
+            ax.set_ylabel(ylbl)
+            ax.set_ylim(-ylim, ylim)
+
+            # Points
+            ax.scatter(xval, yval, marker='o', s=1, label=objtype, 
+                color=sty_otype[objtype]['color'])
+
+    # Finish
+    plt.tight_layout(pad=0.1,h_pad=0.0,w_pad=0.0)
     if outfil is not None:
         plt.savefig(outfil)
     else:
+        if pp is not None:
+            pp.savefig()
         plt.close()
+
+def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
+    '''Generate summary summ_fig
+    '''
+    # Plot
+    sty_otype = get_sty_otype()
+    fig = plt.figure(figsize=(8, 5.0))
+    gs = gridspec.GridSpec(3,2)
+
+    # RedMonster objects
+    zobj_tab = slice_simz(simz_tab,redm=True)
+    otypes = ['ELG','LRG','QSO']
+
+    # z vs. z plot
+    jj=0
+    ax= plt.subplot(gs[0:2,jj])
+
+    notype = []
+    for otype in otypes: 
+        gd_o = np.where(zobj_tab['OBJTYPE_1']==otype)[0]
+        notype.append(len(gd_o))
+        ax.scatter(zobj_tab['REDSHIFT'][gd_o], zobj_tab['REDM_Z'][gd_o], 
+            marker='o', s=1, label=otype, color=sty_otype[otype]['color'])
+    ax.set_ylabel(r'$z_{\rm red}$')
+    ax.set_xlabel(r'$z_{\rm true}$')
+    ax.set_xlim(-0.1, np.max(np.array([np.max(zobj_tab['REDSHIFT']),
+        np.max(zobj_tab['REDM_Z'])])))
+    ax.set_ylim(-0.1, np.max(np.array([np.max(zobj_tab['REDSHIFT']),
+        np.max(zobj_tab['REDM_Z'])])))
+
+    # Zoom
+    jj=1
+    ax= plt.subplot(gs[0:2,jj])
+
+    for otype in otypes: 
+        # Grab
+        gd_o = np.where(zobj_tab['OBJTYPE_1']==otype)[0]
+        # Stat
+        dz = calc_dz(zobj_tab[gd_o]) 
+        ax.scatter(zobj_tab['REDSHIFT'][gd_o], dz, marker='o', 
+            s=1, label=otype, color=sty_otype[otype]['color'])
+
+    #ax.set_xlim(xmin, xmax)
+    ax.set_ylabel(r'$(z_{\rm red}-z_{\rm true}) / (1+z)$')
+    ax.set_xlabel(r'$z_{\rm true}$')
+    ax.set_xlim(0.,4)
+    deltaz = 0.002
+    ax.set_ylim(-deltaz/2,deltaz)
+
+    # Legend
+    legend = ax.legend(loc='lower right', borderpad=0.3,
+                        handletextpad=0.3, fontsize='small')
+
+    # Meta text
+    ax= plt.subplot(gs[2,0])
+    ax.set_axis_off()
+    # Meta
+    xlbl = 0.1
+    ylbl = 0.85
+    ax.text(xlbl, ylbl, 'PRODNAME: {:s}'.format(meta['PRODNAME']), transform=ax.transAxes, ha='left')
+    yoff=0.15
+    for key in meta.keys():
+        if key == 'PRODNAME':
+            continue
+        ylbl -= yoff
+        ax.text(xlbl+0.1, ylbl, key+': {:s}'.format(meta[key]), 
+            transform=ax.transAxes, ha='left', fontsize='small')
+
+    # Target stats
+    ax= plt.subplot(gs[2,1])
+    ax.set_axis_off()
+    xlbl = 0.1
+    ylbl = 0.85
+    ax.text(xlbl, ylbl, 'Targets', transform=ax.transAxes, ha='left')
+    yoff=0.15
+    for jj,otype in enumerate(otypes):
+        ylbl -= yoff
+        gd_o = simz_tab['OBJTYPE_1']==otype
+        ax.text(xlbl+0.1, ylbl, otype+': {:d} ({:d})'.format(np.sum(gd_o),notype[jj]),
+            transform=ax.transAxes, ha='left', fontsize='small')
+
+    # Finish
+    plt.tight_layout(pad=0.1,h_pad=0.0,w_pad=0.1)
+    if outfil is not None:
+        plt.savefig(outfil)
+    else:
+        if pp is not None:
+            pp.savefig()
+        plt.close()
+
+
 
 def summ_stats(simz_tab, outfil=None):
     '''Generate summary stats 
@@ -336,23 +541,23 @@ def summ_stats(simz_tab, outfil=None):
     summ_stats: Table
       Table of summary stats
     '''
-    otypes = ['ELG']  # WILL HAVE TO DEAL WITH QSO_TRACER vs QSO_LYA
+    otypes = ['ELG','LRG']  # WILL HAVE TO DEAL WITH QSO_TRACER vs QSO_LYA
 
     rows = []
     for otype in otypes:
         # Calculate stats
         stat_dict = calc_stats(simz_tab, otype)
         # Check requirements
-        stat_dict['REQ'], tst_fail = obj_requirements(stat_dict,otype)
+        pf_dict = obj_requirements(stat_dict,otype)
+        for key in pf_dict.keys():
+            stat_dict['REQ_'+key] = pf_dict[key]
         # Append
         rows.append(stat_dict)
 
     # Generate Table
     stat_tab = Table(rows=rows)
 
-    # Reorder
-    stat_tab=stat_tab['OBJTYPE', 'NTARG', 'N_SURVEY', 'EFF', 'MED_DZ', 'CAT_RATE', 'REQ']
     # Return
-    return stat_tab
+    return stat_tab 
 
 
