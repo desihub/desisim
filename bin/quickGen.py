@@ -43,6 +43,7 @@ parser.add_argument("--fiberfile",type=str, help='fiber map file')
 ### parser.add_argument("--exptime", type=int, help="exposure time")
 parser.add_argument("--nspectra",type=int,default=500,help='no. of spectra to be simulated, starting from first')
 parser.add_argument("--nstart", type=int, default=0,help='starting spectra # for simulation')
+parser.add_argument("--spectrograph",type=int, default=0,help='Spectrograph no. 0-9')
 ### parser.add_argument("--airmass",type=float, help="airmass")
 args = parser.parse_args()
 
@@ -115,7 +116,7 @@ else:
         raise
 
 #- TODO: make this an option
-spectrograph=0
+#spectrograph=0
 
 #read the input file (simspec file)
 print 'Now Reading the input file',args.input
@@ -160,7 +161,7 @@ waveLimits={'b':(3569,5949),'r':(5625,7741),'z':(7435,9834)}
 if simspec.flavor == 'flat':
     print "Simulating flat lamp exposure"
     for channel in ('b', 'r', 'z'):
-        camera = channel+str(spectrograph)
+        camera = channel+str(args.spectrograph)
         outfile = desispec.io.findfile('fiberflat', NIGHT, EXPID, camera)
         ii = (waveLimits[channel][0] <= observedWavelengths) & (observedWavelengths <= waveLimits[channel][1])
         wave = observedWavelengths[ii]
@@ -323,30 +324,30 @@ for channel in ["b","r","z"]:
 ############--------------------------------------------------------- 
     ###frame file 
 
-    framefileName=desispec.io.findfile("frame",NIGHT,EXPID,"%s%s"%(channel,spectrograph))
+    framefileName=desispec.io.findfile("frame",NIGHT,EXPID,"%s%s"%(channel,args.spectrograph))
     frame_flux=nobj[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]+nsky[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]+frame_rand_noise[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]
     frame_ivar=nivar[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]
 
     # write frame file
-    frame = Frame(waves[channel], frame_flux, frame_ivar, resolution_data=resolution_data[channel])
+    frame = Frame(waves[channel], frame_flux, frame_ivar, resolution_data=resolution_data[channel],spectrograph=args.spectrograph)
     desispec.io.write_frame(framefileName, frame)
 
 ############--------------------------------------------------------
     #cframe file
     #TODO : for sky input spectrum (all zero), quicksim output flux is also zero and also ivar. Need to fix!! 
     
-    cframeFileName=desispec.io.findfile("cframe",NIGHT,EXPID,"%s%s"%(channel,spectrograph))
+    cframeFileName=desispec.io.findfile("cframe",NIGHT,EXPID,"%s%s"%(channel,args.spectrograph))
     cframeFlux=cframe_observedflux[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]+cframe_rand_noise[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]
     cframeIvar=cframe_ivar[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]
     
     # write cframe file
-    cframe = Frame(waves[channel], cframeFlux, cframeIvar, resolution_data=resolution_data[channel])
+    cframe = Frame(waves[channel], cframeFlux, cframeIvar, resolution_data=resolution_data[channel],spectrograph=args.spectrograph)
     desispec.io.frame.write_frame(cframeFileName,cframe)
 
 ############-----------------------------------------------------
     #sky file (for now taking only 1D, should change to (nspec,nwave) format)
     
-    skyfileName=desispec.io.findfile("sky",NIGHT,EXPID,"%s%s"%(channel,spectrograph))
+    skyfileName=desispec.io.findfile("sky",NIGHT,EXPID,"%s%s"%(channel,args.spectrograph))
     skyflux=nsky[:,armName[channel],:waveMaxbin[channel]]+sky_rand_noise[:,armName[channel],:waveMaxbin[channel]]
     skyivar=sky_ivar[:,armName[channel],:waveMaxbin[channel]]
     skymask=np.zeros(skyflux.shape, dtype=int)
@@ -359,7 +360,7 @@ for channel in ["b","r","z"]:
     #calibration vector file
     #- TODO: this will get refactored into 2D outputs
 
-    calibVectorFile=desispec.io.findfile("calib",NIGHT,EXPID,"%s%s"%(channel,spectrograph))
+    calibVectorFile=desispec.io.findfile("calib",NIGHT,EXPID,"%s%s"%(channel,args.spectrograph))
     flux = cframe_observedflux[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]
     phot = nobj[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]
     calibration = np.zeros_like(phot)
