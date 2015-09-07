@@ -10,6 +10,7 @@ Also see desimodel, which contains quicksim.
 from . import pixsim
 from . import obs
 from . import io
+from . import targets
 
 __version__ = 'unknown'
 def version():
