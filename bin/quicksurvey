@@ -21,5 +21,7 @@ import specter
 fiber_pack = desimodel.fibers.Fibers()
 
 #load 
-
-#use fibermap to write the results
+for i in range(10):
+    next_tile_id = desisim.obs.get_next_tileid()
+    print next_tile_id
+    desisim.obs.update_obslog(tileid = next_tile_id)
