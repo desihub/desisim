@@ -13,4 +13,13 @@ sys.path.insert(0, '/home/forero/desihub/desispec/py/')
 sys.path.insert(0, '/home/forero/desihub/specter/py/')
 
 import desisim
+import desimodel
+import desispec
+import specter
 
+#load pack of unperturbed fibers
+fiber_pack = desimodel.fibers.Fibers()
+
+#load 
+
+#use fibermap to write the results
