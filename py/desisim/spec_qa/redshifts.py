@@ -87,7 +87,7 @@ def calc_stats(simz_tab, objtype, flux_lim=True):
     # Cut on targets that were analyzed by RedMonster
 
     # Init
-    stat_dict = dict(OBJTYPE=objtype)
+    stat_dict = {} #dict(OBJTYPE=objtype)
 
     # N targets 
     obj_tab = slice_simz(simz_tab, objtype=objtype)
@@ -118,9 +118,9 @@ def calc_stats(simz_tab, objtype, flux_lim=True):
 
     # delta z
     dz = calc_dz(gdz_tab)
-    stat_dict['MEAN_DZ'] = np.mean(dz)
-    stat_dict['MED_DZ'] = np.median(dz)
-    stat_dict['RMS_DZ'] = np.std(dz)
+    stat_dict['MEAN_DZ'] = float(np.mean(dz))
+    stat_dict['MEDIAN_DZ'] = float(np.median(dz))
+    stat_dict['RMS_DZ'] = float(np.std(dz))
 
     # Return
     return stat_dict
@@ -134,7 +134,7 @@ def catastrophic_dv(objtype):
     objtype: str
       Object type, e.g. 'ELG', 'LRG'
     '''
-    cat_dict = dict(ELG=1000., LRG=1000., QSO=2000.)
+    cat_dict = dict(ELG=1000., LRG=1000., QSO_L=1000., QSO_T=1000.)
     #
     return cat_dict[objtype]
 
@@ -142,11 +142,10 @@ def get_sty_otype():
     '''Styles for plots'''
     sty_otype = dict(ELG={'color':'green'},
         LRG={'color':'red'},
-        QSO={'color':'blue'})
+        QSO={'color':'blue'},
+        QSO_L={'color':'blue'},
+        QSO_T={'color':'cyan'})
     return sty_otype
-
-
-
 
 def load_z(fibermap_files, zbest_files, outfil=None):
     '''Load input and output redshift values for a set of exposures
@@ -197,6 +196,14 @@ def load_z(fibermap_files, zbest_files, outfil=None):
     simz_tab = hstack([fbm_tab,sps_tab],join_type='exact')
     simz_tab.sort('TARGETID')
     nsim = len(simz_tab)
+
+    # Rename QSO
+    qsol = np.where( (simz_tab['OBJTYPE_1'] == 'QSO') & 
+        (simz_tab['REDSHIFT'] >= 2.1))[0]
+    simz_tab['OBJTYPE_1'][qsol] = 'QSO_L'
+    qsot = np.where( (simz_tab['OBJTYPE_1'] == 'QSO') & 
+        (simz_tab['REDSHIFT'] < 2.1))[0]
+    simz_tab['OBJTYPE_1'][qsot] = 'QSO_T'
 
     # Load up zbest files
     zb_tabs = []
@@ -257,7 +264,9 @@ def obj_requirements(zstats, objtype):
     pf_dict = {}
     # 
     all_dict=dict(ELG={'RMS_DZ':0.0005, 'MEAN_DZ': 0.0002, 'CAT_RATE': 0.05, 'EFF': 0.90},
-        LRG={'RMS_DZ':0.0005, 'MEAN_DZ': 0.0002, 'CAT_RATE': 0.05, 'EFF': 0.95})
+        LRG={'RMS_DZ':0.0005, 'MEAN_DZ': 0.0002, 'CAT_RATE': 0.05, 'EFF': 0.95},
+        QSO_T={'RMS_DZ':0.0025, 'MEAN_DZ': 0.0004, 'CAT_RATE': 0.05, 'EFF': 0.90},
+        QSO_L={'RMS_DZ':0.0025, 'CAT_RATE': 0.02, 'EFF': 0.90})
     req_dict = all_dict[objtype]
 
     tst_fail = ''
@@ -280,8 +289,8 @@ def obj_requirements(zstats, objtype):
         tst_fail = tst_fail[:-1]
         print('OBJ={:s} failed tests {:s}'.format(objtype,tst_fail))
     #
-    pf_dict['FINAL'] = passf
-    return pf_dict
+    #pf_dict['FINAL'] = passf
+    return pf_dict, passf
 
 def slice_simz(simz_tab, objtype=None, redm=False, survey=False, 
     catastrophic=False, good=False):
@@ -321,7 +330,7 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
             catgd_mask = np.array([False]*nrow)
         else:
             catgd_mask = simz_tab['REDM_ZWARN']==0
-        for obj in ['ELG','LRG','QSO']:
+        for obj in ['ELG','LRG','QSO_L','QSO_T']:
             dv = catastrophic_dv(obj) # km/s
             omask = np.where((simz_tab['OBJTYPE_1'] == obj)&
                 (simz_tab['REDM_ZWARN']==0))[0]
@@ -348,52 +357,68 @@ def obj_fig(simz_tab, objtype, summ_stats, outfil=None, pp=None):
     """
     from scipy.stats import norm, chi2
 
-    deltaz = 0.00035
-    sobj = np.where(summ_stats['OBJTYPE'] == objtype)[0][0]
+    #sobj = np.where(summ_stats['OBJTYPE'] == objtype)[0][0]
 
     # Plot
     sty_otype = get_sty_otype()
     fig = plt.figure(figsize=(8, 6.0))
     gs = gridspec.GridSpec(2,2)
+    fig.suptitle('{:s}: Summary'.format(objtype), fontsize='large')
+
+    # Title 
 
     survey_tab = slice_simz(simz_tab,objtype=objtype,survey=True)
     gdz_tab = slice_simz(simz_tab,objtype=objtype, survey=True,good=True)
 
     # Offset
     for kk in range(4):
+        yoff = 0.
         ax= plt.subplot(gs[kk])
         if kk == 0:
             yval = calc_dzsig(gdz_tab)
             ylbl = (r'$(z_{\rm red}-z_{\rm true}) / \sigma(z)$')
-            ylim = 4.
+            ylim = 5.
             # Stats
-            xtxt = 0.1
+            xtxt = 0.05
             ytxt = 1.0
             for req_tst in ['EFF','CAT_RATE']:
                 ytxt -= 0.12
-                if summ_stats[sobj]['REQ_'+req_tst] == 'FAIL':
+                if summ_stats[objtype]['REQ_INDIV'][req_tst] == 'FAIL':
                     tcolor='red'
                 else:
                     tcolor='green'
                 ax.text(xtxt, ytxt, '{:s}: {:.3f}'.format(req_tst, 
-                    summ_stats[sobj][req_tst]), color=tcolor,
+                    summ_stats[objtype][req_tst]), color=tcolor,
                     transform=ax.transAxes, ha='left', fontsize='small')
         else:
             yval = calc_dz(gdz_tab)
             ylbl = (r'$(z_{\rm red}-z_{\rm true}) / (1+z)$')
-            ylim = deltaz
+            ylim = 5.*summ_stats[objtype]['RMS_DZ'] 
+            if (np.median(summ_stats[objtype]['MEDIAN_DZ']) > 
+                summ_stats[objtype]['RMS_DZ']):
+                yoff = summ_stats[objtype]['MEDIAN_DZ']
+
         if kk==1:
             # Stats
-            xtxt = 0.1
+            xtxt = 0.05
             ytxt = 1.0
-            for req_tst in ['RMS_DZ','MEAN_DZ']:
+            dx = ((ylim/2.)//0.0001 +1)*0.0001
+            #import pdb
+            #pdb.set_trace()
+            ax.xaxis.set_major_locator(plt.MultipleLocator(dx))
+            for stat in ['RMS_DZ','MEAN_DZ', 'MEDIAN_DZ']:
                 ytxt -= 0.12
-                if summ_stats[sobj]['REQ_'+req_tst] == 'FAIL':
-                    tcolor='red'
+                try:
+                    pfail = summ_stats[objtype]['REQ_INDIV'][stat] 
+                except KeyError:
+                    tcolor='black'
                 else:
-                    tcolor='green'
-                ax.text(xtxt, ytxt, '{:s}: {:.5f}'.format(req_tst, 
-                    summ_stats[sobj][req_tst]), color=tcolor,
+                    if pfail == 'FAIL':
+                        tcolor='red'
+                    else:
+                        tcolor='green'
+                ax.text(xtxt, ytxt, '{:s}: {:.5f}'.format(stat, 
+                    summ_stats[objtype][stat]), color=tcolor,
                     transform=ax.transAxes, ha='left', fontsize='small')
         # Histogram
         if kk < 2:
@@ -412,24 +437,34 @@ def obj_fig(simz_tab, objtype, summ_stats, outfil=None, pp=None):
             if kk == 2:
                 lbl = r'$z_{\rm true}$'
                 xval = gdz_tab['REDSHIFT']
-                xmin,xmax=0.6,1.65
+                xmin,xmax=np.min(xval),np.max(xval)
+                dx = np.maximum(1,(xmax-xmin)//0.5)*0.1
+                ax.xaxis.set_major_locator(plt.MultipleLocator(dx))
+                #xmin,xmax=0.6,1.65
             elif kk == 3:
-                lbl = r'[OII] Flux ($10^{-16}$)'
-                xval = gdz_tab['O2FLUX']*1e16
-                xmin,xmax=0.3,20
-                ax.set_xscale("log", nonposy='clip')
+                if objtype == 'ELG':
+                    lbl = r'[OII] Flux ($10^{-16}$)'
+                    xval = gdz_tab['O2FLUX']*1e16
+                    xmin,xmax=0.3,20
+                    ax.set_xscale("log", nonposy='clip')
+                else:
+                    lbl = '{:s} (Mag)'.format(gdz_tab[0]['FILTER'][0])
+                    xval = gdz_tab['MAG'][:,0]
+                    xmin,xmax=np.min(xval),np.max(xval)
             # Labels
             ax.set_xlabel(lbl)
             ax.set_xlim(xmin,xmax)
             ax.set_ylabel(ylbl)
-            ax.set_ylim(-ylim, ylim)
+            ax.set_ylim(-ylim+yoff, ylim+yoff)
 
             # Points
+            ax.plot([xmin,xmax], [0.,0], '--', color='gray')
             ax.scatter(xval, yval, marker='o', s=1, label=objtype, 
                 color=sty_otype[objtype]['color'])
 
     # Finish
-    plt.tight_layout(pad=0.1,h_pad=0.0,w_pad=0.0)
+    plt.tight_layout(pad=0.2,h_pad=0.2,w_pad=0.3)
+    plt.subplots_adjust(top=0.92)
     if outfil is not None:
         plt.savefig(outfil)
     else:
@@ -447,11 +482,16 @@ def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
 
     # RedMonster objects
     zobj_tab = slice_simz(simz_tab,redm=True)
-    otypes = ['ELG','LRG','QSO']
+    otypes = ['ELG','LRG','QSO_L','QSO_T']
 
     # z vs. z plot
     jj=0
     ax= plt.subplot(gs[0:2,jj])
+
+    # Catastrophic
+    cat_tab = slice_simz(simz_tab,survey=True, catastrophic=True)
+    ax.scatter(cat_tab['REDSHIFT'], cat_tab['REDM_Z'],
+        marker='x', s=9, label='CAT', color='red')
 
     notype = []
     for otype in otypes: 
@@ -461,10 +501,13 @@ def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
             marker='o', s=1, label=otype, color=sty_otype[otype]['color'])
     ax.set_ylabel(r'$z_{\rm red}$')
     ax.set_xlabel(r'$z_{\rm true}$')
-    ax.set_xlim(-0.1, np.max(np.array([np.max(zobj_tab['REDSHIFT']),
+    ax.set_xlim(-0.1, 1.02*np.max(np.array([np.max(zobj_tab['REDSHIFT']),
         np.max(zobj_tab['REDM_Z'])])))
     ax.set_ylim(-0.1, np.max(np.array([np.max(zobj_tab['REDSHIFT']),
         np.max(zobj_tab['REDM_Z'])])))
+    # Legend
+    legend = ax.legend(loc='upper left', borderpad=0.3,
+                        handletextpad=0.3, fontsize='small')
 
     # Zoom
     jj=1
@@ -538,26 +581,26 @@ def summ_stats(simz_tab, outfil=None):
 
     Returns:
     ---------
-    summ_stats: Table
-      Table of summary stats
+    summ_stats: List
+      List of summary stat dicts
     '''
-    otypes = ['ELG','LRG']  # WILL HAVE TO DEAL WITH QSO_TRACER vs QSO_LYA
+    otypes = ['ELG','LRG', 'QSO_L', 'QSO_T']  # WILL HAVE TO DEAL WITH QSO_TRACER vs QSO_LYA
+    summ_dict = {}
 
     rows = []
     for otype in otypes:
         # Calculate stats
         stat_dict = calc_stats(simz_tab, otype)
+        summ_dict[otype] = stat_dict
         # Check requirements
-        pf_dict = obj_requirements(stat_dict,otype)
-        for key in pf_dict.keys():
-            stat_dict['REQ_'+key] = pf_dict[key]
-        # Append
-        rows.append(stat_dict)
+        summ_dict[otype]['REQ_INDIV'], passf = obj_requirements(stat_dict,otype)
+        summ_dict[otype]['REQ_FINAL'] = passf
 
     # Generate Table
-    stat_tab = Table(rows=rows)
+    #stat_tab = Table(rows=rows)
 
     # Return
-    return stat_tab 
+    return summ_dict
+    #return stat_tab 
 
 

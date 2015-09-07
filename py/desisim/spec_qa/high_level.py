@@ -9,6 +9,7 @@ from __future__ import print_function, absolute_import, division, unicode_litera
 
 import numpy as np
 import sys, os, pdb, glob
+import yaml
 
 from matplotlib import pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -62,29 +63,38 @@ def main():
     simtab_fil = dio_meta.specprod_root()+'/QA/sim_z_table.fits'
     dio_util.makepath(simtab_fil)
     simz_tab = dsqa_z.load_z(fibermap_files, zbest_files)
-    # Write
     simz_tab.meta = meta
     simz_tab.write(simtab_fil,overwrite=True)
 
     # Summary stats
-    summ_file = dio_meta.specprod_root()+'/QA/sim_z_summ.ascii'
+    summ_file = dio_meta.specprod_root()+'/QA/sim_z_summ.yaml'
     dio_util.makepath(summ_file)
-    full_summ_tab = dsqa_z.summ_stats(simz_tab)
+    summ_dict = dsqa_z.summ_stats(simz_tab)
+    # Write
+    with open(summ_file, 'w') as outfile:
+        outfile.write( yaml.dump(meta))#, default_flow_style=True) )
+        outfile.write( yaml.dump(summ_dict, default_flow_style=False) )
+    #import pdb
+    #pdb.set_trace()
+
+
+    '''
     # Reorder + cut
     summ_tab=full_summ_tab['OBJTYPE', 'NTARG', 'N_SURVEY', 'EFF', 'MED_DZ', 'CAT_RATE', 'REQ_FINAL']
-    summ_tab.meta = meta
     # Write
+    summ_tab.meta = meta
     summ_tab.write(summ_file,format='ascii.ecsv', 
         formats=dict(MED_DZ='%8.6f',EFF='%5.3f',CAT_RATE='%6.4f'))#,clobber=True)
+    '''
 
     # QA Figures
     fig_file = dio_meta.specprod_root()+'/QA/sim_z.pdf'
     dio_util.makepath(fig_file)
     pp = PdfPages(fig_file)
     # Summ
-    dsqa_z.summ_fig(simz_tab, full_summ_tab, meta, pp=pp)
-    for objtype in ['ELG','LRG']:
-        dsqa_z.obj_fig(simz_tab, objtype, full_summ_tab, pp=pp)
+    dsqa_z.summ_fig(simz_tab, summ_dict, meta, pp=pp)
+    for objtype in ['ELG','LRG', 'QSO_T', 'QSO_L']:
+        dsqa_z.obj_fig(simz_tab, objtype, summ_dict, pp=pp)
     # All done
     pp.close()
 
