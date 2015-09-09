@@ -1,0 +1,90 @@
+#!/usr/bin/env python
+
+"""
+Generate a new DESI exposure
+
+newexp-desi arc/flat/science [options]
+
+Stephen Bailey, LBL
+Fall 2014
+"""
+
+import sys
+import os
+import numpy as np
+import optparse
+import random
+import time
+import multiprocessing
+
+from desisim import obs, io
+from desispec.log import get_logger
+log = get_logger()
+
+#- Parse options
+parser = optparse.OptionParser(
+    usage = "%prog [options]",
+    epilog = "See $SPECTER_DIR/doc/datamodel.md for input format details"
+    )
+        
+parser.add_option("--flavor",   type=str,   help="arc/flat/science", default='science')
+parser.add_option("--tileid",   type=int,   help="tile id")
+parser.add_option("--expid",    type=int,   help="exposure id")
+parser.add_option("--exptime",  type=int,   help="exposure time in seconds")
+parser.add_option("--night",    type=str,   help="YEARMMDD")
+parser.add_option("--nspec",    type=int,   help="Number of spectra to simulate [%default]", default=5000)
+parser.add_option("--airmass",  type=float, help="Airmass [%default]", default=1.0)
+parser.add_option("--randseed", type=int,   help="random number seed")
+
+opts, args = parser.parse_args()
+
+#- Check environment
+envOK = True
+for envvar in ('DESIMODEL', 'PIXPROD', 'DESI_SPECTRO_SIM'):
+    if envvar not in os.environ:
+        log.fatal("${} is required".format(envvar))
+        envOK = False
+if not envOK:
+    print "Set those environment variable(s) and then try again"
+    sys.exit(1)
+
+#- Initialize tileid
+if opts.tileid is None:
+    opts.tileid = obs.get_next_tileid()
+
+if opts.expid is None:
+    opts.expid = obs.get_next_expid()
+
+if opts.night is None:
+    opts.night = obs.get_night(utc=time.gmtime())
+
+#- TODO: don't hardcode these default exposure times
+if opts.exptime is None:
+    if opts.flavor == 'arc':
+        opts.exptime = 5
+    elif opts.flavor == 'flat':
+        opts.exptime = 10
+    else:
+        opts.exptime = 1000
+    
+#- Initialize random seeds
+if opts.randseed is None:
+    opts.randseed = opts.tileid
+        
+random.seed(opts.randseed)
+np.random.seed(opts.randseed)
+
+#- Generate the new exposure
+obs.new_exposure(opts.flavor, nspec=opts.nspec, \
+    night=opts.night, expid=opts.expid,         \
+    tileid=opts.tileid, airmass=opts.airmass, exptime=opts.exptime)
+
+#-------------------------------------------------------------------------
+# if opts.debug:
+#     #--- DEBUG ---
+#     from pylab import *
+#     ion()
+#     import IPython
+#     IPython.embed()
+#     #--- DEBUG ---
+    

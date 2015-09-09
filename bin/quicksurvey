@@ -1,0 +1,22 @@
+#!/usr/bin/env python
+"""
+vanilla survey strategy
+"""
+
+import sys
+import os
+import numpy as np
+
+import desisim
+import desimodel
+import desispec
+import specter
+
+#load pack of unperturbed fibers
+fiber_pack = desimodel.fibers.Fibers()
+
+#load 
+for i in range(10):
+    next_tile_id = desisim.obs.get_next_tileid()
+    print next_tile_id
+    desisim.obs.update_obslog(tileid = next_tile_id)
