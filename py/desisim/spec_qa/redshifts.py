@@ -140,11 +140,11 @@ def catastrophic_dv(objtype):
 
 def get_sty_otype():
     '''Styles for plots'''
-    sty_otype = dict(ELG={'color':'green'},
-        LRG={'color':'red'},
-        QSO={'color':'blue'},
-        QSO_L={'color':'blue'},
-        QSO_T={'color':'cyan'})
+    sty_otype = dict(ELG={'color':'green', 'lbl':'ELG'},
+        LRG={'color':'red', 'lbl':'LRG'},
+        QSO={'color':'blue', 'lbl':'QSO'},
+        QSO_L={'color':'blue', 'lbl':'QSO z>2.1'},
+        QSO_T={'color':'cyan', 'lbl':'QSO z<2.1'})
     return sty_otype
 
 def load_z(fibermap_files, zbest_files, outfil=None):
@@ -363,7 +363,8 @@ def obj_fig(simz_tab, objtype, summ_stats, outfil=None, pp=None):
     sty_otype = get_sty_otype()
     fig = plt.figure(figsize=(8, 6.0))
     gs = gridspec.GridSpec(2,2)
-    fig.suptitle('{:s}: Summary'.format(objtype), fontsize='large')
+    fig.suptitle('{:s}: Summary'.format(sty_otype[objtype]['lbl']), 
+        fontsize='large')
 
     # Title 
 
@@ -379,6 +380,9 @@ def obj_fig(simz_tab, objtype, summ_stats, outfil=None, pp=None):
             ylbl = (r'$(z_{\rm red}-z_{\rm true}) / \sigma(z)$')
             ylim = 5.
             # Stats
+            rms = np.std(yval)
+            redchi2 = np.sum(yval**2)/len(yval)
+            # 
             xtxt = 0.05
             ytxt = 1.0
             for req_tst in ['EFF','CAT_RATE']:
@@ -390,6 +394,15 @@ def obj_fig(simz_tab, objtype, summ_stats, outfil=None, pp=None):
                 ax.text(xtxt, ytxt, '{:s}: {:.3f}'.format(req_tst, 
                     summ_stats[objtype][req_tst]), color=tcolor,
                     transform=ax.transAxes, ha='left', fontsize='small')
+            # Additional
+            ytxt -= 0.12
+            ax.text(xtxt, ytxt, '{:s}: {:.3f}'.format('RMS:',
+                rms), color='black', transform=ax.transAxes, 
+                ha='left', fontsize='small')
+            ytxt -= 0.12
+            ax.text(xtxt, ytxt, '{:s}: {:.3f}'.format(r'$\chi^2_\nu$:',
+                redchi2), color='black', transform=ax.transAxes, 
+                ha='left', fontsize='small')
         else:
             yval = calc_dz(gdz_tab)
             ylbl = (r'$(z_{\rm red}-z_{\rm true}) / (1+z)$')
@@ -429,7 +442,8 @@ def obj_fig(simz_tab, objtype, summ_stats, outfil=None, pp=None):
             # Histogram
             hist, edges = np.histogram(yval, range=rng, bins=nbin)
             xhist = (edges[1:] + edges[:-1])/2.
-            ax.hist(xhist, color='black', bins=edges, weights=hist, histtype='step')
+            #ax.hist(xhist, color='black', bins=edges, weights=hist)#, histtype='step')
+            ax.hist(xhist, color=sty_otype[objtype]['color'], bins=edges, weights=hist)#, histtype='step')
             ax.set_xlabel(ylbl)
             ax.set_xlim(-ylim, ylim)
 
@@ -498,7 +512,7 @@ def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
         gd_o = np.where(zobj_tab['OBJTYPE_1']==otype)[0]
         notype.append(len(gd_o))
         ax.scatter(zobj_tab['REDSHIFT'][gd_o], zobj_tab['REDM_Z'][gd_o], 
-            marker='o', s=1, label=otype, color=sty_otype[otype]['color'])
+            marker='o', s=1, label=sty_otype[otype]['lbl'], color=sty_otype[otype]['color'])
     ax.set_ylabel(r'$z_{\rm red}$')
     ax.set_xlabel(r'$z_{\rm true}$')
     ax.set_xlim(-0.1, 1.02*np.max(np.array([np.max(zobj_tab['REDSHIFT']),
@@ -519,7 +533,7 @@ def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
         # Stat
         dz = calc_dz(zobj_tab[gd_o]) 
         ax.scatter(zobj_tab['REDSHIFT'][gd_o], dz, marker='o', 
-            s=1, label=otype, color=sty_otype[otype]['color'])
+            s=1, label=sty_otype[otype]['lbl'], color=sty_otype[otype]['color'])
 
     #ax.set_xlim(xmin, xmax)
     ax.set_ylabel(r'$(z_{\rm red}-z_{\rm true}) / (1+z)$')
@@ -557,7 +571,7 @@ def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
     for jj,otype in enumerate(otypes):
         ylbl -= yoff
         gd_o = simz_tab['OBJTYPE_1']==otype
-        ax.text(xlbl+0.1, ylbl, otype+': {:d} ({:d})'.format(np.sum(gd_o),notype[jj]),
+        ax.text(xlbl+0.1, ylbl, sty_otype[otype]['lbl']+': {:d} ({:d})'.format(np.sum(gd_o),notype[jj]),
             transform=ax.transAxes, ha='left', fontsize='small')
 
     # Finish
