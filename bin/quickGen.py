@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
 #*******************************
-# A quick output of quicksim simulation for DESI
+# A quick wrapper of quicksim simulation of spectra. 
+# Outputs are in DESI specific format.
 # For each 500 input spectra, this wrapper Outputs Four files for each arm B,R,Z,
 #	1. frame file (x3)
 #	2. Flux Calibration Vector file (x3)
@@ -30,7 +31,6 @@ from desispec.frame import Frame
 from desispec.fiberflat import FiberFlat
 from desispec.sky import SkyModel
 from desispec.fluxcalibration import FluxCalib
-import matplotlib.pyplot as plt
 
 #- Parse arguments
 parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -40,11 +40,9 @@ parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpForm
 
 parser.add_argument("--input",type=str, help="input spectra")
 parser.add_argument("--fiberfile",type=str, help='fiber map file')
-### parser.add_argument("--exptime", type=int, help="exposure time")
 parser.add_argument("--nspectra",type=int,default=500,help='no. of spectra to be simulated, starting from first')
 parser.add_argument("--nstart", type=int, default=0,help='starting spectra # for simulation')
 parser.add_argument("--spectrograph",type=int, default=0,help='Spectrograph no. 0-9')
-### parser.add_argument("--airmass",type=float, help="airmass")
 args = parser.parse_args()
 
 #must import desimodel
@@ -56,10 +54,9 @@ DESIMODEL_DIR=os.environ['DESIMODEL']
 # Look for Directory tree/ environment set up
 # Directory Tree is $DESI_SPECTRO_REDUX/$PRODNAME/exposures/NIGHT/EXPID/*.fits
 # Perhaps can be synced with desispec findfile?
+# But read fibermap file and extract the headers needed for Directory tree
 
-#But read fibermap file and extract the headers needed for Directory tree
-
-#read fibermapfile to get objecttype,NIGHT and EXPID....
+# read fibermapfile to get objecttype,NIGHT and EXPID....
 if args.fiberfile:
  
     print "Reading fibermap file %s"%(args.fiberfile)
@@ -115,29 +112,21 @@ else:
     except:
         raise
 
-#- TODO: make this an option
-#spectrograph=0
+# read the input file (simspec file)
 
-#read the input file (simspec file)
 print 'Now Reading the input file',args.input
 simspec = desisim.io.read_simspec(args.input)
 wavelengths = simspec.wave['brz']
 spectra = simspec.flux
 
-# hdulist=pyfits.open(args.input)
-# data=hdulist[0].data
-# hdr=hdulist[0].header
-# wavelengths=hdr["CRVAL1"]+hdr["CDELT1"]*np.arange(len(data[1,:]))
-# spectra=data/1.0e-17# flux in units of 1.0e-17 ergs/cm^2/s/A
+# Note spectra=data/1.0e-17# flux in units of 1.0e-17 ergs/cm^2/s/A
 
-#print "File Shape:", data.shape
 print "wavelength range:", wavelengths[0], "to", wavelengths[-1]
-# nspec=data.shape[0]
-# nwave=data.shape[1]
+
 nspec = simspec.nspec
 nwave = len(simspec.wave['brz'])
 
-# Here we will run for single CCD(500 x 3 in total). Fewer spectra can be run using 'nspectra' and 'nstart' options
+# Here default run for single CCD (500 x 3 in total). Fewer spectra can be run using 'nspectra' and 'nstart' options
 
 print " simulating spectra",args.nstart, "to", args.nspectra+args.nstart-1
 
@@ -147,8 +136,6 @@ print "************************************************"
 print "Initializing QuickSim"
 specObj0=sim.SpectralFluxDensity(wavelengths,spectra[args.nstart,:])
 qsim=sim.Quick(basePath=DESIMODEL_DIR)
-
-# print "Simulating Spectrum",args.nstart," of spectrograph",spectrograph, "object type:", objtype[args.nstart]
 
 #- simulate a fake object 0 just to get wavelength grids etc setup
 results=qsim.simulate(sourceType='star', sourceSpectrum=specObj0,
@@ -202,7 +189,6 @@ frame_rand_noise=np.zeros((500,3,maxbin))     # random Gaussian noise to nobj+ns
 sky_rand_noise=np.zeros((500,3,maxbin))  # random Gaussian noise to sky only
 cframe_rand_noise=np.zeros((500,3,maxbin))  # random Gaussian noise to calibrated flux
 
-# Now initial values
 np.random.seed(0)
 
 #construct resolution matrix from sigma_vs_wavelength. First resample to respective sigmas vs wavelengths
@@ -253,10 +239,8 @@ resolution_data = dict()
 for i, channel in enumerate( ['b', 'r', 'z'] ):
     resolution_data[channel] = _calc_resolution_data(sigma_vs_wave[channel], waves[channel], nspec)
 
-
 # Now repeat the simulation for all spectra
  
-
 for j in xrange(args.nstart,min(args.nspectra+args.nstart,objtype.shape[0]-args.nstart)): # Exclusive
     print "\rSimulating spectrum %d,  object type=%s"%(j,objtype[j]),
     sys.stdout.flush()
@@ -285,23 +269,11 @@ for j in xrange(args.nstart,min(args.nspectra+args.nstart,objtype.shape[0]-args.
 print
 armName={"b":0,"r":1,"z":2}
 
-#Need Four Files to write: May need to configure which ones to output, rather than all. 
+#Need Four Files to write:
 #1. frame file: (x3)
 #2. skymodel file:(x3)
 #3. flux calibration vector file (x3)
 #4. cframe file
-
-def do_convolve(wave,resolution,flux):
-    """
-    Returns the convolved flux
-    Args:
-        wave : wavelength for the given channel
-        resolution : resolution data for single fiber
-        flux: single fiber flux
-    """
-    R=Resolution(resolution)
-    convolved=R.dot(flux)
-    return convolved
 
 for channel in ["b","r","z"]:	
 
