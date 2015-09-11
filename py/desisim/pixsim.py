@@ -123,7 +123,18 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
     
     #- TODO: option for adding a cosmics image instead of adding readnoise
     
-    image = Image(pix, ivar, mask, readnoise=readnoise, camera=camera)
+    #- Metadata to be included in pix file header is in the fibermap header
+    #- TODO: this is fragile; consider updating fibermap to use astropy Table
+    #- that includes the header rather than directly assuming FITS as the
+    #- underlying format.
+    fibermapfile = desispec.io.findfile('fibermap', night=night, expid=expid)
+    fmhdr = fits.getheader(fibermapfile, 'FIBERMAP')
+    meta = dict()
+    meta['TELRA']  = fmhdr['TELRA']
+    meta['TELDEC'] = fmhdr['TELDEC']
+    meta['TILEID'] = fmhdr['TILEID']
+
+    image = Image(pix, ivar, mask, readnoise=readnoise, camera=camera, meta=meta)
     pixfile = desispec.io.findfile('pix', night=night, camera=camera, expid=expid)
     desispec.io.write_image(pixfile, image)
 
