@@ -40,6 +40,7 @@ parser.add_option("--expid", type=int, help="exposure id")
 parser.add_option("--cameras", type=str, help="cameras, e.g. b0,r5,z9")
 parser.add_option("--spectrographs", type=str, help="spectrograph numbers, e.g. 0,1,9", default='0')
 parser.add_option("--arms", type=str, help="spectrograph arms, e.g. b,r,z", default='b,r,z')
+parser.add_option("--cosmics", type=str, help="fits file with dark images with cosmics to add")
 parser.add_option("--verbose", action="store_true", help="print more stuff")
 parser.add_option("--trimxy", action="store_true", help="Trim image to fit spectra")
 parser.add_option("--randseed", type=int, help="random number seed")
@@ -77,7 +78,8 @@ np.random.seed(opts.randseed)
 for camera in opts.cameras:
     #- Simulate
     pixsim.simulate(opts.night, opts.expid, camera, verbose=opts.verbose,
-        nspec=opts.nspec, ncpu=opts.ncpu, trimxy=opts.trimxy)
+        nspec=opts.nspec, ncpu=opts.ncpu, trimxy=opts.trimxy,
+        cosmics=opts.cosmics)
 
 #-------------------------------------------------------------------------
 # if opts.debug:

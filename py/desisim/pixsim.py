@@ -13,20 +13,25 @@ import yaml
 from astropy.io import fits
 
 import desimodel.io
+import desispec.io
+from desispec.image import Image
 
 from desisim import obs, io
 
-def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None, trimxy=None):
+def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
+    trimxy=False, cosmics=None):
     """
     Run pixel-level simulation of input spectra
     
     Args:
-        night : YEARMMDD string
-        expid : integer exposure id
-        camera : e.g. b0, r1, z9
-        nspec (optional) : number of spectra to simulate
-        verbose (optional) : if True, print status messages
-        ncpu (optional) : number of CPU cores to use
+        night (string) : YEARMMDD
+        expid (integer) : exposure id
+        camera (str) : e.g. b0, r1, z9
+        nspec (int) : number of spectra to simulate
+        verbose (boolean) : if True, print status messages
+        ncpu (int) : number of CPU cores to use in parallel
+        trimxy (boolean) : trim image to just pixels with input signal
+        cosmics (str) : filename with dark images with cosmics to add
 
     Reads:
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
@@ -103,10 +108,24 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None, trimxy=
         if key in hdr:
             del hdr[key]
 
-    #- Add noise and write output files
-    pixfile = io.write_simpix(img, camera, night, expid, header=hdr)
+    #- Write noiseless output
+    simpixfile = io.findfile('simpix', night=night, expid=expid, camera=camera)
+    io.write_simpix(simpixfile, img, meta=hdr)
 
-    fx.close()
+    #- Add noise
+    params = desimodel.io.load_desiparams()
+    channel = camera[0].lower()
+    readnoise = params['ccd'][channel]['readnoise']
+
+    pix = np.random.poisson(img) + np.random.normal(scale=readnoise, size=img.shape)
+    ivar = 1.0/(pix.clip(0) + readnoise**2)
+    mask = np.zeros(img.shape, dtype=np.int16)
+    
+    #- TODO: option for adding a cosmics image instead of adding readnoise
+    
+    image = Image(pix, ivar, mask, readnoise=readnoise, camera=camera)
+    pixfile = desispec.io.findfile('pix', night=night, camera=camera, expid=expid)
+    desispec.io.write_image(pixfile, image)
 
     if verbose:
         print "Wrote "+pixfile

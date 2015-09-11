@@ -15,6 +15,54 @@ import desispec.io
 import desimodel.io
 
 #-------------------------------------------------------------------------
+def findfile(filetype, night, expid, camera, outdir=None, mkdir=True):
+    """
+    Return canonical location of where a file should be on disk
+    
+    Args:
+        filetype : file type, e.g. 'pix' or 'pixsim'
+        night : YEARMMDD string
+        expid : exposure id integer
+        
+    Optional:
+        outdir : output directory; defaults to $DESI_SPECTRO_SIM/$PIXPROD
+        mkdir : create output directory if needed; default True
+        
+    Returns:
+        full file path to output file
+        
+    Also see desispec.io.findfile() which has equivalent functionality for
+    real data files; this function is only be for simulation files.        
+    """
+
+    #- outdir default = $DESI_SPECTRO_SIM/$PIXPROD/{night}/
+    if outdir is None:
+        outdir = os.path.join(
+                os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'), night)        
+
+    #- Definition of where files go
+    location = dict(
+        simpix = '{outdir:s}/simpix-{camera:s}-{expid:08d}.fits',
+        pix = '{outdir:s}/pix-{camera}-{expid:08d}.fits',
+    )
+
+    #- Do we know about this kind of file?
+    if filetype not in location:
+        raise IOError("Unknown filetype {}; known types are {}".format(filetype, location.keys()))
+    
+    outfile = location[filetype].format(
+        outdir=outdir, night=night, expid=expid, camera=camera)
+    outfile = os.path.normpath(outfile)  #- clean up extraneous //
+
+    #- Create output directory path if needed
+    #- Do this only after confirming that all previous parsing worked
+    if mkdir and not os.path.exists(outdir):
+        os.makedirs(outdir)
+        
+    return outfile
+
+
+#-------------------------------------------------------------------------
 #- simspec
 
 def write_simspec(meta, truth, expid, night, header=None, outfile=None):
@@ -106,80 +154,25 @@ def write_simspec(meta, truth, expid, night, header=None, outfile=None):
             comments=comments, units=units)
 
     return outfile
-    
-#- TODO: this is more than just I/O.  Refactor.
-def write_simpix(img, camera, night, expid, header):
+
+def write_simpix(outfile, img, meta):
     """
-    Add noise to input image and write output simpix and pix files.
+    Write simpix data to outfile
     
     Args:
-        img : 2D noiseless image array
-        camera : e.g. b0, r1, z9
-        flavor : arc or flat
-        night  : YEARMMDD string
-        expid  : integer exposure id
-        header : dict-like object that should include FLAVOR and EXPTIME,
+        outfile : output file name, e.g. from io.findfile('simpix', ...)
+        image : 2D noiseless simulated image (numpy.ndarray)
+        meta : dict-like object that should include FLAVOR and EXPTIME,
             e.g. from HDU0 FITS header of input simspec file
-        
-    Writes to $DESI_SPECTRO_SIM/$PIXPROD/{night}/
-        simpix-{camera}-{expid}.fits
-        pix-{camera}-{expid}.fits
-        
-    Returns:
-        filepath to pix*.fits file that was written
     """
 
-    outdir = simdir(night, mkdir=True)
-    params = desimodel.io.load_desiparams()
-    channel = camera[0].lower()
-
-    #- Add noise, generate inverse variance and mask
-    rdnoise = params['ccd'][channel]['readnoise']
-    pix = np.random.poisson(img) + np.random.normal(scale=rdnoise, size=img.shape)
-    ivar = 1.0/(pix.clip(0) + rdnoise**2)
-    mask = np.zeros(img.shape, dtype=np.int32)
-
-    #-----
-    #- Write noiseless image to simpix file
-    simpixfile = '{}/simpix-{}-{:08d}.fits'.format(outdir, camera, expid)
-
-    hdu = fits.PrimaryHDU(img, header=header)
-    hdu.header['VSPECTER'] = ('0.0.0', 'TODO: Specter version')
-    fits.writeto(simpixfile, hdu.data, header=hdu.header, clobber=True)
-
-    #- Add x y trace locations from PSF
-    psffile = '{}/data/specpsf/psf-{}.fits'.format(os.getenv('DESIMODEL'), channel)
-    psfxy = fits.open(psffile)
-    fits.append(simpixfile, psfxy['XCOEFF'].data, header=psfxy['XCOEFF'].header)
-    fits.append(simpixfile, psfxy['YCOEFF'].data, header=psfxy['YCOEFF'].header)
-
-    #-----
-    #- Write simulated raw data to pix file
-
-    #- Primary HDU: noisy image
-    outfile = '{}/pix-{}-{:08d}.fits'.format(outdir, camera, expid)
-    hdulist = fits.HDUList()
-    if 'EXTNAME' in header:
-        del header['EXTNAME']
-    hdu = fits.PrimaryHDU(pix, header=header)
-    hdu.header.append( ('CAMERA', camera, 'Spectograph Camera') )
-    hdu.header.append( ('VSPECTER', '0.0.0', 'TODO: Specter version') )
-    hdu.header.append( ('RDNOISE', rdnoise, 'Read noise [electrons]'))
-    hdulist.append(hdu)
-
-    #- IVAR: Inverse variance (IVAR)
-    hdu = fits.ImageHDU(ivar, name='IVAR')
-    hdu.header.append(('RDNOISE', rdnoise, 'Read noise [electrons]'))
-    hdulist.append(hdu)
-
-    #- MASK: currently just zeros
-    hdu = fits.CompImageHDU(mask, name='MASK')
-    hdulist.append(hdu)
-
-    hdulist.writeto(outfile, clobber=True)
-
-    return outfile
-    
+    hdu = fits.PrimaryHDU(img, header=meta)
+    hdu.header['EXTNAME'] = 'SIMPIX'  #- formally not allowed by FITS standard
+    hdu.header['DEPNAM00'] = 'specter'
+    hdu.header['DEVVER00'] = ('0.0.0', 'TODO: Specter version')
+    # hx = fits.HDUList([hdu,])
+    hdu.writeto(outfile, clobber=True)
+        
 
 #-------------------------------------------------------------------------
 #- desimodel
