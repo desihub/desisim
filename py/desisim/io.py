@@ -15,7 +15,7 @@ import desispec.io
 import desimodel.io
 
 #-------------------------------------------------------------------------
-def findfile(filetype, night, expid, camera, outdir=None, mkdir=True):
+def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
     """
     Return canonical location of where a file should be on disk
     
@@ -23,6 +23,7 @@ def findfile(filetype, night, expid, camera, outdir=None, mkdir=True):
         filetype : file type, e.g. 'pix' or 'pixsim'
         night : YEARMMDD string
         expid : exposure id integer
+        camera : e.g. 'b0', 'r1', 'z9'
         
     Optional:
         outdir : output directory; defaults to $DESI_SPECTRO_SIM/$PIXPROD
@@ -42,17 +43,23 @@ def findfile(filetype, night, expid, camera, outdir=None, mkdir=True):
 
     #- Definition of where files go
     location = dict(
+        simspec = '{outdir:s}/simspec-{expid:08d}.fits',
         simpix = '{outdir:s}/simpix-{camera:s}-{expid:08d}.fits',
-        pix = '{outdir:s}/pix-{camera}-{expid:08d}.fits',
+        pix = '{outdir:s}/pix-{camera:s}-{expid:08d}.fits',
     )
 
     #- Do we know about this kind of file?
     if filetype not in location:
         raise IOError("Unknown filetype {}; known types are {}".format(filetype, location.keys()))
+
+    #- Some but not all filetypes require camera
+    if filetype in ('simpix', 'pix') and camera is None:
+        raise ValueError('camera is required for filetype '+filetype)
     
+    #- get outfile location and cleanup extraneous // from path
     outfile = location[filetype].format(
         outdir=outdir, night=night, expid=expid, camera=camera)
-    outfile = os.path.normpath(outfile)  #- clean up extraneous //
+    outfile = os.path.normpath(outfile)
 
     #- Create output directory path if needed
     #- Do this only after confirming that all previous parsing worked
@@ -172,7 +179,7 @@ def write_simpix(outfile, img, meta):
     hdu.header['DEVVER00'] = ('0.0.0', 'TODO: Specter version')
     # hx = fits.HDUList([hdu,])
     hdu.writeto(outfile, clobber=True)
-        
+
 
 #-------------------------------------------------------------------------
 #- desimodel
@@ -217,7 +224,7 @@ def read_templates(wave, objtype, nspec=None, randseed=1, infile=None):
     If infile is None, then $DESI_{objtype}_TEMPLATES must be set, pointing to
     a file that has the observer frame flux in HDU 0 and a metadata table for
     these objects in HDU 1. This code randomly samples n spectra from that file.
-    
+
     TO DO: add a setable randseed for random reproducibility.
     """
     if infile is None:
