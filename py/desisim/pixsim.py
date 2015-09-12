@@ -112,16 +112,23 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
     simpixfile = io.findfile('simpix', night=night, expid=expid, camera=camera)
     io.write_simpix(simpixfile, img, meta=hdr)
 
-    #- Add noise
-    params = desimodel.io.load_desiparams()
-    channel = camera[0].lower()
-    readnoise = params['ccd'][channel]['readnoise']
-
-    pix = np.random.poisson(img) + np.random.normal(scale=readnoise, size=img.shape)
-    ivar = 1.0/(pix.clip(0) + readnoise**2)
-    mask = np.zeros(img.shape, dtype=np.int16)
-    
-    #- TODO: option for adding a cosmics image instead of adding readnoise
+    #- Add cosmics from library of dark images
+    #- in this case, don't add readnoise since the dark image already has it
+    if cosmics is not None:
+        darkimg = io.read_cosmics(cosmics, expid, shape=img.shape)
+        pix = np.random.poisson(img) + darkimg.pix
+        readnoise = darkimg.meta['RDNOISE']
+        ivar = 1.0/(pix.clip(0) + readnoise**2)
+        #- should use a real cosmic ray finder...
+        mask = (darkimg.ivar == 0)
+    #- Or just add noise
+    else:
+        params = desimodel.io.load_desiparams()
+        channel = camera[0].lower()
+        readnoise = params['ccd'][channel]['readnoise']
+        pix = np.random.poisson(img) + np.random.normal(scale=readnoise, size=img.shape)
+        ivar = 1.0/(pix.clip(0) + readnoise**2)
+        mask = np.zeros(img.shape, dtype=np.int16)
     
     #- Metadata to be included in pix file header is in the fibermap header
     #- TODO: this is fragile; consider updating fibermap to use astropy Table
@@ -130,8 +137,13 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
     fibermapfile = desispec.io.findfile('fibermap', night=night, expid=expid)
     fmhdr = fits.getheader(fibermapfile, 'FIBERMAP')
     meta = dict()
-    meta['TELRA']  = fmhdr['TELRA']
-    meta['TELDEC'] = fmhdr['TELDEC']
+    try:
+        meta['TELRA']  = fmhdr['TELRA']
+        meta['TELDEC'] = fmhdr['TELDEC']
+    except KeyError:  #- temporary backwards compatibilty
+        meta['TELRA']  = fmhdr['TELERA']
+        meta['TELDEC'] = fmhdr['TELEDEC']
+        
     meta['TILEID'] = fmhdr['TILEID']
 
     image = Image(pix, ivar, mask, readnoise=readnoise, camera=camera, meta=meta)

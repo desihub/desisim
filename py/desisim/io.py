@@ -10,9 +10,11 @@ import numpy as np
 import multiprocessing
 
 from desispec.interpolation import resample_flux
-from desispec.io.util import write_bintable
+from desispec.io.util import write_bintable, native_endian
 import desispec.io
 import desimodel.io
+
+from desispec.image import Image
 
 #-------------------------------------------------------------------------
 def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
@@ -180,6 +182,95 @@ def write_simpix(outfile, img, meta):
     # hx = fits.HDUList([hdu,])
     hdu.writeto(outfile, clobber=True)
 
+#-------------------------------------------------------------------------
+#- Cosmics
+
+#- Utility function to resize an image while preserving its 2D arrangement
+#- (unlike np.resize)
+def _resize(image, shape):
+    if (shape[0] > 2*image.shape[0]) or (shape[1] > 2*image.shape[1]):
+        raise ValueError('Can only reshape by up to a factor of 2')
+        
+    newpix = np.empty(shape, dtype=image.dtype)
+    ny = min(shape[0], image.shape[0])
+    nx = min(shape[1], image.shape[1])
+    newpix[0:ny, 0:nx] = image[0:ny, 0:nx]
+    if shape[0] > image.shape[0]:
+        nn = shape[0] - image.shape[0]
+        newpix[ny:ny+nn, 0:nx] = image[0:nn, 0:nx]
+    if shape[1] > image.shape[1]:
+        nn = shape[1] - image.shape[1]
+        newpix[0:ny, nx:nx+nn] = image[0:ny, 0:nn]
+    if (shape[0] > image.shape[0]) and (shape[1] > image.shape[1]):
+        nny = shape[0] - image.shape[0]
+        nnx = shape[1] - image.shape[1]
+        newpix[ny:ny+nny, nx:nx+nnx] = image[0:nny, 0:nnx]
+
+    return newpix
+
+def read_cosmics(filename, expid=1, shape=None, jitter=False):
+    """
+    Reads a dark image with cosmics from the input filename.
+    
+    The input might have multiple dark images; use the `expid%n` image where
+    `n` is the number of images in the input cosmics file.
+    
+    Args:
+        filename : FITS filename with EXTNAME=IMAGE-*, IVAR-*, MASK-* HDUs
+        expid : integer, use `expid % n` image where `n` is number of images
+        
+    Optional:
+        shape : (ny, nx) tuple for output image shape
+        jitter : Apply random flips and rolls so you don't get the exact
+            same cosmics every time
+            
+    Returns:
+        `desisim.image.Image` object with attributes pix, ivar, mask
+    """
+    
+    fx = fits.open(filename)
+    imagekeys = list()
+    for i in range(len(fx)):
+        if fx[i].name.startswith('IMAGE-'):
+            imagekeys.append(fx[i].name.split('-', 1)[1])
+            
+    assert len(imagekeys) > 0, 'No IMAGE-* extensions found in '+filename
+    i = expid % len(imagekeys)
+    pix  = native_endian(fx['IMAGE-'+imagekeys[i]].data.astype(np.float64))
+    ivar = native_endian(fx['IVAR-'+imagekeys[i]].data.astype(np.float64))
+    meta = fx['IMAGE-'+imagekeys[i]].header
+    
+    if shape is not None:
+        if len(shape) != 2: raise ValueError('Invalid shape {}'.format(shape))
+        newpix = np.empty(shape, dtype=np.float64)
+        ny = min(shape[0], pix.shape[0])
+        nx = min(shape[1], pix.shape[1])
+        newpix[0:ny, 0:nx] = pix[0:ny, 0:nx]
+        
+        pix = _resize(pix, shape)
+        ivar = _resize(ivar, shape)
+        
+    if jitter:
+        #- Randomly flip left-right and/or up-down
+        if np.random.uniform(0, 1) > 0.5:
+            pix = np.fliplr(pix)
+            ivar = np.fliplr(ivar)
+        if np.random.uniform(0, 1) > 0.5:
+            pix = np.flipud(pix)
+            ivar = np.flipud(ivar)
+            
+        #- Randomly roll image a bit
+        nx, ny = np.random.randint(-500, 500, size=2)
+        pix = np.roll(np.roll(pix, ny, axis=0), nx, axis=1)
+        ivar = np.roll(np.roll(ivar, ny, axis=0), nx, axis=1)
+        
+    #- RDNOISEn -> average RDNOISE
+    if 'RDNOISE' not in meta:
+        x = meta['RDNOISE0']+meta['RDNOISE1']+meta['RDNOISE2']+meta['RDNOISE3']
+        meta['RDNOISE'] = x / 4.0
+        
+    return Image(pix, ivar, meta=meta)
+        
 
 #-------------------------------------------------------------------------
 #- desimodel
