@@ -17,9 +17,7 @@ import argparse
 import os
 import os.path
 import numpy as np
-import scipy.sparse as sp
 import scipy.special
-import astropy.io.fits as pyfits
 import sys
 import desimodel.simulate as sim
 import desispec
@@ -38,11 +36,11 @@ parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpForm
 #      )
 
 
-parser.add_argument("--input",type=str, help="input spectra")
-parser.add_argument("--fiberfile",type=str, help='fiber map file')
-parser.add_argument("--nspectra",type=int,default=500,help='no. of spectra to be simulated, starting from first')
-parser.add_argument("--nstart", type=int, default=0,help='starting spectra # for simulation')
-parser.add_argument("--spectrograph",type=int, default=0,help='Spectrograph no. 0-9')
+parser.add_argument("--simspec",type=str, help="input simspec file")
+parser.add_argument("--fibermap",type=str, help='input fibermap file')
+parser.add_argument("--nspec",type=int,default=500,help='no. of spectra to be simulated, starting from first')
+parser.add_argument("--nstart", type=int, default=0,help='starting spectra # for simulation 0-4999')
+parser.add_argument("--spectrograph",type=int, default=None,help='Spectrograph no. 0-9')
 args = parser.parse_args()
 
 #must import desimodel
@@ -50,6 +48,9 @@ if 'DESIMODEL' not in os.environ:
     raise RuntimeError('The environment variable DESIMODEL must be set.')
 DESIMODEL_DIR=os.environ['DESIMODEL'] 
 
+# Derive spectrograph number from nstart if needed
+if args.spectrograph is None:
+    args.spectrograph = args.nstart % 500
 
 # Look for Directory tree/ environment set up
 # Directory Tree is $DESI_SPECTRO_REDUX/$PRODNAME/exposures/NIGHT/EXPID/*.fits
@@ -57,10 +58,10 @@ DESIMODEL_DIR=os.environ['DESIMODEL']
 # But read fibermap file and extract the headers needed for Directory tree
 
 # read fibermapfile to get objecttype,NIGHT and EXPID....
-if args.fiberfile:
+if args.fibermap:
  
-    print "Reading fibermap file %s"%(args.fiberfile)
-    tbdata,hdr=desispec.io.fibermap.read_fibermap(args.fiberfile, header=True)
+    print "Reading fibermap file %s"%(args.fibermap)
+    tbdata,hdr=desispec.io.fibermap.read_fibermap(args.fibermap, header=True)
     objtype=tbdata['OBJTYPE'].copy()
     #need to replace STD object types with STAR since quicksim expects star instead of std
     stdindx=np.where(objtype=='STD') # match STD with STAR
@@ -71,6 +72,7 @@ if args.fiberfile:
 
 else:
     print "Need Fibermap file"
+    sys.exit(1)
 
 
 #----------DESI_SPECTRO_REDUX--------
@@ -114,21 +116,24 @@ else:
 
 # read the input file (simspec file)
 
-print 'Now Reading the input file',args.input
-simspec = desisim.io.read_simspec(args.input)
+print 'Now Reading the input file',args.simspec
+simspec = desisim.io.read_simspec(args.simspec)
 wavelengths = simspec.wave['brz']
 spectra = simspec.flux
 
 # Note spectra=data/1.0e-17# flux in units of 1.0e-17 ergs/cm^2/s/A
 
-print "wavelength range:", wavelengths[0], "to", wavelengths[-1]
+print "Wavelength range:", wavelengths[0], "to", wavelengths[-1]
 
 nspec = simspec.nspec
 nwave = len(simspec.wave['brz'])
 
-# Here default run for single CCD (500 x 3 in total). Fewer spectra can be run using 'nspectra' and 'nstart' options
+if nspec < args.nspec:
+    print "Only {} spectra in input file".format(nspec)
+    args.nspec = nspec
 
-print " simulating spectra",args.nstart, "to", args.nspectra+args.nstart-1
+# Here default run for single CCD (500 x 3 in total). Fewer spectra can be run using 'nspec' and 'nstart' options
+print "Simulating spectra",args.nstart, "to", args.nspec+args.nstart-1
 
 print "************************************************"
 
@@ -145,6 +150,7 @@ origin_wavelength=qsim.wavelengthGrid
 waveLimits={'b':(3569,5949),'r':(5625,7741),'z':(7435,9834)}
 
 #- Check if input simspec is for a continuum flat lamp instead of science
+#- This does not convolve to per-fiber resolution
 if simspec.flavor == 'flat':
     print "Simulating flat lamp exposure"
     for channel in ('b', 'r', 'z'):
@@ -234,14 +240,14 @@ def _calc_resolution_data(sigma, wavelengths, nspec):
 #-------------------------------------------------------------------------
 
 # resolution data in format as desired for frame file
-nspec=args.nspectra
+nspec=args.nspec
 resolution_data = dict()
 for i, channel in enumerate( ['b', 'r', 'z'] ):
     resolution_data[channel] = _calc_resolution_data(sigma_vs_wave[channel], waves[channel], nspec)
 
 # Now repeat the simulation for all spectra
  
-for j in xrange(args.nstart,min(args.nspectra+args.nstart,objtype.shape[0]-args.nstart)): # Exclusive
+for j in xrange(args.nstart,min(args.nspec+args.nstart,objtype.shape[0]-args.nstart)): # Exclusive
     print "\rSimulating spectrum %d,  object type=%s"%(j,objtype[j]),
     sys.stdout.flush()
     specObj=sim.SpectralFluxDensity(wavelengths,spectra[j,:])
@@ -291,14 +297,15 @@ for channel in ["b","r","z"]:
     nsky[:,armName[channel],:waveMaxbin[channel]]/=dwave
     sky_rand_noise[:,armName[channel],:waveMaxbin[channel]]/=dwave
     sky_ivar[:,armName[channel],:waveMaxbin[channel]]/=dwave**2
-
+    
+    camera = "{}{}".format(channel, args.spectrograph)
     
 ############--------------------------------------------------------- 
     ###frame file 
 
-    framefileName=desispec.io.findfile("frame",NIGHT,EXPID,"%s%s"%(channel,args.spectrograph))
-    frame_flux=nobj[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]+nsky[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]+frame_rand_noise[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]
-    frame_ivar=nivar[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]
+    framefileName=desispec.io.findfile("frame",NIGHT,EXPID,camera)
+    frame_flux=nobj[args.nstart:args.nstart+args.nspec,armName[channel],:waveMaxbin[channel]]+nsky[args.nstart:args.nstart+args.nspec,armName[channel],:waveMaxbin[channel]]+frame_rand_noise[args.nstart:args.nstart+args.nspec,armName[channel],:waveMaxbin[channel]]
+    frame_ivar=nivar[args.nstart:args.nstart+args.nspec,armName[channel],:waveMaxbin[channel]]
 
     # write frame file
     frame = Frame(waves[channel], frame_flux, frame_ivar, resolution_data=resolution_data[channel],spectrograph=args.spectrograph)
@@ -308,20 +315,21 @@ for channel in ["b","r","z"]:
     #cframe file
     #TODO : for sky input spectrum (all zero), quicksim output flux is also zero and also ivar. Need to fix!! 
     
-    cframeFileName=desispec.io.findfile("cframe",NIGHT,EXPID,"%s%s"%(channel,args.spectrograph))
-    cframeFlux=cframe_observedflux[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]+cframe_rand_noise[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]
-    cframeIvar=cframe_ivar[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]
+    cframeFileName=desispec.io.findfile("cframe",NIGHT,EXPID,camera)
+    cframeFlux=cframe_observedflux[args.nstart:args.nstart+args.nspec,armName[channel],:waveMaxbin[channel]]+cframe_rand_noise[args.nstart:args.nstart+args.nspec,armName[channel],:waveMaxbin[channel]]
+    cframeIvar=cframe_ivar[args.nstart:args.nstart+args.nspec,armName[channel],:waveMaxbin[channel]]
     
     # write cframe file
     cframe = Frame(waves[channel], cframeFlux, cframeIvar, resolution_data=resolution_data[channel],spectrograph=args.spectrograph)
     desispec.io.frame.write_frame(cframeFileName,cframe)
 
 ############-----------------------------------------------------
-    #sky file (for now taking only 1D, should change to (nspec,nwave) format)
+    #sky file
     
-    skyfileName=desispec.io.findfile("sky",NIGHT,EXPID,"%s%s"%(channel,args.spectrograph))
-    skyflux=nsky[:,armName[channel],:waveMaxbin[channel]]+sky_rand_noise[:,armName[channel],:waveMaxbin[channel]]
-    skyivar=sky_ivar[:,armName[channel],:waveMaxbin[channel]]
+    skyfileName=desispec.io.findfile("sky",NIGHT,EXPID,camera)
+    skyflux=nsky[args.nstart:args.nstart+args.nspec,armName[channel],:waveMaxbin[channel]] + \
+            sky_rand_noise[args.nstart:args.nstart+args.nspec,armName[channel],:waveMaxbin[channel]]
+    skyivar=sky_ivar[args.nstart:args.nstart+args.nspec,armName[channel],:waveMaxbin[channel]]
     skymask=np.zeros(skyflux.shape, dtype=int)
     
     # write sky file 
@@ -330,18 +338,17 @@ for channel in ["b","r","z"]:
 
 ############----------------------------------------------------------
     #calibration vector file
-    #- TODO: this will get refactored into 2D outputs
 
-    calibVectorFile=desispec.io.findfile("calib",NIGHT,EXPID,"%s%s"%(channel,args.spectrograph))
-    flux = cframe_observedflux[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]
-    phot = nobj[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]
+    calibVectorFile=desispec.io.findfile("calib",NIGHT,EXPID,camera)
+    flux = cframe_observedflux[args.nstart:args.nstart+args.nspec,armName[channel],:waveMaxbin[channel]]
+    phot = nobj[args.nstart:args.nstart+args.nspec,armName[channel],:waveMaxbin[channel]]
     calibration = np.zeros_like(phot)
     ii = (flux>0)
     calibration[ii] = phot[ii] / flux[ii]
 
     #- TODO: what should calibivar be?
     #- For now, model it as the noise of combining ~10 spectra
-    calibivar=10/cframe_ivar[args.nstart:args.nstart+args.nspectra,armName[channel],:waveMaxbin[channel]]
+    calibivar=10/cframe_ivar[args.nstart:args.nstart+args.nspec,armName[channel],:waveMaxbin[channel]]
     #mask=(1/calibivar>0).astype(long)??
     mask=np.zeros(calibration.shape, dtype=int)
 
