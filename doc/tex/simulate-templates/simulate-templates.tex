@@ -1,4 +1,4 @@
-\documentclass[11pt]{article}
+\documentclass[12pt]{article}
 \usepackage{epsfig, mdwlist, amssymb}
 \usepackage{fullpage}
 %\usepackage{color}
@@ -17,12 +17,14 @@
 \newcommand{\ewoii}{EW([O~{\sc ii}])}
 
 \newcommand{\oiilam}{[O~{\sc ii}]~\ensuremath{\lambda\lambda3726,29}}
+\newcommand{\ewoiilam}{EW([O~{\sc ii}]~\ensuremath{\lambda\lambda3726,29})}
 
 \newcommand{\kms}{km~s$^{-1}$}
 \newcommand{\isedfit}{{\tt iSEDfit}}
 
 \newcommand{\apj}{ApJ}
 \newcommand{\pasp}{PASP}
+\newcommand{\araa}{ARA\&A}
 \newcommand{\apjs}{ApJS}
 \newcommand{\TODO}[1]{{\it \color{red} (#1)}}
 
@@ -58,14 +60,11 @@ repository {\tt
   desihub/desisim}\footnote{\url{https://github.com/desihub/desisim}} under the
 {\tt py/desisim} and {\tt doc/tex/simulate-templates} directories, respectively.
 
-%ToDo:
-%* Allow AGN-like emission-line ratios.
-%* Add (weak) emission lines to the LRG templates.
-%* Fix the random seed so the spectrum results are reproducible.
-%* Add units tests.
-%* Add nebular continuum to the EMSpectrum class.
-%* The empirical coefficients in EMSpectrum are hard-coded.
-%* Add more emission lines.
+Finally, everything all the code has been developed on {\tt Github} in {\tt
+  Python} using the same coding standards adopted by the {\tt DESI-Data} team,
+such that other members of the collaboration can contribute to its future
+development.   Lots of qaplots get written out and DESI color cuts are
+optionally written out!
 
 \section{Getting Started Quickly}
 
@@ -101,42 +100,99 @@ models.
 
 \subsection{ELGs}
 
-A preliminary set of ELG templates for DESI were developed in 2014 using
-high-resolution spectroscopy and broadband photometry of galaxies from the DEEP2
-survey (see {\tt DESI-doc-870} for extensive
-details).\footnote{https://desi.lbl.gov/DocDB/cgi-bin/private/RetrieveFile?docid=870;filename=elg-templates.pdf;version=1}
-Here we build on those preliminary templates using the same input data, but add
-more flexibility, allowing a much larger range of synthetic templates to be
-generated.
+\subsubsection{Preliminary Templates}\label{elg:prelim}
 
-Constructing reliable ELG templates is challenging for two main reasons.  First,
-the optical emission-line spectra of star-forming galaxies can vary
-significantly (up to an order-of-magnitude or more) due to differences in dust
-content, gas-phase abundance, and excitation \citep[e.g.,][]{kewley01a}.  And
-second, the strengths of the nebular emission lines relative to the underlying
-stellar continuum (i.e., the emission-line equivalent width) also exhibit large
-intrinsic variations due to differences in the specific star formation rate
-(star formation rate divided by the stellar mass; see \citealt{kennicutt94a})
-among galaxies.  Moreover, we need to take into account the fact that DESI will
-be targeting ELGs in an epoch ($z\sim1$) when galaxies were dustier and forming
-stars at much higher rates (relative to their stellar mass) compared to local
-star-forming galaxies.
+A preliminary set of $7876$ ELG templates for DESI were developed in late-2014
+using high-resolution spectroscopy and broadband photometry of galaxies from the
+DEEP2 survey (see {\tt
+  DESI-doc-870}).\footnote{\url{https://desi.lbl.gov/DocDB/cgi-bin/private/RetrieveFile?docid=870;filename=elg-templates.pdf;version=1}}
+Briefly, these templates were constructed by selecting a statistically complete
+sample of DEEP2 galaxies at $z=0.75-1.45$ with $r_{\rm CFHTLS}<23.5$, a
+well-measured \oiilam{} emission-line doublet, and at least six bands of optical
+photometry \citep{newman13a, matthews13a}.  {\tt WISE} photometry at $3.4~\mu$m
+(W1) and $4.6~\mu$m (W2) was included by running {\tt The
+  Tractor}\footnote{\url{https://github.com/dstndstn/tractor.git}} in forced
+photometry mode.  Next, the broadband optical and WISE photometry was fitted
+using \isedfit, a Bayesian stellar population synthesis fitting code
+\citep{moustakas13a}, to produce noiseless stellar continuum spectra from
+$0.125-4.0~\mu$m (rest-frame) with $20$~\kms{} pixels for the whole sample.  The
+observed-frame optical DEEP2 spectrum of each galaxy was also fitted in order to
+measure the integrated flux, intrinsic velocity width (deconvolved for the DEEP2
+instrumental resolution), and flux-ratio of the \oiilam{} emission-line doublet.
+Additional nebular emission lines were generated in an ad hoc way (e.g., using
+fixed emission-line ratios) and the continuum and emission-line model spectra
+were combined into the \emph{preliminary} ELG templates described in {\tt
+  DESI-doc-870}.
 
-DEEP2 observations of 
+%intermediate-resolution ($\mathcal{R}\approx2200$) 
 
-As described in {\tt DESI-doc-870}, we have measured the emission lines and fit
-the broadband continuum spectra using \isedfit.
+\subsubsection{Improved Templates}
 
-With these issues in mind, we have developed the following procedure for
-generating a broad range of empirically constrained ELG templates, as described
-in more detail below:
+Here, we build on the preliminary templates described in \S\ref{elg:prelim} in
+several key ways.  First, we add significantly more flexibility in how the
+nebular emission-line spectrum is constructed, as well as how that spectrum is
+linked to the underlying stellar continuum spectrum.  The method we use is
+empirically calibrated using observed emission-line sequences and emission-line
+equivalent width measurements of galaxies at $z=0-2$, ensuring that the ELG
+templates exhibit the same range and variation in dust content, gas-phase
+abundance, excitation, and specific star formation rate (star formation rate
+divided by stellar mass) as real star-forming galaxies.
+
+Second, we use a Monte Carlo approach so that an arbitrarily large number of
+``random'' templates can be generated.  All the user has to specify is the
+desired number of templates; all the other parameters, including the redshift
+range, $r$-band magnitude range (which sets the overall normalization and
+ultimately the integrated \oii{} emission-line flux), and emission-line priors
+are drawn from appropriate prior distributions.  Alternatively, the user has
+significant (optional) control over the input priors so that the templates can
+be customized for a wide range of applications.  In addition, in order to
+facilitate testing, the seed for the random number generator is an optional
+input, making the ``random'' templates fully reproducible.
+
+%For example, emission-line ratios can vary significantly (up to an
+%order-of-magnitude or more) due to differences in dust content, gas-phase
+%abundance, and excitation among star-forming galaxies
+%\citep[e.g.,][]{kewley01a}.  And second, the strengths of the nebular emission
+%lines relative to the underlying stellar continuum (i.e., the emission-line
+%equivalent width) also exhibit large intrinsic variations due to differences in
+%the specific star formation rate (star formation rate divided by the stellar
+%mass; see \citealt{kennicutt94a}) among galaxies.  Moreover, we need to take
+%into account the fact that DESI will be targeting ELGs in an epoch ($z\sim1$)
+%when galaxies were dustier and forming stars at much higher rates (relative to
+%their stellar mass) compared to local star-forming galaxies \citep{blanton09a,
+%madau14a}.
+
+%\begin{itemize*}
+%\item{}
+%\end{itemize*}
+
+Each ELG template is generated according to the following procedure, which we
+discuss in more detail below:
+
+We have developed the following procedure for generating a broad range of
+empirically constrained ELG templates:
 \begin{enumerate*}
 \item{Randomly (i.e., with equal probability) choose a DEEP2 stellar continuum
   spectrum with measured $4000$-\AA{} break strength $D_{n}(4000)$ (a proxy for
   specific star-formation rate).}
-\item{Use an empirically calibrated relation between $D_{n}(4000)$ and \oiilam{}
-  emission-line equivalent width (EW), \ewoii.}
+\item{Use an empirically calibrated relation between $D_{n}(4000)$ and
+  rest-frame \ewoiilam{} to construct a suitably scaled \oii{} emission line.}
+\item{}
 \end{enumerate*}
+
+\subsubsection{Planned or Possible Improvements}
+
+Room for improvement: allow for different attenuation curves.  Should also
+constrain the priors on the dust distribution better.
+
+* Allow AGN-like emission-line ratios.
+* Add (weak) emission lines to the LRG templates.
+* Fix the random seed so the spectrum results are reproducible.
+* Add units tests.
+* Add nebular continuum to the EMSpectrum class.
+* The empirical coefficients in EMSpectrum are hard-coded.
+* Add more emission lines.
+* allow redshift and r-band magnitudes to be drawn from a distribution
 
 \begin{figure}
 \centering
@@ -170,52 +226,7 @@ in more detail below:
     that satisfy our grz color cuts!}  \label{fig:d4000}}
 \end{figure}
 
-\vspace{1in}
 
-The ELG templates are constructed by combining the SEDs inferred from
-modeling the broadband photometry with the \oii{} emission-line
-profile and line-strength inferred from the DEEP2 spectroscopy.  The
-script {\tt build\_desi\_elg\_templates} generates the actual ELG
-templates from the parent sample of 35,682 DEEP2 galaxies.  First, a
-subset of galaxies suitable for template-building are identified by
-applying the following cuts:
-
-\begin{enumerate}
-\item[$\bullet$]{$0.75<z<1.45$;}
-\item[$\bullet$]{$r_{\rm CFHTLS}<23.5$ (AB, extinction-corrected);}
-\item[$\bullet$]{minimum 6 bands of observed-frame optical photometry;}
-\item[$\bullet$]{\oiilam{} doublet measured with ${\rm S/N}>3$; and}
-\item[$\bullet$]{EW(\oii)$>1$~\AA.}
-\end{enumerate}
-
-These cuts leave a total of $7876$ galaxies, the most stringent cut
-being on the S/N of the \oii{} doublet.  Next, the \oii{} line-profile
-and integrated flux for each galaxy is used as an anchor to construct
-a more complete nebular emission-line spectrum.  Briefly, the nebular
-emission-line model implemented within {\tt iSEDfit} is used to add
-more than $50$ additional emission lines.  The strengths of the
-hydrogen and helium recombination lines are based on the number of
-hydrogen-ionizing photons inferred from the SED modeling, while the
-forbidden emission-line strengths are based on empirically determined
-line-ratios.
-
-With these empirically constrained broadband SEDs and nebular
-emission-line spectra in hand, a set of rest-frame and observed-frame
-templates are generated.  
-
-Tables~\ref{table:rest} and \ref{table:obs} summarize the spectral parameters of
-the rest-frame and observed-frame templates, respectively.  The principle
-difference between the two template sets is that the rest-frame templates have
-constant-$\log_{10}(\lambda)$ ($20$~km~s$^{-1}$) pixels, while the
-observed-frame templates have constant-$\lambda$ ($0.5$~\AA) pixels.  
-
-In addition, the rest-frame templates are normalized to a $1~M_{\odot}$ (stellar
-masss) stellar population at $10$~pc, while the observed-frame templates retain
-the redshift and flux normalization of the corresponding DEEP2 galaxy.
-
-%Include some figures:
-%* color-redshift plots
-%* many other ideas
 
 \begin{enumerate}
 \item{Extension~0: An [{\sc npixel}]$\times$[{\sc ntemplate}] flux
@@ -272,8 +283,13 @@ two extensions:
 
 \subsection{Luminous Red Galaxy (LRG) Templates} 
 
+LRGs
+
 
 \subsection{Bright-Galaxy Survey (BGS) Templates} 
+
+BGS.
+
 
 \subsection{Quasar (QSO) Templates }
 
