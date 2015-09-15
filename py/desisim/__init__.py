@@ -10,6 +10,7 @@ Also see desimodel, which contains quicksim.
 from . import pixsim
 from . import obs
 from . import io
+from . import targets
 
 __version__ = 'unknown'
 def version():
@@ -30,5 +31,5 @@ def version():
         return __version__
 
 #- This requires making a system call every time desisim is loaded.  Yuck.
-__version__ = version()
+# __version__ = version()
         

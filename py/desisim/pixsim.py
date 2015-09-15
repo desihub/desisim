@@ -51,7 +51,8 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None, trimxy=
     nfibers = params['spectro']['nfibers']
 
     #- Check that this camera has simulated spectra
-    hdr = fits.getheader(simfile, 'PHOT_'+channel)
+    fx = fits.open(simfile)
+    hdr = fx['PHOT_'+channel].header
     nspec_in = hdr['NAXIS2']
     if ispec*nfibers >= nspec_in:
         print "ERROR: camera {} not in the {} spectra in {}/{}".format(
@@ -59,15 +60,11 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None, trimxy=
         return
 
     #- Load input photon data
-    phot = fits.getdata(simfile, 'PHOT_'+channel)
-    try:
-        phot += fits.getdata(simfile, 'SKYPHOT_'+channel)
-    except KeyError:
-        pass  #- arcs and flats don't have SKYPHOT
-    
-    nwave = phot.shape[1]
-    wave = hdr['CRVAL1'] + np.arange(nwave)*hdr['CDELT1']
-    
+    phot = fx['PHOT_'+channel].data
+    wave = fx['WAVE_'+channel].data
+    if 'SKYPHOT_'+channel in fx:
+        phot += fx['SKYPHOT_'+channel].data
+
     #- Load PSF
     psf = desimodel.io.load_psf(channel)
 
@@ -96,10 +93,20 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None, trimxy=
         # hdr['CRVAL1'] = xmin+1
         # hdr['CRVAL2'] = ymin+1
 
-    #- Add noise and write output files
+    #- Prepare header
+    hdr = fx[0].header
     tmp = '/'.join(simfile.split('/')[-3:])  #- last 3 elements of path
     hdr['SIMFILE'] = (tmp, 'Input simulation file')
-    pixfile = io.write_simpix(img, camera, 'science', night, expid, header=hdr)
+
+    #- Strip unnecessary keywords
+    for key in ('EXTNAME', 'LOGLAM', 'AIRORVAC', 'CRVAL1', 'CDELT1'):
+        if key in hdr:
+            del hdr[key]
+
+    #- Add noise and write output files
+    pixfile = io.write_simpix(img, camera, night, expid, header=hdr)
+
+    fx.close()
 
     if verbose:
         print "Wrote "+pixfile

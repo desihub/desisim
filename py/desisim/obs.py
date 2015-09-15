@@ -16,13 +16,15 @@ from desispec.interpolation import resample_flux
 from targets import get_targets
 from . import io
 
-def new_exposure(flavor, nspec=5000, expid=None, tileid=None, airmass=1.0, exptime=None):
+def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
+    airmass=1.0, exptime=None):
     """
     Create a new exposure and output input simulation files.
     Does not generate pixel-level simulations or noisy spectra.
     
     Args:
         nspec (optional): integer number of spectra to simulate
+        night (optional): YEARMMDD string
         expid (optional): positive integer exposure ID
         tileid (optional): tile ID
         airmass (optional): airmass, default 1.0
@@ -40,13 +42,18 @@ def new_exposure(flavor, nspec=5000, expid=None, tileid=None, airmass=1.0, expti
     
     if tileid is None:
         tileid = get_next_tileid()
-        
-    dateobs = time.gmtime()
-    night = get_night(utc=dateobs)
+
+    if night is None:
+        #- simulation obs time = now, even if sun is up
+        dateobs = time.gmtime()
+        night = get_night(utc=dateobs)
+    else:
+        #- 10pm on night YEARMMDD
+        dateobs = time.strptime(night+':22', '%Y%m%d:%H')
     
     params = desimodel.io.load_desiparams()    
     if flavor == 'arc':
-        infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.1/arc-lines-average.fits'
+        infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.2/arc-lines-average.fits'
         d = fits.getdata(infile, 1)
         wave = d['AIRWAVE']
         phot = d['ELECTRONS']
@@ -61,7 +68,7 @@ def new_exposure(flavor, nspec=5000, expid=None, tileid=None, airmass=1.0, expti
             truth['PHOT_'+channel] = np.tile(phot[ii], nspec).reshape(nspec, len(ii))
 
     elif flavor == 'flat':
-        infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.1/flat-3100K-quartz-iodine.fits'
+        infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.2/flat-3100K-quartz-iodine.fits'
         flux = fits.getdata(infile, 0)
         hdr = fits.getheader(infile, 0)
         wave = desispec.io.util.header2wave(hdr)
@@ -79,16 +86,17 @@ def new_exposure(flavor, nspec=5000, expid=None, tileid=None, airmass=1.0, expti
         meta = None
         fibermap = desispec.io.fibermap.empty_fibermap(nspec)
         for channel in ('B', 'R', 'Z'):
-            psf = desimodel.io.load_psf(channel)
             thru = desimodel.io.load_throughput(channel)
-            ii = (psf.wmin <= wave) & (wave <= psf.wmax)
-            phot = thru.photons(wave[ii], flux[:,ii], units=hdr['BUNIT'], objtype='CALIB')
+            ii = (thru.wavemin <= wave) & (wave <= thru.wavemax)
+            phot = thru.photons(wave[ii], flux[:,ii], units=hdr['BUNIT'],
+                            objtype='CALIB', exptime=exptime)
         
             truth['WAVE_'+channel] = wave[ii]
             truth['PHOT_'+channel] = phot
         
     elif flavor == 'science':
         fibermap, truth = get_targets(nspec, tileid=tileid)
+            
         flux = truth['FLUX']
         wave = truth['WAVE']
         nwave = len(wave)
@@ -136,12 +144,28 @@ def new_exposure(flavor, nspec=5000, expid=None, tileid=None, airmass=1.0, expti
         )
         meta = {key: truth[key] for key in columns}
         
+    #- (end indentation for arc/flat/science flavors)
+        
+    #- Override $DESI_SPECTRO_DATA in order to write to simulation area
+    datadir_orig = os.getenv('DESI_SPECTRO_DATA')
+    simbase = os.path.join(os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'))
+    os.environ['DESI_SPECTRO_DATA'] = simbase
+
     #- Write fibermap
+    telera, teledec = io.get_tile_radec(tileid)
+    hdr = dict(
+        NIGHT = (night, 'Night of observation YEARMMDD'),
+        EXPID = (expid, 'DESI exposure ID'),
+        TILEID = (tileid, 'DESI tile ID'),
+        FLAVOR = (flavor, 'Flavor [arc, flat, science, ...]'),
+        TELERA = (telera, 'Telescope pointing RA [degrees]'),
+        TELEDEC = (teledec, 'Telescope pointing dec [degrees]'),
+        )
     fiberfile = desispec.io.findfile('fibermap', night, expid)
-    desispec.io.write_fibermap(fiberfile, fibermap)
+    desispec.io.write_fibermap(fiberfile, fibermap, header=hdr)
     print fiberfile
     
-    #- Write simfile
+    #- Write simspec
     hdr = dict(
         AIRMASS=(airmass, 'Airmass at middle of exposure'),
         EXPTIME=(exptime, 'Exposure time [sec]'),
@@ -152,6 +176,12 @@ def new_exposure(flavor, nspec=5000, expid=None, tileid=None, airmass=1.0, expti
 
     #- Update obslog that we succeeded with this exposure
     update_obslog(flavor, expid, dateobs, tileid)
+    
+    #- Restore $DESI_SPECTRO_DATA
+    if datadir_orig is not None:
+        os.environ['DESI_SPECTRO_DATA'] = datadir_orig
+    else:
+        del os.environ['DESI_SPECTRO_DATA']
     
     return fibermap, truth
 
@@ -274,7 +304,11 @@ def update_obslog(obstype='science', expid=None, dateobs=None,
     returns tuple (expid, dateobs)
     """
     #- Connect to sqlite database file and create DB if needed
-    dbfile = io.simdir()+'/etc/obslog.sqlite'
+    dbdir = io.simdir() + '/etc'
+    if not os.path.exists(dbdir):
+        os.makedirs(dbdir)
+        
+    dbfile = dbdir+'/obslog.sqlite'
     db = sqlite3.connect(dbfile)
     db.execute("""\
     CREATE TABLE IF NOT EXISTS obslog (
@@ -305,7 +339,7 @@ def update_obslog(obstype='science', expid=None, dateobs=None,
     night = get_night(utc=dateobs)
         
     insert = """\
-    INSERT INTO obslog(expid,dateobs,night,obstype,tileid,ra,dec)
+    INSERT OR REPLACE INTO obslog(expid,dateobs,night,obstype,tileid,ra,dec)
     VALUES (?,?,?,?,?,?,?)
     """
     db.execute(insert, (expid, time.mktime(dateobs), night, obstype, tileid, ra, dec))
