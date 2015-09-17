@@ -20,20 +20,20 @@ from desispec.image import Image
 def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
     """
     Return canonical location of where a file should be on disk
-    
+
     Args:
         filetype : file type, e.g. 'pix' or 'pixsim'
         night : YEARMMDD string
         expid : exposure id integer
         camera : e.g. 'b0', 'r1', 'z9'
-        
+
     Optional:
         outdir : output directory; defaults to $DESI_SPECTRO_SIM/$PIXPROD
         mkdir : create output directory if needed; default True
-        
+
     Returns:
         full file path to output file
-        
+
     Also see desispec.io.findfile() which has equivalent functionality for
     real data files; this function is only be for simulation files.        
     """
@@ -41,7 +41,7 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
     #- outdir default = $DESI_SPECTRO_SIM/$PIXPROD/{night}/
     if outdir is None:
         outdir = os.path.join(
-                os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'), night)        
+                os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'), night)
 
     #- Definition of where files go
     location = dict(
@@ -254,7 +254,7 @@ def read_simspec(filename):
 
     
     
-def write_simpix(img, camera, night, expid, header):
+def write_simpix(outfile, image, header):
     """
     Write simpix data to outfile
     
@@ -265,11 +265,10 @@ def write_simpix(img, camera, night, expid, header):
             e.g. from HDU0 FITS header of input simspec file
     """
 
-    hdu = fits.PrimaryHDU(img, header=meta)
+    hdu = fits.PrimaryHDU(image, header=meta)
     hdu.header['EXTNAME'] = 'SIMPIX'  #- formally not allowed by FITS standard
     hdu.header['DEPNAM00'] = 'specter'
     hdu.header['DEVVER00'] = ('0.0.0', 'TODO: Specter version')
-    # hx = fits.HDUList([hdu,])
     hdu.writeto(outfile, clobber=True)
 
 #-------------------------------------------------------------------------
@@ -298,7 +297,7 @@ def _resize(image, shape):
 
     return newpix
 
-def read_cosmics(filename, expid=1, shape=None, jitter=False):
+def read_cosmics(filename, expid=1, shape=None, jitter=True):
     """
     Reads a dark image with cosmics from the input filename.
     
@@ -311,8 +310,8 @@ def read_cosmics(filename, expid=1, shape=None, jitter=False):
         
     Optional:
         shape : (ny, nx) tuple for output image shape
-        jitter : Apply random flips and rolls so you don't get the exact
-            same cosmics every time
+        jitter : If True (default), apply random flips and rolls so you
+            don't get the exact same cosmics every time
             
     Returns:
         `desisim.image.Image` object with attributes pix, ivar, mask
@@ -327,7 +326,9 @@ def read_cosmics(filename, expid=1, shape=None, jitter=False):
     i = expid % len(imagekeys)
     pix  = native_endian(fx['IMAGE-'+imagekeys[i]].data.astype(np.float64))
     ivar = native_endian(fx['IVAR-'+imagekeys[i]].data.astype(np.float64))
+    mask = native_endian(fx['MASK-'+imagekeys[i]].data)
     meta = fx['IMAGE-'+imagekeys[i]].header
+    meta['CRIMAGE'] = (imagekeys[i], 'input cosmic ray image')
     
     if shape is not None:
         if len(shape) != 2: raise ValueError('Invalid shape {}'.format(shape))
@@ -338,27 +339,45 @@ def read_cosmics(filename, expid=1, shape=None, jitter=False):
         
         pix = _resize(pix, shape)
         ivar = _resize(ivar, shape)
+        mask = _resize(mask, shape)
         
     if jitter:
         #- Randomly flip left-right and/or up-down
         if np.random.uniform(0, 1) > 0.5:
             pix = np.fliplr(pix)
             ivar = np.fliplr(ivar)
+            mask = np.fliplr(mask)
+            meta['CRFLIPLR'] = (True, 'Input cosmics image flipped Left/Right')
+        else:
+            meta['CRFLIPLR'] = (False, 'Input cosmics image NOT flipped Left/Right')
+            
         if np.random.uniform(0, 1) > 0.5:
             pix = np.flipud(pix)
             ivar = np.flipud(ivar)
+            mask = np.flipud(mask)
+            meta['CRFLIPUD'] = (True, 'Input cosmics image flipped Up/Down')
+        else:
+            meta['CRFLIPUD'] = (True, 'Input cosmics image NOT flipped Up/Down')
             
         #- Randomly roll image a bit
-        nx, ny = np.random.randint(-500, 500, size=2)
+        nx, ny = np.random.randint(-200, 200, size=2)
         pix = np.roll(np.roll(pix, ny, axis=0), nx, axis=1)
         ivar = np.roll(np.roll(ivar, ny, axis=0), nx, axis=1)
+        mask = np.roll(np.roll(mask, ny, axis=0), nx, axis=1)
+        meta['CRSHIFTX'] = (nx, 'Input cosmics image shift in x')
+        meta['CRSHIFTY'] = (nx, 'Input cosmics image shift in y')
+    else:
+        meta['CRFLIPLR'] = (False, 'Input cosmics image NOT flipped Left/Right')
+        meta['CRFLIPUD'] = (True, 'Input cosmics image NOT flipped Up/Down')
+        meta['CRSHIFTX'] = (0, 'Input cosmics image shift in x')
+        meta['CRSHIFTY'] = (0, 'Input cosmics image shift in y')
         
     #- RDNOISEn -> average RDNOISE
     if 'RDNOISE' not in meta:
         x = meta['RDNOISE0']+meta['RDNOISE1']+meta['RDNOISE2']+meta['RDNOISE3']
         meta['RDNOISE'] = x / 4.0
         
-    return Image(pix, ivar, meta=meta)
+    return Image(pix, ivar, mask, meta=meta)
         
 
 #-------------------------------------------------------------------------
