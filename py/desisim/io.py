@@ -35,7 +35,7 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
         full file path to output file
 
     Also see desispec.io.findfile() which has equivalent functionality for
-    real data files; this function is only be for simulation files.        
+    real data files; this function is only be for simulation files.
     """
 
     #- outdir default = $DESI_SPECTRO_SIM/$PIXPROD/{night}/
@@ -57,7 +57,7 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
     #- Some but not all filetypes require camera
     if filetype in ('simpix', 'pix') and camera is None:
         raise ValueError('camera is required for filetype '+filetype)
-    
+
     #- get outfile location and cleanup extraneous // from path
     outfile = location[filetype].format(
         outdir=outdir, night=night, expid=expid, camera=camera)
@@ -67,7 +67,7 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
     #- Do this only after confirming that all previous parsing worked
     if mkdir and not os.path.exists(outdir):
         os.makedirs(outdir)
-        
+
     return outfile
 
 
@@ -279,7 +279,7 @@ def write_simpix(outfile, image, meta):
 def _resize(image, shape):
     if (shape[0] > 2*image.shape[0]) or (shape[1] > 2*image.shape[1]):
         raise ValueError('Can only reshape by up to a factor of 2')
-        
+
     newpix = np.empty(shape, dtype=image.dtype)
     ny = min(shape[0], image.shape[0])
     nx = min(shape[1], image.shape[1])
@@ -300,19 +300,19 @@ def _resize(image, shape):
 def read_cosmics(filename, expid=1, shape=None, jitter=True):
     """
     Reads a dark image with cosmics from the input filename.
-    
+
     The input might have multiple dark images; use the `expid%n` image where
     `n` is the number of images in the input cosmics file.
-    
+
     Args:
         filename : FITS filename with EXTNAME=IMAGE-*, IVAR-*, MASK-* HDUs
         expid : integer, use `expid % n` image where `n` is number of images
-        
+
     Optional:
         shape : (ny, nx) tuple for output image shape
         jitter : If True (default), apply random flips and rolls so you
             don't get the exact same cosmics every time
-            
+
     Returns:
         `desisim.image.Image` object with attributes pix, ivar, mask
     """
@@ -321,7 +321,7 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
     for i in range(len(fx)):
         if fx[i].name.startswith('IMAGE-'):
             imagekeys.append(fx[i].name.split('-', 1)[1])
-            
+
     assert len(imagekeys) > 0, 'No IMAGE-* extensions found in '+filename
     i = expid % len(imagekeys)
     pix  = native_endian(fx['IMAGE-'+imagekeys[i]].data.astype(np.float64))
@@ -329,18 +329,18 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
     mask = native_endian(fx['MASK-'+imagekeys[i]].data)
     meta = fx['IMAGE-'+imagekeys[i]].header
     meta['CRIMAGE'] = (imagekeys[i], 'input cosmic ray image')
-    
+
     if shape is not None:
         if len(shape) != 2: raise ValueError('Invalid shape {}'.format(shape))
         newpix = np.empty(shape, dtype=np.float64)
         ny = min(shape[0], pix.shape[0])
         nx = min(shape[1], pix.shape[1])
         newpix[0:ny, 0:nx] = pix[0:ny, 0:nx]
-        
+
         pix = _resize(pix, shape)
         ivar = _resize(ivar, shape)
         mask = _resize(mask, shape)
-        
+
     if jitter:
         #- Randomly flip left-right and/or up-down
         if np.random.uniform(0, 1) > 0.5:
@@ -350,7 +350,7 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
             meta['CRFLIPLR'] = (True, 'Input cosmics image flipped Left/Right')
         else:
             meta['CRFLIPLR'] = (False, 'Input cosmics image NOT flipped Left/Right')
-            
+
         if np.random.uniform(0, 1) > 0.5:
             pix = np.flipud(pix)
             ivar = np.flipud(ivar)
@@ -358,7 +358,7 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
             meta['CRFLIPUD'] = (True, 'Input cosmics image flipped Up/Down')
         else:
             meta['CRFLIPUD'] = (True, 'Input cosmics image NOT flipped Up/Down')
-            
+
         #- Randomly roll image a bit
         nx, ny = np.random.randint(-200, 200, size=2)
         pix = np.roll(np.roll(pix, ny, axis=0), nx, axis=1)
@@ -371,12 +371,12 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
         meta['CRFLIPUD'] = (True, 'Input cosmics image NOT flipped Up/Down')
         meta['CRSHIFTX'] = (0, 'Input cosmics image shift in x')
         meta['CRSHIFTY'] = (0, 'Input cosmics image shift in y')
-        
+
     #- RDNOISEn -> average RDNOISE
     if 'RDNOISE' not in meta:
         x = meta['RDNOISE0']+meta['RDNOISE1']+meta['RDNOISE2']+meta['RDNOISE3']
         meta['RDNOISE'] = x / 4.0
-        
+
     return Image(pix, ivar, mask, meta=meta)
         
 
@@ -407,30 +407,28 @@ def _resample_flux(args):
 def read_templates(wave, objtype, nspec=None, randseed=1, infile=None):
     """
     Returns n templates of type objtype sampled at wave
-    
+
     Inputs:
       - wave : array of wavelengths to sample
       - objtype : 'ELG', 'LRG', 'QSO', 'STD', or 'STAR'
       - nspec : number of templates to return
       - infile : (optional) input template file (see below)
-    
+
     Returns flux[n, len(wave)], meta[n]
 
     where flux is in units of 1e-17 erg/s/cm2/A/[arcsec^2] and    
     meta is a metadata table from the input template file
     with redshift, mags, etc.
-    
+
     If infile is None, then $DESI_{objtype}_TEMPLATES must be set, pointing to
     a file that has the observer frame flux in HDU 0 and a metadata table for
     these objects in HDU 1. This code randomly samples n spectra from that file.
-
-    TO DO: add a setable randseed for random reproducibility.
     """
     if infile is None:
         key = 'DESI_'+objtype.upper()+'_TEMPLATES'
         if key not in os.environ:
             raise ValueError("ERROR: $"+key+" not set; can't find "+objtype+" templates")
-        
+
         infile = os.getenv(key)
 
     hdr = fits.getheader(infile)
@@ -453,10 +451,10 @@ def read_templates(wave, objtype, nspec=None, randseed=1, infile=None):
     ntemplates = flux.shape[0]
     randindex = np.arange(ntemplates)
     np.random.shuffle(randindex)
-    
+
     if nspec is None:
         nspec = flux.shape[0]
-    
+
     #- Serial version
     # outflux = np.zeros([n, len(wave)])
     # outmeta = np.empty(n, dtype=meta.dtype)
@@ -471,7 +469,7 @@ def read_templates(wave, objtype, nspec=None, randseed=1, infile=None):
     #     else:
     #         outflux[i] = resample_flux(wave, ww*(1+z), flux[j])
     #     outmeta[i] = meta[j]
-        
+
     #- Multiprocessing version
     #- Assemble list of args to pass to multiprocesssing map
     args = list()
@@ -483,17 +481,17 @@ def read_templates(wave, objtype, nspec=None, randseed=1, infile=None):
             z = meta['Z'][j]
         else:
             z = 0.0
-    
+
         #- ELG, LRG require shifting wave by (1+z); QSOs don't
         if objtype == 'QSO':
             args.append( (wave, ww, flux[j]) )
         else:
             args.append( (wave, ww*(1+z), flux[j]) )
-        
+
     ncpu = multiprocessing.cpu_count() // 2   #- avoid hyperthreading
     pool = multiprocessing.Pool(ncpu)
     outflux = pool.map(_resample_flux, args)        
-        
+
     return outflux, outmeta
     
 
@@ -508,9 +506,9 @@ def simdir(night='', mkdir=False):
     dirname = os.path.join(os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'), night)        
     if mkdir and not os.path.exists(dirname):
         os.makedirs(dirname)
-        
+
     return dirname
-    
+
 def _parse_filename(filename):
     """
     Parse filename and return (prefix, expid) or (prefix, camera, expid)
@@ -521,6 +519,6 @@ def _parse_filename(filename):
         return x[0], None, int(x[1])
     elif len(x) == 3:
         return x[0], x[1].lower(), int(x[2])
-        
+
     
 
