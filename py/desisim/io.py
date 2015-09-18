@@ -254,7 +254,7 @@ def read_simspec(filename):
 
     
     
-def write_simpix(outfile, image, header):
+def write_simpix(outfile, image, meta):
     """
     Write simpix data to outfile
     
