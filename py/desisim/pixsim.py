@@ -56,7 +56,10 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
     simfile = io.findfile('simspec', night=night, expid=expid)
     simspec = io.read_simspec(simfile)
     wave = simspec.wave[channel]
-    phot = simspec.phot[channel]
+    if simspec.skyphot is not None:
+        phot = simspec.phot[channel] + simspec.skyphot[channel]
+    else:
+        phot = simspec.phot[channel]
 
     if ispec*nfibers >= simspec.nspec:
         print "ERROR: camera {} not in the {} spectra in {}/{}".format(
