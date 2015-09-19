@@ -265,7 +265,7 @@ def write_simpix(outfile, image, meta):
             e.g. from HDU0 FITS header of input simspec file
     """
 
-    hdu = fits.PrimaryHDU(image, header=meta)
+    hdu = fits.PrimaryHDU(image.astype(np.float32), header=meta)
     hdu.header['EXTNAME'] = 'SIMPIX'  #- formally not allowed by FITS standard
     hdu.header['DEPNAM00'] = 'specter'
     hdu.header['DEVVER00'] = ('0.0.0', 'TODO: Specter version')
