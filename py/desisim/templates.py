@@ -13,6 +13,48 @@ import numpy as np
 from desispec.log import get_logger
 log = get_logger()
 
+class TargetCuts():
+    """Select targets from flux cuts.  This is a placeholder class that will be
+       refactored into desitarget.  Hence, the documentation here is
+       intentionally sparse.
+
+    """
+    def __init__(self):
+        pass
+        
+    def elg(self,gflux=None, rflux=None, zflux=None):
+        ELG  = rflux > 10**((22.5-23.4)/2.5)
+        ELG &= zflux > 10**(0.3/2.5) * rflux
+        ELG &= zflux < 10**(1.5/2.5) * rflux
+        ELG &= rflux**2 < gflux * zflux * 10**(-0.2/2.5)
+        ELG &= zflux < gflux * 10**(1.2/2.5)
+        return ELG
+
+    def lrg(self,rflux=None, zflux=None, w1flux=None):
+        LRG  = rflux > 10**((22.5-23.0)/2.5)
+        LRG &= zflux > 10**((22.5-20.56)/2.5)
+        LRG &= w1flux > 10**((22.5-19.35)/2.5)
+        LRG &= zflux > rflux * 10**(1.6/2.5)
+        LRG &= w1flux * rflux ** (1.33-1) > zflux**1.33 * 10**(-0.33/2.5)
+        return LRG
+
+    def qso(self,gflux=None, rflux=None, zflux=None, w1flux=None, w2flux=None):
+        wflux = 0.75 * w1flux + 0.25 * w2flux
+
+        QSO  = rflux > 10**((22.5-23.0)/2.5)
+        QSO &= rflux < 10**(1.0/2.5) * gflux
+        QSO &= zflux > 10**(-0.3/2.5) * rflux
+        QSO &= zflux < 10**(1.1/2.5) * rflux
+        QSO &= wflux * gflux**1.2 > 10**(2/2.5) * rflux**(1+1.2)
+        return QSO
+
+    def std(self,rflux=None):
+        pass
+
+    def bgs(self,rflux=None):
+        BGS = rflux > 10**((22.5-19.35)/2.5)
+        return BGS
+
 class ELG():
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs).
 
@@ -46,7 +88,7 @@ class ELG():
             ELG continuum spectra [erg/s/cm2/A].
           basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths 
             corresponding to BASEFLUX [Angstrom].
-          basemeta (astropy.Table): Table of meta-data for each base template.
+          basemeta (astropy.Table): Table of meta-data for each base template [nbase].
           gfilt (FILTERFUNC instance): DECam g-band filter profile class.
           rfilt (FILTERFUNC instance): DECam r-band filter profile class.
           zfilt (FILTERFUNC instance): DECam z-band filter profile class.
@@ -110,17 +152,16 @@ class ELG():
             the corresponding meta-data table to this file (default None).
 
         Returns:
-          
+          outflux (numpy.ndarray): Array [nmodel,npix] of observed-frame spectra [erg/s/cm2/A]. 
+          meta (astropy.Table): Table of meta-data for each output spectrum [nmodel].
 
         Raises:
-          dd
 
         """
         from astropy.table import Table, Column
 
         from desisim.templates import EMSpectrum
         from desispec.interpolation import resample_flux
-        from imaginglss.analysis import cuts
 
         # Initialize the EMSpectrum object with the same wavelength array as
         # the "base" (continuum) templates so that we don't have to resample. 
@@ -135,6 +176,7 @@ class ELG():
         meta['GMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
         meta['RMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
         meta['ZMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
+        meta['W1MAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
         meta['OIIFLUX'] = Column(np.zeros(self.nmodel,dtype='f4'))
         meta['EWOII'] = Column(np.zeros(self.nmodel,dtype='f4'))
         meta['OIIIHBETA'] = Column(np.zeros(self.nmodel,dtype='f4'))
@@ -185,24 +227,28 @@ class ELG():
                 rflux = 10.0**(-0.4*(rmag[ii]-22.5))                      
                 gflux = self.gfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                 zflux = self.zfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
+                w1flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
+
                 zoiiflux = oiiflux*rnorm # [erg/s/cm2]
+                oiimask = [zoiiflux>minoiiflux]
 
                 if no_colorcuts:
                     grzmask = [True]
                 else:
-                    grzmask = cuts.Fluxes.ELG(g=gflux,r=rflux,z=zflux)
-                oiimask = [zoiiflux>minoiiflux]
+                    cuts = TargetCuts()
+                    grzmask = [cuts.elg(gflux=gflux,rflux=rflux,zflux=zflux)]
 
                 # Not sure why this print statement doesn't work!
                 #print('Building model {}/{}'.format(nobj,self.nmodel-1),end='\r')
                 if all(grzmask) and all(oiimask):
                     outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
-                    
+
                     meta['TEMPLATEID'][nobj] = nobj
                     meta['REDSHIFT'][nobj] = redshift[ii]
                     meta['GMAG'][nobj] = -2.5*np.log10(gflux)+22.5
                     meta['RMAG'][nobj] = rmag[ii]
                     meta['ZMAG'][nobj] = -2.5*np.log10(zflux)+22.5
+                    meta['W1MAG'][nobj] = -2.5*np.log10(w1flux)+22.5
                     meta['OIIFLUX'][nobj] = zoiiflux
                     meta['EWOII'][nobj] = ewoii[ii]
                     meta['OIIIHBETA'][nobj] = oiiihbeta[ii]

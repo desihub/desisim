@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 
-"""
-Simulate noiseless, infinite-resolution spectral templates for DESI.
+"""Simulate noiseless, infinite-resolution spectral templates for DESI.
+
+TODO (@moustakas):
+  * Simulate dopperlgangers, e.g., stars that pass the QSO selection criteria.
+  * Generate QAplots.
+
 """
 from __future__ import division, print_function
 
@@ -17,7 +21,6 @@ def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                      description='Simulate noiseless, infinite-resolution spectral templates for DESI.')
                                          
-
     parser.add_argument('-n','--nmodel', type=long, default=None, metavar='', 
                         help='number of model (template) spectra to generate (required input)')
     # Optional inputs.
@@ -37,7 +40,7 @@ def main():
                         object types ELG, LRG, and QSO)""")
     parser.add_argument('--no-templates', action='store_true', 
                         help="""do not generate templates
-    (but do generate the diagnostic plots if OUTFILE exists)""")
+                        (but do generate the diagnostic plots if OUTFILE exists)""")
     parser.add_argument('--no-plots', action='store_true', 
                         help='do not generate diagnostic (QA) plots')
     # Output filenames.
@@ -105,10 +108,12 @@ def main():
             from desisim.templates import ELG
             elg = ELG(nmodel=args.nmodel,minwave=args.minwave,maxwave=args.maxwave,
                       cdelt=args.cdelt,seed=args.seed)
-            elg.make_templates(zrange=args.zrange_elg,rmagrange=args.rmagrange_elg,
-                               minoiiflux=args.minoiiflux,outfile=outfile,
-                               no_colorcuts=args.no_colorcuts,
-                               header_comments=header_comments)
+            flux, meta = elg.make_templates(zrange=args.zrange_elg,
+                                            rmagrange=args.rmagrange_elg,
+                                            minoiiflux=args.minoiiflux,
+                                            outfile=outfile,
+                                            no_colorcuts=args.no_colorcuts,
+                                            header_comments=header_comments)
         elif objtype == 'LRG':
             log.warning('{} objtype not yet supported!'.format(objtype))
             sys.exit(1)
@@ -128,31 +133,15 @@ def main():
             log.warning('Object type {} not recognized'.format(objtype))
             sys.exit(1)
     
-    # Generate diagnostic QAplots.
+    # Generate diagnostic QAplots (just a placeholder right now).
     if not args.no_plots:
         import matplotlib.pyplot as plt
-    
         if args.qafile:
             qafile = args.qafile
             if qafile == 'OBJTYPE-templates.pdf':
                 qafile = objtype.lower()+'-templates.pdf'
             else: 
                 qafile = objtype.lower()+'-templates.pdf'
-
-        rzmin = 0.3
-        slope1 = 1.0
-        slope2 = -1.0
-        int1 = -0.2
-        int2 = 1.2
-
-        plt.plot([1.0,2.0,3.0],[1.0,2.0,3.0],'rs')
-
-        log.info('Writing {}'.format(qafile))
-        plt.savefig(qafile)
-        
-        #indx = np.where((rz>=rzmin)&(gr<=np.polyval([slope1,int1],rz))&
-        #                (gr<=np.polyval([slope2,int2],rz)))[0]
-    
 
 if __name__ == '__main__':
     main()
