@@ -142,7 +142,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
             'TEMPLATEID',
             'O2FLUX',
         )
-        meta = _dict2ndarray(truth, columns)
+        meta = {key: truth[key] for key in columns}
         
     #- (end indentation for arc/flat/science flavors)
         
@@ -346,44 +346,6 @@ def update_obslog(obstype='science', expid=None, dateobs=None,
     db.commit()
     
     return expid, dateobs
-
-#-------------------------------------------------------------------------
-#- Utility function; should probably be moved elsewhere
-def _dict2ndarray(data, columns=None):
-    """
-    Convert a dictionary of ndarrays into a structured ndarray
-    
-    Args:
-        data: input dictionary, each value is an ndarray
-        columns: optional list of column names
-        
-    Notes:
-        data[key].shape[0] must be the same for every key
-        every entry in columns must be a key of data
-    
-    Example
-        d = dict(x=np.arange(10), y=np.arange(10)/2)
-        nddata = _dict2ndarray(d, columns=['x', 'y'])
-    """
-    if columns is None:
-        columns = data.keys()
-        
-    dtype = list()
-    for key in columns:
-        ### dtype.append( (key, data[key].dtype, data[key].shape) )
-        if data[key].ndim == 1:
-            dtype.append( (key, data[key].dtype) )
-        else:
-            dtype.append( (key, data[key].dtype, data[key].shape[1:]) )
-        
-    nrows = len(data[key])  #- use last column to get length    
-    xdata = np.empty(nrows, dtype=dtype)
-    
-    for key in columns:
-        xdata[key] = data[key]
-    
-    return xdata
-        
 
 #- for the future
 # def ndarray_from_columns(keys, columns):
