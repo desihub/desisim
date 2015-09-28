@@ -15,6 +15,7 @@ import desispec.io
 import desimodel.io
 
 from desispec.image import Image
+import desispec.io.util
 
 #-------------------------------------------------------------------------
 def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
@@ -40,8 +41,7 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
 
     #- outdir default = $DESI_SPECTRO_SIM/$PIXPROD/{night}/
     if outdir is None:
-        outdir = os.path.join(
-                os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'), night)
+        outdir = simdir(night)
 
     #- Definition of where files go
     location = dict(
@@ -52,7 +52,7 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
 
     #- Do we know about this kind of file?
     if filetype not in location:
-        raise IOError("Unknown filetype {}; known types are {}".format(filetype, location.keys()))
+        raise ValueError("Unknown filetype {}; known types are {}".format(filetype, location.keys()))
 
     #- Some but not all filetypes require camera
     if filetype in ('simpix', 'pix') and camera is None:
@@ -265,6 +265,7 @@ def write_simpix(outfile, image, meta):
             e.g. from HDU0 FITS header of input simspec file
     """
 
+    meta = desispec.io.util.fitsheader(meta)
     hdu = fits.PrimaryHDU(image, header=meta)
     hdu.header['EXTNAME'] = 'SIMPIX'  #- formally not allowed by FITS standard
     hdu.header['DEPNAM00'] = 'specter'
@@ -490,7 +491,8 @@ def read_templates(wave, objtype, nspec=None, randseed=1, infile=None):
 
     ncpu = multiprocessing.cpu_count() // 2   #- avoid hyperthreading
     pool = multiprocessing.Pool(ncpu)
-    outflux = pool.map(_resample_flux, args)        
+    outflux = pool.map(_resample_flux, args)    
+    outflux = np.array(outflux)    
 
     return outflux, outmeta
     
@@ -511,7 +513,12 @@ def simdir(night='', mkdir=False):
 
 def _parse_filename(filename):
     """
-    Parse filename and return (prefix, expid) or (prefix, camera, expid)
+    Parse filename and return (prefix, camera, expid)
+    
+    camera=None if the filename isn't camera specific
+    
+    e.g. /blat/foo/simspec-00000003.fits -> ('simspec', None, 3)
+    e.g. /blat/foo/pix-r2-00000003.fits -> ('pix', 'r2', 3)
     """
     base = os.path.basename(os.path.splitext(filename)[0])
     x = base.split('-')
