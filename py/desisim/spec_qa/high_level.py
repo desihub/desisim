@@ -47,7 +47,7 @@ def main():
     fibermap_files = []
     for night in nights:
         onight = night[night.rfind('/'):]
-        files = glob.glob(dio_meta.data_root()+'/'+onight+'/fibermap*')
+        files = glob.glob(dio_meta.rawdata_root()+'/'+onight+'/fibermap*')
         # 
         fibermap_files += files
 
