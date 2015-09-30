@@ -127,12 +127,7 @@ def get_targets(nspec, tileid=None):
         if objtype == 'SKY':
             continue
                     
-        try:
-            simflux, meta = io.read_templates(wave, objtype, len(ii))
-        except ValueError, err:
-            print err
-            continue
-            
+        simflux, meta = io.read_templates(wave, objtype, len(ii))            
         truth['FLUX'][ii] = simflux
         
         #- STD don't have redshift Z; others do

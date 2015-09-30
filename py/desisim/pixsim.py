@@ -13,20 +13,25 @@ import yaml
 from astropy.io import fits
 
 import desimodel.io
+import desispec.io
+from desispec.image import Image
 
 from desisim import obs, io
 
-def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None, trimxy=None):
+def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
+    trimxy=False, cosmics=None):
     """
     Run pixel-level simulation of input spectra
     
     Args:
-        night : YEARMMDD string
-        expid : integer exposure id
-        camera : e.g. b0, r1, z9
-        nspec (optional) : number of spectra to simulate
-        verbose (optional) : if True, print status messages
-        ncpu (optional) : number of CPU cores to use
+        night (string) : YEARMMDD
+        expid (integer) : exposure id
+        camera (str) : e.g. b0, r1, z9
+        nspec (int) : number of spectra to simulate
+        verbose (boolean) : if True, print status messages
+        ncpu (int) : number of CPU cores to use in parallel
+        trimxy (boolean) : trim image to just pixels with input signal
+        cosmics (str) : filename with dark images with cosmics to add
 
     Reads:
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
@@ -35,35 +40,31 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None, trimxy=
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/simpix-{camera}-{expid}.fits
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/pix-{camera}-{expid}.fits
     """
-    simdir = io.simdir(night)
-    simfile = '{}/simspec-{:08d}.fits'.format(simdir, expid)
-
     if verbose:
         print "Reading input files"
 
-    channel = camera[0].upper()
+    channel = camera[0].lower()
     ispec = int(camera[1])
-    assert channel in 'BRZ'
+    assert channel in 'brz'
     assert 0 <= ispec < 10
 
     #- Load DESI parameters
     params = desimodel.io.load_desiparams()
     nfibers = params['spectro']['nfibers']
 
-    #- Check that this camera has simulated spectra
-    fx = fits.open(simfile)
-    hdr = fx['PHOT_'+channel].header
-    nspec_in = hdr['NAXIS2']
-    if ispec*nfibers >= nspec_in:
-        print "ERROR: camera {} not in the {} spectra in {}/{}".format(
-            camera, nspec_in, night, os.path.basename(simfile))
-        return
+    #- Load simspec file
+    simfile = io.findfile('simspec', night=night, expid=expid)
+    simspec = io.read_simspec(simfile)
+    wave = simspec.wave[channel]
+    if simspec.skyphot is not None:
+        phot = simspec.phot[channel] + simspec.skyphot[channel]
+    else:
+        phot = simspec.phot[channel]
 
-    #- Load input photon data
-    phot = fx['PHOT_'+channel].data
-    wave = fx['WAVE_'+channel].data
-    if 'SKYPHOT_'+channel in fx:
-        phot += fx['SKYPHOT_'+channel].data
+    if ispec*nfibers >= simspec.nspec:
+        print "ERROR: camera {} not in the {} spectra in {}/{}".format(
+            camera, simspec.nspec, night, os.path.basename(simfile))
+        return
 
     #- Load PSF
     psf = desimodel.io.load_psf(channel)
@@ -71,10 +72,10 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None, trimxy=
     #- Trim to just the spectra for this spectrograph
     if nspec is None:
         ii = slice(nfibers*ispec, nfibers*(ispec+1))
-        phot = phot[ii]
     else:
         ii = slice(nfibers*ispec, nfibers*ispec + nspec)
-        phot = phot[ii]
+
+    phot = phot[ii]
 
     #- check if simulation has less than 500 input spectra
     if phot.shape[0] < nspec:
@@ -94,7 +95,7 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None, trimxy=
         # hdr['CRVAL2'] = ymin+1
 
     #- Prepare header
-    hdr = fx[0].header
+    hdr = simspec.header
     tmp = '/'.join(simfile.split('/')[-3:])  #- last 3 elements of path
     hdr['SIMFILE'] = (tmp, 'Input simulation file')
 
@@ -103,10 +104,46 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None, trimxy=
         if key in hdr:
             del hdr[key]
 
-    #- Add noise and write output files
-    pixfile = io.write_simpix(img, camera, night, expid, header=hdr)
+    #- Write noiseless output
+    simpixfile = io.findfile('simpix', night=night, expid=expid, camera=camera)
+    io.write_simpix(simpixfile, img, meta=hdr)
 
-    fx.close()
+    #- Add cosmics from library of dark images
+    #- in this case, don't add readnoise since the dark image already has it
+    if cosmics is not None:
+        cosmics = io.read_cosmics(cosmics, expid, shape=img.shape)
+        pix = np.random.poisson(img) + cosmics.pix
+        readnoise = cosmics.meta['RDNOISE']
+        ivar = 1.0/(pix.clip(0) + readnoise**2)
+        mask = cosmics.mask
+    #- Or just add noise
+    else:
+        params = desimodel.io.load_desiparams()
+        channel = camera[0].lower()
+        readnoise = params['ccd'][channel]['readnoise']
+        pix = np.random.poisson(img) + np.random.normal(scale=readnoise, size=img.shape)
+        ivar = 1.0/(pix.clip(0) + readnoise**2)
+        mask = np.zeros(img.shape, dtype=np.uint16)
+    
+    #- Metadata to be included in pix file header is in the fibermap header
+    #- TODO: this is fragile; consider updating fibermap to use astropy Table
+    #- that includes the header rather than directly assuming FITS as the
+    #- underlying format.
+    fibermapfile = desispec.io.findfile('fibermap', night=night, expid=expid)
+    fm, fmhdr = desispec.io.read_fibermap(fibermapfile, header=True)
+    meta = dict()
+    try:
+        meta['TELRA']  = fmhdr['TELRA']
+        meta['TELDEC'] = fmhdr['TELDEC']
+    except KeyError:  #- temporary backwards compatibilty
+        meta['TELRA']  = fmhdr['TELERA']
+        meta['TELDEC'] = fmhdr['TELEDEC']
+        
+    meta['TILEID'] = fmhdr['TILEID']
+
+    image = Image(pix, ivar, mask, readnoise=readnoise, camera=camera, meta=meta)
+    pixfile = desispec.io.findfile('pix', night=night, camera=camera, expid=expid)
+    desispec.io.write_image(pixfile, image)
 
     if verbose:
         print "Wrote "+pixfile
