@@ -10,9 +10,66 @@ import numpy as np
 import multiprocessing
 
 from desispec.interpolation import resample_flux
-from desispec.io.util import write_bintable, header2wave
+from desispec.io.util import write_bintable, native_endian, header2wave
 import desispec.io
 import desimodel.io
+
+from desispec.image import Image
+import desispec.io.util
+
+#-------------------------------------------------------------------------
+def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
+    """
+    Return canonical location of where a file should be on disk
+
+    Args:
+        filetype : file type, e.g. 'pix' or 'pixsim'
+        night : YEARMMDD string
+        expid : exposure id integer
+        camera : e.g. 'b0', 'r1', 'z9'
+
+    Optional:
+        outdir : output directory; defaults to $DESI_SPECTRO_SIM/$PIXPROD
+        mkdir : create output directory if needed; default True
+
+    Returns:
+        full file path to output file
+
+    Also see desispec.io.findfile() which has equivalent functionality for
+    real data files; this function is only be for simulation files.
+    """
+
+    #- outdir default = $DESI_SPECTRO_SIM/$PIXPROD/{night}/
+    if outdir is None:
+        outdir = simdir(night)
+
+    #- Definition of where files go
+    location = dict(
+        simspec = '{outdir:s}/simspec-{expid:08d}.fits',
+        simpix = '{outdir:s}/simpix-{camera:s}-{expid:08d}.fits',
+        pix = '{outdir:s}/pix-{camera:s}-{expid:08d}.fits',
+    )
+
+    #- Do we know about this kind of file?
+    if filetype not in location:
+        raise ValueError("Unknown filetype {}; known types are {}".format(filetype, location.keys()))
+
+    #- Some but not all filetypes require camera
+    if filetype in ('simpix', 'pix') and camera is None:
+        raise ValueError('camera is required for filetype '+filetype)
+
+    #- get outfile location and cleanup extraneous // from path
+    outfile = location[filetype].format(
+        outdir=outdir, night=night, expid=expid, camera=camera)
+    outfile = os.path.normpath(outfile)
+
+    #- Create output directory path if needed
+    #- Do this only after confirming that all previous parsing worked
+    if mkdir and not os.path.exists(outdir):
+        os.makedirs(outdir)
+
+    return outfile
+
 
 #-------------------------------------------------------------------------
 #- simspec
@@ -197,79 +254,132 @@ def read_simspec(filename):
 
     
     
-#- TODO: this is more than just I/O.  Refactor.
-def write_simpix(img, camera, night, expid, header):
+def write_simpix(outfile, image, meta):
     """
-    Add noise to input image and write output simpix and pix files.
+    Write simpix data to outfile
     
     Args:
-        img : 2D noiseless image array
-        camera : e.g. b0, r1, z9
-        flavor : arc or flat
-        night  : YEARMMDD string
-        expid  : integer exposure id
-        header : dict-like object that should include FLAVOR and EXPTIME,
+        outfile : output file name, e.g. from io.findfile('simpix', ...)
+        image : 2D noiseless simulated image (numpy.ndarray)
+        meta : dict-like object that should include FLAVOR and EXPTIME,
             e.g. from HDU0 FITS header of input simspec file
-        
-    Writes to $DESI_SPECTRO_SIM/$PIXPROD/{night}/
-        simpix-{camera}-{expid}.fits
-        pix-{camera}-{expid}.fits
-        
-    Returns:
-        filepath to pix*.fits file that was written
     """
 
-    outdir = simdir(night, mkdir=True)
-    params = desimodel.io.load_desiparams()
-    channel = camera[0].lower()
+    meta = desispec.io.util.fitsheader(meta)
+    hdu = fits.PrimaryHDU(image.astype(np.float32), header=meta)
+    hdu.header['EXTNAME'] = 'SIMPIX'  #- formally not allowed by FITS standard
+    hdu.header['DEPNAM00'] = 'specter'
+    hdu.header['DEVVER00'] = ('0.0.0', 'TODO: Specter version')
+    hdu.writeto(outfile, clobber=True)
 
-    #- Add noise, generate inverse variance and mask
-    rdnoise = params['ccd'][channel]['readnoise']
-    pix = np.random.poisson(img) + np.random.normal(scale=rdnoise, size=img.shape)
-    ivar = 1.0/(pix.clip(0) + rdnoise**2)
-    mask = np.zeros(img.shape, dtype=np.int32)
+#-------------------------------------------------------------------------
+#- Cosmics
 
-    #-----
-    #- Write noiseless image to simpix file
-    simpixfile = '{}/simpix-{}-{:08d}.fits'.format(outdir, camera, expid)
+#- Utility function to resize an image while preserving its 2D arrangement
+#- (unlike np.resize)
+def _resize(image, shape):
+    if (shape[0] > 2*image.shape[0]) or (shape[1] > 2*image.shape[1]):
+        raise ValueError('Can only reshape by up to a factor of 2')
 
-    hdu = fits.PrimaryHDU(img, header=header)
-    hdu.header['VSPECTER'] = ('0.0.0', 'TODO: Specter version')
-    fits.writeto(simpixfile, hdu.data, header=hdu.header, clobber=True)
+    newpix = np.empty(shape, dtype=image.dtype)
+    ny = min(shape[0], image.shape[0])
+    nx = min(shape[1], image.shape[1])
+    newpix[0:ny, 0:nx] = image[0:ny, 0:nx]
+    if shape[0] > image.shape[0]:
+        nn = shape[0] - image.shape[0]
+        newpix[ny:ny+nn, 0:nx] = image[0:nn, 0:nx]
+    if shape[1] > image.shape[1]:
+        nn = shape[1] - image.shape[1]
+        newpix[0:ny, nx:nx+nn] = image[0:ny, 0:nn]
+    if (shape[0] > image.shape[0]) and (shape[1] > image.shape[1]):
+        nny = shape[0] - image.shape[0]
+        nnx = shape[1] - image.shape[1]
+        newpix[ny:ny+nny, nx:nx+nnx] = image[0:nny, 0:nnx]
 
-    #- Add x y trace locations from PSF
-    psffile = '{}/data/specpsf/psf-{}.fits'.format(os.getenv('DESIMODEL'), channel)
-    psfxy = fits.open(psffile)
-    fits.append(simpixfile, psfxy['XCOEFF'].data, header=psfxy['XCOEFF'].header)
-    fits.append(simpixfile, psfxy['YCOEFF'].data, header=psfxy['YCOEFF'].header)
+    return newpix
 
-    #-----
-    #- Write simulated raw data to pix file
+def read_cosmics(filename, expid=1, shape=None, jitter=True):
+    """
+    Reads a dark image with cosmics from the input filename.
 
-    #- Primary HDU: noisy image
-    outfile = '{}/pix-{}-{:08d}.fits'.format(outdir, camera, expid)
-    hdulist = fits.HDUList()
-    if 'EXTNAME' in header:
-        del header['EXTNAME']
-    hdu = fits.PrimaryHDU(pix, header=header)
-    hdu.header.append( ('CAMERA', camera, 'Spectograph Camera') )
-    hdu.header.append( ('VSPECTER', '0.0.0', 'TODO: Specter version') )
-    hdu.header.append( ('RDNOISE', rdnoise, 'Read noise [electrons]'))
-    hdulist.append(hdu)
+    The input might have multiple dark images; use the `expid%n` image where
+    `n` is the number of images in the input cosmics file.
 
-    #- IVAR: Inverse variance (IVAR)
-    hdu = fits.ImageHDU(ivar, name='IVAR')
-    hdu.header.append(('RDNOISE', rdnoise, 'Read noise [electrons]'))
-    hdulist.append(hdu)
+    Args:
+        filename : FITS filename with EXTNAME=IMAGE-*, IVAR-*, MASK-* HDUs
+        expid : integer, use `expid % n` image where `n` is number of images
 
-    #- MASK: currently just zeros
-    hdu = fits.CompImageHDU(mask, name='MASK')
-    hdulist.append(hdu)
+    Optional:
+        shape : (ny, nx) tuple for output image shape
+        jitter : If True (default), apply random flips and rolls so you
+            don't get the exact same cosmics every time
 
-    hdulist.writeto(outfile, clobber=True)
+    Returns:
+        `desisim.image.Image` object with attributes pix, ivar, mask
+    """
+    fx = fits.open(filename)
+    imagekeys = list()
+    for i in range(len(fx)):
+        if fx[i].name.startswith('IMAGE-'):
+            imagekeys.append(fx[i].name.split('-', 1)[1])
 
-    return outfile
+    assert len(imagekeys) > 0, 'No IMAGE-* extensions found in '+filename
+    i = expid % len(imagekeys)
+    pix  = native_endian(fx['IMAGE-'+imagekeys[i]].data.astype(np.float64))
+    ivar = native_endian(fx['IVAR-'+imagekeys[i]].data.astype(np.float64))
+    mask = native_endian(fx['MASK-'+imagekeys[i]].data)
+    meta = fx['IMAGE-'+imagekeys[i]].header
+    meta['CRIMAGE'] = (imagekeys[i], 'input cosmic ray image')
 
+    if shape is not None:
+        if len(shape) != 2: raise ValueError('Invalid shape {}'.format(shape))
+        newpix = np.empty(shape, dtype=np.float64)
+        ny = min(shape[0], pix.shape[0])
+        nx = min(shape[1], pix.shape[1])
+        newpix[0:ny, 0:nx] = pix[0:ny, 0:nx]
+
+        pix = _resize(pix, shape)
+        ivar = _resize(ivar, shape)
+        mask = _resize(mask, shape)
+
+    if jitter:
+        #- Randomly flip left-right and/or up-down
+        if np.random.uniform(0, 1) > 0.5:
+            pix = np.fliplr(pix)
+            ivar = np.fliplr(ivar)
+            mask = np.fliplr(mask)
+            meta['CRFLIPLR'] = (True, 'Input cosmics image flipped Left/Right')
+        else:
+            meta['CRFLIPLR'] = (False, 'Input cosmics image NOT flipped Left/Right')
+
+        if np.random.uniform(0, 1) > 0.5:
+            pix = np.flipud(pix)
+            ivar = np.flipud(ivar)
+            mask = np.flipud(mask)
+            meta['CRFLIPUD'] = (True, 'Input cosmics image flipped Up/Down')
+        else:
+            meta['CRFLIPUD'] = (True, 'Input cosmics image NOT flipped Up/Down')
+
+        #- Randomly roll image a bit
+        nx, ny = np.random.randint(-200, 200, size=2)
+        pix = np.roll(np.roll(pix, ny, axis=0), nx, axis=1)
+        ivar = np.roll(np.roll(ivar, ny, axis=0), nx, axis=1)
+        mask = np.roll(np.roll(mask, ny, axis=0), nx, axis=1)
+        meta['CRSHIFTX'] = (nx, 'Input cosmics image shift in x')
+        meta['CRSHIFTY'] = (nx, 'Input cosmics image shift in y')
+    else:
+        meta['CRFLIPLR'] = (False, 'Input cosmics image NOT flipped Left/Right')
+        meta['CRFLIPUD'] = (True, 'Input cosmics image NOT flipped Up/Down')
+        meta['CRSHIFTX'] = (0, 'Input cosmics image shift in x')
+        meta['CRSHIFTY'] = (0, 'Input cosmics image shift in y')
+
+    #- RDNOISEn -> average RDNOISE
+    if 'RDNOISE' not in meta:
+        x = meta['RDNOISE0']+meta['RDNOISE1']+meta['RDNOISE2']+meta['RDNOISE3']
+        meta['RDNOISE'] = x / 4.0
+
+    return Image(pix, ivar, mask, meta=meta)
+        
 
 #-------------------------------------------------------------------------
 #- desimodel
@@ -298,30 +408,28 @@ def _resample_flux(args):
 def read_templates(wave, objtype, nspec=None, randseed=1, infile=None):
     """
     Returns n templates of type objtype sampled at wave
-    
+
     Inputs:
       - wave : array of wavelengths to sample
       - objtype : 'ELG', 'LRG', 'QSO', 'STD', or 'STAR'
       - nspec : number of templates to return
       - infile : (optional) input template file (see below)
-    
+
     Returns flux[n, len(wave)], meta[n]
 
     where flux is in units of 1e-17 erg/s/cm2/A/[arcsec^2] and    
     meta is a metadata table from the input template file
     with redshift, mags, etc.
-    
+
     If infile is None, then $DESI_{objtype}_TEMPLATES must be set, pointing to
     a file that has the observer frame flux in HDU 0 and a metadata table for
     these objects in HDU 1. This code randomly samples n spectra from that file.
-    
-    TO DO: add a setable randseed for random reproducibility.
     """
     if infile is None:
         key = 'DESI_'+objtype.upper()+'_TEMPLATES'
         if key not in os.environ:
             raise ValueError("ERROR: $"+key+" not set; can't find "+objtype+" templates")
-        
+
         infile = os.getenv(key)
 
     hdr = fits.getheader(infile)
@@ -344,10 +452,10 @@ def read_templates(wave, objtype, nspec=None, randseed=1, infile=None):
     ntemplates = flux.shape[0]
     randindex = np.arange(ntemplates)
     np.random.shuffle(randindex)
-    
+
     if nspec is None:
         nspec = flux.shape[0]
-    
+
     #- Serial version
     # outflux = np.zeros([n, len(wave)])
     # outmeta = np.empty(n, dtype=meta.dtype)
@@ -362,7 +470,7 @@ def read_templates(wave, objtype, nspec=None, randseed=1, infile=None):
     #     else:
     #         outflux[i] = resample_flux(wave, ww*(1+z), flux[j])
     #     outmeta[i] = meta[j]
-        
+
     #- Multiprocessing version
     #- Assemble list of args to pass to multiprocesssing map
     args = list()
@@ -374,17 +482,18 @@ def read_templates(wave, objtype, nspec=None, randseed=1, infile=None):
             z = meta['Z'][j]
         else:
             z = 0.0
-    
+
         #- ELG, LRG require shifting wave by (1+z); QSOs don't
         if objtype == 'QSO':
             args.append( (wave, ww, flux[j]) )
         else:
             args.append( (wave, ww*(1+z), flux[j]) )
-        
+
     ncpu = multiprocessing.cpu_count() // 2   #- avoid hyperthreading
     pool = multiprocessing.Pool(ncpu)
-    outflux = pool.map(_resample_flux, args)        
-        
+    outflux = pool.map(_resample_flux, args)    
+    outflux = np.array(outflux)    
+
     return outflux, outmeta
     
 
@@ -399,12 +508,17 @@ def simdir(night='', mkdir=False):
     dirname = os.path.join(os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'), night)        
     if mkdir and not os.path.exists(dirname):
         os.makedirs(dirname)
-        
+
     return dirname
-    
+
 def _parse_filename(filename):
     """
-    Parse filename and return (prefix, expid) or (prefix, camera, expid)
+    Parse filename and return (prefix, camera, expid)
+    
+    camera=None if the filename isn't camera specific
+    
+    e.g. /blat/foo/simspec-00000003.fits -> ('simspec', None, 3)
+    e.g. /blat/foo/pix-r2-00000003.fits -> ('pix', 'r2', 3)
     """
     base = os.path.basename(os.path.splitext(filename)[0])
     x = base.split('-')
@@ -412,6 +526,6 @@ def _parse_filename(filename):
         return x[0], None, int(x[1])
     elif len(x) == 3:
         return x[0], x[1].lower(), int(x[2])
-        
+
     
 
