@@ -173,11 +173,12 @@ def _project(args):
         img = psf.project(wave, phot, specmin=specmin, xyrange=xyrange)
         return (xyrange, img)
     except Exception, e:
-        import traceback
-        print '-'*60
-        print 'ERROR in _project', psf.wmin, psf.wmax, wave[0], wave[-1], phot.shape, specmin
-        traceback.print_exc()
-        print '-'*60
+        if os.getenv('UNITTEST_SILENT') is None:
+            import traceback
+            print '-'*60
+            print 'ERROR in _project', psf.wmin, psf.wmax, wave[0], wave[-1], phot.shape, specmin
+            traceback.print_exc()
+            print '-'*60
         raise e
 
 #- Move this into specter itself?
