@@ -161,16 +161,16 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
         TELRA = (telera, 'Telescope pointing RA [degrees]'),
         TELDEC = (teledec, 'Telescope pointing dec [degrees]'),
         )
+    #- ISO 8601 DATE-OBS year-mm-ddThh:mm:ss
     fiberfile = desispec.io.findfile('fibermap', night, expid)
     desispec.io.write_fibermap(fiberfile, fibermap, header=hdr)
     print fiberfile
     
-    #- Write simspec
-    hdr = dict(
-        AIRMASS=(airmass, 'Airmass at middle of exposure'),
-        EXPTIME=(exptime, 'Exposure time [sec]'),
-        FLAVOR=(flavor, 'exposure flavor [arc, flat, science]'),
-        )
+    #- Write simspec; expand fibermap header
+    hdr['AIRMASS'] = (airmass, 'Airmass at middle of exposure')
+    hdr['EXPTIME'] = (exptime, 'Exposure time [sec]')
+    hdr['DATE-OBS'] = (time.strftime('%FT%T', dateobs), 'Start of exposure')
+
     simfile = io.write_simspec(meta, truth, expid, night, header=hdr)
     print simfile
 
