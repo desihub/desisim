@@ -87,8 +87,8 @@ class TestIO(unittest.TestCase):
         ra, dec = io.get_tile_radec(2)
         ra, dec = io.get_tile_radec(-1)
         self.assertTrue( (ra,dec) == (0.0, 0.0) )
-        ra, dec = io.get_tile_radec('blat')
-        self.assertTrue( (ra,dec) == (0.0, 0.0) )
+        with self.assertRaises(ValueError):
+            ra, dec = io.get_tile_radec('blat')
         
     def test_resize(self):
         image = np.random.uniform(size=(4,5))
