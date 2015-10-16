@@ -84,11 +84,12 @@ class TestPixsim(unittest.TestCase):
         args = psf, wave, phot, specmin
         xyrange, pix = pixsim._project(args)
 
-        print("\nINFO This is supposed to raise a ValueError; don't panic")
         with self.assertRaises(ValueError):
             phot = np.ones((2,3,4))
             args = psf, wave, phot, specmin
+            os.environ['UNITTEST_SILENT'] = 'TRUE'
             xyrange, pix = pixsim._project(args)
+            del os.environ['UNITTEST_SILENT']
         
         
 #- This runs all test* functions in any TestCase class in this file
