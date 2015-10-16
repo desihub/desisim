@@ -133,8 +133,9 @@ if nspec < args.nspec:
     print "Only {} spectra in input file".format(nspec)
     args.nspec = nspec
 
-# Here default run for single CCD (500 x 3 in total). Fewer spectra can be run using 'nspec' and 'nstart' options
-print "Simulating spectra",args.nstart, "to", min(args.nspec+args.nstart,objtype.shape[0])
+# Here default run for nmax spectra. Fewer spectra can be run using 'nspec' and 'nstart' options
+nmax= min(args.nspec+args.nstart,objtype.shape[0]) 
+print "Simulating spectra",args.nstart, "to", nmax
 
 print "************************************************"
 
@@ -155,8 +156,7 @@ waveLimits={'b':(3569,5949),'r':(5625,7741),'z':(7435,9834)}
 if simspec.flavor == 'flat':
     print "Simulating flat lamp exposure"
     for channel in ('b', 'r', 'z'):
-        camera = channel+str(args.spectrograph)
-        outfile = desispec.io.findfile('fiberflat', NIGHT, EXPID, camera)
+
         ii = (waveLimits[channel][0] <= observedWavelengths) & (observedWavelengths <= waveLimits[channel][1])
         wave = observedWavelengths[ii]
         dw = np.gradient(simspec.wave[channel])
@@ -165,9 +165,19 @@ if simspec.flavor == 'flat':
         ivar = np.tile(1.0/meanspec, nspec).reshape(nspec, len(meanspec))
         mask = np.zeros((simspec.nspec, len(wave)))
         
-        ff = FiberFlat(wave, fiberflat, ivar, mask, meanspec)        
-        write_fiberflat(outfile, ff)
-        print "Wrote "+outfile
+        for kk in range((args.nspec+args.nstart-1)/500+1):
+            camera = channel+str(kk)
+            outfile = desispec.io.findfile('fiberflat', NIGHT, EXPID, camera)
+            start=max(500*kk,args.nstart) 
+            end=min(500*(kk+1),nmax) 
+
+            if (args.spectrograph <= kk):
+                print "writing files for channel:",channel,", spectrograph:",kk, ", spectra:", start,'to',end
+
+            ff = FiberFlat(wave, fiberflat[start:end,:], ivar[start:end,:], mask[start:end,:], meanspec)        
+            write_fiberflat(outfile, ff)
+    filePath=os.path.join(prod_Dir,'calib2d',NIGHT)
+    print "Wrote files to", filePath
     
     sys.exit(0)    
 
@@ -186,15 +196,15 @@ maxbin=max(waveMaxbin['b'],waveMaxbin['r'],waveMaxbin['z'])
 
 # Now break the simulated outputs in three different ranges. 
 
-nobj=np.zeros((5000,3,maxbin))     # Object Photons
-nsky=np.zeros((5000,3,maxbin))      # sky photons
-nivar=np.zeros((5000,3,maxbin))     # inverse variance  (object+sky)
-sky_ivar=np.zeros((5000,3,maxbin)) # inverse variance of sky
-cframe_observedflux=np.zeros((5000,3,maxbin))    # calibrated object flux
-cframe_ivar=np.zeros((5000,3,maxbin))    # inverse variance of calibrated object flux
-frame_rand_noise=np.zeros((5000,3,maxbin))     # random Gaussian noise to nobj+nsky
-sky_rand_noise=np.zeros((5000,3,maxbin))  # random Gaussian noise to sky only
-cframe_rand_noise=np.zeros((5000,3,maxbin))  # random Gaussian noise to calibrated flux
+nobj=np.zeros((nmax,3,maxbin))     # Object Photons
+nsky=np.zeros((nmax,3,maxbin))      # sky photons
+nivar=np.zeros((nmax,3,maxbin))     # inverse variance  (object+sky)
+sky_ivar=np.zeros((nmax,3,maxbin)) # inverse variance of sky
+cframe_observedflux=np.zeros((nmax,3,maxbin))    # calibrated object flux
+cframe_ivar=np.zeros((nmax,3,maxbin))    # inverse variance of calibrated object flux
+frame_rand_noise=np.zeros((nmax,3,maxbin))     # random Gaussian noise to nobj+nsky
+sky_rand_noise=np.zeros((nmax,3,maxbin))  # random Gaussian noise to sky only
+cframe_rand_noise=np.zeros((nmax,3,maxbin))  # random Gaussian noise to calibrated flux
 
 np.random.seed(0)
 
@@ -247,12 +257,13 @@ for i, channel in enumerate( ['b', 'r', 'z'] ):
     resolution_data[channel] = _calc_resolution_data(sigma_vs_wave[channel], waves[channel], nspec)
 
 # Now repeat the simulation for all spectra
-for j in xrange(args.nstart,min(args.nspec+args.nstart,objtype.shape[0])): # Exclusive
+for j in xrange(args.nstart,nmax): # Exclusive
     print "\rSimulating spectrum %d,  object type=%s"%(j,objtype[j]),
     sys.stdout.flush()
     specObj=sim.SpectralFluxDensity(wavelengths,spectra[j,:])
     results=qsim.simulate(sourceType=objtype[j].lower(),sourceSpectrum=specObj,
             airmass=simspec.header['AIRMASS'], expTime=simspec.header['EXPTIME'])
+
     for i,channel in enumerate(['b','r','z']):
         nobj[j,i,:waveMaxbin[channel]]=results.nobj[waveRange[channel],i]
 
@@ -263,7 +274,7 @@ for j in xrange(args.nstart,min(args.nspec+args.nstart,objtype.shape[0])): # Exc
         sky_ivar[j,i,:waveMaxbin[channel]]=25*1/((results.nsky[waveRange[channel],i])+(results.rdnoise[waveRange[channel],i])**2.0+(results.dknoise[waveRange[channel],i])**2.0)
 
         cframe_observedflux[j,i,:waveMaxbin[channel]]=results.obsflux[waveRange[channel]]*1.0e-17
-        cframe_ivar[j,i,:waveMaxbin[channel]]=np.clip(results.ivar[waveRange[channel]]*1.0e34, 1e-12, np.max(results.ivar[waveRange[channel]]))
+        cframe_ivar[j,i,:waveMaxbin[channel]]=np.clip(results.ivar[waveRange[channel]]*1.0e34, 1e-12, np.max(results.ivar[waveRange[channel]]*1.0e34))
 
         frame_rand_noise[j,i,:waveMaxbin[channel]]=np.random.normal(np.zeros(waveMaxbin[channel]),np.ones(waveMaxbin[channel])/np.sqrt(nivar[j,i,:waveMaxbin[channel]]),waveMaxbin[channel])
 
@@ -306,7 +317,7 @@ for channel in ["b","r","z"]:
     for ii in range((args.nspec+args.nstart-1)/500+1):
          
         start=max(500*ii,args.nstart) # first spectrum for a given spectrograph
-        end=min(500*(ii+1),args.nspec+args.nstart) # last spectrum for the spectrograph
+        end=min(500*(ii+1),nmax) # last spectrum for the spectrograph
 
         if (args.spectrograph <= ii):
             camera = "{}{}".format(channel, ii)
