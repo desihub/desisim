@@ -105,7 +105,7 @@ class ELG():
 
         """
         from desisim.filterfunc import filterfunc as filt
-        from desisim.templates import read_base_templates
+        from desisim.io import read_base_templates
 
         self.objtype = 'ELG'
         self.nmodel = nmodel
@@ -173,6 +173,7 @@ class ELG():
         from astropy.table import Table, Column
 
         from desisim.templates import EMSpectrum
+        from desisim.io import write_templates
         from desispec.interpolation import resample_flux
 
         # Initialize the EMSpectrum object with the same wavelength array as
@@ -560,7 +561,7 @@ class LRG():
 
         """
         from desisim.filterfunc import filterfunc as filt
-        from desisim.templates import read_base_templates
+        from desisim.io import read_base_templates
 
         self.objtype = 'LRG'
         self.nmodel = nmodel
@@ -613,6 +614,7 @@ class LRG():
         from astropy.table import Table, Column
 
         from desisim.templates import EMSpectrum
+        from desisim.io import write_templates
         from desispec.interpolation import resample_flux
 
         # Initialize the output flux array and metadata Table.
@@ -745,7 +747,7 @@ class STAR():
 
         """
         from desisim.filterfunc import filterfunc as filt
-        from desisim.templates import read_base_templates
+        from desisim.io import read_base_templates
 
         if FSTD:
             self.objtype = 'FSTD'
@@ -800,6 +802,7 @@ class STAR():
 
         """
         from astropy.table import Table, Column
+        from desisim.io import write_templates
         from desispec.interpolation import resample_flux
 
         # Initialize the output flux array and metadata Table.
@@ -926,98 +929,3 @@ class STAR():
                             header_comments=header_comments)
 
         return outflux, meta
-
-def read_base_templates(objtype='ELG', observed=False, emlines=False):
-    """Return the base, rest-frame, spectral continuum templates for each objtype.
-
-    The appropriate environment variable must be set depending on OBJTYPE.  For example,
-    DESI_ELG_TEMPLATES, DESI_LRG_TEMPLATES, etc., otherwise an exception will be raised.
-
-    Args:
-      objtype (str, optional): object type to read (ELG, LRG, QSO, BGS, STD, or STAR;
-        defaults to 'ELG').
-      observed (bool): Read the observed-frame templates (defaults to False).
-      emlines (bool): Read the spectral templates which include emission lines (defaults
-        to False; only applies to object types ELG and BGS).
-
-    Returns:
-      flux (numpy.ndarray): Array [ntemplate,npix] of flux values [erg/s/cm2/A].
-      wave (numpy.ndarray): Array [npix] of wavelengths for FLUX [Angstrom].
-      meta (astropy.Table): Meta-data table for each object.  The contents of this
-        table varies depending on what OBJTYPE has been read.
-
-    Raises:
-      EnvironmentError: If the appropriate environment variable is not set.
-      IOError: If the base templates are not found.
-    
-    """
-    from astropy.io import fits
-    from astropy.table import Table
-    from desispec.io.util import header2wave
-
-    otype = objtype.upper()
-    if otype=='FSTD':
-        otype = 'STAR'
-
-    key = 'DESI_'+otype+'_TEMPLATES'
-    if key not in os.environ:
-        log.error('Required ${} environment variable not set'.format(key))
-        raise EnvironmentError
-
-    objfile = os.getenv(key)
-
-    # Handle special cases for the ELG & BGS templates.
-    if otype=='ELG' or otype=='BGS':
-        if observed:
-            objfile = objfile.replace('templates_','templates_obs_')
-        elif emlines is not True:
-            objfile = objfile.replace('templates_','continuum_templates_')
-
-    if os.path.isfile(objfile):
-        log.info('Reading {}'.format(objfile))
-    else: 
-        log.error('Base templates file {} not found'.format(objfile))
-        raise IOError()
-
-    flux, hdr = fits.getdata(objfile, 0, header=True)
-    meta = Table(fits.getdata(objfile, 1))
-    wave = header2wave(hdr)
-
-    return flux, wave, meta
-
-def write_templates(flux, wave, meta, objtype, outfile=None, comments=None,
-                    units=None, header_comments=None):
-    """Write out simulated galaxy templates.
-
-    Incomplete documentation.  Should this go in the desisim.io module, or is
-    there a better way to write these spectra?
-
-    """
-    from astropy.io import fits
-    from desispec.io import util
-    
-    if outfile is None:
-        pass
-    
-    header = dict(
-        OBJTYPE = (objtype, 'Object type'),
-        CUNIT = ('Angstrom', 'units of wavelength array'),
-        CRPIX1 = (1, 'reference pixel number'),
-        CRVAL1 = (wave[0], 'Starting wavelength [Angstrom]'),
-        CDELT1 = (wave[1]-wave[0], 'Wavelength step [Angstrom]'),
-        LOGLAM = (0, 'linear wavelength steps, not log10'),
-        AIRORVAC = ('vac', 'wavelengths in vacuum (vac) or air'),
-        BUNIT = ('erg/s/cm2/A', 'spectrum flux units')
-        )
-    hdr = util.fitsheader(header)
-
-    if header_comments is None:
-        header_comments = dict()
-    #for key in header_comments.keys():
-    #    hdr[key] = header_comments[key]
-    fits.writeto(outfile,flux.astype(np.float32),header=hdr,clobber=True)
-
-    log.info('Writing {}'.format(outfile))
-    util.write_bintable(outfile, meta, header=None, extname='METADATA',
-                        comments=comments, units=units)
-
