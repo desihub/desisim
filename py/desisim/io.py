@@ -391,6 +391,9 @@ def get_tile_radec(tileid):
     If tileid is not in DESI, return (0.0, 0.0)
     TODO: should it raise and exception instead?
     """
+    if not isinstance(tileid, (int, np.int64, np.int32, np.int16)):
+        raise ValueError('tileid should be an int, not {}'.format(type(tileid)))
+
     tiles = desimodel.io.load_tiles()
     if tileid in tiles['TILEID']:
         i = np.where(tiles['TILEID'] == tileid)[0][0]
