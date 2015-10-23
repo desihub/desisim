@@ -64,11 +64,17 @@ def main():
     elg_parser.add_argument('--minoiiflux', type=float, default='1E-17', metavar='',
                             help='Minimum integrated [OII] 3727 flux')
     
-    star_parser = parser.add_argument_group('options for objtype=FSTD')
-    star_parser.add_argument('--vrad-fstd', type=float, default=(0,200), nargs=2, metavar='', 
+    fstd_parser = parser.add_argument_group('options for objtype=FSTD')
+    fstd_parser.add_argument('--vrad-fstd', type=float, default=(0,200), nargs=2, metavar='', 
                              help='mean and sigma radial velocity Gaussian prior (km/s)')
-    star_parser.add_argument('--rmagrange-fstd', type=float, default=(16.0,19.0), nargs=2, metavar='',
+    fstd_parser.add_argument('--rmagrange-fstd', type=float, default=(16.0,19.0), nargs=2, metavar='',
                             help='Minimum and maximum r-band (AB) magnitude range')
+
+    wd_parser = parser.add_argument_group('options for objtype=WD')
+    wd_parser.add_argument('--vrad-wd', type=float, default=(0,200), nargs=2, metavar='', 
+                             help='mean and sigma radial velocity Gaussian prior (km/s)')
+    wd_parser.add_argument('--gmagrange-wd', type=float, default=(16.0,19.0), nargs=2, metavar='',
+                            help='Minimum and maximum g-band (AB) magnitude range')
 
     lrg_parser = parser.add_argument_group('options for objtype=LRG')
     lrg_parser.add_argument('--zrange-lrg', type=float, default=(0.5,1.1), nargs=2, metavar='', 
@@ -141,14 +147,20 @@ def main():
         elif objtype == 'QSO':
             log.warning('{} objtype not yet supported!'.format(objtype))
             sys.exit(1)
-        elif objtype == 'STAR' or objtype == 'FSTD':
+        elif objtype == 'STAR' or objtype == 'FSTD' or objtype == 'WD':
             from desisim.templates import STAR
             FSTD = objtype=='FSTD'
+            WD = objtype=='WD'
             star = STAR(nmodel=args.nmodel,minwave=args.minwave,maxwave=args.maxwave,
-                        cdelt=args.cdelt,seed=args.seed,FSTD=FSTD)
+                        cdelt=args.cdelt,seed=args.seed,FSTD=FSTD,WD=WD)
             if FSTD: # simulate an F-standard
                 flux, meta = star.make_templates(vrad_meansig=args.vrad_fstd,
                                                  rmagrange=args.rmagrange_fstd,
+                                                 outfile=outfile,
+                                                 header_comments=header_comments)
+            elif WD: # simulate a white dwarf
+                flux, meta = star.make_templates(vrad_meansig=args.vrad_wd,
+                                                 gmagrange=args.gmagrange_wd,
                                                  outfile=outfile,
                                                  header_comments=header_comments)
             else: # simulate a normal star

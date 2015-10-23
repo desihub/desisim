@@ -59,6 +59,9 @@ class TargetCuts():
         QSO &= wflux * gflux**1.2 > 10**(2/2.5) * rflux**(1+1.2)
         return QSO
 
+    def WD(self):
+        pass
+
 class ELG():
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs).
 
@@ -702,12 +705,12 @@ class LRG():
         return outflux, meta
 
 class STAR():
-    """Generate Monte Carlo spectra of normal stars or, optionally, the subset of
-       standard stars to be used for spectrophotometric calibration.
+    """Generate Monte Carlo spectra of normal stars, F-type standard stars, or white
+       dwarfs.
 
     """
     def __init__(self, nmodel=50, minwave=3600.0, maxwave=10000.0,
-                 cdelt=2.0, seed=None, FSTD=False):
+                 cdelt=2.0, seed=None, FSTD=False, WD=False):
         """Read the stellar basis continuum templates, grzW1 filter profiles and
            initialize the output wavelength array.
 
@@ -746,6 +749,8 @@ class STAR():
 
         if FSTD:
             self.objtype = 'FSTD'
+        elif WD:
+            self.objtype = 'WD'
         else:
             self.objtype = 'STAR'
         self.nmodel = nmodel
@@ -767,13 +772,13 @@ class STAR():
         self.rfilt = filt(filtername='decam_r.txt')
         self.zfilt = filt(filtername='decam_z.txt')
 
-    def make_templates(self, vrad_meansig=(0.0,200.0), rmagrange=(21.0,23.5),
-                       header_comments=None, outfile=None):
-        """Build Monte Carlo set of spectra/templates for normal stars. 
+    def make_templates(self, vrad_meansig=(0.0,200.0), rmagrange=(18.0,23.5),
+                       gmagrange=(16.0,19.0), header_comments=None, outfile=None):
+        """Build Monte Carlo set of spectra/templates for stars. 
 
-        This function chooses random subsets of the continuum spectra for normal
-        stars, adds radial velocity "jitter", then normalizes the spectrum to a
-        specific r-band magnitude.
+        This function chooses random subsets of the continuum spectra for stars,
+        adds radial velocity "jitter", then normalizes the spectrum to a
+        specified r- or g-band magnitude.
 
         Args:
           vrad_meansig (float, optional): Mean and sigma (standard deviation) of the 
@@ -781,7 +786,9 @@ class STAR():
             spectrum.  Defaults to a normal distribution with a mean of zero and
             sigma of 200 km/s.
           rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
-            magnitude range.  Defaults to a uniform distribution between (18,23.5). 
+            magnitude range.  Defaults to a uniform distribution between (18,23.5).
+          gmagrange (float, optional): Minimum and maximum DECam g-band (AB)
+            magnitude range.  Defaults to a uniform distribution between (16,19). 
           outfile (str, optional): Write the template spectra (with header information) and
             the corresponding meta-data table to this file (default None).
 
@@ -793,8 +800,6 @@ class STAR():
 
         """
         from astropy.table import Table, Column
-
-        from desisim.templates import EMSpectrum
         from desispec.interpolation import resample_flux
 
         # Initialize the output flux array and metadata Table.
@@ -808,7 +813,9 @@ class STAR():
         meta['ZMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
         meta['LOGG'] = Column(np.zeros(self.nmodel,dtype='f4'))
         meta['TEFF'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['FEH'] = Column(np.zeros(self.nmodel,dtype='f4'))
+
+        if self.objtype!='WD':
+            meta['FEH'] = Column(np.zeros(self.nmodel,dtype='f4'))
 
         nobj = 0
         nbase = len(self.basemeta)
@@ -820,7 +827,11 @@ class STAR():
             chunkindx = self.rand.randint(0,nbase-1,nchunk)
 
             # Assign uniform redshift and r-magnitude distributions.
-            rmag = self.rand.uniform(rmagrange[0],rmagrange[1],nchunk)
+            if self.objtype=='WD':
+                gmag = self.rand.uniform(gmagrange[0],gmagrange[1],nchunk)
+            else: 
+                rmag = self.rand.uniform(rmagrange[0],rmagrange[1],nchunk)
+                
             vrad = self.rand.normal(vrad_meansig[0],vrad_meansig[1],nchunk)
             redshift = vrad/2.99792458E5
 
@@ -829,31 +840,50 @@ class STAR():
                 zwave = self.basewave*(1.0+redshift[ii])
                 restflux = self.baseflux[iobj,:] # [erg/s/cm2/A @10pc]
 
-                rnorm = 10.0**(-0.4*rmag[ii])/self.rfilt.get_maggies(zwave,restflux)
-                flux = restflux*rnorm # [erg/s/cm2/A, @redshift[ii]]
+                # Normalize; Note that [grz]flux are in nanomaggies
+                if self.objtype=='WD':
+                    gnorm = 10.0**(-0.4*gmag[ii])/self.gfilt.get_maggies(zwave,restflux)
+                    flux = restflux*gnorm # [erg/s/cm2/A, @redshift[ii]]
 
-                # [grz]flux are in nanomaggies
-                rflux = 10.0**(-0.4*(rmag[ii]-22.5))                      
-                gflux = self.gfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
-                zflux = self.zfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
+                    gflux = 10.0**(-0.4*(gmag[ii]-22.5))                      
+                    rflux = self.rfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
+                    zflux = self.zfilt.get_maggies(zwave,flux)*10**(0.4*22.5)
+                else:
+                    rnorm = 10.0**(-0.4*rmag[ii])/self.rfilt.get_maggies(zwave,restflux)
+                    flux = restflux*rnorm # [erg/s/cm2/A, @redshift[ii]]
+
+                    rflux = 10.0**(-0.4*(rmag[ii]-22.5))                      
+                    gflux = self.gfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
+                    zflux = self.zfilt.get_maggies(zwave,flux)*10**(0.4*22.5)
 
                 # Color cuts on just on the standard stars.
                 if self.objtype=='FSTD':
                     grzmask = [Cuts.FSTD(gflux=gflux,rflux=rflux,zflux=zflux)]
+                elif self.objtype=='WD':
+                    grzmask = [True]
                 else:
                     grzmask = [True]
 
                 if all(grzmask):
                     outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
 
-                    meta['TEMPLATEID'][nobj] = nobj
-                    meta['REDSHIFT'][nobj] = redshift[ii]
-                    meta['GMAG'][nobj] = -2.5*np.log10(gflux)+22.5
-                    meta['RMAG'][nobj] = rmag[ii]
-                    meta['ZMAG'][nobj] = -2.5*np.log10(zflux)+22.5
-                    meta['LOGG'][nobj] = self.basemeta['LOGG'][iobj]
-                    meta['TEFF'][nobj] = self.basemeta['TEFF'][iobj]
-                    meta['FEH'][nobj] = self.basemeta['FEH'][iobj]
+                    if self.objtype=='WD':
+                        meta['TEMPLATEID'][nobj] = nobj
+                        meta['REDSHIFT'][nobj] = redshift[ii]
+                        meta['GMAG'][nobj] = gmag[ii]
+                        meta['RMAG'][nobj] = -2.5*np.log10(rflux)+22.5
+                        meta['ZMAG'][nobj] = -2.5*np.log10(zflux)+22.5
+                        meta['LOGG'][nobj] = self.basemeta['LOGG'][iobj]
+                        meta['TEFF'][nobj] = self.basemeta['TEFF'][iobj]
+                    else:
+                        meta['TEMPLATEID'][nobj] = nobj
+                        meta['REDSHIFT'][nobj] = redshift[ii]
+                        meta['GMAG'][nobj] = -2.5*np.log10(gflux)+22.5
+                        meta['RMAG'][nobj] = rmag[ii]
+                        meta['ZMAG'][nobj] = -2.5*np.log10(zflux)+22.5
+                        meta['LOGG'][nobj] = self.basemeta['LOGG'][iobj]
+                        meta['TEFF'][nobj] = self.basemeta['TEFF'][iobj]
+                        meta['FEH'][nobj] = self.basemeta['FEH'][iobj]
 
                     nobj = nobj+1
 
@@ -864,17 +894,28 @@ class STAR():
         # Optionally write out and then return.  There's probably a smarter way
         # to do this with astropy Tables...
         if outfile is not None:
-            comments = dict(
-                TEMPLATEID = 'template ID',
-                REDSHIFT = 'object redshift',
-                GMAG = 'DECam g-band AB magnitude',
-                RMAG = 'DECam r-band AB magnitude',
-                ZMAG = 'DECam z-band AB magnitude',
-                LOGG = 'log10 of the effective gravity',
-                TEFF = 'stellar effective temperature',
-                FEH = 'log10 iron abundance relative to solar',
-            )
-    
+            if self.objtype=='WD':
+                comments = dict(
+                    TEMPLATEID = 'template ID',
+                    REDSHIFT = 'object redshift',
+                    GMAG = 'DECam g-band AB magnitude',
+                    RMAG = 'DECam r-band AB magnitude',
+                    ZMAG = 'DECam z-band AB magnitude',
+                    LOGG = 'log10 of the effective gravity',
+                    TEFF = 'stellar effective temperature'
+                    )
+            else:
+                comments = dict(
+                    TEMPLATEID = 'template ID',
+                    REDSHIFT = 'object redshift',
+                    GMAG = 'DECam g-band AB magnitude',
+                    RMAG = 'DECam r-band AB magnitude',
+                    ZMAG = 'DECam z-band AB magnitude',
+                    LOGG = 'log10 of the effective gravity',
+                    TEFF = 'stellar effective temperature',
+                    FEH = 'log10 iron abundance relative to solar',
+                    )
+                
             units = dict(
                 LOGG = 'm/s^2',
                 TEFF = 'K',
