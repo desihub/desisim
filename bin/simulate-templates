@@ -140,13 +140,16 @@ def main():
             from desisim.templates import LRG
             lrg = LRG(nmodel=args.nmodel,minwave=args.minwave,maxwave=args.maxwave,
                       cdelt=args.cdelt,seed=args.seed)
-            flux, meta = lrg.make_templates(zrange=args.zrange_lrg,
-                                            zmagrange=args.zmagrange_lrg,
-                                            outfile=outfile,
-                                            no_colorcuts=args.no_colorcuts)
+            flux, wave, meta = lrg.make_templates(zrange=args.zrange_lrg,
+                                                  zmagrange=args.zmagrange_lrg,
+                                                  no_colorcuts=args.no_colorcuts)
+            log.info('Writing {}'.format(outfile))
+            write_templates(outfile, flux, wave, meta, objtype)
+
         elif objtype == 'QSO':
             log.warning('{} objtype not yet supported!'.format(objtype))
             sys.exit(1)
+
         elif objtype == 'STAR' or objtype == 'FSTD' or objtype == 'WD':
             from desisim.templates import STAR
             FSTD = objtype=='FSTD'
@@ -154,17 +157,17 @@ def main():
             star = STAR(nmodel=args.nmodel,minwave=args.minwave,maxwave=args.maxwave,
                         cdelt=args.cdelt,seed=args.seed,FSTD=FSTD,WD=WD)
             if FSTD: # simulate an F-standard
-                flux, meta = star.make_templates(vrad_meansig=args.vrad_fstd,
-                                                 rmagrange=args.rmagrange_fstd,
-                                                 outfile=outfile)
+                flux, wave, meta = star.make_templates(vrad_meansig=args.vrad_fstd,
+                                                       rmagrange=args.rmagrange_fstd)
             elif WD: # simulate a white dwarf
-                flux, meta = star.make_templates(vrad_meansig=args.vrad_wd,
-                                                 gmagrange=args.gmagrange_wd,
-                                                 outfile=outfile)
+                flux, wave, meta = star.make_templates(vrad_meansig=args.vrad_wd,
+                                                       gmagrange=args.gmagrange_wd)
             else: # simulate a normal star
-                flux, meta = star.make_templates(vrad_meansig=args.vrad_star,
-                                                 rmagrange=args.rmagrange_star,
-                                                 outfile=outfile)
+                flux, wave, meta = star.make_templates(vrad_meansig=args.vrad_star,
+                                                       rmagrange=args.rmagrange_star)
+            log.info('Writing {}'.format(outfile))
+            write_templates(outfile, flux, wave, meta, objtype)
+
         else:
             log.warning('Object type {} not recognized'.format(objtype))
             sys.exit(1)

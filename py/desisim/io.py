@@ -573,6 +573,7 @@ def write_templates(outfile, flux, wave, meta, objtype=None,
         Raises
 
     """
+    from astropy.io import fits
     from desispec.io.util import fitsheader, write_bintable, makepath
 
     # Create the path to OUTFILE if necessary.
@@ -590,8 +591,9 @@ def write_templates(outfile, flux, wave, meta, objtype=None,
         )
     hdr = fitsheader(header)
 
+    fits.writeto(outfile,flux.astype(np.float32),header=hdr,clobber=True)
     write_bintable(outfile, meta, header=hdr, comments=comments,
-                   units=units, extname='METADATA', clobber=True)
+                   units=units, extname='METADATA')
 
 
 #-------------------------------------------------------------------------

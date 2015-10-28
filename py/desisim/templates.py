@@ -572,7 +572,7 @@ class LRG():
         self.w1filt = filt(filtername='wise_w1.txt')
 
     def make_templates(self, zrange=(0.5,1.1), zmagrange=(19.0,20.5),
-                       no_colorcuts=False, outfile=None):
+                       no_colorcuts=False):
         """Build Monte Carlo set of LRG spectra/templates.
 
         This function chooses random subsets of the LRG continuum spectra and
@@ -588,9 +588,6 @@ class LRG():
           no_colorcuts (bool, optional): Do not apply the fiducial rzW1 color-cuts
             cuts (default False).
         
-          outfile (str, optional): Write the template spectra (with header information) and
-            the corresponding meta-data table to this file (default None).
-
         Returns:
           outflux (numpy.ndarray): Array [nmodel,npix] of observed-frame spectra [erg/s/cm2/A]. 
           meta (astropy.Table): Table of meta-data for each output spectrum [nmodel].
@@ -616,6 +613,19 @@ class LRG():
         meta['W1MAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
         meta['ZMETAL'] = Column(np.zeros(self.nmodel,dtype='f4'))
         meta['AGE'] = Column(np.zeros(self.nmodel,dtype='f4'))
+
+        meta['AGE'].unit = 'Gyr'
+
+        comments = dict(
+            TEMPLATEID = 'template ID',
+            REDSHIFT = 'object redshift',
+            GMAG = 'DECam g-band AB magnitude',
+            RMAG = 'DECam r-band AB magnitude',
+            ZMAG = 'DECam z-band AB magnitude',
+            W1MAG = 'WISE W1-band AB magnitude',
+            ZMETAL = 'stellar metallicity',
+            AGE = 'time since the onset of star formation'
+        )
 
         nobj = 0
         nbase = len(self.basemeta)
@@ -669,28 +679,7 @@ class LRG():
                 if nobj>=(self.nmodel-1):
                     break
 
-        # Optionally write out and then return.  There's probably a smarter way
-        # to do this with astropy Tables...
-        if outfile is not None:
-            comments = dict(
-                TEMPLATEID = 'template ID',
-                REDSHIFT = 'object redshift',
-                GMAG = 'DECam g-band AB magnitude',
-                RMAG = 'DECam r-band AB magnitude',
-                ZMAG = 'DECam z-band AB magnitude',
-                W1MAG = 'WISE W1-band AB magnitude',
-                ZMETAL = 'stellar metallicity',
-                AGE = 'time since the onset of star formation'
-            )
-    
-            units = dict(
-                AGE = 'Gyr'
-            )
-            
-            write_templates(outflux, self.wave, meta, self.objtype,
-                            outfile=outfile, comments=comments, units=units)
-
-        return outflux, meta
+        return outflux, self.wave, meta
 
 class STAR():
     """Generate Monte Carlo spectra of normal stars, F-type standard stars, or white
@@ -761,7 +750,7 @@ class STAR():
         self.zfilt = filt(filtername='decam_z.txt')
 
     def make_templates(self, vrad_meansig=(0.0,200.0), rmagrange=(18.0,23.5),
-                       gmagrange=(16.0,19.0), outfile=None):
+                       gmagrange=(16.0,19.0)):
         """Build Monte Carlo set of spectra/templates for stars. 
 
         This function chooses random subsets of the continuum spectra for stars,
@@ -777,8 +766,6 @@ class STAR():
             magnitude range.  Defaults to a uniform distribution between (18,23.5).
           gmagrange (float, optional): Minimum and maximum DECam g-band (AB)
             magnitude range.  Defaults to a uniform distribution between (16,19). 
-          outfile (str, optional): Write the template spectra (with header information) and
-            the corresponding meta-data table to this file (default None).
 
         Returns:
           outflux (numpy.ndarray): Array [nmodel,npix] of observed-frame spectra [erg/s/cm2/A]. 
@@ -803,8 +790,32 @@ class STAR():
         meta['LOGG'] = Column(np.zeros(self.nmodel,dtype='f4'))
         meta['TEFF'] = Column(np.zeros(self.nmodel,dtype='f4'))
 
-        if self.objtype!='WD':
+        meta['LOGG'].unit = 'm/s^2'
+        meta['TEFF'].unit = 'K'
+
+        if self.objtype=='WD':
+            comments = dict(
+                TEMPLATEID = 'template ID',
+                REDSHIFT = 'object redshift',
+                GMAG = 'DECam g-band AB magnitude',
+                RMAG = 'DECam r-band AB magnitude',
+                ZMAG = 'DECam z-band AB magnitude',
+                LOGG = 'log10 of the effective gravity',
+                TEFF = 'stellar effective temperature'
+            )
+        else:
             meta['FEH'] = Column(np.zeros(self.nmodel,dtype='f4'))
+            comments = dict(
+                TEMPLATEID = 'template ID',
+                REDSHIFT = 'object redshift',
+                GMAG = 'DECam g-band AB magnitude',
+                RMAG = 'DECam r-band AB magnitude',
+                ZMAG = 'DECam z-band AB magnitude',
+                LOGG = 'log10 of the effective gravity',
+                TEFF = 'stellar effective temperature',
+                FEH = 'log10 iron abundance relative to solar',
+            )
+
 
         nobj = 0
         nbase = len(self.basemeta)
@@ -879,38 +890,5 @@ class STAR():
                 # If we have enough models get out!
                 if nobj>=(self.nmodel-1):
                     break
-
-        # Optionally write out and then return.  There's probably a smarter way
-        # to do this with astropy Tables...
-        if outfile is not None:
-            if self.objtype=='WD':
-                comments = dict(
-                    TEMPLATEID = 'template ID',
-                    REDSHIFT = 'object redshift',
-                    GMAG = 'DECam g-band AB magnitude',
-                    RMAG = 'DECam r-band AB magnitude',
-                    ZMAG = 'DECam z-band AB magnitude',
-                    LOGG = 'log10 of the effective gravity',
-                    TEFF = 'stellar effective temperature'
-                    )
-            else:
-                comments = dict(
-                    TEMPLATEID = 'template ID',
-                    REDSHIFT = 'object redshift',
-                    GMAG = 'DECam g-band AB magnitude',
-                    RMAG = 'DECam r-band AB magnitude',
-                    ZMAG = 'DECam z-band AB magnitude',
-                    LOGG = 'log10 of the effective gravity',
-                    TEFF = 'stellar effective temperature',
-                    FEH = 'log10 iron abundance relative to solar',
-                    )
                 
-            units = dict(
-                LOGG = 'm/s^2',
-                TEFF = 'K',
-            )
-            
-            write_templates(outflux, self.wave, meta, self.objtype, outfile=outfile,
-                            comments=comments, units=units)
-
-        return outflux, meta
+        return outflux, self.wave, meta
