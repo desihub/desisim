@@ -131,7 +131,7 @@ class ELG():
     def make_templates(self, zrange=(0.6,1.6), rmagrange=(21.0,23.5),
                        oiiihbrange=(-0.5,0.1), oiidoublet_meansig=(0.73,0.05),
                        linesigma_meansig=(1.887,0.175), minoiiflux=1E-17,
-                       no_colorcuts=False, header_comments=None, outfile=None):
+                       no_colorcuts=False):
         """Build Monte Carlo set of ELG spectra/templates.
 
         This function chooses random subsets of the ELG continuum spectra, constructs
@@ -160,9 +160,6 @@ class ELG():
           no_colorcuts (bool, optional): Do not apply the fiducial grz color-cuts
             cuts (default False).
         
-          outfile (str, optional): Write the template spectra (with header information) and
-            the corresponding meta-data table to this file (default None).
-
         Returns:
           outflux (numpy.ndarray): Array [nmodel,npix] of observed-frame spectra [erg/s/cm2/A]. 
           meta (astropy.Table): Table of meta-data for each output spectrum [nmodel].
@@ -173,7 +170,6 @@ class ELG():
         from astropy.table import Table, Column
 
         from desisim.templates import EMSpectrum
-        from desisim.io import write_templates
         from desispec.interpolation import resample_flux
 
         # Initialize the EMSpectrum object with the same wavelength array as
@@ -196,6 +192,26 @@ class ELG():
         meta['OIIDOUBLET'] = Column(np.zeros(self.nmodel,dtype='f4'))
         meta['LINESIGMA'] = Column(np.zeros(self.nmodel,dtype='f4'))
         meta['D4000'] = Column(np.zeros(self.nmodel,dtype='f4'))
+
+        meta['OIIFLUX'].unit = 'erg/s/cm2'
+        meta['EWOII'].unit = 'Angstrom'
+        meta['OIIIHBETA'].unit = 'dex'
+        meta['LINESIGMA'].unit = 'km/s'
+
+        comments = dict(
+            TEMPLATEID = 'template ID',
+            REDSHIFT = 'object redshift',
+            GMAG = 'DECam g-band AB magnitude',
+            RMAG = 'DECam r-band AB magnitude',
+            ZMAG = 'DECam z-band AB magnitude',
+            W1MAG = 'WISE W1-band AB magnitude',
+            OIIFLUX = '[OII] 3727 flux',
+            EWOII = 'rest-frame equivalenth width of [OII] 3727',
+            OIIIHBETA = 'logarithmic [OIII] 5007/H-beta ratio',
+            OIIDOUBLET = '[OII] 3726/3729 doublet ratio',
+            LINESIGMA = 'emission line velocity width',
+            D4000 = '4000-Angstrom break',
+        )
 
         nobj = 0
         nbase = len(self.basemeta)
@@ -274,36 +290,7 @@ class ELG():
                 if nobj>=(self.nmodel-1):
                     break
 
-        # Optionally write out and then return.  There's probably a smarter way
-        # to do this with astropy Tables...
-        if outfile is not None:
-            comments = dict(
-                TEMPLATEID = 'template ID',
-                REDSHIFT = 'object redshift',
-                GMAG = 'DECam g-band AB magnitude',
-                RMAG = 'DECam r-band AB magnitude',
-                ZMAG = 'DECam z-band AB magnitude',
-                W1MAG = 'WISE W1-band AB magnitude',
-                OIIFLUX = '[OII] 3727 flux',
-                EWOII = 'rest-frame equivalenth width of [OII] 3727',
-                OIIIHBETA = 'logarithmic [OIII] 5007/H-beta ratio',
-                OIIDOUBLET = '[OII] 3726/3729 doublet ratio',
-                LINESIGMA = 'emission line velocity width',
-                D4000 = '4000-Angstrom break',
-            )
-    
-            units = dict(
-                OIIFLUX = 'erg/s/cm2',
-                EWOII = 'Angstrom',
-                OIIIHBETA = 'dex',
-                LINESIGMA = 'km/s',
-            )
-            
-            write_templates(outflux, self.wave, meta, self.objtype, outfile=outfile,
-                            comments=comments, units=units,
-                            header_comments=header_comments)
-
-        return outflux, meta
+        return outflux, self.wave, meta
 
 class EMSpectrum():
     """Construct a complete nebular emission-line spectrum.
@@ -585,7 +572,7 @@ class LRG():
         self.w1filt = filt(filtername='wise_w1.txt')
 
     def make_templates(self, zrange=(0.5,1.1), zmagrange=(19.0,20.5),
-                       no_colorcuts=False, header_comments=None, outfile=None):
+                       no_colorcuts=False, outfile=None):
         """Build Monte Carlo set of LRG spectra/templates.
 
         This function chooses random subsets of the LRG continuum spectra and
@@ -701,8 +688,7 @@ class LRG():
             )
             
             write_templates(outflux, self.wave, meta, self.objtype,
-                            outfile=outfile, comments=comments, units=units,
-                            header_comments=header_comments)
+                            outfile=outfile, comments=comments, units=units)
 
         return outflux, meta
 
@@ -775,7 +761,7 @@ class STAR():
         self.zfilt = filt(filtername='decam_z.txt')
 
     def make_templates(self, vrad_meansig=(0.0,200.0), rmagrange=(18.0,23.5),
-                       gmagrange=(16.0,19.0), header_comments=None, outfile=None):
+                       gmagrange=(16.0,19.0), outfile=None):
         """Build Monte Carlo set of spectra/templates for stars. 
 
         This function chooses random subsets of the continuum spectra for stars,
@@ -925,7 +911,6 @@ class STAR():
             )
             
             write_templates(outflux, self.wave, meta, self.objtype, outfile=outfile,
-                            comments=comments, units=units,
-                            header_comments=header_comments)
+                            comments=comments, units=units)
 
         return outflux, meta

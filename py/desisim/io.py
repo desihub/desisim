@@ -17,6 +17,9 @@ import desimodel.io
 from desispec.image import Image
 import desispec.io.util
 
+from desispec.log import get_logger
+log = get_logger()
+
 #-------------------------------------------------------------------------
 def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
     """
@@ -558,16 +561,22 @@ def read_base_templates(objtype='ELG', observed=False, emlines=False):
 
     return flux, wave, meta
 
-def write_templates(flux, wave, meta, objtype, outfile=None, comments=None,
-                    units=None, header_comments=None):
+def write_templates(outfile, flux, wave, meta, objtype=None,
+                    comments=None, units=None):
     """Write out simulated galaxy templates.  (Incomplete documentation...)
 
-    """
-    from astropy.io import fits
-    from desispec.io import util
+        Args:
+          outfile (str): Output file name.
     
-    if outfile is None:
-        pass
+        Returns:
+    
+        Raises
+
+    """
+    from desispec.io.util import fitsheader, write_bintable, makepath
+
+    # Create the path to OUTFILE if necessary.
+    outfile = makepath(outfile)
     
     header = dict(
         OBJTYPE = (objtype, 'Object type'),
@@ -579,17 +588,10 @@ def write_templates(flux, wave, meta, objtype, outfile=None, comments=None,
         AIRORVAC = ('vac', 'wavelengths in vacuum (vac) or air'),
         BUNIT = ('erg/s/cm2/A', 'spectrum flux units')
         )
-    hdr = util.fitsheader(header)
+    hdr = fitsheader(header)
 
-    if header_comments is None:
-        header_comments = dict()
-    #for key in header_comments.keys():
-    #    hdr[key] = header_comments[key]
-    fits.writeto(outfile,flux.astype(np.float32),header=hdr,clobber=True)
-
-    log.info('Writing {}'.format(outfile))
-    util.write_bintable(outfile, meta, header=None, extname='METADATA',
-                        comments=comments, units=units)
+    write_bintable(outfile, meta, header=hdr, comments=comments,
+                   units=units, extname='METADATA', clobber=True)
 
 
 #-------------------------------------------------------------------------
