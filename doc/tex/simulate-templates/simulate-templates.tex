@@ -6,17 +6,29 @@
 \usepackage{natbib}
 %%\usepackage{emulateapj}
 %\usepackage{footnote}
+\usepackage{floatrow}
+\floatsetup[table]{capposition=top}
 \usepackage{deluxetable}
+
+\newcommand{\ha}{H\ensuremath{\alpha}}
+\newcommand{\hb}{H\ensuremath{\beta}}
+\newcommand{\heli}{He~{\sc i}~\ensuremath{\lambda4471}}
+\newcommand{\hei}{He~{\sc i}}
+\newcommand{\hii}{H~{\sc ii}}
 
 \newcommand{\oii}{[O~{\sc ii}]}
 \newcommand{\oiii}{[O~{\sc iii}]}
 \newcommand{\nii}{[N~{\sc ii}]}
 \newcommand{\sii}{[N~{\sc ii}]}
-\newcommand{\hei}{He~{\sc i}}
-\newcommand{\simt}{{\tt simulate-templates.py}}
+\newcommand{\simt}{{\tt simulate-templates}}
 \newcommand{\ewoii}{EW([O~{\sc ii}])}
 
+\newcommand{\niilam}{[N~{\sc ii}]~\ensuremath{\lambda\lambda6548,84}}
+\newcommand{\siilam}{[S~{\sc ii}]~\ensuremath{\lambda\lambda6716,32}}
 \newcommand{\oiilam}{[O~{\sc ii}]~\ensuremath{\lambda\lambda3726,29}}
+\newcommand{\oiiilam}{[O~{\sc iii}]~\ensuremath{\lambda\lambda4959,5007}}
+\newcommand{\neonlam}{[Ne~{\sc iii}]~\ensuremath{\lambda3869}}
+
 \newcommand{\ewoiilam}{EW([O~{\sc ii}]~\ensuremath{\lambda\lambda3726,29})}
 
 \newcommand{\kms}{km~s$^{-1}$}
@@ -29,7 +41,10 @@
 \newcommand{\TODO}[1]{{\it \color{red} (#1)}}
 
 \begin{document}
-\title{Simulating State-of-the-Art Spectral Templates for DESI} 
+\title{Simulating State-of-the-Art Spectral Templates \\ for DESI} 
+
+%{\bf TODO: Write a test script which ensures everything has been properly
+%  installed/configured.}
 
 \author{John Moustakas (Siena College)}
 \maketitle
@@ -42,9 +57,10 @@
 This document describes the methodology and code which was developed to generate
 one-dimensional, noiseless, high-resolution spectral templates for DESI.  The
 initial focus of this effort has been on emission-line galaxies (ELG), luminous
-red galaxies (LRG), bright-galaxy survey galaxies (BGS), and stars (STAR), but
-eventually quasars (QSO), including Ly$\alpha$-QSOs (QSO$\alpha$), and standard
-stars (STD) will be supported.
+red galaxies (LRG), (normal) stars (STAR), including F-type standard stars
+(FSTD), and white dwarfs (WD), but eventually bright-galaxy survey galaxies
+(BGS), quasars (QSO), including Ly$\alpha$-QSOs (QSO$\alpha$), and other
+spectral types will be supported.
 
 The spectral templates are constructed using a combination of empirical
 constraints (e.g., spectroscopy and photometry of galaxies and quasars over a
@@ -60,27 +76,28 @@ repository {\tt
   desihub/desisim}\footnote{\url{https://github.com/desihub/desisim}} under the
 {\tt py/desisim} and {\tt doc/tex/simulate-templates} directories, respectively.
 
-Finally, everything all the code has been developed on {\tt Github} in {\tt
-  Python} using the same coding standards adopted by the {\tt DESI-Data} team,
-such that other members of the collaboration can contribute to its future
-development.   Lots of qaplots get written out and DESI color cuts are
-optionally written out!
+%Finally, everything all the code has been developed on {\tt Github} in {\tt
+%  Python} using the same coding standards adopted by the {\tt DESI-Data} team,
+%such that other members of the collaboration can contribute to its future
+%development.   Lots of qaplots get written out and DESI color cuts are
+%optionally written out!
 
 \section{Getting Started Quickly}
 
 This section presents several high-level examples so that you can get started
-building templates quickly.  To install the software and its dependencies please
-see Appendix~\ref{sec:install}.
+building templates quickly.  Before you try these examples please see
+Appendix~\ref{sec:install} for instructions on how to install the software and
+its dependencies.
 
 The only mandatory input required by \simt{} is to specify the number of
-templates/models via the {\tt nmodel} input and, optionally, the object type
-(although the default is {\tt ELG}); the code is initialized with sensible
-defaults for all the other optional inputs.  The following sections demonstrate
-how to build templates for a few different object types.
+templates via the {\tt nmodel} input and, optionally, the object type (although
+the default is {\tt ELG}); the code is initialized with sensible defaults for
+all the other optional inputs.  The following sections demonstrate how to build
+templates for a few different object types.
 
 \subsection{Example: ELGs}
 
-To generate 100 {\tt ELG} spectra 
+To generate 20 {\tt ELG} spectra with the default parameters type:
 
 \begin{verbatim}
 simulate-templates.py --nmodel 100 --objtype ELG
@@ -90,7 +107,7 @@ simulate-templates.py --nmodel 100 --objtype ELG
 
 Give some examples.
 
-\section{The Details}
+\section{Implementation Details}
 
 The following sections describe each specific DESI spectral class in more
 detail, as well as various planned (and unplanned) avenues for improving the
@@ -98,14 +115,53 @@ models.
 
 %\section{Building a Realistic Emission-Line Spectrum}
 
-\subsection{ELGs}
+\subsection{Emission Line Galaxies (ELGs)}
 
-\subsubsection{Preliminary Templates}\label{elg:prelim}
+\subsubsection{Background}
+
+ELGs are characterized by nebular emission lines superposed on an underlying
+stellar continuum.  The stellar continuum is typically blue, dominated by hot,
+newly formed stars, although emission lines can be found in galaxies with more
+evolved (i.e., older) stellar populations as well.  A nebular emission-line
+spectrum consists of hydrogen and helium recombination lines (e.g., \ha, \hb,
+\heli), as well as numerous forbidden metal-line transitions from singly and
+doubly ionized oxygen (\oiilam{} and \oiiilam), nitrogen (\niilam), neon
+(\neonlam), sulfur (\siilam), among many others.  The strengths of these lines
+relative to \hb{} (or to one another) depends on the physical conditions (metal
+abundance, ionizing radiation field, dust content, etc.) in the star-forming
+\hii{} regions, and on the portion of the integrated light of the galaxy
+captured by the spectroscopic observations.\footnote{This latter distinction is
+  important because galaxies exhibit radial gradients in many of these
+  properties, such as gas-phase abundance, leading to what is known as {\em
+    aperture bias}.}  The absolute strength of an emission line is characterized
+by its equivalent width, which is roughly given by the integrated line-flux
+divided by the underlying stellar continuum flux.
 
 A preliminary set of $7876$ ELG templates for DESI were developed in late-2014
 using high-resolution spectroscopy and broadband photometry of galaxies from the
 DEEP2 survey (see {\tt
   DESI-doc-870}).\footnote{\url{https://desi.lbl.gov/DocDB/cgi-bin/private/RetrieveFile?docid=870;filename=elg-templates.pdf;version=1}}
+The current ELG templates build upon these templates but add significantly more
+flexibility in how the nebular emission-line spectrum for each template is
+constructed, as well as how that spectrum is linked to the underlying stellar
+continuum spectrum.
+
+\subsubsection{Methodology}
+
+Generating templates for ELGs is challenging because the emission-line spectrum
+of a galaxy cannot be constructed using theoretical models (i.e., from first
+principles).\footnote{While photoionization models do exist, galaxies---and in
+  particular the integrated spectra of galaxies---are too complex to model
+  adequately using these models.}  Moreover, although they are often correlated,
+the emission-line and stellar continuum spectra of a galaxy can exhibit large
+variations due to stochastic star formation histories among star-forming
+galaxies and differential dust attenuation effects.  Consequently, we have
+developed an empirical approach for generating templates for ELGs.
+
+
+
+
+
 Briefly, these templates were constructed by selecting a statistically complete
 sample of DEEP2 galaxies at $z=0.75-1.45$ with $r_{\rm CFHTLS}<23.5$, a
 well-measured \oiilam{} emission-line doublet, and at least six bands of optical
@@ -126,12 +182,7 @@ were combined into the \emph{preliminary} ELG templates described in {\tt
 
 %intermediate-resolution ($\mathcal{R}\approx2200$) 
 
-\subsubsection{Improved Templates}
-
-Here, we build on the preliminary templates described in \S\ref{elg:prelim} in
-several key ways.  First, we add significantly more flexibility in how the
-nebular emission-line spectrum is constructed, as well as how that spectrum is
-linked to the underlying stellar continuum spectrum.  The method we use is
+The method we use is
 empirically calibrated using observed emission-line sequences and emission-line
 equivalent width measurements of galaxies at $z=0-2$, ensuring that the ELG
 templates exhibit the same range and variation in dust content, gas-phase
@@ -281,23 +332,28 @@ two extensions:
 }
 \end{enumerate}
 
-\subsection{Luminous Red Galaxy (LRG) Templates} 
+\subsection{Luminous Red Galaxies (LRGs)}
 
 LRGs
 
 
-\subsection{Bright-Galaxy Survey (BGS) Templates} 
+\subsection{Normal Stars (STAR)}
 
-BGS.
+Talk about stuff.
 
+\subsection{F-Type Standard Stars (FSTD)}
 
-\subsection{Quasar (QSO) Templates }
+\subsection{White Dwarfs (WD)}
 
+Stuff.
 
-\subsection{Stellar Templates (STAR)}
+\subsection{Bright-Galaxy Survey Galaxies (BGS)}
 
+BGS.  Not yet supported.
 
-\subsection{Standard Stars (STD)}
+\subsection{Quasars (QSO)}
+
+Lyman-alpha quasars.
 
 \subsection{Future Improvements}
 
@@ -329,6 +385,29 @@ order):
 
 \section{Installation Instructions}\label{sec:install}
 
+\subsection{Basis Templates}
+
+The template-generating code relies on a set of basis templates for each
+spectral class.  The latest basis templates are kept at {\tt NERSC} under the
+{\tt \$DESI\_ROOT/spectro/templates} top-level directory.  The latest version of
+each template file must be downloaded to your local machine, or the code must be
+run exclusively at {\tt NERSC}.
+
+Environment variables must be set to point to the latest version of each set of
+basis templates.  For example, on {\tt NERSC} (as of the date of this document)
+you would define the following environment variables in your {\tt .bashrc.ext}
+startup file:
+\begin{itemize*}
+  \item[\%]{{\tt DESI\_ROOT=/project/projectdirs/desi}}
+  \item[\%]{{\tt DESI\_TEMPLATES=\$DESI\_ROOT/spectro/templates}}
+  \item[\%]{{\tt DESI\_ELG\_TEMPLATES=\$DESI\_TEMPLATES/elg\_templates/v1.3/elg\_templates\_v1.3.fits}}
+  \item[\%]{{\tt DESI\_LRG\_TEMPLATES=\$DESI\_TEMPLATES/lrg\_templates/v1.1/lrg\_templates\_v1.1.fits}}
+  \item[\%]{{\tt DESI\_STAR\_TEMPLATES=\$DESI\_TEMPLATES/star\_templates/v1.1/star\_templates\_v1.1.fits}}
+  \item[\%]{{\tt DESI\_WD\_TEMPLATES=\$DESI\_TEMPLATES/wd\_templates/v1.0/wd\_templates\_v1.0.fits}}
+\end{itemize*}
+
+\subsection{Code}
+
 First, be sure you have recent installations of the {\tt astropy} (needed to
 manipulate FITS files), {\tt numpy} (numerical Python library), and {\tt
   matplotlib} (plotting library) packages, or install (or upgrade) them using
@@ -339,108 +418,87 @@ manipulate FITS files), {\tt numpy} (numerical Python library), and {\tt
   \item[\%]{{\tt pip install astropy [--upgrade]}}
 \end{itemize*}
 
-\noindent Next, clone the {\tt desihub/desisim}, {\tt desihub/desispec}, and
-          {\tt desihub/imaginglss} repositories:
+\noindent Next, clone the {\tt desihub/desisim} and {\tt desihub/desispec}
+repositories.  For example:
 \begin{itemize*}
   \item[\%]{{\tt mkdir desihub ; cd desihub}}
   \item[\%]{{\tt git clone https://github.com/desihub/desisim.git}}
   \item[\%]{{\tt git clone https://github.com/desihub/desispec.git}}
-  \item[\%]{{\tt git clone https://github.com/desihub/imaginglss.git}}
 \end{itemize*}
 
 \noindent The {\tt desispec} package is needed for the standardized set of I/O
 routines which have been written for reading and writing DESI spectra (and the
-associated metadata), while the {\tt imaginglss} package contains the DESI
-target-selection algorithms.\footnote{Note that the target-selection criteria
-  coded in {\tt imaginglss} eventually may be moved to the {\tt desitarget}
-  product.}  Next, add these packages to your {\tt PYTHONPATH} environment.  For
-example, in the {\tt bash} shell add the following lines to your {\tt .bashrc}
-file:
+associated metadata).  Next, add these packages to your {\tt PYTHONPATH}
+environment.  For example, in the {\tt bash} shell add the following lines to
+your {\tt .bashrc} file:
 \begin{itemize*}
   \item[\%]{{\tt DESIHUB=/path/to/desihub}}
   \item[\%]{{\tt
-      PYTHONPATH=\$DESIHUB/desisim/py:\$DESIHUB/desispec/py:\$DESIHUB/imaginglss}}
+      PYTHONPATH=\$DESIHUB/desisim/py:\$DESIHUB/desispec/py}}
 \end{itemize*}
 
 \noindent If you wish, create an alias which points to the top-level executable
-script, {\tt simulate-templates.py}:
+script, \simt:
 \begin{itemize*}
-  \item[\%]{{\tt alias simulate-templates \$DESIHUB/desisim/bin/simulate-templates.py}}
+  \item[\%]{{\tt alias \simt{} \$DESIHUB/desisim/bin/\simt}}
 \end{itemize*}
 
-\noindent Finally, create environment variables which point to the latest set of
-continuum (basis) spectra for each object type.  For example, on {\tt NERSC} you
-would define the following variables in your {\tt .bashrc} startup file:
-\begin{itemize*}
-  \item[\%]{{\tt DESI\_ROOT=/project/projectdirs/desi}}
-  \item[\%]{{\tt DESI\_TEMPLATES=\$DESI\_ROOT/spectro/templates}}
-  \item[\%]{{\tt DESI\_ELG\_TEMPLATES=\$DESI\_TEMPLATES/elg\_templates/v1.3/elg\_templates\_v1.3.fits}}
-  \item[\%]{{\tt DESI\_LRG\_TEMPLATES=\$DESI\_TEMPLATES/lrg\_templates/v1.1/lrg\_templates\_v1.1.fits}}
-  \item[\%]{{\tt DESI\_BGS\_TEMPLATES=\$DESI\_TEMPLATES/bgs\_templates/v1.1/bgs\_templates\_v1.0.fits}}
-  \item[\%]{{\tt DESI\_STAR\_TEMPLATES=\$DESI\_TEMPLATES/star\_templates/v1.1/star\_templates\_v1.1.fits}}
-\end{itemize*}
+%Random seed can be specified.
 
-\noindent Alternatively, you can transfer these binary FITS files to your local
-machine or laptop and put them wherever you would like.  \noindent {\bf TODO:
-  Write a test script which ensures everything has been properly
-  installed/configured.}
-
-Random seed can be specified.
+To check that the code is installed and in your path try running the following
+command, which should print the \emph{help} file for the code.
 
 \begin{verbatim}
-
-usage: simulate-templates.py [-h] [--nmodel] [--objtype] [--minwave]
-                             [--maxwave] [--cdelt] [--nocolorcuts]
-                             [--notemplates] [--noplot] [--outfile] [--qafile]
-                             [--zrange-elg ] [--rmagrange-elg ] [--minoiiflux]
-                             [--zrange-lrg ] [--zmagrange-lrg ]
-                             [--zrange-bgs ] [--rmagrange-bgs ]
-
-Simulate noiseless, infinite-resolution spectral templates for DESI.
-
-optional arguments:
-  -h, --help         show this help message and exit
-  --nmodel           number of model (template) spectra to generate (required
-                     input) (default: None)
-  --objtype          object type (ELG, LRG, QSO, BGS, STD, or STAR) (default:
-                     ELG)
-  --minwave          minimum output wavelength range [Angstrom] (default:
-                     3600)
-  --maxwave          maximum output wavelength range [Angstrom] (default:
-                     10000)
-  --cdelt            dispersion of output wavelength array [Angstrom/pixel]
-                     (default: 2)
-  --nocolorcuts      do not apply color cuts to select objects (only used for
-                     object types ELG, LRG, and QSO) (default: False)
-  --notemplates      do not generate templates (but do generate the diagnostic
-                     plots if OUTFILE exists) (default: False)
-  --noplot           do not generate diagnostic (QA) plots (default: False)
-  --outfile          output FITS file name (default: OBJTYPE-templates.fits)
-  --qafile           output file name for the diagnostic (QA) plots (default:
-                     OBJTYPE-templates.pdf)
-
-options for objtype=ELG:
-  --zrange-elg       minimum and maximum redshift (default: (0.6, 1.6))
-  --rmagrange-elg    Minimum and maximum r-band (AB) magnitude range (default:
-                     (21.0, 23.5))
-  --minoiiflux       Minimum integrated [OII] 3727 flux (default: 1E-17)
-
-options for objtype=LRG:
-  --zrange-lrg       minimum and maximum redshift (default: (0.5, 1.1))
-  --zmagrange-lrg    Minimum and maximum z-band (AB) magnitude range (default:
-                     (19.5, 20.6))
-
-options for objtype=BGS:
-  --zrange-bgs       minimum and maximum redshift (default: (0.01, 0.4))
-  --rmagrange-bgs    Minimum and maximum r-band (AB) magnitude range (default:
-                     (15.0, 19.0))
-
+% simulate-templates -h
 \end{verbatim}
 
+%\begin{verbatim}
+%\end{verbatim}
 
+\clearpage
 \section{Tables of Nebular Emission Lines}
 
-The following appendices do stuff.
+The following tables summarize the forbidden (Table~\ref{table:forb}) and
+hydrogen recombination (Table~\ref{table:recomb}) lines included in the
+emission-line spectrum class.  Additional lines may be added in the future. 
+
+%\begin{center}
+%\begin{table}[h!]
+%\begin{tabular}{cc}
+%\hline
+%\hline
+%Emission Line & Vacuum Wavelength (\AA) \\
+%\hline
+% \oii~$\lambda3726$ & 3727.092 \\
+% \oii~$\lambda3729$ & 3729.874 \\
+%\oiii~$\lambda5007$ & 5008.239 \\
+%\oiii~$\lambda4959$ & 4960.295 \\
+% \nii~$\lambda6584$ & 6585.277 \\
+% \nii~$\lambda6548$ & 6549.852 \\
+% \sii~$\lambda6716$ & 6718.294 \\
+% \sii~$\lambda6731$ & 6732.673 \\
+%\hline
+%\end{tabular}
+%\caption{Stuff}
+%\end{table}
+%\end{center}
+
+\begin{deluxetable}{cc}
+\tablecaption{Nebular forbidden lines\label{table:forb}}
+\tablewidth{0pt}
+\tablehead{\colhead{Emission Line} & \colhead{Vacuum Wavelength (\AA)}}
+\startdata
+ \oii~$\lambda3726$ & 3727.092 \\
+ \oii~$\lambda3729$ & 3729.874 \\
+\oiii~$\lambda5007$ & 5008.239 \\
+\oiii~$\lambda4959$ & 4960.295 \\
+ \nii~$\lambda6584$ & 6585.277 \\
+ \nii~$\lambda6548$ & 6549.852 \\
+ \sii~$\lambda6716$ & 6718.294 \\
+ \sii~$\lambda6731$ & 6732.673
+\enddata
+\end{deluxetable}
+
 
 \begin{deluxetable}{ccc}
 \tablecaption{Nebular recombination lines\label{table:recomb}} 
@@ -495,22 +553,6 @@ Pa$\epsilon$ & 9548.591 &  0.03656680 \\
 \hei~$\lambda10830$ & 10833.22 &   0.2404832
 \enddata
 \tablenotetext{a}{Ratio with respect to H$\beta$ assuming case~B recombination.} 
-\end{deluxetable}
-
-\begin{deluxetable}{cc}
-\tablecaption{Nebular forbidden lines\label{table:forb}}
-\tablewidth{0pt}
-\tablehead{\colhead{Emission Line} & \colhead{Vacuum Wavelength (\AA)}}
-\startdata
- \oii~$\lambda3726$ & 3727.092 \\
- \oii~$\lambda3729$ & 3729.874 \\
-\oiii~$\lambda5007$ & 5008.239 \\
-\oiii~$\lambda4959$ & 4960.295 \\
- \nii~$\lambda6584$ & 6585.277 \\
- \nii~$\lambda6548$ & 6549.852 \\
- \sii~$\lambda6716$ & 6718.294 \\
- \sii~$\lambda6731$ & 6732.673
-\enddata
 \end{deluxetable}
 
 \end{document}

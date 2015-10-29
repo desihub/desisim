@@ -13,7 +13,7 @@ import os
 import sys
 import argparse
 
-from desispec.io.util import makepath
+from desisim.io import write_templates
 from desispec.log import get_logger
 
 def main():
@@ -64,10 +64,10 @@ def main():
     elg_parser.add_argument('--minoiiflux', type=float, default='1E-17', metavar='',
                             help='Minimum integrated [OII] 3727 flux')
     
-    star_parser = parser.add_argument_group('options for objtype=FSTD')
-    star_parser.add_argument('--vrad-fstd', type=float, default=(0,200), nargs=2, metavar='', 
+    fstd_parser = parser.add_argument_group('options for objtype=FSTD')
+    fstd_parser.add_argument('--vrad-fstd', type=float, default=(0,200), nargs=2, metavar='', 
                              help='mean and sigma radial velocity Gaussian prior (km/s)')
-    star_parser.add_argument('--rmagrange-fstd', type=float, default=(16.0,19.0), nargs=2, metavar='',
+    fstd_parser.add_argument('--rmagrange-fstd', type=float, default=(16.0,19.0), nargs=2, metavar='',
                             help='Minimum and maximum r-band (AB) magnitude range')
 
     lrg_parser = parser.add_argument_group('options for objtype=LRG')
@@ -76,11 +76,23 @@ def main():
     lrg_parser.add_argument('--zmagrange-lrg', type=float, default=(19.0,20.5), nargs=2, metavar='',
                             help='Minimum and maximum z-band (AB) magnitude range')
     
+    qso_parser = parser.add_argument_group('options for objtype=QSO')
+    qso_parser.add_argument('--zrange-qso', type=float, default=(0.5,4.0), nargs=2, metavar='', 
+                            help='minimum and maximum redshift')
+    qso_parser.add_argument('--gmagrange-qso', type=float, default=(21.0,23.0), nargs=2, metavar='',
+                            help='Minimum and maximum g-band (AB) magnitude range')
+    
     star_parser = parser.add_argument_group('options for objtype=STAR')
     star_parser.add_argument('--vrad-star', type=float, default=(0,200), nargs=2, metavar='', 
                              help='mean and sigma radial velocity Gaussian prior (km/s)')
     star_parser.add_argument('--rmagrange-star', type=float, default=(18,23.5), nargs=2, metavar='',
                             help='Minimum and maximum r-band (AB) magnitude range')
+
+    wd_parser = parser.add_argument_group('options for objtype=WD')
+    wd_parser.add_argument('--vrad-wd', type=float, default=(0,200), nargs=2, metavar='', 
+                             help='mean and sigma radial velocity Gaussian prior (km/s)')
+    wd_parser.add_argument('--gmagrange-wd', type=float, default=(16.0,19.0), nargs=2, metavar='',
+                            help='Minimum and maximum g-band (AB) magnitude range')
 
     args = parser.parse_args()
     if args.nmodel is None:
@@ -109,53 +121,66 @@ def main():
     
     log.info('Building {} {} templates.'.format(args.nmodel, objtype))
 
-    # Pack the optional inputs into a dictionary to be added to the output FITS
-    # header.
-    #cmd = " ".join(sys.argv)
-    header_comments = vars(args)
+    # Possible pack the optional inputs into a dictionary to be added to the
+    # output FITS header.
+    # cmd = " ".join(sys.argv)
+    # header_comments = vars(args)
 
     # Call the right Class depending on the object type.
     if not args.no_templates:
         if objtype == 'BGS':
             log.warning('{} objtype not yet supported!'.format(objtype))
             sys.exit(1)
+
         elif objtype == 'ELG':
             from desisim.templates import ELG
             elg = ELG(nmodel=args.nmodel,minwave=args.minwave,maxwave=args.maxwave,
                       cdelt=args.cdelt,seed=args.seed)
-            flux, meta = elg.make_templates(zrange=args.zrange_elg,
-                                            rmagrange=args.rmagrange_elg,
-                                            minoiiflux=args.minoiiflux,
-                                            outfile=outfile,
-                                            no_colorcuts=args.no_colorcuts,
-                                            header_comments=header_comments)
+            flux, wave, meta = elg.make_templates(zrange=args.zrange_elg,
+                                                  rmagrange=args.rmagrange_elg,
+                                                  minoiiflux=args.minoiiflux,
+                                                  no_colorcuts=args.no_colorcuts)
+            log.info('Writing {}'.format(outfile))
+            write_templates(outfile, flux, wave, meta, objtype)
+
         elif objtype == 'LRG':
             from desisim.templates import LRG
             lrg = LRG(nmodel=args.nmodel,minwave=args.minwave,maxwave=args.maxwave,
                       cdelt=args.cdelt,seed=args.seed)
-            flux, meta = lrg.make_templates(zrange=args.zrange_lrg,
-                                            zmagrange=args.zmagrange_lrg,
-                                            outfile=outfile,
-                                            no_colorcuts=args.no_colorcuts,
-                                            header_comments=header_comments)
+            flux, wave, meta = lrg.make_templates(zrange=args.zrange_lrg,
+                                                  zmagrange=args.zmagrange_lrg,
+                                                  no_colorcuts=args.no_colorcuts)
+            log.info('Writing {}'.format(outfile))
+            write_templates(outfile, flux, wave, meta, objtype)
+
         elif objtype == 'QSO':
-            log.warning('{} objtype not yet supported!'.format(objtype))
-            sys.exit(1)
-        elif objtype == 'STAR' or objtype == 'FSTD':
+            from desisim.templates import QSO
+            qso = QSO(nmodel=args.nmodel,minwave=args.minwave,maxwave=args.maxwave,
+                      cdelt=args.cdelt,seed=args.seed)
+            flux, wave, meta = qso.make_templates(zrange=args.zrange_qso,
+                                                  gmagrange=args.gmagrange_qso,
+                                                  no_colorcuts=args.no_colorcuts)
+            log.info('Writing {}'.format(outfile))
+            write_templates(outfile, flux, wave, meta, objtype)
+
+        elif objtype == 'STAR' or objtype == 'FSTD' or objtype == 'WD':
             from desisim.templates import STAR
             FSTD = objtype=='FSTD'
+            WD = objtype=='WD'
             star = STAR(nmodel=args.nmodel,minwave=args.minwave,maxwave=args.maxwave,
-                        cdelt=args.cdelt,seed=args.seed,FSTD=FSTD)
+                        cdelt=args.cdelt,seed=args.seed,FSTD=FSTD,WD=WD)
             if FSTD: # simulate an F-standard
-                flux, meta = star.make_templates(vrad_meansig=args.vrad_fstd,
-                                                 rmagrange=args.rmagrange_fstd,
-                                                 outfile=outfile,
-                                                 header_comments=header_comments)
+                flux, wave, meta = star.make_templates(vrad_meansig=args.vrad_fstd,
+                                                       rmagrange=args.rmagrange_fstd)
+            elif WD: # simulate a white dwarf
+                flux, wave, meta = star.make_templates(vrad_meansig=args.vrad_wd,
+                                                       gmagrange=args.gmagrange_wd)
             else: # simulate a normal star
-                flux, meta = star.make_templates(vrad_meansig=args.vrad_star,
-                                                 rmagrange=args.rmagrange_star,
-                                                 outfile=outfile,
-                                                 header_comments=header_comments)
+                flux, wave, meta = star.make_templates(vrad_meansig=args.vrad_star,
+                                                       rmagrange=args.rmagrange_star)
+            log.info('Writing {}'.format(outfile))
+            write_templates(outfile, flux, wave, meta, objtype)
+
         else:
             log.warning('Object type {} not recognized'.format(objtype))
             sys.exit(1)
