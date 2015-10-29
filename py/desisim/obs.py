@@ -140,7 +140,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
             'OBJTYPE',
             'REDSHIFT',
             'TEMPLATEID',
-            'O2FLUX',
+            'OIIFLUX',
         )
         meta = {key: truth[key] for key in columns}
         

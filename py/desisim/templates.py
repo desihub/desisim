@@ -67,7 +67,7 @@ class ELG():
 
     """
     def __init__(self, nmodel=50, minwave=3600.0, maxwave=10000.0,
-                 cdelt=2.0, seed=None):
+                 cdelt=2.0, wave=None, seed=None):
         """Read the ELG basis continuum templates, grzW1 filter profiles and initialize
            the output wavelength array.
 
@@ -84,6 +84,8 @@ class ELG():
             array [default 10000 Angstrom].
           cdelt (float, optional): spacing of the output wavelength array
             [default 2 Angstrom/pixel].
+          wave (numpy.ndarray): Input/output observed-frame wavelength array,
+            overriding the minwave, maxwave, and cdelt arguments [Angstrom].
           seed (long, optional): input seed for the random numbers
     
         Attributes:
@@ -91,8 +93,7 @@ class ELG():
           nmodel (int): See Args.
           seed (long): See Args.
           rand (numpy.RandomState): instance of numpy.random.RandomState(seed)
-          wave (numpy.ndarray): Output wavelength array constructed from the input
-            wavelength arguments [Angstrom].
+          wave (numpy.ndarray): Output wavelength array [Angstrom].
           baseflux (numpy.ndarray): Array [nbase,npix] of the base rest-frame
             ELG continuum spectra [erg/s/cm2/A].
           basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths 
@@ -112,9 +113,12 @@ class ELG():
         self.seed = seed
         self.rand = np.random.RandomState(seed=self.seed)
 
-        # Initialize the output wavelength array (linear spacing)
-        npix = (maxwave-minwave)/cdelt+1
-        self.wave = np.linspace(minwave,maxwave,npix) 
+        # Initialize the output wavelength array (linear spacing) unless it is
+        # already provided.
+        if wave is None:
+            npix = (maxwave-minwave)/cdelt+1
+            wave = np.linspace(minwave,maxwave,npix) 
+        self.wave = wave
 
         # Read the rest-frame continuum basis spectra.
         baseflux, basewave, basemeta = read_base_templates(objtype=self.objtype)
@@ -510,7 +514,7 @@ class LRG():
 
     """
     def __init__(self, nmodel=50, minwave=3600.0, maxwave=10000.0,
-                 cdelt=2.0, seed=None):
+                 cdelt=2.0, wave=None, seed=None):
         """Read the LRG basis continuum templates, grzW1 filter profiles and initialize
            the output wavelength array.
 
@@ -527,6 +531,8 @@ class LRG():
             array [default 10000 Angstrom].
           cdelt (float, optional): spacing of the output wavelength array
             [default 2 Angstrom/pixel].
+          wave (numpy.ndarray): Input/output observed-frame wavelength array,
+            overriding the minwave, maxwave, and cdelt arguments [Angstrom].
           seed (long, optional): input seed for the random numbers
     
         Attributes:
@@ -534,8 +540,7 @@ class LRG():
           nmodel (int): See Args.
           seed (long): See Args.
           rand (numpy.RandomState): instance of numpy.random.RandomState(seed)
-          wave (numpy.ndarray): Output wavelength array constructed from the input
-            wavelength arguments [Angstrom].
+          wave (numpy.ndarray): Output wavelength array [Angstrom].
           baseflux (numpy.ndarray): Array [nbase,npix] of the base rest-frame
             LRG continuum spectra [erg/s/cm2/A].
           basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths 
@@ -555,9 +560,12 @@ class LRG():
         self.seed = seed
         self.rand = np.random.RandomState(seed=self.seed)
 
-        # Initialize the output wavelength array (linear spacing)
-        npix = (maxwave-minwave)/cdelt+1
-        self.wave = np.linspace(minwave,maxwave,npix) 
+        # Initialize the output wavelength array (linear spacing) unless it is
+        # already provided.
+        if wave is None:
+            npix = (maxwave-minwave)/cdelt+1
+            wave = np.linspace(minwave,maxwave,npix) 
+        self.wave = wave
 
         # Read the rest-frame continuum basis spectra.
         baseflux, basewave, basemeta = read_base_templates(objtype=self.objtype)
@@ -685,7 +693,7 @@ class STAR():
 
     """
     def __init__(self, nmodel=50, minwave=3600.0, maxwave=10000.0,
-                 cdelt=2.0, seed=None, FSTD=False, WD=False):
+                 cdelt=2.0, wave=None, seed=None, FSTD=False, WD=False):
         """Read the stellar basis continuum templates, grzW1 filter profiles and
            initialize the output wavelength array.
 
@@ -700,6 +708,8 @@ class STAR():
             array [default 10000 Angstrom].
           cdelt (float, optional): spacing of the output wavelength array
             [default 2 Angstrom/pixel].
+          wave (numpy.ndarray): Input/output observed-frame wavelength array,
+            overriding the minwave, maxwave, and cdelt arguments [Angstrom].
           seed (long, optional): input seed for the random numbers
     
         Attributes:
@@ -707,8 +717,7 @@ class STAR():
           nmodel (int): See Args.
           seed (long): See Args.
           rand (numpy.RandomState): instance of numpy.random.RandomState(seed)
-          wave (numpy.ndarray): Output wavelength array constructed from the input
-            wavelength arguments [Angstrom].
+          wave (numpy.ndarray): Output wavelength array [Angstrom].
           baseflux (numpy.ndarray): Array [nbase,npix] of the base rest-frame
             stellar continuum spectra [erg/s/cm2/A].
           basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths 
@@ -732,9 +741,12 @@ class STAR():
         self.seed = seed
         self.rand = np.random.RandomState(seed=self.seed)
 
-        # Initialize the output wavelength array (linear spacing)
-        npix = (maxwave-minwave)/cdelt+1
-        self.wave = np.linspace(minwave,maxwave,npix) 
+        # Initialize the output wavelength array (linear spacing) unless it is
+        # already provided.
+        if wave is None:
+            npix = (maxwave-minwave)/cdelt+1
+            wave = np.linspace(minwave,maxwave,npix) 
+        self.wave = wave
 
         # Read the rest-frame continuum basis spectra.
         baseflux, basewave, basemeta = read_base_templates(objtype=self.objtype)
@@ -896,7 +908,7 @@ class QSO():
 
     """
     def __init__(self, nmodel=50, minwave=3600.0, maxwave=10000.0,
-                 cdelt=2.0, seed=None):
+                 cdelt=2.0, wave=None, seed=None):
         """Read the QSO basis continuum templates, grzW1W2 filter profiles and initialize 
            the output wavelength array.
 
@@ -913,6 +925,8 @@ class QSO():
             array [default 10000 Angstrom].
           cdelt (float, optional): spacing of the output wavelength array
             [default 2 Angstrom/pixel].
+          wave (numpy.ndarray): Input/output observed-frame wavelength array,
+            overriding the minwave, maxwave, and cdelt arguments [Angstrom].
           seed (long, optional): input seed for the random numbers
     
         Attributes:
@@ -920,8 +934,7 @@ class QSO():
           nmodel (int): See Args.
           seed (long): See Args.
           rand (numpy.RandomState): instance of numpy.random.RandomState(seed)
-          wave (numpy.ndarray): Output wavelength array constructed from the input
-            wavelength arguments [Angstrom].
+          wave (numpy.ndarray): Output wavelength array [Angstrom].
           baseflux (numpy.ndarray): Array [nbase,npix] of the base rest-frame
             QSO continuum spectra [erg/s/cm2/A].
           basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths 
@@ -942,9 +955,12 @@ class QSO():
         self.seed = seed
         self.rand = np.random.RandomState(seed=self.seed)
 
-        # Initialize the output wavelength array (linear spacing)
-        npix = (maxwave-minwave)/cdelt+1
-        self.wave = np.linspace(minwave,maxwave,npix) 
+        # Initialize the output wavelength array (linear spacing) unless it is
+        # already provided.
+        if wave is None:
+            npix = (maxwave-minwave)/cdelt+1
+            wave = np.linspace(minwave,maxwave,npix) 
+        self.wave = wave
 
         # Read the basis spectra.
         baseflux, basewave, basemeta = read_base_templates(objtype=self.objtype)

@@ -411,6 +411,7 @@ def get_tile_radec(tileid):
 def _resample_flux(args):
     return resample_flux(*args)
 
+# This function may now be obsolete.
 def read_templates(wave, objtype, nspec=None, randseed=1, infile=None):
     """
     Returns n templates of type objtype sampled at wave

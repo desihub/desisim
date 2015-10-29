@@ -90,7 +90,9 @@ def get_targets(nspec, tileid=None):
     Returns:
         fibermap
         truth table
-        
+
+    TODO (@moustakas): Deal with the random seed correctly. 
+    
     TODO: document this better
     """
     if tileid is None:
@@ -112,7 +114,7 @@ def get_targets(nspec, tileid=None):
     truth['FLUX'] = np.zeros( (nspec, len(wave)) )
     truth['REDSHIFT'] = np.zeros(nspec, dtype='f4')
     truth['TEMPLATEID'] = np.zeros(nspec, dtype='i4')
-    truth['O2FLUX'] = np.zeros(nspec, dtype='f4')
+    truth['OIIFLUX'] = np.zeros(nspec, dtype='f4')
     truth['OBJTYPE'] = np.zeros(nspec, dtype='S10')
     #- Note: unlike other elements, first index of WAVE isn't spectrum index
     truth['WAVE'] = wave
@@ -121,67 +123,58 @@ def get_targets(nspec, tileid=None):
     
     for objtype in set(true_objtype):
         ii = np.where(true_objtype == objtype)[0]
+        nobj = len(ii)
+        
         fibermap['OBJTYPE'][ii] = target_objtype[ii]
         truth['OBJTYPE'][ii] = true_objtype[ii]
 
+        # Simulate spectra
         if objtype == 'SKY':
             continue
-                    
-        simflux, meta = io.read_templates(wave, objtype, len(ii))            
+
+        elif objtype == 'ELG':
+            from desisim.templates import ELG
+            elg = ELG(nmodel=nobj,wave=wave)
+            simflux, wave1, meta = elg.make_templates()
+
+        elif objtype == 'LRG':
+            from desisim.templates import LRG
+            lrg = LRG(nmodel=nobj,wave=wave)
+            simflux, wave1, meta = lrg.make_templates()
+
+        elif objtype == 'QSO':
+            from desisim.templates import QSO
+            qso = QSO(nmodel=nobj,wave=wave)
+            simflux, wave1, meta = qso.make_templates()
+
+        # For a "bad" QSO simulate a normal star without color cuts, which isn't
+        # right. We need to apply the QSO color-cuts to the normal stars to pull
+        # out the correct population of contaminating stars.
+        elif objtype == 'QSO_BAD': 
+            from desisim.templates import STAR
+            star = STAR(nmodel=nobj,wave=wave)
+            simflux, wave1, meta = star.make_templates()
+
+        elif objtype == 'STD':
+            from desisim.templates import STAR
+            star = STAR(nmodel=nobj,wave=wave,FSTD=True)
+            simflux, wave1, meta = star.make_templates()
+
         truth['FLUX'][ii] = simflux
-        
-        #- STD don't have redshift Z; others do
-        #- In principle we should also have redshifts (radial velocities)
-        #- for standards as well.
-        if 'Z' in meta.dtype.names:
-            truth['REDSHIFT'][ii] = meta['Z']
-        elif objtype != 'STD':
-            print "No redshifts for", objtype, len(ii)
+        truth['TEMPLATEID'][ii] = meta['TEMPLATEID']
+        truth['REDSHIFT'][ii] = meta['REDSHIFT']
+
+        # Pack in the photometry.  TODO: Include WISE.
+        magg = meta['GMAG']
+        magr = meta['RMAG']
+        magz = meta['ZMAG']
+        fibermap['MAG'][ii, 0:3] = np.vstack( [magg, magr, magz] ).T
+        fibermap['FILTER'][ii, 0:3] = ['DECAM_G', 'DECAM_R', 'DECAM_Z']
 
         #- Only ELGs have [OII] flux
         if objtype == 'ELG':
-            truth['O2FLUX'][ii] = meta['OII_3727']
+            truth['OIIFLUX'][ii] = meta['OIIFLUX']
         
-        #- Everyone had a templateid
-        truth['TEMPLATEID'][ii] = meta['TEMPLATEID']
-        
-        #- Extract magnitudes from colors
-        #- TODO: make this more consistent at the input level
-        
-        #- Standard Stars have SDSS magnitudes
-        if objtype == 'STD':
-            magr = meta['SDSS_R']
-            magi = magr - meta['SDSS_RI']
-            magz = magi - meta['SDSS_IZ']
-            magg = magr - meta['SDSS_GR']  #- R-G, not G-R ?
-            magu = magg - meta['SDSS_UG']
-
-            mags = np.vstack( [magu, magg, magr, magi, magz] ).T
-            filters = ['SDSS_U', 'SDSS_G', 'SDSS_R', 'SDSS_I', 'SDSS_Z']
-
-            fibermap['MAG'][ii] = mags
-            fibermap['FILTER'][ii] = filters
-        #- LRGs
-        elif objtype == 'LRG':
-            magz = meta['DECAM_Z']
-            magr = magz - meta['DECAM_RZ']
-            magw = magr - meta['DECAM_RW1']
-            
-            fibermap['MAG'][ii, 0:3] = np.vstack( [magr, magz, magw] ).T
-            fibermap['FILTER'][ii, 0:3] = ['DECAM_R', 'DECAM_Z', 'WISE_W1']
-            
-        #- ELGs
-        elif objtype == 'ELG':
-            magr = meta['DECAM_R']
-            magg = magr - meta['DECAM_GR']
-            magz = magr - meta['DECAM_RZ']
-            fibermap['MAG'][ii, 0:3] = np.vstack( [magg, magr, magz] ).T
-            fibermap['FILTER'][ii, 0:3] = ['DECAM_G', 'DECAM_R', 'DECAM_Z']
-        
-        elif objtype == 'QSO':
-            #- QSO templates don't have magnitudes yet
-            pass
-                
     #- Load fiber -> positioner mapping and tile information
     fiberpos = desimodel.io.load_fiberpos()
 
