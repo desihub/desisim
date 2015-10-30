@@ -115,6 +115,7 @@ def get_targets(nspec, tileid=None):
     truth['REDSHIFT'] = np.zeros(nspec, dtype='f4')
     truth['TEMPLATEID'] = np.zeros(nspec, dtype='i4')
     truth['OIIFLUX'] = np.zeros(nspec, dtype='f4')
+    truth['D4000'] = np.zeros(nspec, dtype='f4')
     truth['OBJTYPE'] = np.zeros(nspec, dtype='S10')
     #- Note: unlike other elements, first index of WAVE isn't spectrum index
     truth['WAVE'] = wave
@@ -171,10 +172,13 @@ def get_targets(nspec, tileid=None):
         fibermap['MAG'][ii, 0:3] = np.vstack( [magg, magr, magz] ).T
         fibermap['FILTER'][ii, 0:3] = ['DECAM_G', 'DECAM_R', 'DECAM_Z']
 
-        #- Only ELGs have [OII] flux
         if objtype == 'ELG':
             truth['OIIFLUX'][ii] = meta['OIIFLUX']
+            truth['D4000'][ii] = meta['D4000']
         
+        if objtype == 'LRG':
+            truth['D4000'][ii] = meta['D4000']
+            
     #- Load fiber -> positioner mapping and tile information
     fiberpos = desimodel.io.load_fiberpos()
 

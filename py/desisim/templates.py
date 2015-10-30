@@ -8,6 +8,7 @@ Functions to simulate spectral templates for DESI.
 from __future__ import division, print_function
 
 import os
+import sys
 import numpy as np
 
 from desispec.log import get_logger
@@ -106,7 +107,7 @@ class ELG():
 
         """
         from desisim.filterfunc import filterfunc as filt
-        from desisim.io import read_base_templates
+        from desisim.io import read_basis_templates
 
         self.objtype = 'ELG'
         self.nmodel = nmodel
@@ -121,7 +122,7 @@ class ELG():
         self.wave = wave
 
         # Read the rest-frame continuum basis spectra.
-        baseflux, basewave, basemeta = read_base_templates(objtype=self.objtype)
+        baseflux, basewave, basemeta = read_basis_templates(objtype=self.objtype)
         self.baseflux = baseflux
         self.basewave = basewave
         self.basemeta = basemeta
@@ -132,7 +133,7 @@ class ELG():
         self.zfilt = filt(filtername='decam_z.txt')
         self.w1filt = filt(filtername='wise_w1.txt')
 
-    def make_templates(self, zrange=(0.6,1.6), rmagrange=(21.0,23.5),
+    def make_templates(self, zrange=(0.6,1.6), rmagrange=(21.0,23.4),
                        oiiihbrange=(-0.5,0.1), oiidoublet_meansig=(0.73,0.05),
                        linesigma_meansig=(1.887,0.175), minoiiflux=1E-17,
                        no_colorcuts=False):
@@ -148,7 +149,7 @@ class ELG():
           zrange (float, optional): Minimum and maximum redshift range.  Defaults
             to a uniform distribution between (0.6,1.6).
           rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
-            magnitude range.  Defaults to a uniform distribution between (21,23.5).
+            magnitude range.  Defaults to a uniform distribution between (21,23.4).
           oiiihbrange (float, optional): Minimum and maximum logarithmic
             [OIII] 5007/H-beta line-ratio.  Defaults to a uniform distribution
             between (-0.5,0.1).
@@ -270,9 +271,9 @@ class ELG():
                 else:
                     grzmask = [Cuts.ELG(gflux=gflux,rflux=rflux,zflux=zflux)]
 
-                # Not sure why this print statement doesn't work!
-                #print('Building model {}/{}'.format(nobj,self.nmodel-1),end='\r')
                 if all(grzmask) and all(oiimask):
+                    if ((nobj+1)%10)==0:
+                        print('Simulating {} template {}/{}'.format(self.objtype,nobj+1,self.nmodel))
                     outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
 
                     meta['TEMPLATEID'][nobj] = nobj
@@ -553,7 +554,7 @@ class LRG():
 
         """
         from desisim.filterfunc import filterfunc as filt
-        from desisim.io import read_base_templates
+        from desisim.io import read_basis_templates
 
         self.objtype = 'LRG'
         self.nmodel = nmodel
@@ -568,7 +569,7 @@ class LRG():
         self.wave = wave
 
         # Read the rest-frame continuum basis spectra.
-        baseflux, basewave, basemeta = read_base_templates(objtype=self.objtype)
+        baseflux, basewave, basemeta = read_basis_templates(objtype=self.objtype)
         self.baseflux = baseflux
         self.basewave = basewave
         self.basemeta = basemeta
@@ -665,9 +666,9 @@ class LRG():
                 else:
                     rzW1mask = [Cuts.LRG(rflux=rflux,zflux=zflux,w1flux=w1flux)]
 
-                # Not sure why this print statement doesn't work!
-                #print('Building model {}/{}'.format(nobj,self.nmodel-1),end='\r')
                 if all(rzW1mask):
+                    if ((nobj+1)%10)==0:
+                        print('Simulating {} template {}/{}'.format(self.objtype,nobj+1,self.nmodel))
                     outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
 
                     meta['TEMPLATEID'][nobj] = nobj
@@ -729,7 +730,7 @@ class STAR():
 
         """
         from desisim.filterfunc import filterfunc as filt
-        from desisim.io import read_base_templates
+        from desisim.io import read_basis_templates
 
         if FSTD:
             self.objtype = 'FSTD'
@@ -749,7 +750,7 @@ class STAR():
         self.wave = wave
 
         # Read the rest-frame continuum basis spectra.
-        baseflux, basewave, basemeta = read_base_templates(objtype=self.objtype)
+        baseflux, basewave, basemeta = read_basis_templates(objtype=self.objtype)
         self.baseflux = baseflux
         self.basewave = basewave
         self.basemeta = basemeta
@@ -759,7 +760,7 @@ class STAR():
         self.rfilt = filt(filtername='decam_r.txt')
         self.zfilt = filt(filtername='decam_z.txt')
 
-    def make_templates(self, vrad_meansig=(0.0,200.0), rmagrange=(18.0,23.5),
+    def make_templates(self, vrad_meansig=(0.0,200.0), rmagrange=(18.0,23.4),
                        gmagrange=(16.0,19.0)):
         """Build Monte Carlo set of spectra/templates for stars. 
 
@@ -773,7 +774,7 @@ class STAR():
             spectrum.  Defaults to a normal distribution with a mean of zero and
             sigma of 200 km/s.
           rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
-            magnitude range.  Defaults to a uniform distribution between (18,23.5).
+            magnitude range.  Defaults to a uniform distribution between (18,23.4).
           gmagrange (float, optional): Minimum and maximum DECam g-band (AB)
             magnitude range.  Defaults to a uniform distribution between (16,19). 
 
@@ -875,6 +876,8 @@ class STAR():
                     grzmask = [True]
 
                 if all(grzmask):
+                    if ((nobj+1)%10)==0:
+                        print('Simulating {} template {}/{}'.format(self.objtype,nobj+1,self.nmodel))
                     outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
 
                     if self.objtype=='WD':
@@ -948,7 +951,7 @@ class QSO():
 
         """
         from desisim.filterfunc import filterfunc as filt
-        from desisim.io import read_base_templates
+        from desisim.io import read_basis_templates
 
         self.objtype = 'QSO'
         self.nmodel = nmodel
@@ -963,7 +966,7 @@ class QSO():
         self.wave = wave
 
         # Read the basis spectra.
-        baseflux, basewave, basemeta = read_base_templates(objtype=self.objtype)
+        baseflux, basewave, basemeta = read_basis_templates(objtype=self.objtype)
         self.baseflux = baseflux
         self.basewave = basewave
         self.basemeta = basemeta
@@ -1066,9 +1069,9 @@ class QSO():
                 else:
                     grzW1W2mask = [True]
 
-                # Not sure why this print statement doesn't work!
-                #print('Building model {}/{}'.format(nobj,self.nmodel-1),end='\r')
                 if all(grzW1W2mask):
+                    if ((nobj+1)%10)==0:
+                        print('Simulating {} template {}/{}'.format(self.objtype,nobj+1,self.nmodel))
                     outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
 
                     meta['TEMPLATEID'][nobj] = nobj

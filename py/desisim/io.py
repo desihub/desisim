@@ -152,14 +152,15 @@ def write_simspec(meta, truth, expid, night, header=None, outfile=None):
             OBJTYPE     = 'Object type (ELG, LRG, QSO, STD, STAR)',
             REDSHIFT    = 'true object redshift',
             TEMPLATEID  = 'input template ID',
-            O2FLUX      = '[OII] flux [erg/s/cm2]',
+            OIIFLUX     = '[OII] flux [erg/s/cm2]',
+            D4000       = '4000-A break'
         )
     
         units = dict(
             # OBJTYPE     = 'Object type (ELG, LRG, QSO, STD, STAR)',
             # REDSHIFT    = 'true object redshift',
             # TEMPLATEID  = 'input template ID',
-            O2FLUX      = 'erg/s/cm2',
+            OIIFLUX      = 'erg/s/cm2',
         )
     
         write_bintable(outfile, meta, header=None, extname="METADATA",
@@ -591,6 +592,8 @@ def read_basis_templates(objtype='ELG'):
     objpath = os.getenv(key)
 
     ltype = objtype.lower()
+    if objtype == 'FSTD':
+        ltype = 'star'
     objfile = glob(os.path.join(objpath,ltype+'_templates_*.fits'))[0]
 
     if os.path.isfile(objfile):
