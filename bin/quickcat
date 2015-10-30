@@ -1,0 +1,80 @@
+#!/usr/bin/env python
+
+"""
+quickcat v0 : simulates the data flow from fiber assignment output to
+zcatalog creation.
+
+WORK IN PROGRESS.  Still coordinating with details of fiber assignment output
+and truth table formats.  Don't merge yet.
+"""
+
+import sys, os
+import numpy as np
+from astropy.table import Table, Column
+
+import optparse
+
+parser = optparse.OptionParser(usage = "%prog [options]")
+parser.add_option("-f", "--fibassign", type=str, help="fiber assignment dir")
+parser.add_option('-t', "--tilelist",  type=str, help="file with list of observed tiles")
+parser.add_option('-T', "--truth",     type=str, help="file with truth table")
+parser.add_option('-z', "--zcat",      type=str, help="previous zcatalog to update")
+parser.add_option('-o', "--output",    type=str, help="new zcatalog to write")
+opts, args = parser.parse_args()
+
+#-------------------------------------------------------------------------
+
+#- Count how many times each target was observed for this set of tiles
+obstiles = np.loadtxt(opts.tilelist, dtype=int)
+nobs = dict()
+for tile in obstiles:
+    fafile = os.path.join(opts.fibassign, 'tile_{:05d}.fits'.format(tile))
+    fibassign = Table.read(fafile, 'FiberMap', format='fits')
+    for row in fibassign:
+        targetid = row['targetid']
+        if targetid != -1:
+            if targetid not in nobs:
+                nobs[targetid] = 1
+            else:
+                nobs[targetid] += 1
+
+#- Read in previous zcat results
+#- NOTE: assumes that the new tiles were not already included in existing zcat
+if opts.zcat is not None:
+    zcat = Table.read(opts.zcat, format='fits')
+    for targetid, n in zip(zcat['TARGETID'], zcat['NUMOBS']):
+        if targetid not in nobs:
+            nobs[targetid] = 1
+        else:
+            nobs[targetid] += 1
+
+#- Read the truth table
+truth = Table.read(opts.truth)
+
+#- HACK: change truth targetid to match what fiber assign wrote
+truth['TARGETID'] = np.arange(len(truth))
+
+#- Trim truth down to just ones that have already been observed
+obs_targetids = np.array(nobs.keys())
+iiobs = np.in1d(truth['TARGETID'], obs_targetids)
+newzcat = truth[iiobs]
+            
+#- Add numobs
+nz = len(newzcat)
+newzcat.add_column(Column(name='NUMOBS', length=nz, dtype=int))
+for i in range(len(newzcat)):
+    newzcat['NUMOBS'][i] = nobs[newzcat['TARGETID'][i]]
+
+#- Add ZERR and ZWARN
+zerr  = Column(name='ZERR', data=np.ones(nz, dtype=np.float32)*1e-4)
+zwarn = Column(name='ZWARN', data=np.zeros(nz, dtype=np.int32))
+newzcat.add_column(zerr)
+newzcat.add_column(zwarn)
+
+#- Write it out
+newzcat.meta['EXTNAME'] = 'ZCATALOG'
+if os.path.exists(opts.output):
+    os.remove(opts.output)
+newzcat.write(opts.output, format='fits')
+
+
