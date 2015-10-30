@@ -562,6 +562,53 @@ def read_base_templates(objtype='ELG', observed=False, emlines=False):
 
     return flux, wave, meta
 
+def read_basis_templates(objtype='ELG'):
+    """Return the basis (continuum) templates for a given object type.
+
+    Args:
+      objtype (str, optional): object type to read (e.g., ELG, LRG, QSO, BGS,
+        FSTD, STAR, etc.; defaults to 'ELG').
+
+    Returns:
+      flux (numpy.ndarray): Array [ntemplate,npix] of flux values [erg/s/cm2/A].
+      wave (numpy.ndarray): Array [npix] of wavelengths for FLUX [Angstrom].
+      meta (astropy.Table): Meta-data table for each object.  The contents of this
+        table varies depending on what OBJTYPE has been read.
+
+    Raises:
+      EnvironmentError: If the appropriate environment variable is not set.
+      IOError: If the base templates are not found.
+
+    """
+    from glob import glob
+    from astropy.io import fits
+    from astropy.table import Table
+
+    key = 'DESI_BASIS_TEMPLATES'
+    if key not in os.environ:
+        log.fatal('Required ${} environment variable not set'.format(key))
+        raise EnvironmentError
+    objpath = os.getenv(key)
+
+    ltype = objtype.lower()
+    objfile = glob(os.path.join(objpath,ltype+'_templates_*.fits'))[0]
+
+    if os.path.isfile(objfile):
+        log.info('Reading {}'.format(objfile))
+    else: 
+        log.error('Base templates file {} not found'.format(objfile))
+        raise IOError()
+
+    flux, hdr = fits.getdata(objfile, 0, header=True)
+    meta = Table(fits.getdata(objfile, 1))
+    if objtype == 'QSO': # Need to update the QSO data model
+        from desispec.io.util import header2wave
+        wave = header2wave(hdr)
+    else:
+        wave = fits.getdata(objfile, 2)
+
+    return flux, wave, meta
+
 def write_templates(outfile, flux, wave, meta, objtype=None,
                     comments=None, units=None):
     """Write out simulated galaxy templates.  (Incomplete documentation...)
