@@ -40,12 +40,12 @@ opts, args = parser.parse_args()
 
 #- Check environment
 envOK = True
-for envvar in ('DESIMODEL', 'PIXPROD', 'DESI_SPECTRO_SIM'):
+for envvar in ('DESIMODEL', 'PIXPROD', 'PRODNAME', 'DESI_SPECTRO_SIM'):
     if envvar not in os.environ:
         log.fatal("${} is required".format(envvar))
         envOK = False
 if not envOK:
-    print "Set those environment variable(s) and then try again"
+    print('Set those environment variable(s) and then try again.')
     sys.exit(1)
 
 #- Initialize tileid
