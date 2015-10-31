@@ -215,7 +215,7 @@ class ELG():
             OIIIHBETA = 'logarithmic [OIII] 5007/H-beta ratio',
             OIIDOUBLET = '[OII] 3726/3729 doublet ratio',
             LINESIGMA = 'emission line velocity width',
-            D4000 = '4000-Angstrom break',
+            D4000 = '4000-Angstrom break'
         )
 
         nobj = 0
@@ -620,6 +620,7 @@ class LRG():
         meta['W1MAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
         meta['ZMETAL'] = Column(np.zeros(self.nmodel,dtype='f4'))
         meta['AGE'] = Column(np.zeros(self.nmodel,dtype='f4'))
+        meta['D4000'] = Column(np.zeros(self.nmodel,dtype='f4'))
 
         meta['AGE'].unit = 'Gyr'
 
@@ -631,7 +632,8 @@ class LRG():
             ZMAG = 'DECam z-band AB magnitude',
             W1MAG = 'WISE W1-band AB magnitude',
             ZMETAL = 'stellar metallicity',
-            AGE = 'time since the onset of star formation'
+            AGE = 'time since the onset of star formation',
+            D4000 = '4000-Angstrom break'
         )
 
         nobj = 0
@@ -679,6 +681,7 @@ class LRG():
                     meta['W1MAG'][nobj] = -2.5*np.log10(w1flux)+22.5
                     meta['ZMETAL'][nobj] = self.basemeta['ZMETAL'][iobj]
                     meta['AGE'][nobj] = self.basemeta['AGE'][iobj]
+                    meta['D4000'][nobj] = self.basemeta['AGE'][iobj]
 
                     nobj = nobj+1
 
