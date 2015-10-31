@@ -17,6 +17,9 @@ import desimodel.io
 from desispec.image import Image
 import desispec.io.util
 
+from desispec.log import get_logger
+log = get_logger()
+
 #-------------------------------------------------------------------------
 def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
     """
@@ -149,14 +152,15 @@ def write_simspec(meta, truth, expid, night, header=None, outfile=None):
             OBJTYPE     = 'Object type (ELG, LRG, QSO, STD, STAR)',
             REDSHIFT    = 'true object redshift',
             TEMPLATEID  = 'input template ID',
-            O2FLUX      = '[OII] flux [erg/s/cm2]',
+            OIIFLUX     = '[OII] flux [erg/s/cm2]',
+            D4000       = '4000-A break'
         )
     
         units = dict(
             # OBJTYPE     = 'Object type (ELG, LRG, QSO, STD, STAR)',
             # REDSHIFT    = 'true object redshift',
             # TEMPLATEID  = 'input template ID',
-            O2FLUX      = 'erg/s/cm2',
+            OIIFLUX      = 'erg/s/cm2',
         )
     
         write_bintable(outfile, meta, header=None, extname="METADATA",
@@ -408,6 +412,7 @@ def get_tile_radec(tileid):
 def _resample_flux(args):
     return resample_flux(*args)
 
+# This function may now be obsolete.
 def read_templates(wave, objtype, nspec=None, randseed=1, infile=None):
     """
     Returns n templates of type objtype sampled at wave
@@ -499,6 +504,148 @@ def read_templates(wave, objtype, nspec=None, randseed=1, infile=None):
 
     return outflux, outmeta
     
+
+def read_base_templates(objtype='ELG', observed=False, emlines=False):
+    """Return the base, rest-frame, spectral continuum templates for each objtype.
+
+    The appropriate environment variable must be set depending on OBJTYPE.  For example,
+    DESI_ELG_TEMPLATES, DESI_LRG_TEMPLATES, etc., otherwise an exception will be raised.
+
+    Args:
+      objtype (str, optional): object type to read (ELG, LRG, QSO, BGS, STD, or STAR;
+        defaults to 'ELG').
+      observed (bool): Read the observed-frame templates (defaults to False).
+      emlines (bool): Read the spectral templates which include emission lines (defaults
+        to False; only applies to object types ELG and BGS).
+
+    Returns:
+      flux (numpy.ndarray): Array [ntemplate,npix] of flux values [erg/s/cm2/A].
+      wave (numpy.ndarray): Array [npix] of wavelengths for FLUX [Angstrom].
+      meta (astropy.Table): Meta-data table for each object.  The contents of this
+        table varies depending on what OBJTYPE has been read.
+
+    Raises:
+      EnvironmentError: If the appropriate environment variable is not set.
+      IOError: If the base templates are not found.
+    
+    """
+    from astropy.io import fits
+    from astropy.table import Table
+    from desispec.io.util import header2wave
+
+    otype = objtype.upper()
+    if otype=='FSTD':
+        otype = 'STAR'
+
+    key = 'DESI_'+otype+'_TEMPLATES'
+    if key not in os.environ:
+        log.error('Required ${} environment variable not set'.format(key))
+        raise EnvironmentError
+
+    objfile = os.getenv(key)
+
+    # Handle special cases for the ELG & BGS templates.
+    if otype=='ELG' or otype=='BGS':
+        if observed:
+            objfile = objfile.replace('templates_','templates_obs_')
+        elif emlines is not True:
+            objfile = objfile.replace('templates_','continuum_templates_')
+
+    if os.path.isfile(objfile):
+        log.info('Reading {}'.format(objfile))
+    else: 
+        log.error('Base templates file {} not found'.format(objfile))
+        raise IOError()
+
+    flux, hdr = fits.getdata(objfile, 0, header=True)
+    meta = Table(fits.getdata(objfile, 1))
+    wave = header2wave(hdr)
+
+    return flux, wave, meta
+
+def read_basis_templates(objtype='ELG'):
+    """Return the basis (continuum) templates for a given object type.
+
+    Args:
+      objtype (str, optional): object type to read (e.g., ELG, LRG, QSO, BGS,
+        FSTD, STAR, etc.; defaults to 'ELG').
+
+    Returns:
+      flux (numpy.ndarray): Array [ntemplate,npix] of flux values [erg/s/cm2/A].
+      wave (numpy.ndarray): Array [npix] of wavelengths for FLUX [Angstrom].
+      meta (astropy.Table): Meta-data table for each object.  The contents of this
+        table varies depending on what OBJTYPE has been read.
+
+    Raises:
+      EnvironmentError: If the appropriate environment variable is not set.
+      IOError: If the base templates are not found.
+
+    """
+    from glob import glob
+    from astropy.io import fits
+    from astropy.table import Table
+
+    key = 'DESI_BASIS_TEMPLATES'
+    if key not in os.environ:
+        log.fatal('Required ${} environment variable not set'.format(key))
+        raise EnvironmentError
+    objpath = os.getenv(key)
+
+    ltype = objtype.lower()
+    if objtype == 'FSTD':
+        ltype = 'star'
+    objfile = glob(os.path.join(objpath,ltype+'_templates_*.fits'))[0]
+
+    if os.path.isfile(objfile):
+        log.info('Reading {}'.format(objfile))
+    else: 
+        log.error('Base templates file {} not found'.format(objfile))
+        raise IOError()
+
+    flux, hdr = fits.getdata(objfile, 0, header=True)
+    meta = Table(fits.getdata(objfile, 1))
+    if objtype == 'QSO': # Need to update the QSO data model
+        from desispec.io.util import header2wave
+        wave = header2wave(hdr)
+    else:
+        wave = fits.getdata(objfile, 2)
+
+    return flux, wave, meta
+
+def write_templates(outfile, flux, wave, meta, objtype=None,
+                    comments=None, units=None):
+    """Write out simulated galaxy templates.  (Incomplete documentation...)
+
+        Args:
+          outfile (str): Output file name.
+    
+        Returns:
+    
+        Raises
+
+    """
+    from astropy.io import fits
+    from desispec.io.util import fitsheader, write_bintable, makepath
+
+    # Create the path to OUTFILE if necessary.
+    outfile = makepath(outfile)
+    
+    header = dict(
+        OBJTYPE = (objtype, 'Object type'),
+        CUNIT = ('Angstrom', 'units of wavelength array'),
+        CRPIX1 = (1, 'reference pixel number'),
+        CRVAL1 = (wave[0], 'Starting wavelength [Angstrom]'),
+        CDELT1 = (wave[1]-wave[0], 'Wavelength step [Angstrom]'),
+        LOGLAM = (0, 'linear wavelength steps, not log10'),
+        AIRORVAC = ('vac', 'wavelengths in vacuum (vac) or air'),
+        BUNIT = ('erg/s/cm2/A', 'spectrum flux units')
+        )
+    hdr = fitsheader(header)
+
+    fits.writeto(outfile,flux.astype(np.float32),header=hdr,clobber=True)
+    write_bintable(outfile, meta, header=hdr, comments=comments,
+                   units=units, extname='METADATA')
+
 
 #-------------------------------------------------------------------------
 #- Utility functions
