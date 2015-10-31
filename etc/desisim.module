@@ -42,8 +42,8 @@ module-whatis "Sets up $product/$version in your environment."
 # A mandatory dependency is a module load command followed by a prereq
 # command.  An optional dependency is not followed by a prereq statement.
 #
-module load desiUtil
-prereq desiUtil
+module load desiutil
+prereq desiutil
 #
 # ENVIRONMENT SECTION
 #
@@ -75,4 +75,5 @@ setenv [string toupper $product] $PRODUCT_DIR
 {needs_idl}prepend-path IDL_PATH +$PRODUCT_DIR/pro
 #
 # Add any non-standard Module code below this point.
-#
+
+setenv DESI_BASIS_TEMPLATES $env(DESI_ROOT)/spectro/templates/basis_templates/v1.0
