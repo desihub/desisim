@@ -51,13 +51,14 @@ if opts.zcat is not None:
 #- Read the truth table
 truth = Table.read(opts.truth)
 
-#- HACK: change truth targetid to match what fiber assign wrote
-truth['TARGETID'] = np.arange(len(truth))
-
 #- Trim truth down to just ones that have already been observed
 obs_targetids = np.array(nobs.keys())
 iiobs = np.in1d(truth['TARGETID'], obs_targetids)
 newzcat = truth[iiobs]
+#import IPython
+#IPython.embed()
+
+print(len(newzcat))
             
 #- Add numobs
 nz = len(newzcat)
