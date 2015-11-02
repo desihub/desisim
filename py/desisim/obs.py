@@ -140,7 +140,8 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
             'OBJTYPE',
             'REDSHIFT',
             'TEMPLATEID',
-            'O2FLUX',
+            'D4000',
+            'OIIFLUX',
         )
         meta = {key: truth[key] for key in columns}
         
@@ -172,7 +173,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
     hdr['DATE-OBS'] = (time.strftime('%FT%T', dateobs), 'Start of exposure')
 
     simfile = io.write_simspec(meta, truth, expid, night, header=hdr)
-    print simfile
+    print(simfile)
 
     #- Update obslog that we succeeded with this exposure
     update_obslog(flavor, expid, dateobs, tileid)

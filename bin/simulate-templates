@@ -59,7 +59,7 @@ def main():
     elg_parser = parser.add_argument_group('options for objtype=ELG')
     elg_parser.add_argument('--zrange-elg', type=float, default=(0.6,1.6), nargs=2, metavar='', 
                             dest='zrange_elg', help='minimum and maximum redshift')
-    elg_parser.add_argument('--rmagrange-elg', type=float, default=(21.0,23.5), nargs=2, metavar='',
+    elg_parser.add_argument('--rmagrange-elg', type=float, default=(21.0,23.4), nargs=2, metavar='',
                             dest='rmagrange_elg', help='Minimum and maximum r-band (AB) magnitude range')
     elg_parser.add_argument('--minoiiflux', type=float, default='1E-17', metavar='',
                             help='Minimum integrated [OII] 3727 flux')
@@ -85,7 +85,7 @@ def main():
     star_parser = parser.add_argument_group('options for objtype=STAR')
     star_parser.add_argument('--vrad-star', type=float, default=(0,200), nargs=2, metavar='', 
                              help='mean and sigma radial velocity Gaussian prior (km/s)')
-    star_parser.add_argument('--rmagrange-star', type=float, default=(18,23.5), nargs=2, metavar='',
+    star_parser.add_argument('--rmagrange-star', type=float, default=(18,23.4), nargs=2, metavar='',
                             help='Minimum and maximum r-band (AB) magnitude range')
 
     wd_parser = parser.add_argument_group('options for objtype=WD')

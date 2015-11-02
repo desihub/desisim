@@ -8,6 +8,7 @@ Functions to simulate spectral templates for DESI.
 from __future__ import division, print_function
 
 import os
+import sys
 import numpy as np
 
 from desispec.log import get_logger
@@ -67,7 +68,7 @@ class ELG():
 
     """
     def __init__(self, nmodel=50, minwave=3600.0, maxwave=10000.0,
-                 cdelt=2.0, seed=None):
+                 cdelt=2.0, wave=None, seed=None):
         """Read the ELG basis continuum templates, grzW1 filter profiles and initialize
            the output wavelength array.
 
@@ -84,6 +85,8 @@ class ELG():
             array [default 10000 Angstrom].
           cdelt (float, optional): spacing of the output wavelength array
             [default 2 Angstrom/pixel].
+          wave (numpy.ndarray): Input/output observed-frame wavelength array,
+            overriding the minwave, maxwave, and cdelt arguments [Angstrom].
           seed (long, optional): input seed for the random numbers
     
         Attributes:
@@ -91,8 +94,7 @@ class ELG():
           nmodel (int): See Args.
           seed (long): See Args.
           rand (numpy.RandomState): instance of numpy.random.RandomState(seed)
-          wave (numpy.ndarray): Output wavelength array constructed from the input
-            wavelength arguments [Angstrom].
+          wave (numpy.ndarray): Output wavelength array [Angstrom].
           baseflux (numpy.ndarray): Array [nbase,npix] of the base rest-frame
             ELG continuum spectra [erg/s/cm2/A].
           basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths 
@@ -105,19 +107,22 @@ class ELG():
 
         """
         from desisim.filterfunc import filterfunc as filt
-        from desisim.io import read_base_templates
+        from desisim.io import read_basis_templates
 
         self.objtype = 'ELG'
         self.nmodel = nmodel
         self.seed = seed
         self.rand = np.random.RandomState(seed=self.seed)
 
-        # Initialize the output wavelength array (linear spacing)
-        npix = (maxwave-minwave)/cdelt+1
-        self.wave = np.linspace(minwave,maxwave,npix) 
+        # Initialize the output wavelength array (linear spacing) unless it is
+        # already provided.
+        if wave is None:
+            npix = (maxwave-minwave)/cdelt+1
+            wave = np.linspace(minwave,maxwave,npix) 
+        self.wave = wave
 
         # Read the rest-frame continuum basis spectra.
-        baseflux, basewave, basemeta = read_base_templates(objtype=self.objtype)
+        baseflux, basewave, basemeta = read_basis_templates(objtype=self.objtype)
         self.baseflux = baseflux
         self.basewave = basewave
         self.basemeta = basemeta
@@ -128,7 +133,7 @@ class ELG():
         self.zfilt = filt(filtername='decam_z.txt')
         self.w1filt = filt(filtername='wise_w1.txt')
 
-    def make_templates(self, zrange=(0.6,1.6), rmagrange=(21.0,23.5),
+    def make_templates(self, zrange=(0.6,1.6), rmagrange=(21.0,23.4),
                        oiiihbrange=(-0.5,0.1), oiidoublet_meansig=(0.73,0.05),
                        linesigma_meansig=(1.887,0.175), minoiiflux=1E-17,
                        no_colorcuts=False):
@@ -144,7 +149,7 @@ class ELG():
           zrange (float, optional): Minimum and maximum redshift range.  Defaults
             to a uniform distribution between (0.6,1.6).
           rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
-            magnitude range.  Defaults to a uniform distribution between (21,23.5).
+            magnitude range.  Defaults to a uniform distribution between (21,23.4).
           oiiihbrange (float, optional): Minimum and maximum logarithmic
             [OIII] 5007/H-beta line-ratio.  Defaults to a uniform distribution
             between (-0.5,0.1).
@@ -210,7 +215,7 @@ class ELG():
             OIIIHBETA = 'logarithmic [OIII] 5007/H-beta ratio',
             OIIDOUBLET = '[OII] 3726/3729 doublet ratio',
             LINESIGMA = 'emission line velocity width',
-            D4000 = '4000-Angstrom break',
+            D4000 = '4000-Angstrom break'
         )
 
         nobj = 0
@@ -266,9 +271,9 @@ class ELG():
                 else:
                     grzmask = [Cuts.ELG(gflux=gflux,rflux=rflux,zflux=zflux)]
 
-                # Not sure why this print statement doesn't work!
-                #print('Building model {}/{}'.format(nobj,self.nmodel-1),end='\r')
                 if all(grzmask) and all(oiimask):
+                    if ((nobj+1)%10)==0:
+                        print('Simulating {} template {}/{}'.format(self.objtype,nobj+1,self.nmodel))
                     outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
 
                     meta['TEMPLATEID'][nobj] = nobj
@@ -510,7 +515,7 @@ class LRG():
 
     """
     def __init__(self, nmodel=50, minwave=3600.0, maxwave=10000.0,
-                 cdelt=2.0, seed=None):
+                 cdelt=2.0, wave=None, seed=None):
         """Read the LRG basis continuum templates, grzW1 filter profiles and initialize
            the output wavelength array.
 
@@ -527,6 +532,8 @@ class LRG():
             array [default 10000 Angstrom].
           cdelt (float, optional): spacing of the output wavelength array
             [default 2 Angstrom/pixel].
+          wave (numpy.ndarray): Input/output observed-frame wavelength array,
+            overriding the minwave, maxwave, and cdelt arguments [Angstrom].
           seed (long, optional): input seed for the random numbers
     
         Attributes:
@@ -534,8 +541,7 @@ class LRG():
           nmodel (int): See Args.
           seed (long): See Args.
           rand (numpy.RandomState): instance of numpy.random.RandomState(seed)
-          wave (numpy.ndarray): Output wavelength array constructed from the input
-            wavelength arguments [Angstrom].
+          wave (numpy.ndarray): Output wavelength array [Angstrom].
           baseflux (numpy.ndarray): Array [nbase,npix] of the base rest-frame
             LRG continuum spectra [erg/s/cm2/A].
           basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths 
@@ -548,19 +554,22 @@ class LRG():
 
         """
         from desisim.filterfunc import filterfunc as filt
-        from desisim.io import read_base_templates
+        from desisim.io import read_basis_templates
 
         self.objtype = 'LRG'
         self.nmodel = nmodel
         self.seed = seed
         self.rand = np.random.RandomState(seed=self.seed)
 
-        # Initialize the output wavelength array (linear spacing)
-        npix = (maxwave-minwave)/cdelt+1
-        self.wave = np.linspace(minwave,maxwave,npix) 
+        # Initialize the output wavelength array (linear spacing) unless it is
+        # already provided.
+        if wave is None:
+            npix = (maxwave-minwave)/cdelt+1
+            wave = np.linspace(minwave,maxwave,npix) 
+        self.wave = wave
 
         # Read the rest-frame continuum basis spectra.
-        baseflux, basewave, basemeta = read_base_templates(objtype=self.objtype)
+        baseflux, basewave, basemeta = read_basis_templates(objtype=self.objtype)
         self.baseflux = baseflux
         self.basewave = basewave
         self.basemeta = basemeta
@@ -611,6 +620,7 @@ class LRG():
         meta['W1MAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
         meta['ZMETAL'] = Column(np.zeros(self.nmodel,dtype='f4'))
         meta['AGE'] = Column(np.zeros(self.nmodel,dtype='f4'))
+        meta['D4000'] = Column(np.zeros(self.nmodel,dtype='f4'))
 
         meta['AGE'].unit = 'Gyr'
 
@@ -622,7 +632,8 @@ class LRG():
             ZMAG = 'DECam z-band AB magnitude',
             W1MAG = 'WISE W1-band AB magnitude',
             ZMETAL = 'stellar metallicity',
-            AGE = 'time since the onset of star formation'
+            AGE = 'time since the onset of star formation',
+            D4000 = '4000-Angstrom break'
         )
 
         nobj = 0
@@ -657,9 +668,9 @@ class LRG():
                 else:
                     rzW1mask = [Cuts.LRG(rflux=rflux,zflux=zflux,w1flux=w1flux)]
 
-                # Not sure why this print statement doesn't work!
-                #print('Building model {}/{}'.format(nobj,self.nmodel-1),end='\r')
                 if all(rzW1mask):
+                    if ((nobj+1)%10)==0:
+                        print('Simulating {} template {}/{}'.format(self.objtype,nobj+1,self.nmodel))
                     outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
 
                     meta['TEMPLATEID'][nobj] = nobj
@@ -670,6 +681,7 @@ class LRG():
                     meta['W1MAG'][nobj] = -2.5*np.log10(w1flux)+22.5
                     meta['ZMETAL'][nobj] = self.basemeta['ZMETAL'][iobj]
                     meta['AGE'][nobj] = self.basemeta['AGE'][iobj]
+                    meta['D4000'][nobj] = self.basemeta['AGE'][iobj]
 
                     nobj = nobj+1
 
@@ -685,7 +697,7 @@ class STAR():
 
     """
     def __init__(self, nmodel=50, minwave=3600.0, maxwave=10000.0,
-                 cdelt=2.0, seed=None, FSTD=False, WD=False):
+                 cdelt=2.0, wave=None, seed=None, FSTD=False, WD=False):
         """Read the stellar basis continuum templates, grzW1 filter profiles and
            initialize the output wavelength array.
 
@@ -700,6 +712,8 @@ class STAR():
             array [default 10000 Angstrom].
           cdelt (float, optional): spacing of the output wavelength array
             [default 2 Angstrom/pixel].
+          wave (numpy.ndarray): Input/output observed-frame wavelength array,
+            overriding the minwave, maxwave, and cdelt arguments [Angstrom].
           seed (long, optional): input seed for the random numbers
     
         Attributes:
@@ -707,8 +721,7 @@ class STAR():
           nmodel (int): See Args.
           seed (long): See Args.
           rand (numpy.RandomState): instance of numpy.random.RandomState(seed)
-          wave (numpy.ndarray): Output wavelength array constructed from the input
-            wavelength arguments [Angstrom].
+          wave (numpy.ndarray): Output wavelength array [Angstrom].
           baseflux (numpy.ndarray): Array [nbase,npix] of the base rest-frame
             stellar continuum spectra [erg/s/cm2/A].
           basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths 
@@ -720,7 +733,7 @@ class STAR():
 
         """
         from desisim.filterfunc import filterfunc as filt
-        from desisim.io import read_base_templates
+        from desisim.io import read_basis_templates
 
         if FSTD:
             self.objtype = 'FSTD'
@@ -732,12 +745,15 @@ class STAR():
         self.seed = seed
         self.rand = np.random.RandomState(seed=self.seed)
 
-        # Initialize the output wavelength array (linear spacing)
-        npix = (maxwave-minwave)/cdelt+1
-        self.wave = np.linspace(minwave,maxwave,npix) 
+        # Initialize the output wavelength array (linear spacing) unless it is
+        # already provided.
+        if wave is None:
+            npix = (maxwave-minwave)/cdelt+1
+            wave = np.linspace(minwave,maxwave,npix) 
+        self.wave = wave
 
         # Read the rest-frame continuum basis spectra.
-        baseflux, basewave, basemeta = read_base_templates(objtype=self.objtype)
+        baseflux, basewave, basemeta = read_basis_templates(objtype=self.objtype)
         self.baseflux = baseflux
         self.basewave = basewave
         self.basemeta = basemeta
@@ -747,7 +763,7 @@ class STAR():
         self.rfilt = filt(filtername='decam_r.txt')
         self.zfilt = filt(filtername='decam_z.txt')
 
-    def make_templates(self, vrad_meansig=(0.0,200.0), rmagrange=(18.0,23.5),
+    def make_templates(self, vrad_meansig=(0.0,200.0), rmagrange=(18.0,23.4),
                        gmagrange=(16.0,19.0)):
         """Build Monte Carlo set of spectra/templates for stars. 
 
@@ -761,7 +777,7 @@ class STAR():
             spectrum.  Defaults to a normal distribution with a mean of zero and
             sigma of 200 km/s.
           rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
-            magnitude range.  Defaults to a uniform distribution between (18,23.5).
+            magnitude range.  Defaults to a uniform distribution between (18,23.4).
           gmagrange (float, optional): Minimum and maximum DECam g-band (AB)
             magnitude range.  Defaults to a uniform distribution between (16,19). 
 
@@ -863,6 +879,8 @@ class STAR():
                     grzmask = [True]
 
                 if all(grzmask):
+                    if ((nobj+1)%10)==0:
+                        print('Simulating {} template {}/{}'.format(self.objtype,nobj+1,self.nmodel))
                     outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
 
                     if self.objtype=='WD':
@@ -896,7 +914,7 @@ class QSO():
 
     """
     def __init__(self, nmodel=50, minwave=3600.0, maxwave=10000.0,
-                 cdelt=2.0, seed=None):
+                 cdelt=2.0, wave=None, seed=None):
         """Read the QSO basis continuum templates, grzW1W2 filter profiles and initialize 
            the output wavelength array.
 
@@ -913,6 +931,8 @@ class QSO():
             array [default 10000 Angstrom].
           cdelt (float, optional): spacing of the output wavelength array
             [default 2 Angstrom/pixel].
+          wave (numpy.ndarray): Input/output observed-frame wavelength array,
+            overriding the minwave, maxwave, and cdelt arguments [Angstrom].
           seed (long, optional): input seed for the random numbers
     
         Attributes:
@@ -920,8 +940,7 @@ class QSO():
           nmodel (int): See Args.
           seed (long): See Args.
           rand (numpy.RandomState): instance of numpy.random.RandomState(seed)
-          wave (numpy.ndarray): Output wavelength array constructed from the input
-            wavelength arguments [Angstrom].
+          wave (numpy.ndarray): Output wavelength array [Angstrom].
           baseflux (numpy.ndarray): Array [nbase,npix] of the base rest-frame
             QSO continuum spectra [erg/s/cm2/A].
           basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths 
@@ -935,19 +954,22 @@ class QSO():
 
         """
         from desisim.filterfunc import filterfunc as filt
-        from desisim.io import read_base_templates
+        from desisim.io import read_basis_templates
 
         self.objtype = 'QSO'
         self.nmodel = nmodel
         self.seed = seed
         self.rand = np.random.RandomState(seed=self.seed)
 
-        # Initialize the output wavelength array (linear spacing)
-        npix = (maxwave-minwave)/cdelt+1
-        self.wave = np.linspace(minwave,maxwave,npix) 
+        # Initialize the output wavelength array (linear spacing) unless it is
+        # already provided.
+        if wave is None:
+            npix = (maxwave-minwave)/cdelt+1
+            wave = np.linspace(minwave,maxwave,npix) 
+        self.wave = wave
 
         # Read the basis spectra.
-        baseflux, basewave, basemeta = read_base_templates(objtype=self.objtype)
+        baseflux, basewave, basemeta = read_basis_templates(objtype=self.objtype)
         self.baseflux = baseflux
         self.basewave = basewave
         self.basemeta = basemeta
@@ -1050,9 +1072,9 @@ class QSO():
                 else:
                     grzW1W2mask = [True]
 
-                # Not sure why this print statement doesn't work!
-                #print('Building model {}/{}'.format(nobj,self.nmodel-1),end='\r')
                 if all(grzW1W2mask):
+                    if ((nobj+1)%10)==0:
+                        print('Simulating {} template {}/{}'.format(self.objtype,nobj+1,self.nmodel))
                     outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
 
                     meta['TEMPLATEID'][nobj] = nobj
