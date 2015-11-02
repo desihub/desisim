@@ -412,173 +412,30 @@ def get_tile_radec(tileid):
 def _resample_flux(args):
     return resample_flux(*args)
 
-# This function may now be obsolete.
-def read_templates(wave, objtype, nspec=None, randseed=1, infile=None):
-    """
-    Returns n templates of type objtype sampled at wave
-
-    Inputs:
-      - wave : array of wavelengths to sample
-      - objtype : 'ELG', 'LRG', 'QSO', 'STD', or 'STAR'
-      - nspec : number of templates to return
-      - infile : (optional) input template file (see below)
-
-    Returns flux[n, len(wave)], meta[n]
-
-    where flux is in units of 1e-17 erg/s/cm2/A/[arcsec^2] and    
-    meta is a metadata table from the input template file
-    with redshift, mags, etc.
-
-    If infile is None, then $DESI_{objtype}_TEMPLATES must be set, pointing to
-    a file that has the observer frame flux in HDU 0 and a metadata table for
-    these objects in HDU 1. This code randomly samples n spectra from that file.
-    """
-    if infile is None:
-        key = 'DESI_'+objtype.upper()+'_TEMPLATES'
-        if key not in os.environ:
-            raise ValueError("ERROR: $"+key+" not set; can't find "+objtype+" templates")
-
-        infile = os.getenv(key)
-
-    hdr = fits.getheader(infile)
-    flux = fits.getdata(infile, 0)
-    meta = fits.getdata(infile, 1).view(np.recarray)
-    ww = 10**(hdr['CRVAL1'] + np.arange(hdr['NAXIS1'])*hdr['CDELT1'])
-
-    #- Check flux units
-    fluxunits = hdr['BUNIT']
-    if not fluxunits.startswith('1e-17 erg'):
-        if fluxunits.startswith('erg'):
-            flux *= 1e17
-        else:
-            #- check for '1e-16 erg/s/cm2/A' style units
-            scale, units = fluxunits.split()
-            assert units.startswith('erg')
-            scale = float(scale)
-            flux *= (scale*1e17)
-
-    ntemplates = flux.shape[0]
-    randindex = np.arange(ntemplates)
-    np.random.shuffle(randindex)
-
-    if nspec is None:
-        nspec = flux.shape[0]
-
-    #- Serial version
-    # outflux = np.zeros([n, len(wave)])
-    # outmeta = np.empty(n, dtype=meta.dtype)
-    # for i in range(n):
-    #     j = randindex[i%ntemplates]
-    #     if 'Z' in meta:
-    #         z = meta['Z'][j]
-    #     else:
-    #         z = 0.0
-    #     if objtype == 'QSO':
-    #         outflux[i] = resample_flux(wave, ww, flux[j])
-    #     else:
-    #         outflux[i] = resample_flux(wave, ww*(1+z), flux[j])
-    #     outmeta[i] = meta[j]
-
-    #- Multiprocessing version
-    #- Assemble list of args to pass to multiprocesssing map
-    args = list()
-    outmeta = np.empty(nspec, dtype=meta.dtype)
-    for i in range(nspec):
-        j = randindex[i%ntemplates]
-        outmeta[i] = meta[j]
-        if 'Z' in meta.dtype.names:
-            z = meta['Z'][j]
-        else:
-            z = 0.0
-
-        #- ELG, LRG require shifting wave by (1+z); QSOs don't
-        if objtype == 'QSO':
-            args.append( (wave, ww, flux[j]) )
-        else:
-            args.append( (wave, ww*(1+z), flux[j]) )
-
-    ncpu = multiprocessing.cpu_count() // 2   #- avoid hyperthreading
-    pool = multiprocessing.Pool(ncpu)
-    outflux = pool.map(_resample_flux, args)    
-    outflux = np.array(outflux)    
-
-    return outflux, outmeta
-    
-
-def read_base_templates(objtype='ELG', observed=False, emlines=False):
-    """Return the base, rest-frame, spectral continuum templates for each objtype.
-
-    The appropriate environment variable must be set depending on OBJTYPE.  For example,
-    DESI_ELG_TEMPLATES, DESI_LRG_TEMPLATES, etc., otherwise an exception will be raised.
+def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
+    """Return the basis (continuum) templates for a given object type.  Optionally
+       returns a randomly selected subset of nspec spectra sampled at
+       wavelengths outwave.
 
     Args:
-      objtype (str, optional): object type to read (ELG, LRG, QSO, BGS, STD, or STAR;
-        defaults to 'ELG').
-      observed (bool): Read the observed-frame templates (defaults to False).
-      emlines (bool): Read the spectral templates which include emission lines (defaults
-        to False; only applies to object types ELG and BGS).
+      objtype (str): object type to read (e.g., ELG, LRG, QSO, STAR, FSTD, WD).
+      outwave (numpy.array, optional): array of wavelength at which to sample 
+        the spectra.
+      nspec (int, optional): number of templates to return
+      infile (str, optional): full path to input template file to read,
+        over-riding the contents of the $DESI_BASIS_TEMPLATES environment
+        variable.
 
     Returns:
-      flux (numpy.ndarray): Array [ntemplate,npix] of flux values [erg/s/cm2/A].
-      wave (numpy.ndarray): Array [npix] of wavelengths for FLUX [Angstrom].
+      outflux (numpy.ndarray): Array [ntemplate,npix] of flux values [erg/s/cm2/A]. 
+      outwave (numpy.ndarray): Array [npix] of wavelengths for FLUX [Angstrom].
       meta (astropy.Table): Meta-data table for each object.  The contents of this
         table varies depending on what OBJTYPE has been read.
 
     Raises:
-      EnvironmentError: If the appropriate environment variable is not set.
-      IOError: If the base templates are not found.
-    
-    """
-    from astropy.io import fits
-    from astropy.table import Table
-    from desispec.io.util import header2wave
-
-    otype = objtype.upper()
-    if otype=='FSTD':
-        otype = 'STAR'
-
-    key = 'DESI_'+otype+'_TEMPLATES'
-    if key not in os.environ:
-        log.error('Required ${} environment variable not set'.format(key))
-        raise EnvironmentError
-
-    objfile = os.getenv(key)
-
-    # Handle special cases for the ELG & BGS templates.
-    if otype=='ELG' or otype=='BGS':
-        if observed:
-            objfile = objfile.replace('templates_','templates_obs_')
-        elif emlines is not True:
-            objfile = objfile.replace('templates_','continuum_templates_')
-
-    if os.path.isfile(objfile):
-        log.info('Reading {}'.format(objfile))
-    else: 
-        log.error('Base templates file {} not found'.format(objfile))
-        raise IOError()
-
-    flux, hdr = fits.getdata(objfile, 0, header=True)
-    meta = Table(fits.getdata(objfile, 1))
-    wave = header2wave(hdr)
-
-    return flux, wave, meta
-
-def read_basis_templates(objtype='ELG'):
-    """Return the basis (continuum) templates for a given object type.
-
-    Args:
-      objtype (str, optional): object type to read (e.g., ELG, LRG, QSO, BGS,
-        FSTD, STAR, etc.; defaults to 'ELG').
-
-    Returns:
-      flux (numpy.ndarray): Array [ntemplate,npix] of flux values [erg/s/cm2/A].
-      wave (numpy.ndarray): Array [npix] of wavelengths for FLUX [Angstrom].
-      meta (astropy.Table): Meta-data table for each object.  The contents of this
-        table varies depending on what OBJTYPE has been read.
-
-    Raises:
-      EnvironmentError: If the appropriate environment variable is not set.
-      IOError: If the base templates are not found.
+      EnvironmentError: If the required $DESI_BASIS_TEMPLATES environment
+        variable is not set.
+      IOError: If the basis template file is not found.
 
     """
     from glob import glob
@@ -594,23 +451,59 @@ def read_basis_templates(objtype='ELG'):
     ltype = objtype.lower()
     if objtype == 'FSTD':
         ltype = 'star'
-    objfile = glob(os.path.join(objpath,ltype+'_templates_*.fits'))[0]
 
-    if os.path.isfile(objfile):
-        log.info('Reading {}'.format(objfile))
-    else: 
-        log.error('Base templates file {} not found'.format(objfile))
+    if infile is None:
+        objfile_wild = os.path.join(objpath,ltype+'_templates_*.fits')
+    else:
+        objfile_wild = infile
+        
+    objfile = glob(objfile_wild)
+    nfile = len(objfile)
+
+    if nfile>0:
+        objfile_latest = objfile[nfile-1] # latest version
+        if os.path.isfile(objfile_latest):
+            log.info('Reading {}'.format(objfile_latest))
+        else: 
+            log.error('Templates basis file {} not found'.format(objfile_latest))
+            raise IOError()
+    else:
+        log.error('Templates basis file {} not found'.format(objfile_wild))
         raise IOError()
 
-    flux, hdr = fits.getdata(objfile, 0, header=True)
-    meta = Table(fits.getdata(objfile, 1))
+    flux, hdr = fits.getdata(objfile_latest, 0, header=True)
+    meta = Table(fits.getdata(objfile_latest, 1))
     if objtype == 'QSO': # Need to update the QSO data model
         from desispec.io.util import header2wave
+        flux *= 1E-17
         wave = header2wave(hdr)
     else:
-        wave = fits.getdata(objfile, 2)
+        wave = fits.getdata(objfile_latest, 2)
 
-    return flux, wave, meta
+    # Optionally choose a random subset of spectra. There must be a fast way to
+    # do this using fitsio.
+    ntemplates = flux.shape[0]
+    if nspec is not None:
+        these = np.random.choice(np.arange(ntemplates),nspec)
+        flux = flux[these,:]
+        meta = meta[these]
+
+    # Optionally resample the templates at specific wavelengths.  Use
+    #multiprocessing to speed this up.
+    if outwave is None:
+        outflux = flux # Do I really need to copy these variables!
+        outwave = wave
+    else:
+        args = list()
+        for jj in range(nspec):
+            args.append((outwave, wave, flux[jj,:]))
+
+        ncpu = multiprocessing.cpu_count() // 2   #- avoid hyperthreading
+        pool = multiprocessing.Pool(ncpu)
+        outflux = pool.map(_resample_flux, args)
+        outflux = np.array(outflux)    
+
+    return outflux, outwave, meta
 
 def write_templates(outfile, flux, wave, meta, objtype=None,
                     comments=None, units=None):
