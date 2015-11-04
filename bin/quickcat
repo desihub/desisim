@@ -29,9 +29,9 @@ obstiles = np.loadtxt(opts.tilelist, dtype=int)
 nobs = dict()
 for tile in obstiles:
     fafile = os.path.join(opts.fibassign, 'tile_{:05d}.fits'.format(tile))
-    fibassign = Table.read(fafile, 'FiberMap', format='fits')
+    fibassign = Table.read(fafile, 'FIBER_ASSIGNMENTS', format='fits')
     for row in fibassign:
-        targetid = row['targetid']
+        targetid = row['TARGETID']
         if targetid != -1:
             if targetid not in nobs:
                 nobs[targetid] = 1
