@@ -1,4 +1,4 @@
-#- Utility functions related to simulating observations
+#- Utility functions related to simulating observations for DESI
 
 import os, sys
 import numpy as np
