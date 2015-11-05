@@ -26,12 +26,13 @@ opts, args = parser.parse_args()
 
 #- Count how many times each target was observed for this set of tiles
 obstiles = np.loadtxt(opts.tilelist, dtype=int)
+#print obstiles
 nobs = dict()
 for tile in obstiles:
     fafile = os.path.join(opts.fibassign, 'tile_{:05d}.fits'.format(tile))
-    fibassign = Table.read(fafile, 'FIBER_ASSIGNMENTS', format='fits')
+    fibassign = Table.read(fafile, 'FiberMap', format='fits')
     for row in fibassign:
-        targetid = row['TARGETID']
+        targetid = row['targetid']
         if targetid != -1:
             if targetid not in nobs:
                 nobs[targetid] = 1
@@ -62,14 +63,14 @@ inputtype=newzcat["SUBTYPE"]
 #IPython.embed()
 
 def apply_redshift_eff(galtype,z):
-""" only a placeholder for now, values are not meaningful now.
+    """ only a placeholder for now, values are not meaningful now.
     based on very limited sample of redshift fitting. More parametric form needed
-"""
-    if galtype='ELG':
+    """
+    if galtype=='ELG':
         rms=0.0003
-    if galtype='LRG'
+    if galtype=='LRG':
         rms=0.00003
-    if galtype='QSO'
+    if galtype=='QSO':
         rms=0.003
     else: 
         rms=0.000001
@@ -78,7 +79,7 @@ def apply_redshift_eff(galtype,z):
 
 print(len(newzcat))
 
-for i in range(len(newzcat)):
+#for i in range(len(newzcat)):
 
             
 #- Add numobs
@@ -88,7 +89,7 @@ newzcat.add_column(Column(name='NUMOBS', length=nz, dtype=int))
 
 for i in range(len(newzcat)):
     newzcat['NUMOBS'][i] = nobs[newzcat['TARGETID'][i]]
-    outz[i]=apply_redshift(inputtype[i],inputz[i])
+    outz[i]=apply_redshift_eff(inputtype[i],inputz[i])
 #- Add ZERR and ZWARN
 z=Column(name='Z',data=outz)
 zerr  = Column(name='ZERR', data=np.ones(nz, dtype=np.float32)*1e-4)
