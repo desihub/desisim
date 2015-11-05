@@ -55,18 +55,42 @@ truth = Table.read(opts.truth)
 obs_targetids = np.array(nobs.keys())
 iiobs = np.in1d(truth['TARGETID'], obs_targetids)
 newzcat = truth[iiobs]
+inputz=newzcat["Z"]
+inputtype=newzcat["SUBTYPE"]
+
 #import IPython
 #IPython.embed()
 
+def apply_redshift_eff(galtype,z):
+""" only a placeholder for now, values are not meaningful now.
+    based on very limited sample of redshift fitting. More parametric form needed
+"""
+    if galtype='ELG':
+        rms=0.0003
+    if galtype='LRG'
+        rms=0.00003
+    if galtype='QSO'
+        rms=0.003
+    else: 
+        rms=0.000001
+    z=z+np.random.normal(0,rms)
+    return z
+
 print(len(newzcat))
+
+for i in range(len(newzcat)):
+
             
 #- Add numobs
 nz = len(newzcat)
+outz=np.zeros(nz)
 newzcat.add_column(Column(name='NUMOBS', length=nz, dtype=int))
+
 for i in range(len(newzcat)):
     newzcat['NUMOBS'][i] = nobs[newzcat['TARGETID'][i]]
-
+    outz[i]=apply_redshift(inputtype[i],inputz[i])
 #- Add ZERR and ZWARN
+z=Column(name='Z',data=outz)
 zerr  = Column(name='ZERR', data=np.ones(nz, dtype=np.float32)*1e-4)
 zwarn = Column(name='ZWARN', data=np.zeros(nz, dtype=np.int32))
 newzcat.add_column(zerr)
