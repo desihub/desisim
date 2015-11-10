@@ -49,9 +49,9 @@ $PIP_INSTALL svn+https://desi.lbl.gov/svn/code/desimodel/branches/pip-install#eg
 # install_desimodel_data -d ${HOME}/desimodel/pip-install
 export DESIMODEL=${HOME}/desimodel/pip-install
 mkdir -p ${DESIMODEL}
-svn export https://desi.lbl.gov/svn/code/desimodel/branches/pip-install/data ${DESIMODEL}
+svn export https://desi.lbl.gov/svn/code/desimodel/branches/pip-install/data ${DESIMODEL}/data
 $PIP_INSTALL git+https://github.com/desihub/desispec.git@0.3.1#egg=desispec
-$PIP_INSTALL git+https://github.com/desihub/specter@d5c0560154f2e9dfd33412869fbc51539b067509#egg=specter
+$PIP_INSTALL git+https://github.com/desihub/specter.git@d5c0560#egg=specter
 
 # DOCUMENTATION DEPENDENCIES
 # build_sphinx needs sphinx and matplotlib (for plot_directive). Note that
