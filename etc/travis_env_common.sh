@@ -45,6 +45,8 @@ fi
 
 # DESI DEPENDENCIES
 $PIP_INSTALL git+https://github.com/desihub/desiutil.git@${DESIUTIL_VERSION}#egg=desiutil
+$PIP_INSTALL svn+https://desi.lbl.gov/svn/code/desimodel/branches/pip-install#egg=desimodel
+install_desimodel_data -d ${HOME}/desimodel/desi-data
 
 # DOCUMENTATION DEPENDENCIES
 # build_sphinx needs sphinx and matplotlib (for plot_directive). Note that
