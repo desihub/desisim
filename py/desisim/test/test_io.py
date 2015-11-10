@@ -115,8 +115,8 @@ class TestIO(unittest.TestCase):
     def test_read_templates(self):
         wave = np.arange(7000, 7020)
         nspec = 3
-        for objtype in ['ELG', 'LRG', 'QSO', 'STD']:
-            flux, meta = io.read_templates(wave, objtype, nspec=3)
+        for objtype in ['ELG', 'LRG', 'QSO', 'STAR', 'WD']:
+            flux, wave1, meta = io.read_basis_templates(objtype, outwave=wave, nspec=3)
             ntemplates, nwave = flux.shape
             self.assertEqual(nwave, len(wave))
             self.assertEqual(ntemplates, nspec)

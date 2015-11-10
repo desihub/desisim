@@ -162,6 +162,7 @@ def get_targets(nspec, tileid=None):
             simflux, wave1, meta = star.make_templates()
 
         truth['FLUX'][ii] = simflux
+        truth['UNITS'] = 'erg/s/cm2/A'
         truth['TEMPLATEID'][ii] = meta['TEMPLATEID']
         truth['REDSHIFT'][ii] = meta['REDSHIFT']
 

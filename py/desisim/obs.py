@@ -1,4 +1,4 @@
-#- Utility functions related to simulating observations
+#- Utility functions related to simulating observations for DESI
 
 import os, sys
 import numpy as np
@@ -116,7 +116,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
             ii = np.where( (thru.wavemin <= wave) & (wave <= thru.wavemax) )[0]
         
             #- Project flux to photons
-            phot = thru.photons(wave[ii], flux[:,ii], units='1e-17 erg/s/cm2/A',
+            phot = thru.photons(wave[ii], flux[:,ii], units=truth['UNITS'],
                     objtype=truth['OBJTYPE'], exptime=exptime,
                     airmass=airmass)
                 
