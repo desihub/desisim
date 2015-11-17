@@ -26,13 +26,12 @@ opts, args = parser.parse_args()
 
 #- Count how many times each target was observed for this set of tiles
 obstiles = np.loadtxt(opts.tilelist, dtype=int)
-#print obstiles
 nobs = dict()
 for tile in obstiles:
     fafile = os.path.join(opts.fibassign, 'tile_{:05d}.fits'.format(tile))
-    fibassign = Table.read(fafile, 'FiberMap', format='fits')
+    fibassign = Table.read(fafile, 'FIBER_ASSIGNMENTS', format='fits')
     for row in fibassign:
-        targetid = row['targetid']
+        targetid = row['TARGETID']
         if targetid != -1:
             if targetid not in nobs:
                 nobs[targetid] = 1
@@ -63,17 +62,17 @@ inputtype=newzcat["SUBTYPE"]
 #IPython.embed()
 
 def apply_redshift_eff(galtype,z):
-    """ only a placeholder for now, values are not meaningful now.
-    based on very limited sample of redshift fitting. More parametric form needed
+    """ only a placeholder for now, no selection/cuts of any form applied. 
+    based on very limited sample of redshift fitting. More parametric form needed.
     """
     if galtype=='ELG':
-        rms=0.0003
+        rms=0.00024  # based on 30 ELGs: zfit
     if galtype=='LRG':
-        rms=0.00003
+        rms=0.0001  # based on ~1000 LRGs: zpy
     if galtype=='QSO':
-        rms=0.003
+        rms=0.002   # based on 20 QSO: redmonster
     else: 
-        rms=0.000001
+        rms=0.000001 
     z=z+np.random.normal(0,rms)
     return z
 
