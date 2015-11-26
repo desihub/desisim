@@ -1,5 +1,5 @@
 """
-I/O routines
+I/O routines for desisim
 """
 
 import os

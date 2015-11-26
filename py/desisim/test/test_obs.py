@@ -3,6 +3,7 @@ from uuid import uuid1
 from shutil import rmtree
 
 import numpy as np
+from astropy.io import fits
 
 from desisim import io
 from desisim import obs
@@ -45,12 +46,41 @@ class TestObs(unittest.TestCase):
     def test_newexp(self):
         night = '20150101'
         for expid, flavor in enumerate(['arc', 'flat', 'science']):
-            fibermap, true = obs.new_exposure(flavor, nspec=5, night=night, expid=expid)
+            fibermap, true = obs.new_exposure(flavor, nspec=10, night=night, expid=expid)
             simspecfile = io.findfile('simspec', night, expid=expid)
             self.assertTrue(os.path.exists(simspecfile))
             simspec = io.read_simspec(simspecfile)
             self.assertEqual(simspec.flavor, flavor)
-        
+            
+            #- Check that photons are in a reasonable range
+            for channel in ('b', 'r', 'z'):
+                maxphot = simspec.phot[channel].max()
+                self.assertTrue(maxphot > 1, 'suspiciously few {} photons ({}); wrong units?'.format(flavor, maxphot))
+                self.assertTrue(maxphot < 1e6, 'suspiciously many {} photons ({}); wrong units?'.format(flavor, maxphot))
+                if flavor == 'science':
+                    self.assertTrue(simspec.skyphot[channel].max() > 1, 'suspiciously few sky photons; wrong units?')
+                    self.assertTrue(simspec.skyphot[channel].max() < 1e6, 'suspiciously many sky photons; wrong units?')
+            
+            if flavor == 'science':
+                fx = fits.open(simspecfile)
+                self.assertTrue(fx['FLUX'].header['BUNIT'].startswith('1e-17 '))
+                self.assertTrue(fx['SKYFLUX'].header['BUNIT'].startswith('1e-17 '))
+                flux = fx['FLUX'].data
+                skyflux = fx['SKYFLUX'].data
+                for i in range(flux.shape[0]):
+                    objtype = simspec.metadata['OBJTYPE'][i]
+                    maxflux = flux[i].max()
+                    maxsky = skyflux[i].max()
+                    self.assertTrue(maxsky > 1, 'suspiciously low {} sky flux ({}); wrong units?'.format(objtype, maxsky))
+                    self.assertTrue(maxsky < 1e5, 'suspiciously high {} sky flux ({}); wrong units?'.format(objtype, maxsky))
+                    if objtype != 'SKY':
+                        self.assertTrue(maxflux > 0.1, 'suspiciously low {} flux ({}); wrong units?'.format(objtype, maxflux))
+                        self.assertTrue(maxflux < 1e5, 'suspiciously high {} flux ({}); wrong units?'.format(objtype, maxflux))
+                    else:
+                        self.assertTrue(np.all(flux[i] == 0.0))
+                        
+                fx.close()
+
         #- confirm that night and expid are optional
         fibermap, true = obs.new_exposure('arc', nspec=2)
 
