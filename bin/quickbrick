@@ -30,6 +30,8 @@ parser.add_option("-n", "--nspec", type=int,  help="number of spectra to simulat
 parser.add_option("-o", "--outdir", type=str,  help="output data directory; default .", default='.')
 #- Average DESI airmass 1.25; (See Science Req. Doc L3.3.2)
 parser.add_option("-a", "--airmass", type=float,  help="airmass [%default]", default=1.25)
+parser.add_option("-t", "--testwavelength", type=float,  help="test quickbrick with a single emission line", default=None)
+
 parser.add_option("--outdir_truth", type=str,  help="optional alternative outdir for truth files")
 opts, args = parser.parse_args()
 
@@ -39,8 +41,8 @@ desiparams = desimodel.io.load_desiparams()
 assert opts.brickname is not None
 assert opts.objtype is not None
 opts.objtype = opts.objtype.upper()
-assert opts.objtype in ['ELG', 'LRG', 'QSO', 'STAR', 'SKY']
-
+assert opts.objtype in ['ELG', 'LRG', 'QSO', 'STAR', 'SKY','TEST']
+    
 #- Create the atmosphere module and the quick simulator object
 atmosphere = specsim.atmosphere.Atmosphere(
     skyConditions='dark', basePath=os.environ['DESIMODEL'])
@@ -53,6 +55,8 @@ wavemax = desimodel.io.load_throughput('z').wavemax
 wavestep = 0.2      #- TODO: refine the resolution and downsampling params
 downsampling = 3
 wave = np.arange(wavemin-1, wavemax+1, wavestep)
+
+
 
 #- Generate a set of templates
 #- TODO: support multiple input types
@@ -71,6 +75,19 @@ elif opts.objtype == 'STAR':
 elif opts.objtype == 'SKY':
     flux = np.zeros((opts.nspec, len(wave)))
     meta = Table(dict(REDSHIFT=np.zeros(opts.nspec, dtype=np.float32)))
+elif opts.objtype == 'TEST':
+    opts.objtype='STAR' # for specsim
+    flux = np.zeros((opts.nspec, len(wave)))
+    i=np.where(wave>5800.-1e-6)[0][0]
+    ref_integrated_flux=1.e-10
+    flux[:,i]=ref_integrated_flux/np.gradient(wave)[i]
+    #print "ref wave=",wave[i]
+    #print "ref integrated flux=",ref_integrated_flux,"ergs/s/cm2"
+    meta = Table(dict(REDSHIFT=np.zeros(opts.nspec, dtype=np.float32),
+                      LINE=wave[i]*np.ones(opts.nspec, dtype=np.float32),
+                      LINEFLUX= ref_integrated_flux*np.ones(opts.nspec, dtype=np.float32)))
+    
+
 
 #- sanity check on units; templates currently return ergs, not 1e-17 ergs...
 assert (opts.objtype == 'SKY') or (np.max(flux) < 1e-6)
@@ -89,36 +106,52 @@ meta.add_column(Column(targetids, name='TARGETID'))
 #- rename REDSHIFT -> TRUEZ anticipating later table joins with zbest.Z
 meta.rename_column('REDSHIFT', 'TRUEZ')
 
-#- output arrays to fill; these cover wavelengths across all cameras
-trueflux = list()
-srcflux = list()
-obsivar = list()
 
 #- Actually do the simulations for each target
 fluxunits = specsim.spectrum.SpectralFluxDensity.fiducialFluxUnit * 1e17
 qsim.setWavelengthGrid(wavemin, wavemax, wavestep)
+
+#- output arrays to fill; these cover wavelengths across all cameras
+trueflux={}
+obsivar={}
+obswave=None
+for channel in qsim.instrument.cameraBands :
+    trueflux[channel]=list()
+    obsivar[channel]=list()
+
+#- convert list of arrays to 2D arrays
 for i in range(opts.nspec):
     inspec = specsim.spectrum.SpectralFluxDensity(wave, flux[i], fluxUnits=fluxunits)
     results = qsim.simulate(sourceType=opts.objtype.lower(), sourceSpectrum=inspec, 
         airmass = opts.airmass, expTime = desiparams['exptime'], downsampling=downsampling)
-        
-    trueflux.append(results.obsflux)
-    srcflux.append(results.srcflux)
-    obsivar.append(results.ivar)
+    
+    #- output wavelength grid is the same for all spectra
+    if obswave is None :
+        obswave=results.wave
+    else :
+        assert (np.sum((obswave-results.wave)**2)==0.)
+    
+    # now we collect the results
+    for channel in qsim.instrument.cameraBands :
+        j = qsim.instrument.cameraBands.index(channel)
+        trueflux[channel].append(results.camflux[:,j])
+        obsivar[channel].append(results.camivar[:,j])
+
     
 #- convert list of arrays to 2D arrays
-trueflux = np.array(trueflux)
-srcflux = np.array(srcflux)
-obsivar = np.array(obsivar)
-    
+for channel in qsim.instrument.cameraBands :
+    trueflux[channel] = np.array(trueflux[channel])
+    obsivar[channel] = np.array(obsivar[channel])
+
+
 #- add noise
-noisyflux = np.zeros_like(trueflux)
-ii = np.where(obsivar > 0)
-sigma = 1/np.sqrt(obsivar[ii])
-noisyflux[ii] = trueflux[ii] + np.random.normal(loc=0, scale=sigma)
+noisyflux={}
+for channel in qsim.instrument.cameraBands :
+    noisyflux[channel] = np.zeros_like(trueflux[channel])
+    ii = np.where(obsivar[channel] > 0)
+    sigma = 1/np.sqrt(obsivar[channel][ii])
+    noisyflux[channel][ii] = trueflux[channel][ii] + np.random.normal(loc=0, scale=sigma)
     
-#- output wavelength grid is the same for all spectra
-obswave = results.wave
 
 #- Select the wavelengths for each camera and output brick files
 for channel in ['b', 'r', 'z']:    
@@ -151,7 +184,7 @@ for channel in ['b', 'r', 'z']:
 
     header = dict(BRICKNAM=opts.brickname, CHANNEL=channel)
     brick = desispec.io.Brick(filepath, mode='update', header=header)        
-    brick.add_objects(noisyflux[:,iiobs], obsivar[:,iiobs],
+    brick.add_objects(noisyflux[channel][:,iiobs], obsivar[channel][:,iiobs],
         obswave[iiobs], Rdata, fibermap, night, expid)
     brick.close()
 
@@ -161,7 +194,7 @@ for channel in ['b', 'r', 'z']:
     from astropy.io import fits
     fx = fits.open(filepath, mode='append')
     header = desispec.io.fitsheader(header)
-    fx.append(fits.ImageHDU(trueflux[:,iiobs].astype(np.float32), name='_TRUEFLUX', header=header))
+    fx.append(fits.ImageHDU(trueflux[channel][:,iiobs].astype(np.float32), name='_TRUEFLUX', header=header))
     fx.append(fits.BinTableHDU(meta.as_array(), name='_TRUTH'))
     fx.flush()
     fx.close()
