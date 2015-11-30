@@ -348,7 +348,7 @@ class EMSpectrum():
         if log10wave is None:
             cdelt = cdelt_kms/2.99792458E5/np.log(10) # pixel size [log-10 A]
             npix = (np.log10(maxwave)-np.log10(minwave))/cdelt+1
-            self.log10wave = np.linspace(np.log10(minwave),np.log10(maxwave),cdelt)
+            self.log10wave = np.linspace(np.log10(minwave),np.log10(maxwave),npix)
         else:
             self.log10wave = log10wave
 
