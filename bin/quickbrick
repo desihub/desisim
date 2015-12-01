@@ -21,6 +21,8 @@ import desispec
 import desisim.templates
 import desisim.obs
 
+import pylab # DEBUG
+
 #- Parse command line options
 import optparse
 parser = optparse.OptionParser(usage = "%prog [options]")
@@ -32,7 +34,7 @@ parser.add_option("-o", "--outdir", type=str,  help="output data directory; defa
 parser.add_option("-a", "--airmass", type=float,  help="airmass [%default]", default=1.25)
 parser.add_option("-t", "--testwavelength", type=float,  help="test quickbrick with a single emission line", default=None)
 
-parser.add_option("--outdir_truth", type=str,  help="optional alternative outdir for truth files")
+parser.add_option("--outdir_truth", type=str,  help="optional alternative outdir for truth files", default=None)
 opts, args = parser.parse_args()
 
 desiparams = desimodel.io.load_desiparams()
@@ -80,12 +82,21 @@ elif opts.objtype == 'TEST':
     flux = np.zeros((opts.nspec, len(wave)))
     i=np.where(wave>5800.-1e-6)[0][0]
     ref_integrated_flux=1.e-10
-    flux[:,i]=ref_integrated_flux/np.gradient(wave)[i]
+    ref_cst_flux_density=1.e-17
+    
+    single_line = (np.arange(opts.nspec)%2 == 0).astype(np.float32)
+    continuum   = (np.arange(opts.nspec)%2 == 1).astype(np.float32)
+    
+    for spec in range(opts.nspec) :
+        flux[spec,i] = single_line[spec]*ref_integrated_flux/np.gradient(wave)[i] # single line
+        flux[spec]   += continuum[spec]*ref_cst_flux_density # flat continuum
+            
     #print "ref wave=",wave[i]
     #print "ref integrated flux=",ref_integrated_flux,"ergs/s/cm2"
     meta = Table(dict(REDSHIFT=np.zeros(opts.nspec, dtype=np.float32),
                       LINE=wave[i]*np.ones(opts.nspec, dtype=np.float32),
-                      LINEFLUX= ref_integrated_flux*np.ones(opts.nspec, dtype=np.float32)))
+                      LINEFLUX=single_line*ref_integrated_flux,
+                      CONSTFLUXDENSITY=continuum*ref_cst_flux_density))
     
 
 
@@ -122,6 +133,7 @@ for channel in qsim.instrument.cameraBands :
 #- convert list of arrays to 2D arrays
 for i in range(opts.nspec):
     inspec = specsim.spectrum.SpectralFluxDensity(wave, flux[i], fluxUnits=fluxunits)
+            
     results = qsim.simulate(sourceType=opts.objtype.lower(), sourceSpectrum=inspec, 
         airmass = opts.airmass, expTime = desiparams['exptime'], downsampling=downsampling)
     
@@ -136,7 +148,7 @@ for i in range(opts.nspec):
         j = qsim.instrument.cameraBands.index(channel)
         trueflux[channel].append(results.camflux[:,j])
         obsivar[channel].append(results.camivar[:,j])
-
+pylab.show() # DEBUG
     
 #- convert list of arrays to 2D arrays
 for channel in qsim.instrument.cameraBands :
@@ -192,10 +204,21 @@ for channel in ['b', 'r', 'z']:
     #- Note: Resolution convolved true flux, not high resolution source flux;
     #-       This makes chi2 calculations easier
     from astropy.io import fits
-    fx = fits.open(filepath, mode='append')
-    header = desispec.io.fitsheader(header)
-    fx.append(fits.ImageHDU(trueflux[channel][:,iiobs].astype(np.float32), name='_TRUEFLUX', header=header))
-    fx.append(fits.BinTableHDU(meta.as_array(), name='_TRUTH'))
-    fx.flush()
-    fx.close()
+
+    if opts.outdir_truth is None : # add truth in same file
+        fx = fits.open(filepath, mode='append')
+        header = desispec.io.fitsheader(header)
+        fx.append(fits.ImageHDU(trueflux[channel][:,iiobs].astype(np.float32), name='_TRUEFLUX', header=header))
+        fx.append(fits.BinTableHDU(meta.as_array(), name='_TRUTH'))
+        fx.flush()
+        fx.close()
+    else :
+        header = desispec.io.fitsheader(header)
+        hdulist = fits.HDUList([fits.PrimaryHDU(header=header)])        
+        hdulist.append(fits.ImageHDU(trueflux[channel][:,iiobs].astype(np.float32), name='_TRUEFLUX', header=header))
+        hdulist.append(fits.BinTableHDU(meta.as_array(), name='_TRUTH'))
+        filename = 'truth-brick-{}-{}.fits'.format(channel, opts.brickname)
+        filepath = os.path.join(opts.outdir_truth, filename)
+        hdulist.writeto(filepath,clobber=True)
+        
     
