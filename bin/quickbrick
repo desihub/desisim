@@ -33,6 +33,7 @@ parser.add_option("-o", "--outdir", type=str,  help="output data directory; defa
 #- Average DESI airmass 1.25; (See Science Req. Doc L3.3.2)
 parser.add_option("-a", "--airmass", type=float,  help="airmass [%default]", default=1.25)
 parser.add_option("-t", "--testwavelength", type=float,  help="test quickbrick with a single emission line", default=None)
+parser.add_option("-s", "--seed", type=int,  help="random seed", default=None)
 
 parser.add_option("--outdir_truth", type=str,  help="optional alternative outdir for truth files", default=None)
 opts, args = parser.parse_args()
@@ -44,6 +45,10 @@ assert opts.brickname is not None
 assert opts.objtype is not None
 opts.objtype = opts.objtype.upper()
 assert opts.objtype in ['ELG', 'LRG', 'QSO', 'STAR', 'SKY','TEST']
+
+#- Set random seed if defined
+if opts.seed is not None :
+    np.random.seed(opts.seed)
     
 #- Create the atmosphere module and the quick simulator object
 atmosphere = specsim.atmosphere.Atmosphere(
