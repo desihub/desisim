@@ -34,6 +34,8 @@ parser.add_option("-o", "--outdir", type=str,  help="output data directory; defa
 parser.add_option("-a", "--airmass", type=float,  help="airmass [%default]", default=1.25)
 parser.add_option("-t", "--testwavelength", type=float,  help="test quickbrick with a single emission line", default=None)
 parser.add_option("-s", "--seed", type=int,  help="random seed", default=None)
+parser.add_option("--wavestep", type=float,  help="initial sampling of templates", default=0.2)
+parser.add_option("--downsampling", type=int,  help="downsampling value", default=3)
 
 parser.add_option("--outdir_truth", type=str,  help="optional alternative outdir for truth files")
 opts, args = parser.parse_args()
@@ -59,9 +61,9 @@ qsim = specsim.quick.Quick(
 #- Wavelength grid to cover all channels
 wavemin = desimodel.io.load_throughput('b').wavemin
 wavemax = desimodel.io.load_throughput('z').wavemax
-wavestep = 0.25      #- TODO: refine the resolution and downsampling params
-downsampling = 2
-wave = np.arange(wavemin-1, wavemax+1, wavestep)
+#wavestep = 0.25      #- TODO: refine the resolution and downsampling params
+#downsampling = 2
+wave = np.arange(wavemin-1, wavemax+1, opts.wavestep)
 
 #- If opts.objtype='MIX', get distribution of target types from sample_objtype
 if opts.objtype.lower() == 'mix':
@@ -164,7 +166,7 @@ meta.rename_column('REDSHIFT', 'TRUEZ')
 
 #- Actually do the simulations for each target
 fluxunits = specsim.spectrum.SpectralFluxDensity.fiducialFluxUnit * 1e17
-qsim.setWavelengthGrid(wavemin, wavemax, wavestep)
+qsim.setWavelengthGrid(wavemin, wavemax, opts.wavestep)
 
 #- output arrays to fill; these cover wavelengths across all cameras
 trueflux={}
@@ -181,7 +183,7 @@ for i in range(opts.nspec):
     if (truth['OBJTYPE'][i] == 'QSO_BAD' or truth['OBJTYPE'][i] == 'TEST'): 
         truth['OBJTYPE'][i]='STAR'
     results = qsim.simulate(sourceType=truth['OBJTYPE'][i].lower(), sourceSpectrum=inspec, 
-        airmass = opts.airmass, expTime = desiparams['exptime'], downsampling=downsampling)
+        airmass = opts.airmass, expTime = desiparams['exptime'], downsampling=opts.downsampling)
     
     #- output wavelength grid is the same for all spectra
     if obswave is None :
@@ -217,7 +219,7 @@ for channel in ['b', 'r', 'z']:
     R = qsim.cameras[j].sparseKernel
         
     #- Trim R to range with non-zeros in even multiples of the downsampling
-    nd = downsampling
+    nd = opts.downsampling
     ii = np.where(R.sum(axis=0).A[0])[0]
     begin, end = (ii[0]//nd)*nd, ((ii[-1]+1)//nd)*nd
     R = R[begin:end, begin:end]
