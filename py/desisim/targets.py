@@ -85,7 +85,7 @@ def sample_objtype(nobj):
 
     return true_objtype, target_objtype
 
-def get_targets(nspec, tileid=None):
+def get_targets(nspec, flavor, tileid=None):
     """
     Returns:
         fibermap
@@ -101,7 +101,7 @@ def get_targets(nspec, tileid=None):
         tile_ra, tile_dec = io.get_tile_radec(tileid)
     
     #- Get distribution of target types
-    true_objtype, target_objtype = sample_objtype(nspec)
+    true_objtype, target_objtype = sample_objtype(nspec, flavor)
     
     #- Get DESI wavelength coverage
     wavemin = desimodel.io.load_throughput('b').wavemin

@@ -3,10 +3,15 @@
 """
 Generate a new DESI exposure
 
-newexp-desi arc/flat/science [options]
+newexp-desi arc/flat/dark/bright/bgs/mws/elg/lrg/qso [options]
+
+dark: a mix of elg, qso and lrg targets
+bright: a mix of BGS and MWS targetls
+or just MWS, BGS, ELG, LRG, QSO targets
 
 Stephen Bailey, LBL
 Fall 2014
+C. Rockosi modified options beyond arc/flat/science (= dark) Dec 2015
 """
 
 import sys
@@ -27,14 +32,15 @@ parser = optparse.OptionParser(
     epilog = "See $SPECTER_DIR/doc/datamodel.md for input format details"
     )
         
-parser.add_option("--flavor",   type=str,   help="arc/flat/science", default='science')
+parser.add_option("--flavor",   type=str,   help="arc/flat/dark/bright/bgs/mws/elg/lrg/qso", default='dark')
 parser.add_option("--tileid",   type=int,   help="tile id")
 parser.add_option("--expid",    type=int,   help="exposure id")
-parser.add_option("--exptime",  type=int,   help="exposure time in seconds")
+parser.add_option("--exptime",  type=int,   help="exposure time in seconds, default for arc = 5s, flat = 10s, dark/elg/lrg/qso=1000s, bright/bgs/mws=300s ")
 parser.add_option("--night",    type=str,   help="YEARMMDD")
 parser.add_option("--nspec",    type=int,   help="Number of spectra to simulate [%default]", default=5000)
 parser.add_option("--airmass",  type=float, help="Airmass [%default]", default=1.0)
-parser.add_option("--randseed", type=int,   help="random number seed")
+parser.add_option("--randseed", type=int,   help="random number seed"
+                  )
 
 opts, args = parser.parse_args()
 
@@ -58,14 +64,27 @@ if opts.expid is None:
 if opts.night is None:
     opts.night = obs.get_night(utc=time.gmtime())
 
+if string.lower(opts.flavor) not in ['arc','flat','dark','bright','bgs','mws','lrg','elg','qso']:
+    print('unknown flavor')
+    sys.exit(1)
+
+    
 #- TODO: don't hardcode these default exposure times
 if opts.exptime is None:
     if opts.flavor == 'arc':
         opts.exptime = 5
     elif opts.flavor == 'flat':
         opts.exptime = 10
-    else:
+    elif:
+        (opts.flavor == 'bright') OR (string.lower(opts.flavor) == 'bgs') OR (string.tolower(opts.flavor) == 'mws'):
+        opts.exptime = 300
+    elif:
+        (opts.flavor == 'dark') OR (string.lower(opts.flavor) == 'elg') OR (string.lower(opts.flavor) == 'lrg') OR (string.lower(opts.flavor) == 'qso'):
         opts.exptime = 1000
+    else:
+        print('I can not guess a default exposure time')
+        sys.exit(1)
+    
     
 #- Initialize random seeds
 if opts.randseed is None:

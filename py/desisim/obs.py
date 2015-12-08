@@ -94,8 +94,8 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
             truth['WAVE_'+channel] = wave[ii]
             truth['PHOT_'+channel] = phot
         
-    elif flavor == 'science':
-        fibermap, truth = get_targets(nspec, tileid=tileid)
+    else:
+        fibermap, truth = get_targets(nspec, flavor, tileid=tileid)
             
         flux = truth['FLUX']
         wave = truth['WAVE']
