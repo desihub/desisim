@@ -166,7 +166,8 @@ class ELG():
             cuts (default False).
         
         Returns:
-          outflux (numpy.ndarray): Array [nmodel,npix] of observed-frame spectra [erg/s/cm2/A]. 
+          outflux (numpy.ndarray): Array [nmodel,npix] of observed-frame spectra [erg/s/cm2/A].
+          wave (numpy.ndarray): Observed-frame [npix] wavelength array [Angstrom].
           meta (astropy.Table): Table of meta-data for each output spectrum [nmodel].
 
         Raises:
@@ -235,8 +236,8 @@ class ELG():
             oiiihbeta = self.rand.uniform(oiiihbrange[0],oiiihbrange[1],nchunk)
             oiidoublet = self.rand.normal(oiidoublet_meansig[0],
                                           oiidoublet_meansig[1],nchunk)
-            linesigma = self.rand.normal(linesigma_meansig[0],
-                                         linesigma_meansig[1],nchunk)
+            linesigma = 10**self.rand.normal(linesigma_meansig[0],
+                                             linesigma_meansig[1],nchunk)
 
             d4000 = self.basemeta['D4000'][chunkindx]
             ewoii = 10.0**(np.polyval([1.1074,-4.7338,5.6585],d4000)+ 
@@ -246,16 +247,27 @@ class ELG():
             for ii, iobj in enumerate(chunkindx):
                 zwave = self.basewave*(1.0+redshift[ii])
 
-                # Add the continuum and emission-line spectra with the
-                # right [OII] flux [erg/s/cm2]
+                restflux = self.baseflux[iobj,:]
+                rnorm = 10.0**(-0.4*rmag[ii])/self.rfilt.get_maggies(zwave,restflux)
+                flux = restflux*rnorm # [erg/s/cm2/A, @redshift[ii]]
+
+                # Create an emission-line spectrum with the right [OII] flux [erg/s/cm2]. 
                 oiiflux = self.basemeta['OII_CONTINUUM'][iobj]*ewoii[ii] 
+                zoiiflux = oiiflux*rnorm # [erg/s/cm2]
+
+                print(linesigma[ii], oiidoublet[ii], oiiihbeta[ii])
                 emflux, emwave, emline = EM.spectrum(linesigma=linesigma[ii],
                                                       oiidoublet=oiidoublet[ii],
                                                       oiiihbeta=oiiihbeta[ii],
-                                                      oiiflux=oiiflux)
-                restflux = self.baseflux[iobj,:] + emflux # [erg/s/cm2/A @10pc]
-                rnorm = 10.0**(-0.4*rmag[ii])/self.rfilt.get_maggies(zwave,restflux)
-                flux = restflux*rnorm # [erg/s/cm2/A, @redshift[ii]]
+                                                      oiiflux=zoiiflux)
+                #emflux, emwave, emline = EM.spectrum(oiiflux=zoiiflux)
+                bb = (emwave > 3725) & (emwave < 3735)
+                print(np.sum(emflux[bb]*np.gradient(emwave[bb])), zoiiflux)
+
+                import matplotlib.pyplot as plt
+                plt.plot(emwave,emflux,'-bo',) ; plt.xlim(3720,3735)
+                plt.ylim(0,np.max(emflux[bb])) ; plt.show()
+                flux += emflux/(1+redshift[ii]) # [erg/s/cm2/A, @redshift[ii]]
 
                 # [grz]flux are in nanomaggies
                 rflux = 10.0**(-0.4*(rmag[ii]-22.5))                      
@@ -263,7 +275,6 @@ class ELG():
                 zflux = self.zfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                 w1flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
 
-                zoiiflux = oiiflux*rnorm # [erg/s/cm2]
                 oiimask = [zoiiflux>minoiiflux]
 
                 if no_colorcuts:
