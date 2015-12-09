@@ -35,13 +35,13 @@ def main():
     parser.add_argument('-s', '--seed', type=long, default=None, metavar='', 
                         help='random number seed')
     # Boolean keywords.
-    parser.add_argument('--no-colorcuts', action='store_true', 
+    parser.add_argument('--nocolorcuts', action='store_true', 
                         help="""do not apply color cuts to select objects (only used for
                         object types ELG, LRG, and QSO)""")
-    parser.add_argument('--no-templates', action='store_true', 
+    parser.add_argument('--notemplates', action='store_true', 
                         help="""do not generate templates
                         (but do generate the diagnostic plots if OUTFILE exists)""")
-    parser.add_argument('--no-plots', action='store_true', 
+    parser.add_argument('--noplots', action='store_true', 
                         help='do not generate diagnostic (QA) plots')
     # Output filenames.
     parser.add_argument('--outfile', type=str, default='OBJTYPE-templates.fits', metavar='', 
@@ -127,7 +127,7 @@ def main():
     # header_comments = vars(args)
 
     # Call the right Class depending on the object type.
-    if not args.no_templates:
+    if not args.notemplates:
         if objtype == 'BGS':
             log.warning('{} objtype not yet supported!'.format(objtype))
             sys.exit(1)
@@ -139,7 +139,7 @@ def main():
             flux, wave, meta = elg.make_templates(zrange=args.zrange_elg,
                                                   rmagrange=args.rmagrange_elg,
                                                   minoiiflux=args.minoiiflux,
-                                                  no_colorcuts=args.no_colorcuts)
+                                                  nocolorcuts=args.nocolorcuts)
             log.info('Writing {}'.format(outfile))
             write_templates(outfile, flux, wave, meta, objtype)
 
@@ -149,7 +149,7 @@ def main():
                       cdelt=args.cdelt,seed=args.seed)
             flux, wave, meta = lrg.make_templates(zrange=args.zrange_lrg,
                                                   zmagrange=args.zmagrange_lrg,
-                                                  no_colorcuts=args.no_colorcuts)
+                                                  nocolorcuts=args.nocolorcuts)
             log.info('Writing {}'.format(outfile))
             write_templates(outfile, flux, wave, meta, objtype)
 
@@ -159,7 +159,7 @@ def main():
                       cdelt=args.cdelt,seed=args.seed)
             flux, wave, meta = qso.make_templates(zrange=args.zrange_qso,
                                                   gmagrange=args.gmagrange_qso,
-                                                  no_colorcuts=args.no_colorcuts)
+                                                  nocolorcuts=args.nocolorcuts)
             log.info('Writing {}'.format(outfile))
             write_templates(outfile, flux, wave, meta, objtype)
 
@@ -186,7 +186,7 @@ def main():
             sys.exit(1)
     
     # Generate diagnostic QAplots (just a placeholder right now).
-    if not args.no_plots:
+    if not args.noplots:
         import matplotlib.pyplot as plt
         if args.qafile:
             qafile = args.qafile

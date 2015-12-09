@@ -136,7 +136,7 @@ class ELG():
     def make_templates(self, zrange=(0.6,1.6), rmagrange=(21.0,23.4),
                        oiiihbrange=(-0.5,0.1), oiidoublet_meansig=(0.73,0.05),
                        linesigma_meansig=(1.887,0.175), minoiiflux=1E-17,
-                       no_colorcuts=False):
+                       nocolorcuts=False, nocontinuum=False):
         """Build Monte Carlo set of ELG spectra/templates.
 
         This function chooses random subsets of the ELG continuum spectra, constructs
@@ -162,8 +162,10 @@ class ELG():
 
           minoiiflux (float, optional): Minimum [OII] 3727 flux [default 1E-17 erg/s/cm2].
             Set this parameter to zero to not have a minimum flux cut.
-          no_colorcuts (bool, optional): Do not apply the fiducial grz color-cuts
+          nocolorcuts (bool, optional): Do not apply the fiducial grz color-cuts
             cuts (default False).
+          nocontinuum (bool, optional): Do not include the stellar continuum
+            (useful for testing; default False).
         
         Returns:
           outflux (numpy.ndarray): Array [nmodel,npix] of observed-frame spectra [erg/s/cm2/A].
@@ -236,8 +238,11 @@ class ELG():
             oiiihbeta = self.rand.uniform(oiiihbrange[0],oiiihbrange[1],nchunk)
             oiidoublet = self.rand.normal(oiidoublet_meansig[0],
                                           oiidoublet_meansig[1],nchunk)
-            linesigma = 10**self.rand.normal(linesigma_meansig[0],
-                                             linesigma_meansig[1],nchunk)
+            if linesigma_meansig[1]>0:
+                linesigma = 10**self.rand.normal(linesigma_meansig[0],
+                                                 linesigma_meansig[1],nchunk)
+            else:
+                linesigma = 10**np.repeat(linesigma_meansig[0],nchunk)
 
             d4000 = self.basemeta['D4000'][chunkindx]
             ewoii = 10.0**(np.polyval([1.1074,-4.7338,5.6585],d4000)+ 
@@ -260,14 +265,12 @@ class ELG():
                                                       oiidoublet=oiidoublet[ii],
                                                       oiiihbeta=oiiihbeta[ii],
                                                       oiiflux=zoiiflux)
-                #emflux, emwave, emline = EM.spectrum(oiiflux=zoiiflux)
-                bb = (emwave > 3725) & (emwave < 3735)
-                print(np.sum(emflux[bb]*np.gradient(emwave[bb])), zoiiflux)
+                emflux /= (1+redshift[ii]) # [erg/s/cm2/A, @redshift[ii]]
 
-                import matplotlib.pyplot as plt
-                plt.plot(emwave,emflux,'-bo',) ; plt.xlim(3720,3735)
-                plt.ylim(0,np.max(emflux[bb])) ; plt.show()
-                flux += emflux/(1+redshift[ii]) # [erg/s/cm2/A, @redshift[ii]]
+                if nocontinuum:
+                    flux = emflux
+                else:
+                    flux += emflux
 
                 # [grz]flux are in nanomaggies
                 rflux = 10.0**(-0.4*(rmag[ii]-22.5))                      
@@ -277,7 +280,7 @@ class ELG():
 
                 oiimask = [zoiiflux>minoiiflux]
 
-                if no_colorcuts:
+                if nocolorcuts:
                     grzmask = [True]
                 else:
                     grzmask = [Cuts.ELG(gflux=gflux,rflux=rflux,zflux=zflux)]
@@ -592,7 +595,7 @@ class LRG():
         self.w1filt = filt(filtername='wise_w1.txt')
 
     def make_templates(self, zrange=(0.5,1.1), zmagrange=(19.0,20.5),
-                       no_colorcuts=False):
+                       nocolorcuts=False):
         """Build Monte Carlo set of LRG spectra/templates.
 
         This function chooses random subsets of the LRG continuum spectra and
@@ -605,11 +608,12 @@ class LRG():
             to a uniform distribution between (0.5,1.1).
           zmagrange (float, optional): Minimum and maximum DECam z-band (AB)
             magnitude range.  Defaults to a uniform distribution between (19,20.5).
-          no_colorcuts (bool, optional): Do not apply the fiducial rzW1 color-cuts
+          nocolorcuts (bool, optional): Do not apply the fiducial rzW1 color-cuts
             cuts (default False).
         
         Returns:
           outflux (numpy.ndarray): Array [nmodel,npix] of observed-frame spectra [erg/s/cm2/A]. 
+          wave (numpy.ndarray): Observed-frame [npix] wavelength array [Angstrom].
           meta (astropy.Table): Table of meta-data for each output spectrum [nmodel].
 
         Raises:
@@ -674,7 +678,7 @@ class LRG():
                 rflux = self.rfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                 w1flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
 
-                if no_colorcuts:
+                if nocolorcuts:
                     rzW1mask = [True]
                 else:
                     rzW1mask = [Cuts.LRG(rflux=rflux,zflux=zflux,w1flux=w1flux)]
@@ -794,6 +798,7 @@ class STAR():
 
         Returns:
           outflux (numpy.ndarray): Array [nmodel,npix] of observed-frame spectra [erg/s/cm2/A]. 
+          wave (numpy.ndarray): Observed-frame [npix] wavelength array [Angstrom].
           meta (astropy.Table): Table of meta-data for each output spectrum [nmodel].
 
         Raises:
@@ -993,7 +998,7 @@ class QSO():
         self.w2filt = filt(filtername='wise_w2.txt')
 
     def make_templates(self, zrange=(0.5,4.0), gmagrange=(21.0,23.0),
-                       no_colorcuts=False):
+                       nocolorcuts=False):
         """Build Monte Carlo set of LRG spectra/templates.
 
         This function chooses random subsets of the LRG continuum spectra and
@@ -1006,11 +1011,12 @@ class QSO():
             to a uniform distribution between (0.5,4.0).
           gmagrange (float, optional): Minimum and maximum DECam g-band (AB)
             magnitude range.  Defaults to a uniform distribution between (21,23.0).
-          no_colorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
+          nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
             cuts (default False) (not yet supported).
         
         Returns:
           outflux (numpy.ndarray): Array [nmodel,npix] of observed-frame spectra [erg/s/cm2/A]. 
+          wave (numpy.ndarray): Observed-frame [npix] wavelength array [Angstrom].
           meta (astropy.Table): Table of meta-data for each output spectrum [nmodel].
 
         Raises:
@@ -1078,7 +1084,7 @@ class QSO():
                 # w1flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                 # w2flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
 
-                if no_colorcuts:
+                if nocolorcuts:
                     grzW1W2mask = [True]
                 else:
                     grzW1W2mask = [True]
