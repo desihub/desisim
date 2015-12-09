@@ -151,7 +151,7 @@ class ELG():
             [OII] 3726/3729 doublet ratio distribution.  Defaults to (0.73,0.05).
           linesigma_meansig (float, optional): *Logarithmic* mean and sigma values for the
             (Gaussian) emission-line velocity width distribution.  Defaults to
-            log10-sigma(=1.887+/0.175) km/s.
+            log10-sigma(=1.9+/0.15) km/s.
 
           minoiiflux (float, optional): Minimum [OII] 3727 flux [default 1E-17 erg/s/cm2].
             Set this parameter to zero to not have a minimum flux cut.
