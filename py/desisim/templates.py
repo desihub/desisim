@@ -68,8 +68,8 @@ class ELG():
 
     """
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None):
-        """Read the ELG basis continuum templates, grzW1 filter profiles and initialize
-           the output wavelength array.
+        """Read the ELG basis continuum templates, grzWISE filter profiles and
+           initialize the output wavelength array.
 
         Only a linearly-spaced output wavelength array is currently supported.
 
@@ -97,6 +97,7 @@ class ELG():
           rfilt (FILTERFUNC instance): DECam r-band filter profile class.
           zfilt (FILTERFUNC instance): DECam z-band filter profile class.
           w1filt (FILTERFUNC instance): WISE W1-band filter profile class.
+          w2filt (FILTERFUNC instance): WISE W2-band filter profile class.
 
         """
         from desisim.filterfunc import filterfunc as filt
@@ -122,6 +123,7 @@ class ELG():
         self.rfilt = filt(filtername='decam_r.txt')
         self.zfilt = filt(filtername='decam_z.txt')
         self.w1filt = filt(filtername='wise_w1.txt')
+        self.w2filt = filt(filtername='wise_w2.txt')
 
     def make_templates(self, nmodel=100, zrange=(0.6,1.6), rmagrange=(21.0,23.4),
                        oiiihbrange=(-0.5,0.1), oiidoublet_meansig=(0.73,0.05),
@@ -188,6 +190,7 @@ class ELG():
         meta['RMAG'] = Column(np.zeros(nmodel,dtype='f4'))
         meta['ZMAG'] = Column(np.zeros(nmodel,dtype='f4'))
         meta['W1MAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['W2MAG'] = Column(np.zeros(nmodel,dtype='f4'))
         meta['OIIFLUX'] = Column(np.zeros(nmodel,dtype='f4'))
         meta['EWOII'] = Column(np.zeros(nmodel,dtype='f4'))
         meta['OIIIHBETA'] = Column(np.zeros(nmodel,dtype='f4'))
@@ -207,6 +210,7 @@ class ELG():
             RMAG = 'DECam r-band AB magnitude',
             ZMAG = 'DECam z-band AB magnitude',
             W1MAG = 'WISE W1-band AB magnitude',
+            W2MAG = 'WISE W2-band AB magnitude',
             OIIFLUX = '[OII] 3727 flux',
             EWOII = 'rest-frame equivalenth width of [OII] 3727',
             OIIIHBETA = 'logarithmic [OIII] 5007/H-beta ratio',
@@ -271,6 +275,7 @@ class ELG():
                 gflux = self.gfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                 zflux = self.zfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                 w1flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
+                w2flux = self.w2filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
 
                 oiimask = [zoiiflux>minoiiflux]
 
@@ -290,6 +295,7 @@ class ELG():
                     meta['RMAG'][nobj] = rmag[ii]
                     meta['ZMAG'][nobj] = -2.5*np.log10(zflux)+22.5
                     meta['W1MAG'][nobj] = -2.5*np.log10(w1flux)+22.5
+                    meta['W2MAG'][nobj] = -2.5*np.log10(w2flux)+22.5
                     meta['OIIFLUX'][nobj] = zoiiflux
                     meta['EWOII'][nobj] = ewoii[ii]
                     meta['OIIIHBETA'][nobj] = oiiihbeta[ii]
@@ -519,8 +525,8 @@ class LRG():
 
     """
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None):
-        """Read the LRG basis continuum templates, grzW1 filter profiles and initialize
-           the output wavelength array.
+        """Read the LRG basis continuum templates, grzWISE filter profiles and
+           initialize the output wavelength array.
 
         Only a linearly-spaced output wavelength array is currently supported.
 
@@ -548,6 +554,7 @@ class LRG():
           rfilt (FILTERFUNC instance): DECam r-band filter profile class.
           zfilt (FILTERFUNC instance): DECam z-band filter profile class.
           w1filt (FILTERFUNC instance): WISE W1-band filter profile class.
+          w2filt (FILTERFUNC instance): WISE W2-band filter profile class.
 
         """
         from desisim.filterfunc import filterfunc as filt
@@ -573,6 +580,7 @@ class LRG():
         self.rfilt = filt(filtername='decam_r.txt')
         self.zfilt = filt(filtername='decam_z.txt')
         self.w1filt = filt(filtername='wise_w1.txt')
+        self.w2filt = filt(filtername='wise_w2.txt')
 
     def make_templates(self, nmodel=100, zrange=(0.5,1.1), zmagrange=(19.0,20.5),
                        seed=None, nocolorcuts=False):
@@ -616,6 +624,7 @@ class LRG():
         meta['RMAG'] = Column(np.zeros(nmodel,dtype='f4'))
         meta['ZMAG'] = Column(np.zeros(nmodel,dtype='f4'))
         meta['W1MAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['W2MAG'] = Column(np.zeros(nmodel,dtype='f4'))
         meta['ZMETAL'] = Column(np.zeros(nmodel,dtype='f4'))
         meta['AGE'] = Column(np.zeros(nmodel,dtype='f4'))
         meta['D4000'] = Column(np.zeros(nmodel,dtype='f4'))
@@ -629,6 +638,7 @@ class LRG():
             RMAG = 'DECam r-band AB magnitude',
             ZMAG = 'DECam z-band AB magnitude',
             W1MAG = 'WISE W1-band AB magnitude',
+            W2MAG = 'WISE W2-band AB magnitude',
             ZMETAL = 'stellar metallicity',
             AGE = 'time since the onset of star formation',
             D4000 = '4000-Angstrom break'
@@ -655,11 +665,12 @@ class LRG():
                 znorm = 10.0**(-0.4*zmag[ii])/self.zfilt.get_maggies(zwave,restflux)
                 flux = restflux*znorm # [erg/s/cm2/A, @redshift[ii]]
 
-                # [grzW1]flux are in nanomaggies
+                # [grzW1W2]flux are in nanomaggies
                 zflux = 10.0**(-0.4*(zmag[ii]-22.5))                      
                 gflux = self.gfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                 rflux = self.rfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                 w1flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
+                w2flux = self.w2filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
 
                 if nocolorcuts:
                     rzW1mask = [True]
@@ -677,6 +688,7 @@ class LRG():
                     meta['RMAG'][nobj] = -2.5*np.log10(rflux)+22.5
                     meta['ZMAG'][nobj] = zmag[ii]
                     meta['W1MAG'][nobj] = -2.5*np.log10(w1flux)+22.5
+                    meta['W2MAG'][nobj] = -2.5*np.log10(w2flux)+22.5
                     meta['ZMETAL'][nobj] = self.basemeta['ZMETAL'][iobj]
                     meta['AGE'][nobj] = self.basemeta['AGE'][iobj]
                     meta['D4000'][nobj] = self.basemeta['AGE'][iobj]
@@ -696,7 +708,7 @@ class STAR():
     """
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None, 
                  FSTD=False, WD=False):
-        """Read the stellar basis continuum templates, grzW1 filter profiles and
+        """Read the stellar basis continuum templates, grzWISE filter profiles and
            initialize the output wavelength array.
 
         Only a linearly-spaced output wavelength array is currently supported.
@@ -722,6 +734,8 @@ class STAR():
           gfilt (FILTERFUNC instance): DECam g-band filter profile class.
           rfilt (FILTERFUNC instance): DECam r-band filter profile class.
           zfilt (FILTERFUNC instance): DECam z-band filter profile class.
+          w1filt (FILTERFUNC instance): WISE W1-band filter profile class.
+          w2filt (FILTERFUNC instance): WISE W2-band filter profile class.
 
         """
         from desisim.filterfunc import filterfunc as filt
@@ -751,6 +765,8 @@ class STAR():
         self.gfilt = filt(filtername='decam_g.txt')
         self.rfilt = filt(filtername='decam_r.txt')
         self.zfilt = filt(filtername='decam_z.txt')
+        self.w1filt = filt(filtername='wise_w1.txt')
+        self.w2filt = filt(filtername='wise_w2.txt')
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0,200.0), rmagrange=(18.0,23.4),
                        gmagrange=(16.0,19.0), seed=None):
@@ -795,6 +811,8 @@ class STAR():
         meta['GMAG'] = Column(np.zeros(nmodel,dtype='f4'))
         meta['RMAG'] = Column(np.zeros(nmodel,dtype='f4'))
         meta['ZMAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['W1MAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['W2MAG'] = Column(np.zeros(nmodel,dtype='f4'))
         meta['LOGG'] = Column(np.zeros(nmodel,dtype='f4'))
         meta['TEFF'] = Column(np.zeros(nmodel,dtype='f4'))
 
@@ -808,6 +826,8 @@ class STAR():
                 GMAG = 'DECam g-band AB magnitude',
                 RMAG = 'DECam r-band AB magnitude',
                 ZMAG = 'DECam z-band AB magnitude',
+                W1MAG = 'WISE W1-band AB magnitude',
+                W2MAG = 'WISE W2-band AB magnitude',
                 LOGG = 'log10 of the effective gravity',
                 TEFF = 'stellar effective temperature'
             )
@@ -819,6 +839,8 @@ class STAR():
                 GMAG = 'DECam g-band AB magnitude',
                 RMAG = 'DECam r-band AB magnitude',
                 ZMAG = 'DECam z-band AB magnitude',
+                W1MAG = 'WISE W1-band AB magnitude',
+                W2MAG = 'WISE W2-band AB magnitude',
                 LOGG = 'log10 of the effective gravity',
                 TEFF = 'stellar effective temperature',
                 FEH = 'log10 iron abundance relative to solar',
@@ -856,6 +878,8 @@ class STAR():
                     gflux = 10.0**(-0.4*(gmag[ii]-22.5))                      
                     rflux = self.rfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                     zflux = self.zfilt.get_maggies(zwave,flux)*10**(0.4*22.5)
+                    w1flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
+                    w2flux = self.w2filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                 else:
                     rnorm = 10.0**(-0.4*rmag[ii])/self.rfilt.get_maggies(zwave,restflux)
                     flux = restflux*rnorm # [erg/s/cm2/A, @redshift[ii]]
@@ -863,6 +887,8 @@ class STAR():
                     rflux = 10.0**(-0.4*(rmag[ii]-22.5))                      
                     gflux = self.gfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                     zflux = self.zfilt.get_maggies(zwave,flux)*10**(0.4*22.5)
+                    w1flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
+                    w2flux = self.w2filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
 
                 # Color cuts on just on the standard stars.
                 if self.objtype=='FSTD':
@@ -883,6 +909,8 @@ class STAR():
                         meta['GMAG'][nobj] = gmag[ii]
                         meta['RMAG'][nobj] = -2.5*np.log10(rflux)+22.5
                         meta['ZMAG'][nobj] = -2.5*np.log10(zflux)+22.5
+                        meta['W1MAG'][nobj] = -2.5*np.log10(w1flux)+22.5
+                        meta['W2MAG'][nobj] = -2.5*np.log10(w2flux)+22.5
                         meta['LOGG'][nobj] = self.basemeta['LOGG'][iobj]
                         meta['TEFF'][nobj] = self.basemeta['TEFF'][iobj]
                     else:
@@ -891,6 +919,8 @@ class STAR():
                         meta['GMAG'][nobj] = -2.5*np.log10(gflux)+22.5
                         meta['RMAG'][nobj] = rmag[ii]
                         meta['ZMAG'][nobj] = -2.5*np.log10(zflux)+22.5
+                        meta['W1MAG'][nobj] = -2.5*np.log10(w1flux)+22.5
+                        meta['W2MAG'][nobj] = -2.5*np.log10(w2flux)+22.5
                         meta['LOGG'][nobj] = self.basemeta['LOGG'][iobj]
                         meta['TEFF'][nobj] = self.basemeta['TEFF'][iobj]
                         meta['FEH'][nobj] = self.basemeta['FEH'][iobj]
@@ -1014,17 +1044,17 @@ class QSO():
         meta['GMAG'] = Column(np.zeros(nmodel,dtype='f4'))
         meta['RMAG'] = Column(np.zeros(nmodel,dtype='f4'))
         meta['ZMAG'] = Column(np.zeros(nmodel,dtype='f4'))
-        # meta['W1MAG'] = Column(np.zeros(nmodel,dtype='f4'))
-        # meta['W2MAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['W1MAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['W2MAG'] = Column(np.zeros(nmodel,dtype='f4'))
 
         comments = dict(
             TEMPLATEID = 'template ID',
             REDSHIFT = 'object redshift',
             GMAG = 'DECam g-band AB magnitude',
             RMAG = 'DECam r-band AB magnitude',
-            ZMAG = 'DECam z-band AB magnitude'
-            # W1MAG = 'WISE W1-band AB magnitude',
-            # W2MAG = 'WISE W2-band AB magnitude'
+            ZMAG = 'DECam z-band AB magnitude',
+            W1MAG = 'WISE W1-band AB magnitude',
+            W2MAG = 'WISE W2-band AB magnitude'
         )
 
         nobj = 0
@@ -1053,8 +1083,8 @@ class QSO():
                 gflux = 10.0**(-0.4*(gmag[ii]-22.5))                      
                 rflux = self.rfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                 zflux = self.zfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
-                # w1flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
-                # w2flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
+                w1flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
+                w2flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
 
                 if nocolorcuts:
                     grzW1W2mask = [True]
@@ -1071,7 +1101,8 @@ class QSO():
                     meta['GMAG'][nobj] = gmag[ii]
                     meta['RMAG'][nobj] = -2.5*np.log10(rflux)+22.5
                     meta['ZMAG'][nobj] = -2.5*np.log10(zflux)+22.5
-                    # meta['W1MAG'][nobj] = -2.5*np.log10(w1flux)+22.5
+                    meta['W1MAG'][nobj] = -2.5*np.log10(w1flux)+22.5
+                    meta['W2MAG'][nobj] = -2.5*np.log10(w2flux)+22.5
 
                     nobj = nobj+1
 
