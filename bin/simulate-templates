@@ -134,34 +134,34 @@ def main():
 
         elif objtype == 'ELG':
             from desisim.templates import ELG
-            elg = ELG(minwave=args.minwave,maxwave=args.maxwave,
-                      cdelt=args.cdelt,seed=args.seed)
+            elg = ELG(minwave=args.minwave,maxwave=args.maxwave,cdelt=args.cdelt)
             flux, wave, meta = elg.make_templates(nmodel=args.nmodel,
                                                   zrange=args.zrange_elg,
                                                   rmagrange=args.rmagrange_elg,
                                                   minoiiflux=args.minoiiflux,
+                                                  seed=args.seed,
                                                   nocolorcuts=args.nocolorcuts)
             log.info('Writing {}'.format(outfile))
             write_templates(outfile, flux, wave, meta, objtype)
 
         elif objtype == 'LRG':
             from desisim.templates import LRG
-            lrg = LRG(minwave=args.minwave,maxwave=args.maxwave,
-                      cdelt=args.cdelt,seed=args.seed)
+            lrg = LRG(minwave=args.minwave,maxwave=args.maxwave,cdelt=args.cdelt)
             flux, wave, meta = lrg.make_templates(nmodel=args.nmodel,
                                                   zrange=args.zrange_lrg,
                                                   zmagrange=args.zmagrange_lrg,
+                                                  seed=args.seed,
                                                   nocolorcuts=args.nocolorcuts)
             log.info('Writing {}'.format(outfile))
             write_templates(outfile, flux, wave, meta, objtype)
 
         elif objtype == 'QSO':
             from desisim.templates import QSO
-            qso = QSO(minwave=args.minwave,maxwave=args.maxwave,
-                      cdelt=args.cdelt,seed=args.seed)
+            qso = QSO(minwave=args.minwave,maxwave=args.maxwave,cdelt=args.cdelt)
             flux, wave, meta = qso.make_templates(nmodel=args.nmodel,
                                                   zrange=args.zrange_qso,
                                                   gmagrange=args.gmagrange_qso,
+                                                  seed=args.seed,
                                                   nocolorcuts=args.nocolorcuts)
             log.info('Writing {}'.format(outfile))
             write_templates(outfile, flux, wave, meta, objtype)
@@ -171,19 +171,22 @@ def main():
             FSTD = objtype=='FSTD'
             WD = objtype=='WD'
             star = STAR(minwave=args.minwave,maxwave=args.maxwave,
-                        cdelt=args.cdelt,seed=args.seed,FSTD=FSTD,WD=WD)
+                        cdelt=args.cdelt,FSTD=FSTD,WD=WD)
             if FSTD: # simulate an F-standard
                 flux, wave, meta = star.make_templates(nmodel=args.nmodel,
                                                        vrad_meansig=args.vrad_fstd,
-                                                       rmagrange=args.rmagrange_fstd)
+                                                       rmagrange=args.rmagrange_fstd,
+                                                       seed=args.seed)
             elif WD: # simulate a white dwarf
                 flux, wave, meta = star.make_templates(nmodel=args.nmodel,
                                                        vrad_meansig=args.vrad_wd,
-                                                       gmagrange=args.gmagrange_wd)
+                                                       gmagrange=args.gmagrange_wd,
+                                                       seed=args.seed)
             else: # simulate a normal star
                 flux, wave, meta = star.make_templates(nmodel=args.nmodel,
                                                        vrad_meansig=args.vrad_star,
-                                                       rmagrange=args.rmagrange_star)
+                                                       rmagrange=args.rmagrange_star,
+                                                       seed=args.seed)
             log.info('Writing {}'.format(outfile))
             write_templates(outfile, flux, wave, meta, objtype)
 
