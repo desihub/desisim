@@ -67,8 +67,7 @@ class ELG():
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs).
 
     """
-    def __init__(self, nmodel=50, minwave=3600.0, maxwave=10000.0,
-                 cdelt=2.0, wave=None, seed=None):
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None, seed=None):
         """Read the ELG basis continuum templates, grzW1 filter profiles and initialize
            the output wavelength array.
 
@@ -78,7 +77,6 @@ class ELG():
 
         Args:
           objtype (str): object type
-          nmodel (int, optional): Number of models to generate (default 50). 
           minwave (float, optional): minimum value of the output wavelength
             array [default 3600 Angstrom].
           maxwave (float, optional): minimum value of the output wavelength
@@ -91,7 +89,6 @@ class ELG():
     
         Attributes:
           objtype (str): See Args.
-          nmodel (int): See Args.
           seed (long): See Args.
           rand (numpy.RandomState): instance of numpy.random.RandomState(seed)
           wave (numpy.ndarray): Output wavelength array [Angstrom].
@@ -110,7 +107,6 @@ class ELG():
         from desisim.io import read_basis_templates
 
         self.objtype = 'ELG'
-        self.nmodel = nmodel
         self.seed = seed
         self.rand = np.random.RandomState(seed=self.seed)
 
@@ -133,7 +129,7 @@ class ELG():
         self.zfilt = filt(filtername='decam_z.txt')
         self.w1filt = filt(filtername='wise_w1.txt')
 
-    def make_templates(self, zrange=(0.6,1.6), rmagrange=(21.0,23.4),
+    def make_templates(self, nmodel=100, zrange=(0.6,1.6), rmagrange=(21.0,23.4),
                        oiiihbrange=(-0.5,0.1), oiidoublet_meansig=(0.73,0.05),
                        linesigma_meansig=(1.887,0.175), minoiiflux=1E-17,
                        nocolorcuts=False, nocontinuum=False):
@@ -143,9 +139,10 @@ class ELG():
         an emission-line spectrum, redshifts, and then finally normalizes the spectrum
         to a specific r-band magnitude.
 
-        TODO (@moustakas): optionally normalized to a g-band magnitude
+        TODO (@moustakas): optionally normalize to a g-band magnitude
 
         Args:
+          nmodel (int, optional): Number of models to generate (default 100). 
           zrange (float, optional): Minimum and maximum redshift range.  Defaults
             to a uniform distribution between (0.6,1.6).
           rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
@@ -185,21 +182,21 @@ class ELG():
         EM = EMSpectrum(log10wave=np.log10(self.basewave),seed=self.seed)
        
         # Initialize the output flux array and metadata Table.
-        outflux = np.zeros([self.nmodel,len(self.wave)]) # [erg/s/cm2/A]
+        outflux = np.zeros([nmodel,len(self.wave)]) # [erg/s/cm2/A]
 
         meta = Table()
-        meta['TEMPLATEID'] = Column(np.zeros(self.nmodel,dtype='i4'))
-        meta['REDSHIFT'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['GMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['RMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['ZMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['W1MAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['OIIFLUX'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['EWOII'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['OIIIHBETA'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['OIIDOUBLET'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['LINESIGMA'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['D4000'] = Column(np.zeros(self.nmodel,dtype='f4'))
+        meta['TEMPLATEID'] = Column(np.zeros(nmodel,dtype='i4'))
+        meta['REDSHIFT'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['GMAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['RMAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['ZMAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['W1MAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['OIIFLUX'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['EWOII'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['OIIIHBETA'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['OIIDOUBLET'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['LINESIGMA'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['D4000'] = Column(np.zeros(nmodel,dtype='f4'))
 
         meta['OIIFLUX'].unit = 'erg/s/cm2'
         meta['EWOII'].unit = 'Angstrom'
@@ -223,10 +220,10 @@ class ELG():
 
         nobj = 0
         nbase = len(self.basemeta)
-        nchunk = min(self.nmodel,500)
+        nchunk = min(nmodel,500)
 
         Cuts = TargetCuts()
-        while nobj<=(self.nmodel-1):
+        while nobj<=(nmodel-1):
             # Choose a random subset of the base templates
             chunkindx = self.rand.randint(0,nbase-1,nchunk)
 
@@ -287,7 +284,7 @@ class ELG():
 
                 if all(grzmask) and all(oiimask):
                     if ((nobj+1)%10)==0:
-                        print('Simulating {} template {}/{}'.format(self.objtype,nobj+1,self.nmodel))
+                        print('Simulating {} template {}/{}'.format(self.objtype,nobj+1,nmodel))
                     outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
 
                     meta['TEMPLATEID'][nobj] = nobj
@@ -306,7 +303,7 @@ class ELG():
                     nobj = nobj+1
 
                 # If we have enough models get out!
-                if nobj>=(self.nmodel-1):
+                if nobj>=(nmodel-1):
                     break
 
         return outflux, self.wave, meta
@@ -528,8 +525,7 @@ class LRG():
     """Generate Monte Carlo spectra of luminous red galaxies (LRGs).
 
     """
-    def __init__(self, nmodel=50, minwave=3600.0, maxwave=10000.0,
-                 cdelt=2.0, wave=None, seed=None):
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None, seed=None):
         """Read the LRG basis continuum templates, grzW1 filter profiles and initialize
            the output wavelength array.
 
@@ -539,7 +535,6 @@ class LRG():
 
         Args:
           objtype (str): object type
-          nmodel (int, optional): Number of models to generate (default 50). 
           minwave (float, optional): minimum value of the output wavelength
             array [default 3600 Angstrom].
           maxwave (float, optional): minimum value of the output wavelength
@@ -552,7 +547,6 @@ class LRG():
     
         Attributes:
           objtype (str): See Args.
-          nmodel (int): See Args.
           seed (long): See Args.
           rand (numpy.RandomState): instance of numpy.random.RandomState(seed)
           wave (numpy.ndarray): Output wavelength array [Angstrom].
@@ -571,7 +565,6 @@ class LRG():
         from desisim.io import read_basis_templates
 
         self.objtype = 'LRG'
-        self.nmodel = nmodel
         self.seed = seed
         self.rand = np.random.RandomState(seed=self.seed)
 
@@ -594,7 +587,7 @@ class LRG():
         self.zfilt = filt(filtername='decam_z.txt')
         self.w1filt = filt(filtername='wise_w1.txt')
 
-    def make_templates(self, zrange=(0.5,1.1), zmagrange=(19.0,20.5),
+    def make_templates(self, nmodel=100, zrange=(0.5,1.1), zmagrange=(19.0,20.5),
                        nocolorcuts=False):
         """Build Monte Carlo set of LRG spectra/templates.
 
@@ -624,18 +617,18 @@ class LRG():
         from desispec.interpolation import resample_flux
 
         # Initialize the output flux array and metadata Table.
-        outflux = np.zeros([self.nmodel,len(self.wave)]) # [erg/s/cm2/A]
+        outflux = np.zeros([nmodel,len(self.wave)]) # [erg/s/cm2/A]
 
         meta = Table()
-        meta['TEMPLATEID'] = Column(np.zeros(self.nmodel,dtype='i4'))
-        meta['REDSHIFT'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['GMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['RMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['ZMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['W1MAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['ZMETAL'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['AGE'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['D4000'] = Column(np.zeros(self.nmodel,dtype='f4'))
+        meta['TEMPLATEID'] = Column(np.zeros(nmodel,dtype='i4'))
+        meta['REDSHIFT'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['GMAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['RMAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['ZMAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['W1MAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['ZMETAL'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['AGE'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['D4000'] = Column(np.zeros(nmodel,dtype='f4'))
 
         meta['AGE'].unit = 'Gyr'
 
@@ -653,10 +646,10 @@ class LRG():
 
         nobj = 0
         nbase = len(self.basemeta)
-        nchunk = min(self.nmodel,500)
+        nchunk = min(nmodel,500)
 
         Cuts = TargetCuts()
-        while nobj<=(self.nmodel-1):
+        while nobj<=(nmodel-1):
             # Choose a random subset of the base templates
             chunkindx = self.rand.randint(0,nbase-1,nchunk)
 
@@ -685,7 +678,7 @@ class LRG():
 
                 if all(rzW1mask):
                     if ((nobj+1)%10)==0:
-                        print('Simulating {} template {}/{}'.format(self.objtype,nobj+1,self.nmodel))
+                        print('Simulating {} template {}/{}'.format(self.objtype,nobj+1,nmodel))
                     outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
 
                     meta['TEMPLATEID'][nobj] = nobj
@@ -701,7 +694,7 @@ class LRG():
                     nobj = nobj+1
 
                 # If we have enough models get out!
-                if nobj>=(self.nmodel-1):
+                if nobj>=(nmodel-1):
                     break
 
         return outflux, self.wave, meta
@@ -711,8 +704,8 @@ class STAR():
        dwarfs.
 
     """
-    def __init__(self, nmodel=50, minwave=3600.0, maxwave=10000.0,
-                 cdelt=2.0, wave=None, seed=None, FSTD=False, WD=False):
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None, seed=None,
+                 FSTD=False, WD=False):
         """Read the stellar basis continuum templates, grzW1 filter profiles and
            initialize the output wavelength array.
 
@@ -720,7 +713,6 @@ class STAR():
 
         Args:
           objtype (str): object type
-          nmodel (int, optional): Number of models to generate (default 50). 
           minwave (float, optional): minimum value of the output wavelength
             array [default 3600 Angstrom].
           maxwave (float, optional): minimum value of the output wavelength
@@ -733,7 +725,6 @@ class STAR():
     
         Attributes:
           objtype (str): See Args.
-          nmodel (int): See Args.
           seed (long): See Args.
           rand (numpy.RandomState): instance of numpy.random.RandomState(seed)
           wave (numpy.ndarray): Output wavelength array [Angstrom].
@@ -756,7 +747,6 @@ class STAR():
             self.objtype = 'WD'
         else:
             self.objtype = 'STAR'
-        self.nmodel = nmodel
         self.seed = seed
         self.rand = np.random.RandomState(seed=self.seed)
 
@@ -778,7 +768,7 @@ class STAR():
         self.rfilt = filt(filtername='decam_r.txt')
         self.zfilt = filt(filtername='decam_z.txt')
 
-    def make_templates(self, vrad_meansig=(0.0,200.0), rmagrange=(18.0,23.4),
+    def make_templates(self, nmodel=100, vrad_meansig=(0.0,200.0), rmagrange=(18.0,23.4),
                        gmagrange=(16.0,19.0)):
         """Build Monte Carlo set of spectra/templates for stars. 
 
@@ -787,6 +777,7 @@ class STAR():
         specified r- or g-band magnitude.
 
         Args:
+          nmodel (int, optional): Number of models to generate (default 100). 
           vrad_meansig (float, optional): Mean and sigma (standard deviation) of the 
             radial velocity "jitter" (in km/s) that should be added to each
             spectrum.  Defaults to a normal distribution with a mean of zero and
@@ -812,13 +803,13 @@ class STAR():
         outflux = np.zeros([self.nmodel,len(self.wave)]) # [erg/s/cm2/A]
 
         meta = Table()
-        meta['TEMPLATEID'] = Column(np.zeros(self.nmodel,dtype='i4'))
-        meta['REDSHIFT'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['GMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['RMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['ZMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['LOGG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['TEFF'] = Column(np.zeros(self.nmodel,dtype='f4'))
+        meta['TEMPLATEID'] = Column(np.zeros(nmodel,dtype='i4'))
+        meta['REDSHIFT'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['GMAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['RMAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['ZMAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['LOGG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['TEFF'] = Column(np.zeros(nmodel,dtype='f4'))
 
         meta['LOGG'].unit = 'm/s^2'
         meta['TEFF'].unit = 'K'
@@ -834,7 +825,7 @@ class STAR():
                 TEFF = 'stellar effective temperature'
             )
         else:
-            meta['FEH'] = Column(np.zeros(self.nmodel,dtype='f4'))
+            meta['FEH'] = Column(np.zeros(nmodel,dtype='f4'))
             comments = dict(
                 TEMPLATEID = 'template ID',
                 REDSHIFT = 'object redshift',
@@ -849,10 +840,10 @@ class STAR():
 
         nobj = 0
         nbase = len(self.basemeta)
-        nchunk = min(self.nmodel,500)
+        nchunk = min(nmodel,500)
 
         Cuts = TargetCuts()
-        while nobj<=(self.nmodel-1):
+        while nobj<=(nmodel-1):
             # Choose a random subset of the base templates
             chunkindx = self.rand.randint(0,nbase-1,nchunk)
 
@@ -896,7 +887,7 @@ class STAR():
 
                 if all(grzmask):
                     if ((nobj+1)%10)==0:
-                        print('Simulating {} template {}/{}'.format(self.objtype,nobj+1,self.nmodel))
+                        print('Simulating {} template {}/{}'.format(self.objtype,nobj+1,nmodel))
                     outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
 
                     if self.objtype=='WD':
@@ -920,7 +911,7 @@ class STAR():
                     nobj = nobj+1
 
                 # If we have enough models get out!
-                if nobj>=(self.nmodel-1):
+                if nobj>=(nmodel-1):
                     break
                 
         return outflux, self.wave, meta
@@ -929,8 +920,7 @@ class QSO():
     """Generate Monte Carlo spectra of quasars (QSOs).
 
     """
-    def __init__(self, nmodel=50, minwave=3600.0, maxwave=10000.0,
-                 cdelt=2.0, wave=None, seed=None):
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None, seed=None):
         """Read the QSO basis continuum templates, grzW1W2 filter profiles and initialize 
            the output wavelength array.
 
@@ -940,7 +930,6 @@ class QSO():
 
         Args:
           objtype (str): object type
-          nmodel (int, optional): Number of models to generate (default 50). 
           minwave (float, optional): minimum value of the output wavelength
             array [default 3600 Angstrom].
           maxwave (float, optional): minimum value of the output wavelength
@@ -953,7 +942,6 @@ class QSO():
     
         Attributes:
           objtype (str): See Args.
-          nmodel (int): See Args.
           seed (long): See Args.
           rand (numpy.RandomState): instance of numpy.random.RandomState(seed)
           wave (numpy.ndarray): Output wavelength array [Angstrom].
@@ -973,7 +961,6 @@ class QSO():
         from desisim.io import read_basis_templates
 
         self.objtype = 'QSO'
-        self.nmodel = nmodel
         self.seed = seed
         self.rand = np.random.RandomState(seed=self.seed)
 
@@ -997,7 +984,7 @@ class QSO():
         self.w1filt = filt(filtername='wise_w1.txt')
         self.w2filt = filt(filtername='wise_w2.txt')
 
-    def make_templates(self, zrange=(0.5,4.0), gmagrange=(21.0,23.0),
+    def make_templates(self, nmodel=100, zrange=(0.5,4.0), gmagrange=(21.0,23.0),
                        nocolorcuts=False):
         """Build Monte Carlo set of LRG spectra/templates.
 
@@ -1007,6 +994,7 @@ class QSO():
         TODO (@moustakas): add a LINER- or AGN-like emission-line spectrum 
 
         Args:
+          nmodel (int, optional): Number of models to generate (default 100). 
           zrange (float, optional): Minimum and maximum redshift range.  Defaults
             to a uniform distribution between (0.5,4.0).
           gmagrange (float, optional): Minimum and maximum DECam g-band (AB)
@@ -1034,16 +1022,16 @@ class QSO():
         self.basemeta = self.basemeta[keep]
 
         # Initialize the output flux array and metadata Table.
-        outflux = np.zeros([self.nmodel,len(self.wave)]) # [erg/s/cm2/A]
+        outflux = np.zeros([nmodel,len(self.wave)]) # [erg/s/cm2/A]
 
         meta = Table()
-        meta['TEMPLATEID'] = Column(np.zeros(self.nmodel,dtype='i4'))
-        meta['REDSHIFT'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['GMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['RMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['ZMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        # meta['W1MAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        # meta['W2MAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
+        meta['TEMPLATEID'] = Column(np.zeros(nmodel,dtype='i4'))
+        meta['REDSHIFT'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['GMAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['RMAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['ZMAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        # meta['W1MAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        # meta['W2MAG'] = Column(np.zeros(nmodel,dtype='f4'))
 
         comments = dict(
             TEMPLATEID = 'template ID',
@@ -1057,10 +1045,10 @@ class QSO():
 
         nobj = 0
         nbase = len(self.basemeta)
-        nchunk = min(self.nmodel,500)
+        nchunk = min(nmodel,500)
 
         Cuts = TargetCuts()
-        while nobj<=(self.nmodel-1):
+        while nobj<=(nmodel-1):
             # Choose a random subset of the base templates
             chunkindx = self.rand.randint(0,nbase-1,nchunk)
 
@@ -1091,7 +1079,7 @@ class QSO():
 
                 if all(grzW1W2mask):
                     if ((nobj+1)%10)==0:
-                        print('Simulating {} template {}/{}'.format(self.objtype,nobj+1,self.nmodel))
+                        print('Simulating {} template {}/{}'.format(self.objtype,nobj+1,nmodel))
                     outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
 
                     meta['TEMPLATEID'][nobj] = nobj
@@ -1104,7 +1092,7 @@ class QSO():
                     nobj = nobj+1
 
                 # If we have enough models get out!
-                if nobj>=(self.nmodel-1):
+                if nobj>=(nmodel-1):
                     break
 
         return outflux, self.wave, meta

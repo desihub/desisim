@@ -134,9 +134,10 @@ def main():
 
         elif objtype == 'ELG':
             from desisim.templates import ELG
-            elg = ELG(nmodel=args.nmodel,minwave=args.minwave,maxwave=args.maxwave,
+            elg = ELG(minwave=args.minwave,maxwave=args.maxwave,
                       cdelt=args.cdelt,seed=args.seed)
-            flux, wave, meta = elg.make_templates(zrange=args.zrange_elg,
+            flux, wave, meta = elg.make_templates(nmodel=args.nmodel,
+                                                  zrange=args.zrange_elg,
                                                   rmagrange=args.rmagrange_elg,
                                                   minoiiflux=args.minoiiflux,
                                                   nocolorcuts=args.nocolorcuts)
@@ -145,9 +146,10 @@ def main():
 
         elif objtype == 'LRG':
             from desisim.templates import LRG
-            lrg = LRG(nmodel=args.nmodel,minwave=args.minwave,maxwave=args.maxwave,
+            lrg = LRG(minwave=args.minwave,maxwave=args.maxwave,
                       cdelt=args.cdelt,seed=args.seed)
-            flux, wave, meta = lrg.make_templates(zrange=args.zrange_lrg,
+            flux, wave, meta = lrg.make_templates(nmodel=args.nmodel,
+                                                  zrange=args.zrange_lrg,
                                                   zmagrange=args.zmagrange_lrg,
                                                   nocolorcuts=args.nocolorcuts)
             log.info('Writing {}'.format(outfile))
@@ -155,9 +157,10 @@ def main():
 
         elif objtype == 'QSO':
             from desisim.templates import QSO
-            qso = QSO(nmodel=args.nmodel,minwave=args.minwave,maxwave=args.maxwave,
+            qso = QSO(minwave=args.minwave,maxwave=args.maxwave,
                       cdelt=args.cdelt,seed=args.seed)
-            flux, wave, meta = qso.make_templates(zrange=args.zrange_qso,
+            flux, wave, meta = qso.make_templates(nmodel=args.nmodel,
+                                                  zrange=args.zrange_qso,
                                                   gmagrange=args.gmagrange_qso,
                                                   nocolorcuts=args.nocolorcuts)
             log.info('Writing {}'.format(outfile))
@@ -167,16 +170,19 @@ def main():
             from desisim.templates import STAR
             FSTD = objtype=='FSTD'
             WD = objtype=='WD'
-            star = STAR(nmodel=args.nmodel,minwave=args.minwave,maxwave=args.maxwave,
+            star = STAR(minwave=args.minwave,maxwave=args.maxwave,
                         cdelt=args.cdelt,seed=args.seed,FSTD=FSTD,WD=WD)
             if FSTD: # simulate an F-standard
-                flux, wave, meta = star.make_templates(vrad_meansig=args.vrad_fstd,
+                flux, wave, meta = star.make_templates(nmodel=args.nmodel,
+                                                       vrad_meansig=args.vrad_fstd,
                                                        rmagrange=args.rmagrange_fstd)
             elif WD: # simulate a white dwarf
-                flux, wave, meta = star.make_templates(vrad_meansig=args.vrad_wd,
+                flux, wave, meta = star.make_templates(nmodel=args.nmodel,
+                                                       vrad_meansig=args.vrad_wd,
                                                        gmagrange=args.gmagrange_wd)
             else: # simulate a normal star
-                flux, wave, meta = star.make_templates(vrad_meansig=args.vrad_star,
+                flux, wave, meta = star.make_templates(nmodel=args.nmodel,
+                                                       vrad_meansig=args.vrad_star,
                                                        rmagrange=args.rmagrange_star)
             log.info('Writing {}'.format(outfile))
             write_templates(outfile, flux, wave, meta, objtype)
