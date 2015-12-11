@@ -69,8 +69,7 @@ wave = np.arange(wavemin-1, wavemax+1, opts.wavestep)
 if opts.objtype.lower() == 'mix':
     true_objtype, target_objtype = desisim.targets.sample_objtype(opts.nspec)
     #- replace 'STD' by 'STAR' (otherwise quicksim.simulate won't work)
-    #- replace 'SKY' by 'STAR' (we don't want SKYs in simulated bricks)
-    k=np.where((true_objtype == 'STD') | (true_objtype == 'SKY'))
+    k=np.where((true_objtype == 'STD'))
     true_objtype=true_objtype.astype('S10')
     true_objtype[k]='STAR'
 else:
@@ -108,6 +107,11 @@ for objtype in set(true_objtype):
     elif objtype =='STAR' or objtype == 'QSO_BAD': #- if objtype=QSO_BAD, use STAR template
         star = desisim.templates.STAR(nobj, wave=wave)
         flux, tmpwave, meta1 = star.make_templates()
+        truth['FLUX'][ii]=flux
+        meta=vstack([meta,meta1])
+    elif objtype == 'SKY':
+        flux = np.zeros((nobj, len(wave)))
+        meta1 = Table(dict(REDSHIFT=np.zeros(nobj, dtype=np.float32)))
         truth['FLUX'][ii]=flux
         meta=vstack([meta,meta1])
     elif objtype == 'TEST':
@@ -169,6 +173,7 @@ fluxunits = specsim.spectrum.SpectralFluxDensity.fiducialFluxUnit * 1e17
 qsim.setWavelengthGrid(wavemin, wavemax, opts.wavestep)
 
 #- output arrays to fill; these cover wavelengths across all cameras
+srcflux={}
 trueflux={}
 obsivar={}
 obswave=None
@@ -197,18 +202,26 @@ for i in range(opts.nspec):
         trueflux[channel].append(results.camflux[:,j])
         obsivar[channel].append(results.camivar[:,j])
 
-    
+    # collect the source flux
+    srcflux[i]=list()
+    srcflux[i]=results.srcflux
+
+srcfl=dict()
+srcfl['SOURCE']=np.zeros( (opts.nspec,len(obswave)) )
+for i in range(opts.nspec):
+    srcflux[i]=np.array(srcflux[i])
+    srcfl['SOURCE'][i] = srcflux[i]
+
 #- convert list of arrays to 2D arrays
 for channel in qsim.instrument.cameraBands :
     trueflux[channel] = np.array(trueflux[channel])
     obsivar[channel] = np.array(obsivar[channel])
 
-
 #- add noise
 noisyflux={}
 for channel in qsim.instrument.cameraBands :
     noisyflux[channel] = np.zeros_like(trueflux[channel])
-    ii = np.where(obsivar[channel] > 0)
+    ii = np.where(obsivar[channel] > 0.01)
     sigma = 1/np.sqrt(obsivar[channel][ii])
     noisyflux[channel][ii] = trueflux[channel][ii] + np.random.normal(loc=0, scale=sigma)
 
@@ -243,8 +256,8 @@ for channel in ['b', 'r', 'z']:
 
     header = dict(BRICKNAM=opts.brickname, CHANNEL=channel)
     brick = desispec.io.Brick(filepath, mode='update', header=header)        
-    brick.add_objects(noisyflux[channel][:,iiobs], obsivar[channel][:,iiobs],
-        obswave[iiobs], Rdata, fibermap, night, expid)
+    brick.add_objects(noisyflux[channel][:,iiobs].astype(np.float32), obsivar[channel][:,iiobs].astype(np.float32),
+        obswave[iiobs].astype(np.float32), Rdata.astype(np.float32), fibermap, night, expid)
     brick.close()
 
     #- Append truth to the file
@@ -256,6 +269,8 @@ for channel in ['b', 'r', 'z']:
         fx = fits.open(filepath, mode='append')
         header = desispec.io.fitsheader(header)
         fx.append(fits.ImageHDU(trueflux[channel][:,iiobs].astype(np.float32), name='_TRUEFLUX', header=header))
+        if (channel == 'b'):
+            fx.append(fits.ImageHDU(srcfl['SOURCE'].astype(np.float32), name='_SOURCEFLUX', header=header))
         fx.append(fits.BinTableHDU(meta.as_array(), name='_TRUTH'))
         fx.flush()
         fx.close()
@@ -263,6 +278,8 @@ for channel in ['b', 'r', 'z']:
         header = desispec.io.fitsheader(header)
         hdulist = fits.HDUList([fits.PrimaryHDU(header=header)])
         hdulist.append(fits.ImageHDU(trueflux[channel][:,iiobs].astype(np.float32), name='_TRUEFLUX', header=header))
+        if (channel == 'b'):
+            hdulist.append(fits.ImageHDU(srcfl['SOURCE'], name='_SOURCEFLUX', header=header))
         hdulist.append(fits.BinTableHDU(meta.as_array(), name='_TRUTH'))
         filename = 'truth-brick-{}-{}.fits'.format(channel, opts.brickname)
         filepath = os.path.join(opts.outdir_truth, filename)
