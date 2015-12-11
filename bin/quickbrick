@@ -36,7 +36,6 @@ parser.add_option("-t", "--testwavelength", type=float,  help="test quickbrick w
 parser.add_option("-s", "--seed", type=int,  help="random seed", default=None)
 parser.add_option("--wavestep", type=float,  help="initial sampling of templates", default=0.2)
 parser.add_option("--downsampling", type=int,  help="downsampling value", default=3)
-
 parser.add_option("--outdir_truth", type=str,  help="optional alternative outdir for truth files")
 opts, args = parser.parse_args()
 
@@ -46,7 +45,7 @@ desiparams = desimodel.io.load_desiparams()
 assert opts.brickname is not None
 assert opts.objtype is not None
 opts.objtype = opts.objtype.upper()
-assert opts.objtype in ['ELG', 'LRG', 'QSO', 'STAR','TEST','MIX']
+assert opts.objtype in ['ELG', 'LRG', 'QSO', 'STAR', 'TEST', 'MIX']
 
 #- Set random seed if defined                                                                                                                                                                          
 if opts.seed is not None :
@@ -61,8 +60,6 @@ qsim = specsim.quick.Quick(
 #- Wavelength grid to cover all channels
 wavemin = desimodel.io.load_throughput('b').wavemin
 wavemax = desimodel.io.load_throughput('z').wavemax
-#wavestep = 0.25      #- TODO: refine the resolution and downsampling params
-#downsampling = 2
 wave = np.arange(wavemin-1, wavemax+1, opts.wavestep)
 
 #- If opts.objtype='MIX', get distribution of target types from sample_objtype
@@ -77,9 +74,9 @@ else:
 
 truth=dict()
 meta=Table()
-truth['OBJTYPE'] = np.zeros(opts.nspec, dtype='S10')
-truth['FLUX'] = np.zeros( (opts.nspec, len(wave)) )
-truth['WAVE'] = wave
+truth['OBJTYPE']=np.zeros(opts.nspec, dtype='S10')
+truth['FLUX']=np.zeros( (opts.nspec, len(wave)) )
+truth['WAVE']=wave
 jj=list()
 
 for objtype in set(true_objtype):
@@ -90,23 +87,23 @@ for objtype in set(true_objtype):
 
 #- Generate a set of templates
     if objtype == 'ELG':
-        elg = desisim.templates.ELG(nobj, wave=wave)
-        flux, tmpwave, meta1 = elg.make_templates()
+        elg = desisim.templates.ELG(wave=wave)
+        flux, tmpwave, meta1 = elg.make_templates(nmodel=nobj,seed=opts.seed)
         truth['FLUX'][ii]=flux
         meta=vstack([meta,meta1])
     elif objtype == 'LRG':
-        lrg = desisim.templates.LRG(nobj, wave=wave)
-        flux, tmpwave, meta1 = lrg.make_templates()
+        lrg = desisim.templates.LRG(wave=wave)
+        flux, tmpwave, meta1 = lrg.make_templates(nmodel=nobj,seed=opts.seed)
         truth['FLUX'][ii]=flux
         meta=vstack([meta,meta1])
     elif objtype == 'QSO':
-        qso = desisim.templates.QSO(nobj, wave=wave)
-        flux, tmpwave, meta1 = qso.make_templates()
+        qso = desisim.templates.QSO(wave=wave)
+        flux, tmpwave, meta1 = qso.make_templates(nmodel=nobj,seed=opts.seed)
         truth['FLUX'][ii]=flux
         meta=vstack([meta,meta1])
     elif objtype =='STAR' or objtype == 'QSO_BAD': #- if objtype=QSO_BAD, use STAR template
-        star = desisim.templates.STAR(nobj, wave=wave)
-        flux, tmpwave, meta1 = star.make_templates()
+        star = desisim.templates.STAR(wave=wave)
+        flux, tmpwave, meta1 = star.make_templates(nmodel=nobj,seed=opts.seed)
         truth['FLUX'][ii]=flux
         meta=vstack([meta,meta1])
     elif objtype == 'SKY':
@@ -163,10 +160,6 @@ meta.add_column(Column(targetids, name='TARGETID'))
 
 #- rename REDSHIFT -> TRUEZ anticipating later table joins with zbest.Z                                                                                                                                 
 meta.rename_column('REDSHIFT', 'TRUEZ')
-
-#for i in range(opts.nspec):
-#    print truth['OBJTYPE'][i],fibermap['TARGETID'][i],true_objtype[i],meta['TARGETID'][i]
-
 
 #- Actually do the simulations for each target
 fluxunits = specsim.spectrum.SpectralFluxDensity.fiducialFluxUnit * 1e17
