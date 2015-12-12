@@ -11,7 +11,6 @@ or just MWS, BGS, ELG, LRG, QSO targets
 
 Stephen Bailey, LBL
 Fall 2014
-C. Rockosi modified options beyond arc/flat/science (= dark) Dec 2015
 """
 
 import sys
@@ -21,6 +20,7 @@ import optparse
 import random
 import time
 import multiprocessing
+import string
 
 from desisim import obs, io
 from desispec.log import get_logger
@@ -75,11 +75,9 @@ if opts.exptime is None:
         opts.exptime = 5
     elif opts.flavor == 'flat':
         opts.exptime = 10
-    elif:
-        (opts.flavor == 'bright') OR (string.lower(opts.flavor) == 'bgs') OR (string.tolower(opts.flavor) == 'mws'):
+    elif (opts.flavor == 'bright') or (string.lower(opts.flavor) == 'bgs') or (string.lower(opts.flavor) == 'mws'):
         opts.exptime = 300
-    elif:
-        (opts.flavor == 'dark') OR (string.lower(opts.flavor) == 'elg') OR (string.lower(opts.flavor) == 'lrg') OR (string.lower(opts.flavor) == 'qso'):
+    elif (opts.flavor == 'dark') or (string.lower(opts.flavor) == 'elg') or (string.lower(opts.flavor) == 'lrg') or (string.lower(opts.flavor) == 'qso'):
         opts.exptime = 1000
     else:
         print('I can not guess a default exposure time')
