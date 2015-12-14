@@ -198,7 +198,7 @@ class ELG():
         meta['LINESIGMA'] = Column(np.zeros(nmodel,dtype='f4'))
         meta['D4000'] = Column(np.zeros(nmodel,dtype='f4'))
 
-        meta['OIIFLUX'].unit = 'erg/s/cm2'
+        meta['OIIFLUX'].unit = 'erg/(s*cm2)'
         meta['EWOII'].unit = 'Angstrom'
         meta['OIIIHBETA'].unit = 'dex'
         meta['LINESIGMA'].unit = 'km/s'
