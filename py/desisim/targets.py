@@ -135,34 +135,34 @@ def get_targets(nspec, tileid=None):
 
         elif objtype == 'ELG':
             from desisim.templates import ELG
-            elg = ELG(nmodel=nobj,wave=wave)
-            simflux, wave1, meta = elg.make_templates()
+            elg = ELG(wave=wave)
+            simflux, wave1, meta = elg.make_templates(nmodel=nobj)
 
         elif objtype == 'LRG':
             from desisim.templates import LRG
-            lrg = LRG(nmodel=nobj,wave=wave)
-            simflux, wave1, meta = lrg.make_templates()
+            lrg = LRG(wave=wave)
+            simflux, wave1, meta = lrg.make_templates(nmodel=nobj)
 
         elif objtype == 'QSO':
             from desisim.templates import QSO
-            qso = QSO(nmodel=nobj,wave=wave)
-            simflux, wave1, meta = qso.make_templates()
+            qso = QSO(wave=wave)
+            simflux, wave1, meta = qso.make_templates(nmodel=nobj)
 
         # For a "bad" QSO simulate a normal star without color cuts, which isn't
         # right. We need to apply the QSO color-cuts to the normal stars to pull
         # out the correct population of contaminating stars.
         elif objtype == 'QSO_BAD': 
             from desisim.templates import STAR
-            star = STAR(nmodel=nobj,wave=wave)
-            simflux, wave1, meta = star.make_templates()
+            star = STAR(wave=wave)
+            simflux, wave1, meta = star.make_templates(nmodel=nobj)
 
         elif objtype == 'STD':
             from desisim.templates import STAR
-            star = STAR(nmodel=nobj,wave=wave,FSTD=True)
-            simflux, wave1, meta = star.make_templates()
+            star = STAR(wave=wave,FSTD=True)
+            simflux, wave1, meta = star.make_templates(nmodel=nobj)
 
-        truth['FLUX'][ii] = simflux
-        truth['UNITS'] = 'erg/s/cm2/A'
+        truth['FLUX'][ii] = 1e17 * simflux
+        truth['UNITS'] = '1e-17 erg/s/cm2/A'
         truth['TEMPLATEID'][ii] = meta['TEMPLATEID']
         truth['REDSHIFT'][ii] = meta['REDSHIFT']
 
