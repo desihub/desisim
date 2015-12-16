@@ -61,6 +61,8 @@ def main():
                             dest='zrange_elg', help='minimum and maximum redshift')
     elg_parser.add_argument('--rmagrange-elg', type=float, default=(21.0,23.4), nargs=2, metavar='',
                             dest='rmagrange_elg', help='Minimum and maximum r-band (AB) magnitude range')
+    elg_parser.add_argument('--vdisp-elg', type=float, default=(150.0,25.0), nargs=2, metavar='',
+                            help='Gaussian velocity dispersion mean and sigma values (km/s)')
     elg_parser.add_argument('--minoiiflux', type=float, default='1E-17', metavar='',
                             help='Minimum integrated [OII] 3727 flux')
     
@@ -75,6 +77,8 @@ def main():
                             help='minimum and maximum redshift')
     lrg_parser.add_argument('--zmagrange-lrg', type=float, default=(19.0,20.5), nargs=2, metavar='',
                             help='Minimum and maximum z-band (AB) magnitude range')
+    lrg_parser.add_argument('--vdisp-lrg', type=float, default=(250.0,50.0), nargs=2, metavar='',
+                            help='Gaussian velocity dispersion mean and sigma values (km/s)')
     
     qso_parser = parser.add_argument_group('options for objtype=QSO')
     qso_parser.add_argument('--zrange-qso', type=float, default=(0.5,4.0), nargs=2, metavar='', 
@@ -137,6 +141,7 @@ def main():
             elg = ELG(minwave=args.minwave,maxwave=args.maxwave,cdelt=args.cdelt)
             flux, wave, meta = elg.make_templates(nmodel=args.nmodel,
                                                   zrange=args.zrange_elg,
+                                                  vdisp_meansig=args.vdisp_elg,
                                                   rmagrange=args.rmagrange_elg,
                                                   minoiiflux=args.minoiiflux,
                                                   seed=args.seed,
@@ -150,6 +155,7 @@ def main():
             flux, wave, meta = lrg.make_templates(nmodel=args.nmodel,
                                                   zrange=args.zrange_lrg,
                                                   zmagrange=args.zmagrange_lrg,
+                                                  vdisp_meansig=args.vdisp_lrg,
                                                   seed=args.seed,
                                                   nocolorcuts=args.nocolorcuts)
             log.info('Writing {}'.format(outfile))
