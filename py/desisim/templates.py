@@ -236,7 +236,6 @@ class ELG():
 
         Cuts = TargetCuts()
         while nobj<=(nmodel-1):
-            print(nobj)
             # Choose a random subset of the base templates
             chunkindx = rand.randint(0,nbase-1,nchunk)
 
@@ -286,7 +285,10 @@ class ELG():
                 gflux = self.gfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                 zflux = self.zfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                 w1flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
-                w2flux = self.w2filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
+                w2flux = self.w2filt.get_maggies(zwave,flux)*10**(0.4*22.5)
+                #if gflux>1E5:
+                    #print(nobj, iobj, redshift[ii], rmag[ii], rnorm, gflux, rflux, zflux, w1flux, w2flux)
+                    #import pdb; pdb.set_trace()
 
                 oiimask = [zoiiflux>minoiiflux]
 
@@ -456,7 +458,7 @@ class EMSpectrum():
         oiiidoublet = 2.8875    # [OIII] 5007/4959 doublet ratio (set by atomic physics)
         niidoublet = 2.93579    # [NII] 6584/6548 doublet ratio (set by atomic physics)
 
-        line = self.line
+        line = self.line.copy()
         nline = len(line)
 
         # Normalize [OIII] 4959, 5007 .
@@ -516,7 +518,7 @@ class EMSpectrum():
         if (hbetaflux is None) and (oiiflux is not None):
             for ii in range(nline):
                 line['ratio'][ii] /= line['ratio'][is3729]
-                line['flux'][ii] = oiiflux/(1.0+oiidoublet)*line['ratio'][ii]
+                line['flux'][ii] = oiiflux*factor2*line['ratio'][ii]
                 
         if (hbetaflux is not None) and (oiiflux is None):
             for ii in range(nline):
@@ -526,6 +528,10 @@ class EMSpectrum():
             log.warning('Both HBETAFLUX and OIIFLUX were given; using HBETAFLUX.')
             for ii in range(nline):
                 line['flux'][ii] = hbetaflux*line['ratio'][ii]
+
+        #ishb = np.where(line['name']=='Hbeta')[0]
+        #if line['flux'][ishb]>1E-13:
+        #    import pdb; pdb.set_trace()
 
         # Finally build the emission-line spectrum
         log10sigma = linesigma/2.99792458E5/np.log(10) # line-width [log-10 Angstrom]
