@@ -35,7 +35,7 @@ class TestTemplates(unittest.TestCase):
         wave = np.arange(5000, 9800.1, 0.2)
         flux, ww, meta = ELG(wave=wave).make_templates(
             nmodel=20, nocolorcuts=True, nocontinuum=True,
-            linesigma_meansig=[np.log10(75),0.0])
+            logvdisp_meansig=[np.log10(75),0.0])
 
         for i in range(len(meta)):
             z = meta['REDSHIFT'][i]
