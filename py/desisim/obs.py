@@ -142,6 +142,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
             'TEMPLATEID',
             'D4000',
             'OIIFLUX',
+            'VDISP',
         )
         meta = {key: truth[key] for key in columns}
         
