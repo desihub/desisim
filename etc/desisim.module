@@ -76,4 +76,4 @@ setenv [string toupper $product] $PRODUCT_DIR
 #
 # Add any non-standard Module code below this point.
 
-setenv DESI_BASIS_TEMPLATES $env(DESI_ROOT)/spectro/templates/basis_templates/v1.0
+setenv DESI_BASIS_TEMPLATES $env(DESI_ROOT)/spectro/templates/basis_templates/v1.1
