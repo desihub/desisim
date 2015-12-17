@@ -14,7 +14,7 @@ import numpy as np
 from desispec.log import get_logger
 log = get_logger()
 
-LIGHT = 2.99792458E5
+LIGHT = 2.99792458E5  #- speed of light in km/s
 
 class TargetCuts():
     """Select targets from flux cuts.  This is a placeholder class that will be
@@ -24,7 +24,7 @@ class TargetCuts():
     """
     def __init__(self):
         pass
-        
+
     def BGS(self,rflux=None):
         BGS = rflux > 10**((22.5-19.35)/2.5)
         return BGS
@@ -86,7 +86,7 @@ class ELG():
             [default 2 Angstrom/pixel].
           wave (numpy.ndarray): Input/output observed-frame wavelength array,
             overriding the minwave, maxwave, and cdelt arguments [Angstrom].
-    
+
         Attributes:
           objtype (str): 'ELG'
           wave (numpy.ndarray): Output wavelength array [Angstrom].
@@ -101,7 +101,6 @@ class ELG():
           zfilt (FILTERFUNC instance): DECam z-band filter profile class.
           w1filt (FILTERFUNC instance): WISE W1-band filter profile class.
           w2filt (FILTERFUNC instance): WISE W2-band filter profile class.
-
         """
         from desisim.filterfunc import filterfunc as filt
         from desisim.io import read_basis_templates
@@ -168,7 +167,7 @@ class ELG():
           nocontinuum (bool, optional): Do not include the stellar continuum
             (useful for testing; default False).  Note that this option
             automatically sets NOCOLORCUTS to True.
-        
+
         Returns:
           outflux (numpy.ndarray): Array [nmodel,npix] of observed-frame spectra [erg/s/cm2/A].
           wave (numpy.ndarray): Observed-frame [npix] wavelength array [Angstrom].
