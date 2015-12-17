@@ -5,7 +5,7 @@ import numpy as np
 from desisim.templates import ELG, LRG, QSO, STAR
 
 class TestTemplates(unittest.TestCase):
-    
+
     def setUp(self):
         self.wavemin = 5000
         self.wavemax = 8000
@@ -29,7 +29,7 @@ class TestTemplates(unittest.TestCase):
         elg = ELG(self.wavemin, self.wavemax, self.dwave)
         flux, wave, meta = elg.make_templates(self.nspec)
         self._check_output_size(flux, wave, meta)
-                
+
     def test_OII(self):
         '''Confirm that ELG [OII] flux matches meta table description'''
         wave = np.arange(5000, 9800.1, 0.2)
@@ -42,7 +42,7 @@ class TestTemplates(unittest.TestCase):
             ii = (3722*(1+z) < wave) & (wave < 3736*(1+z))
             OIIflux = np.sum(flux[i,ii]*np.gradient(wave[ii]))
             self.assertAlmostEqual(OIIflux, meta['OIIFLUX'][i], 2)
-            
+
     def test_stars(self):
         '''Test options specific to star templates'''
         star = STAR(wave=self.wave)
