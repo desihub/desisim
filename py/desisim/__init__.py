@@ -12,7 +12,7 @@ from . import obs
 from . import io
 from . import targets
 
-__version__ = '0.7.dev6'
+__version__ = '0.8.1.dev1'
 def gitversion():
     from subprocess import Popen, PIPE
     try:
