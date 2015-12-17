@@ -181,6 +181,7 @@ class ELG():
         from desisim.templates import EMSpectrum
         from desispec.interpolation import resample_flux
         from desisim import pixelsplines as pxs
+        from desitarget.cuts import apply_cuts
 
         if nocontinuum:
             nocolorcuts = True
@@ -208,6 +209,12 @@ class ELG():
         meta['OIIDOUBLET'] = Column(np.zeros(nmodel,dtype='f4'))
         meta['D4000'] = Column(np.zeros(nmodel,dtype='f4'))
         meta['VDISP'] = Column(np.zeros(nmodel,dtype='f4'))
+
+        # Add the tags needed to apply color cuts.
+        meta['DECAM_FLUX'] = Column(np.ones(nmodel),dtype=('f4,'*6))
+        meta['WISE_FLUX'] = Column(np.ones(nmodel),dtype=('f4,'*4))
+        meta['DECAM_MW_TRANSMISSION'] = Column(np.ones(nmodel),dtype=('f4,'*6))
+        meta['WISE_MW_TRANSMISSION'] = Column(np.ones(nmodel),dtype=('f4,'*4))
 
         meta['OIIFLUX'].unit = 'erg/(s*cm2)'
         meta['EWOII'].unit = 'Angstrom'
@@ -286,6 +293,7 @@ class ELG():
                 zflux = self.zfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                 w1flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                 w2flux = self.w2filt.get_maggies(zwave,flux)*10**(0.4*22.5)
+                meta['DECAM_FLUX'][nobj] = [
                 #if gflux>1E5:
                     #print(nobj, iobj, redshift[ii], rmag[ii], rnorm, gflux, rflux, zflux, w1flux, w2flux)
                     #import pdb; pdb.set_trace()
