@@ -1,12 +1,14 @@
+# Licensed under a 3-clause BSD style license - see LICENSE.rst
+# -*- coding: utf-8 -*-
 """
+=======
 desisim
 =======
 
 Tools for DESI instrument simulations, including input templates.
 It does not cover cosmology simulations.
-
-Also see desimodel, which contains quicksim.
 """
+from __future__ import absolute_import
 from . import pixsim
 from . import obs
 from . import io
