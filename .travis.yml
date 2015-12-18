@@ -65,6 +65,7 @@ matrix:
           env: SETUP_CMD='test --coverage'
 
 install:
+    - pip install --upgrade pip
     - if [[ $SETUP_CMD == 'build_sphinx' ]]; then pip install Sphinx; fi
     - if [[ $SETUP_CMD == 'test --coverage' ]]; then pip install coverage coveralls; fi
     # Force desiutil to be installed first.
