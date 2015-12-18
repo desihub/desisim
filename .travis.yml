@@ -69,7 +69,7 @@ install:
     - if [[ $SETUP_CMD == 'test --coverage' ]]; then pip install coverage coveralls; fi
     # Force desiutil to be installed first.
     - pip install git+https://github.com/desihub/desiutil.git@1.3.0#egg=desiutil
-    - pip install -r requirements.txt
+    - pip install --only-binary numpy,scipy,astropy -r requirements.txt
 
 script:
     - $MAIN_CMD $SETUP_CMD
