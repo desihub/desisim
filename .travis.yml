@@ -6,11 +6,7 @@
 # This file will still work, without OS X enabled, it just won't run those
 # tests.
 #
-# We set the language to c because python isn't supported on the MacOS X nodes
-# on Travis. However, the language ends up being irrelevant anyway, since we
-# install Python ourselves using conda.
-# language: python
-language: c
+language: python
 
 os:
     - linux
@@ -27,28 +23,19 @@ addons:
             - graphviz
             - texlive-latex-extra
             - dvipng
-# python:
-    # - 2.6
-    # - 2.7
+python:
+    - 2.7
     # - 3.3
     # - 3.4
-    # This is just for "egg_info".  All other builds are explicitly given in the matrix
+    # - 3.5
 env:
     global:
         # The following versions are the 'default' for tests, unless
         # overidden underneath. They are defined here in order to save having
         # to repeat them for all configurations.
-        - NUMPY_VERSION=1.9
-        - SCIPY_VERSION=0.14
-        - ASTROPY_VERSION=1.0.4
-        - SPHINX_VERSION=1.3
-        - DESIUTIL_VERSION=1.0.0
-        - CONDA_INSTALL='conda install -c astropy-ci-extras --yes'
-        - PIP_INSTALL='pip install'
-        - OPTIONAL_DEPS=false
         - MAIN_CMD='python setup.py'
     matrix:
-        - PYTHON_VERSION=2.7 SETUP_CMD='egg_info'
+        - SETUP_CMD='test'
 
 matrix:
     # Don't wait for allowed failures.
@@ -59,51 +46,28 @@ matrix:
         - os: osx
 
     include:
-
         # Check for sphinx doc build warnings - we do this first because it
         # runs for a long time
         - os: linux
-          env: PYTHON_VERSION=2.7 SETUP_CMD='build_sphinx'
-          # OPTIONAL_DEPS needed because the plot_directive in sphinx needs them
+          python: 2.7
+          env: SETUP_CMD='build_sphinx'
           # -w is an astropy extension
 
         # Do a bdist_egg compile.  This will catch things like syntax errors
         # without needing to do a full python setup.py test
         - os: linux
-          env: PYTHON_VERSION=2.7 SETUP_CMD='bdist_egg'
+          python: 2.7
+          env: SETUP_CMD='bdist_egg'
 
-        # Try all python versions with the latest numpy
+        # Coverage test, pass the results to coveralls.
         - os: linux
-          env: PYTHON_VERSION=2.7 SETUP_CMD='test --coverage'
-
-        # - os: osx
-        #   env: PYTHON_VERSION=2.7 SETUP_CMD='test'
-        # - python: 3.3
-        #   env: SETUP_CMD='test --open-files'
-        # - python: 3.4
-        #   env: SETUP_CMD='test --open-files'
-
-        # Now try do scipy on 2.7 and an appropriate 3.x build (with latest numpy)
-        # We also note the code coverage on Python 2.7.
-        # - python: 2.7
-        #   env: SETUP_CMD='test --coverage'  OPTIONAL_DEPS=true LC_CTYPE=C.ascii LC_ALL=C.ascii
-        # - python: 3.4
-        #   env: SETUP_CMD='test'  OPTIONAL_DEPS=true LC_CTYPE=C.ascii LC_ALL=C.ascii
-
-        # Try older numpy versions
-        # - python: 2.7
-        #   env: NUMPY_VERSION=1.8 SETUP_CMD='test'
-        # - python: 2.7
-        #   env: NUMPY_VERSION=1.7 SETUP_CMD='test'
-        # - python: 2.7
-        #   env: NUMPY_VERSION=1.6 SETUP_CMD='test'
-
-        # Do a PEP8 test
-        # - python: 2.7
-        #   env: MAIN_CMD='pep8 astropy --count' SETUP_CMD=''
+          python: 2.7
+          env: SETUP_CMD='test --coverage'
 
 install:
-    - source etc/travis_env_$TRAVIS_OS_NAME.sh
+    - if [[ $SETUP_CMD == 'build_sphinx' ]]; then pip install Sphinx; fi
+    - if [[ $SETUP_CMD == 'test --coverage' ]]; then pip install coverage coveralls; fi
+    - pip install -r requirements.txt
 
 script:
     - $MAIN_CMD $SETUP_CMD
