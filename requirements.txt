@@ -1,4 +1,3 @@
-git+https://github.com/desihub/desiutil.git@1.3.0#egg=desiutil
+scipy
 svn+https://desi.lbl.gov/svn/code/desimodel/branches/pip-install#egg=desimodel
-git+https://github.com/desihub/specter.git@0.3#egg=specter
 git+https://github.com/desihub/desispec.git@0.3.1#egg=desispec
