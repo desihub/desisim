@@ -20,7 +20,6 @@ import os.path
 import numpy as np
 import scipy.special
 import sys
-import desimodel.simulate as sim
 import desispec
 import desisim.io
 import specsim
@@ -213,7 +212,7 @@ np.random.seed(0)
 
 sigma_vs_wave = dict()
 for i, channel in enumerate( ['b', 'r', 'z'] ):
-    sigma_vs_wave[channel] = sim.WavelengthFunction(origin_wavelength, qsim.cameras[i].sigma_wave).getResampledValues(waves[channel])
+    sigma_vs_wave[channel] = specsim.spectrum.WavelengthFunction(origin_wavelength, qsim.cameras[i].sigma_wave).getResampledValues(waves[channel])
 
 #- Resolution data from gaussian sigmas
 def _calc_resolution_data(sigma, wavelengths, nspec):
