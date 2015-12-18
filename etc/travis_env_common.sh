@@ -5,16 +5,16 @@ conda create --yes -n test -c astropy-ci-extras python=$PYTHON_VERSION pip
 source activate test
 
 # EGG_INFO
-if [[ $SETUP_CMD == egg_info ]]
-then
-  exit  # no more dependencies needed
-fi
+# if [[ $SETUP_CMD == egg_info ]]
+# then
+#   exit  # no more dependencies needed
+# fi
 
 # PEP8
 if [[ $MAIN_CMD == pep8* ]]
 then
   $PIP_INSTALL pep8
-  exit  # no more dependencies needed
+  # exit  # no more dependencies needed
 fi
 
 # CORE DEPENDENCIES
