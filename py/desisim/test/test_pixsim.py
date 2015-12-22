@@ -10,6 +10,12 @@ from desisim import io
 from desisim import obs
 from desisim import pixsim
 
+desimodel_data_available = True
+try:
+    foo = os.environ['DESIMODEL']
+except KeyError:
+    desimodel_data_available = False
+
 desi_templates_available = True
 try:
     foo = os.environ['DESI_ROOT']
@@ -62,6 +68,7 @@ class TestPixsim(unittest.TestCase):
 
     # def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
     #     trimxy=False, cosmics=None):
+    @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
     def test_pixsim(self):
         night = '20150105'
         expid = 123
@@ -87,6 +94,7 @@ class TestPixsim(unittest.TestCase):
         self.assertTrue(os.path.exists(io.findfile('simpix', night, expid, camera)))
         self.assertTrue(os.path.exists(io.findfile('pix', night, expid, camera)))
 
+    @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
     def test_project(self):
         psf = desimodel.io.load_psf('z')
         wave = np.arange(8000, 8010)
