@@ -1,5 +1,6 @@
 from __future__ import division
 
+import os
 import unittest
 import numpy as np
 from desisim.templates import ELG, LRG, QSO, STAR
