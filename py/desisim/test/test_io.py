@@ -126,6 +126,7 @@ class TestIO(unittest.TestCase):
         self.assertTrue(np.any(c2.pix != c3.pix))
 
     #- read_templates(wave, objtype, nspec=None, randseed=1, infile=None):
+    @unittest.skipUnless(desi_templates_available, 'The DESI templates directory ($DESI_ROOT/spectro/templates) was not detected.')
     def test_read_templates(self):
         wave = np.arange(7000, 7020)
         nspec = 3

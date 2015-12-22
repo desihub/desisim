@@ -19,13 +19,13 @@ from desisim import io
 def sample_objtype(nobj):
     """
     Return a random sampling of object types (ELG, LRG, QSO, STD, BAD_QSO)
-    
+
     Args:
         nobj : number of objects to generate
-        
+
     Returns:
         (true_objtype, target_objtype)
-        
+
     where
         true_objtype   : array of what type the objects actually are
         target_objtype : array of type they were targeted as
@@ -38,41 +38,42 @@ def sample_objtype(nobj):
 
     #- Load target densities
     #- TODO: what about nobs_boss (BOSS-like LRGs)?
-    fx = open(os.getenv('DESIMODEL')+'/data/targets/targets.dat')
+    #- TODO: This function should be using a desimodel.io function instead of opening desimodel directly.
+    fx = open(os.environ['DESIMODEL']+'/data/targets/targets.dat')
     tgt = yaml.load(fx)
     fx.close()
     ntgt = float(tgt['nobs_lrg'] + tgt['nobs_elg'] + \
                  tgt['nobs_qso'] + tgt['nobs_lya'] + tgt['ntarget_badqso'])
-        
+
     #- Fraction of sky and standard star targets is guaranteed
     nsky = int(tgt['frac_sky'] * nobj)
     nstd = int(tgt['frac_std'] * nobj)
-    
+
     #- Assure at least 2 sky and 1 std
     if nobj >= 3:
         if nstd < 1:
             nstd = 1
         if nsky < 2:
             nsky = 2
-    
+
     #- Number of science fibers available
     nsci = nobj - (nsky+nstd)
-    
+
     #- LRGs ELGs QSOs
     nlrg = np.random.poisson(nsci * tgt['nobs_lrg'] / ntgt)
-    
+
     nqso = np.random.poisson(nsci * (tgt['nobs_qso'] + tgt['nobs_lya']) / ntgt)
     nqso_bad = np.random.poisson(nsci * (tgt['ntarget_badqso']) / ntgt)
-    
+
     nelg = nobj - (nlrg+nqso+nqso_bad+nsky+nstd)
-    
+
     true_objtype  = ['SKY']*nsky + ['STD']*nstd
     true_objtype += ['ELG']*nelg
     true_objtype += ['LRG']*nlrg
     true_objtype += ['QSO']*nqso + ['QSO_BAD']*nqso_bad
     assert(len(true_objtype) == nobj)
     np.random.shuffle(true_objtype)
-    
+
     target_objtype = list()
     for x in true_objtype:
         if x == 'QSO_BAD':
@@ -91,25 +92,25 @@ def get_targets(nspec, tileid=None):
         fibermap
         truth table
 
-    TODO (@moustakas): Deal with the random seed correctly. 
-    
+    TODO (@moustakas): Deal with the random seed correctly.
+
     TODO: document this better
     """
     if tileid is None:
         tile_ra, tile_dec = 0.0, 0.0
     else:
         tile_ra, tile_dec = io.get_tile_radec(tileid)
-    
+
     #- Get distribution of target types
     true_objtype, target_objtype = sample_objtype(nspec)
-    
+
     #- Get DESI wavelength coverage
     wavemin = desimodel.io.load_throughput('b').wavemin
     wavemax = desimodel.io.load_throughput('z').wavemax
     dw = 0.2
     wave = np.arange(round(wavemin, 1), wavemax, dw)
     nwave = len(wave)
-    
+
     truth = dict()
     truth['FLUX'] = np.zeros( (nspec, len(wave)) )
     truth['REDSHIFT'] = np.zeros(nspec, dtype='f4')
@@ -120,13 +121,13 @@ def get_targets(nspec, tileid=None):
     truth['OBJTYPE'] = np.zeros(nspec, dtype='S10')
     #- Note: unlike other elements, first index of WAVE isn't spectrum index
     truth['WAVE'] = wave
-    
+
     fibermap = empty_fibermap(nspec)
-    
+
     for objtype in set(true_objtype):
         ii = np.where(true_objtype == objtype)[0]
         nobj = len(ii)
-        
+
         fibermap['OBJTYPE'][ii] = target_objtype[ii]
         truth['OBJTYPE'][ii] = true_objtype[ii]
 
@@ -152,7 +153,7 @@ def get_targets(nspec, tileid=None):
         # For a "bad" QSO simulate a normal star without color cuts, which isn't
         # right. We need to apply the QSO color-cuts to the normal stars to pull
         # out the correct population of contaminating stars.
-        elif objtype == 'QSO_BAD': 
+        elif objtype == 'QSO_BAD':
             from desisim.templates import STAR
             star = STAR(wave=wave)
             simflux, wave1, meta = star.make_templates(nmodel=nobj)
@@ -178,11 +179,11 @@ def get_targets(nspec, tileid=None):
             truth['OIIFLUX'][ii] = meta['OIIFLUX']
             truth['D4000'][ii] = meta['D4000']
             truth['VDISP'][ii] = meta['VDISP']
-        
+
         if objtype == 'LRG':
             truth['D4000'][ii] = meta['D4000']
             truth['VDISP'][ii] = meta['VDISP']
-            
+
     #- Load fiber -> positioner mapping and tile information
     fiberpos = desimodel.io.load_fiberpos()
 
@@ -194,7 +195,7 @@ def get_targets(nspec, tileid=None):
     dec = np.zeros(nspec)
     for i in range(nspec):
         ra[i], dec[i] = fp.xy2radec(x[i], y[i])
-    
+
     #- Fill in the rest of the fibermap structure
     fibermap['FIBER'] = np.arange(nspec, dtype='i4')
     fibermap['POSITIONER'] = fiberpos['POSITIONER'][0:nspec]
@@ -214,7 +215,7 @@ def get_targets(nspec, tileid=None):
     fibermap['RA_OBS'] = fibermap['RA_TARGET']
     fibermap['DEC_OBS'] = fibermap['DEC_TARGET']
     fibermap['BRICKNAME'] = brick.brickname(ra, dec)
-    
+
     return fibermap, truth
 
 
@@ -231,8 +232,8 @@ def sample_nz(objtype, n):
     #- Stars are at redshift 0 for now.  Could consider a velocity dispersion.
     if objtype in ('STAR', 'STD'):
         return np.zeros(n, dtype=float)
-        
-    #- Determine which input n(z) file to use    
+
+    #- Determine which input n(z) file to use
     targetdir = os.getenv('DESIMODEL')+'/data/targets/'
     objtype = objtype.upper()
     if objtype == 'LRG':
@@ -244,10 +245,10 @@ def sample_nz(objtype, n):
         infile = targetdir+'/nz_qso.dat'
     else:
         raise ValueError("objtype {} not recognized (ELG LRG QSO STD STAR)".format(objtype))
-            
+
     #- Read n(z) distribution
     zlo, zhi, ntarget = np.loadtxt(infile, unpack=True)[0:3]
-    
+
     #- Construct normalized cumulative density function (cdf)
     cdf = np.cumsum(ntarget, dtype=float)
     cdf /= cdf[-1]
@@ -276,7 +277,7 @@ class TargetTile(object):
     """
     def __init__(self, filename):
 
-        hdulist = fits.open(filename)        
+        hdulist = fits.open(filename)
         self.filename = filename
         self.ra = hdulist[1].data['RA']
         self.dec = hdulist[1].data['DEC']
@@ -288,7 +289,7 @@ class TargetTile(object):
         self.n = np.size(self.ra)
         self.x, self.y = radec2xy(self.ra, self.dec, self.tile_ra, self.tile_dec)
 
-        # this is related to the fiber assignment 
+        # this is related to the fiber assignment
         self.fiber = -1.0 * np.ones(self.n, dtype='i4')
 
         # This section is related to the number of times a galaxy has been observed,
@@ -301,8 +302,8 @@ class TargetTile(object):
     def set_fiber(self, target_id, fiber_id):
         """
         Sets the field .fiber[] (in the target_id  location) to fiber_uid
-        Args: 
-            target_id (int): the target_id expected to be in self.id to modify 
+        Args:
+            target_id (int): the target_id expected to be in self.id to modify
                  its corresponding .fiber[] field
             fiber_id (int): the fiber_id to be stored for the corresponding target_id
         """
@@ -316,8 +317,8 @@ class TargetTile(object):
     def reset_fiber(self, target_id):
         """
         Resets the field .fiber[] (in the target_id  location) to fiber_uid
-        Args: 
-            target_id (int): the target_id expected to be in self.id to modify 
+        Args:
+            target_id (int): the target_id expected to be in self.id to modify
                  its corresponding .fiber[] field
         """
         loc = np.where(self.id==target_id)
@@ -341,7 +342,7 @@ class TargetTile(object):
         Args:
             targets_file (string): the name of the corresponding targets file
         """
-        
+
         results_file = targets_file.replace("Targets_Tile", "Results_Tile")
         if(os.path.isfile(results_file)):
             os.remove(results_file)
@@ -385,11 +386,11 @@ class TargetTile(object):
 
     def update_results(self, fibers):
         """
-        Updates the results of each target in the tile given the 
+        Updates the results of each target in the tile given the
         corresponding association with fibers.
-        
+
         Args:
-            fibers (object class FocalPlaneFibers): only updates the results if a target 
+            fibers (object class FocalPlaneFibers): only updates the results if a target
                 is assigned to a fiber.
         Note:
             Right now this procedure only opdates by one the number of observations.
@@ -399,22 +400,22 @@ class TargetTile(object):
             t = fibers.target[i]
             if(t != -1):
                 if((t in self.id)):
-                    index = np.where(t in self.id)                    
+                    index = np.where(t in self.id)
                     index = index[0]
                     self.n_observed[index]  =  self.n_observed[index] + 1
                     # these two have to be updated as well TOWRITE
-                    # self.assigned_z[index] 
-                    # self.assigned_type[index]                     
+                    # self.assigned_z[index]
+                    # self.assigned_type[index]
                 else:
                     raise ValueError('The target associated with fiber_id %d does not exist'%(fibers.id[i]))
 
 
-                
+
 
 class TargetSurvey(object):
     """
     Keeps basic information for all the targets in all tiles.
-    Attributes: 
+    Attributes:
         The properties initialized in the __init__ procedure are:
         type (string): array describing the type of target.
         id (int): 1D array of unique IDs.
