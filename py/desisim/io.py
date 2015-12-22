@@ -80,7 +80,7 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
 def write_simspec(meta, truth, expid, night, header=None, outfile=None):
     """
     Write $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
-    
+
     Args:
         meta : metadata table to write to "METADATA" HDU
         truth : dictionary with keys:
@@ -94,14 +94,14 @@ def write_simspec(meta, truth, expid, night, header=None, outfile=None):
         night : string YEARMMDD
         header : optional dictionary of header items to add to output
         outfile : optional filename to write (otherwise auto-derived)
-        
+
     Returns:
         full file path of output file written
-        
+
     """
     #- Where should this go?
     if outfile is None:
-        outdir = simdir(night, mkdir=True)      
+        outdir = simdir(night, mkdir=True)
         outfile = '{}/simspec-{:08d}.fits'.format(outdir, expid)
 
     #- Primary HDU is just a header from the input
@@ -118,13 +118,13 @@ def write_simspec(meta, truth, expid, night, header=None, outfile=None):
         x = fits.ImageHDU(truth['FLUX'].astype(np.float32), name='FLUX')
         x.header['BUNIT'] = '1e-17 erg/s/cm2/A'
         hx.append(x)
-    
+
     #- Sky flux HDU
     if 'SKYFLUX' in truth:
         x = fits.ImageHDU(truth['SKYFLUX'].astype(np.float32), name='SKYFLUX')
         x.header['BUNIT'] = '1e-17 erg/s/cm2/A/arcsec2'
         hx.append(x)
-    
+
     #- Write object photon and sky photons for each channel
     for channel in ['B', 'R', 'Z']:
         x = fits.ImageHDU(truth['WAVE_'+channel], name='WAVE_'+channel)
@@ -155,14 +155,14 @@ def write_simspec(meta, truth, expid, night, header=None, outfile=None):
             OIIFLUX     = '[OII] flux [erg/s/cm2]',
             D4000       = '4000-A break'
         )
-    
+
         units = dict(
             # OBJTYPE     = 'Object type (ELG, LRG, QSO, STD, STAR)',
             # REDSHIFT    = 'true object redshift',
             # TEMPLATEID  = 'input template ID',
             OIIFLUX      = 'erg/s/cm2',
         )
-    
+
         write_bintable(outfile, meta, header=None, extname="METADATA",
             comments=comments, units=units)
 
@@ -256,12 +256,12 @@ def read_simspec(filename):
     else:
         raise ValueError('unknown flavor '+flavor)
 
-    
-    
+
+
 def write_simpix(outfile, image, meta):
     """
     Write simpix data to outfile
-    
+
     Args:
         outfile : output file name, e.g. from io.findfile('simpix', ...)
         image : 2D noiseless simulated image (numpy.ndarray)
@@ -383,7 +383,7 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
         meta['RDNOISE'] = x / 4.0
 
     return Image(pix, ivar, mask, meta=meta)
-        
+
 
 #-------------------------------------------------------------------------
 #- desimodel
@@ -391,7 +391,7 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
 def get_tile_radec(tileid):
     """
     Return (ra, dec) in degrees for the requested tileid.
-    
+
     If tileid is not in DESI, return (0.0, 0.0)
     TODO: should it raise and exception instead?
     """
@@ -403,7 +403,7 @@ def get_tile_radec(tileid):
         i = np.where(tiles['TILEID'] == tileid)[0][0]
         return tiles[i]['RA'], tiles[i]['DEC']
     else:
-        return (0.0, 0.0)   
+        return (0.0, 0.0)
 
 #-------------------------------------------------------------------------
 #- spectral templates
@@ -419,7 +419,7 @@ def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
 
     Args:
       objtype (str): object type to read (e.g., ELG, LRG, QSO, STAR, FSTD, WD).
-      outwave (numpy.array, optional): array of wavelength at which to sample 
+      outwave (numpy.array, optional): array of wavelength at which to sample
         the spectra.
       nspec (int, optional): number of templates to return
       infile (str, optional): full path to input template file to read,
@@ -427,7 +427,7 @@ def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
         variable.
 
     Returns:
-      outflux (numpy.ndarray): Array [ntemplate,npix] of flux values [erg/s/cm2/A]. 
+      outflux (numpy.ndarray): Array [ntemplate,npix] of flux values [erg/s/cm2/A].
       outwave (numpy.ndarray): Array [npix] of wavelengths for FLUX [Angstrom].
       meta (astropy.Table): Meta-data table for each object.  The contents of this
         table varies depending on what OBJTYPE has been read.
@@ -445,7 +445,7 @@ def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
     key = 'DESI_BASIS_TEMPLATES'
     if key not in os.environ:
         log.fatal('Required ${} environment variable not set'.format(key))
-        raise EnvironmentError
+        raise EnvironmentError('Required ${} environment variable not set'.format(key))
     objpath = os.getenv(key)
 
     ltype = objtype.lower()
@@ -456,7 +456,7 @@ def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
         objfile_wild = os.path.join(objpath,ltype+'_templates_*.fits')
     else:
         objfile_wild = infile
-        
+
     objfile = glob(objfile_wild)
     nfile = len(objfile)
 
@@ -464,12 +464,12 @@ def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
         objfile_latest = objfile[nfile-1] # latest version
         if os.path.isfile(objfile_latest):
             log.info('Reading {}'.format(objfile_latest))
-        else: 
+        else:
             log.error('Templates basis file {} not found'.format(objfile_latest))
-            raise IOError()
+            raise IOError('Templates basis file {} not found'.format(objfile_latest))
     else:
         log.error('Templates basis file {} not found'.format(objfile_wild))
-        raise IOError()
+        raise IOError('Templates basis file {} not found'.format(objfile_wild))
 
     flux, hdr = fits.getdata(objfile_latest, 0, header=True)
     meta = Table(fits.getdata(objfile_latest, 1))
@@ -501,7 +501,7 @@ def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
         ncpu = multiprocessing.cpu_count() // 2   #- avoid hyperthreading
         pool = multiprocessing.Pool(ncpu)
         outflux = pool.map(_resample_flux, args)
-        outflux = np.array(outflux)    
+        outflux = np.array(outflux)
 
     return outflux, outwave, meta
 
@@ -511,9 +511,9 @@ def write_templates(outfile, flux, wave, meta, objtype=None,
 
         Args:
           outfile (str): Output file name.
-    
+
         Returns:
-    
+
         Raises
 
     """
@@ -522,7 +522,7 @@ def write_templates(outfile, flux, wave, meta, objtype=None,
 
     # Create the path to OUTFILE if necessary.
     outfile = makepath(outfile)
-    
+
     header = dict(
         OBJTYPE = (objtype, 'Object type'),
         CUNIT = ('Angstrom', 'units of wavelength array'),
@@ -548,7 +548,7 @@ def simdir(night='', mkdir=False):
     Return $DESI_SPECTRO_SIM/$PIXPROD/{night}
     If mkdir is True, create directory if needed
     """
-    dirname = os.path.join(os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'), night)        
+    dirname = os.path.join(os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'), night)
     if mkdir and not os.path.exists(dirname):
         os.makedirs(dirname)
 
@@ -557,9 +557,9 @@ def simdir(night='', mkdir=False):
 def _parse_filename(filename):
     """
     Parse filename and return (prefix, camera, expid)
-    
+
     camera=None if the filename isn't camera specific
-    
+
     e.g. /blat/foo/simspec-00000003.fits -> ('simspec', None, 3)
     e.g. /blat/foo/pix-r2-00000003.fits -> ('pix', 'r2', 3)
     """
@@ -569,6 +569,3 @@ def _parse_filename(filename):
         return x[0], None, int(x[1])
     elif len(x) == 3:
         return x[0], x[1].lower(), int(x[2])
-
-    
-

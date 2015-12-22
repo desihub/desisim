@@ -93,7 +93,7 @@ class TestIO(unittest.TestCase):
         for key in meta:
             self.assertTrue(meta[key] == header[key])
 
-    @unittest.skipUnless(desimodel_data_avilable, 'The desimodel data/ directory was not detected.')
+    @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
     def test_get_tile_radec(self):
         ra, dec = io.get_tile_radec(0)
         ra, dec = io.get_tile_radec(1)
