@@ -8,6 +8,18 @@ import desisim
 from desisim import io
 from astropy.io import fits
 
+desimodel_data_available = True
+try:
+    foo = os.environ['DESIMODEL']
+except KeyError:
+    desimodel_data_available = False
+
+desi_templates_available = True
+try:
+    foo = os.environ['DESI_ROOT']
+except KeyError:
+    desi_templates_available = False
+
 class TestIO(unittest.TestCase):
 
     #- Create unique test filename in a subdirectory
@@ -49,7 +61,7 @@ class TestIO(unittest.TestCase):
         self.assertTrue(x.endswith(night))
         x = io.simdir(night, mkdir=True)
         self.assertTrue(os.path.exists(x))
-        
+
     def test_findfile(self):
         night = '20150102'
         expid = 3
@@ -60,7 +72,7 @@ class TestIO(unittest.TestCase):
         outdir = '/blat/foo/bar'
         filepath = io.findfile('simpix', night, expid, camera, outdir=outdir, mkdir=False)
         self.assertTrue(filepath.startswith(outdir))
-        
+
         with self.assertRaises(ValueError):
             io.findfile('pix', night, expid)  #- missing camera
 
@@ -81,6 +93,7 @@ class TestIO(unittest.TestCase):
         for key in meta:
             self.assertTrue(meta[key] == header[key])
 
+    @unittest.skipUnless(desimodel_data_avilable, 'The desimodel data/ directory was not detected.')
     def test_get_tile_radec(self):
         ra, dec = io.get_tile_radec(0)
         ra, dec = io.get_tile_radec(1)
@@ -89,7 +102,7 @@ class TestIO(unittest.TestCase):
         self.assertTrue( (ra,dec) == (0.0, 0.0) )
         with self.assertRaises(ValueError):
             ra, dec = io.get_tile_radec('blat')
-        
+
     def test_resize(self):
         image = np.random.uniform(size=(4,5))
         for shape in [(3,4), (4,5), (3,6), (5,4), (5,6)]:
@@ -97,11 +110,12 @@ class TestIO(unittest.TestCase):
             self.assertEqual(x.shape, shape)
 
     #- read_cosmics(filename, expid=1, shape=None, jitter=True):
+    @unittest.skipUnless(desi_templates_available, 'The DESI templates directory ($DESI_ROOT/spectro/templates) was not detected.')
     def test_read_cosmics(self):
         #- hardcoded cosmics version
-        infile = os.getenv('DESI_ROOT') + \
-            '/spectro/templates/cosmics/v0.2/cosmics-bias-r.fits'
-            
+        infile = (os.environ['DESI_ROOT'] +
+            '/spectro/templates/cosmics/v0.2/cosmics-bias-r.fits')
+
         shape = (10, 11)
         c1 = io.read_cosmics(infile, expid=0, shape=shape, jitter=True)
         self.assertEqual(c1.pix.shape, shape)
@@ -110,7 +124,7 @@ class TestIO(unittest.TestCase):
         #- A different exposure should return different cosmics
         c3 = io.read_cosmics(infile, expid=1, shape=shape, jitter=False)
         self.assertTrue(np.any(c2.pix != c3.pix))
-        
+
     #- read_templates(wave, objtype, nspec=None, randseed=1, infile=None):
     def test_read_templates(self):
         wave = np.arange(7000, 7020)
@@ -132,24 +146,11 @@ class TestIO(unittest.TestCase):
         self.assertEqual(camera, 'r2')
         self.assertEqual(expid, 3)
 
-    #- test top level desisim.version() here along with the I/O
-    #- gitvesion() returns a string like X.Y.Z-nnn-hash, while __version__
-    #- should be a PEP 440 compliant version that at least starts with the
-    #- same base version from gitversion().
-    #- The checking here could be more strict.
-    def test_version(self):
-        gitversion = desisim.gitversion()
-        version = desisim.__version__
-        if gitversion != version:
-            tag = gitversion.split('-')[0]  #- X.Y.Z-nnn-hash -> X.Y.Z
-            self.assertTrue(version.startswith(tag), \
-                'git version {} out of sync with __version__ {}'.format(gitversion, version))
-    
     #- TODO
     #- simspec_io
     #- read_cosmics
 
-        
+
 
 #- This runs all test* functions in any TestCase class in this file
 if __name__ == '__main__':
