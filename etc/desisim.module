@@ -44,6 +44,8 @@ module-whatis "Sets up $product/$version in your environment."
 #
 module load desiutil
 prereq desiutil
+module load desimodel
+prereq desimodel
 #
 # ENVIRONMENT SECTION
 #
