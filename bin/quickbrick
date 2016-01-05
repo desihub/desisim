@@ -266,7 +266,7 @@ for channel in ['b', 'r', 'z']:
         header = desispec.io.fitsheader(header)
         fx.append(fits.ImageHDU(trueflux[channel][:,iiobs].astype(np.float32), name='_TRUEFLUX', header=header))
         if (channel == 'b'):
-            fx.append(fits.ImageHDU(qsim.wavelengthGrid.astype(np.float32), name='_FULLWAVE', header=header))
+            fx.append(fits.ImageHDU(qsim.wavelengthGrid.astype(np.float32), name='_SOURCEWAVE', header=header))
             fx.append(fits.ImageHDU(srcfl['SOURCE'].astype(np.float32), name='_SOURCEFLUX', header=header))
         fx.append(fits.BinTableHDU(meta.as_array(), name='_TRUTH'))
         fx.flush()
@@ -276,7 +276,7 @@ for channel in ['b', 'r', 'z']:
         hdulist = fits.HDUList([fits.PrimaryHDU(header=header)])
         hdulist.append(fits.ImageHDU(trueflux[channel][:,iiobs].astype(np.float32), name='_TRUEFLUX', header=header))
         if (channel == 'b'):
-            fx.append(fits.ImageHDU(qsim.wavelengthGrid.astype(np.float32), name='_FULLWAVE', header=header))
+            fx.append(fits.ImageHDU(qsim.wavelengthGrid.astype(np.float32), name='_SOURCEWAVE', header=header))
             fx.append(fits.ImageHDU(srcfl['SOURCE'].astype(np.float32), name='_SOURCEFLUX', header=header))
         hdulist.append(fits.BinTableHDU(meta.as_array(), name='_TRUTH'))
         filename = 'truth-brick-{}-{}.fits'.format(channel, opts.brickname)
