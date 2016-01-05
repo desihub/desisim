@@ -1,28 +1,16 @@
+# Licensed under a 3-clause BSD style license - see LICENSE.rst
+# -*- coding: utf-8 -*-
 """
+=======
 desisim
 =======
 
 Tools for DESI instrument simulations, including input templates.
 It does not cover cosmology simulations.
-
-Also see desimodel, which contains quicksim.
 """
+from __future__ import absolute_import
 from . import pixsim
 from . import obs
 from . import io
 from . import targets
-
-__version__ = '0.8.1.dev1'
-def gitversion():
-    from subprocess import Popen, PIPE
-    try:
-        p = Popen(['git', "describe", "--tags", "--dirty", "--always"], stdout=PIPE)
-    except EnvironmentError:
-        return __version__
-    out = p.communicate()[0]
-    if p.returncode != 0:
-        return __version__
-        
-    return out.rstrip()
-
-        
+from ._version import __version__
