@@ -194,48 +194,37 @@ class ELG():
         # Initialize the output flux array and metadata Table.
         outflux = np.zeros([nmodel,len(self.wave)]) # [erg/s/cm2/A]
 
-        meta = Table()
-        meta['TEMPLATEID'] = Column(np.zeros(nmodel,dtype='i4'))
-        meta['REDSHIFT'] = Column(np.zeros(nmodel,dtype='f4'))
-        meta['GMAG'] = Column(np.zeros(nmodel,dtype='f4'))
-        meta['RMAG'] = Column(np.zeros(nmodel,dtype='f4'))
-        meta['ZMAG'] = Column(np.zeros(nmodel,dtype='f4'))
-        meta['W1MAG'] = Column(np.zeros(nmodel,dtype='f4'))
-        meta['W2MAG'] = Column(np.zeros(nmodel,dtype='f4'))
-        meta['OIIFLUX'] = Column(np.zeros(nmodel,dtype='f4'))
-        meta['EWOII'] = Column(np.zeros(nmodel,dtype='f4'))
-        meta['OIIIHBETA'] = Column(np.zeros(nmodel,dtype='f4'))
-        meta['OIIDOUBLET'] = Column(np.zeros(nmodel,dtype='f4'))
-        meta['D4000'] = Column(np.zeros(nmodel,dtype='f4'))
-        meta['VDISP'] = Column(np.zeros(nmodel,dtype='f4'))
-
-        # Add the tags needed to apply color cuts.
-        meta['DECAM_FLUX'] = Column(np.ones(nmodel),dtype=('f4,'*6))
-        meta['WISE_FLUX'] = Column(np.ones(nmodel),dtype=('f4,'*4))
-        meta['DECAM_MW_TRANSMISSION'] = Column(np.ones(nmodel),dtype=('f4,'*6))
-        meta['WISE_MW_TRANSMISSION'] = Column(np.ones(nmodel),dtype=('f4,'*4))
+        metacols = [
+            ('TEMPLATEID', 'i4'),
+            ('REDSHIFT', 'f4'),
+            ('TYPE', 'S10'),
+            ('GMAG', 'f4'),
+            ('RMAG', 'f4'),
+            ('ZMAG', 'f4'),
+            ('W1MAG', 'f4'),
+            ('W2MAG', 'f4'),
+            ('DECAM_FLUX', 'f4', (6,)),
+            ('WISE_FLUX', 'f4', (4,)),
+            ('DECAM_MW_TRANSMISSION', 'f4', (6,)),
+            ('WISE_MW_TRANSMISSION', 'f4', (4,)),
+            ('OIIFLUX', 'f4'),
+            ('EWOII', 'f4'),
+            ('OIIIHBETA', 'f4'),
+            ('OIIDOUBLET', 'f4'),
+            ('D4000', 'f4'),
+            ('VDISP', 'f4')]
+        meta = Table(np.zeros(nmodel,dtype=metacols))
+        #meta = Table(np.zeros(nmodel,dtype=metacols))
+        meta['TYPE'] = 'ELG'
+        meta['DECAM_MW_TRANSMISSION'] = 1.0
+        meta['WISE_MW_TRANSMISSION'] = 1.0
 
         meta['OIIFLUX'].unit = 'erg/(s*cm2)'
         meta['EWOII'].unit = 'Angstrom'
         meta['OIIIHBETA'].unit = 'dex'
         meta['VDISP'].unit = 'km/s'
 
-        comments = dict(
-            TEMPLATEID = 'template ID',
-            REDSHIFT = 'object redshift',
-            GMAG = 'DECam g-band AB magnitude',
-            RMAG = 'DECam r-band AB magnitude',
-            ZMAG = 'DECam z-band AB magnitude',
-            W1MAG = 'WISE W1-band AB magnitude',
-            W2MAG = 'WISE W2-band AB magnitude',
-            OIIFLUX = '[OII] 3727 flux',
-            EWOII = 'rest-frame equivalenth width of [OII] 3727',
-            OIIIHBETA = 'logarithmic [OIII] 5007/H-beta ratio',
-            OIIDOUBLET = '[OII] 3726/3729 doublet ratio',
-            D4000 = '4000-Angstrom break',
-            VDISP = 'velocity dispersion'
-        )
-
+        # Build the spectra.
         nobj = 0
         nbase = len(self.basemeta)
         nchunk = min(nmodel,500)
@@ -292,7 +281,8 @@ class ELG():
                 zflux = self.zfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                 w1flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                 w2flux = self.w2filt.get_maggies(zwave,flux)*10**(0.4*22.5)
-                meta['DECAM_FLUX'][nobj] = [
+                meta['DECAM_FLUX'][nobj] = [0.0,gflux,rflux,0.0,zflux,0.0]
+                meta['WISE_FLUX'][nobj] = [w1flux,w2flux,0.0,0.0]
                 #if gflux>1E5:
                     #print(nobj, iobj, redshift[ii], rmag[ii], rnorm, gflux, rflux, zflux, w1flux, w2flux)
                     #import pdb; pdb.set_trace()
@@ -302,11 +292,13 @@ class ELG():
                 if nocolorcuts:
                     grzmask = [True]
                 else:
-                    grzmask = [Cuts.ELG(gflux=gflux,rflux=rflux,zflux=zflux)]
+                    desi_target, _bgs, _mws = apply_cuts(meta[nobj])
+                    print(desi_target)
+                    #grzmask = [Cuts.ELG(gflux=gflux,rflux=rflux,zflux=zflux)]
 
                 if all(grzmask) and all(oiimask):
                     if ((nobj+1)%10)==0:
-                        print('Simulating {} template {}/{}'.format(self.objtype,nobj+1,nmodel))
+                        log.debug('Simulating {} template {}/{}'.format(self.objtype,nobj+1,nmodel))
 
                     # (@moustakas) pxs.gauss_blur_matrix is producing lots of
                     # ringing in the emission lines, so deal with it later.
@@ -326,6 +318,8 @@ class ELG():
                     meta['ZMAG'][nobj] = -2.5*np.log10(zflux)+22.5
                     meta['W1MAG'][nobj] = -2.5*np.log10(w1flux)+22.5
                     meta['W2MAG'][nobj] = -2.5*np.log10(w2flux)+22.5
+                    meta['DECAM_FLUX'][:][nobj] = [0.0,gflux,rflux,0.0,zflux,0.0]
+                    meta['WISE_FLUX'][:][nobj] = [w1flux,w2flux,0.0,0.0]
                     meta['OIIFLUX'][nobj] = zoiiflux
                     meta['EWOII'][nobj] = ewoii[ii]
                     meta['OIIIHBETA'][nobj] = oiiihbeta[ii]
@@ -731,7 +725,7 @@ class LRG():
 
                 if all(rzW1mask):
                     if ((nobj+1)%10)==0:
-                        print('Simulating {} template {}/{}'.format(self.objtype,nobj+1,nmodel))
+                        log.debug('Simulating {} template {}/{}'.format(self.objtype,nobj+1,nmodel))
 
                     # Convolve and resample
                     sigma = 1.0+self.basewave*vdisp[ii]/LIGHT
@@ -958,7 +952,7 @@ class STAR():
 
                 if all(grzmask):
                     if ((nobj+1)%10)==0:
-                        print('Simulating {} template {}/{}'.format(self.objtype,nobj+1,nmodel))
+                        log.debug('Simulating {} template {}/{}'.format(self.objtype,nobj+1,nmodel))
                     outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
 
                     if self.objtype=='WD':
@@ -1151,7 +1145,7 @@ class QSO():
 
                 if all(grzW1W2mask):
                     if ((nobj+1)%10)==0:
-                        print('Simulating {} template {}/{}'.format(self.objtype,nobj+1,nmodel))
+                        log.debug('Simulating {} template {}/{}'.format(self.objtype,nobj+1,nmodel))
                     outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
 
                     meta['TEMPLATEID'][nobj] = nobj
