@@ -306,7 +306,7 @@ class ELG():
                     # Convolve (just the stellar continuum) and resample.
                     #if nocontinuum is False:
                         #sigma = 1.0+self.basewave*vdisp[ii]/LIGHT
-                        #flux *= pxs.gauss_blur_matrix(self.pixbound,sigma)
+                        #flux = pxs.gauss_blur_matrix(self.pixbound,sigma) * flux
                         #flux = (flux-emflux)*pxs.gauss_blur_matrix(self.pixbound,sigma) + emflux
                     
                     outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
@@ -729,7 +729,7 @@ class LRG():
 
                     # Convolve and resample
                     sigma = 1.0+self.basewave*vdisp[ii]/LIGHT
-                    flux *= pxs.gauss_blur_matrix(self.pixbound,sigma)
+                    flux = pxs.gauss_blur_matrix(self.pixbound,sigma) * flux
                         
                     outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
 
