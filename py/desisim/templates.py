@@ -245,10 +245,14 @@ class ELG():
             # Assume the emission-line priors are uncorrelated.
             oiiihbeta = rand.uniform(oiiihbrange[0],oiiihbrange[1],nchunk)
             oiidoublet = rand.normal(oiidoublet_meansig[0],
-                                          oiidoublet_meansig[1],nchunk)
+                                     oiidoublet_meansig[1],nchunk)
             d4000 = self.basemeta['D4000'][chunkindx]
             ewoii = 10.0**(np.polyval([1.1074,-4.7338,5.6585],d4000)+ 
-                           rand.normal(0.0,0.3)) # rest-frame, Angstrom
+                           rand.normal(0.0,0.3,nchunk)) # rest-frame, Angstrom
+
+            # Create a distribution of seeds for the emission-line spectra.
+            emseed = rand.random_integers(0,100*nchunk,nchunk)
+            print(emseed)
 
             # Unfortunately we have to loop here.
             for ii, iobj in enumerate(chunkindx):
@@ -267,7 +271,7 @@ class ELG():
                     oiidoublet=oiidoublet[ii],
                     oiiihbeta=oiiihbeta[ii],
                     oiiflux=zoiiflux,
-                    seed=seed)
+                    seed=emseed[ii])
                 emflux /= (1+redshift[ii]) # [erg/s/cm2/A, @redshift[ii]]
 
                 if nocontinuum:
