@@ -180,7 +180,7 @@ class ELG():
         from desisim.templates import EMSpectrum
         from desispec.interpolation import resample_flux
         from desisim import pixelsplines as pxs
-        from desitarget.cuts import apply_cuts
+        ### from desitarget.cuts import apply_cuts
 
         if nocontinuum:
             nocolorcuts = True
