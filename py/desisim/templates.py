@@ -248,11 +248,10 @@ class ELG():
                                      oiidoublet_meansig[1],nchunk)
             d4000 = self.basemeta['D4000'][chunkindx]
             ewoii = 10.0**(np.polyval([1.1074,-4.7338,5.6585],d4000)+ 
-                           rand.normal(0.0,0.3,nchunk)) # rest-frame, Angstrom
+                           rand.normal(0.0,0.25,nchunk)) # rest-frame, Angstrom
 
             # Create a distribution of seeds for the emission-line spectra.
             emseed = rand.random_integers(0,100*nchunk,nchunk)
-            print(emseed)
 
             # Unfortunately we have to loop here.
             for ii, iobj in enumerate(chunkindx):
@@ -296,9 +295,8 @@ class ELG():
                 if nocolorcuts:
                     grzmask = [True]
                 else:
-                    desi_target, _bgs, _mws = apply_cuts(meta[nobj])
-                    print(desi_target)
-                    #grzmask = [Cuts.ELG(gflux=gflux,rflux=rflux,zflux=zflux)]
+                    #desi_target, _bgs, _mws = apply_cuts(meta[nobj])
+                    grzmask = [Cuts.ELG(gflux=gflux,rflux=rflux,zflux=zflux)]
 
                 if all(grzmask) and all(oiimask):
                     if ((nobj+1)%10)==0:
