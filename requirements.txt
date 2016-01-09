@@ -1,0 +1,7 @@
+setuptools
+numpy
+scipy
+astropy
+pyyaml
+svn+https://desi.lbl.gov/svn/code/desimodel/branches/pip-install#egg=desimodel
+git+https://github.com/desihub/desispec.git@0.3.1#egg=desispec

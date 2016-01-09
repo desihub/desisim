@@ -45,8 +45,9 @@ class filterfunc():
         self.interp = interp1d(self.wave,self.transmission,kind='linear')
 
         # calculate the AB zeropoint flux for this filter
-        ABwave = np.logspace(1.0,8.0,1E5) # Angstroms
-        ABflux = 2.99792E18*3.631E-20*np.ones(1E5)/(ABwave**2)
+        nwave = 100000
+        ABwave = np.logspace(1.0,8.0,nwave) # Angstroms
+        ABflux = 2.99792E18*3.631E-20*np.ones(nwave)/(ABwave**2)
         self.ABzpt = self.get_flux(ABwave,ABflux)
 
     def get_flux(self, wave, flux):
