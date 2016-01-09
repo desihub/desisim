@@ -29,6 +29,7 @@ This is used to include docstrings from modules. See `the autodoc documentation`
 
 .. automodule:: desisim
    :members:
+   :imported-members:
 
 Indices and tables
 ==================

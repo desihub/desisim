@@ -89,7 +89,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
             thru = desimodel.io.load_throughput(channel)
             ii = (thru.wavemin <= wave) & (wave <= thru.wavemax)
             phot = thru.photons(wave[ii], flux[:,ii], units=hdr['BUNIT'],
-                            objtype='CALIB', exptime=exptime)
+                            objtype='CALIB', exptime=10)
         
             truth['WAVE_'+channel] = wave[ii]
             truth['PHOT_'+channel] = phot
@@ -142,6 +142,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
             'TEMPLATEID',
             'D4000',
             'OIIFLUX',
+            'VDISP',
         )
         meta = {key: truth[key] for key in columns}
         
