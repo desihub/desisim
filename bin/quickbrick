@@ -276,8 +276,8 @@ for channel in ['b', 'r', 'z']:
         hdulist = fits.HDUList([fits.PrimaryHDU(header=header)])
         hdulist.append(fits.ImageHDU(trueflux[channel][:,iiobs].astype(np.float32), name='_TRUEFLUX', header=header))
         if (channel == 'b'):
-            fx.append(fits.ImageHDU(qsim.wavelengthGrid.astype(np.float32), name='_SOURCEWAVE', header=header))
-            fx.append(fits.ImageHDU(srcfl['SOURCE'].astype(np.float32), name='_SOURCEFLUX', header=header))
+            hdulist.append(fits.ImageHDU(qsim.wavelengthGrid.astype(np.float32), name='_SOURCEWAVE', header=header))
+            hdulist.append(fits.ImageHDU(srcfl['SOURCE'].astype(np.float32), name='_SOURCEFLUX', header=header))
         hdulist.append(fits.BinTableHDU(meta.as_array(), name='_TRUTH'))
         filename = 'truth-brick-{}-{}.fits'.format(channel, opts.brickname)
         filepath = os.path.join(opts.outdir_truth, filename)
