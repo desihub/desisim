@@ -80,7 +80,7 @@ if opts.exptime is None:
     elif (opts.flavor == 'dark') or (string.lower(opts.flavor) == 'elg') or (string.lower(opts.flavor) == 'lrg') or (string.lower(opts.flavor) == 'qso'):
         opts.exptime = 1000
     else:
-        print('I can not guess a default exposure time')
+        print('Unknown flavor: I can not guess a default exposure time')
         sys.exit(1)
     
     
