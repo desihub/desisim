@@ -1,4 +1,0 @@
-desisim
-=======
-
-DESI simulations

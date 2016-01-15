@@ -7,7 +7,7 @@ newexp-desi arc/flat/dark/bright/bgs/mws/elg/lrg/qso [options]
 
 dark: a mix of elg, qso and lrg targets
 bright: a mix of BGS and MWS targetls
-or just MWS, BGS, ELG, LRG, QSO targets
+or just MWS, BGS, ELG, LRG, QSO targets. NOTE: BGS and bright not yet implemented. 
 
 Stephen Bailey, LBL
 Fall 2014
@@ -65,7 +65,7 @@ if opts.night is None:
     opts.night = obs.get_night(utc=time.gmtime())
 
 if string.lower(opts.flavor) not in ['arc','flat','dark','bright','bgs','mws','lrg','elg','qso']:
-    print('unknown flavor')
+    print(opts.flavor + ': unknown flavor')
     sys.exit(1)
 
     
@@ -80,7 +80,7 @@ if opts.exptime is None:
     elif (opts.flavor == 'dark') or (string.lower(opts.flavor) == 'elg') or (string.lower(opts.flavor) == 'lrg') or (string.lower(opts.flavor) == 'qso'):
         opts.exptime = 1000
     else:
-        print('Unknown flavor: I can not guess a default exposure time')
+        print('Do not know the default exposure time for flavor' + flavor)
         sys.exit(1)
     
     
