@@ -4,6 +4,7 @@ Utility functions for working with simulated targets
 
 import os
 import sys
+import string
 
 import numpy as np
 import yaml
@@ -16,9 +17,9 @@ from desispec.io.fibermap import empty_fibermap
 
 from desisim import io
 
-def sample_objtype(nobj):
+def sample_objtype(nobj, flavor):
     """
-    Return a random sampling of object types (ELG, LRG, QSO, STD, BAD_QSO)
+    Return a random sampling of object types (dark, bright, MWS, BGS, ELG, LRG, QSO, STD, BAD_QSO)
 
     Args:
         nobj : number of objects to generate
@@ -42,9 +43,12 @@ def sample_objtype(nobj):
     fx = open(os.environ['DESIMODEL']+'/data/targets/targets.dat')
     tgt = yaml.load(fx)
     fx.close()
-    ntgt = float(tgt['nobs_lrg'] + tgt['nobs_elg'] + \
-                 tgt['nobs_qso'] + tgt['nobs_lya'] + tgt['ntarget_badqso'])
 
+    # used for the mixed dark-time focal plane
+    ntgt = float(tgt['nobs_lrg'] + tgt['nobs_elg'] + tgt['nobs_qso'] + tgt['nobs_lya'] + tgt['ntarget_badqso'])
+
+    # initialize so we can ask for 0 of some kinds of survey targets later
+    nlrg = nqso = nelg = nmws = nbgs = 0
     #- Fraction of sky and standard star targets is guaranteed
     nsky = int(tgt['frac_sky'] * nobj)
     nstd = int(tgt['frac_std'] * nobj)
@@ -58,19 +62,36 @@ def sample_objtype(nobj):
 
     #- Number of science fibers available
     nsci = nobj - (nsky+nstd)
-
-    #- LRGs ELGs QSOs
-    nlrg = np.random.poisson(nsci * tgt['nobs_lrg'] / ntgt)
-
-    nqso = np.random.poisson(nsci * (tgt['nobs_qso'] + tgt['nobs_lya']) / ntgt)
-    nqso_bad = np.random.poisson(nsci * (tgt['ntarget_badqso']) / ntgt)
-
-    nelg = nobj - (nlrg+nqso+nqso_bad+nsky+nstd)
-
     true_objtype  = ['SKY']*nsky + ['STD']*nstd
-    true_objtype += ['ELG']*nelg
-    true_objtype += ['LRG']*nlrg
-    true_objtype += ['QSO']*nqso + ['QSO_BAD']*nqso_bad
+        
+    if (string.lower(flavor) == 'mws'):
+        true_objtype  +=  ['MWS_STAR']*nsci
+    elif (string.lower(flavor) == 'qso'):
+        true_objtype  +=  ['QSO']*nsci
+    elif (string.lower(flavor) == 'elg'):
+        true_objtype  +=  ['ELG']*nsci    
+    elif (string.lower(flavor) == 'lrg'):
+        true_objtype  +=  ['LRG']*nsci
+    elif (string.lower(flavor) == 'bgs'):
+        raise ValueError("Do not know the default objtype mix for BGS")
+    elif (string.lower(flavor) == 'bright'):
+        raise ValueError("Do not know the default objtype mix for BRIGHT")
+    # this should be the last remaining valid option
+    elif (string.lower(flavor) != 'dark'):
+        raise ValueError("Do not know the objtype mix for flavor "+ flavor)
+    else:
+        #- LRGs ELGs QSOs
+        nlrg = np.random.poisson(nsci * tgt['nobs_lrg'] / ntgt)
+
+        nqso = np.random.poisson(nsci * (tgt['nobs_qso'] + tgt['nobs_lya']) / ntgt)
+        nqso_bad = np.random.poisson(nsci * (tgt['ntarget_badqso']) / ntgt)
+
+        nelg = nobj - (nlrg+nqso+nqso_bad+nsky+nstd)
+
+        true_objtype += ['ELG']*nelg
+        true_objtype += ['LRG']*nlrg
+        true_objtype += ['QSO']*nqso + ['QSO_BAD']*nqso_bad
+
     assert(len(true_objtype) == nobj)
     np.random.shuffle(true_objtype)
 
@@ -86,7 +107,7 @@ def sample_objtype(nobj):
 
     return true_objtype, target_objtype
 
-def get_targets(nspec, tileid=None):
+def get_targets(nspec, flavor, tileid=None):
     """
     Returns:
         fibermap
@@ -102,8 +123,8 @@ def get_targets(nspec, tileid=None):
         tile_ra, tile_dec = io.get_tile_radec(tileid)
 
     #- Get distribution of target types
-    true_objtype, target_objtype = sample_objtype(nspec)
-
+    true_objtype, target_objtype = sample_objtype(nspec, flavor)
+    
     #- Get DESI wavelength coverage
     wavemin = desimodel.io.load_throughput('b').wavemin
     wavemax = desimodel.io.load_throughput('z').wavemax
@@ -163,6 +184,12 @@ def get_targets(nspec, tileid=None):
             star = STAR(wave=wave,FSTD=True)
             simflux, wave1, meta = star.make_templates(nmodel=nobj)
 
+        elif objtype == 'MWS_STAR':
+            from desisim.templates import STAR
+            star = STAR(wave=wave)
+            # todo: magranges for differet flavors of STAR targets should be in desimodel
+            simflux, wave1, meta = star.make_templates(nmodel=nobj,rmagrange=(15.0,20.0))
+            
         truth['FLUX'][ii] = 1e17 * simflux
         truth['UNITS'] = '1e-17 erg/s/cm2/A'
         truth['TEMPLATEID'][ii] = meta['TEMPLATEID']
