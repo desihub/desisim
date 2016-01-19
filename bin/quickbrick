@@ -82,12 +82,6 @@ truth['FLUX']=np.zeros( (opts.nspec, len(wave)) )
 truth['WAVE']=wave
 jj=list()
 
-for objtype in set(true_objtype):
-    ii = np.where(true_objtype == objtype)[0]
-    nobj = len(ii)
-    
-    truth['OBJTYPE'][ii]=objtype   
-
 zrange=None
 if opts.zrange is not None :
     
@@ -106,6 +100,13 @@ if opts.zrange is not None :
         sys.exit(1)
     zrange=(zmin,zmax)
     log.info("will use custom redshift range %s"%str(zrange))
+
+
+for objtype in set(true_objtype):
+    ii = np.where(true_objtype == objtype)[0]
+    nobj = len(ii)
+    
+    truth['OBJTYPE'][ii]=objtype   
     
 #- Generate a set of templates
     if objtype == 'ELG':
