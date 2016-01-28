@@ -174,7 +174,7 @@ class SimSpec(object):
                  skyphot=None, metadata=None, header=None):
         """
         Args:
-            flavor : 'arc', 'flat', or 'science'
+            flavor : e.g. 'arc', 'flat', 'dark', 'mws', ...
             wave : dictionary with per-channel wavelength grids, keyed by
                 'b', 'r', 'z'.  Optionally also has 'brz' key for channel
                 independent wavelength grid
@@ -193,7 +193,6 @@ class SimSpec(object):
                 skyphot[channel] where channel = 'b', 'r', or 'z'
           * wave['brz'] is the wavelength grid for flux and skyflux
         """
-        assert flavor in ('arc', 'flat', 'science')
         for channel in ('b', 'r', 'z'):
             assert wave[channel].ndim == 1
             assert phot[channel].ndim == 2
@@ -239,7 +238,7 @@ def read_simspec(filename):
         fx.close()
         return SimSpec(flavor, wave, phot, flux=flux, header=hdr)
 
-    elif flavor == 'science':
+    else:  #- multiple science flavors: dark, bright, bgs, mws, etc.
         wave['brz'] = fx['WAVE'].data
         flux = fx['FLUX'].data
         metadata = fx['METADATA'].data
@@ -252,10 +251,6 @@ def read_simspec(filename):
         fx.close()
         return SimSpec(flavor, wave, phot, flux=flux, skyflux=skyflux,
             skyphot=skyphot, metadata=metadata, header=hdr)
-
-    else:
-        raise ValueError('unknown flavor '+flavor)
-
 
 
 def write_simpix(outfile, image, meta):
