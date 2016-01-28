@@ -174,7 +174,7 @@ class SimSpec(object):
                  skyphot=None, metadata=None, header=None):
         """
         Args:
-            flavor : 'arc', 'flat', or 'science'
+            flavor : e.g. 'arc', 'flat', 'dark', 'mws', ...
             wave : dictionary with per-channel wavelength grids, keyed by
                 'b', 'r', 'z'.  Optionally also has 'brz' key for channel
                 independent wavelength grid
