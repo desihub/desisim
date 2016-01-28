@@ -14,12 +14,13 @@ from __future__ import print_function, absolute_import, division, unicode_litera
 
 import numpy as np
 import os
+import imp
 
 from astropy.io import fits
 
-import fit_boss_qsos as fbq
+from desisim.qso_template import fit_boss_qsos as fbq
 
-from xastropy.stats import basic as xstat_b
+#from xastropy.stats import basic as xstat_b
 
 flg_xdb = True
 try: 
@@ -27,6 +28,7 @@ try:
 except ImportError:
     flg_xdb = False
 
+desisim_path = imp.find_module('desisim')[1]+'/../../'
 
 ##
 def mean_templ_zi(zimag, debug=False, i_wind=0.1, z_wind=0.05,
@@ -170,62 +172,77 @@ def fig_desi_templ_z_i(outfil=None, boss_fil=None, flg=0):
         plt.show()
 
 ##
-def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, Ntempl=500,
+def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
                        boss_pca_fil=None, wvmnx=(3500., 10000.),
-                       sdss_pca_fil=None, no_write=False):
-    '''
-    Generate 9000 templates for DESI from z=0.4 to 4 
+                       sdss_pca_fil=None, no_write=False,
+                       seed=None, old_read=False):
+    """ Generate QSO templates for DESI
 
     Parameters
     ----------
-    z_wind: float (0.2) 
+    z_wind : float, optional
       Window for sampling
-    zmnx: tuple  ( (0.5,4) )
+    zmnx : tuple, optional
       Min/max for generation
-    Ntempl: int  (500)
+    N_perz : int, optional
       Number of draws per redshift window
-    '''
+    old_read : bool, optional
+      Read the files the old way
+    seed : int, optional
+      Seed for the random number state
+    """
+    ipad = 3  # Padding to enable tossing out bad spectra
     # Cosmology
     from astropy import cosmology 
     cosmo = cosmology.core.FlatLambdaCDM(70., 0.3)
 
-    # PCA values
-    if boss_pca_fil is None:
-        boss_pca_fil = 'BOSS_DR10Lya_PCA_values_nocut.fits.gz'
-    hdu = fits.open(boss_pca_fil)
-    boss_pca_coeff = hdu[1].data
+    if old_read:
+        # PCA values
+        if boss_pca_fil is None:
+            boss_pca_fil = 'BOSS_DR10Lya_PCA_values_nocut.fits.gz'
+        hdu = fits.open(boss_pca_fil)
+        boss_pca_coeff = hdu[1].data
 
-    if sdss_pca_fil is None:
-        sdss_pca_fil = 'SDSS_DR7Lya_PCA_values_nocut.fits.gz'
-    hdu2 = fits.open(sdss_pca_fil)
-    sdss_pca_coeff = hdu2[1].data
-    
+        if sdss_pca_fil is None:
+            sdss_pca_fil = 'SDSS_DR7Lya_PCA_values_nocut.fits.gz'
+        hdu2 = fits.open(sdss_pca_fil)
+        sdss_pca_coeff = hdu2[1].data
 
-    # Eigenvectors
-    eigen, eigen_wave = fbq.read_qso_eigen()
+        # Open the BOSS catalog file
+        boss_cat_fil = os.environ.get('BOSSPATH')+'/DR10/BOSSLyaDR10_cat_v2.1.fits.gz'
+        bcat_hdu = fits.open(boss_cat_fil)
+        t_boss = bcat_hdu[1].data
+        boss_zQSO = t_boss['z_pipe']
+
+        # Open the SDSS catalog file
+        sdss_cat_fil = os.environ.get('SDSSPATH')+'/DR7_QSO/dr7_qso.fits.gz'
+        scat_hdu = fits.open(sdss_cat_fil)
+        t_sdss = scat_hdu[1].data
+        sdss_zQSO = t_sdss['z']
+        if len(sdss_pca_coeff) != len(sdss_zQSO):
+            print('Need to finish running the SDSS models!')
+            sdss_zQSO = sdss_zQSO[0:len(sdss_pca_coeff)]
+        # Eigenvectors
+        eigen, eigen_wave = fbq.read_qso_eigen()
+    else:
+        hdus = fits.open(desisim_path+'/data/DESI_QSO_Template_PCA.fits')
+        hdu_names = [hdus[ii].name for ii in range(len(hdus))]
+        boss_pca_coeff = hdus[hdu_names.index('BOSS_PCA')].data
+        sdss_pca_coeff = hdus[hdu_names.index('SDSS_PCA')].data
+        boss_zQSO = hdus[hdu_names.index('BOSS_Z')].data
+        sdss_zQSO = hdus[hdu_names.index('SDSS_Z')].data
+        eigen = hdus[hdu_names.index('SDSS_EIGEN')].data
+        eigen_wave = hdus[hdu_names.index('SDSS_EIGEN_WAVE')].data
+
+    # Fiddle with the eigen-vectors
     npix = len(eigen_wave)
     chkpix = np.where((eigen_wave > 900.) & (eigen_wave < 5000.) )[0]
     lambda_912 = 911.76
     pix912 = np.argmin( np.abs(eigen_wave-lambda_912) )
 
-    # Open the BOSS catalog file
-    boss_cat_fil = os.environ.get('BOSSPATH')+'/DR10/BOSSLyaDR10_cat_v2.1.fits.gz'
-    bcat_hdu = fits.open(boss_cat_fil)
-    t_boss = bcat_hdu[1].data
-    boss_zQSO = t_boss['z_pipe']
-
-    # Open the SDSS catalog file
-    sdss_cat_fil = os.environ.get('SDSSPATH')+'/DR7_QSO/dr7_qso.fits.gz'
-    scat_hdu = fits.open(sdss_cat_fil)
-    t_sdss = scat_hdu[1].data
-    sdss_zQSO = t_sdss['z']
-    if len(sdss_pca_coeff) != len(sdss_zQSO):
-        print('Need to finish running the SDSS models!')
-        sdss_zQSO = sdss_zQSO[0:len(sdss_pca_coeff)]
-
     # Outfil
     if outfil is None:
-        outfil = 'DESI_QSO_Templates_v1.1.fits'
+        outfil = 'DESI_QSO_Templates.fits'
 
     # Loop on redshift
     z0 = np.arange(zmnx[0],zmnx[1],z_wind)
@@ -234,13 +251,15 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, Ntempl=500,
     pca_list = ['PCA0', 'PCA1', 'PCA2', 'PCA3']
     PCA_mean = np.zeros(4)
     PCA_sig = np.zeros(4)
-    PCA_rand = np.zeros( (4,Ntempl*2) )
+    PCA_rand = np.zeros( (4,N_perz*ipad) )
 
-    final_spec = np.zeros( (npix, Ntempl * len(z0)) )
-    final_wave = np.zeros( (npix, Ntempl * len(z0)) )
-    final_z = np.zeros( Ntempl * len(z0) )
+    final_spec = np.zeros( (npix, N_perz * len(z0)) )
+    final_wave = np.zeros( (npix, N_perz * len(z0)) )
+    final_z = np.zeros( N_perz * len(z0) )
 
-    seed = -1422
+    # Random state
+    rstate = np.random.RandomState(seed)
+
     for ii in range(len(z0)):
 
         # BOSS or SDSS?
@@ -252,7 +271,7 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, Ntempl=500,
             pca_coeff = sdss_pca_coeff
 
         # Random z values and wavelengths
-        zrand = np.random.uniform( z0[ii], z1[ii], Ntempl*2)
+        zrand = rstate.uniform( z0[ii], z1[ii], N_perz*ipad)
         wave = np.outer(eigen_wave, 1+zrand)
 
         # MFP (Worseck+14)
@@ -266,23 +285,23 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, Ntempl=500,
         for ipca in pca_list:
             jj = pca_list.index(ipca)
             if jj == 0: # Use bounds for PCA0 [avoids negative values]
-                xmnx = xstat_b.perc( pca_coeff[ipca][idx], per=0.95 )
-                PCA_rand[jj,:] = np.random.uniform( xmnx[0], xmnx[1], Ntempl*2)
+                xmnx = perc(pca_coeff[ipca][idx], per=0.95)
+                PCA_rand[jj,:] = rstate.uniform( xmnx[0], xmnx[1], N_perz*ipad)
             else:
                 PCA_mean[jj] = np.mean(pca_coeff[ipca][idx])
                 PCA_sig[jj] = np.std(pca_coeff[ipca][idx])
                 # Draws
-                PCA_rand[jj,:] = np.random.uniform( PCA_mean[jj] - 2*PCA_sig[jj],
-                                        PCA_mean[jj] + 2*PCA_sig[jj], Ntempl*2)
+                PCA_rand[jj,:] = rstate.uniform( PCA_mean[jj] - 2*PCA_sig[jj],
+                                        PCA_mean[jj] + 2*PCA_sig[jj], N_perz*ipad)
 
-        # Generate the templates (2*Ntempl)
+        # Generate the templates (ipad*N_perz)
         spec = np.dot(eigen.T,PCA_rand)
 
-        # Take first good Ntempl
+        # Take first good N_perz
 
         # Truncate, MFP, Fill
         ngd = 0
-        for kk in range(2*Ntempl):
+        for kk in range(ipad*N_perz):
             # Any zero values?
             mn = np.min(spec[chkpix,kk])
             if mn < 0.:
@@ -296,13 +315,13 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, Ntempl=500,
                 spec[0:pix912,kk] = spec[0:pix912,kk] * np.exp(-phys_dist.value/mfp[kk]) 
 
             # Write
-            final_spec[:, ii*Ntempl+ngd] = spec[:,kk]
-            final_wave[:, ii*Ntempl+ngd] = wave[:,kk]
-            final_z[ii*Ntempl+ngd] = zrand[kk]
+            final_spec[:, ii*N_perz+ngd] = spec[:,kk]
+            final_wave[:, ii*N_perz+ngd] = wave[:,kk]
+            final_z[ii*N_perz+ngd] = zrand[kk]
             ngd += 1
-            if ngd == Ntempl:
+            if ngd == N_perz:
                 break
-        if ngd != Ntempl:
+        if ngd != N_perz:
             print('Did not make enough!')
             xdb.set_trace()
 
@@ -319,7 +338,7 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, Ntempl=500,
 
     log_wave = minwave+np.arange(r_npix)*pixsize # constant log-10 spacing
 
-    totN = Ntempl * len(z0)
+    totN = N_perz * len(z0)
     rebin_spec = np.zeros((r_npix, totN))
     
     from scipy.interpolate import interp1d
@@ -350,8 +369,8 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, Ntempl=500,
     hdu.header.set('BUNIT', '1e-17 erg/s/cm2/A', ' flux unit')
 
     idval = range(totN)
-    col0 = fits.Column(name='TEMPLATEID',format='K', array=idval)
-    col1 = fits.Column(name='Z',format='E',array=final_z)
+    col0 = fits.Column(name=str('TEMPLATEID'),format=str('J'), array=idval)
+    col1 = fits.Column(name=str('Z'),format=str('E'),array=final_z)
     cols = fits.ColDefs([col0, col1])
     tbhdu = fits.BinTableHDU.from_columns(cols)
     tbhdu.header.set('EXTNAME','METADATA')
@@ -364,15 +383,15 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, Ntempl=500,
 # ##################### #####################
 # ##################### #####################
 # Plots DESI templates at a range of z and imag
-def chk_desi_qso_templates(infil=None, outfil=None, Ntempl=100):
+def chk_desi_qso_templates(infil=None, outfil=None, N_perz=100):
     '''
     '''
     # Get the templates
     if infil is None:
-        final_wave, final_spec, final_z = desi_qso_templates(Ntempl=Ntempl, #zmnx=(0.4,0.8),
+        final_wave, final_spec, final_z = desi_qso_templates(N_perz=N_perz, #zmnx=(0.4,0.8),
                                                              no_write=True)
     sz = final_spec.shape
-    npage = sz[1] // Ntempl
+    npage = sz[1] // N_perz
 
     # Imports
     import matplotlib as mpl
@@ -394,8 +413,8 @@ def chk_desi_qso_templates(infil=None, outfil=None, Ntempl=100):
     # Looping
     for ii in range(npage):
     #for ii in range(1):
-        i0 = ii * Ntempl
-        i1 = i0 + Ntempl
+        i0 = ii * N_perz
+        i1 = i0 + N_perz
         ymx = 0.
 
         plt.figure(figsize=(8, 5))
@@ -433,7 +452,118 @@ def chk_desi_qso_templates(infil=None, outfil=None, Ntempl=100):
             plt.show()
 
     pp.close()
-    
+
+def repackage_coeff(boss_pca_fil=None, sdss_pca_fil=None,
+                    outfil='DESI_QSO_Template_PCA.fits'):
+    """ Repackage the coefficients and redshifts into a single FITS file
+
+    :return:
+    """
+    # PCA values
+    if boss_pca_fil is None:
+        boss_pca_fil = 'BOSS_DR10Lya_PCA_values_nocut.fits.gz'
+    hdu = fits.open(boss_pca_fil)
+    boss_pca_coeff = hdu[1].data
+
+    if sdss_pca_fil is None:
+        sdss_pca_fil = 'SDSS_DR7Lya_PCA_values_nocut.fits.gz'
+    hdu2 = fits.open(sdss_pca_fil)
+    sdss_pca_coeff = hdu2[1].data
+
+    # Redshifts
+    boss_cat_fil = os.environ.get('BOSSPATH')+'/DR10/BOSSLyaDR10_cat_v2.1.fits.gz'
+    bcat_hdu = fits.open(boss_cat_fil)
+    t_boss = bcat_hdu[1].data
+    boss_zQSO = np.array(t_boss['z_pipe'])
+
+    # Open the SDSS catalog file
+    sdss_cat_fil = os.environ.get('SDSSPATH')+'/DR7_QSO/dr7_qso.fits.gz'
+    scat_hdu = fits.open(sdss_cat_fil)
+    t_sdss = scat_hdu[1].data
+    sdss_zQSO = t_sdss['z']
+    if len(sdss_pca_coeff) != len(sdss_zQSO):
+        print('Need to finish running the SDSS models!')
+        sdss_zQSO = sdss_zQSO[0:len(sdss_pca_coeff)]
+
+    # Eigen vectors
+    eigen, eigen_wave = fbq.read_qso_eigen()
+
+    # Write
+    phdu = fits.PrimaryHDU()
+    bp_hdu = fits.BinTableHDU(boss_pca_coeff)
+    bp_hdu.name = 'BOSS_PCA'
+    bz_hdu = fits.ImageHDU(boss_zQSO)
+    bz_hdu.name = 'BOSS_z'
+    sp_hdu = fits.BinTableHDU(sdss_pca_coeff)
+    sp_hdu.name = 'SDSS_PCA'
+    sz_hdu = fits.ImageHDU(sdss_zQSO)
+    sz_hdu.name = 'SDSS_z'
+    e_hdu = fits.ImageHDU(eigen)
+    e_hdu.name = 'SDSS_EIGEN'
+    ew_hdu = fits.ImageHDU(eigen_wave)
+    ew_hdu.name = 'SDSS_EIGEN_WAVE'
+
+    hdulist = fits.HDUList([phdu, bp_hdu, bz_hdu, sp_hdu, sz_hdu,
+                            e_hdu, ew_hdu])
+    hdulist.writeto(outfil, clobber=True)
+    print('Wrote {:s}'.format(outfil))
+
+
+def tst_random_set():
+    """ Generate a small set of random templates for testing
+    :return:
+    """
+    final_wave, final_spec, final_z = desi_qso_templates(
+            outfil='test_random_set.fits', N_perz=100, seed=12345)
+
+
+def perc(x, per=0.68):
+    """ Calculate the percentile bounds of a distribution,
+    i.e. for per=0.68, the code returns the upper and lower bounds
+    that encompass 68percent of the distribution.
+
+    Parameters:
+      x: float
+        numpy array of values
+      per: float (0.68)
+          Percentile for the calulation
+
+    Returns:
+      xper: array
+        Value at lower, value at upper
+
+    JXP 04 Dec 2014
+    """
+    from scipy.interpolate import interp1d
+    #
+    npt = len(x)
+
+    # Sort
+    xsort = np.sort(x)
+    perx = (np.arange(npt)+1) / npt
+
+    f = interp1d(perx, xsort)
+
+    frac = (1.-per) / 2.
+
+    # Fill
+    xper = np.zeros(2)
+    try:
+        xper[0] = f( frac )
+    except ValueError:
+        xper[0] = np.min(x)
+
+    try:
+        xper[1] = f( 1.-frac )
+    except ValueError:
+        xper[1] = np.max(x)
+
+    #xdb.set_trace()
+
+    # Return
+    return xper
+
+
 ## #################################    
 ## #################################    
 ## TESTING
@@ -444,8 +574,10 @@ if __name__ == '__main__':
     flg_test = 0 
     #flg_test += 1  # Mean templates with z,imag
     #flg_test += 2  # Mean template fig
-    flg_test += 2**2  # v1.1 templates 
+    #flg_test += 2**2  # v1.1 templates
     #flg_test += 2**3  # Check v1.1 templates
+    #flg_test += 2**4  # PCA file
+    flg_test += 2**5  # Generate a new random set
 
     # Make Mean templates
     if (flg_test % 2) == 1:
@@ -458,11 +590,19 @@ if __name__ == '__main__':
 
     # Make z=2-4 templates; v1.1
     if (flg_test % 2**3) >= 2**2:
-        aa,bb,cc = desi_qso_templates() #zmnx=(2.,2.4))
+        aa,bb,cc = desi_qso_templates(outfil='DESI_QSO_Templates_v1.1.fits')
 
     # Check z=0.4-4 templates; v1.1
     if (flg_test % 2**4) >= 2**3:
-        chk_desi_qso_templates(outfil='chk_desi_qso_templates.pdf', Ntempl=20)
+        chk_desi_qso_templates(outfil='chk_desi_qso_templates.pdf', N_perz=20)
+
+    # Re-package PCA info
+    if (flg_test % 2**5) >= 2**4:
+        repackage_coeff()
+
+    # Test random generation
+    if (flg_test % 2**6) >= 2**5:
+        tst_random_set()
 
 
     # Done
