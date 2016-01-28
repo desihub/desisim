@@ -52,7 +52,8 @@ class TestObs(unittest.TestCase):
     @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
     def test_newexp(self):
         night = '20150101'
-        for expid, flavor in enumerate(['arc', 'flat', 'science']):
+        #- flavors 'bgs' and 'bright' not yet implemented
+        for expid, flavor in enumerate(['arc', 'flat', 'dark', 'mws']):
             fibermap, true = obs.new_exposure(flavor, nspec=10, night=night, expid=expid)
             simspecfile = io.findfile('simspec', night, expid=expid)
             self.assertTrue(os.path.exists(simspecfile))
@@ -64,11 +65,11 @@ class TestObs(unittest.TestCase):
                 maxphot = simspec.phot[channel].max()
                 self.assertTrue(maxphot > 1, 'suspiciously few {} photons ({}); wrong units?'.format(flavor, maxphot))
                 self.assertTrue(maxphot < 1e6, 'suspiciously many {} photons ({}); wrong units?'.format(flavor, maxphot))
-                if flavor == 'science':
+                if flavor not in ('arc', 'flat'):
                     self.assertTrue(simspec.skyphot[channel].max() > 1, 'suspiciously few sky photons; wrong units?')
                     self.assertTrue(simspec.skyphot[channel].max() < 1e6, 'suspiciously many sky photons; wrong units?')
 
-            if flavor == 'science':
+            if flavor not in ('arc', 'flat'):
                 fx = fits.open(simspecfile)
                 self.assertTrue(fx['FLUX'].header['BUNIT'].startswith('1e-17 '))
                 self.assertTrue(fx['SKYFLUX'].header['BUNIT'].startswith('1e-17 '))
