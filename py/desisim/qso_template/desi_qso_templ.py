@@ -19,6 +19,7 @@ import imp
 from astropy.io import fits
 
 from desisim.qso_template import fit_boss_qsos as fbq
+from desiutil.stats import perc
 
 #from xastropy.stats import basic as xstat_b
 
@@ -515,53 +516,6 @@ def tst_random_set():
     """
     final_wave, final_spec, final_z = desi_qso_templates(
             outfil='test_random_set.fits', N_perz=100, seed=12345)
-
-
-def perc(x, per=0.68):
-    """ Calculate the percentile bounds of a distribution,
-    i.e. for per=0.68, the code returns the upper and lower bounds
-    that encompass 68percent of the distribution.
-
-    Parameters:
-      x: float
-        numpy array of values
-      per: float (0.68)
-          Percentile for the calulation
-
-    Returns:
-      xper: array
-        Value at lower, value at upper
-
-    JXP 04 Dec 2014
-    """
-    from scipy.interpolate import interp1d
-    #
-    npt = len(x)
-
-    # Sort
-    xsort = np.sort(x)
-    perx = (np.arange(npt)+1) / npt
-
-    f = interp1d(perx, xsort)
-
-    frac = (1.-per) / 2.
-
-    # Fill
-    xper = np.zeros(2)
-    try:
-        xper[0] = f( frac )
-    except ValueError:
-        xper[0] = np.min(x)
-
-    try:
-        xper[1] = f( 1.-frac )
-    except ValueError:
-        xper[1] = np.max(x)
-
-    #xdb.set_trace()
-
-    # Return
-    return xper
 
 
 ## #################################    
