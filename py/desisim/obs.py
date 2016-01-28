@@ -292,12 +292,12 @@ def get_night(t=None, utc=None):
     
 #- I'm not really sure this is a good idea.
 #- I'm sure I will want to change the schema later...
-def update_obslog(obstype='science', expid=None, dateobs=None,
+def update_obslog(obstype='dark', expid=None, dateobs=None,
     tileid=-1, ra=None, dec=None):
     """
     Update obslog with a new exposure
     
-    obstype : 'science', 'arc', 'flat', 'bias', 'dark', or 'test'
+    obstype : 'arc', 'flat', 'bias', 'dark', 'test', 'science', 'dark', ...
     expid   : integer exposure ID, default from get_next_expid()
     dateobs : time.struct_time tuple; default time.localtime()
     tileid  : integer TileID, default -1, i.e. not a DESI tile
