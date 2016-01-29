@@ -52,7 +52,8 @@ class TestObs(unittest.TestCase):
     @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
     def test_newexp(self):
         night = '20150101'
-        for expid, flavor in enumerate(['arc', 'flat', 'science']):
+        #- flavors 'bgs' and 'bright' not yet implemented
+        for expid, flavor in enumerate(['arc', 'flat', 'dark', 'mws']):
             fibermap, true = obs.new_exposure(flavor, nspec=10, night=night, expid=expid)
             simspecfile = io.findfile('simspec', night, expid=expid)
             self.assertTrue(os.path.exists(simspecfile))
@@ -64,11 +65,11 @@ class TestObs(unittest.TestCase):
                 maxphot = simspec.phot[channel].max()
                 self.assertTrue(maxphot > 1, 'suspiciously few {} photons ({}); wrong units?'.format(flavor, maxphot))
                 self.assertTrue(maxphot < 1e6, 'suspiciously many {} photons ({}); wrong units?'.format(flavor, maxphot))
-                if flavor == 'science':
+                if flavor not in ('arc', 'flat'):
                     self.assertTrue(simspec.skyphot[channel].max() > 1, 'suspiciously few sky photons; wrong units?')
                     self.assertTrue(simspec.skyphot[channel].max() < 1e6, 'suspiciously many sky photons; wrong units?')
 
-            if flavor == 'science':
+            if flavor not in ('arc', 'flat'):
                 fx = fits.open(simspecfile)
                 self.assertTrue(fx['FLUX'].header['BUNIT'].startswith('1e-17 '))
                 self.assertTrue(fx['SKYFLUX'].header['BUNIT'].startswith('1e-17 '))
@@ -90,6 +91,18 @@ class TestObs(unittest.TestCase):
 
         #- confirm that night and expid are optional
         fibermap, true = obs.new_exposure('arc', nspec=2)
+
+    @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
+    def test_newexp_sky(self):
+        "Test different levels of sky brightness"
+        night = '20150101'
+        #- flavors 'bgs' and 'bright' not yet implemented
+        fibermap, truth_dark = obs.new_exposure('dark', nspec=10, night=night, expid=0)
+        fibermap, truth_mws  = obs.new_exposure('mws', nspec=10, night=night, expid=1)
+        for channel in ['B', 'R', 'Z']:
+            key = 'SKYPHOT_'+channel
+            self.assertTrue(np.all(truth_mws[key] > truth_dark[key]))
+        
 
     @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
     def test_update_obslog(self):
