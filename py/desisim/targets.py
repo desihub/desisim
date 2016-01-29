@@ -187,7 +187,7 @@ def get_targets(nspec, flavor, tileid=None):
         elif objtype == 'MWS_STAR':
             from desisim.templates import STAR
             star = STAR(wave=wave)
-            # todo: magranges for differet flavors of STAR targets should be in desimodel
+            # todo: mag ranges for different flavors of STAR targets should be in desimodel
             simflux, wave1, meta = star.make_templates(nmodel=nobj,rmagrange=(15.0,20.0))
             
         truth['FLUX'][ii] = 1e17 * simflux

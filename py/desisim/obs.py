@@ -23,6 +23,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
     Does not generate pixel-level simulations or noisy spectra.
     
     Args:
+        flavor: 'arc', 'flat', 'bright', 'dark', 'bgs', 'mws', ...
         nspec (optional): integer number of spectra to simulate
         night (optional): YEARMMDD string
         expid (optional): positive integer exposure ID
@@ -36,6 +37,11 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
     Returns:
         fibermap numpy structured array
         truth dictionary
+
+    Notes:
+        flavor is used to pick the sky brightness, and is propagated to
+        desisim.targets.sample_objtype() to get the correct distribution of
+        targets for a given flavor, e.g. ELGs, LRGs, QSOs for flavor='dark'.
     """
     if expid is None:
         expid = get_next_expid()
@@ -49,6 +55,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
         night = get_night(utc=dateobs)
     else:
         #- 10pm on night YEARMMDD
+        night = str(night)  #- just in case we got an integer instead of string
         dateobs = time.strptime(night+':22', '%Y%m%d:%H')
     
     params = desimodel.io.load_desiparams()    
@@ -105,7 +112,11 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
             exptime = params['exptime']
     
         #- Load sky [Magic knowledge of units 1e-17 erg/s/cm2/A/arcsec2]
-        skyfile = os.getenv('DESIMODEL')+'/data/spectra/spec-sky.dat'
+        if flavor.lower() in ('bright', 'bgs', 'mws'):
+            skyfile = os.getenv('DESIMODEL')+'/data/spectra/spec-sky-bright.dat'
+        else:
+            skyfile = os.getenv('DESIMODEL')+'/data/spectra/spec-sky.dat'
+
         skywave, skyflux = np.loadtxt(skyfile, unpack=True)
         skyflux = np.interp(wave, skywave, skyflux)
         truth['SKYFLUX'] = skyflux
