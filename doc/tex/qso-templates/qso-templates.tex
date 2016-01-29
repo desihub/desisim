@@ -268,12 +268,16 @@ Users may wish to generate templates beyond the v1.1 set.
 The code has now been refactored to allow such activity.
 Presently, the user generates a new FITS file containing 
 the new set of templates.  The code also returns the specta
-as simple numpy arrays.
+as simple numpy arrays.  
 
 \begin{Verbatim}[commandchars=\\\{\}]
 final_wave, final_spec, final_z = desi_qso_templates(outfil='test_random_set.fits', 
    N_perz=100, seed=12345)
 \end{Verbatim}
+
+The data necessary to run this
+bit of code is currently here at NERSC: \\
+{\tt /project/projectdirs/desi/spectro/templates/basis\_templates/v2.0/qso\_templates\_v2.0.fits}
 
 \section{Future Improvements}\label{sec:future}
 

@@ -226,7 +226,7 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
         # Eigenvectors
         eigen, eigen_wave = fbq.read_qso_eigen()
     else:
-        hdus = fits.open(desisim_path+'/data/DESI_QSO_Template_PCA.fits')
+        hdus = fits.open(desisim_path+'/data/qso_templates_v2.0.fits')
         hdu_names = [hdus[ii].name for ii in range(len(hdus))]
         boss_pca_coeff = hdus[hdu_names.index('BOSS_PCA')].data
         sdss_pca_coeff = hdus[hdu_names.index('SDSS_PCA')].data
@@ -455,7 +455,7 @@ def chk_desi_qso_templates(infil=None, outfil=None, N_perz=100):
     pp.close()
 
 def repackage_coeff(boss_pca_fil=None, sdss_pca_fil=None,
-                    outfil='DESI_QSO_Template_PCA.fits'):
+                    outfil='qso_templates_v2.0.fits'):
     """ Repackage the coefficients and redshifts into a single FITS file
 
     :return:
@@ -530,8 +530,8 @@ if __name__ == '__main__':
     #flg_test += 2  # Mean template fig
     #flg_test += 2**2  # v1.1 templates
     #flg_test += 2**3  # Check v1.1 templates
-    #flg_test += 2**4  # PCA file
-    flg_test += 2**5  # Generate a new random set
+    flg_test += 2**4  # PCA file
+    #flg_test += 2**5  # Generate a new random set
 
     # Make Mean templates
     if (flg_test % 2) == 1:
