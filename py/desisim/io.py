@@ -461,13 +461,23 @@ def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
 
     log.info('Reading {}'.format(infile))
 
-    flux, hdr = fits.getdata(infile, 0, header=True)
-    meta = Table(fits.getdata(infile, 1))
-    if objtype.upper() == 'QSO': # Need to update the QSO data model
-        from desispec.io.util import header2wave
-        flux *= 1E-17
-        wave = header2wave(hdr)
+    if objtype.upper() == 'QSO':
+        fx = fits.open(infile)
+        if fx[1].name == 'METADATA':    #- v1.1
+            flux = fx[0].data * 1E-17
+            hdr = fx[0].header
+            from desispec.io.util import header2wave
+            wave = header2wave(hdr)
+            meta = Table(fx[1].data)
+        else:                           #- > v2.0
+            flux = fx['SDSS_EIGEN'].data.copy()
+            wave = fx['SDSS_EIGEN_WAVE'].data.copy()
+            meta = Table([np.arange(flux.shape[0]),], names=['PCAVEC',])
+
+        fx.close()
     else:
+        flux, hdr = fits.getdata(infile, 0, header=True)
+        meta = Table(fits.getdata(infile, 1))
         wave = fits.getdata(infile, 2)
 
     # Optionally choose a random subset of spectra. There must be a fast way to
