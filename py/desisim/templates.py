@@ -13,6 +13,7 @@ import numpy as np
 import imp
 import pdb
 
+import desisim.io
 from desispec.log import get_logger
 log = get_logger()
 
@@ -1052,7 +1053,7 @@ class QSO():
         """
 
         # Init
-        self.basis_file = desisim_path+'/data/qso_templates_v2.0.fits'
+        self.basis_file = desisim.io.find_basis_template('qso')
         self.z_wind = z_wind
 
         # Initialize the filter profiles.
@@ -1061,7 +1062,7 @@ class QSO():
         self.zfilt = filt(filtername='decam_z.txt')
         self.w1filt = filt(filtername='wise_w1.txt')
         self.w2filt = filt(filtername='wise_w2.txt')
-
+        
     def make_templates(self, nmodel=100, zrange=(0.5,4.0), gmagrange=(21.0,23.0),
                        seed=None, nocolorcuts=False, old_way=False):
         """Build Monte Carlo set of QSO spectra/templates.
@@ -1094,13 +1095,21 @@ class QSO():
 
         rand = np.random.RandomState(seed)
 
+        # backwards compatiblity hack
+        if desisim.io._qso_format_version(self.basis_file) == 1:
+            old_way = True
+
         # This is a temporary hack because the QSO basis templates are
         # already in the observed frame.
         if old_way:
-            keep = np.where(((self.basemeta['Z']>=zrange[0])*1)*
-                            ((self.basemeta['Z']<=zrange[1])*1))[0]
-            self.baseflux = self.baseflux[keep,:]
-            self.basemeta = self.basemeta[keep]
+            flux, wave, meta = desisim.io.read_basis_templates('qso', infile=self.basis_file)
+            
+            keep = np.where(((meta['Z']>=zrange[0])*1)*
+                            ((meta['Z']<=zrange[1])*1))[0]
+            self.baseflux = flux[keep,:]
+            self.basewave = wave
+            self.basemeta = meta[keep]
+            self.z = meta['Z'][keep]
         else:
             # Generate on-the-fly
             nzbin = (zrange[1]-zrange[0])/self.z_wind
@@ -1121,7 +1130,10 @@ class QSO():
         meta = Table()
         meta['TEMPLATEID'] = Column(np.zeros(nmodel,dtype='i4'))
         #meta['REDSHIFT'] = Column(np.zeros(nmodel,dtype='f4'))
-        meta['REDSHIFT'] = Column(self.z, dtype='f4')
+        if old_way:
+            meta['REDSHIFT'] = Column(np.zeros(nmodel), dtype='f4')
+        else:
+            meta['REDSHIFT'] = Column(self.z, dtype='f4')
         meta['GMAG'] = Column(np.zeros(nmodel,dtype='f4'))
         meta['RMAG'] = Column(np.zeros(nmodel,dtype='f4'))
         meta['ZMAG'] = Column(np.zeros(nmodel,dtype='f4'))
@@ -1139,10 +1151,11 @@ class QSO():
         )
 
         nobj = 0
-        nbase = self.baseflux.shape[1]
         if old_way:
+            nbase = self.baseflux.shape[0]
             nchunk = min(nmodel,500)
         else:
+            nbase = self.baseflux.shape[1]
             nchunk = nmodel
 
         Cuts = TargetCuts()

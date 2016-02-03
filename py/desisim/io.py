@@ -422,6 +422,16 @@ def find_basis_template(objtype, indir=None):
     else:
         raise IOError('No {} templates found in {}'.format(objtype, objfile_wild))
 
+def _qso_format_version(filename):
+    '''Return 1 or 2 depending upon QSO basis template file structure'''
+    with fits.open(filename) as fx:
+        if fx[1].name == 'METADATA':
+            return 1
+        elif fx[1].name == 'BOSS_PCA':
+            return 2
+        else:
+            raise IOError('Unknown QSO basis template format '+filename)
+
 def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
     """Return the basis (continuum) templates for a given object type.  Optionally
        returns a randomly selected subset of nspec spectra sampled at
@@ -463,16 +473,19 @@ def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
 
     if objtype.upper() == 'QSO':
         fx = fits.open(infile)
-        if fx[1].name == 'METADATA':    #- v1.1
+        format_version = _qso_format_version(infile)
+        if format_version == 1:
             flux = fx[0].data * 1E-17
             hdr = fx[0].header
             from desispec.io.util import header2wave
             wave = header2wave(hdr)
             meta = Table(fx[1].data)
-        else:                           #- > v2.0
+        elif format_version == 2:
             flux = fx['SDSS_EIGEN'].data.copy()
             wave = fx['SDSS_EIGEN_WAVE'].data.copy()
             meta = Table([np.arange(flux.shape[0]),], names=['PCAVEC',])
+        else:
+            raise IOError('Unknown QSO basis template format version {}'.format(format_version))
 
         fx.close()
     else:
