@@ -10,11 +10,17 @@ from __future__ import division, print_function
 import os
 import sys
 import numpy as np
+import imp
+import pdb
 
+import desisim.io
 from desispec.log import get_logger
 log = get_logger()
 
+
 LIGHT = 2.99792458E5  #- speed of light in km/s
+
+desisim_path = imp.find_module('desisim')[1]+'/../../'
 
 class TargetCuts():
     """Select targets from flux cuts.  This is a placeholder class that will be
@@ -991,7 +997,8 @@ class QSO():
     """Generate Monte Carlo spectra of quasars (QSOs).
 
     """
-    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None):
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
+                 z_wind=0.2):
         """Read the QSO basis continuum templates, grzW1W2 filter profiles and initialize 
            the output wavelength array.
 
@@ -1008,7 +1015,8 @@ class QSO():
             [default 2 Angstrom/pixel].
           wave (numpy.ndarray): Input/output observed-frame wavelength array,
             overriding the minwave, maxwave, and cdelt arguments [Angstrom].
-    
+          z_wind (float, optional): Redshift window for sampling
+
         Attributes:
           objtype (str): 'QSO'
           wave (numpy.ndarray): Output wavelength array [Angstrom].
@@ -1036,11 +1044,17 @@ class QSO():
             wave = np.linspace(minwave,maxwave,npix) 
         self.wave = wave
 
+        """
         # Read the basis spectra.
         baseflux, basewave, basemeta = read_basis_templates(objtype=self.objtype)
         self.baseflux = baseflux
         self.basewave = basewave
         self.basemeta = basemeta
+        """
+
+        # Init
+        self.basis_file = desisim.io.find_basis_template('qso')
+        self.z_wind = z_wind
 
         # Initialize the filter profiles.
         self.gfilt = filt(filtername='decam_g.txt')
@@ -1048,15 +1062,13 @@ class QSO():
         self.zfilt = filt(filtername='decam_z.txt')
         self.w1filt = filt(filtername='wise_w1.txt')
         self.w2filt = filt(filtername='wise_w2.txt')
-
+        
     def make_templates(self, nmodel=100, zrange=(0.5,4.0), gmagrange=(21.0,23.0),
-                       seed=None, nocolorcuts=False):
-        """Build Monte Carlo set of LRG spectra/templates.
+                       seed=None, nocolorcuts=False, old_way=False):
+        """Build Monte Carlo set of QSO spectra/templates.
 
-        This function chooses random subsets of the LRG continuum spectra and
+        This function generates a random set of QSO continua spectra and
         finally normalizes the spectrum to a specific z-band magnitude.
-
-        TODO (@moustakas): add a LINER- or AGN-like emission-line spectrum 
 
         Args:
           nmodel (int, optional): Number of models to generate (default 100). 
@@ -1077,24 +1089,51 @@ class QSO():
 
         """
         from astropy.table import Table, Column
-        from desisim.io import write_templates
         from desispec.interpolation import resample_flux
+        from desisim.qso_template import desi_qso_templ as dqt
+        #reload(dqt)
 
         rand = np.random.RandomState(seed)
 
+        # backwards compatiblity hack
+        if desisim.io._qso_format_version(self.basis_file) == 1:
+            old_way = True
+
         # This is a temporary hack because the QSO basis templates are
         # already in the observed frame.
-        keep = np.where(((self.basemeta['Z']>=zrange[0])*1)*
-                        ((self.basemeta['Z']<=zrange[1])*1))[0]
-        self.baseflux = self.baseflux[keep,:]
-        self.basemeta = self.basemeta[keep]
+        if old_way:
+            flux, wave, meta = desisim.io.read_basis_templates('qso', infile=self.basis_file)
+            
+            keep = np.where(((meta['Z']>=zrange[0])*1)*
+                            ((meta['Z']<=zrange[1])*1))[0]
+            self.baseflux = flux[keep,:]
+            self.basewave = wave
+            self.basemeta = meta[keep]
+            self.z = meta['Z'][keep]
+        else:
+            # Generate on-the-fly
+            nzbin = (zrange[1]-zrange[0])/self.z_wind
+            N_perz = int(nmodel//nzbin + 2)
+            _, all_flux, redshifts = dqt.desi_qso_templates(
+                zmnx=zrange, no_write=True, rebin_wave=self.wave, rstate=rand,
+                N_perz=N_perz
+            )
+            # Cut down
+            ridx = rand.choice(xrange(len(redshifts)), nmodel, replace=False)
+            self.baseflux = all_flux[:,ridx]
+            self.basewave = self.wave
+            self.z = redshifts[ridx]
 
         # Initialize the output flux array and metadata Table.
         outflux = np.zeros([nmodel,len(self.wave)]) # [erg/s/cm2/A]
 
         meta = Table()
         meta['TEMPLATEID'] = Column(np.zeros(nmodel,dtype='i4'))
-        meta['REDSHIFT'] = Column(np.zeros(nmodel,dtype='f4'))
+        #meta['REDSHIFT'] = Column(np.zeros(nmodel,dtype='f4'))
+        if old_way:
+            meta['REDSHIFT'] = Column(np.zeros(nmodel), dtype='f4')
+        else:
+            meta['REDSHIFT'] = Column(self.z, dtype='f4')
         meta['GMAG'] = Column(np.zeros(nmodel,dtype='f4'))
         meta['RMAG'] = Column(np.zeros(nmodel,dtype='f4'))
         meta['ZMAG'] = Column(np.zeros(nmodel,dtype='f4'))
@@ -1112,13 +1151,20 @@ class QSO():
         )
 
         nobj = 0
-        nbase = len(self.basemeta)
-        nchunk = min(nmodel,500)
+        if old_way:
+            nbase = self.baseflux.shape[0]
+            nchunk = min(nmodel,500)
+        else:
+            nbase = self.baseflux.shape[1]
+            nchunk = nmodel
 
         Cuts = TargetCuts()
         while nobj<=(nmodel-1):
             # Choose a random subset of the base templates
-            chunkindx = rand.randint(0,nbase-1,nchunk)
+            if old_way:
+                chunkindx = rand.randint(0,nbase-1,nchunk)
+            else:
+                chunkindx = xrange(nchunk)
 
             # Assign uniform redshift and g-magnitude distributions.
             # redshift = rand.uniform(zrange[0],zrange[1],nchunk)
@@ -1127,8 +1173,14 @@ class QSO():
 
             # Unfortunately we have to loop here.
             for ii, iobj in enumerate(chunkindx):
-                this = rand.randint(0,nbase-1)
-                obsflux = self.baseflux[this,:] # [erg/s/cm2/A]
+                if old_way:
+                    this = rand.randint(0,nbase-1)
+                else:
+                    this = ii
+                if old_way:
+                    obsflux = self.baseflux[this,:] # [erg/s/cm2/A]
+                else:
+                    obsflux = self.baseflux[:, this] # [erg/s/cm2/A]
 
                 gnorm = 10.0**(-0.4*gmag[ii])/self.gfilt.get_maggies(zwave,obsflux)
                 flux = obsflux*gnorm # [erg/s/cm2/A, @redshift[ii]]
@@ -1151,7 +1203,8 @@ class QSO():
                     outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
 
                     meta['TEMPLATEID'][nobj] = nobj
-                    meta['REDSHIFT'][nobj] = self.basemeta['Z'][this]
+                    if old_way:
+                        meta['REDSHIFT'][nobj] = self.basemeta['Z'][this]
                     meta['GMAG'][nobj] = gmag[ii]
                     meta['RMAG'][nobj] = -2.5*np.log10(rflux)+22.5
                     meta['ZMAG'][nobj] = -2.5*np.log10(zflux)+22.5
@@ -1163,5 +1216,4 @@ class QSO():
                 # If we have enough models get out!
                 if nobj>=(nmodel-1):
                     break
-
         return outflux, self.wave, meta
