@@ -15,13 +15,16 @@ from __future__ import print_function, absolute_import, division, unicode_litera
 import numpy as np
 import os
 import imp
+import pdb
+
+from scipy.interpolate import interp1d
 
 from astropy.io import fits
 
 from desisim.qso_template import fit_boss_qsos as fbq
 from desiutil.stats import perc
 
-#from xastropy.stats import basic as xstat_b
+#from xastropy.stats.basic import perc
 
 flg_xdb = True
 try: 
@@ -129,7 +132,6 @@ def fig_desi_templ_z_i(outfil=None, boss_fil=None, flg=0):
     plt.figure(figsize=(8, 5))
     plt.clf()
     gs = gridspec.GridSpec(4, 1)
-    #xdb.set_trace()
 
     # Looping
     for ii in range(4):
@@ -172,12 +174,15 @@ def fig_desi_templ_z_i(outfil=None, boss_fil=None, flg=0):
     else: 
         plt.show()
 
-##
+
 def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
                        boss_pca_fil=None, wvmnx=(3500., 10000.),
+                       rebin_wave=None, rstate=None,
                        sdss_pca_fil=None, no_write=False,
-                       seed=None, old_read=False):
+                       seed=None, old_read=False, ipad=5):
     """ Generate QSO templates for DESI
+
+    Rebins to input wavelength array (or log10 in wvmnx)
 
     Parameters
     ----------
@@ -191,8 +196,23 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
       Read the files the old way
     seed : int, optional
       Seed for the random number state
+    rebin_wave : ndarray, optional
+      Input wavelengths for rebinning
+    wvmnx : tuple, optional
+      Wavelength limits for rebinning (not used with rebin_wave)
+    redshifts : ndarray, optional
+      Redshifts desired for the templates
+    ipad : int, optional
+      Padding for enabling enough models
+
+    Returns
+    -------
+    wave : ndarray
+      Wavelengths that the spectra were rebinned to
+    flux : ndarray (2D; flux vs. model)
+    z : ndarray
+      Redshifts
     """
-    ipad = 3  # Padding to enable tossing out bad spectra
     # Cosmology
     from astropy import cosmology 
     cosmo = cosmology.core.FlatLambdaCDM(70., 0.3)
@@ -241,10 +261,6 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
     lambda_912 = 911.76
     pix912 = np.argmin( np.abs(eigen_wave-lambda_912) )
 
-    # Outfil
-    if outfil is None:
-        outfil = 'DESI_QSO_Templates.fits'
-
     # Loop on redshift
     z0 = np.arange(zmnx[0],zmnx[1],z_wind)
     z1 = z0 + z_wind
@@ -252,14 +268,15 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
     pca_list = ['PCA0', 'PCA1', 'PCA2', 'PCA3']
     PCA_mean = np.zeros(4)
     PCA_sig = np.zeros(4)
-    PCA_rand = np.zeros( (4,N_perz*ipad) )
+    PCA_rand = np.zeros((4,N_perz*ipad))
 
-    final_spec = np.zeros( (npix, N_perz * len(z0)) )
-    final_wave = np.zeros( (npix, N_perz * len(z0)) )
-    final_z = np.zeros( N_perz * len(z0) )
+    final_spec = np.zeros((npix, N_perz * len(z0)))
+    final_wave = np.zeros((npix, N_perz * len(z0)))
+    final_z = np.zeros(N_perz * len(z0))
 
     # Random state
-    rstate = np.random.RandomState(seed)
+    if rstate is None:
+        rstate = np.random.RandomState(seed)
 
     for ii in range(len(z0)):
 
@@ -283,29 +300,30 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
         print('Making z=({:g},{:g}) with {:d} input quasars'.format(z0[ii],z1[ii],len(idx)))
 
         # Get PCA stats and random values
-        for ipca in pca_list:
-            jj = pca_list.index(ipca)
-            if jj == 0: # Use bounds for PCA0 [avoids negative values]
-                xmnx = perc(pca_coeff[ipca][idx], per=0.95)
-                PCA_rand[jj,:] = rstate.uniform( xmnx[0], xmnx[1], N_perz*ipad)
+        for jj,ipca in enumerate(pca_list):
+            if jj == 0:  # Use bounds for PCA0 [avoids negative values]
+                xmnx = perc(pca_coeff[ipca][idx], per=95)
+                PCA_rand[jj, :] = rstate.uniform(xmnx[0], xmnx[1], N_perz*ipad)
             else:
                 PCA_mean[jj] = np.mean(pca_coeff[ipca][idx])
                 PCA_sig[jj] = np.std(pca_coeff[ipca][idx])
                 # Draws
-                PCA_rand[jj,:] = rstate.uniform( PCA_mean[jj] - 2*PCA_sig[jj],
+                PCA_rand[jj, :] = rstate.uniform( PCA_mean[jj] - 2*PCA_sig[jj],
                                         PCA_mean[jj] + 2*PCA_sig[jj], N_perz*ipad)
 
         # Generate the templates (ipad*N_perz)
-        spec = np.dot(eigen.T,PCA_rand)
+        spec = np.dot(eigen.T, PCA_rand)
 
         # Take first good N_perz
 
         # Truncate, MFP, Fill
         ngd = 0
+        nbad = 0
         for kk in range(ipad*N_perz):
             # Any zero values?
-            mn = np.min(spec[chkpix,kk])
+            mn = np.min(spec[chkpix, kk])
             if mn < 0.:
+                nbad += 1
                 continue
 
             # MFP
@@ -313,7 +331,7 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
                 z912 = wave[0:pix912,kk]/lambda_912 - 1.
                 phys_dist = np.fabs( cosmo.lookback_distance(z912) -
                                 cosmo.lookback_distance(zrand[kk]) ) # Mpc
-                spec[0:pix912,kk] = spec[0:pix912,kk] * np.exp(-phys_dist.value/mfp[kk]) 
+                spec[0:pix912, kk] = spec[0:pix912,kk] * np.exp(-phys_dist.value/mfp[kk])
 
             # Write
             final_spec[:, ii*N_perz+ngd] = spec[:,kk]
@@ -324,32 +342,33 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
                 break
         if ngd != N_perz:
             print('Did not make enough!')
-            xdb.set_trace()
+            pdb.set_trace()
 
-    if no_write is True: # Mainly for plotting
-        return final_wave, final_spec, final_z
+    # Rebin
+    if rebin_wave is None:
+        light = 2.99792458e5        # [km/s]
+        velpixsize = 10.            # [km/s]
+        pixsize = velpixsize/light/np.log(10) # [pixel size in log-10 A]
+        minwave = np.log10(wvmnx[0])          # minimum wavelength [log10-A]
+        maxwave = np.log10(wvmnx[1])          # maximum wavelength [log10-A]
+        r_npix = np.round((maxwave-minwave)/pixsize+1)
 
-    # Rebin 
-    light = 2.99792458e5        # [km/s]
-    velpixsize = 10.            # [km/s]
-    pixsize = velpixsize/light/np.log(10) # [pixel size in log-10 A]
-    minwave = np.log10(wvmnx[0])          # minimum wavelength [log10-A]
-    maxwave = np.log10(wvmnx[1])          # maximum wavelength [log10-A]
-    r_npix = np.round((maxwave-minwave)/pixsize+1)
-
-    log_wave = minwave+np.arange(r_npix)*pixsize # constant log-10 spacing
+        log_wave = minwave+np.arange(r_npix)*pixsize # constant log-10 spacing
+    else:
+        log_wave = np.log10(rebin_wave)
+        r_npix = len(log_wave)
 
     totN = N_perz * len(z0)
     rebin_spec = np.zeros((r_npix, totN))
     
-    from scipy.interpolate import interp1d
-    
+
     for ii in range(totN):
         # Interpolate (in log space)
         f1d = interp1d(np.log10(final_wave[:,ii]), final_spec[:,ii])
         rebin_spec[:,ii] = f1d(log_wave)
-        #xdb.xplot(final_wave[:,ii], final_spec[:,ii], xtwo=10.**log_wave, ytwo=rebin_spec[:,ii])
-        #xdb.set_trace()
+
+    if outfil is None:
+        return 10.**log_wave, rebin_spec, final_z
 
     # Transpose for consistency
     out_spec = np.array(rebin_spec.T, dtype='float32')
@@ -408,8 +427,6 @@ def chk_desi_qso_templates(infil=None, outfil=None, N_perz=100):
     # Start the plot
     if outfil != None:
         pp = PdfPages(outfil)
-
-    #xdb.set_trace()
 
     # Looping
     for ii in range(npage):
@@ -530,8 +547,8 @@ if __name__ == '__main__':
     #flg_test += 2  # Mean template fig
     #flg_test += 2**2  # v1.1 templates
     #flg_test += 2**3  # Check v1.1 templates
-    flg_test += 2**4  # PCA file
-    #flg_test += 2**5  # Generate a new random set
+    #flg_test += 2**4  # PCA file
+    flg_test += 2**5  # Generate a new random set
 
     # Make Mean templates
     if (flg_test % 2) == 1:
@@ -560,5 +577,4 @@ if __name__ == '__main__':
 
 
     # Done
-    #xdb.set_trace()
     print('All done')
