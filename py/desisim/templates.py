@@ -1090,8 +1090,7 @@ class QSO():
         from astropy.table import Table, Column
         from desispec.interpolation import resample_flux
         from desisim.qso_template import desi_qso_templ as dqt
-        import random
-        reload(dqt)
+        #reload(dqt)
 
         rand = np.random.RandomState(seed)
 
@@ -1111,7 +1110,7 @@ class QSO():
                 N_perz=N_perz
             )
             # Cut down
-            ridx = random.sample(xrange(len(redshifts)), nmodel)
+            ridx = rand.choice(xrange(len(redshifts)), nmodel, replace=False)
             self.baseflux = all_flux[:,ridx]
             self.basewave = self.wave
             self.z = redshifts[ridx]
