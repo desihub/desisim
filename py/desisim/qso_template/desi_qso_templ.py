@@ -23,6 +23,7 @@ from astropy.io import fits
 
 from desisim.qso_template import fit_boss_qsos as fbq
 from desiutil.stats import perc
+import desisim.io
 
 #from xastropy.stats.basic import perc
 
@@ -246,7 +247,10 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
         # Eigenvectors
         eigen, eigen_wave = fbq.read_qso_eigen()
     else:
-        hdus = fits.open(desisim_path+'/data/qso_templates_v2.0.fits')
+        # hdus = fits.open(desisim_path+'/data/qso_templates_v2.0.fits')
+        infile = desisim.io.find_basis_template('qso')
+        hdus = fits.open(infile)
+        
         hdu_names = [hdus[ii].name for ii in range(len(hdus))]
         boss_pca_coeff = hdus[hdu_names.index('BOSS_PCA')].data
         sdss_pca_coeff = hdus[hdu_names.index('SDSS_PCA')].data

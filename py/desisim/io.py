@@ -4,6 +4,7 @@ I/O routines for desisim
 
 import os
 import time
+from glob import glob
 
 from astropy.io import fits
 import numpy as np
@@ -407,6 +408,20 @@ def get_tile_radec(tileid):
 def _resample_flux(args):
     return resample_flux(*args)
 
+def find_basis_template(objtype, indir=None):
+    """
+    Return the most recent template in $DESI_BASIS_TEMPLATE/{objtype}_template*.fits
+    """
+    if indir is None:
+        indir = os.environ['DESI_BASIS_TEMPLATES']
+        
+    objfile_wild = os.path.join(indir, objtype.lower()+'_templates_*.fits')
+    objfiles = glob(objfile_wild)
+    if len(objfiles) > 0:
+        return objfiles[-1]
+    else:
+        raise IOError('No {} templates found in {}'.format(objtype, objfile_wild))
+
 def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
     """Return the basis (continuum) templates for a given object type.  Optionally
        returns a randomly selected subset of nspec spectra sampled at
@@ -437,43 +452,23 @@ def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
     from astropy.io import fits
     from astropy.table import Table
 
-    key = 'DESI_BASIS_TEMPLATES'
-    if key not in os.environ:
-        log.fatal('Required ${} environment variable not set'.format(key))
-        raise EnvironmentError('Required ${} environment variable not set'.format(key))
-    objpath = os.getenv(key)
-
     ltype = objtype.lower()
     if objtype == 'FSTD':
         ltype = 'star'
 
     if infile is None:
-        objfile_wild = os.path.join(objpath,ltype+'_templates_*.fits')
-    else:
-        objfile_wild = infile
+        infile = find_basis_template(ltype)
 
-    objfile = glob(objfile_wild)
-    nfile = len(objfile)
+    log.info('Reading {}'.format(infile))
 
-    if nfile>0:
-        objfile_latest = objfile[nfile-1] # latest version
-        if os.path.isfile(objfile_latest):
-            log.info('Reading {}'.format(objfile_latest))
-        else:
-            log.error('Templates basis file {} not found'.format(objfile_latest))
-            raise IOError('Templates basis file {} not found'.format(objfile_latest))
-    else:
-        log.error('Templates basis file {} not found'.format(objfile_wild))
-        raise IOError('Templates basis file {} not found'.format(objfile_wild))
-
-    flux, hdr = fits.getdata(objfile_latest, 0, header=True)
-    meta = Table(fits.getdata(objfile_latest, 1))
-    if objtype == 'QSO': # Need to update the QSO data model
+    flux, hdr = fits.getdata(infile, 0, header=True)
+    meta = Table(fits.getdata(infile, 1))
+    if objtype.upper() == 'QSO': # Need to update the QSO data model
         from desispec.io.util import header2wave
         flux *= 1E-17
         wave = header2wave(hdr)
     else:
-        wave = fits.getdata(objfile_latest, 2)
+        wave = fits.getdata(infile, 2)
 
     # Optionally choose a random subset of spectra. There must be a fast way to
     # do this using fitsio.
