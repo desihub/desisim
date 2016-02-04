@@ -2,6 +2,13 @@
 desisim
 =======
 
+.. image:: https://img.shields.io/travis/desihub/desisim.svg
+    :target: https://travis-ci.org/desihub/desisim
+    :alt: Travis Build Status
+.. image:: https://coveralls.io/repos/desihub/desisim/badge.svg?service=github
+    :target: https://coveralls.io/github/desihub/desisim
+    :alt: Test Coverage Status
+
 Introduction
 ------------
 
