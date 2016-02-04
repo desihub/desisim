@@ -37,6 +37,7 @@ fi
 # versions are always explicitly specified.
 
 # DESI_BASIS_TEMPLATES
+export DESISIM=$PWD
 cd ./data
 wget https://github.com/desihub/desisim-testdata/archive/master.zip
 unzip master.zip
