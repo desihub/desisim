@@ -8,12 +8,8 @@ from astropy.io import fits
 from desisim import io
 from desisim import obs
 
-desimodel_data_available = True
-try:
-    foo = os.environ['DESIMODEL']
-except KeyError:
-    desimodel_data_available = False
-
+desimodel_data_available = 'DESIMODEL' in os.environ
+desi_root_available = 'DESI_ROOT' in os.environ
 
 class TestObs(unittest.TestCase):
     #- Create test subdirectory
@@ -50,6 +46,7 @@ class TestObs(unittest.TestCase):
     # def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
     #     airmass=1.0, exptime=None):
     @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
+    @unittest.skipUnless(desi_root_available, '$DESI_ROOT not set')
     def test_newexp(self):
         night = '20150101'
         #- flavors 'bgs' and 'bright' not yet implemented

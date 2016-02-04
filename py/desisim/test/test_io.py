@@ -8,17 +8,9 @@ import desisim
 from desisim import io
 from astropy.io import fits
 
-desimodel_data_available = True
-try:
-    foo = os.environ['DESIMODEL']
-except KeyError:
-    desimodel_data_available = False
-
-desi_templates_available = True
-try:
-    foo = os.environ['DESI_ROOT']
-except KeyError:
-    desi_templates_available = False
+desimodel_data_available = 'DESIMODEL' in os.environ
+desi_templates_available = 'DESI_ROOT' in os.environ
+desi_basis_templates_available = 'DESI_BASIS_TEMPLATES' in os.environ
 
 class TestIO(unittest.TestCase):
 
@@ -126,7 +118,7 @@ class TestIO(unittest.TestCase):
         self.assertTrue(np.any(c2.pix != c3.pix))
 
     #- read_templates(wave, objtype, nspec=None, randseed=1, infile=None):
-    @unittest.skipUnless(desi_templates_available, 'The DESI templates directory ($DESI_ROOT/spectro/templates) was not detected.')
+    @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES not set')
     def test_read_templates(self):
         wave = np.arange(7000, 7020)
         nspec = 3
