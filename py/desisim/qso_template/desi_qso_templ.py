@@ -180,7 +180,7 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
                        boss_pca_fil=None, wvmnx=(3500., 10000.),
                        rebin_wave=None, rstate=None,
                        sdss_pca_fil=None, no_write=False,
-                       seed=None, old_read=False, ipad=5):
+                       seed=None, old_read=False, ipad=20):
     """ Generate QSO templates for DESI
 
     Rebins to input wavelength array (or log10 in wvmnx)

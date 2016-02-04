@@ -36,6 +36,13 @@ fi
 # Now set up shortcut to conda install command to make sure the Python and Numpy
 # versions are always explicitly specified.
 
+# DESI_BASIS_TEMPLATES
+cd ./data
+wget https://github.com/desihub/desisim-testdata/archive/master.zip
+unzip master.zip
+export DESI_BASIS_TEMPLATES=$PWD/desisim-testdata-master/basis_templates
+cd ..
+
 # OPTIONAL DEPENDENCIES
 if $OPTIONAL_DEPS
 then
