@@ -36,14 +36,6 @@ fi
 # Now set up shortcut to conda install command to make sure the Python and Numpy
 # versions are always explicitly specified.
 
-# DESI_BASIS_TEMPLATES
-export DESISIM=$PWD
-cd ./data
-wget https://github.com/desihub/desisim-testdata/archive/master.zip
-unzip master.zip
-export DESI_BASIS_TEMPLATES=$PWD/desisim-testdata-master/basis_templates
-cd ..
-
 # OPTIONAL DEPENDENCIES
 if $OPTIONAL_DEPS
 then
@@ -58,6 +50,21 @@ $PIP_INSTALL git+https://github.com/desihub/desiutil.git@${DESIUTIL_VERSION}#egg
 $PIP_INSTALL git+https://github.com/desihub/specter.git@${SPECTER_VERSION}#egg=specter
 $PIP_INSTALL svn+https://desi.lbl.gov/svn/code/desimodel/${DESIMODEL_VERSION}#egg=desimodel
 $PIP_INSTALL git+https://github.com/desihub/desispec.git@${DESISPEC_VERSION}#egg=desispec
+
+# DESI_BASIS_TEMPLATES
+export DESISIM=$PWD
+cd ./data
+wget https://github.com/desihub/desisim-testdata/archive/master.zip
+unzip master.zip
+export DESI_BASIS_TEMPLATES=$PWD/desisim-testdata-master/basis_templates
+cd ..
+
+# DESIMODEL
+git clone https://github.com/desihub/desimodel
+cd desimodel
+svn export https://desi.lbl.gov/svn/code/desimodel/branches/test-0.4/data
+export DESIMODEL=$PWD/data
+python setup.py install
 
 # DOCUMENTATION DEPENDENCIES
 # build_sphinx needs sphinx and matplotlib (for plot_directive). Note that
