@@ -97,9 +97,11 @@ class TestIO(unittest.TestCase):
 
     def test_resize(self):
         image = np.random.uniform(size=(4,5))
-        for shape in [(3,4), (4,5), (3,6), (5,4), (5,6)]:
-            x = io._resize(image, shape)
-            self.assertEqual(x.shape, shape)
+        for ny in [3,4,5,7,9,15]:
+            for nx in [3,5,7,19]:
+                shape = (ny, nx)
+                x = io._resize(image, shape)
+                self.assertEqual(x.shape, shape)
 
     #- read_cosmics(filename, expid=1, shape=None, jitter=True):
     @unittest.skipUnless(desi_templates_available, 'The DESI templates directory ($DESI_ROOT/spectro/templates) was not detected.')
