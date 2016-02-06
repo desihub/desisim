@@ -56,7 +56,8 @@ export DESISIM=$PWD
 cd ./data
 wget https://github.com/desihub/desisim-testdata/archive/master.zip
 unzip master.zip
-export DESI_BASIS_TEMPLATES=$PWD/desisim-testdata-master/basis_templates
+export DESI_ROOT=$PWD/desisim-testdata-master/desi
+export DESI_BASIS_TEMPLATES=$DESI_ROOT/spectro/templates/basis_templates/test-v2.0
 cd ..
 
 # DESIMODEL
