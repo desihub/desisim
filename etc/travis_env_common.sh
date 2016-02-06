@@ -63,7 +63,7 @@ cd ..
 git clone https://github.com/desihub/desimodel
 cd desimodel
 svn export https://desi.lbl.gov/svn/code/desimodel/branches/test-0.4/data
-export DESIMODEL=$PWD/data
+export DESIMODEL=$PWD
 python setup.py install
 
 # DOCUMENTATION DEPENDENCIES
