@@ -60,11 +60,14 @@ export DESI_BASIS_TEMPLATES=$PWD/desisim-testdata-master/basis_templates
 cd ..
 
 # DESIMODEL
+# This gets cloned into desisim/desimodel - is that a problem?
 git clone https://github.com/desihub/desimodel
 cd desimodel
 svn export https://desi.lbl.gov/svn/code/desimodel/branches/test-0.4/data
 export DESIMODEL=$PWD
+echo DESIMODEL=$DESIMODEL
 python setup.py install
+cd ..
 
 # DOCUMENTATION DEPENDENCIES
 # build_sphinx needs sphinx and matplotlib (for plot_directive). Note that
