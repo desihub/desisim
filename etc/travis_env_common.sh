@@ -51,13 +51,14 @@ $PIP_INSTALL git+https://github.com/desihub/specter.git@${SPECTER_VERSION}#egg=s
 $PIP_INSTALL svn+https://desi.lbl.gov/svn/code/desimodel/${DESIMODEL_VERSION}#egg=desimodel
 $PIP_INSTALL git+https://github.com/desihub/desispec.git@${DESISPEC_VERSION}#egg=desispec
 
-# DESI_BASIS_TEMPLATES
+# DESI_ROOT and DESI_BASIS_TEMPLATES with test data
 export DESISIM=$PWD
 cd ./data
 wget https://github.com/desihub/desisim-testdata/archive/master.zip
 unzip master.zip
-export DESI_ROOT=$PWD/desisim-testdata-master/desi
-export DESI_BASIS_TEMPLATES=$DESI_ROOT/spectro/templates/basis_templates/test-v2.0
+source desisim-testdata-master/setup-testdata.sh
+# export DESI_ROOT=$PWD/desisim-testdata-master/desi
+# export DESI_BASIS_TEMPLATES=$DESI_ROOT/spectro/templates/basis_templates/test-v2.0
 cd ..
 
 # DESIMODEL
