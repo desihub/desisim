@@ -74,6 +74,7 @@ class TestPixsim(unittest.TestCase):
         self.assertTrue(os.path.exists(io.findfile('pix', night, expid, camera)))
 
     @unittest.skipUnless(desi_templates_available, 'The DESI templates directory ($DESI_ROOT/spectro/templates) was not detected.')
+    @unittest.skipUnless(desimodel_data_available, '$DESIMODEL/data not available')
     def test_pixsim_cosmics(self):
         night = '20150105'
         expid = 124
