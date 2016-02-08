@@ -278,25 +278,10 @@ def write_simpix(outfile, image, meta):
 #- Utility function to resize an image while preserving its 2D arrangement
 #- (unlike np.resize)
 def _resize(image, shape):
-    if (shape[0] > 2*image.shape[0]) or (shape[1] > 2*image.shape[1]):
-        raise ValueError('Can only reshape by up to a factor of 2')
-
-    newpix = np.empty(shape, dtype=image.dtype)
-    ny = min(shape[0], image.shape[0])
-    nx = min(shape[1], image.shape[1])
-    newpix[0:ny, 0:nx] = image[0:ny, 0:nx]
-    if shape[0] > image.shape[0]:
-        nn = shape[0] - image.shape[0]
-        newpix[ny:ny+nn, 0:nx] = image[0:nn, 0:nx]
-    if shape[1] > image.shape[1]:
-        nn = shape[1] - image.shape[1]
-        newpix[0:ny, nx:nx+nn] = image[0:ny, 0:nn]
-    if (shape[0] > image.shape[0]) and (shape[1] > image.shape[1]):
-        nny = shape[0] - image.shape[0]
-        nnx = shape[1] - image.shape[1]
-        newpix[ny:ny+nny, nx:nx+nnx] = image[0:nny, 0:nnx]
-
-    return newpix
+    ny = shape[0] // image.shape[0] + 1
+    nx = shape[1] // image.shape[1] + 1
+    newpix = np.tile(image, (ny, nx))
+    return newpix[0:shape[0], 0:shape[1]]
 
 def read_cosmics(filename, expid=1, shape=None, jitter=True):
     """

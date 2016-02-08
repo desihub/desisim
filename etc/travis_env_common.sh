@@ -51,6 +51,27 @@ $PIP_INSTALL git+https://github.com/desihub/specter.git@${SPECTER_VERSION}#egg=s
 $PIP_INSTALL svn+https://desi.lbl.gov/svn/code/desimodel/${DESIMODEL_VERSION}#egg=desimodel
 $PIP_INSTALL git+https://github.com/desihub/desispec.git@${DESISPEC_VERSION}#egg=desispec
 
+# DESI_ROOT and DESI_BASIS_TEMPLATES with test data
+export DESISIM=$PWD
+testdata_version=0.1
+cd ./data
+wget https://github.com/desihub/desisim-testdata/archive/$testdata_version.zip
+unzip $testdata_version.zip
+source desisim-testdata-$testdata_version/setup-testdata.sh
+# export DESI_ROOT=$PWD/desisim-testdata-master/desi
+# export DESI_BASIS_TEMPLATES=$DESI_ROOT/spectro/templates/basis_templates/test-v2.0
+cd ..
+
+# DESIMODEL
+# This gets cloned into desisim/desimodel - is that a problem?
+git clone https://github.com/desihub/desimodel
+cd desimodel
+svn export https://desi.lbl.gov/svn/code/desimodel/branches/test-0.4/data
+export DESIMODEL=$PWD
+echo DESIMODEL=$DESIMODEL
+python setup.py install
+cd ..
+
 # DOCUMENTATION DEPENDENCIES
 # build_sphinx needs sphinx and matplotlib (for plot_directive). Note that
 # this matplotlib will *not* work with py 3.x, but our sphinx build is
