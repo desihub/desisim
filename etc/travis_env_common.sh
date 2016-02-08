@@ -53,10 +53,11 @@ $PIP_INSTALL git+https://github.com/desihub/desispec.git@${DESISPEC_VERSION}#egg
 
 # DESI_ROOT and DESI_BASIS_TEMPLATES with test data
 export DESISIM=$PWD
+testdata_version=0.1
 cd ./data
-wget https://github.com/desihub/desisim-testdata/archive/master.zip
-unzip master.zip
-source desisim-testdata-master/setup-testdata.sh
+wget https://github.com/desihub/desisim-testdata/archive/$testdata_version.zip
+unzip $testdat_version.zip
+source desisim-testdata-$testdata_version/setup-testdata.sh
 # export DESI_ROOT=$PWD/desisim-testdata-master/desi
 # export DESI_BASIS_TEMPLATES=$DESI_ROOT/spectro/templates/basis_templates/test-v2.0
 cd ..
