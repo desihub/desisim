@@ -44,6 +44,8 @@ module-whatis "Sets up $product/$version in your environment."
 #
 module load desiutil
 prereq desiutil
+module load desimodel
+prereq desimodel
 #
 # ENVIRONMENT SECTION
 #
@@ -76,4 +78,4 @@ setenv [string toupper $product] $PRODUCT_DIR
 #
 # Add any non-standard Module code below this point.
 
-setenv DESI_BASIS_TEMPLATES $env(DESI_ROOT)/spectro/templates/basis_templates/v1.0
+setenv DESI_BASIS_TEMPLATES $env(DESI_ROOT)/spectro/templates/basis_templates/v1.1

@@ -10,9 +10,17 @@ from __future__ import division, print_function
 import os
 import sys
 import numpy as np
+import imp
+import pdb
 
+import desisim.io
 from desispec.log import get_logger
 log = get_logger()
+
+
+LIGHT = 2.99792458E5  #- speed of light in km/s
+
+desisim_path = imp.find_module('desisim')[1]+'/../../'
 
 class TargetCuts():
     """Select targets from flux cuts.  This is a placeholder class that will be
@@ -22,7 +30,7 @@ class TargetCuts():
     """
     def __init__(self):
         pass
-        
+
     def BGS(self,rflux=None):
         BGS = rflux > 10**((22.5-19.35)/2.5)
         return BGS
@@ -67,18 +75,15 @@ class ELG():
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs).
 
     """
-    def __init__(self, nmodel=50, minwave=3600.0, maxwave=10000.0,
-                 cdelt=2.0, wave=None, seed=None):
-        """Read the ELG basis continuum templates, grzW1 filter profiles and initialize
-           the output wavelength array.
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None):
+        """Read the ELG basis continuum templates, grzWISE filter profiles and
+           initialize the output wavelength array.
 
         Only a linearly-spaced output wavelength array is currently supported.
 
         TODO (@moustakas): Incorporate size and morphological priors.
 
         Args:
-          objtype (str): object type
-          nmodel (int, optional): Number of models to generate (default 50). 
           minwave (float, optional): minimum value of the output wavelength
             array [default 3600 Angstrom].
           maxwave (float, optional): minimum value of the output wavelength
@@ -87,32 +92,27 @@ class ELG():
             [default 2 Angstrom/pixel].
           wave (numpy.ndarray): Input/output observed-frame wavelength array,
             overriding the minwave, maxwave, and cdelt arguments [Angstrom].
-          seed (long, optional): input seed for the random numbers
-    
+
         Attributes:
-          objtype (str): See Args.
-          nmodel (int): See Args.
-          seed (long): See Args.
-          rand (numpy.RandomState): instance of numpy.random.RandomState(seed)
+          objtype (str): 'ELG'
           wave (numpy.ndarray): Output wavelength array [Angstrom].
           baseflux (numpy.ndarray): Array [nbase,npix] of the base rest-frame
             ELG continuum spectra [erg/s/cm2/A].
           basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths 
             corresponding to BASEFLUX [Angstrom].
           basemeta (astropy.Table): Table of meta-data for each base template [nbase].
+          pixbound (numpy.ndarray): Pixel boundaries of BASEWAVE [Angstrom].
           gfilt (FILTERFUNC instance): DECam g-band filter profile class.
           rfilt (FILTERFUNC instance): DECam r-band filter profile class.
           zfilt (FILTERFUNC instance): DECam z-band filter profile class.
           w1filt (FILTERFUNC instance): WISE W1-band filter profile class.
-
+          w2filt (FILTERFUNC instance): WISE W2-band filter profile class.
         """
         from desisim.filterfunc import filterfunc as filt
         from desisim.io import read_basis_templates
+        from desisim import pixelsplines as pxs
 
         self.objtype = 'ELG'
-        self.nmodel = nmodel
-        self.seed = seed
-        self.rand = np.random.RandomState(seed=self.seed)
 
         # Initialize the output wavelength array (linear spacing) unless it is
         # already provided.
@@ -127,25 +127,30 @@ class ELG():
         self.basewave = basewave
         self.basemeta = basemeta
 
+        # Pixel boundaries
+        self.pixbound = pxs.cen2bound(basewave)
+
         # Initialize the filter profiles.
         self.gfilt = filt(filtername='decam_g.txt')
         self.rfilt = filt(filtername='decam_r.txt')
         self.zfilt = filt(filtername='decam_z.txt')
         self.w1filt = filt(filtername='wise_w1.txt')
+        self.w2filt = filt(filtername='wise_w2.txt')
 
-    def make_templates(self, zrange=(0.6,1.6), rmagrange=(21.0,23.4),
+    def make_templates(self, nmodel=100, zrange=(0.6,1.6), rmagrange=(21.0,23.4),
                        oiiihbrange=(-0.5,0.1), oiidoublet_meansig=(0.73,0.05),
-                       linesigma_meansig=(1.887,0.175), minoiiflux=1E-17,
-                       no_colorcuts=False):
+                       logvdisp_meansig=(1.9,0.15), minoiiflux=1E-17, seed=None,
+                       nocolorcuts=False, nocontinuum=False):
         """Build Monte Carlo set of ELG spectra/templates.
 
         This function chooses random subsets of the ELG continuum spectra, constructs
         an emission-line spectrum, redshifts, and then finally normalizes the spectrum
         to a specific r-band magnitude.
 
-        TODO (@moustakas): optionally normalized to a g-band magnitude
+        TODO (@moustakas): optionally normalize to a g-band magnitude
 
         Args:
+          nmodel (int, optional): Number of models to generate (default 100). 
           zrange (float, optional): Minimum and maximum redshift range.  Defaults
             to a uniform distribution between (0.6,1.6).
           rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
@@ -156,124 +161,162 @@ class ELG():
         
           oiidoublet_meansig (float, optional): Mean and sigma values for the (Gaussian) 
             [OII] 3726/3729 doublet ratio distribution.  Defaults to (0.73,0.05).
-          linesigma_meansig (float, optional): *Logarithmic* mean and sigma values for the
-            (Gaussian) emission-line velocity width distribution.  Defaults to
-            log10-sigma(=1.887+/0.175) km/s.
-
+          logvdisp_meansig (float, optional): Logarithmic mean and sigma values
+            for the (Gaussian) stellar velocity dispersion distribution.
+            Defaults to log10-sigma=1.9+/-0.15 km/s
           minoiiflux (float, optional): Minimum [OII] 3727 flux [default 1E-17 erg/s/cm2].
             Set this parameter to zero to not have a minimum flux cut.
-          no_colorcuts (bool, optional): Do not apply the fiducial grz color-cuts
+
+          seed (long, optional): input seed for the random numbers.
+          nocolorcuts (bool, optional): Do not apply the fiducial grz color-cuts
             cuts (default False).
-        
+          nocontinuum (bool, optional): Do not include the stellar continuum
+            (useful for testing; default False).  Note that this option
+            automatically sets NOCOLORCUTS to True.
+
         Returns:
-          outflux (numpy.ndarray): Array [nmodel,npix] of observed-frame spectra [erg/s/cm2/A]. 
+          outflux (numpy.ndarray): Array [nmodel,npix] of observed-frame spectra [erg/s/cm2/A].
+          wave (numpy.ndarray): Observed-frame [npix] wavelength array [Angstrom].
           meta (astropy.Table): Table of meta-data for each output spectrum [nmodel].
 
         Raises:
 
         """
         from astropy.table import Table, Column
-
         from desisim.templates import EMSpectrum
         from desispec.interpolation import resample_flux
+        from desisim import pixelsplines as pxs
+        ### from desitarget.cuts import apply_cuts
+
+        if nocontinuum:
+            nocolorcuts = True
+
+        rand = np.random.RandomState(seed)
 
         # Initialize the EMSpectrum object with the same wavelength array as
         # the "base" (continuum) templates so that we don't have to resample. 
-        EM = EMSpectrum(log10wave=np.log10(self.basewave),seed=self.seed)
+        EM = EMSpectrum(log10wave=np.log10(self.basewave))
        
         # Initialize the output flux array and metadata Table.
-        outflux = np.zeros([self.nmodel,len(self.wave)]) # [erg/s/cm2/A]
+        outflux = np.zeros([nmodel,len(self.wave)]) # [erg/s/cm2/A]
 
-        meta = Table()
-        meta['TEMPLATEID'] = Column(np.zeros(self.nmodel,dtype='i4'))
-        meta['REDSHIFT'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['GMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['RMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['ZMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['W1MAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['OIIFLUX'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['EWOII'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['OIIIHBETA'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['OIIDOUBLET'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['LINESIGMA'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['D4000'] = Column(np.zeros(self.nmodel,dtype='f4'))
+        metacols = [
+            ('TEMPLATEID', 'i4'),
+            ('REDSHIFT', 'f4'),
+            ('TYPE', 'S10'),
+            ('GMAG', 'f4'),
+            ('RMAG', 'f4'),
+            ('ZMAG', 'f4'),
+            ('W1MAG', 'f4'),
+            ('W2MAG', 'f4'),
+            ('DECAM_FLUX', 'f4', (6,)),
+            ('WISE_FLUX', 'f4', (4,)),
+            ('DECAM_MW_TRANSMISSION', 'f4', (6,)),
+            ('WISE_MW_TRANSMISSION', 'f4', (4,)),
+            ('OIIFLUX', 'f4'),
+            ('EWOII', 'f4'),
+            ('OIIIHBETA', 'f4'),
+            ('OIIDOUBLET', 'f4'),
+            ('D4000', 'f4'),
+            ('VDISP', 'f4')]
+        meta = Table(np.zeros(nmodel,dtype=metacols))
+        #meta = Table(np.zeros(nmodel,dtype=metacols))
+        meta['TYPE'] = 'ELG'
+        meta['DECAM_MW_TRANSMISSION'] = 1.0
+        meta['WISE_MW_TRANSMISSION'] = 1.0
 
-        meta['OIIFLUX'].unit = 'erg/s/cm2'
+        meta['OIIFLUX'].unit = 'erg/(s*cm2)'
         meta['EWOII'].unit = 'Angstrom'
         meta['OIIIHBETA'].unit = 'dex'
-        meta['LINESIGMA'].unit = 'km/s'
+        meta['VDISP'].unit = 'km/s'
 
-        comments = dict(
-            TEMPLATEID = 'template ID',
-            REDSHIFT = 'object redshift',
-            GMAG = 'DECam g-band AB magnitude',
-            RMAG = 'DECam r-band AB magnitude',
-            ZMAG = 'DECam z-band AB magnitude',
-            W1MAG = 'WISE W1-band AB magnitude',
-            OIIFLUX = '[OII] 3727 flux',
-            EWOII = 'rest-frame equivalenth width of [OII] 3727',
-            OIIIHBETA = 'logarithmic [OIII] 5007/H-beta ratio',
-            OIIDOUBLET = '[OII] 3726/3729 doublet ratio',
-            LINESIGMA = 'emission line velocity width',
-            D4000 = '4000-Angstrom break'
-        )
-
+        # Build the spectra.
         nobj = 0
         nbase = len(self.basemeta)
-        nchunk = min(self.nmodel,500)
+        nchunk = min(nmodel,500)
 
         Cuts = TargetCuts()
-        while nobj<=(self.nmodel-1):
+        while nobj<=(nmodel-1):
             # Choose a random subset of the base templates
-            chunkindx = self.rand.randint(0,nbase-1,nchunk)
+            chunkindx = rand.randint(0,nbase-1,nchunk)
 
             # Assign uniform redshift and r-magnitude distributions.
-            redshift = self.rand.uniform(zrange[0],zrange[1],nchunk)
-            rmag = self.rand.uniform(rmagrange[0],rmagrange[1],nchunk)
+            redshift = rand.uniform(zrange[0],zrange[1],nchunk)
+            rmag = rand.uniform(rmagrange[0],rmagrange[1],nchunk)
+            if logvdisp_meansig[1]>0:
+                vdisp = 10**rand.normal(logvdisp_meansig[0],logvdisp_meansig[1],nchunk)
+            else:
+                vdisp = 10**np.repeat(logvdisp_meansig[0],nchunk)
 
             # Assume the emission-line priors are uncorrelated.
-            oiiihbeta = self.rand.uniform(oiiihbrange[0],oiiihbrange[1],nchunk)
-            oiidoublet = self.rand.normal(oiidoublet_meansig[0],
-                                          oiidoublet_meansig[1],nchunk)
-            linesigma = self.rand.normal(linesigma_meansig[0],
-                                         linesigma_meansig[1],nchunk)
-
+            oiiihbeta = rand.uniform(oiiihbrange[0],oiiihbrange[1],nchunk)
+            oiidoublet = rand.normal(oiidoublet_meansig[0],
+                                     oiidoublet_meansig[1],nchunk)
             d4000 = self.basemeta['D4000'][chunkindx]
             ewoii = 10.0**(np.polyval([1.1074,-4.7338,5.6585],d4000)+ 
-                           self.rand.normal(0.0,0.3)) # rest-frame, Angstrom
+                           rand.normal(0.0,0.25,nchunk)) # rest-frame, Angstrom
+
+            # Create a distribution of seeds for the emission-line spectra.
+            emseed = rand.random_integers(0,100*nchunk,nchunk)
 
             # Unfortunately we have to loop here.
             for ii, iobj in enumerate(chunkindx):
                 zwave = self.basewave*(1.0+redshift[ii])
 
-                # Add the continuum and emission-line spectra with the
-                # right [OII] flux [erg/s/cm2]
-                oiiflux = self.basemeta['OII_CONTINUUM'][iobj]*ewoii[ii] 
-                emflux, emwave, emline = EM.spectrum(linesigma=linesigma[ii],
-                                                      oiidoublet=oiidoublet[ii],
-                                                      oiiihbeta=oiiihbeta[ii],
-                                                      oiiflux=oiiflux)
-                restflux = self.baseflux[iobj,:] + emflux # [erg/s/cm2/A @10pc]
+                restflux = self.baseflux[iobj,:]
                 rnorm = 10.0**(-0.4*rmag[ii])/self.rfilt.get_maggies(zwave,restflux)
                 flux = restflux*rnorm # [erg/s/cm2/A, @redshift[ii]]
+
+                # Create an emission-line spectrum with the right [OII] flux [erg/s/cm2]. 
+                oiiflux = self.basemeta['OII_CONTINUUM'][iobj]*ewoii[ii] 
+                zoiiflux = oiiflux*rnorm # [erg/s/cm2]
+
+                emflux, emwave, emline = EM.spectrum(
+                    linesigma=vdisp[ii],
+                    oiidoublet=oiidoublet[ii],
+                    oiiihbeta=oiiihbeta[ii],
+                    oiiflux=zoiiflux,
+                    seed=emseed[ii])
+                emflux /= (1+redshift[ii]) # [erg/s/cm2/A, @redshift[ii]]
+
+                if nocontinuum:
+                    flux = emflux
+                else:
+                    flux += emflux
 
                 # [grz]flux are in nanomaggies
                 rflux = 10.0**(-0.4*(rmag[ii]-22.5))                      
                 gflux = self.gfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                 zflux = self.zfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                 w1flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
+                w2flux = self.w2filt.get_maggies(zwave,flux)*10**(0.4*22.5)
+                meta['DECAM_FLUX'][nobj] = [0.0,gflux,rflux,0.0,zflux,0.0]
+                meta['WISE_FLUX'][nobj] = [w1flux,w2flux,0.0,0.0]
+                #if gflux>1E5:
+                    #print(nobj, iobj, redshift[ii], rmag[ii], rnorm, gflux, rflux, zflux, w1flux, w2flux)
+                    #import pdb; pdb.set_trace()
 
-                zoiiflux = oiiflux*rnorm # [erg/s/cm2]
                 oiimask = [zoiiflux>minoiiflux]
 
-                if no_colorcuts:
+                if nocolorcuts:
                     grzmask = [True]
                 else:
+                    #desi_target, _bgs, _mws = apply_cuts(meta[nobj])
                     grzmask = [Cuts.ELG(gflux=gflux,rflux=rflux,zflux=zflux)]
 
                 if all(grzmask) and all(oiimask):
                     if ((nobj+1)%10)==0:
-                        print('Simulating {} template {}/{}'.format(self.objtype,nobj+1,self.nmodel))
+                        log.debug('Simulating {} template {}/{}'.format(self.objtype,nobj+1,nmodel))
+
+                    # (@moustakas) pxs.gauss_blur_matrix is producing lots of
+                    # ringing in the emission lines, so deal with it later.
+                    
+                    # Convolve (just the stellar continuum) and resample.
+                    #if nocontinuum is False:
+                        #sigma = 1.0+self.basewave*vdisp[ii]/LIGHT
+                        #flux = pxs.gauss_blur_matrix(self.pixbound,sigma) * flux
+                        #flux = (flux-emflux)*pxs.gauss_blur_matrix(self.pixbound,sigma) + emflux
+                    
                     outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
 
                     meta['TEMPLATEID'][nobj] = nobj
@@ -282,17 +325,20 @@ class ELG():
                     meta['RMAG'][nobj] = rmag[ii]
                     meta['ZMAG'][nobj] = -2.5*np.log10(zflux)+22.5
                     meta['W1MAG'][nobj] = -2.5*np.log10(w1flux)+22.5
+                    meta['W2MAG'][nobj] = -2.5*np.log10(w2flux)+22.5
+                    meta['DECAM_FLUX'][:][nobj] = [0.0,gflux,rflux,0.0,zflux,0.0]
+                    meta['WISE_FLUX'][:][nobj] = [w1flux,w2flux,0.0,0.0]
                     meta['OIIFLUX'][nobj] = zoiiflux
                     meta['EWOII'][nobj] = ewoii[ii]
                     meta['OIIIHBETA'][nobj] = oiiihbeta[ii]
                     meta['OIIDOUBLET'][nobj] = oiidoublet[ii]
-                    meta['LINESIGMA'][nobj] = linesigma[ii]
                     meta['D4000'][nobj] = d4000[ii]
+                    meta['VDISP'][nobj] = vdisp[ii]
 
                     nobj = nobj+1
 
                 # If we have enough models get out!
-                if nobj>=(self.nmodel-1):
+                if nobj>=(nmodel-1):
                     break
 
         return outflux, self.wave, meta
@@ -301,8 +347,7 @@ class EMSpectrum():
     """Construct a complete nebular emission-line spectrum.
 
     """
-    def __init__(self, minwave=3650.0, maxwave=7075.0, cdelt_kms=20.0,
-                 log10wave=None, seed=None):
+    def __init__(self, minwave=3650.0, maxwave=7075.0, cdelt_kms=20.0, log10wave=None):
         """
         Read the requisite external data files and initialize the output wavelength array.
 
@@ -322,8 +367,6 @@ class EMSpectrum():
             array [Angstrom, default 10000].
           cdelt_kms (float, optional): Spacing of the output wavelength array
             [km/s, default 20].
-          seed (long, optional): input seed for the random numbers
-        
           log10wave (numpy.ndarray, optional): Input/output wavelength array
             (log10-Angstrom, default None).
 
@@ -331,8 +374,6 @@ class EMSpectrum():
           log10wave (numpy.ndarray): Wavelength array constructed from the input arguments.
           line (astropy.Table): Table containing the laboratoy (vacuum) wavelengths and nominal
             line-ratios for several dozen forbidden and recombination nebular emission lines. 
-          seed (long): See Args.
-          rand (numpy.RandomState): instance of numpy.random.RandomState(seed)
 
         Raises:
           IOError: If the required data files are not found.
@@ -341,14 +382,11 @@ class EMSpectrum():
         from astropy.io import ascii
         from astropy.table import Table, Column, vstack
 
-        self.seed = seed
-        self.rand = np.random.RandomState(seed=self.seed)
-        
         # Build a wavelength array if one is not given.
         if log10wave is None:
             cdelt = cdelt_kms/2.99792458E5/np.log(10) # pixel size [log-10 A]
             npix = (np.log10(maxwave)-np.log10(minwave))/cdelt+1
-            self.log10wave = np.linspace(np.log10(minwave),np.log10(maxwave),cdelt)
+            self.log10wave = np.linspace(np.log10(minwave),np.log10(maxwave),npix)
         else:
             self.log10wave = log10wave
 
@@ -377,7 +415,8 @@ class EMSpectrum():
         self.line['amp'] = Column(np.ones(nline),dtype='f8')   # amplitude
 
     def spectrum(self, oiiihbeta=-0.2, oiidoublet=0.73, siidoublet=1.3,
-                 linesigma=75.0, zshift=0.0, oiiflux=None, hbetaflux=None):
+                 linesigma=75.0, zshift=0.0, oiiflux=None, hbetaflux=None,
+                 seed=None):
         """Build the actual emission-line spectrum.
 
         Building the emission-line spectrum involves three main steps.
@@ -413,6 +452,7 @@ class EMSpectrum():
             integrated [OII] emission-line flux (default None).
           hbetaflux (float, optional): Normalize the emission-line spectrum to this
             integrated H-beta emission-line flux (default None).
+          seed (long, optional): input seed for the random numbers.
 
         Returns:
           emspec (numpy.ndarray): Array [npix] of flux values [erg/s/cm2/A].
@@ -422,10 +462,12 @@ class EMSpectrum():
             the emission-line spectrum.
 
         """
+        rand = np.random.RandomState(seed)
+
         oiiidoublet = 2.8875    # [OIII] 5007/4959 doublet ratio (set by atomic physics)
         niidoublet = 2.93579    # [NII] 6584/6548 doublet ratio (set by atomic physics)
 
-        line = self.line
+        line = self.line.copy()
         nline = len(line)
 
         # Normalize [OIII] 4959, 5007 .
@@ -442,7 +484,7 @@ class EMSpectrum():
         disp = 0.1 # dex
 
         line['ratio'][is6584] = 10**(np.polyval(coeff,oiiihbeta)+
-                                          self.rand.normal(0.0,disp))
+                                     rand.normal(0.0,disp))
         line['ratio'][is6548] = line['ratio'][is6584]/niidoublet
 
         # Normalize [SII] 6716,6731.
@@ -452,7 +494,7 @@ class EMSpectrum():
         disp = 0.1 # dex
 
         line['ratio'][is6716] = 10**(np.polyval(coeff,oiiihbeta)+
-                                          self.rand.normal(0.0,disp))
+                                     rand.normal(0.0,disp))
         line['ratio'][is6731] = line['ratio'][is6716]/siidoublet
 
         # Normalize [NeIII] 3869.
@@ -461,7 +503,7 @@ class EMSpectrum():
         disp = 0.1 # dex
 
         line['ratio'][is3869] = 10**(np.polyval(coeff,oiiihbeta)+
-                                          self.rand.normal(0.0,disp))
+                                     rand.normal(0.0,disp))
 
         # Normalize [OII] 3727, split into [OII] 3726,3729.
         is3726 = np.where(line['name']=='[OII]_3726')[0]
@@ -470,7 +512,7 @@ class EMSpectrum():
         disp = 0.1 # dex
 
         oiihbeta = 10**(np.polyval(coeff,oiiihbeta)+ # [OII] 3727/Hbeta
-                        self.rand.normal(0.0,disp)) 
+                        rand.normal(0.0,disp)) 
 
         factor1 = oiidoublet/(1.0+oiidoublet) # convert 3727-->3726
         factor2 = 1.0/(1.0+oiidoublet)        # convert 3727-->3729
@@ -485,7 +527,7 @@ class EMSpectrum():
         if (hbetaflux is None) and (oiiflux is not None):
             for ii in range(nline):
                 line['ratio'][ii] /= line['ratio'][is3729]
-                line['flux'][ii] = oiiflux/(1.0+oiidoublet)*line['ratio'][ii]
+                line['flux'][ii] = oiiflux*factor2*line['ratio'][ii]
                 
         if (hbetaflux is not None) and (oiiflux is None):
             for ii in range(nline):
@@ -495,6 +537,10 @@ class EMSpectrum():
             log.warning('Both HBETAFLUX and OIIFLUX were given; using HBETAFLUX.')
             for ii in range(nline):
                 line['flux'][ii] = hbetaflux*line['ratio'][ii]
+
+        #ishb = np.where(line['name']=='Hbeta')[0]
+        #if line['flux'][ishb]>1E-13:
+        #    import pdb; pdb.set_trace()
 
         # Finally build the emission-line spectrum
         log10sigma = linesigma/2.99792458E5/np.log(10) # line-width [log-10 Angstrom]
@@ -514,18 +560,15 @@ class LRG():
     """Generate Monte Carlo spectra of luminous red galaxies (LRGs).
 
     """
-    def __init__(self, nmodel=50, minwave=3600.0, maxwave=10000.0,
-                 cdelt=2.0, wave=None, seed=None):
-        """Read the LRG basis continuum templates, grzW1 filter profiles and initialize
-           the output wavelength array.
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None):
+        """Read the LRG basis continuum templates, grzWISE filter profiles and
+           initialize the output wavelength array.
 
         Only a linearly-spaced output wavelength array is currently supported.
 
         TODO (@moustakas): Incorporate size and morphological priors.
 
         Args:
-          objtype (str): object type
-          nmodel (int, optional): Number of models to generate (default 50). 
           minwave (float, optional): minimum value of the output wavelength
             array [default 3600 Angstrom].
           maxwave (float, optional): minimum value of the output wavelength
@@ -534,16 +577,217 @@ class LRG():
             [default 2 Angstrom/pixel].
           wave (numpy.ndarray): Input/output observed-frame wavelength array,
             overriding the minwave, maxwave, and cdelt arguments [Angstrom].
-          seed (long, optional): input seed for the random numbers
     
         Attributes:
-          objtype (str): See Args.
-          nmodel (int): See Args.
-          seed (long): See Args.
-          rand (numpy.RandomState): instance of numpy.random.RandomState(seed)
+          objtype (str): 'LRG'
           wave (numpy.ndarray): Output wavelength array [Angstrom].
           baseflux (numpy.ndarray): Array [nbase,npix] of the base rest-frame
             LRG continuum spectra [erg/s/cm2/A].
+          basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths 
+            corresponding to BASEFLUX [Angstrom].
+          basemeta (astropy.Table): Table of meta-data for each base template [nbase].
+          pixbound (numpy.ndarray): Pixel boundaries of BASEWAVE [Angstrom].
+          gfilt (FILTERFUNC instance): DECam g-band filter profile class.
+          rfilt (FILTERFUNC instance): DECam r-band filter profile class.
+          zfilt (FILTERFUNC instance): DECam z-band filter profile class.
+          w1filt (FILTERFUNC instance): WISE W1-band filter profile class.
+          w2filt (FILTERFUNC instance): WISE W2-band filter profile class.
+
+        """
+        from desisim.filterfunc import filterfunc as filt
+        from desisim.io import read_basis_templates
+        from desisim import pixelsplines as pxs
+
+        self.objtype = 'LRG'
+
+        # Initialize the output wavelength array (linear spacing) unless it is
+        # already provided.
+        if wave is None:
+            npix = (maxwave-minwave)/cdelt+1
+            wave = np.linspace(minwave,maxwave,npix) 
+        self.wave = wave
+
+        # Read the rest-frame continuum basis spectra.
+        baseflux, basewave, basemeta = read_basis_templates(objtype=self.objtype)
+        self.baseflux = baseflux
+        self.basewave = basewave
+        self.basemeta = basemeta
+
+        # Pixel boundaries
+        self.pixbound = pxs.cen2bound(basewave)
+
+        # Initialize the filter profiles.
+        self.gfilt = filt(filtername='decam_g.txt')
+        self.rfilt = filt(filtername='decam_r.txt')
+        self.zfilt = filt(filtername='decam_z.txt')
+        self.w1filt = filt(filtername='wise_w1.txt')
+        self.w2filt = filt(filtername='wise_w2.txt')
+
+    def make_templates(self, nmodel=100, zrange=(0.5,1.1), zmagrange=(19.0,20.5),
+                       logvdisp_meansig=(2.3,0.1), seed=None, nocolorcuts=False):
+        """Build Monte Carlo set of LRG spectra/templates.
+
+        This function chooses random subsets of the LRG continuum spectra and
+        finally normalizes the spectrum to a specific z-band magnitude.
+
+        TODO (@moustakas): add a LINER- or AGN-like emission-line spectrum 
+
+        Args:
+          zrange (float, optional): Minimum and maximum redshift range.  Defaults
+            to a uniform distribution between (0.5,1.1).
+          zmagrange (float, optional): Minimum and maximum DECam z-band (AB)
+            magnitude range.  Defaults to a uniform distribution between (19,20.5).
+          logvdisp_meansig (float, optional): Logarithmic mean and sigma values
+            for the (Gaussian) stellar velocity dispersion distribution.
+            Defaults to log10-sigma=2.3+/-0.1 km/s
+          seed (long, optional): input seed for the random numbers.
+          nocolorcuts (bool, optional): Do not apply the fiducial rzW1
+            color-cuts cuts (default False).
+        
+        Returns:
+          outflux (numpy.ndarray): Array [nmodel,npix] of observed-frame spectra [erg/s/cm2/A]. 
+          wave (numpy.ndarray): Observed-frame [npix] wavelength array [Angstrom].
+          meta (astropy.Table): Table of meta-data for each output spectrum [nmodel].
+
+        Raises:
+
+        """
+        from astropy.table import Table, Column
+        from desisim.io import write_templates
+        from desispec.interpolation import resample_flux
+        from desisim import pixelsplines as pxs
+
+        rand = np.random.RandomState(seed)
+
+        # Initialize the output flux array and metadata Table.
+        outflux = np.zeros([nmodel,len(self.wave)]) # [erg/s/cm2/A]
+
+        meta = Table()
+        meta['TEMPLATEID'] = Column(np.zeros(nmodel,dtype='i4'))
+        meta['REDSHIFT'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['GMAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['RMAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['ZMAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['W1MAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['W2MAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['ZMETAL'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['AGE'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['D4000'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['VDISP'] = Column(np.zeros(nmodel,dtype='f4'))
+
+        meta['AGE'].unit = 'Gyr'
+        meta['VDISP'].unit = 'km/s'
+
+        comments = dict(
+            TEMPLATEID = 'template ID',
+            REDSHIFT = 'object redshift',
+            GMAG = 'DECam g-band AB magnitude',
+            RMAG = 'DECam r-band AB magnitude',
+            ZMAG = 'DECam z-band AB magnitude',
+            W1MAG = 'WISE W1-band AB magnitude',
+            W2MAG = 'WISE W2-band AB magnitude',
+            ZMETAL = 'stellar metallicity',
+            AGE = 'time since the onset of star formation',
+            D4000 = '4000-Angstrom break',
+            VDISP = 'stellar velocity dispersion'
+        )
+
+        nobj = 0
+        nbase = len(self.basemeta)
+        nchunk = min(nmodel,500)
+
+        Cuts = TargetCuts()
+        while nobj<=(nmodel-1):
+            # Choose a random subset of the base templates
+            chunkindx = rand.randint(0,nbase-1,nchunk)
+
+            # Assign uniform redshift, z-magnitude, and velocity dispersion
+            # distributions.
+            redshift = rand.uniform(zrange[0],zrange[1],nchunk)
+            zmag = rand.uniform(zmagrange[0],zmagrange[1],nchunk)
+
+            if logvdisp_meansig[1]>0:
+                vdisp = 10**rand.normal(logvdisp_meansig[0],logvdisp_meansig[1],nchunk)
+            else:
+                vdisp = 10**np.repeat(logvdisp_meansig[0],nchunk)
+
+            # Unfortunately we have to loop here.
+            for ii, iobj in enumerate(chunkindx):
+                zwave = self.basewave*(1.0+redshift[ii])
+                restflux = self.baseflux[iobj,:] # [erg/s/cm2/A @10pc]
+
+                znorm = 10.0**(-0.4*zmag[ii])/self.zfilt.get_maggies(zwave,restflux)
+                flux = restflux*znorm # [erg/s/cm2/A, @redshift[ii]]
+
+                # [grzW1W2]flux are in nanomaggies
+                zflux = 10.0**(-0.4*(zmag[ii]-22.5))                      
+                gflux = self.gfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
+                rflux = self.rfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
+                w1flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
+                w2flux = self.w2filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
+
+                if nocolorcuts:
+                    rzW1mask = [True]
+                else:
+                    rzW1mask = [Cuts.LRG(rflux=rflux,zflux=zflux,w1flux=w1flux)]
+
+                if all(rzW1mask):
+                    if ((nobj+1)%10)==0:
+                        log.debug('Simulating {} template {}/{}'.format(self.objtype,nobj+1,nmodel))
+
+                    # Convolve and resample
+                    sigma = 1.0+self.basewave*vdisp[ii]/LIGHT
+                    flux = pxs.gauss_blur_matrix(self.pixbound,sigma) * flux
+                        
+                    outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
+
+                    meta['TEMPLATEID'][nobj] = nobj
+                    meta['REDSHIFT'][nobj] = redshift[ii]
+                    meta['GMAG'][nobj] = -2.5*np.log10(gflux)+22.5
+                    meta['RMAG'][nobj] = -2.5*np.log10(rflux)+22.5
+                    meta['ZMAG'][nobj] = zmag[ii]
+                    meta['W1MAG'][nobj] = -2.5*np.log10(w1flux)+22.5
+                    meta['W2MAG'][nobj] = -2.5*np.log10(w2flux)+22.5
+                    meta['ZMETAL'][nobj] = self.basemeta['ZMETAL'][iobj]
+                    meta['AGE'][nobj] = self.basemeta['AGE'][iobj]
+                    meta['D4000'][nobj] = self.basemeta['AGE'][iobj]
+                    meta['VDISP'][nobj] = vdisp[ii]
+
+                    nobj = nobj+1
+
+                # If we have enough models get out!
+                if nobj>=(nmodel-1):
+                    break
+
+        return outflux, self.wave, meta
+
+class STAR():
+    """Generate Monte Carlo spectra of normal stars, F-type standard stars, or white
+       dwarfs.
+
+    """
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None, 
+                 FSTD=False, WD=False):
+        """Read the stellar basis continuum templates, grzWISE filter profiles and
+           initialize the output wavelength array.
+
+        Only a linearly-spaced output wavelength array is currently supported.
+
+        Args:
+          minwave (float, optional): minimum value of the output wavelength
+            array [default 3600 Angstrom].
+          maxwave (float, optional): minimum value of the output wavelength
+            array [default 10000 Angstrom].
+          cdelt (float, optional): spacing of the output wavelength array
+            [default 2 Angstrom/pixel].
+          wave (numpy.ndarray): Input/output observed-frame wavelength array,
+            overriding the minwave, maxwave, and cdelt arguments [Angstrom].
+    
+        Attributes:
+          objtype (str): 'FSTD', 'WD', or 'STAR'
+          wave (numpy.ndarray): Output wavelength array [Angstrom].
+          baseflux (numpy.ndarray): Array [nbase,npix] of the base rest-frame
+            stellar continuum spectra [erg/s/cm2/A].
           basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths 
             corresponding to BASEFLUX [Angstrom].
           basemeta (astropy.Table): Table of meta-data for each base template [nbase].
@@ -551,15 +795,18 @@ class LRG():
           rfilt (FILTERFUNC instance): DECam r-band filter profile class.
           zfilt (FILTERFUNC instance): DECam z-band filter profile class.
           w1filt (FILTERFUNC instance): WISE W1-band filter profile class.
+          w2filt (FILTERFUNC instance): WISE W2-band filter profile class.
 
         """
         from desisim.filterfunc import filterfunc as filt
         from desisim.io import read_basis_templates
 
-        self.objtype = 'LRG'
-        self.nmodel = nmodel
-        self.seed = seed
-        self.rand = np.random.RandomState(seed=self.seed)
+        if FSTD:
+            self.objtype = 'FSTD'
+        elif WD:
+            self.objtype = 'WD'
+        else:
+            self.objtype = 'STAR'
 
         # Initialize the output wavelength array (linear spacing) unless it is
         # already provided.
@@ -579,192 +826,10 @@ class LRG():
         self.rfilt = filt(filtername='decam_r.txt')
         self.zfilt = filt(filtername='decam_z.txt')
         self.w1filt = filt(filtername='wise_w1.txt')
+        self.w2filt = filt(filtername='wise_w2.txt')
 
-    def make_templates(self, zrange=(0.5,1.1), zmagrange=(19.0,20.5),
-                       no_colorcuts=False):
-        """Build Monte Carlo set of LRG spectra/templates.
-
-        This function chooses random subsets of the LRG continuum spectra and
-        finally normalizes the spectrum to a specific z-band magnitude.
-
-        TODO (@moustakas): add a LINER- or AGN-like emission-line spectrum 
-
-        Args:
-          zrange (float, optional): Minimum and maximum redshift range.  Defaults
-            to a uniform distribution between (0.5,1.1).
-          zmagrange (float, optional): Minimum and maximum DECam z-band (AB)
-            magnitude range.  Defaults to a uniform distribution between (19,20.5).
-          no_colorcuts (bool, optional): Do not apply the fiducial rzW1 color-cuts
-            cuts (default False).
-        
-        Returns:
-          outflux (numpy.ndarray): Array [nmodel,npix] of observed-frame spectra [erg/s/cm2/A]. 
-          meta (astropy.Table): Table of meta-data for each output spectrum [nmodel].
-
-        Raises:
-
-        """
-        from astropy.table import Table, Column
-        from desisim.io import write_templates
-        from desispec.interpolation import resample_flux
-
-        # Initialize the output flux array and metadata Table.
-        outflux = np.zeros([self.nmodel,len(self.wave)]) # [erg/s/cm2/A]
-
-        meta = Table()
-        meta['TEMPLATEID'] = Column(np.zeros(self.nmodel,dtype='i4'))
-        meta['REDSHIFT'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['GMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['RMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['ZMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['W1MAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['ZMETAL'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['AGE'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['D4000'] = Column(np.zeros(self.nmodel,dtype='f4'))
-
-        meta['AGE'].unit = 'Gyr'
-
-        comments = dict(
-            TEMPLATEID = 'template ID',
-            REDSHIFT = 'object redshift',
-            GMAG = 'DECam g-band AB magnitude',
-            RMAG = 'DECam r-band AB magnitude',
-            ZMAG = 'DECam z-band AB magnitude',
-            W1MAG = 'WISE W1-band AB magnitude',
-            ZMETAL = 'stellar metallicity',
-            AGE = 'time since the onset of star formation',
-            D4000 = '4000-Angstrom break'
-        )
-
-        nobj = 0
-        nbase = len(self.basemeta)
-        nchunk = min(self.nmodel,500)
-
-        Cuts = TargetCuts()
-        while nobj<=(self.nmodel-1):
-            # Choose a random subset of the base templates
-            chunkindx = self.rand.randint(0,nbase-1,nchunk)
-
-            # Assign uniform redshift and z-magnitude distributions.
-            redshift = self.rand.uniform(zrange[0],zrange[1],nchunk)
-            zmag = self.rand.uniform(zmagrange[0],zmagrange[1],nchunk)
-
-            # Unfortunately we have to loop here.
-            for ii, iobj in enumerate(chunkindx):
-                zwave = self.basewave*(1.0+redshift[ii])
-                restflux = self.baseflux[iobj,:] # [erg/s/cm2/A @10pc]
-
-                znorm = 10.0**(-0.4*zmag[ii])/self.zfilt.get_maggies(zwave,restflux)
-                flux = restflux*znorm # [erg/s/cm2/A, @redshift[ii]]
-
-                # [grzW1]flux are in nanomaggies
-                zflux = 10.0**(-0.4*(zmag[ii]-22.5))                      
-                gflux = self.gfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
-                rflux = self.rfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
-                w1flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
-
-                if no_colorcuts:
-                    rzW1mask = [True]
-                else:
-                    rzW1mask = [Cuts.LRG(rflux=rflux,zflux=zflux,w1flux=w1flux)]
-
-                if all(rzW1mask):
-                    if ((nobj+1)%10)==0:
-                        print('Simulating {} template {}/{}'.format(self.objtype,nobj+1,self.nmodel))
-                    outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
-
-                    meta['TEMPLATEID'][nobj] = nobj
-                    meta['REDSHIFT'][nobj] = redshift[ii]
-                    meta['GMAG'][nobj] = -2.5*np.log10(gflux)+22.5
-                    meta['RMAG'][nobj] = -2.5*np.log10(rflux)+22.5
-                    meta['ZMAG'][nobj] = zmag[ii]
-                    meta['W1MAG'][nobj] = -2.5*np.log10(w1flux)+22.5
-                    meta['ZMETAL'][nobj] = self.basemeta['ZMETAL'][iobj]
-                    meta['AGE'][nobj] = self.basemeta['AGE'][iobj]
-                    meta['D4000'][nobj] = self.basemeta['AGE'][iobj]
-
-                    nobj = nobj+1
-
-                # If we have enough models get out!
-                if nobj>=(self.nmodel-1):
-                    break
-
-        return outflux, self.wave, meta
-
-class STAR():
-    """Generate Monte Carlo spectra of normal stars, F-type standard stars, or white
-       dwarfs.
-
-    """
-    def __init__(self, nmodel=50, minwave=3600.0, maxwave=10000.0,
-                 cdelt=2.0, wave=None, seed=None, FSTD=False, WD=False):
-        """Read the stellar basis continuum templates, grzW1 filter profiles and
-           initialize the output wavelength array.
-
-        Only a linearly-spaced output wavelength array is currently supported.
-
-        Args:
-          objtype (str): object type
-          nmodel (int, optional): Number of models to generate (default 50). 
-          minwave (float, optional): minimum value of the output wavelength
-            array [default 3600 Angstrom].
-          maxwave (float, optional): minimum value of the output wavelength
-            array [default 10000 Angstrom].
-          cdelt (float, optional): spacing of the output wavelength array
-            [default 2 Angstrom/pixel].
-          wave (numpy.ndarray): Input/output observed-frame wavelength array,
-            overriding the minwave, maxwave, and cdelt arguments [Angstrom].
-          seed (long, optional): input seed for the random numbers
-    
-        Attributes:
-          objtype (str): See Args.
-          nmodel (int): See Args.
-          seed (long): See Args.
-          rand (numpy.RandomState): instance of numpy.random.RandomState(seed)
-          wave (numpy.ndarray): Output wavelength array [Angstrom].
-          baseflux (numpy.ndarray): Array [nbase,npix] of the base rest-frame
-            stellar continuum spectra [erg/s/cm2/A].
-          basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths 
-            corresponding to BASEFLUX [Angstrom].
-          basemeta (astropy.Table): Table of meta-data for each base template [nbase].
-          gfilt (FILTERFUNC instance): DECam g-band filter profile class.
-          rfilt (FILTERFUNC instance): DECam r-band filter profile class.
-          zfilt (FILTERFUNC instance): DECam z-band filter profile class.
-
-        """
-        from desisim.filterfunc import filterfunc as filt
-        from desisim.io import read_basis_templates
-
-        if FSTD:
-            self.objtype = 'FSTD'
-        elif WD:
-            self.objtype = 'WD'
-        else:
-            self.objtype = 'STAR'
-        self.nmodel = nmodel
-        self.seed = seed
-        self.rand = np.random.RandomState(seed=self.seed)
-
-        # Initialize the output wavelength array (linear spacing) unless it is
-        # already provided.
-        if wave is None:
-            npix = (maxwave-minwave)/cdelt+1
-            wave = np.linspace(minwave,maxwave,npix) 
-        self.wave = wave
-
-        # Read the rest-frame continuum basis spectra.
-        baseflux, basewave, basemeta = read_basis_templates(objtype=self.objtype)
-        self.baseflux = baseflux
-        self.basewave = basewave
-        self.basemeta = basemeta
-
-        # Initialize the filter profiles.
-        self.gfilt = filt(filtername='decam_g.txt')
-        self.rfilt = filt(filtername='decam_r.txt')
-        self.zfilt = filt(filtername='decam_z.txt')
-
-    def make_templates(self, vrad_meansig=(0.0,200.0), rmagrange=(18.0,23.4),
-                       gmagrange=(16.0,19.0)):
+    def make_templates(self, nmodel=100, vrad_meansig=(0.0,200.0), rmagrange=(18.0,23.4),
+                       gmagrange=(16.0,19.0), seed=None):
         """Build Monte Carlo set of spectra/templates for stars. 
 
         This function chooses random subsets of the continuum spectra for stars,
@@ -772,6 +837,7 @@ class STAR():
         specified r- or g-band magnitude.
 
         Args:
+          nmodel (int, optional): Number of models to generate (default 100). 
           vrad_meansig (float, optional): Mean and sigma (standard deviation) of the 
             radial velocity "jitter" (in km/s) that should be added to each
             spectrum.  Defaults to a normal distribution with a mean of zero and
@@ -780,9 +846,11 @@ class STAR():
             magnitude range.  Defaults to a uniform distribution between (18,23.4).
           gmagrange (float, optional): Minimum and maximum DECam g-band (AB)
             magnitude range.  Defaults to a uniform distribution between (16,19). 
+          seed (long, optional): input seed for the random numbers.
 
         Returns:
           outflux (numpy.ndarray): Array [nmodel,npix] of observed-frame spectra [erg/s/cm2/A]. 
+          wave (numpy.ndarray): Observed-frame [npix] wavelength array [Angstrom].
           meta (astropy.Table): Table of meta-data for each output spectrum [nmodel].
 
         Raises:
@@ -792,17 +860,21 @@ class STAR():
         from desisim.io import write_templates
         from desispec.interpolation import resample_flux
 
+        rand = np.random.RandomState(seed)
+
         # Initialize the output flux array and metadata Table.
-        outflux = np.zeros([self.nmodel,len(self.wave)]) # [erg/s/cm2/A]
+        outflux = np.zeros([nmodel,len(self.wave)]) # [erg/s/cm2/A]
 
         meta = Table()
-        meta['TEMPLATEID'] = Column(np.zeros(self.nmodel,dtype='i4'))
-        meta['REDSHIFT'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['GMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['RMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['ZMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['LOGG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['TEFF'] = Column(np.zeros(self.nmodel,dtype='f4'))
+        meta['TEMPLATEID'] = Column(np.zeros(nmodel,dtype='i4'))
+        meta['REDSHIFT'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['GMAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['RMAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['ZMAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['W1MAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['W2MAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['LOGG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['TEFF'] = Column(np.zeros(nmodel,dtype='f4'))
 
         meta['LOGG'].unit = 'm/s^2'
         meta['TEFF'].unit = 'K'
@@ -814,17 +886,21 @@ class STAR():
                 GMAG = 'DECam g-band AB magnitude',
                 RMAG = 'DECam r-band AB magnitude',
                 ZMAG = 'DECam z-band AB magnitude',
+                W1MAG = 'WISE W1-band AB magnitude',
+                W2MAG = 'WISE W2-band AB magnitude',
                 LOGG = 'log10 of the effective gravity',
                 TEFF = 'stellar effective temperature'
             )
         else:
-            meta['FEH'] = Column(np.zeros(self.nmodel,dtype='f4'))
+            meta['FEH'] = Column(np.zeros(nmodel,dtype='f4'))
             comments = dict(
                 TEMPLATEID = 'template ID',
                 REDSHIFT = 'object redshift',
                 GMAG = 'DECam g-band AB magnitude',
                 RMAG = 'DECam r-band AB magnitude',
                 ZMAG = 'DECam z-band AB magnitude',
+                W1MAG = 'WISE W1-band AB magnitude',
+                W2MAG = 'WISE W2-band AB magnitude',
                 LOGG = 'log10 of the effective gravity',
                 TEFF = 'stellar effective temperature',
                 FEH = 'log10 iron abundance relative to solar',
@@ -833,20 +909,20 @@ class STAR():
 
         nobj = 0
         nbase = len(self.basemeta)
-        nchunk = min(self.nmodel,500)
+        nchunk = min(nmodel,500)
 
         Cuts = TargetCuts()
-        while nobj<=(self.nmodel-1):
+        while nobj<=(nmodel-1):
             # Choose a random subset of the base templates
-            chunkindx = self.rand.randint(0,nbase-1,nchunk)
+            chunkindx = rand.randint(0,nbase-1,nchunk)
 
             # Assign uniform redshift and r-magnitude distributions.
             if self.objtype=='WD':
-                gmag = self.rand.uniform(gmagrange[0],gmagrange[1],nchunk)
+                gmag = rand.uniform(gmagrange[0],gmagrange[1],nchunk)
             else: 
-                rmag = self.rand.uniform(rmagrange[0],rmagrange[1],nchunk)
+                rmag = rand.uniform(rmagrange[0],rmagrange[1],nchunk)
                 
-            vrad = self.rand.normal(vrad_meansig[0],vrad_meansig[1],nchunk)
+            vrad = rand.normal(vrad_meansig[0],vrad_meansig[1],nchunk)
             redshift = vrad/2.99792458E5
 
             # Unfortunately we have to loop here.
@@ -862,6 +938,8 @@ class STAR():
                     gflux = 10.0**(-0.4*(gmag[ii]-22.5))                      
                     rflux = self.rfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                     zflux = self.zfilt.get_maggies(zwave,flux)*10**(0.4*22.5)
+                    w1flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
+                    w2flux = self.w2filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                 else:
                     rnorm = 10.0**(-0.4*rmag[ii])/self.rfilt.get_maggies(zwave,restflux)
                     flux = restflux*rnorm # [erg/s/cm2/A, @redshift[ii]]
@@ -869,6 +947,8 @@ class STAR():
                     rflux = 10.0**(-0.4*(rmag[ii]-22.5))                      
                     gflux = self.gfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                     zflux = self.zfilt.get_maggies(zwave,flux)*10**(0.4*22.5)
+                    w1flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
+                    w2flux = self.w2filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
 
                 # Color cuts on just on the standard stars.
                 if self.objtype=='FSTD':
@@ -880,7 +960,7 @@ class STAR():
 
                 if all(grzmask):
                     if ((nobj+1)%10)==0:
-                        print('Simulating {} template {}/{}'.format(self.objtype,nobj+1,self.nmodel))
+                        log.debug('Simulating {} template {}/{}'.format(self.objtype,nobj+1,nmodel))
                     outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
 
                     if self.objtype=='WD':
@@ -889,6 +969,8 @@ class STAR():
                         meta['GMAG'][nobj] = gmag[ii]
                         meta['RMAG'][nobj] = -2.5*np.log10(rflux)+22.5
                         meta['ZMAG'][nobj] = -2.5*np.log10(zflux)+22.5
+                        meta['W1MAG'][nobj] = -2.5*np.log10(w1flux)+22.5
+                        meta['W2MAG'][nobj] = -2.5*np.log10(w2flux)+22.5
                         meta['LOGG'][nobj] = self.basemeta['LOGG'][iobj]
                         meta['TEFF'][nobj] = self.basemeta['TEFF'][iobj]
                     else:
@@ -897,6 +979,8 @@ class STAR():
                         meta['GMAG'][nobj] = -2.5*np.log10(gflux)+22.5
                         meta['RMAG'][nobj] = rmag[ii]
                         meta['ZMAG'][nobj] = -2.5*np.log10(zflux)+22.5
+                        meta['W1MAG'][nobj] = -2.5*np.log10(w1flux)+22.5
+                        meta['W2MAG'][nobj] = -2.5*np.log10(w2flux)+22.5
                         meta['LOGG'][nobj] = self.basemeta['LOGG'][iobj]
                         meta['TEFF'][nobj] = self.basemeta['TEFF'][iobj]
                         meta['FEH'][nobj] = self.basemeta['FEH'][iobj]
@@ -904,7 +988,7 @@ class STAR():
                     nobj = nobj+1
 
                 # If we have enough models get out!
-                if nobj>=(self.nmodel-1):
+                if nobj>=(nmodel-1):
                     break
                 
         return outflux, self.wave, meta
@@ -913,8 +997,8 @@ class QSO():
     """Generate Monte Carlo spectra of quasars (QSOs).
 
     """
-    def __init__(self, nmodel=50, minwave=3600.0, maxwave=10000.0,
-                 cdelt=2.0, wave=None, seed=None):
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
+                 z_wind=0.2):
         """Read the QSO basis continuum templates, grzW1W2 filter profiles and initialize 
            the output wavelength array.
 
@@ -923,8 +1007,6 @@ class QSO():
           * The basis templates are  only defined in the range 3500-10000 A (observed). 
 
         Args:
-          objtype (str): object type
-          nmodel (int, optional): Number of models to generate (default 50). 
           minwave (float, optional): minimum value of the output wavelength
             array [default 3600 Angstrom].
           maxwave (float, optional): minimum value of the output wavelength
@@ -933,13 +1015,10 @@ class QSO():
             [default 2 Angstrom/pixel].
           wave (numpy.ndarray): Input/output observed-frame wavelength array,
             overriding the minwave, maxwave, and cdelt arguments [Angstrom].
-          seed (long, optional): input seed for the random numbers
-    
+          z_wind (float, optional): Redshift window for sampling
+
         Attributes:
-          objtype (str): See Args.
-          nmodel (int): See Args.
-          seed (long): See Args.
-          rand (numpy.RandomState): instance of numpy.random.RandomState(seed)
+          objtype (str): 'QSO'
           wave (numpy.ndarray): Output wavelength array [Angstrom].
           baseflux (numpy.ndarray): Array [nbase,npix] of the base rest-frame
             QSO continuum spectra [erg/s/cm2/A].
@@ -957,9 +1036,6 @@ class QSO():
         from desisim.io import read_basis_templates
 
         self.objtype = 'QSO'
-        self.nmodel = nmodel
-        self.seed = seed
-        self.rand = np.random.RandomState(seed=self.seed)
 
         # Initialize the output wavelength array (linear spacing) unless it is
         # already provided.
@@ -968,11 +1044,17 @@ class QSO():
             wave = np.linspace(minwave,maxwave,npix) 
         self.wave = wave
 
+        """
         # Read the basis spectra.
         baseflux, basewave, basemeta = read_basis_templates(objtype=self.objtype)
         self.baseflux = baseflux
         self.basewave = basewave
         self.basemeta = basemeta
+        """
+
+        # Init
+        self.basis_file = desisim.io.find_basis_template('qso')
+        self.z_wind = z_wind
 
         # Initialize the filter profiles.
         self.gfilt = filt(filtername='decam_g.txt')
@@ -980,82 +1062,125 @@ class QSO():
         self.zfilt = filt(filtername='decam_z.txt')
         self.w1filt = filt(filtername='wise_w1.txt')
         self.w2filt = filt(filtername='wise_w2.txt')
+        
+    def make_templates(self, nmodel=100, zrange=(0.5,4.0), gmagrange=(21.0,23.0),
+                       seed=None, nocolorcuts=False, old_way=False):
+        """Build Monte Carlo set of QSO spectra/templates.
 
-    def make_templates(self, zrange=(0.5,4.0), gmagrange=(21.0,23.0),
-                       no_colorcuts=False):
-        """Build Monte Carlo set of LRG spectra/templates.
-
-        This function chooses random subsets of the LRG continuum spectra and
+        This function generates a random set of QSO continua spectra and
         finally normalizes the spectrum to a specific z-band magnitude.
 
-        TODO (@moustakas): add a LINER- or AGN-like emission-line spectrum 
-
         Args:
+          nmodel (int, optional): Number of models to generate (default 100). 
           zrange (float, optional): Minimum and maximum redshift range.  Defaults
             to a uniform distribution between (0.5,4.0).
           gmagrange (float, optional): Minimum and maximum DECam g-band (AB)
             magnitude range.  Defaults to a uniform distribution between (21,23.0).
-          no_colorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
+          seed (long, optional): input seed for the random numbers.
+          nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
             cuts (default False) (not yet supported).
         
         Returns:
           outflux (numpy.ndarray): Array [nmodel,npix] of observed-frame spectra [erg/s/cm2/A]. 
+          wave (numpy.ndarray): Observed-frame [npix] wavelength array [Angstrom].
           meta (astropy.Table): Table of meta-data for each output spectrum [nmodel].
 
         Raises:
 
         """
         from astropy.table import Table, Column
-        from desisim.io import write_templates
         from desispec.interpolation import resample_flux
+        from desisim.qso_template import desi_qso_templ as dqt
+        #reload(dqt)
+
+        rand = np.random.RandomState(seed)
+
+        # backwards compatiblity hack
+        if desisim.io._qso_format_version(self.basis_file) == 1:
+            old_way = True
 
         # This is a temporary hack because the QSO basis templates are
         # already in the observed frame.
-        keep = np.where(((self.basemeta['Z']>=zrange[0])*1)*
-                        ((self.basemeta['Z']<=zrange[1])*1))[0]
-        self.baseflux = self.baseflux[keep,:]
-        self.basemeta = self.basemeta[keep]
+        if old_way:
+            flux, wave, meta = desisim.io.read_basis_templates('qso', infile=self.basis_file)
+            
+            keep = np.where(((meta['Z']>=zrange[0])*1)*
+                            ((meta['Z']<=zrange[1])*1))[0]
+            self.baseflux = flux[keep,:]
+            self.basewave = wave
+            self.basemeta = meta[keep]
+            self.z = meta['Z'][keep]
+        else:
+            # Generate on-the-fly
+            nzbin = (zrange[1]-zrange[0])/self.z_wind
+            N_perz = int(nmodel//nzbin + 2)
+            _, all_flux, redshifts = dqt.desi_qso_templates(
+                zmnx=zrange, no_write=True, rebin_wave=self.wave, rstate=rand,
+                N_perz=N_perz
+            )
+            # Cut down
+            ridx = rand.choice(xrange(len(redshifts)), nmodel, replace=False)
+            self.baseflux = all_flux[:,ridx]
+            self.basewave = self.wave
+            self.z = redshifts[ridx]
 
         # Initialize the output flux array and metadata Table.
-        outflux = np.zeros([self.nmodel,len(self.wave)]) # [erg/s/cm2/A]
+        outflux = np.zeros([nmodel,len(self.wave)]) # [erg/s/cm2/A]
 
         meta = Table()
-        meta['TEMPLATEID'] = Column(np.zeros(self.nmodel,dtype='i4'))
-        meta['REDSHIFT'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['GMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['RMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        meta['ZMAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        # meta['W1MAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
-        # meta['W2MAG'] = Column(np.zeros(self.nmodel,dtype='f4'))
+        meta['TEMPLATEID'] = Column(np.zeros(nmodel,dtype='i4'))
+        #meta['REDSHIFT'] = Column(np.zeros(nmodel,dtype='f4'))
+        if old_way:
+            meta['REDSHIFT'] = Column(np.zeros(nmodel), dtype='f4')
+        else:
+            meta['REDSHIFT'] = Column(self.z, dtype='f4')
+        meta['GMAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['RMAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['ZMAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['W1MAG'] = Column(np.zeros(nmodel,dtype='f4'))
+        meta['W2MAG'] = Column(np.zeros(nmodel,dtype='f4'))
 
         comments = dict(
             TEMPLATEID = 'template ID',
             REDSHIFT = 'object redshift',
             GMAG = 'DECam g-band AB magnitude',
             RMAG = 'DECam r-band AB magnitude',
-            ZMAG = 'DECam z-band AB magnitude'
-            # W1MAG = 'WISE W1-band AB magnitude',
-            # W2MAG = 'WISE W2-band AB magnitude'
+            ZMAG = 'DECam z-band AB magnitude',
+            W1MAG = 'WISE W1-band AB magnitude',
+            W2MAG = 'WISE W2-band AB magnitude'
         )
 
         nobj = 0
-        nbase = len(self.basemeta)
-        nchunk = min(self.nmodel,500)
+        if old_way:
+            nbase = self.baseflux.shape[0]
+            nchunk = min(nmodel,500)
+        else:
+            nbase = self.baseflux.shape[1]
+            nchunk = nmodel
 
         Cuts = TargetCuts()
-        while nobj<=(self.nmodel-1):
+        while nobj<=(nmodel-1):
             # Choose a random subset of the base templates
-            chunkindx = self.rand.randint(0,nbase-1,nchunk)
+            if old_way:
+                chunkindx = rand.randint(0,nbase-1,nchunk)
+            else:
+                chunkindx = xrange(nchunk)
 
             # Assign uniform redshift and g-magnitude distributions.
-            # redshift = self.rand.uniform(zrange[0],zrange[1],nchunk)
-            gmag = self.rand.uniform(gmagrange[0],gmagrange[1],nchunk)
+            # redshift = rand.uniform(zrange[0],zrange[1],nchunk)
+            gmag = rand.uniform(gmagrange[0],gmagrange[1],nchunk)
             zwave = self.basewave # hack!
 
             # Unfortunately we have to loop here.
             for ii, iobj in enumerate(chunkindx):
-                this = np.random.random_integers(0,nbase)
-                obsflux = self.baseflux[this,:] # [erg/s/cm2/A]
+                if old_way:
+                    this = rand.randint(0,nbase-1)
+                else:
+                    this = ii
+                if old_way:
+                    obsflux = self.baseflux[this,:] # [erg/s/cm2/A]
+                else:
+                    obsflux = self.baseflux[:, this] # [erg/s/cm2/A]
 
                 gnorm = 10.0**(-0.4*gmag[ii])/self.gfilt.get_maggies(zwave,obsflux)
                 flux = obsflux*gnorm # [erg/s/cm2/A, @redshift[ii]]
@@ -1064,30 +1189,31 @@ class QSO():
                 gflux = 10.0**(-0.4*(gmag[ii]-22.5))                      
                 rflux = self.rfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
                 zflux = self.zfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
-                # w1flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
-                # w2flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
+                w1flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
+                w2flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
 
-                if no_colorcuts:
+                if nocolorcuts:
                     grzW1W2mask = [True]
                 else:
                     grzW1W2mask = [True]
 
                 if all(grzW1W2mask):
                     if ((nobj+1)%10)==0:
-                        print('Simulating {} template {}/{}'.format(self.objtype,nobj+1,self.nmodel))
+                        log.debug('Simulating {} template {}/{}'.format(self.objtype,nobj+1,nmodel))
                     outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
 
                     meta['TEMPLATEID'][nobj] = nobj
-                    meta['REDSHIFT'][nobj] = self.basemeta['Z'][this]
+                    if old_way:
+                        meta['REDSHIFT'][nobj] = self.basemeta['Z'][this]
                     meta['GMAG'][nobj] = gmag[ii]
                     meta['RMAG'][nobj] = -2.5*np.log10(rflux)+22.5
                     meta['ZMAG'][nobj] = -2.5*np.log10(zflux)+22.5
-                    # meta['W1MAG'][nobj] = -2.5*np.log10(w1flux)+22.5
+                    meta['W1MAG'][nobj] = -2.5*np.log10(w1flux)+22.5
+                    meta['W2MAG'][nobj] = -2.5*np.log10(w2flux)+22.5
 
                     nobj = nobj+1
 
                 # If we have enough models get out!
-                if nobj>=(self.nmodel-1):
+                if nobj>=(nmodel-1):
                     break
-
         return outflux, self.wave, meta

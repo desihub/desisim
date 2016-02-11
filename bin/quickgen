@@ -20,9 +20,9 @@ import os.path
 import numpy as np
 import scipy.special
 import sys
-import desimodel.simulate as sim
 import desispec
 import desisim.io
+import specsim
 from desispec.resolution import Resolution
 from desispec.io import write_flux_calibration, write_fiberflat
 from desispec.interpolation import resample_flux
@@ -140,9 +140,9 @@ print "Simulating spectra",args.nstart, "to", nmax
 print "************************************************"
 
 # Run Simulation for first Spectrum
-print "Initializing QuickSim"
-specObj0=sim.SpectralFluxDensity(wavelengths,spectra[args.nstart,:])
-qsim=sim.Quick(basePath=DESIMODEL_DIR)
+print "Initializing SpecSim"
+specObj0=specsim.spectrum.SpectralFluxDensity(wavelengths,spectra[args.nstart,:])
+qsim=specsim.quick.Quick(basePath=DESIMODEL_DIR)
 
 #- simulate a fake object 0 just to get wavelength grids etc setup
 results=qsim.simulate(sourceType='star', sourceSpectrum=specObj0,
@@ -212,7 +212,7 @@ np.random.seed(0)
 
 sigma_vs_wave = dict()
 for i, channel in enumerate( ['b', 'r', 'z'] ):
-    sigma_vs_wave[channel] = sim.WavelengthFunction(origin_wavelength, qsim.cameras[i].sigma_wave).getResampledValues(waves[channel])
+    sigma_vs_wave[channel] = specsim.spectrum.WavelengthFunction(origin_wavelength, qsim.cameras[i].sigma_wave).getResampledValues(waves[channel])
 
 #- Resolution data from gaussian sigmas
 def _calc_resolution_data(sigma, wavelengths, nspec):
@@ -260,7 +260,7 @@ for i, channel in enumerate( ['b', 'r', 'z'] ):
 for j in xrange(args.nstart,nmax): # Exclusive
     print "\rSimulating spectrum %d,  object type=%s"%(j,objtype[j]),
     sys.stdout.flush()
-    specObj=sim.SpectralFluxDensity(wavelengths,spectra[j,:])
+    specObj=specsim.spectrum.SpectralFluxDensity(wavelengths,spectra[j,:])
     results=qsim.simulate(sourceType=objtype[j].lower(),sourceSpectrum=specObj,
             airmass=simspec.header['AIRMASS'], expTime=simspec.header['EXPTIME'])
 

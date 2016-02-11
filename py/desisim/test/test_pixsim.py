@@ -10,10 +10,15 @@ from desisim import io
 from desisim import obs
 from desisim import pixsim
 
+desimodel_data_available = 'DESIMODEL' in os.environ
+desi_templates_available = 'DESI_ROOT' in os.environ
+desi_root_available = 'DESI_ROOT' in os.environ
+
 class TestPixsim(unittest.TestCase):
     #- Create test subdirectory
     @classmethod
     def setUpClass(cls):
+        global desi_templates_available
         cls.testfile = 'test-{uuid}/test-{uuid}.fits'.format(uuid=uuid1())
         cls.testDir = os.path.join(os.environ['HOME'],'desi_test_io')
         cls.origEnv = dict(
@@ -30,9 +35,11 @@ class TestPixsim(unittest.TestCase):
             if e in os.environ:
                 cls.origEnv[e] = os.environ[e]
             os.environ[e] = cls.testEnv[e]
-            
-        cls.cosmics = os.getenv('DESI_ROOT') + \
-            '/spectro/templates/cosmics/v0.2/cosmics-bias-r.fits'
+        if desi_templates_available:
+            cls.cosmics = (os.environ['DESI_ROOT'] +
+                '/spectro/templates/cosmics/v0.2/cosmics-bias-r.fits')
+        else:
+            cls.cosmics = None
 
     #- Cleanup test files if they exist
     @classmethod
@@ -52,18 +59,22 @@ class TestPixsim(unittest.TestCase):
 
     # def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
     #     trimxy=False, cosmics=None):
+    @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
+    @unittest.skipUnless(desi_root_available, '$DESI_ROOT not set')
     def test_pixsim(self):
         night = '20150105'
         expid = 123
         camera = 'r0'
         obs.new_exposure('arc', night=night, expid=expid, nspec=3)
         pixsim.simulate(night, expid, camera, nspec=3, trimxy=True)
-        
+
         self.assertTrue(os.path.exists(io.findfile('simspec', night, expid)))
         simspec = io.read_simspec(io.findfile('simspec', night, expid))
         self.assertTrue(os.path.exists(io.findfile('simpix', night, expid, camera)))
         self.assertTrue(os.path.exists(io.findfile('pix', night, expid, camera)))
 
+    @unittest.skipUnless(desi_templates_available, 'The DESI templates directory ($DESI_ROOT/spectro/templates) was not detected.')
+    @unittest.skipUnless(desimodel_data_available, '$DESIMODEL/data not available')
     def test_pixsim_cosmics(self):
         night = '20150105'
         expid = 124
@@ -75,7 +86,8 @@ class TestPixsim(unittest.TestCase):
         simspec = io.read_simspec(io.findfile('simspec', night, expid))
         self.assertTrue(os.path.exists(io.findfile('simpix', night, expid, camera)))
         self.assertTrue(os.path.exists(io.findfile('pix', night, expid, camera)))
-        
+
+    @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
     def test_project(self):
         psf = desimodel.io.load_psf('z')
         wave = np.arange(8000, 8010)
@@ -90,9 +102,8 @@ class TestPixsim(unittest.TestCase):
             os.environ['UNITTEST_SILENT'] = 'TRUE'
             xyrange, pix = pixsim._project(args)
             del os.environ['UNITTEST_SILENT']
-        
-        
+
+
 #- This runs all test* functions in any TestCase class in this file
 if __name__ == '__main__':
     unittest.main()
-        

@@ -1,9 +1,10 @@
 """
-I/O routines
+I/O routines for desisim
 """
 
 import os
 import time
+from glob import glob
 
 from astropy.io import fits
 import numpy as np
@@ -80,7 +81,7 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
 def write_simspec(meta, truth, expid, night, header=None, outfile=None):
     """
     Write $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
-    
+
     Args:
         meta : metadata table to write to "METADATA" HDU
         truth : dictionary with keys:
@@ -94,14 +95,14 @@ def write_simspec(meta, truth, expid, night, header=None, outfile=None):
         night : string YEARMMDD
         header : optional dictionary of header items to add to output
         outfile : optional filename to write (otherwise auto-derived)
-        
+
     Returns:
         full file path of output file written
-        
+
     """
     #- Where should this go?
     if outfile is None:
-        outdir = simdir(night, mkdir=True)      
+        outdir = simdir(night, mkdir=True)
         outfile = '{}/simspec-{:08d}.fits'.format(outdir, expid)
 
     #- Primary HDU is just a header from the input
@@ -118,13 +119,13 @@ def write_simspec(meta, truth, expid, night, header=None, outfile=None):
         x = fits.ImageHDU(truth['FLUX'].astype(np.float32), name='FLUX')
         x.header['BUNIT'] = '1e-17 erg/s/cm2/A'
         hx.append(x)
-    
+
     #- Sky flux HDU
     if 'SKYFLUX' in truth:
         x = fits.ImageHDU(truth['SKYFLUX'].astype(np.float32), name='SKYFLUX')
         x.header['BUNIT'] = '1e-17 erg/s/cm2/A/arcsec2'
         hx.append(x)
-    
+
     #- Write object photon and sky photons for each channel
     for channel in ['B', 'R', 'Z']:
         x = fits.ImageHDU(truth['WAVE_'+channel], name='WAVE_'+channel)
@@ -155,14 +156,14 @@ def write_simspec(meta, truth, expid, night, header=None, outfile=None):
             OIIFLUX     = '[OII] flux [erg/s/cm2]',
             D4000       = '4000-A break'
         )
-    
+
         units = dict(
             # OBJTYPE     = 'Object type (ELG, LRG, QSO, STD, STAR)',
             # REDSHIFT    = 'true object redshift',
             # TEMPLATEID  = 'input template ID',
             OIIFLUX      = 'erg/s/cm2',
         )
-    
+
         write_bintable(outfile, meta, header=None, extname="METADATA",
             comments=comments, units=units)
 
@@ -174,7 +175,7 @@ class SimSpec(object):
                  skyphot=None, metadata=None, header=None):
         """
         Args:
-            flavor : 'arc', 'flat', or 'science'
+            flavor : e.g. 'arc', 'flat', 'dark', 'mws', ...
             wave : dictionary with per-channel wavelength grids, keyed by
                 'b', 'r', 'z'.  Optionally also has 'brz' key for channel
                 independent wavelength grid
@@ -193,7 +194,6 @@ class SimSpec(object):
                 skyphot[channel] where channel = 'b', 'r', or 'z'
           * wave['brz'] is the wavelength grid for flux and skyflux
         """
-        assert flavor in ('arc', 'flat', 'science')
         for channel in ('b', 'r', 'z'):
             assert wave[channel].ndim == 1
             assert phot[channel].ndim == 2
@@ -239,7 +239,7 @@ def read_simspec(filename):
         fx.close()
         return SimSpec(flavor, wave, phot, flux=flux, header=hdr)
 
-    elif flavor == 'science':
+    else:  #- multiple science flavors: dark, bright, bgs, mws, etc.
         wave['brz'] = fx['WAVE'].data
         flux = fx['FLUX'].data
         metadata = fx['METADATA'].data
@@ -253,15 +253,11 @@ def read_simspec(filename):
         return SimSpec(flavor, wave, phot, flux=flux, skyflux=skyflux,
             skyphot=skyphot, metadata=metadata, header=hdr)
 
-    else:
-        raise ValueError('unknown flavor '+flavor)
 
-    
-    
 def write_simpix(outfile, image, meta):
     """
     Write simpix data to outfile
-    
+
     Args:
         outfile : output file name, e.g. from io.findfile('simpix', ...)
         image : 2D noiseless simulated image (numpy.ndarray)
@@ -282,25 +278,10 @@ def write_simpix(outfile, image, meta):
 #- Utility function to resize an image while preserving its 2D arrangement
 #- (unlike np.resize)
 def _resize(image, shape):
-    if (shape[0] > 2*image.shape[0]) or (shape[1] > 2*image.shape[1]):
-        raise ValueError('Can only reshape by up to a factor of 2')
-
-    newpix = np.empty(shape, dtype=image.dtype)
-    ny = min(shape[0], image.shape[0])
-    nx = min(shape[1], image.shape[1])
-    newpix[0:ny, 0:nx] = image[0:ny, 0:nx]
-    if shape[0] > image.shape[0]:
-        nn = shape[0] - image.shape[0]
-        newpix[ny:ny+nn, 0:nx] = image[0:nn, 0:nx]
-    if shape[1] > image.shape[1]:
-        nn = shape[1] - image.shape[1]
-        newpix[0:ny, nx:nx+nn] = image[0:ny, 0:nn]
-    if (shape[0] > image.shape[0]) and (shape[1] > image.shape[1]):
-        nny = shape[0] - image.shape[0]
-        nnx = shape[1] - image.shape[1]
-        newpix[ny:ny+nny, nx:nx+nnx] = image[0:nny, 0:nnx]
-
-    return newpix
+    ny = shape[0] // image.shape[0] + 1
+    nx = shape[1] // image.shape[1] + 1
+    newpix = np.tile(image, (ny, nx))
+    return newpix[0:shape[0], 0:shape[1]]
 
 def read_cosmics(filename, expid=1, shape=None, jitter=True):
     """
@@ -383,7 +364,7 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
         meta['RDNOISE'] = x / 4.0
 
     return Image(pix, ivar, mask, meta=meta)
-        
+
 
 #-------------------------------------------------------------------------
 #- desimodel
@@ -391,7 +372,7 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
 def get_tile_radec(tileid):
     """
     Return (ra, dec) in degrees for the requested tileid.
-    
+
     If tileid is not in DESI, return (0.0, 0.0)
     TODO: should it raise and exception instead?
     """
@@ -403,7 +384,7 @@ def get_tile_radec(tileid):
         i = np.where(tiles['TILEID'] == tileid)[0][0]
         return tiles[i]['RA'], tiles[i]['DEC']
     else:
-        return (0.0, 0.0)   
+        return (0.0, 0.0)
 
 #-------------------------------------------------------------------------
 #- spectral templates
@@ -412,205 +393,115 @@ def get_tile_radec(tileid):
 def _resample_flux(args):
     return resample_flux(*args)
 
-# This function may now be obsolete.
-def read_templates(wave, objtype, nspec=None, randseed=1, infile=None):
+def find_basis_template(objtype, indir=None):
     """
-    Returns n templates of type objtype sampled at wave
-
-    Inputs:
-      - wave : array of wavelengths to sample
-      - objtype : 'ELG', 'LRG', 'QSO', 'STD', or 'STAR'
-      - nspec : number of templates to return
-      - infile : (optional) input template file (see below)
-
-    Returns flux[n, len(wave)], meta[n]
-
-    where flux is in units of 1e-17 erg/s/cm2/A/[arcsec^2] and    
-    meta is a metadata table from the input template file
-    with redshift, mags, etc.
-
-    If infile is None, then $DESI_{objtype}_TEMPLATES must be set, pointing to
-    a file that has the observer frame flux in HDU 0 and a metadata table for
-    these objects in HDU 1. This code randomly samples n spectra from that file.
+    Return the most recent template in $DESI_BASIS_TEMPLATE/{objtype}_template*.fits
     """
-    if infile is None:
-        key = 'DESI_'+objtype.upper()+'_TEMPLATES'
-        if key not in os.environ:
-            raise ValueError("ERROR: $"+key+" not set; can't find "+objtype+" templates")
+    if indir is None:
+        indir = os.environ['DESI_BASIS_TEMPLATES']
+        
+    objfile_wild = os.path.join(indir, objtype.lower()+'_templates_*.fits')
+    objfiles = glob(objfile_wild)
+    if len(objfiles) > 0:
+        return objfiles[-1]
+    else:
+        raise IOError('No {} templates found in {}'.format(objtype, objfile_wild))
 
-        infile = os.getenv(key)
-
-    hdr = fits.getheader(infile)
-    flux = fits.getdata(infile, 0)
-    meta = fits.getdata(infile, 1).view(np.recarray)
-    ww = 10**(hdr['CRVAL1'] + np.arange(hdr['NAXIS1'])*hdr['CDELT1'])
-
-    #- Check flux units
-    fluxunits = hdr['BUNIT']
-    if not fluxunits.startswith('1e-17 erg'):
-        if fluxunits.startswith('erg'):
-            flux *= 1e17
+def _qso_format_version(filename):
+    '''Return 1 or 2 depending upon QSO basis template file structure'''
+    with fits.open(filename) as fx:
+        if fx[1].name == 'METADATA':
+            return 1
+        elif fx[1].name == 'BOSS_PCA':
+            return 2
         else:
-            #- check for '1e-16 erg/s/cm2/A' style units
-            scale, units = fluxunits.split()
-            assert units.startswith('erg')
-            scale = float(scale)
-            flux *= (scale*1e17)
+            raise IOError('Unknown QSO basis template format '+filename)
 
-    ntemplates = flux.shape[0]
-    randindex = np.arange(ntemplates)
-    np.random.shuffle(randindex)
-
-    if nspec is None:
-        nspec = flux.shape[0]
-
-    #- Serial version
-    # outflux = np.zeros([n, len(wave)])
-    # outmeta = np.empty(n, dtype=meta.dtype)
-    # for i in range(n):
-    #     j = randindex[i%ntemplates]
-    #     if 'Z' in meta:
-    #         z = meta['Z'][j]
-    #     else:
-    #         z = 0.0
-    #     if objtype == 'QSO':
-    #         outflux[i] = resample_flux(wave, ww, flux[j])
-    #     else:
-    #         outflux[i] = resample_flux(wave, ww*(1+z), flux[j])
-    #     outmeta[i] = meta[j]
-
-    #- Multiprocessing version
-    #- Assemble list of args to pass to multiprocesssing map
-    args = list()
-    outmeta = np.empty(nspec, dtype=meta.dtype)
-    for i in range(nspec):
-        j = randindex[i%ntemplates]
-        outmeta[i] = meta[j]
-        if 'Z' in meta.dtype.names:
-            z = meta['Z'][j]
-        else:
-            z = 0.0
-
-        #- ELG, LRG require shifting wave by (1+z); QSOs don't
-        if objtype == 'QSO':
-            args.append( (wave, ww, flux[j]) )
-        else:
-            args.append( (wave, ww*(1+z), flux[j]) )
-
-    ncpu = multiprocessing.cpu_count() // 2   #- avoid hyperthreading
-    pool = multiprocessing.Pool(ncpu)
-    outflux = pool.map(_resample_flux, args)    
-    outflux = np.array(outflux)    
-
-    return outflux, outmeta
-    
-
-def read_base_templates(objtype='ELG', observed=False, emlines=False):
-    """Return the base, rest-frame, spectral continuum templates for each objtype.
-
-    The appropriate environment variable must be set depending on OBJTYPE.  For example,
-    DESI_ELG_TEMPLATES, DESI_LRG_TEMPLATES, etc., otherwise an exception will be raised.
+def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
+    """Return the basis (continuum) templates for a given object type.  Optionally
+       returns a randomly selected subset of nspec spectra sampled at
+       wavelengths outwave.
 
     Args:
-      objtype (str, optional): object type to read (ELG, LRG, QSO, BGS, STD, or STAR;
-        defaults to 'ELG').
-      observed (bool): Read the observed-frame templates (defaults to False).
-      emlines (bool): Read the spectral templates which include emission lines (defaults
-        to False; only applies to object types ELG and BGS).
+      objtype (str): object type to read (e.g., ELG, LRG, QSO, STAR, FSTD, WD).
+      outwave (numpy.array, optional): array of wavelength at which to sample
+        the spectra.
+      nspec (int, optional): number of templates to return
+      infile (str, optional): full path to input template file to read,
+        over-riding the contents of the $DESI_BASIS_TEMPLATES environment
+        variable.
 
     Returns:
-      flux (numpy.ndarray): Array [ntemplate,npix] of flux values [erg/s/cm2/A].
-      wave (numpy.ndarray): Array [npix] of wavelengths for FLUX [Angstrom].
+      outflux (numpy.ndarray): Array [ntemplate,npix] of flux values [erg/s/cm2/A].
+      outwave (numpy.ndarray): Array [npix] of wavelengths for FLUX [Angstrom].
       meta (astropy.Table): Meta-data table for each object.  The contents of this
         table varies depending on what OBJTYPE has been read.
 
     Raises:
-      EnvironmentError: If the appropriate environment variable is not set.
-      IOError: If the base templates are not found.
-    
-    """
-    from astropy.io import fits
-    from astropy.table import Table
-    from desispec.io.util import header2wave
-
-    otype = objtype.upper()
-    if otype=='FSTD':
-        otype = 'STAR'
-
-    key = 'DESI_'+otype+'_TEMPLATES'
-    if key not in os.environ:
-        log.error('Required ${} environment variable not set'.format(key))
-        raise EnvironmentError
-
-    objfile = os.getenv(key)
-
-    # Handle special cases for the ELG & BGS templates.
-    if otype=='ELG' or otype=='BGS':
-        if observed:
-            objfile = objfile.replace('templates_','templates_obs_')
-        elif emlines is not True:
-            objfile = objfile.replace('templates_','continuum_templates_')
-
-    if os.path.isfile(objfile):
-        log.info('Reading {}'.format(objfile))
-    else: 
-        log.error('Base templates file {} not found'.format(objfile))
-        raise IOError()
-
-    flux, hdr = fits.getdata(objfile, 0, header=True)
-    meta = Table(fits.getdata(objfile, 1))
-    wave = header2wave(hdr)
-
-    return flux, wave, meta
-
-def read_basis_templates(objtype='ELG'):
-    """Return the basis (continuum) templates for a given object type.
-
-    Args:
-      objtype (str, optional): object type to read (e.g., ELG, LRG, QSO, BGS,
-        FSTD, STAR, etc.; defaults to 'ELG').
-
-    Returns:
-      flux (numpy.ndarray): Array [ntemplate,npix] of flux values [erg/s/cm2/A].
-      wave (numpy.ndarray): Array [npix] of wavelengths for FLUX [Angstrom].
-      meta (astropy.Table): Meta-data table for each object.  The contents of this
-        table varies depending on what OBJTYPE has been read.
-
-    Raises:
-      EnvironmentError: If the appropriate environment variable is not set.
-      IOError: If the base templates are not found.
+      EnvironmentError: If the required $DESI_BASIS_TEMPLATES environment
+        variable is not set.
+      IOError: If the basis template file is not found.
 
     """
     from glob import glob
     from astropy.io import fits
     from astropy.table import Table
 
-    key = 'DESI_BASIS_TEMPLATES'
-    if key not in os.environ:
-        log.fatal('Required ${} environment variable not set'.format(key))
-        raise EnvironmentError
-    objpath = os.getenv(key)
-
     ltype = objtype.lower()
     if objtype == 'FSTD':
         ltype = 'star'
-    objfile = glob(os.path.join(objpath,ltype+'_templates_*.fits'))[0]
 
-    if os.path.isfile(objfile):
-        log.info('Reading {}'.format(objfile))
-    else: 
-        log.error('Base templates file {} not found'.format(objfile))
-        raise IOError()
+    if infile is None:
+        infile = find_basis_template(ltype)
 
-    flux, hdr = fits.getdata(objfile, 0, header=True)
-    meta = Table(fits.getdata(objfile, 1))
-    if objtype == 'QSO': # Need to update the QSO data model
-        from desispec.io.util import header2wave
-        wave = header2wave(hdr)
+    log.info('Reading {}'.format(infile))
+
+    if objtype.upper() == 'QSO':
+        fx = fits.open(infile)
+        format_version = _qso_format_version(infile)
+        if format_version == 1:
+            flux = fx[0].data * 1E-17
+            hdr = fx[0].header
+            from desispec.io.util import header2wave
+            wave = header2wave(hdr)
+            meta = Table(fx[1].data)
+        elif format_version == 2:
+            flux = fx['SDSS_EIGEN'].data.copy()
+            wave = fx['SDSS_EIGEN_WAVE'].data.copy()
+            meta = Table([np.arange(flux.shape[0]),], names=['PCAVEC',])
+        else:
+            raise IOError('Unknown QSO basis template format version {}'.format(format_version))
+
+        fx.close()
     else:
-        wave = fits.getdata(objfile, 2)
+        flux, hdr = fits.getdata(infile, 0, header=True)
+        meta = Table(fits.getdata(infile, 1))
+        wave = fits.getdata(infile, 2)
 
-    return flux, wave, meta
+    # Optionally choose a random subset of spectra. There must be a fast way to
+    # do this using fitsio.
+    ntemplates = flux.shape[0]
+    if nspec is not None:
+        these = np.random.choice(np.arange(ntemplates),nspec)
+        flux = flux[these,:]
+        meta = meta[these]
+
+    # Optionally resample the templates at specific wavelengths.  Use
+    #multiprocessing to speed this up.
+    if outwave is None:
+        outflux = flux # Do I really need to copy these variables!
+        outwave = wave
+    else:
+        args = list()
+        for jj in range(nspec):
+            args.append((outwave, wave, flux[jj,:]))
+
+        ncpu = multiprocessing.cpu_count() // 2   #- avoid hyperthreading
+        pool = multiprocessing.Pool(ncpu)
+        outflux = pool.map(_resample_flux, args)
+        outflux = np.array(outflux)
+
+    return outflux, outwave, meta
 
 def write_templates(outfile, flux, wave, meta, objtype=None,
                     comments=None, units=None):
@@ -618,9 +509,9 @@ def write_templates(outfile, flux, wave, meta, objtype=None,
 
         Args:
           outfile (str): Output file name.
-    
+
         Returns:
-    
+
         Raises
 
     """
@@ -629,7 +520,7 @@ def write_templates(outfile, flux, wave, meta, objtype=None,
 
     # Create the path to OUTFILE if necessary.
     outfile = makepath(outfile)
-    
+
     header = dict(
         OBJTYPE = (objtype, 'Object type'),
         CUNIT = ('Angstrom', 'units of wavelength array'),
@@ -655,7 +546,7 @@ def simdir(night='', mkdir=False):
     Return $DESI_SPECTRO_SIM/$PIXPROD/{night}
     If mkdir is True, create directory if needed
     """
-    dirname = os.path.join(os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'), night)        
+    dirname = os.path.join(os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'), night)
     if mkdir and not os.path.exists(dirname):
         os.makedirs(dirname)
 
@@ -664,9 +555,9 @@ def simdir(night='', mkdir=False):
 def _parse_filename(filename):
     """
     Parse filename and return (prefix, camera, expid)
-    
+
     camera=None if the filename isn't camera specific
-    
+
     e.g. /blat/foo/simspec-00000003.fits -> ('simspec', None, 3)
     e.g. /blat/foo/pix-r2-00000003.fits -> ('pix', 'r2', 3)
     """
@@ -676,6 +567,3 @@ def _parse_filename(filename):
         return x[0], None, int(x[1])
     elif len(x) == 3:
         return x[0], x[1].lower(), int(x[2])
-
-    
-
