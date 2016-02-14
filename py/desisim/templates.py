@@ -1153,17 +1153,15 @@ class BGS():
         self.decam = filters.load_filters('decam2014-*')
         self.rfilt = filters.load_filters('decam2014-r')
 
-    def make_templates(self, nmodel=100, zrange=(0.6,1.6), rmagrange=(21.0,23.4),
+    def make_templates(self, nmodel=100, zrange=(0.6,1.6), rmagrange=(15.0,19.5),
                        oiiihbrange=(-0.5,0.1), oiidoublet_meansig=(0.73,0.05),
-                       logvdisp_meansig=(1.9,0.15), minoiiflux=1E-17, seed=None,
-                       nocolorcuts=False, nocontinuum=False):
-        """Build Monte Carlo set of ELG spectra/templates.
+                       logvdisp_meansig=(2.0,0.17), seed=None, nocolorcuts=False,
+                       nocontinuum=False):
+        """Build Monte Carlo set of BGS spectra/templates.
 
         This function chooses random subsets of the ELG continuum spectra, constructs
         an emission-line spectrum, redshifts, and then finally normalizes the spectrum
         to a specific r-band magnitude.
-
-        TODO (@moustakas): optionally normalize to a g-band magnitude
 
         Args:
           nmodel (int, optional): Number of models to generate (default 100). 
@@ -1179,13 +1177,11 @@ class BGS():
             [OII] 3726/3729 doublet ratio distribution.  Defaults to (0.73,0.05).
           logvdisp_meansig (float, optional): Logarithmic mean and sigma values
             for the (Gaussian) stellar velocity dispersion distribution.
-            Defaults to log10-sigma=1.9+/-0.15 km/s
-          minoiiflux (float, optional): Minimum [OII] 3727 flux [default 1E-17 erg/s/cm2].
-            Set this parameter to zero to not have a minimum flux cut.
+            Defaults to log10-sigma=2.0+/-0.17 km/s
 
           seed (long, optional): input seed for the random numbers.
-          nocolorcuts (bool, optional): Do not apply the fiducial grz color-cuts
-            cuts (default False).
+          nocolorcuts (bool, optional): Do not apply the fiducial color-cuts
+            cuts (default False). 
           nocontinuum (bool, optional): Do not include the stellar continuum
             (useful for testing; default False).  Note that this option
             automatically sets NOCOLORCUTS to True.
@@ -1202,7 +1198,7 @@ class BGS():
         from desisim.templates import EMSpectrum
         from desispec.interpolation import resample_flux
         from desisim import pixelsplines as pxs
-        from desitarget.cuts import isELG
+        from desitarget.cuts import isBGS
 
         if nocontinuum:
             nocolorcuts = True
@@ -1224,8 +1220,8 @@ class BGS():
             ('ZMAG', 'f4'),
             ('W1MAG', 'f4'),
             ('W2MAG', 'f4'),
-            ('OIIFLUX', 'f4'),
-            ('EWOII', 'f4'),
+            ('HBETAFLUX', 'f4'),
+            ('EWHBETA', 'f4'),
             ('OIIIHBETA', 'f4'),
             ('OIIDOUBLET', 'f4'),
             ('D4000', 'f4'),
@@ -1234,8 +1230,8 @@ class BGS():
             ('WISE_FLUX', 'f4', (4,))]
         meta = Table(np.zeros(nmodel, dtype=metacols))
 
-        meta['OIIFLUX'].unit = 'erg/(s*cm2)'
-        meta['EWOII'].unit = 'Angstrom'
+        meta['HBETAFLUX'].unit = 'erg/(s*cm2)'
+        meta['EWHBETA'].unit = 'Angstrom'
         meta['OIIIHBETA'].unit = 'dex'
         meta['VDISP'].unit = 'km/s'
 
@@ -1262,8 +1258,9 @@ class BGS():
                                      oiidoublet_meansig[1],
                                      nchunk)
             d4000 = self.basemeta['D4000'][chunkindx]
-            ewoii = 10.0**(np.polyval([1.1074,-4.7338,5.6585],d4000)+ 
-                           rand.normal(0.0,0.25, nchunk)) # rest-frame, Angstrom
+            print('Fix this!')
+            ewhbeta = 10.0**(np.polyval([1.1074,-4.7338,5.6585],d4000)+ 
+                             rand.normal(0.0,0.25, nchunk)) # rest-frame, Angstrom
 
             # Create a distribution of seeds for the emission-line spectra.
             emseed = rand.random_integers(0, 100*nchunk, nchunk)
@@ -1278,14 +1275,14 @@ class BGS():
                 flux = restflux*10.0**(-0.4*rmag[ii])/norm['decam2014-r'] 
 
                 # Create an emission-line spectrum with the right [OII] flux [erg/s/cm2]. 
-                oiiflux = self.basemeta['OII_CONTINUUM'][iobj]*ewoii[ii] 
-                zoiiflux = oiiflux*norm # [erg/s/cm2]
+                hbetaflux = self.basemeta['HBETA_CONTINUUM'][iobj]*ewhbeta[ii] 
+                zhbetaflux = hbetaflux*norm # [erg/s/cm2]
 
                 emflux, emwave, emline = EM.spectrum(
                     linesigma=vdisp[ii],
                     oiidoublet=oiidoublet[ii],
                     oiiihbeta=oiiihbeta[ii],
-                    oiiflux=zoiiflux,
+                    hbetaflux=zhbetaflux,
                     seed=emseed[ii])
                 emflux /= (1+redshift[ii]) # [erg/s/cm2/A, @redshift[ii]]
 
@@ -1301,14 +1298,12 @@ class BGS():
                 wise_flux = self.wise.get_ab_maggies(flux, zwave, mask_invalid=True)
                 wise_nano = [ff*MAG2NANO for ff in wise_flux[0]]
 
-                oiimask = [zoiiflux>minoiiflux]
                 if nocolorcuts:
                     colormask = [True]
                 else:
-                    colormask = [isELG(gflux=decam_nano[1], rflux=decam_nano[2],
-                                       zflux=decam_nano[4])]
+                    colormask = [isBGS(rflux=decam_nano[2])]
 
-                if all(colormask) and all(oiimask):
+                if all(colormask):
                     if ((nobj+1)%10)==0:
                         log.debug('Simulating {} template {}/{}'. \
                                   format(self.objtype, nobj+1, nmodel))
@@ -1333,8 +1328,8 @@ class BGS():
                     meta['W2MAG'][nobj] = -2.5*np.log10(wise_nano[1])+22.5
                     meta['DECAM_FLUX'][nobj] = decam_nano
                     meta['WISE_FLUX'][nobj] = wise_nano
-                    meta['OIIFLUX'][nobj] = zoiiflux
-                    meta['EWOII'][nobj] = ewoii[ii]
+                    meta['HBETAFLUX'][nobj] = zhbetaflux
+                    meta['EWHBETA'][nobj] = ewhbeta[ii]
                     meta['OIIIHBETA'][nobj] = oiiihbeta[ii]
                     meta['OIIDOUBLET'][nobj] = oiidoublet[ii]
                     meta['D4000'][nobj] = d4000[ii]
@@ -1347,4 +1342,3 @@ class BGS():
                     break
 
         return outflux, self.wave, meta
-
