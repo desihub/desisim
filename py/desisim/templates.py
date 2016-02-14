@@ -15,55 +15,7 @@ from desispec.log import get_logger
 log = get_logger()
 
 LIGHT = 2.99792458E5  #- speed of light in km/s
-
-class TargetCuts():
-    """Select targets from flux cuts.  This is a placeholder class that will be
-       refactored into desitarget.  Hence, the documentation here is
-       intentionally sparse.
-
-    """
-    def __init__(self):
-        pass
-
-    def BGS(self,rflux=None):
-        BGS = rflux > 10**((22.5-19.35)/2.5)
-        return BGS
-
-    def ELG(self,gflux=None, rflux=None, zflux=None):
-        ELG  = rflux > 10**((22.5-23.4)/2.5)
-        ELG &= zflux > 10**(0.3/2.5) * rflux
-        ELG &= zflux < 10**(1.5/2.5) * rflux
-        ELG &= rflux**2 < gflux * zflux * 10**(-0.2/2.5)
-        ELG &= zflux < gflux * 10**(1.2/2.5)
-        return ELG
-
-    def FSTD(self,gflux=None, rflux=None, zflux=None):
-        gr = -2.5*np.log10(gflux/rflux)-0.32
-        rz = -2.5*np.log10(rflux/zflux)-0.13
-        mdist = np.sqrt(gr**2 + rz**2)
-        FSTD = mdist<0.06
-        return FSTD
-
-    def LRG(self,rflux=None, zflux=None, w1flux=None):
-        LRG  = rflux > 10**((22.5-23.0)/2.5)
-        LRG &= zflux > 10**((22.5-20.56)/2.5)
-        LRG &= w1flux > 10**((22.5-19.35)/2.5)
-        LRG &= zflux > rflux * 10**(1.6/2.5)
-        LRG &= w1flux * rflux ** (1.33-1) > zflux**1.33 * 10**(-0.33/2.5)
-        return LRG
-
-    def QSO(self,gflux=None, rflux=None, zflux=None, w1flux=None, w2flux=None):
-        wflux = 0.75 * w1flux + 0.25 * w2flux
-
-        QSO  = rflux > 10**((22.5-23.0)/2.5)
-        QSO &= rflux < 10**(1.0/2.5) * gflux
-        QSO &= zflux > 10**(-0.3/2.5) * rflux
-        QSO &= zflux < 10**(1.1/2.5) * rflux
-        QSO &= wflux * gflux**1.2 > 10**(2/2.5) * rflux**(1+1.2)
-        return QSO
-
-    def WD(self):
-        pass
+MAG2NANO = 10.0**(0.4*22.5)
 
 class ELG():
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs).
@@ -180,7 +132,7 @@ class ELG():
         from desisim.templates import EMSpectrum
         from desispec.interpolation import resample_flux
         from desisim import pixelsplines as pxs
-        ### from desitarget.cuts import apply_cuts
+        from desitarget.cuts import isELG
 
         if nocontinuum:
             nocolorcuts = True
@@ -197,7 +149,6 @@ class ELG():
         metacols = [
             ('TEMPLATEID', 'i4'),
             ('REDSHIFT', 'f4'),
-            ('TYPE', 'S10'),
             ('GMAG', 'f4'),
             ('RMAG', 'f4'),
             ('ZMAG', 'f4'),
@@ -205,8 +156,6 @@ class ELG():
             ('W2MAG', 'f4'),
             ('DECAM_FLUX', 'f4', (6,)),
             ('WISE_FLUX', 'f4', (4,)),
-            ('DECAM_MW_TRANSMISSION', 'f4', (6,)),
-            ('WISE_MW_TRANSMISSION', 'f4', (4,)),
             ('OIIFLUX', 'f4'),
             ('EWOII', 'f4'),
             ('OIIIHBETA', 'f4'),
@@ -214,10 +163,6 @@ class ELG():
             ('D4000', 'f4'),
             ('VDISP', 'f4')]
         meta = Table(np.zeros(nmodel,dtype=metacols))
-        #meta = Table(np.zeros(nmodel,dtype=metacols))
-        meta['TYPE'] = 'ELG'
-        meta['DECAM_MW_TRANSMISSION'] = 1.0
-        meta['WISE_MW_TRANSMISSION'] = 1.0
 
         meta['OIIFLUX'].unit = 'erg/(s*cm2)'
         meta['EWOII'].unit = 'Angstrom'
@@ -229,7 +174,6 @@ class ELG():
         nbase = len(self.basemeta)
         nchunk = min(nmodel,500)
 
-        Cuts = TargetCuts()
         while nobj<=(nmodel-1):
             # Choose a random subset of the base templates
             chunkindx = rand.randint(0,nbase-1,nchunk)
@@ -295,8 +239,7 @@ class ELG():
                 if nocolorcuts:
                     grzmask = [True]
                 else:
-                    #desi_target, _bgs, _mws = apply_cuts(meta[nobj])
-                    grzmask = [Cuts.ELG(gflux=gflux,rflux=rflux,zflux=zflux)]
+                    grzmask = [isELG(gflux, rflux, zflux)]
 
                 if all(grzmask) and all(oiimask):
                     if ((nobj+1)%10)==0:
@@ -581,16 +524,15 @@ class LRG():
             corresponding to BASEFLUX [Angstrom].
           basemeta (astropy.Table): Table of meta-data for each base template [nbase].
           pixbound (numpy.ndarray): Pixel boundaries of BASEWAVE [Angstrom].
-          gfilt (FILTERFUNC instance): DECam g-band filter profile class.
-          rfilt (FILTERFUNC instance): DECam r-band filter profile class.
-          zfilt (FILTERFUNC instance): DECam z-band filter profile class.
-          w1filt (FILTERFUNC instance): WISE W1-band filter profile class.
-          w2filt (FILTERFUNC instance): WISE W2-band filter profile class.
+          wise (speclite.filters instance): WISE2010 FilterSequence
+          decam (speclite.filters instance): DECam2014 FilterSequence
+          zfilt (speclite.filters instance): DECam2014 z-band FilterSequence
 
         """
         from desisim.filterfunc import filterfunc as filt
         from desisim.io import read_basis_templates
         from desisim import pixelsplines as pxs
+        from speclite import filters
 
         self.objtype = 'LRG'
 
@@ -611,11 +553,15 @@ class LRG():
         self.pixbound = pxs.cen2bound(basewave)
 
         # Initialize the filter profiles.
-        self.gfilt = filt(filtername='decam_g.txt')
-        self.rfilt = filt(filtername='decam_r.txt')
-        self.zfilt = filt(filtername='decam_z.txt')
-        self.w1filt = filt(filtername='wise_w1.txt')
-        self.w2filt = filt(filtername='wise_w2.txt')
+        self.wise = filters.load_filters('wise2010-*')
+        self.decam = filters.load_filters('decam2014-*')
+        self.zfilt = filters.load_filters('decam2014-z')
+        #self.wise = filters.load_filters('wise2010-W1','wise2010-W2')
+        #self.gfilt = filt(filtername='decam_g.txt')
+        #self.rfilt = filt(filtername='decam_r.txt')
+        #self.zfilt = filt(filtername='decam_z.txt')
+        #self.w1filt = filt(filtername='wise_w1.txt')
+        #self.w2filt = filt(filtername='wise_w2.txt')
 
     def make_templates(self, nmodel=100, zrange=(0.5,1.1), zmagrange=(19.0,20.5),
                        logvdisp_meansig=(2.3,0.1), seed=None, nocolorcuts=False):
@@ -646,105 +592,99 @@ class LRG():
         Raises:
 
         """
-        from astropy.table import Table, Column
-        from desisim.io import write_templates
+        from astropy.table import Table
         from desispec.interpolation import resample_flux
         from desisim import pixelsplines as pxs
+        from desitarget.cuts import isLRG
 
         rand = np.random.RandomState(seed)
 
         # Initialize the output flux array and metadata Table.
         outflux = np.zeros([nmodel,len(self.wave)]) # [erg/s/cm2/A]
 
-        meta = Table()
-        meta['TEMPLATEID'] = Column(np.zeros(nmodel,dtype='i4'))
-        meta['REDSHIFT'] = Column(np.zeros(nmodel,dtype='f4'))
-        meta['GMAG'] = Column(np.zeros(nmodel,dtype='f4'))
-        meta['RMAG'] = Column(np.zeros(nmodel,dtype='f4'))
-        meta['ZMAG'] = Column(np.zeros(nmodel,dtype='f4'))
-        meta['W1MAG'] = Column(np.zeros(nmodel,dtype='f4'))
-        meta['W2MAG'] = Column(np.zeros(nmodel,dtype='f4'))
-        meta['ZMETAL'] = Column(np.zeros(nmodel,dtype='f4'))
-        meta['AGE'] = Column(np.zeros(nmodel,dtype='f4'))
-        meta['D4000'] = Column(np.zeros(nmodel,dtype='f4'))
-        meta['VDISP'] = Column(np.zeros(nmodel,dtype='f4'))
+        metacols = [
+            ('TEMPLATEID', 'i4'),
+            ('REDSHIFT', 'f4'),
+            ('GMAG', 'f4'),
+            ('RMAG', 'f4'),
+            ('ZMAG', 'f4'),
+            ('W1MAG', 'f4'),
+            ('W2MAG', 'f4'),
+            ('ZMETAL', 'f4'),
+            ('AGE', 'f4'),
+            ('D4000', 'f4'),
+            ('VDISP', 'f4'),
+            ('DECAM_FLUX', 'f4', (6,)),
+            ('WISE_FLUX', 'f4', (4,))]
+        meta = Table(np.zeros(nmodel, dtype=metacols))
 
         meta['AGE'].unit = 'Gyr'
         meta['VDISP'].unit = 'km/s'
 
-        comments = dict(
-            TEMPLATEID = 'template ID',
-            REDSHIFT = 'object redshift',
-            GMAG = 'DECam g-band AB magnitude',
-            RMAG = 'DECam r-band AB magnitude',
-            ZMAG = 'DECam z-band AB magnitude',
-            W1MAG = 'WISE W1-band AB magnitude',
-            W2MAG = 'WISE W2-band AB magnitude',
-            ZMETAL = 'stellar metallicity',
-            AGE = 'time since the onset of star formation',
-            D4000 = '4000-Angstrom break',
-            VDISP = 'stellar velocity dispersion'
-        )
-
+        # Build the spectra.
         nobj = 0
         nbase = len(self.basemeta)
-        nchunk = min(nmodel,500)
+        nchunk = min(nmodel, 500)
 
-        Cuts = TargetCuts()
         while nobj<=(nmodel-1):
             # Choose a random subset of the base templates
-            chunkindx = rand.randint(0,nbase-1,nchunk)
+            chunkindx = rand.randint(0, nbase-1, nchunk)
 
             # Assign uniform redshift, z-magnitude, and velocity dispersion
             # distributions.
-            redshift = rand.uniform(zrange[0],zrange[1],nchunk)
-            zmag = rand.uniform(zmagrange[0],zmagrange[1],nchunk)
+            redshift = rand.uniform(zrange[0], zrange[1], nchunk)
+            zmag = rand.uniform(zmagrange[0], zmagrange[1], nchunk)
 
             if logvdisp_meansig[1]>0:
-                vdisp = 10**rand.normal(logvdisp_meansig[0],logvdisp_meansig[1],nchunk)
+                vdisp = 10**rand.normal(logvdisp_meansig[0], logvdisp_meansig[1], nchunk)
             else:
-                vdisp = 10**np.repeat(logvdisp_meansig[0],nchunk)
+                vdisp = 10**np.repeat(logvdisp_meansig[0], nchunk)
 
             # Unfortunately we have to loop here.
             for ii, iobj in enumerate(chunkindx):
                 zwave = self.basewave*(1.0+redshift[ii])
                 restflux = self.baseflux[iobj,:] # [erg/s/cm2/A @10pc]
 
-                znorm = 10.0**(-0.4*zmag[ii])/self.zfilt.get_maggies(zwave,restflux)
-                flux = restflux*znorm # [erg/s/cm2/A, @redshift[ii]]
+                # [erg/s/cm2/A, @redshift[ii]]
+                znorm = self.zfilt.get_ab_maggies(restflux,zwave)
+                flux = restflux*10.0**(-0.4*zmag[ii])/znorm['decam2014-z'] 
 
-                # [grzW1W2]flux are in nanomaggies
-                zflux = 10.0**(-0.4*(zmag[ii]-22.5))                      
-                gflux = self.gfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
-                rflux = self.rfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
-                w1flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
-                w2flux = self.w2filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
+                #import pdb ; pdb.set_trace()
 
+                # Convert [grzW1W2]flux to nanomaggies.
+                wise_flux = self.wise.get_ab_maggies(flux,zwave)
+                decam_flux = self.decam.get_ab_maggies(flux,zwave)
+                wise_nano = [ff*MAG2NANO for ff in wise_flux[0]]
+                decam_nano = [ff*MAG2NANO for ff in decam_flux[0]]
+                
                 if nocolorcuts:
                     rzW1mask = [True]
                 else:
-                    rzW1mask = [Cuts.LRG(rflux=rflux,zflux=zflux,w1flux=w1flux)]
+                    rzW1mask = [isLRG(decam_nano[2], decam_nano[4], wise_nano[0])]
 
                 if all(rzW1mask):
                     if ((nobj+1)%10)==0:
-                        log.debug('Simulating {} template {}/{}'.format(self.objtype,nobj+1,nmodel))
+                        log.debug('Simulating {} template {}/{}'. \
+                                  format(self.objtype, nobj+1, nmodel))
 
                     # Convolve and resample
                     sigma = 1.0+self.basewave*vdisp[ii]/LIGHT
-                    flux = pxs.gauss_blur_matrix(self.pixbound,sigma) * flux
+                    flux = pxs.gauss_blur_matrix(self.pixbound, sigma) * flux
                         
-                    outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
+                    outflux[nobj,:] = resample_flux(self.wave, zwave, flux)
 
                     meta['TEMPLATEID'][nobj] = nobj
                     meta['REDSHIFT'][nobj] = redshift[ii]
-                    meta['GMAG'][nobj] = -2.5*np.log10(gflux)+22.5
-                    meta['RMAG'][nobj] = -2.5*np.log10(rflux)+22.5
-                    meta['ZMAG'][nobj] = zmag[ii]
-                    meta['W1MAG'][nobj] = -2.5*np.log10(w1flux)+22.5
-                    meta['W2MAG'][nobj] = -2.5*np.log10(w2flux)+22.5
+                    meta['GMAG'][nobj] = -2.5*np.log10(decam_nano[1])+22.5
+                    meta['RMAG'][nobj] = -2.5*np.log10(decam_nano[2])+22.5
+                    meta['ZMAG'][nobj] = -2.5*np.log10(decam_nano[4])+22.5
+                    meta['W1MAG'][nobj] = -2.5*np.log10(wise_nano[0])+22.5
+                    meta['W2MAG'][nobj] = -2.5*np.log10(wise_nano[1])+22.5
+                    meta['DECAM_FLUX'][nobj] = decam_nano
+                    meta['WISE_FLUX'][nobj] = wise_nano
                     meta['ZMETAL'][nobj] = self.basemeta['ZMETAL'][iobj]
                     meta['AGE'][nobj] = self.basemeta['AGE'][iobj]
-                    meta['D4000'][nobj] = self.basemeta['AGE'][iobj]
+                    meta['D4000'][nobj] = self.basemeta['D4000'][iobj]
                     meta['VDISP'][nobj] = vdisp[ii]
 
                     nobj = nobj+1
@@ -853,6 +793,7 @@ class STAR():
         from astropy.table import Table, Column
         from desisim.io import write_templates
         from desispec.interpolation import resample_flux
+        from desitarget.cuts import isELG
 
         rand = np.random.RandomState(seed)
 
@@ -900,12 +841,10 @@ class STAR():
                 FEH = 'log10 iron abundance relative to solar',
             )
 
-
         nobj = 0
         nbase = len(self.basemeta)
         nchunk = min(nmodel,500)
 
-        Cuts = TargetCuts()
         while nobj<=(nmodel-1):
             # Choose a random subset of the base templates
             chunkindx = rand.randint(0,nbase-1,nchunk)
@@ -946,7 +885,7 @@ class STAR():
 
                 # Color cuts on just on the standard stars.
                 if self.objtype=='FSTD':
-                    grzmask = [Cuts.FSTD(gflux=gflux,rflux=rflux,zflux=zflux)]
+                    grzmask = [isFSTD(gflux, rflux, zflux)]
                 elif self.objtype=='WD':
                     grzmask = [True]
                 else:
@@ -1115,7 +1054,6 @@ class QSO():
         nbase = len(self.basemeta)
         nchunk = min(nmodel,500)
 
-        Cuts = TargetCuts()
         while nobj<=(nmodel-1):
             # Choose a random subset of the base templates
             chunkindx = rand.randint(0,nbase-1,nchunk)
@@ -1143,7 +1081,7 @@ class QSO():
                 if nocolorcuts:
                     grzW1W2mask = [True]
                 else:
-                    grzW1W2mask = [True]
+                    grzW1W2mask = [True] # ToDo!
 
                 if all(grzW1W2mask):
                     if ((nobj+1)%10)==0:

@@ -43,6 +43,9 @@ def main():
                         (but do generate the diagnostic plots if OUTFILE exists)""")
     parser.add_argument('--noplots', action='store_true', 
                         help='do not generate diagnostic (QA) plots')
+    parser.add_argument('-v', '--verbose', action='store_true', 
+                        help='toggle on verbose output')
+
     # Output filenames.
     parser.add_argument('--outfile', type=str, default='OBJTYPE-templates.fits', metavar='', 
                         help='output FITS file name')
@@ -103,18 +106,21 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    log = get_logger()
+    # Set up the logger.
+    if args.verbose:
+        lvl = 'DEBUG'
+    else:
+        lvl = 'INFO'
+    log = get_logger(level=lvl)
+
     objtype = args.objtype.upper()
     
-    # Check that the right environment variables are set.
-    envtype = objtype
-    if envtype=='FSTD':
-        envtype = 'STAR'
-    for envvar in ['DESI_'+envtype+'_TEMPLATES']:
-        if envvar not in os.environ:
-            log.error('Missing ${} environment variable'.format(envvar))
-            sys.exit(1)
-    
+    # Check that the right environment variable is set.
+    key = 'DESI_BASIS_TEMPLATES'
+    if key not in os.environ:
+        log.fatal('Required ${} environment variable not set'.format(key))
+        raise EnvironmentError('Required ${} environment variable not set'.format(key))
+            
     # Set default output file name.
     if args.outfile:
         outfile = args.outfile
