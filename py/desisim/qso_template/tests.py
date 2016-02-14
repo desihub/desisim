@@ -83,6 +83,7 @@ IDL> print, acoeff
 """
 
 
+"""
 # Read Eigenspectrum
 
 eigen_fil = os.environ.get('IDLSPEC2D_DIR')+'/templates/spEigenQSO-55732.fits'
@@ -115,9 +116,9 @@ eigen_flux = eigen[:,imn:imx]
 
 
 # Generate the matrices
-"""
+'''
 Now Python with simple approach following Dan F-M http://dan.iel.fm/emcee/current/user/line/
-"""
+'''
 
 C = np.diag(1./ivar)
 Cinv = np.diag(ivar)
@@ -140,3 +141,4 @@ model = np.dot(A,acoeff)
 if flg_xdb is True:
     xdb.xplot(wrest, flux, model)
   # Looks good to me
+"""

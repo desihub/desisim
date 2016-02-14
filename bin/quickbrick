@@ -197,10 +197,10 @@ for i in range(opts.nspec):
 
     # collect the source flux
     srcflux[i]=list()
-    srcflux[i]=results.srcflux
+    srcflux[i]=qsim.sourceFlux    
 
 srcfl=dict()
-srcfl['SOURCE']=np.zeros( (opts.nspec,len(obswave)) )
+srcfl['SOURCE']=np.zeros( (opts.nspec,len(qsim.wavelengthGrid)) )
 for i in range(opts.nspec):
     srcflux[i]=np.array(srcflux[i])
     srcfl['SOURCE'][i] = srcflux[i]
@@ -241,6 +241,9 @@ for channel in ['b', 'r', 'z']:
     #- replicate for all spectra for the output file
     Rdata = np.array([Rdata for i in range(opts.nspec)])
 
+
+#    print 'wavelenthGrid %s, sourceFlux %s'%(qsim.wavelengthGrid,qsim.sourceFlux)
+
     #- Write brick output
     filename = 'brick-{}-{}.fits'.format(channel, opts.brickname)
     filepath = os.path.join(opts.outdir, filename)
@@ -263,6 +266,7 @@ for channel in ['b', 'r', 'z']:
         header = desispec.io.fitsheader(header)
         fx.append(fits.ImageHDU(trueflux[channel][:,iiobs].astype(np.float32), name='_TRUEFLUX', header=header))
         if (channel == 'b'):
+            fx.append(fits.ImageHDU(qsim.wavelengthGrid.astype(np.float32), name='_SOURCEWAVE', header=header))
             fx.append(fits.ImageHDU(srcfl['SOURCE'].astype(np.float32), name='_SOURCEFLUX', header=header))
         fx.append(fits.BinTableHDU(meta.as_array(), name='_TRUTH'))
         fx.flush()
@@ -272,7 +276,8 @@ for channel in ['b', 'r', 'z']:
         hdulist = fits.HDUList([fits.PrimaryHDU(header=header)])
         hdulist.append(fits.ImageHDU(trueflux[channel][:,iiobs].astype(np.float32), name='_TRUEFLUX', header=header))
         if (channel == 'b'):
-            hdulist.append(fits.ImageHDU(srcfl['SOURCE'], name='_SOURCEFLUX', header=header))
+            hdulist.append(fits.ImageHDU(qsim.wavelengthGrid.astype(np.float32), name='_SOURCEWAVE', header=header))
+            hdulist.append(fits.ImageHDU(srcfl['SOURCE'].astype(np.float32), name='_SOURCEFLUX', header=header))
         hdulist.append(fits.BinTableHDU(meta.as_array(), name='_TRUTH'))
         filename = 'truth-brick-{}-{}.fits'.format(channel, opts.brickname)
         filepath = os.path.join(opts.outdir_truth, filename)

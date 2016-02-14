@@ -4,12 +4,7 @@ import numpy as np
 
 import desisim.targets
 
-desimodel_data_available = True
-try:
-    foo = os.environ['DESIMODEL']
-except KeyError:
-    desimodel_data_available = False
-
+desimodel_data_available = 'DESIMODEL' in os.environ
 
 class TestObs(unittest.TestCase):
 

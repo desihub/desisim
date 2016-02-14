@@ -4,6 +4,7 @@ I/O routines for desisim
 
 import os
 import time
+from glob import glob
 
 from astropy.io import fits
 import numpy as np
@@ -174,7 +175,7 @@ class SimSpec(object):
                  skyphot=None, metadata=None, header=None):
         """
         Args:
-            flavor : 'arc', 'flat', or 'science'
+            flavor : e.g. 'arc', 'flat', 'dark', 'mws', ...
             wave : dictionary with per-channel wavelength grids, keyed by
                 'b', 'r', 'z'.  Optionally also has 'brz' key for channel
                 independent wavelength grid
@@ -193,7 +194,6 @@ class SimSpec(object):
                 skyphot[channel] where channel = 'b', 'r', or 'z'
           * wave['brz'] is the wavelength grid for flux and skyflux
         """
-        assert flavor in ('arc', 'flat', 'science')
         for channel in ('b', 'r', 'z'):
             assert wave[channel].ndim == 1
             assert phot[channel].ndim == 2
@@ -239,7 +239,7 @@ def read_simspec(filename):
         fx.close()
         return SimSpec(flavor, wave, phot, flux=flux, header=hdr)
 
-    elif flavor == 'science':
+    else:  #- multiple science flavors: dark, bright, bgs, mws, etc.
         wave['brz'] = fx['WAVE'].data
         flux = fx['FLUX'].data
         metadata = fx['METADATA'].data
@@ -252,10 +252,6 @@ def read_simspec(filename):
         fx.close()
         return SimSpec(flavor, wave, phot, flux=flux, skyflux=skyflux,
             skyphot=skyphot, metadata=metadata, header=hdr)
-
-    else:
-        raise ValueError('unknown flavor '+flavor)
-
 
 
 def write_simpix(outfile, image, meta):
@@ -282,25 +278,10 @@ def write_simpix(outfile, image, meta):
 #- Utility function to resize an image while preserving its 2D arrangement
 #- (unlike np.resize)
 def _resize(image, shape):
-    if (shape[0] > 2*image.shape[0]) or (shape[1] > 2*image.shape[1]):
-        raise ValueError('Can only reshape by up to a factor of 2')
-
-    newpix = np.empty(shape, dtype=image.dtype)
-    ny = min(shape[0], image.shape[0])
-    nx = min(shape[1], image.shape[1])
-    newpix[0:ny, 0:nx] = image[0:ny, 0:nx]
-    if shape[0] > image.shape[0]:
-        nn = shape[0] - image.shape[0]
-        newpix[ny:ny+nn, 0:nx] = image[0:nn, 0:nx]
-    if shape[1] > image.shape[1]:
-        nn = shape[1] - image.shape[1]
-        newpix[0:ny, nx:nx+nn] = image[0:ny, 0:nn]
-    if (shape[0] > image.shape[0]) and (shape[1] > image.shape[1]):
-        nny = shape[0] - image.shape[0]
-        nnx = shape[1] - image.shape[1]
-        newpix[ny:ny+nny, nx:nx+nnx] = image[0:nny, 0:nnx]
-
-    return newpix
+    ny = shape[0] // image.shape[0] + 1
+    nx = shape[1] // image.shape[1] + 1
+    newpix = np.tile(image, (ny, nx))
+    return newpix[0:shape[0], 0:shape[1]]
 
 def read_cosmics(filename, expid=1, shape=None, jitter=True):
     """
@@ -412,6 +393,30 @@ def get_tile_radec(tileid):
 def _resample_flux(args):
     return resample_flux(*args)
 
+def find_basis_template(objtype, indir=None):
+    """
+    Return the most recent template in $DESI_BASIS_TEMPLATE/{objtype}_template*.fits
+    """
+    if indir is None:
+        indir = os.environ['DESI_BASIS_TEMPLATES']
+        
+    objfile_wild = os.path.join(indir, objtype.lower()+'_templates_*.fits')
+    objfiles = glob(objfile_wild)
+    if len(objfiles) > 0:
+        return objfiles[-1]
+    else:
+        raise IOError('No {} templates found in {}'.format(objtype, objfile_wild))
+
+def _qso_format_version(filename):
+    '''Return 1 or 2 depending upon QSO basis template file structure'''
+    with fits.open(filename) as fx:
+        if fx[1].name == 'METADATA':
+            return 1
+        elif fx[1].name == 'BOSS_PCA':
+            return 2
+        else:
+            raise IOError('Unknown QSO basis template format '+filename)
+
 def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
     """Return the basis (continuum) templates for a given object type.  Optionally
        returns a randomly selected subset of nspec spectra sampled at
@@ -442,43 +447,36 @@ def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
     from astropy.io import fits
     from astropy.table import Table
 
-    key = 'DESI_BASIS_TEMPLATES'
-    if key not in os.environ:
-        log.fatal('Required ${} environment variable not set'.format(key))
-        raise EnvironmentError('Required ${} environment variable not set'.format(key))
-    objpath = os.getenv(key)
-
     ltype = objtype.lower()
     if objtype == 'FSTD':
         ltype = 'star'
 
     if infile is None:
-        objfile_wild = os.path.join(objpath,ltype+'_templates_*.fits')
-    else:
-        objfile_wild = infile
+        infile = find_basis_template(ltype)
 
-    objfile = glob(objfile_wild)
-    nfile = len(objfile)
+    log.info('Reading {}'.format(infile))
 
-    if nfile>0:
-        objfile_latest = objfile[nfile-1] # latest version
-        if os.path.isfile(objfile_latest):
-            log.info('Reading {}'.format(objfile_latest))
+    if objtype.upper() == 'QSO':
+        fx = fits.open(infile)
+        format_version = _qso_format_version(infile)
+        if format_version == 1:
+            flux = fx[0].data * 1E-17
+            hdr = fx[0].header
+            from desispec.io.util import header2wave
+            wave = header2wave(hdr)
+            meta = Table(fx[1].data)
+        elif format_version == 2:
+            flux = fx['SDSS_EIGEN'].data.copy()
+            wave = fx['SDSS_EIGEN_WAVE'].data.copy()
+            meta = Table([np.arange(flux.shape[0]),], names=['PCAVEC',])
         else:
-            log.error('Templates basis file {} not found'.format(objfile_latest))
-            raise IOError('Templates basis file {} not found'.format(objfile_latest))
-    else:
-        log.error('Templates basis file {} not found'.format(objfile_wild))
-        raise IOError('Templates basis file {} not found'.format(objfile_wild))
+            raise IOError('Unknown QSO basis template format version {}'.format(format_version))
 
-    flux, hdr = fits.getdata(objfile_latest, 0, header=True)
-    meta = Table(fits.getdata(objfile_latest, 1))
-    if objtype == 'QSO': # Need to update the QSO data model
-        from desispec.io.util import header2wave
-        flux *= 1E-17
-        wave = header2wave(hdr)
+        fx.close()
     else:
-        wave = fits.getdata(objfile_latest, 2)
+        flux, hdr = fits.getdata(infile, 0, header=True)
+        meta = Table(fits.getdata(infile, 1))
+        wave = fits.getdata(infile, 2)
 
     # Optionally choose a random subset of spectra. There must be a fast way to
     # do this using fitsio.
