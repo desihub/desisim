@@ -86,8 +86,8 @@ def main():
     qso_parser = parser.add_argument_group('options for objtype=QSO')
     qso_parser.add_argument('--zrange-qso', type=float, default=(0.5,4.0), nargs=2, metavar='', 
                             help='minimum and maximum redshift')
-    qso_parser.add_argument('--gmagrange-qso', type=float, default=(21.0,23.0), nargs=2, metavar='',
-                            help='Minimum and maximum g-band (AB) magnitude range')
+    qso_parser.add_argument('--rmagrange-qso', type=float, default=(21.0,23.0), nargs=2, metavar='',
+                            help='Minimum and maximum r-band (AB) magnitude range')
     
     star_parser = parser.add_argument_group('options for objtype=STAR')
     star_parser.add_argument('--vrad-star', type=float, default=(0,200), nargs=2, metavar='', 
@@ -172,7 +172,7 @@ def main():
             qso = QSO(minwave=args.minwave,maxwave=args.maxwave,cdelt=args.cdelt)
             flux, wave, meta = qso.make_templates(nmodel=args.nmodel,
                                                   zrange=args.zrange_qso,
-                                                  gmagrange=args.gmagrange_qso,
+                                                  rmagrange=args.rmagrange_qso,
                                                   seed=args.seed,
                                                   nocolorcuts=args.nocolorcuts)
             log.info('Writing {}'.format(outfile))

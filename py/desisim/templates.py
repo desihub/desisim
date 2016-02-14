@@ -150,7 +150,7 @@ class ELG():
         EM = EMSpectrum(log10wave=np.log10(self.basewave))
        
         # Initialize the output flux array and metadata Table.
-        outflux = np.zeros([nmodel,len(self.wave)]) # [erg/s/cm2/A]
+        outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
 
         metacols = [
             ('TEMPLATEID', 'i4'),
@@ -599,7 +599,7 @@ class LRG():
         rand = np.random.RandomState(seed)
 
         # Initialize the output flux array and metadata Table.
-        outflux = np.zeros([nmodel,len(self.wave)]) # [erg/s/cm2/A]
+        outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
 
         metacols = [
             ('TEMPLATEID', 'i4'),
@@ -649,10 +649,10 @@ class LRG():
                 flux = restflux*10.0**(-0.4*zmag[ii])/norm['decam2014-z'] 
 
                 # Convert [grzW1W2]flux to nanomaggies.
-                decam_flux = self.decam.get_ab_maggies(flux, zwave)
+                decam_flux = self.decam.get_ab_maggies(flux, zwave, mask_invalid=True)
                 decam_nano = [ff*MAG2NANO for ff in decam_flux[0]]
 
-                wise_flux = self.wise.get_ab_maggies(flux, zwave)
+                wise_flux = self.wise.get_ab_maggies(flux, zwave, mask_invalid=True)
                 wise_nano = [ff*MAG2NANO for ff in wise_flux[0]]
                 
                 if nocolorcuts:
@@ -794,7 +794,7 @@ class STAR():
         rand = np.random.RandomState(seed)
 
         # Initialize the output flux array and metadata Table.
-        outflux = np.zeros([nmodel,len(self.wave)]) # [erg/s/cm2/A]
+        outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
 
         metacols = [
             ('TEMPLATEID', 'i4'),
@@ -846,7 +846,7 @@ class STAR():
                     flux = restflux*10.0**(-0.4*rmag[ii])/norm['decam2014-r']
                     
                 # Convert [grzW1W2]flux to nanomaggies.
-                decam_flux = self.decam.get_ab_maggies(flux, zwave)
+                decam_flux = self.decam.get_ab_maggies(flux, zwave, mask_invalid=True)
                 decam_nano = [ff*MAG2NANO for ff in decam_flux[0]]
 
                 wise_flux = self.wise.get_ab_maggies(flux, zwave, mask_invalid=True)
@@ -854,7 +854,8 @@ class STAR():
 
                 # Color cuts on just on the standard stars.
                 if self.objtype=='FSTD':
-                    select = [isFSTD(gflux=decam_nano[1], rflux=decam_nano[2], zflux=decam_nano[4])]
+                    select = [isFSTD(gflux=decam_nano[1], rflux=decam_nano[2],
+                                     zflux=decam_nano[4])]
                 elif self.objtype=='WD':
                     select = [True]
                 else:
@@ -920,14 +921,12 @@ class QSO():
           basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths 
             corresponding to BASEFLUX [Angstrom].
           basemeta (astropy.Table): Table of meta-data for each base template [nbase].
-          gfilt (FILTERFUNC instance): DECam g-band filter profile class.
-          rfilt (FILTERFUNC instance): DECam r-band filter profile class.
-          zfilt (FILTERFUNC instance): DECam z-band filter profile class.
-          w1filt (FILTERFUNC instance): WISE W1-band filter profile class.
-          w2filt (FILTERFUNC instance): WISE W2-band filter profile class.
+          wise (speclite.filters instance): WISE2010 FilterSequence
+          decam (speclite.filters instance): DECam2014 FilterSequence
+          rfilt (speclite.filters instance): DECam2014 r-band FilterSequence
 
         """
-        from desisim.filterfunc import filterfunc as filt
+        from speclite import filters
         from desisim.io import read_basis_templates
 
         self.objtype = 'QSO'
@@ -939,37 +938,27 @@ class QSO():
             wave = np.linspace(minwave,maxwave,npix) 
         self.wave = wave
 
-        """
-        # Read the basis spectra.
-        baseflux, basewave, basemeta = read_basis_templates(objtype=self.objtype)
-        self.baseflux = baseflux
-        self.basewave = basewave
-        self.basemeta = basemeta
-        """
-
-        # Init
+        # Find the basis files.
         self.basis_file = desisim.io.find_basis_template('qso')
         self.z_wind = z_wind
 
         # Initialize the filter profiles.
-        self.gfilt = filt(filtername='decam_g.txt')
-        self.rfilt = filt(filtername='decam_r.txt')
-        self.zfilt = filt(filtername='decam_z.txt')
-        self.w1filt = filt(filtername='wise_w1.txt')
-        self.w2filt = filt(filtername='wise_w2.txt')
+        self.wise = filters.load_filters('wise2010-*')
+        self.decam = filters.load_filters('decam2014-*')
+        self.rfilt = filters.load_filters('decam2014-r')
         
-    def make_templates(self, nmodel=100, zrange=(0.5,4.0), gmagrange=(21.0,23.0),
+    def make_templates(self, nmodel=100, zrange=(0.5,4.0), rmagrange=(21.0,23.0),
                        seed=None, nocolorcuts=False, old_way=False):
         """Build Monte Carlo set of QSO spectra/templates.
 
         This function generates a random set of QSO continua spectra and
-        finally normalizes the spectrum to a specific z-band magnitude.
+        finally normalizes the spectrum to a specific g-band magnitude.
 
         Args:
           nmodel (int, optional): Number of models to generate (default 100). 
           zrange (float, optional): Minimum and maximum redshift range.  Defaults
             to a uniform distribution between (0.5,4.0).
-          gmagrange (float, optional): Minimum and maximum DECam g-band (AB)
+          rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
             magnitude range.  Defaults to a uniform distribution between (21,23.0).
           seed (long, optional): input seed for the random numbers.
           nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
@@ -983,10 +972,10 @@ class QSO():
         Raises:
 
         """
-        from astropy.table import Table, Column
+        from astropy.table import Table
         from desispec.interpolation import resample_flux
         from desisim.qso_template import desi_qso_templ as dqt
-        #reload(dqt)
+        #from desitarget.cuts import isQSO
 
         rand = np.random.RandomState(seed)
 
@@ -1020,55 +1009,46 @@ class QSO():
             self.z = redshifts[ridx]
 
         # Initialize the output flux array and metadata Table.
-        outflux = np.zeros([nmodel,len(self.wave)]) # [erg/s/cm2/A]
+        outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
 
-        meta = Table()
-        meta['TEMPLATEID'] = Column(np.zeros(nmodel,dtype='i4'))
-        #meta['REDSHIFT'] = Column(np.zeros(nmodel,dtype='f4'))
-        if old_way:
-            meta['REDSHIFT'] = Column(np.zeros(nmodel), dtype='f4')
-        else:
-            meta['REDSHIFT'] = Column(self.z, dtype='f4')
-        meta['GMAG'] = Column(np.zeros(nmodel,dtype='f4'))
-        meta['RMAG'] = Column(np.zeros(nmodel,dtype='f4'))
-        meta['ZMAG'] = Column(np.zeros(nmodel,dtype='f4'))
-        meta['W1MAG'] = Column(np.zeros(nmodel,dtype='f4'))
-        meta['W2MAG'] = Column(np.zeros(nmodel,dtype='f4'))
-
-        comments = dict(
-            TEMPLATEID = 'template ID',
-            REDSHIFT = 'object redshift',
-            GMAG = 'DECam g-band AB magnitude',
-            RMAG = 'DECam r-band AB magnitude',
-            ZMAG = 'DECam z-band AB magnitude',
-            W1MAG = 'WISE W1-band AB magnitude',
-            W2MAG = 'WISE W2-band AB magnitude'
-        )
+        metacols = [
+            ('TEMPLATEID', 'i4'),
+            ('REDSHIFT', 'f4'),
+            ('GMAG', 'f4'),
+            ('RMAG', 'f4'),
+            ('ZMAG', 'f4'),
+            ('W1MAG', 'f4'),
+            ('W2MAG', 'f4'),
+            ('DECAM_FLUX', 'f4', (6,)),
+            ('WISE_FLUX', 'f4', (4,))]
+        meta = Table(np.zeros(nmodel, dtype=metacols))
 
         nobj = 0
         if old_way:
             nbase = self.baseflux.shape[0]
             nchunk = min(nmodel,500)
         else:
+            meta['REDSHIFT'] = self.z
             nbase = self.baseflux.shape[1]
             nchunk = nmodel
 
         while nobj<=(nmodel-1):
             # Choose a random subset of the base templates
             if old_way:
-                chunkindx = rand.randint(0,nbase-1,nchunk)
+                chunkindx = rand.randint(0, nbase-1, nchunk)
             else:
                 chunkindx = xrange(nchunk)
 
             # Assign uniform redshift and g-magnitude distributions.
             # redshift = rand.uniform(zrange[0],zrange[1],nchunk)
-            gmag = rand.uniform(gmagrange[0],gmagrange[1],nchunk)
-            zwave = self.basewave # hack!
+            rmag = rand.uniform(rmagrange[0], rmagrange[1], nchunk)
+            zwave = self.basewave # Hack!
+            print(zwave.min(), zwave.max())
 
             # Unfortunately we have to loop here.
             for ii, iobj in enumerate(chunkindx):
                 if old_way:
-                    this = rand.randint(0,nbase-1)
+                    this = rand.randint(0, nbase-1)
                 else:
                     this = ii
                 if old_way:
@@ -1076,38 +1056,46 @@ class QSO():
                 else:
                     obsflux = self.baseflux[:, this] # [erg/s/cm2/A]
 
-                gnorm = 10.0**(-0.4*gmag[ii])/self.gfilt.get_maggies(zwave,obsflux)
-                flux = obsflux*gnorm # [erg/s/cm2/A, @redshift[ii]]
+                # Normalize to [erg/s/cm2/A, @redshift[ii]]
+                norm = self.rfilt.get_ab_maggies(obsflux, zwave)
+                flux = obsflux*10.0**(-0.4*rmag[ii])/norm['decam2014-r']
 
-                # [grzW1W2]flux are in nanomaggies
-                gflux = 10.0**(-0.4*(gmag[ii]-22.5))                      
-                rflux = self.rfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
-                zflux = self.zfilt.get_maggies(zwave,flux)*10**(0.4*22.5) 
-                w1flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
-                w2flux = self.w1filt.get_maggies(zwave,flux)*10**(0.4*22.5) 
+                # Convert [grzW1W2]flux to nanomaggies.
+                decam_flux = self.decam.get_ab_maggies(flux, zwave, mask_invalid=True)
+                decam_nano = [ff*MAG2NANO for ff in decam_flux[0]]
+
+                wise_flux = self.wise.get_ab_maggies(flux, zwave, mask_invalid=True)
+                wise_nano = [ff*MAG2NANO for ff in wise_flux[0]]
 
                 if nocolorcuts:
-                    grzW1W2mask = [True]
+                    select = [True]
                 else:
-                    grzW1W2mask = [True] # ToDo!
+                    #select = [isQSO(gflux=decam_nano[1], rflux=decam_nano[2], # ToDo!
+                    #                zflux=decam_nano[4], wflux=(wise_nano[0],
+                    #                                            wise_nano[1]))]
+                    select = [True] 
 
-                if all(grzW1W2mask):
+                if all(select):
                     if ((nobj+1)%10)==0:
-                        log.debug('Simulating {} template {}/{}'.format(self.objtype,nobj+1,nmodel))
-                    outflux[nobj,:] = resample_flux(self.wave,zwave,flux)
+                        log.debug('Simulating {} template {}/{}'. \
+                                  format(self.objtype, nobj+1, nmodel))
+                    outflux[nobj,:] = resample_flux(self.wave, zwave, flux)
 
                     meta['TEMPLATEID'][nobj] = nobj
                     if old_way:
                         meta['REDSHIFT'][nobj] = self.basemeta['Z'][this]
-                    meta['GMAG'][nobj] = gmag[ii]
-                    meta['RMAG'][nobj] = -2.5*np.log10(rflux)+22.5
-                    meta['ZMAG'][nobj] = -2.5*np.log10(zflux)+22.5
-                    meta['W1MAG'][nobj] = -2.5*np.log10(w1flux)+22.5
-                    meta['W2MAG'][nobj] = -2.5*np.log10(w2flux)+22.5
+                    meta['GMAG'][nobj] = -2.5*np.log10(decam_nano[1])+22.5
+                    meta['RMAG'][nobj] = -2.5*np.log10(decam_nano[2])+22.5
+                    meta['ZMAG'][nobj] = -2.5*np.log10(decam_nano[4])+22.5
+                    meta['W1MAG'][nobj] = -2.5*np.log10(wise_nano[0])+22.5
+                    meta['W2MAG'][nobj] = -2.5*np.log10(wise_nano[1])+22.5
+                    meta['DECAM_FLUX'][nobj] = decam_nano
+                    meta['WISE_FLUX'][nobj] = wise_nano
 
                     nobj = nobj+1
 
                 # If we have enough models get out!
                 if nobj>=(nmodel-1):
                     break
+                
         return outflux, self.wave, meta
