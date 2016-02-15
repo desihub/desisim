@@ -18,6 +18,53 @@ log = get_logger()
 LIGHT = 2.99792458E5  #- speed of light in km/s
 MAG2NANO = 10.0**(0.4*22.5)
 
+class GaussianMixtureModel(object):
+    """Read and sample from a pre-defined Gaussian mixture model.
+
+    """
+    def __init__(self, weights, means, covars, covtype):
+        self.weights = weights
+        self.means = means
+        self.covars = covars
+        self.covtype = covtype
+        self.n_components, self.n_dimensions = self.means.shape
+    
+    @staticmethod
+    def load(filename):
+        hdus = fits.open(filename, memmap=False)
+        hdr = hdus[0].header
+        covtype = hdr['covtype']
+        model = GaussianMixtureModel(
+            hdus['weights'].data, hdus['means'].data, hdus['covars'].data, covtype)
+        hdus.close()
+        return model
+    
+    def sample(self, n_samples=1, random_state=None):
+        
+        if self.covtype != 'full':
+            return NotImplementedError(
+                'covariance type "{0}" not implemented yet.'.format(self.covtype))
+        
+        # Code adapted from sklearn's GMM.sample()
+        if random_state is None:
+            random_state = np.random.RandomState()
+
+        weight_cdf = np.cumsum(self.weights)
+        X = np.empty((n_samples, self.n_dimensions))
+        rand = random_state.rand(n_samples)
+        # decide which component to use for each sample
+        comps = weight_cdf.searchsorted(rand)
+        # for each component, generate all needed samples
+        for comp in range(self.n_components):
+            # occurrences of current component in X
+            comp_in_X = (comp == comps)
+            # number of those occurrences
+            num_comp_in_X = comp_in_X.sum()
+            if num_comp_in_X > 0:
+                X[comp_in_X] = random_state.multivariate_normal(
+                    self.means[comp], self.covars[comp], num_comp_in_X)
+        return X
+
 class EMSpectrum():
     """Construct a complete nebular emission-line spectrum.
 
@@ -213,10 +260,6 @@ class EMSpectrum():
             for ii in range(nline):
                 line['flux'][ii] = hbetaflux*line['ratio'][ii]
 
-        #ishb = np.where(line['name']=='Hbeta')[0]
-        #if line['flux'][ishb]>1E-13:
-        #    import pdb; pdb.set_trace()
-
         # Finally build the emission-line spectrum
         log10sigma = linesigma/2.99792458E5/np.log(10) # line-width [log-10 Angstrom]
         emspec = np.zeros(len(self.log10wave))
@@ -411,12 +454,13 @@ class ELG():
 
             # Unfortunately we have to loop here.
             for ii, iobj in enumerate(chunkindx):
-                zwave = self.basewave*(1.0+redshift[ii])
+                zwave = self.basewave.astype(float)*(1.0+redshift[ii])
                 restflux = self.baseflux[iobj,:]
 
                 # Normalize to [erg/s/cm2/A, @redshift[ii]]
-                norm = self.rfilt.get_ab_maggies(restflux, zwave)
-                flux = restflux*10.0**(-0.4*rmag[ii])/norm['decam2014-r'] 
+                rnorm = self.rfilt.get_ab_maggies(restflux, zwave)
+                norm = 10.0**(-0.4*rmag[ii])/rnorm['decam2014-r'][0]
+                flux = restflux*norm
 
                 # Create an emission-line spectrum with the right [OII] flux [erg/s/cm2]. 
                 oiiflux = self.basemeta['OII_CONTINUUM'][iobj]*ewoii[ii] 
@@ -446,7 +490,8 @@ class ELG():
                 if nocolorcuts:
                     colormask = [True]
                 else:
-                    colormask = [isELG(gflux=decam_nano[1], rflux=decam_nano[2],
+                    colormask = [isELG(gflux=decam_nano[1],
+                                       rflux=decam_nano[2],
                                        zflux=decam_nano[4])]
 
                 if all(colormask) and all(oiimask):
@@ -631,12 +676,13 @@ class LRG():
 
             # Unfortunately we have to loop here.
             for ii, iobj in enumerate(chunkindx):
-                zwave = self.basewave*(1.0+redshift[ii])
+                zwave = self.basewave.astype(float)*(1.0+redshift[ii])
                 restflux = self.baseflux[iobj,:] # [erg/s/cm2/A @10pc]
 
                 # Normalize to [erg/s/cm2/A, @redshift[ii]]
-                norm = self.zfilt.get_ab_maggies(restflux, zwave)
-                flux = restflux*10.0**(-0.4*zmag[ii])/norm['decam2014-z'] 
+                znorm = self.zfilt.get_ab_maggies(restflux, zwave)
+                norm = 10.0**(-0.4*zmag[ii])/znorm['decam2014-z'][0]
+                flux = restflux*norm
 
                 # Convert [grzW1W2]flux to nanomaggies.
                 decam_flux = self.decam.get_ab_maggies(flux, zwave, mask_invalid=True)
@@ -648,8 +694,9 @@ class LRG():
                 if nocolorcuts:
                     colormask = [True]
                 else:
-                    colormask = [isLRG(rflux=decam_nano[2], zflux=decam_nano[4],
-                                    w1flux=wise_nano[0])]
+                    colormask = [isLRG(rflux=decam_nano[2],
+                                       zflux=decam_nano[4],
+                                       w1flux=wise_nano[0])]
 
                 if all(colormask):
                     if ((nobj+1)%10)==0:
@@ -779,7 +826,7 @@ class STAR():
         """
         from astropy.table import Table
         from desispec.interpolation import resample_flux
-        from desitarget.cuts import isFSTD
+        from desitarget.cuts import isFSTD_colors
 
         rand = np.random.RandomState(seed)
 
@@ -824,16 +871,17 @@ class STAR():
 
             # Unfortunately we have to loop here.
             for ii, iobj in enumerate(chunkindx):
-                zwave = self.basewave*(1.0+redshift[ii])
+                zwave = self.basewave.astype(float)*(1.0+redshift[ii])
                 restflux = self.baseflux[iobj,:] # [erg/s/cm2/A @10pc]
 
                 # Normalize to [erg/s/cm2/A, @redshift[ii]]
                 if self.objtype=='WD':
-                    norm = self.gfilt.get_ab_maggies(restflux, zwave)
-                    flux = restflux*10.0**(-0.4*gmag[ii])/norm['decam2014-g']
+                    gnorm = self.gfilt.get_ab_maggies(restflux, zwave)
+                    norm = 10.0**(-0.4*gmag[ii])/gnorm['decam2014-g'][0]
                 else:
-                    norm = self.rfilt.get_ab_maggies(restflux, zwave)
-                    flux = restflux*10.0**(-0.4*rmag[ii])/norm['decam2014-r']
+                    rnorm = self.rfilt.get_ab_maggies(restflux, zwave)
+                    norm = 10.0**(-0.4*rmag[ii])/rnorm['decam2014-r'][0]
+                flux = restflux*norm
                     
                 # Convert [grzW1W2]flux to nanomaggies.
                 decam_flux = self.decam.get_ab_maggies(flux, zwave, mask_invalid=True)
@@ -844,8 +892,9 @@ class STAR():
 
                 # Color cuts on just on the standard stars.
                 if self.objtype=='FSTD':
-                    colormask = [isFSTD(gflux=decam_nano[1], rflux=decam_nano[2],
-                                     zflux=decam_nano[4])]
+                    colormask = [isFSTD_colors(gflux=decam_nano[1],
+                                               rflux=decam_nano[2],
+                                               zflux=decam_nano[4])]
                 elif self.objtype=='WD':
                     colormask = [True]
                 else:
@@ -1033,7 +1082,6 @@ class QSO():
             # redshift = rand.uniform(zrange[0],zrange[1],nchunk)
             rmag = rand.uniform(rmagrange[0], rmagrange[1], nchunk)
             zwave = self.basewave # Hack!
-            print(zwave.min(), zwave.max())
 
             # Unfortunately we have to loop here.
             for ii, iobj in enumerate(chunkindx):
@@ -1047,8 +1095,9 @@ class QSO():
                     obsflux = self.baseflux[:, this] # [erg/s/cm2/A]
 
                 # Normalize to [erg/s/cm2/A, @redshift[ii]]
-                norm = self.rfilt.get_ab_maggies(obsflux, zwave)
-                flux = obsflux*10.0**(-0.4*rmag[ii])/norm['decam2014-r']
+                rnorm = self.rfilt.get_ab_maggies(restflux, zwave)
+                norm = 10.0**(-0.4*rmag[ii])/rnorm['decam2014-r'][0]
+                flux = restflux*norm
 
                 # Convert [grzW1W2]flux to nanomaggies.
                 decam_flux = self.decam.get_ab_maggies(flux, zwave, mask_invalid=True)
@@ -1060,9 +1109,11 @@ class QSO():
                 if nocolorcuts:
                     colormask = [True]
                 else:
-                    #colormask = [isQSO(gflux=decam_nano[1], rflux=decam_nano[2], # ToDo!
-                    #                zflux=decam_nano[4], wflux=(wise_nano[0],
-                    #                                            wise_nano[1]))]
+                    #colormask = [isQSO(gflux=decam_nano[1], # ToDo!
+                    #                   rflux=decam_nano[2], 
+                    #                   zflux=decam_nano[4],
+                    #                   wflux=(wise_nano[0],
+                    #                          wise_nano[1]))]
                     colormask = [True] 
 
                 if all(colormask):
@@ -1162,6 +1213,8 @@ class BGS():
         This function chooses random subsets of the ELG continuum spectra, constructs
         an emission-line spectrum, redshifts, and then finally normalizes the spectrum
         to a specific r-band magnitude.
+
+        TODO (@moustakas): Calibrate vdisp on data.
 
         Args:
           nmodel (int, optional): Number of models to generate (default 100). 
@@ -1267,12 +1320,13 @@ class BGS():
 
             # Unfortunately we have to loop here.
             for ii, iobj in enumerate(chunkindx):
-                zwave = self.basewave*(1.0+redshift[ii])
+                zwave = self.basewave.astype(float)*(1+redshift[ii])
                 restflux = self.baseflux[iobj,:]
 
                 # Normalize to [erg/s/cm2/A, @redshift[ii]]
-                norm = self.rfilt.get_ab_maggies(restflux, zwave)
-                flux = restflux*10.0**(-0.4*rmag[ii])/norm['decam2014-r'] 
+                rnorm = self.rfilt.get_ab_maggies(restflux, zwave)
+                norm = 10.0**(-0.4*rmag[ii])/rnorm['decam2014-r'][0]
+                flux = restflux*norm
 
                 # Create an emission-line spectrum with the right [OII] flux [erg/s/cm2]. 
                 hbetaflux = self.basemeta['HBETA_CONTINUUM'][iobj]*ewhbeta[ii] 
