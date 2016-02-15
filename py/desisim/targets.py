@@ -166,6 +166,11 @@ def get_targets(nspec, flavor, tileid=None):
             lrg = LRG(wave=wave)
             simflux, wave1, meta = lrg.make_templates(nmodel=nobj)
 
+        elif objtype == 'BGS':
+            from desisim.templates import BGS
+            bgs = BGS(wave=wave)
+            simflux, wave1, meta = bgs.make_templates(nmodel=nobj)
+
         elif objtype == 'QSO':
             from desisim.templates import QSO
             qso = QSO(wave=wave)
@@ -211,6 +216,11 @@ def get_targets(nspec, flavor, tileid=None):
             truth['D4000'][ii] = meta['D4000']
             truth['VDISP'][ii] = meta['VDISP']
 
+        if objtype == 'BGS':
+            truth['HBETAFLUX'][ii] = meta['HBETAFLUX']
+            truth['D4000'][ii] = meta['D4000']
+            truth['VDISP'][ii] = meta['VDISP']
+            
     #- Load fiber -> positioner mapping and tile information
     fiberpos = desimodel.io.load_fiberpos()
 

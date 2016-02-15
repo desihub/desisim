@@ -1311,7 +1311,8 @@ class BGS():
                                      oiidoublet_meansig[1],
                                      nchunk)
             d4000 = self.basemeta['D4000'][chunkindx]
-            print('Fix this!')
+
+            # These coefficients are wrong!
             ewhbeta = 10.0**(np.polyval([1.1074,-4.7338,5.6585],d4000)+ 
                              rand.normal(0.0,0.25, nchunk)) # rest-frame, Angstrom
 
