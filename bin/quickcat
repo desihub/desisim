@@ -20,6 +20,7 @@ parser.add_option('-t', "--tilelist",  type=str, help="file with list of observe
 parser.add_option('-T', "--truth",     type=str, help="file with truth table")
 parser.add_option('-z', "--zcat",      type=str, help="previous zcatalog to update")
 parser.add_option('-o', "--output",    type=str, help="new zcatalog to write")
+parser.add_option('-p', "--perfectz",  action="store_true", help="for redshift in = redshift out")
 opts, args = parser.parse_args()
 
 #-------------------------------------------------------------------------
@@ -56,29 +57,34 @@ obs_targetids = np.array(nobs.keys())
 iiobs = np.in1d(truth['TARGETID'], obs_targetids)
 newzcat = truth[iiobs]
 inputz=newzcat["Z"]
-inputtype=newzcat["SUBTYPE"]
+inputtype=newzcat["TYPE"]
 
 #import IPython
 #IPython.embed()
 
-def apply_redshift_eff(galtype,z):
+def apply_redshift_precision(galtype,z,perfectz=False):
     """ only a placeholder for now, no selection/cuts of any form applied. 
     based on very limited sample of redshift fitting. More parametric form needed.
     """
+    # define rms from (z_true-z_fit)/(1+z_true) distribution from successful fits (!zwarn=0)
     if galtype=='ELG':
-        rms=0.00024  # based on 30 ELGs: zfit
+        rms=0.0001  # based on 30 ELGs: zfit
     if galtype=='LRG':
-        rms=0.0001  # based on ~1000 LRGs: zpy
+        rms=0.000085  # based on ~1000 LRGs: zpy
     if galtype=='QSO':
-        rms=0.002   # based on 20 QSO: redmonster
+        rms=0.00045   # based on 20 QSO: redmonster
     else: 
         rms=0.000001 
-    z=z+np.random.normal(0,rms)
-    return z
+    if opts.perfectz:
+        #print "Bypassing this step: Redshift in = Redshift out"
+        error=0.
+        outputz=z
+    else:  # Apply fluctuation
+        error=rms*(1+z)
+        outputz=z+np.random.normal(0,error)
+    return outputz
 
 print(len(newzcat))
-
-#for i in range(len(newzcat)):
 
             
 #- Add numobs
@@ -88,8 +94,9 @@ newzcat.add_column(Column(name='NUMOBS', length=nz, dtype=int))
 
 for i in range(len(newzcat)):
     newzcat['NUMOBS'][i] = nobs[newzcat['TARGETID'][i]]
-    outz[i]=apply_redshift_eff(inputtype[i],inputz[i])
-#- Add ZERR and ZWARN
+    outz[i]=apply_redshift_precision(inputtype[i],inputz[i],perfectz=opts.perfectz)
+
+#- Add ZERR and ZWARN (Need to parametrize this!)
 z=Column(name='Z',data=outz)
 zerr  = Column(name='ZERR', data=np.ones(nz, dtype=np.float32)*1e-4)
 zwarn = Column(name='ZWARN', data=np.zeros(nz, dtype=np.int32))
