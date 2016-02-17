@@ -4,13 +4,13 @@
 quickcat v0 : simulates the data flow from fiber assignment output to
 zcatalog creation.
 
-WORK IN PROGRESS.  Still coordinating with details of fiber assignment output
-and truth table formats.  Don't merge yet.
+WORK IN PROGRESS.
 """
 
 import sys, os
 import numpy as np
 from astropy.table import Table, Column
+import desispec.quickcat as qc
 
 import optparse
 
@@ -56,35 +56,8 @@ truth = Table.read(opts.truth)
 obs_targetids = np.array(nobs.keys())
 iiobs = np.in1d(truth['TARGETID'], obs_targetids)
 newzcat = truth[iiobs]
-inputz=newzcat["Z"]
-inputtype=newzcat["TYPE"]
-
-#import IPython
-#IPython.embed()
-
-def apply_redshift_precision(galtype,z,perfectz=False):
-    """ only a placeholder for now, no selection/cuts of any form applied. 
-    based on very limited sample of redshift fitting. More parametric form needed.
-    """
-    # define rms from (z_true-z_fit)/(1+z_true) distribution from successful fits (!zwarn=0)
-    if galtype=='ELG':
-        rms=0.0001  # based on 30 ELGs: zfit
-    if galtype=='LRG':
-        rms=0.000085  # based on ~1000 LRGs: zpy
-    if galtype=='QSO':
-        rms=0.00045   # based on 20 QSO: redmonster
-    else: 
-        rms=0.000001 
-    if opts.perfectz:
-        #print "Bypassing this step: Redshift in = Redshift out"
-        error=0.
-        outputz=z
-    else:  # Apply fluctuation
-        error=rms*(1+z)
-        outputz=z+np.random.normal(0,error)
-    return outputz
-
-print(len(newzcat))
+inputz=np.array(newzcat["Z"])
+inputtype=np.array(newzcat["TYPE"])
 
             
 #- Add numobs
@@ -94,11 +67,15 @@ newzcat.add_column(Column(name='NUMOBS', length=nz, dtype=int))
 
 for i in range(len(newzcat)):
     newzcat['NUMOBS'][i] = nobs[newzcat['TARGETID'][i]]
-    outz[i]=apply_redshift_precision(inputtype[i],inputz[i],perfectz=opts.perfectz)
+    outz[i]=qc.apply_redshift_precision(inputtype[i],inputz[i],perfectz=opts.perfectz)
+
+#- Replace the input z by precision applied z
+z=Column(name='Z',data=outz)
+newzcat['Z']=z
 
 #- Add ZERR and ZWARN (Need to parametrize this!)
-z=Column(name='Z',data=outz)
-zerr  = Column(name='ZERR', data=np.ones(nz, dtype=np.float32)*1e-4)
+z_error = (outz-inputz) #?? Not sure if this is right here.
+zerr  = Column(name='ZERR', data=z_error)
 zwarn = Column(name='ZWARN', data=np.zeros(nz, dtype=np.int32))
 newzcat.add_column(zerr)
 newzcat.add_column(zwarn)
