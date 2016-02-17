@@ -305,8 +305,7 @@ class ELG():
             corresponding to BASEFLUX [Angstrom].
           basemeta (astropy.Table): Table of meta-data for each base template [nbase].
           pixbound (numpy.ndarray): Pixel boundaries of BASEWAVE [Angstrom].
-          wise (speclite.filters instance): WISE2010 FilterSequence
-          decam (speclite.filters instance): DECam2014 FilterSequence
+          decamwise (speclite.filters instance): DECam2014 and WISE2010 FilterSequence
           rfilt (speclite.filters instance): DECam2014 r-band FilterSequence
 
         """
@@ -333,9 +332,8 @@ class ELG():
         self.pixbound = pxs.cen2bound(basewave)
 
         # Initialize the filter profiles.
-        self.wise = filters.load_filters('wise2010-*')
-        self.decam = filters.load_filters('decam2014-*')
         self.rfilt = filters.load_filters('decam2014-r')
+        self.decamwise = filters.load_filters('decam2014-*', 'wise2010-*')
 
     def make_templates(self, nmodel=100, zrange=(0.6,1.6), rmagrange=(21.0,23.4),
                        oiiihbrange=(-0.5,0.1), oiidoublet_meansig=(0.73,0.05),
@@ -480,19 +478,16 @@ class ELG():
                     flux += emflux
 
                 # Convert [grzW1W2]flux to nanomaggies.
-                decam_flux = self.decam.get_ab_maggies(flux, zwave, mask_invalid=True)
-                decam_nano = [ff*MAG2NANO for ff in decam_flux[0]]
-
-                wise_flux = self.wise.get_ab_maggies(flux, zwave, mask_invalid=True)
-                wise_nano = [ff*MAG2NANO for ff in wise_flux[0]]
-
+                synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
+                synthnano = [ff*MAG2NANO for ff in synthmaggies[0]] # convert to nanomaggies
+                
                 oiimask = [zoiiflux>minoiiflux]
                 if nocolorcuts:
                     colormask = [True]
                 else:
-                    colormask = [isELG(gflux=decam_nano[1],
-                                       rflux=decam_nano[2],
-                                       zflux=decam_nano[4])]
+                    colormask = [isELG(gflux=synthnano[1],
+                                       rflux=synthnano[2],
+                                       zflux=synthnano[4])]
 
                 if all(colormask) and all(oiimask):
                     if ((nobj+1)%10)==0:
@@ -512,13 +507,13 @@ class ELG():
 
                     meta['TEMPLATEID'][nobj] = nobj
                     meta['REDSHIFT'][nobj] = redshift[ii]
-                    meta['GMAG'][nobj] = -2.5*np.log10(decam_nano[1])+22.5
-                    meta['RMAG'][nobj] = -2.5*np.log10(decam_nano[2])+22.5
-                    meta['ZMAG'][nobj] = -2.5*np.log10(decam_nano[4])+22.5
-                    meta['W1MAG'][nobj] = -2.5*np.log10(wise_nano[0])+22.5
-                    meta['W2MAG'][nobj] = -2.5*np.log10(wise_nano[1])+22.5
-                    meta['DECAM_FLUX'][nobj] = decam_nano
-                    meta['WISE_FLUX'][nobj] = wise_nano
+                    meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
+                    meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
+                    meta['ZMAG'][nobj] = -2.5*np.log10(synthnano[4])+22.5
+                    meta['W1MAG'][nobj] = -2.5*np.log10(synthnano[6])+22.5
+                    meta['W2MAG'][nobj] = -2.5*np.log10(synthnano[7])+22.5
+                    meta['DECAM_FLUX'][nobj] = synthnano[:6]
+                    meta['WISE_FLUX'][nobj] = synthnano[6:10]
                     meta['OIIFLUX'][nobj] = zoiiflux
                     meta['EWOII'][nobj] = ewoii[ii]
                     meta['OIIIHBETA'][nobj] = oiiihbeta[ii]
@@ -565,8 +560,7 @@ class LRG():
             corresponding to BASEFLUX [Angstrom].
           basemeta (astropy.Table): Table of meta-data for each base template [nbase].
           pixbound (numpy.ndarray): Pixel boundaries of BASEWAVE [Angstrom].
-          wise (speclite.filters instance): WISE2010 FilterSequence
-          decam (speclite.filters instance): DECam2014 FilterSequence
+          decamwise (speclite.filters instance): DECam2014 and WISE2010 FilterSequence
           zfilt (speclite.filters instance): DECam2014 z-band FilterSequence
 
         """
@@ -593,9 +587,8 @@ class LRG():
         self.pixbound = pxs.cen2bound(basewave)
 
         # Initialize the filter profiles.
-        self.wise = filters.load_filters('wise2010-*')
-        self.decam = filters.load_filters('decam2014-*')
         self.zfilt = filters.load_filters('decam2014-z')
+        self.decamwise = filters.load_filters('decam2014-*', 'wise2010-*')
 
     def make_templates(self, nmodel=100, zrange=(0.5,1.1), zmagrange=(19.0,20.5),
                        logvdisp_meansig=(2.3,0.1), seed=None, nocolorcuts=False):
@@ -685,18 +678,15 @@ class LRG():
                 flux = restflux*norm
 
                 # Convert [grzW1W2]flux to nanomaggies.
-                decam_flux = self.decam.get_ab_maggies(flux, zwave, mask_invalid=True)
-                decam_nano = [ff*MAG2NANO for ff in decam_flux[0]]
+                synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
+                synthnano = [ff*MAG2NANO for ff in synthmaggies[0]] # convert to nanomaggies
 
-                wise_flux = self.wise.get_ab_maggies(flux, zwave, mask_invalid=True)
-                wise_nano = [ff*MAG2NANO for ff in wise_flux[0]]
-                
                 if nocolorcuts:
                     colormask = [True]
                 else:
-                    colormask = [isLRG(rflux=decam_nano[2],
-                                       zflux=decam_nano[4],
-                                       w1flux=wise_nano[0])]
+                    colormask = [isLRG(rflux=synthnano[2],
+                                       zflux=synthnano[4],
+                                       w1flux=synthnano[6])]
 
                 if all(colormask):
                     if ((nobj+1)%10)==0:
@@ -711,13 +701,13 @@ class LRG():
 
                     meta['TEMPLATEID'][nobj] = nobj
                     meta['REDSHIFT'][nobj] = redshift[ii]
-                    meta['GMAG'][nobj] = -2.5*np.log10(decam_nano[1])+22.5
-                    meta['RMAG'][nobj] = -2.5*np.log10(decam_nano[2])+22.5
-                    meta['ZMAG'][nobj] = -2.5*np.log10(decam_nano[4])+22.5
-                    meta['W1MAG'][nobj] = -2.5*np.log10(wise_nano[0])+22.5
-                    meta['W2MAG'][nobj] = -2.5*np.log10(wise_nano[1])+22.5
-                    meta['DECAM_FLUX'][nobj] = decam_nano
-                    meta['WISE_FLUX'][nobj] = wise_nano
+                    meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
+                    meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
+                    meta['ZMAG'][nobj] = -2.5*np.log10(synthnano[4])+22.5
+                    meta['W1MAG'][nobj] = -2.5*np.log10(synthnano[6])+22.5
+                    meta['W2MAG'][nobj] = -2.5*np.log10(synthnano[7])+22.5
+                    meta['DECAM_FLUX'][nobj] = synthnano[:6]
+                    meta['WISE_FLUX'][nobj] = synthnano[6:10]
                     meta['ZMETAL'][nobj] = self.basemeta['ZMETAL'][iobj]
                     meta['AGE'][nobj] = self.basemeta['AGE'][iobj]
                     meta['D4000'][nobj] = self.basemeta['D4000'][iobj]
@@ -761,8 +751,7 @@ class STAR():
           basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths 
             corresponding to BASEFLUX [Angstrom].
           basemeta (astropy.Table): Table of meta-data for each base template [nbase].
-          wise (speclite.filters instance): WISE2010 FilterSequence
-          decam (speclite.filters instance): DECam2014 FilterSequence
+          decamwise (speclite.filters instance): DECam2014 and WISE2010 FilterSequence
           gfilt (speclite.filters instance): DECam2014 g-band FilterSequence
           rfilt (speclite.filters instance): DECam2014 r-band FilterSequence
 
@@ -791,8 +780,7 @@ class STAR():
         self.basemeta = basemeta
 
         # Initialize the filter profiles.
-        self.wise = filters.load_filters('wise2010-*')
-        self.decam = filters.load_filters('decam2014-*')
+        self.decamwise = filters.load_filters('decam2014-*', 'wise2010-*')
         self.gfilt = filters.load_filters('decam2014-g')
         self.rfilt = filters.load_filters('decam2014-r')
 
@@ -884,17 +872,14 @@ class STAR():
                 flux = restflux*norm
                     
                 # Convert [grzW1W2]flux to nanomaggies.
-                decam_flux = self.decam.get_ab_maggies(flux, zwave, mask_invalid=True)
-                decam_nano = [ff*MAG2NANO for ff in decam_flux[0]]
-
-                wise_flux = self.wise.get_ab_maggies(flux, zwave, mask_invalid=True)
-                wise_nano = [ff*MAG2NANO for ff in wise_flux[0]]
+                synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
+                synthnano = [ff*MAG2NANO for ff in synthmaggies[0]] # convert to nanomaggies
 
                 # Color cuts on just on the standard stars.
                 if self.objtype=='FSTD':
-                    colormask = [isFSTD_colors(gflux=decam_nano[1],
-                                               rflux=decam_nano[2],
-                                               zflux=decam_nano[4])]
+                    colormask = [isFSTD_colors(gflux=synthnano[1],
+                                               rflux=synthnano[2],
+                                               zflux=synthnano[4])]
                 elif self.objtype=='WD':
                     colormask = [True]
                 else:
@@ -908,13 +893,13 @@ class STAR():
 
                     meta['TEMPLATEID'][nobj] = nobj
                     meta['REDSHIFT'][nobj] = redshift[ii]
-                    meta['GMAG'][nobj] = -2.5*np.log10(decam_nano[1])+22.5
-                    meta['RMAG'][nobj] = -2.5*np.log10(decam_nano[2])+22.5
-                    meta['ZMAG'][nobj] = -2.5*np.log10(decam_nano[4])+22.5
-                    meta['W1MAG'][nobj] = -2.5*np.log10(wise_nano[0])+22.5
-                    meta['W2MAG'][nobj] = -2.5*np.log10(wise_nano[1])+22.5
-                    meta['DECAM_FLUX'][nobj] = decam_nano
-                    meta['WISE_FLUX'][nobj] = wise_nano
+                    meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
+                    meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
+                    meta['ZMAG'][nobj] = -2.5*np.log10(synthnano[4])+22.5
+                    meta['W1MAG'][nobj] = -2.5*np.log10(synthnano[6])+22.5
+                    meta['W2MAG'][nobj] = -2.5*np.log10(synthnano[7])+22.5
+                    meta['DECAM_FLUX'][nobj] = synthnano[:6]
+                    meta['WISE_FLUX'][nobj] = synthnano[6:10]
                     meta['LOGG'][nobj] = self.basemeta['LOGG'][iobj]
                     meta['TEFF'][nobj] = self.basemeta['TEFF'][iobj]
                     if self.objtype!='WD':
@@ -960,9 +945,8 @@ class QSO():
           basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths 
             corresponding to BASEFLUX [Angstrom].
           basemeta (astropy.Table): Table of meta-data for each base template [nbase].
-          wise (speclite.filters instance): WISE2010 FilterSequence
-          decam (speclite.filters instance): DECam2014 FilterSequence
-          rfilt (speclite.filters instance): DECam2014 r-band FilterSequence
+          decamwise (speclite.filters instance): DECam2014 and WISE2010 FilterSequence
+          rilt (speclite.filters instance): DECam2014 r-band FilterSequence
 
         """
         from speclite import filters
@@ -982,9 +966,8 @@ class QSO():
         self.z_wind = z_wind
 
         # Initialize the filter profiles.
-        self.wise = filters.load_filters('wise2010-*')
-        self.decam = filters.load_filters('decam2014-*')
         self.rfilt = filters.load_filters('decam2014-r')
+        self.decamwise = filters.load_filters('decam2014-*', 'wise2010-*')
         
     def make_templates(self, nmodel=100, zrange=(0.5,4.0), rmagrange=(21.0,23.0),
                        seed=None, nocolorcuts=False, old_way=False):
@@ -1011,7 +994,7 @@ class QSO():
         Raises:
 
         """
-        from astropy.table import Table
+        from astropy.table import Table, MaskedColumn
         from desispec.interpolation import resample_flux
         from desisim.qso_template import desi_qso_templ as dqt
         #from desitarget.cuts import isQSO
@@ -1094,26 +1077,35 @@ class QSO():
                 else:
                     obsflux = self.baseflux[:, this] # [erg/s/cm2/A]
 
-                # Normalize to [erg/s/cm2/A, @redshift[ii]]
-                rnorm = self.rfilt.get_ab_maggies(restflux, zwave)
+                # Normalize to [erg/s/cm2/A, @redshift[ii]].  # Temporary hack
+                # until the templates can be extended redward and blueward.
+                padflux, padzwave = self.rfilt.pad_spectrum(obsflux, zwave, method='edge')
+                rnorm = self.rfilt.get_ab_maggies(padflux, padzwave)
+                #rnorm = self.rfilt.get_ab_maggies(obsflux, zwave)
                 norm = 10.0**(-0.4*rmag[ii])/rnorm['decam2014-r'][0]
-                flux = restflux*norm
+                flux = obsflux*norm
 
                 # Convert [grzW1W2]flux to nanomaggies.
-                decam_flux = self.decam.get_ab_maggies(flux, zwave, mask_invalid=True)
-                decam_nano = [ff*MAG2NANO for ff in decam_flux[0]]
+                padflux, padzwave = self.decamwise.pad_spectrum(flux, zwave, method='edge')
+                synthmaggies = self.decamwise.get_ab_maggies(padflux, padzwave, mask_invalid=True)
+                #synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
 
-                wise_flux = self.wise.get_ab_maggies(flux, zwave, mask_invalid=True)
-                wise_nano = [ff*MAG2NANO for ff in wise_flux[0]]
+                # Temporary hack until the templates can be extended redward!
+                synthmaggies['wise2010-W1'] = np.nan
+                synthmaggies['wise2010-W2'] = np.nan
+                synthmaggies['wise2010-W3'] = np.nan
+                synthmaggies['wise2010-W4'] = np.nan
+
+                synthnano = [ff*MAG2NANO for ff in synthmaggies[0]] # convert to nanomaggies
 
                 if nocolorcuts:
                     colormask = [True]
                 else:
-                    #colormask = [isQSO(gflux=decam_nano[1], # ToDo!
-                    #                   rflux=decam_nano[2], 
-                    #                   zflux=decam_nano[4],
-                    #                   wflux=(wise_nano[0],
-                    #                          wise_nano[1]))]
+                    #colormask = [isQSO(gflux=synthnano[1], # ToDo!
+                    #                   rflux=synthnano[2], 
+                    #                   zflux=synthnano[4],
+                    #                   wflux=(synthnano[6],
+                    #                          synthnano[7]))]
                     colormask = [True] 
 
                 if all(colormask):
@@ -1125,13 +1117,13 @@ class QSO():
                     meta['TEMPLATEID'][nobj] = nobj
                     if old_way:
                         meta['REDSHIFT'][nobj] = self.basemeta['Z'][this]
-                    meta['GMAG'][nobj] = -2.5*np.log10(decam_nano[1])+22.5
-                    meta['RMAG'][nobj] = -2.5*np.log10(decam_nano[2])+22.5
-                    meta['ZMAG'][nobj] = -2.5*np.log10(decam_nano[4])+22.5
-                    meta['W1MAG'][nobj] = -2.5*np.log10(wise_nano[0])+22.5
-                    meta['W2MAG'][nobj] = -2.5*np.log10(wise_nano[1])+22.5
-                    meta['DECAM_FLUX'][nobj] = decam_nano
-                    meta['WISE_FLUX'][nobj] = wise_nano
+                    meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
+                    meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
+                    meta['ZMAG'][nobj] = -2.5*np.log10(synthnano[4])+22.5
+                    meta['W1MAG'][nobj] = -2.5*np.log10(synthnano[6])+22.5
+                    meta['W2MAG'][nobj] = -2.5*np.log10(synthnano[7])+22.5
+                    meta['DECAM_FLUX'][nobj] = synthnano[:6]
+                    meta['WISE_FLUX'][nobj] = synthnano[6:10]
 
                     nobj = nobj+1
 
