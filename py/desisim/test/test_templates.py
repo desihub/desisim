@@ -78,17 +78,18 @@ class TestTemplates(unittest.TestCase):
     def test_random_seed(self):
         '''Test that random seed works to get the same results back'''
         for T in [ELG, LRG, QSO, STAR]:
-            template_factory = T(wave=self.wave)
-            flux1, wave1, meta1 = template_factory.make_templates(self.nspec, seed=1)
-            flux2, wave2, meta2 = template_factory.make_templates(self.nspec, seed=1)
-            flux3, wave3, meta3 = template_factory.make_templates(self.nspec, seed=2)
+            Tx = T(wave=self.wave)
+            flux1, wave1, meta1 = Tx.make_templates(self.nspec, seed=1)
+            flux2, wave2, meta2 = Tx.make_templates(self.nspec, seed=1)
+            flux3, wave3, meta3 = Tx.make_templates(self.nspec, seed=2)
             self.assertTrue(np.all(flux1==flux2))
             self.assertTrue(np.any(flux1!=flux3))
             self.assertTrue(np.all(wave1==wave2))
             for col in meta1.dtype.names:
                 #- QSO currently has NaN; catch that
                 if ((T != QSO) and (T != STAR)) or ((col != 'W1MAG') and (col != 'W2MAG')):
-                    self.assertTrue(np.all(meta1[col] == meta2[col]))
+                    self.assertTrue(np.all(meta1[col] == meta2[col]),
+                        'metadata {} inconsistent for objtype {}'.format(col, Tx.objtype))
 
     @unittest.expectedFailure
     def test_missing_wise_mags(self):
