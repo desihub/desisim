@@ -10,18 +10,9 @@ from desisim import io
 from desisim import obs
 from desisim import pixsim
 
-desimodel_data_available = True
-try:
-    foo = os.environ['DESIMODEL']
-except KeyError:
-    desimodel_data_available = False
-
-desi_templates_available = True
-try:
-    foo = os.environ['DESI_ROOT']
-except KeyError:
-    desi_templates_available = False
-
+desimodel_data_available = 'DESIMODEL' in os.environ
+desi_templates_available = 'DESI_ROOT' in os.environ
+desi_root_available = 'DESI_ROOT' in os.environ
 
 class TestPixsim(unittest.TestCase):
     #- Create test subdirectory
@@ -69,6 +60,7 @@ class TestPixsim(unittest.TestCase):
     # def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
     #     trimxy=False, cosmics=None):
     @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
+    @unittest.skipUnless(desi_root_available, '$DESI_ROOT not set')
     def test_pixsim(self):
         night = '20150105'
         expid = 123
@@ -82,6 +74,7 @@ class TestPixsim(unittest.TestCase):
         self.assertTrue(os.path.exists(io.findfile('pix', night, expid, camera)))
 
     @unittest.skipUnless(desi_templates_available, 'The DESI templates directory ($DESI_ROOT/spectro/templates) was not detected.')
+    @unittest.skipUnless(desimodel_data_available, '$DESIMODEL/data not available')
     def test_pixsim_cosmics(self):
         night = '20150105'
         expid = 124

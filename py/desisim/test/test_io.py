@@ -8,17 +8,9 @@ import desisim
 from desisim import io
 from astropy.io import fits
 
-desimodel_data_available = True
-try:
-    foo = os.environ['DESIMODEL']
-except KeyError:
-    desimodel_data_available = False
-
-desi_templates_available = True
-try:
-    foo = os.environ['DESI_ROOT']
-except KeyError:
-    desi_templates_available = False
+desimodel_data_available = 'DESIMODEL' in os.environ
+desi_templates_available = 'DESI_ROOT' in os.environ
+desi_basis_templates_available = 'DESI_BASIS_TEMPLATES' in os.environ
 
 class TestIO(unittest.TestCase):
 
@@ -105,9 +97,11 @@ class TestIO(unittest.TestCase):
 
     def test_resize(self):
         image = np.random.uniform(size=(4,5))
-        for shape in [(3,4), (4,5), (3,6), (5,4), (5,6)]:
-            x = io._resize(image, shape)
-            self.assertEqual(x.shape, shape)
+        for ny in [3,4,5,7,9,15]:
+            for nx in [3,5,7,19]:
+                shape = (ny, nx)
+                x = io._resize(image, shape)
+                self.assertEqual(x.shape, shape)
 
     #- read_cosmics(filename, expid=1, shape=None, jitter=True):
     @unittest.skipUnless(desi_templates_available, 'The DESI templates directory ($DESI_ROOT/spectro/templates) was not detected.')
@@ -126,7 +120,7 @@ class TestIO(unittest.TestCase):
         self.assertTrue(np.any(c2.pix != c3.pix))
 
     #- read_templates(wave, objtype, nspec=None, randseed=1, infile=None):
-    @unittest.skipUnless(desi_templates_available, 'The DESI templates directory ($DESI_ROOT/spectro/templates) was not detected.')
+    @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES not set')
     def test_read_templates(self):
         wave = np.arange(7000, 7020)
         nspec = 3

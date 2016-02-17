@@ -5,23 +5,9 @@ import unittest
 import numpy as np
 from desisim.templates import ELG, LRG, QSO, STAR
 
-desimodel_data_available = True
-try:
-    foo = os.environ['DESIMODEL']
-except KeyError:
-    desimodel_data_available = False
-
-desi_templates_available = True
-try:
-    foo = os.environ['DESI_ROOT']
-except KeyError:
-    desi_templates_available = False
-
-desi_basis_templates_available = True
-try:
-    foo = os.environ['DESI_BASIS_TEMPLATES']
-except KeyError:
-    desi_basis_templates_available = False
+desimodel_data_available = 'DESIMODEL' in os.environ
+desi_templates_available = 'DESI_ROOT' in os.environ
+desi_basis_templates_available = 'DESI_BASIS_TEMPLATES' in os.environ
 
 class TestTemplates(unittest.TestCase):
 

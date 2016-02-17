@@ -11,13 +11,14 @@ Fall 2015
 import sys, os
 import numpy as np
 import scipy.sparse
+import string
 
 from astropy.table import Table, Column, vstack
 
 import desimodel.io
 import specsim
 import desispec
-
+from desispec.log import get_logger
 import desisim.templates
 import desisim.obs
 
@@ -37,8 +38,10 @@ parser.add_option("-s", "--seed", type=int,  help="random seed", default=None)
 parser.add_option("--wavestep", type=float,  help="initial sampling of templates", default=0.2)
 parser.add_option("--downsampling", type=int,  help="downsampling value", default=3)
 parser.add_option("--outdir_truth", type=str,  help="optional alternative outdir for truth files")
-opts, args = parser.parse_args()
+parser.add_option("-z","--zrange", type=str, help="redshift range of the form zmin:zmax (applies only to ELG,LRG,QSO)",default=None)
 
+opts, args = parser.parse_args()
+log = get_logger()
 desiparams = desimodel.io.load_desiparams()
 
 #- Check options.  TODO: make this better
@@ -79,26 +82,55 @@ truth['FLUX']=np.zeros( (opts.nspec, len(wave)) )
 truth['WAVE']=wave
 jj=list()
 
+zrange=None
+if opts.zrange is not None :
+    
+    vals=opts.zrange.split(":")
+    if len(vals)!=2 :
+        log.error("cannot interpret zrange argument '%s', expect zmin:zmax"%opts.zrange)
+        sys.exit(1)
+    try :
+        zmin=string.atof(vals[0])
+        zmax=string.atof(vals[1])
+    except ValueError :
+        log.error("cannot interpret zrange argument '%s', expect zmin:zmax"%opts.zrange)
+        sys.exit(1)
+    if zmax<=zmin :
+        log.error("zmax must be greater than zmin (and zmin=%f zmax=%f)"%(zmin,zmax))
+        sys.exit(1)
+    zrange=(zmin,zmax)
+    log.info("will use custom redshift range %s"%str(zrange))
+
+
 for objtype in set(true_objtype):
     ii = np.where(true_objtype == objtype)[0]
     nobj = len(ii)
     
     truth['OBJTYPE'][ii]=objtype   
-
+    
 #- Generate a set of templates
     if objtype == 'ELG':
         elg = desisim.templates.ELG(wave=wave)
-        flux, tmpwave, meta1 = elg.make_templates(nmodel=nobj,seed=opts.seed)
+        if zrange is not None :
+            flux, tmpwave, meta1 = elg.make_templates(nmodel=nobj,seed=opts.seed,zrange=zrange)
+        else :
+            flux, tmpwave, meta1 = elg.make_templates(nmodel=nobj,seed=opts.seed)
         truth['FLUX'][ii]=flux
         meta=vstack([meta,meta1])
     elif objtype == 'LRG':
         lrg = desisim.templates.LRG(wave=wave)
-        flux, tmpwave, meta1 = lrg.make_templates(nmodel=nobj,seed=opts.seed)
+        if zrange is not None :
+            flux, tmpwave, meta1 = lrg.make_templates(nmodel=nobj,seed=opts.seed,zrange=zrange)
+        else :
+            flux, tmpwave, meta1 = lrg.make_templates(nmodel=nobj,seed=opts.seed)
         truth['FLUX'][ii]=flux
         meta=vstack([meta,meta1])
     elif objtype == 'QSO':
         qso = desisim.templates.QSO(wave=wave)
-        flux, tmpwave, meta1 = qso.make_templates(nmodel=nobj,seed=opts.seed)
+        if zrange is not None :
+            flux, tmpwave, meta1 = qso.make_templates(nmodel=nobj,seed=opts.seed,zrange=zrange)
+        else :
+            flux, tmpwave, meta1 = qso.make_templates(nmodel=nobj,seed=opts.seed)   
         truth['FLUX'][ii]=flux
         meta=vstack([meta,meta1])
     elif objtype =='STAR' or objtype == 'QSO_BAD': #- if objtype=QSO_BAD, use STAR template
@@ -276,8 +308,8 @@ for channel in ['b', 'r', 'z']:
         hdulist = fits.HDUList([fits.PrimaryHDU(header=header)])
         hdulist.append(fits.ImageHDU(trueflux[channel][:,iiobs].astype(np.float32), name='_TRUEFLUX', header=header))
         if (channel == 'b'):
-            fx.append(fits.ImageHDU(qsim.wavelengthGrid.astype(np.float32), name='_SOURCEWAVE', header=header))
-            fx.append(fits.ImageHDU(srcfl['SOURCE'].astype(np.float32), name='_SOURCEFLUX', header=header))
+            hdulist.append(fits.ImageHDU(qsim.wavelengthGrid.astype(np.float32), name='_SOURCEWAVE', header=header))
+            hdulist.append(fits.ImageHDU(srcfl['SOURCE'].astype(np.float32), name='_SOURCEFLUX', header=header))
         hdulist.append(fits.BinTableHDU(meta.as_array(), name='_TRUTH'))
         filename = 'truth-brick-{}-{}.fits'.format(channel, opts.brickname)
         filepath = os.path.join(opts.outdir_truth, filename)
