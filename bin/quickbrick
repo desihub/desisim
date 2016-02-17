@@ -122,7 +122,7 @@ for objtype in set(true_objtype):
         if zrange is not None :
             flux, tmpwave, meta1 = lrg.make_templates(nmodel=nobj,seed=opts.seed,zrange=zrange)
         else :
-            flux, tmpwave, meta1 = elg.make_templates(nmodel=nobj,seed=opts.seed)
+            flux, tmpwave, meta1 = lrg.make_templates(nmodel=nobj,seed=opts.seed)
         truth['FLUX'][ii]=flux
         meta=vstack([meta,meta1])
     elif objtype == 'QSO':
@@ -130,7 +130,7 @@ for objtype in set(true_objtype):
         if zrange is not None :
             flux, tmpwave, meta1 = qso.make_templates(nmodel=nobj,seed=opts.seed,zrange=zrange)
         else :
-            flux, tmpwave, meta1 = elg.make_templates(nmodel=nobj,seed=opts.seed)   
+            flux, tmpwave, meta1 = qso.make_templates(nmodel=nobj,seed=opts.seed)   
         truth['FLUX'][ii]=flux
         meta=vstack([meta,meta1])
     elif objtype =='STAR' or objtype == 'QSO_BAD': #- if objtype=QSO_BAD, use STAR template
