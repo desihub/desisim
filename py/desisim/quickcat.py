@@ -41,9 +41,9 @@ _zwarn_fraction = {
     'UNKNOWN': 1.0,
 }
 
-def apply_redshift_precision(truetype, truez):
+def get_observed_redshifts(truetype, truez):
     """
-    Returns zout, zerr, zwarn arrays given true object types and redshifts
+    Returns observed z, zerr, zwarn arrays given true object types and redshifts
     
     Args:
         truetype : array of ELG, LRG, QSO, STAR, SKY, or UNKNOWN
@@ -154,7 +154,7 @@ def quickcat(tilefiles, truth, zcat=None, perfect=False):
     #- Add ZERR and ZWARN
     ### print('Adding ZERR and ZWARN')
     if not perfect:
-        z, zerr, zwarn = apply_redshift_precision(objtype, newzcat['Z'])
+        z, zerr, zwarn = get_observed_redshifts(objtype, newzcat['Z'])
         newzcat['Z'] = z
     else:
         zerr = np.zeros(nz, dtype=np.float32)
