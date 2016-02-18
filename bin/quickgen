@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 #*******************************
-# A quick wrapper of quicksim simulation of spectra. 
+# A quick wrapper of quicksim simulation of spectra.
 # Outputs are in DESI specific format.
 # For each 500 input spectra, this wrapper Outputs Four files for each arm B,R,Z,
 #	1. frame file (x3)
@@ -10,8 +10,8 @@
 #	4. cframe file (x3)
 #
 # Example:
-# 
-# G. Dhungana+, Spring 2015 
+#
+# G. Dhungana+, Spring 2015
 #********************************
 
 import argparse
@@ -44,11 +44,6 @@ parser.add_argument("--nstart", type=int, default=0,help='starting spectra # for
 parser.add_argument("--spectrograph",type=int, default=None,help='Spectrograph no. 0-9')
 args = parser.parse_args()
 
-#must import desimodel
-if 'DESIMODEL' not in os.environ:
-    raise RuntimeError('The environment variable DESIMODEL must be set.')
-DESIMODEL_DIR=os.environ['DESIMODEL'] 
-
 # Derive spectrograph number from nstart if needed
 if args.spectrograph is None:
     args.spectrograph = args.nstart / 500
@@ -60,7 +55,7 @@ if args.spectrograph is None:
 
 # read fibermapfile to get objecttype,NIGHT and EXPID....
 if args.fibermap:
- 
+
     print "Reading fibermap file %s"%(args.fibermap)
     tbdata,hdr=desispec.io.fibermap.read_fibermap(args.fibermap, header=True)
     objtype=tbdata['OBJTYPE'].copy()
@@ -82,7 +77,7 @@ DESI_SPECTRO_REDUX_DIR="./quickGen"
 if 'DESI_SPECTRO_REDUX' not in os.environ:
 
     print 'DESI_SPECTRO_REDUX environment is not set.'
-    
+
 else:
     DESI_SPECTRO_REDUX_DIR=os.environ['DESI_SPECTRO_REDUX']
 
@@ -95,7 +90,7 @@ else:
         os.makedirs(DESI_SPECTRO_REDUX_DIR)
     except:
         raise
-        
+
 #---------PRODNAME-----------------
 
 PRODNAME_DIR='prodname'
@@ -134,22 +129,25 @@ if nspec < args.nspec:
     args.nspec = nspec
 
 # Here default run for nmax spectra. Fewer spectra can be run using 'nspec' and 'nstart' options
-nmax= min(args.nspec+args.nstart,objtype.shape[0]) 
+nmax= min(args.nspec+args.nstart,objtype.shape[0])
 print "Simulating spectra",args.nstart, "to", nmax
 
 print "************************************************"
 
 # Run Simulation for first Spectrum
 print "Initializing SpecSim"
-specObj0=specsim.spectrum.SpectralFluxDensity(wavelengths,spectra[args.nstart,:])
-qsim=specsim.quick.Quick(basePath=DESIMODEL_DIR)
+config = specsim.config.load_config('desi')
+config.atmosphere.airmass = simspec.header['AIRMASS']
+config.instrument.constants.exposure_time = '{0} s'.format(simspec.header['EXPTIME'])
+
+source = specsim.source.initialize(config)
+##specObj0=specsim.spectrum.SpectralFluxDensity(wavelengths,spectra[args.nstart,:])
+qsim=specsim.quick.Quick(config)
 
 #- simulate a fake object 0 just to get wavelength grids etc setup
-results=qsim.simulate(sourceType='star', sourceSpectrum=specObj0,
-    airmass=simspec.header['AIRMASS'], expTime=simspec.header['EXPTIME'])
+results=qsim.simulate(source, downsampling=config.simulator.downsampling)
 observedWavelengths=results.wave
 origin_wavelength=qsim.wavelengthGrid
-waveLimits={'b':(3569,5949),'r':(5625,7741),'z':(7435,9834)}
 
 #- Check if input simspec is for a continuum flat lamp instead of science
 #- This does not convolve to per-fiber resolution
@@ -164,37 +162,42 @@ if simspec.flavor == 'flat':
         fiberflat = np.random.normal(loc=0.0, scale=1.0/np.sqrt(meanspec), size=(nspec, len(wave)))
         ivar = np.tile(1.0/meanspec, nspec).reshape(nspec, len(meanspec))
         mask = np.zeros((simspec.nspec, len(wave)))
-        
+
         for kk in range((args.nspec+args.nstart-1)/500+1):
             camera = channel+str(kk)
             outfile = desispec.io.findfile('fiberflat', NIGHT, EXPID, camera)
-            start=max(500*kk,args.nstart) 
-            end=min(500*(kk+1),nmax) 
+            start=max(500*kk,args.nstart)
+            end=min(500*(kk+1),nmax)
 
             if (args.spectrograph <= kk):
                 print "writing files for channel:",channel,", spectrograph:",kk, ", spectra:", start,'to',end
 
-            ff = FiberFlat(wave, fiberflat[start:end,:], ivar[start:end,:], mask[start:end,:], meanspec)        
+            ff = FiberFlat(wave, fiberflat[start:end,:], ivar[start:end,:], mask[start:end,:], meanspec)
             write_fiberflat(outfile, ff)
     filePath=os.path.join(prod_Dir,'calib2d',NIGHT)
     print "Wrote files to", filePath
-    
-    sys.exit(0)    
 
-# Define wavelimits for B,R,Z camera(by hand this time), later simulated data is cropped within these limits
+    sys.exit(0)
 
-# Get the camera ranges from quicksim outputs and save the outputs for each camera
+# Get the camera ranges and resolution from the specsim instrument model.
+waveLimits=dict()
 waveRange=dict()
 waveMaxbin=dict()
 waves=dict()
-for i,channel in enumerate(['b','r','z']):
+sigma_vs_wave = dict()
+for i,camera in enumerate(qsim.instrument.cameras):
+    channel = camera.name
+    waveLimits[channel] = (camera.wavelength_min.value, camera.wavelength_max.value)
     waveRange[channel],=np.where((observedWavelengths>=waveLimits[channel][0])&(observedWavelengths<=waveLimits[channel][1]))
     waveMaxbin[channel],=waveRange[channel].shape
     waves[channel]=observedWavelengths[waveRange[channel]]
+    sigma_vs_wave[channel] = specsim.spectrum.WavelengthFunction(
+        origin_wavelength,
+        qsim.cameras[i].sigmaWavelength).getResampledValues(waves[channel])
 
 maxbin=max(waveMaxbin['b'],waveMaxbin['r'],waveMaxbin['z'])
 
-# Now break the simulated outputs in three different ranges. 
+# Now break the simulated outputs in three different ranges.
 
 nobj=np.zeros((nmax,3,maxbin))     # Object Photons
 nsky=np.zeros((nmax,3,maxbin))      # sky photons
@@ -208,28 +211,24 @@ cframe_rand_noise=np.zeros((nmax,3,maxbin))  # random Gaussian noise to calibrat
 
 np.random.seed(0)
 
-#construct resolution matrix from sigma_vs_wavelength. First resample to respective sigmas vs wavelengths
-
-sigma_vs_wave = dict()
-for i, channel in enumerate( ['b', 'r', 'z'] ):
-    sigma_vs_wave[channel] = specsim.spectrum.WavelengthFunction(origin_wavelength, qsim.cameras[i].sigma_wave).getResampledValues(waves[channel])
+#construct resolution matrix from sigma_vs_wave.
 
 #- Resolution data from gaussian sigmas
 def _calc_resolution_data(sigma, wavelengths, nspec):
     """
     Return resolution matrix data
-    
+
     Args:
         sigma : 1D array of sigmas in Angstroms
         wavelengths : 1D array of equally spaced wavelengths in Angstroms
-        
+
     TODO: check this.  Replace with desisim.resolution.Resolution.
     """
     ndiag = 21
     offsets = np.arange(-ndiag//2+1,ndiag//2+1,1.0)
     nwave = len(wavelengths)
     dw = np.gradient(wavelengths)
-    
+
     resolution_data = np.zeros((ndiag, nwave))
     for i in range(nwave):
         x = offsets * dw[i] / sigma[i]
@@ -240,12 +239,12 @@ def _calc_resolution_data(sigma, wavelengths, nspec):
 
         y = scipy.special.erf(edges)
         resolution_data[:, i] = (y[1:] - y[:-1])/2
-        
+
     #- Convert this to [nspec, ndiag, nwave]
     result = np.zeros((nspec, ndiag, nwave))
     for i in range(nspec):
         result[i] = resolution_data
-        
+
     return result
 
 #-------------------------------------------------------------------------
@@ -260,9 +259,8 @@ for i, channel in enumerate( ['b', 'r', 'z'] ):
 for j in xrange(args.nstart,nmax): # Exclusive
     print "\rSimulating spectrum %d,  object type=%s"%(j,objtype[j]),
     sys.stdout.flush()
-    specObj=specsim.spectrum.SpectralFluxDensity(wavelengths,spectra[j,:])
-    results=qsim.simulate(sourceType=objtype[j].lower(),sourceSpectrum=specObj,
-            airmass=simspec.header['AIRMASS'], expTime=simspec.header['EXPTIME'])
+    source.update(objtype[j].lower(), wavelengths, spectra[j, :], extrapolate_value=0.)
+    results=qsim.simulate(source, downsampling=config.simulator.downsampling)
 
     for i,channel in enumerate(['b','r','z']):
         nobj[j,i,:waveMaxbin[channel]]=results.nobj[waveRange[channel],i]
@@ -292,14 +290,14 @@ armName={"b":0,"r":1,"z":2}
 #3. flux calibration vector file (x3)
 #4. cframe file
 
-for channel in ["b","r","z"]:	
+for channel in ["b","r","z"]:
 
     #Before writing, convert from counts/bin to counts/A (as in Pixsim output)
     #Quicksim Default:
-    #FLUX - input spectrum resampled to this binning; no noise added [1e-17 erg/s/cm2/s/Ang] 
+    #FLUX - input spectrum resampled to this binning; no noise added [1e-17 erg/s/cm2/s/Ang]
     #COUNTS_OBJ - object counts in 0.5 Ang bin
     #COUNTS_SKY - sky counts in 0.5 Ang bin
- 
+
     dwave=np.gradient(waves[channel])
     nobj[:,armName[channel],:waveMaxbin[channel]]/=dwave
     frame_rand_noise[:,armName[channel],:waveMaxbin[channel]]/=dwave
@@ -308,14 +306,14 @@ for channel in ["b","r","z"]:
     nsky[:,armName[channel],:waveMaxbin[channel]]/=dwave
     sky_rand_noise[:,armName[channel],:waveMaxbin[channel]]/=dwave
     sky_ivar[:,armName[channel],:waveMaxbin[channel]]/=dwave**2
-    
+
 
 #### Now write the outputs in DESI standard file system.    None of the output file can have more than 500 spectra
 
 # Looping over spectrograph
 
     for ii in range((args.nspec+args.nstart-1)/500+1):
-         
+
         start=max(500*ii,args.nstart) # first spectrum for a given spectrograph
         end=min(500*(ii+1),nmax) # last spectrum for the spectrograph
 
@@ -324,7 +322,7 @@ for channel in ["b","r","z"]:
             print "writing files for channel:",channel,", spectrograph:",ii, ", spectra:", start,'to',end
 
 
-######----------------frame file----------------------------------- 
+######----------------frame file-----------------------------------
 
             framefileName=desispec.io.findfile("frame",NIGHT,EXPID,camera)
 
@@ -334,7 +332,7 @@ for channel in ["b","r","z"]:
             frame_ivar=nivar[start:end,armName[channel],:waveMaxbin[channel]]
 
             sh1=frame_flux.shape[0]  # required for slicing the resolution metric, resolusion matrix has (nspec,ndiag,wave)
-                                      # for example if nstart =400, nspec=150: two spectrographs: 
+                                      # for example if nstart =400, nspec=150: two spectrographs:
                                       # 400-499=> 0 spectrograph, 500-549 => 1
             if (args.nstart==start):
                 resol=resolution_data[channel][:sh1,:,:]
@@ -347,26 +345,26 @@ for channel in ["b","r","z"]:
 
 ############--------------------------------------------------------
     #cframe file
-    #TODO : for sky input spectrum (all zero), quicksim output flux is also zero and also ivar. Need to fix!! 
-    
+    #TODO : for sky input spectrum (all zero), quicksim output flux is also zero and also ivar. Need to fix!!
+
             cframeFileName=desispec.io.findfile("cframe",NIGHT,EXPID,camera)
             cframeFlux=cframe_observedflux[start:end,armName[channel],:waveMaxbin[channel]]+cframe_rand_noise[start:end,armName[channel],:waveMaxbin[channel]]
             cframeIvar=cframe_ivar[start:end,armName[channel],:waveMaxbin[channel]]
-    
+
             # write cframe file
             cframe = Frame(waves[channel], cframeFlux, cframeIvar, resolution_data=resol,spectrograph=ii)
             desispec.io.frame.write_frame(cframeFileName,cframe)
 
 ############-----------------------------------------------------
             #sky file
-    
+
             skyfileName=desispec.io.findfile("sky",NIGHT,EXPID,camera)
             skyflux=nsky[start:end,armName[channel],:waveMaxbin[channel]] + \
             sky_rand_noise[start:end,armName[channel],:waveMaxbin[channel]]
             skyivar=sky_ivar[start:end,armName[channel],:waveMaxbin[channel]]
             skymask=np.zeros(skyflux.shape, dtype=int)
-    
-            # write sky file 
+
+            # write sky file
             skymodel = SkyModel(waves[channel], skyflux, skyivar, skymask)
             desispec.io.sky.write_sky(skyfileName, skymodel)
 
@@ -376,7 +374,7 @@ for channel in ["b","r","z"]:
             calibVectorFile=desispec.io.findfile("calib",NIGHT,EXPID,camera)
             flux = cframe_observedflux[start:end,armName[channel],:waveMaxbin[channel]]
             phot = nobj[start:end,armName[channel],:waveMaxbin[channel]]
-            calibration = np.zeros_like(phot) 
+            calibration = np.zeros_like(phot)
             jj = (flux>0)
             calibration[jj] = phot[jj] / flux[jj]
 
@@ -389,8 +387,8 @@ for channel in ["b","r","z"]:
            # write flux calibration
             fluxcalib = FluxCalib(waves[channel], calibration, calibivar, mask)
             write_flux_calibration(calibVectorFile, fluxcalib)
-    
+
 filePath=os.path.join(prod_Dir,'exposures',NIGHT,"%08d"%EXPID)
 print "Wrote files to", filePath
- 
-#spectrograph=spectrograph+1	
+
+#spectrograph=spectrograph+1
