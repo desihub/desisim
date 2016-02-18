@@ -140,6 +140,7 @@ print "Initializing SpecSim"
 config = specsim.config.load_config('desi')
 config.atmosphere.airmass = simspec.header['AIRMASS']
 config.instrument.constants.exposure_time = '{0} s'.format(simspec.header['EXPTIME'])
+config.simulator.downsampling = 5
 
 # Set the simulation wavelength grid.
 config.wavelength_grid.min = 3569.
@@ -148,10 +149,10 @@ config.wavelength_grid.step = 0.1
 config.update()
 
 source = specsim.source.initialize(config)
-qsim=specsim.quick.Quick(config)
+qsim=specsim.simulator.Simulator(config)
 
 #- simulate a fake object 0 just to get wavelength grids etc setup
-results=qsim.simulate(source, downsampling=config.simulator.downsampling)
+results=qsim.simulate(source)
 observedWavelengths=results.wave
 origin_wavelength=qsim.wavelengthGrid
 
@@ -273,7 +274,7 @@ for j in xrange(args.nstart,nmax): # Exclusive
     print "\rSimulating spectrum %d,  object type=%s"%(j,objtype[j]),
     sys.stdout.flush()
     source.update(objtype[j].lower(), wavelengths, spectra[j, :], extrapolate_value=0.)
-    results=qsim.simulate(source, downsampling=config.simulator.downsampling)
+    results=qsim.simulate(source)
 
     for i,channel in enumerate(['b','r','z']):
         nobj[j,i,:waveMaxbin[channel]]=results.nobj[waveRange[channel],i]

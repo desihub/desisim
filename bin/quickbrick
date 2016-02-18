@@ -71,7 +71,7 @@ config.update()
 wave = config.wavelength.value
 
 #- Create the quick simulator object
-qsim = specsim.quick.Quick(config)
+qsim = specsim.simulator.Simulator(config)
 
 #- If opts.objtype='MIX', get distribution of target types from sample_objtype
 if opts.objtype.lower() == 'mix':
@@ -219,7 +219,7 @@ for i in range(opts.nspec):
         truth['OBJTYPE'][i]='STAR'
     source.update(truth['OBJTYPE'][i].lower(), truth['WAVE'],
                   truth['FLUX'][i] * fluxunits)
-    results = qsim.simulate(source, downsampling=opts.downsampling)
+    results = qsim.simulate(source)
 
     #- output wavelength grid is the same for all spectra
     if obswave is None :
