@@ -4,124 +4,50 @@
 quickcat v0 : simulates the data flow from fiber assignment output to
 zcatalog creation.
 
-WORK IN PROGRESS.  Still coordinating with details of fiber assignment output
-and truth table formats.  Don't merge yet.
+WORK IN PROGRESS
 """
 
 from __future__ import absolute_import, division, print_function
 
 import sys, os
-from collections import Counter
 import numpy as np
 from astropy.table import Table, Column
 
+from desisim.quickcat import quickcat
+
 import optparse
 
-parser = optparse.OptionParser(usage = "%prog [options]")
-parser.add_option("-f", "--fibassign", type=str, help="fiber assignment dir")
-parser.add_option('-t', "--tilelist",  type=str, help="file with list of observed tiles")
+parser = optparse.OptionParser(usage = "%prog [options] tile*.fits")
+# parser.add_option("-f", "--fibassign", type=str, help="fiber assignment dir")
+parser.add_option('-t', "--tilelist",  type=str, help="file with list of observed tile files")
 parser.add_option('-T', "--truth",     type=str, help="file with truth table")
 parser.add_option('-z', "--zcat",      type=str, help="previous zcatalog to update")
 parser.add_option('-o', "--output",    type=str, help="new zcatalog to write")
-opts, args = parser.parse_args()
+parser.add_option("-p", "--perfect", action="store_true", help="perfect spectro pipeline; output=truth")
+opts, tilefiles = parser.parse_args()
 
-def quickcat(fibassign_dir, obstiles, truth, zcat=None):
-    """
-    Generates quick output zcatalog
-    
-    Args:
-        fibassign_dir : directory with fiberassign tile*.fits files
-        obstiles : array of tild IDs that were observed
-        truth : astropy Table of input truth
-        
-    Options:
-        zcat : input zcatalog Table from previous observations
-        
-    Returns:
-        zcatalog astropy Table
-    """
-    #- Count how many times each target was observed for this set of tiles
-    nobs = Counter()
-    for tile in obstiles:
-        fafile = os.path.join(fibassign_dir, 'tile_{:05d}.fits'.format(tile))
-        fibassign = Table.read(fafile, 'FIBER_ASSIGNMENTS', format='fits')
-        ii = (fibassign['TARGETID'] != -1)  #- targets with assignments
-        nobs += Counter(fibassign['TARGETID'][ii])
-
-    print('{} targets observed on {} tiles'.format(len(nobs), len(obstiles)))
-
-    #- Count how many times each target was observed in previous zcatalog
-    #- NOTE: assumes that no tiles have been repeated
-    if zcat is not None:
-        print('Adding previous observations from '+opts.zcat)
-        for targetid, n in zip(zcat['TARGETID'], zcat['NUMOBS']):
-            nobs[targetid] += 1
-        print('{} targets total'.format(len(nobs)))
-
-    #- Trim truth down to just ones that have already been observed
-    obs_targetids = np.array(nobs.keys())
-    iiobs = np.in1d(truth['TARGETID'], obs_targetids)
-    newzcat = truth[iiobs]
-
-    #- Add numobs column
-    nz = len(newzcat)
-    newzcat.add_column(Column(name='NUMOBS', length=nz, dtype=int))
-    for i in range(nz):
-        newzcat['NUMOBS'][i] = nobs[newzcat['TARGETID'][i]]
-
-    #- HACK HACK HACK hardcoded mapping
-    #- Replaced truth integer TYPE with 'GALAXY', 'QSO', etc.
-    truetype2objtype = {
-        0 : 'QSO',      #- QSO-LyA
-        1 : 'QSO',      #- QSO-Tracer
-        2 : 'GALAXY',   #- LRG
-        3 : 'GALAXY',   #- ELG
-        4 : 'STAR',     #- QSO-Fake
-        5 : 'UNKNOWN',  #- LRG-Fake
-        6 : 'STAR',     #- StdStar
-        7 : 'SKY',      #- Sky
-    }
-    truetype = newzcat['TYPE']
-    for i in set(truetype):
-        assert i in truetype2objtype.keys(), 'TYPE {} missing'.format(i)
-
-    objtype = np.empty(nz, dtype='S7')
-    for i in truetype2objtype:
-        ii = (truetype == i)
-        objtype[ii] = truetype2objtype[i]
-
-    newzcat.remove_column('TYPE')
-    newzcat.add_column(Column(data=objtype, name='TYPE'))
-
-    #- Add ZERR and ZWARN
-    zerr  = Column(name='ZERR', data=np.ones(nz, dtype=np.float32)*1e-4)
-    zwarn = Column(name='ZWARN', data=np.zeros(nz, dtype=np.int32))
-    newzcat.add_column(zerr)
-    newzcat.add_column(zwarn)
-
-    #- Metadata for header
-    newzcat.meta['EXTNAME'] = 'ZCATALOG'
-
-    return newzcat
-
-#-------------------------------------------------------------------------
-
-obstiles = np.loadtxt(opts.tilelist, dtype=int)
+#- Load inputs
 truth = Table.read(opts.truth)
-
+if opts.tilelist is not None:
+    for line in open(opts.tilelist):
+        line = line.strip()
+        if line.startswith('#') or len(line) < 2:
+            continue
+        else:
+            tilefiles.append(line)
+        
 if opts.zcat is not None:
     zcat = Table.read(opts.zcat, format='fits')
 else:
     zcat = None
 
-newzcat = quickcat(opts.fibassign, obstiles, truth, zcat=zcat)
+#- This is the actual calculation
+newzcat = quickcat(tilefiles, truth, zcat=zcat, perfect=opts.perfect)
 
 #- Write it out
 if os.path.exists(opts.output):
     os.remove(opts.output)
 newzcat.write(opts.output, format='fits')
-
-#-------------------------------------------------------------------------
 
 
 
