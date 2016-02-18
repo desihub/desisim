@@ -14,6 +14,7 @@ import scipy.sparse
 import string
 
 from astropy.table import Table, Column, vstack
+import astropy.units as u
 
 import desimodel.io
 import specsim
@@ -199,7 +200,7 @@ meta.add_column(Column(targetids, name='TARGETID'))
 meta.rename_column('REDSHIFT', 'TRUEZ')
 
 #- Actually do the simulations for each target
-fluxunits = specsim.spectrum.SpectralFluxDensity.fiducialFluxUnit * 1e17
+fluxunits = u.erg / (u.s * u.cm ** 2 * u.Angstrom)
 source = specsim.source.initialize(config)
 
 #- output arrays to fill; these cover wavelengths across all cameras

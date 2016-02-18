@@ -19,6 +19,7 @@ import os
 import os.path
 import numpy as np
 import scipy.special
+import scipy.interpolate
 import sys
 import desispec
 import desisim.io
@@ -147,7 +148,6 @@ config.wavelength_grid.step = 0.1
 config.update()
 
 source = specsim.source.initialize(config)
-##specObj0=specsim.spectrum.SpectralFluxDensity(wavelengths,spectra[args.nstart,:])
 qsim=specsim.quick.Quick(config)
 
 #- simulate a fake object 0 just to get wavelength grids etc setup
@@ -197,9 +197,16 @@ for i,camera in enumerate(qsim.instrument.cameras):
     waveRange[channel],=np.where((observedWavelengths>=waveLimits[channel][0])&(observedWavelengths<=waveLimits[channel][1]))
     waveMaxbin[channel],=waveRange[channel].shape
     waves[channel]=observedWavelengths[waveRange[channel]]
+    # Interpolate the RMS resolution from the simulation grid to the output grid.
+    interpolator = scipy.interpolate.interp1d(
+        origin_wavelength, qsim.cameras[i].sigmaWavelength,
+        kind='linear', copy=False, assume_sorted=True)
+    sigma_vs_wave[channel] = interpolator(waves[channel])
+    '''
     sigma_vs_wave[channel] = specsim.spectrum.WavelengthFunction(
         origin_wavelength,
         qsim.cameras[i].sigmaWavelength).getResampledValues(waves[channel])
+    '''
 
 maxbin=max(waveMaxbin['b'],waveMaxbin['r'],waveMaxbin['z'])
 
