@@ -216,9 +216,8 @@ for i in range(opts.nspec):
     #- if objtype is QSO_BAD or TEST then simulate a star
     if (truth['OBJTYPE'][i] == 'QSO_BAD' or truth['OBJTYPE'][i] == 'TEST'):
         truth['OBJTYPE'][i]='STAR'
-    source.type_name = truth['OBJTYPE'][i].lower()
-    assert np.array_equal(truth['WAVE'], source.wavelength.value)
-    source.flux = truth['FLUX'][i] * fluxunits
+    source.update(truth['OBJTYPE'][i].lower(), truth['WAVE'],
+                  truth['FLUX'][i] * fluxunits)
     results = qsim.simulate(source, downsampling=opts.downsampling)
 
     #- output wavelength grid is the same for all spectra
