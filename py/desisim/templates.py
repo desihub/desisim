@@ -114,21 +114,23 @@ class EMSpectrum():
           IOError: If the required data files are not found.
 
         """
-        from astropy.io import ascii
+        from pkg_resources import resource_filename
         from astropy.table import Table, Column, vstack
 
         # Build a wavelength array if one is not given.
         if log10wave is None:
-            cdelt = cdelt_kms/2.99792458E5/np.log(10) # pixel size [log-10 A]
+            cdelt = cdelt_kms/LIGHT/np.log(10) # pixel size [log-10 A]
             npix = (np.log10(maxwave)-np.log10(minwave))/cdelt+1
             self.log10wave = np.linspace(np.log10(minwave), np.log10(maxwave), npix)
         else:
             self.log10wave = log10wave
 
         # Read the files which contain the recombination and forbidden lines. 
-        recombfile = os.path.join(os.getenv('DESISIM'),'data','recombination_lines.dat')
-        forbidfile = os.path.join(os.getenv('DESISIM'),'data','forbidden_lines.dat')
-
+        recombfile = resource_filename('desisim', os.path.join('..','..','data',
+                                                               'recombination_lines.ecsv'))
+        forbidfile = resource_filename('desisim', os.path.join('..','..','data',
+                                                               'forbidden_lines.ecsv'))
+    
         if not os.path.isfile(recombfile):
             log.error('Required data file {} not found!'.format(recombfile))
             raise IOError
@@ -136,9 +138,9 @@ class EMSpectrum():
             log.error('Required data file {} not found!'.format(forbidfile))
             raise IOError
 
-        recombdata = ascii.read(recombfile, names=['name','wave','ratio'])
-        forbiddata = ascii.read(forbidfile, names=['name','wave','ratio'])
-        emdata = vstack([recombdata,forbiddata], join_type='exact')
+        recombdata = Table.read(recombfile, format='ascii.ecsv', guess=False)
+        forbiddata = Table.read(forbidfile, format='ascii.ecsv', guess=False)
+        emdata = vstack([recombdata,forbiddata])
         nline = len(emdata)
 
         # Initialize and populate the line-information table.
@@ -208,51 +210,41 @@ class EMSpectrum():
         line = self.line.copy()
         nline = len(line)
 
-        import pdb ; pdb.set_trace()
-
-        # Normalize [OIII] 4959, 5007 .
+        # Convenience variables.
         is4959 = np.where(line['name']=='[OIII]_4959')[0]
         is5007 = np.where(line['name']=='[OIII]_5007')[0]
-        line['ratio'][is5007] = 10**oiiihbeta # NB: no scatter
+        is6548 = np.where(line['name']=='[NII]_6548')[0]
+        is6584 = np.where(line['name']=='[NII]_6584')[0]
+        is6716 = np.where(line['name']=='[SII]_6716')[0]
+        is6731 = np.where(line['name']=='[SII]_6731')[0]
+        is3869 = np.where(line['name']=='[NeIII]_3869')[0]
+        is3726 = np.where(line['name']=='[OII]_3726')[0]
+        is3729 = np.where(line['name']=='[OII]_3729')[0]
 
+        # Draw from the MoGs for forbidden lines.
+        forb = self.forbidmog.sample() # 0=[OIII]/Hb, 1=[OII]/Hb, 2=[NII]/Hb, 3=[SII]/Hb
+
+        # Normalize [OIII] 4959, 5007.
+        oiiihbeta = 10**forb[0,0]
+        line['ratio'][is5007] = oiiihbeta # [OIII]/Hbeta
         line['ratio'][is4959] = line['ratio'][is5007]/oiiidoublet
 
         # Normalize [NII] 6548,6584.
-        is6548 = np.where(line['name']=='[NII]_6548')[0]
-        is6584 = np.where(line['name']=='[NII]_6584')[0]
-        coeff = np.asarray([-0.53829,-0.73766,-0.20248])
-        disp = 0.1 # dex
-
-        line['ratio'][is6584] = 10**(np.polyval(coeff,oiiihbeta)+
-                                     rand.normal(0.0,disp))
+        line['ratio'][is6584] = 10**forb[0,2] # [NII]/Hbeta
         line['ratio'][is6548] = line['ratio'][is6584]/niidoublet
 
         # Normalize [SII] 6716,6731.
-        is6716 = np.where(line['name']=='[SII]_6716')[0]
-        is6731 = np.where(line['name']=='[SII]_6731')[0]
-        coeff = np.asarray([-0.64326,-0.32967,-0.23058])
-        disp = 0.1 # dex
-
-        line['ratio'][is6716] = 10**(np.polyval(coeff,oiiihbeta)+
-                                     rand.normal(0.0,disp))
+        line['ratio'][is6716] = 10**forb[0,3] # [SII]/Hbeta
         line['ratio'][is6731] = line['ratio'][is6716]/siidoublet
 
         # Normalize [NeIII] 3869.
-        is3869 = np.where(line['name']=='[NeIII]_3869')[0]
         coeff = np.asarray([1.0876,-1.1647])
         disp = 0.1 # dex
-
         line['ratio'][is3869] = 10**(np.polyval(coeff,oiiihbeta)+
                                      rand.normal(0.0,disp))
 
         # Normalize [OII] 3727, split into [OII] 3726,3729.
-        is3726 = np.where(line['name']=='[OII]_3726')[0]
-        is3729 = np.where(line['name']=='[OII]_3729')[0]
-        coeff = np.asarray([-0.52131,-0.74810,0.44351,0.45476])
-        disp = 0.1 # dex
-
-        oiihbeta = 10**(np.polyval(coeff,oiiihbeta)+ # [OII] 3727/Hbeta
-                        rand.normal(0.0,disp)) 
+        oiihbeta = 10**forb[0,1] # [OII] 3727/Hbeta
 
         factor1 = oiidoublet/(1.0+oiidoublet) # convert 3727-->3726
         factor2 = 1.0/(1.0+oiidoublet)        # convert 3727-->3729
@@ -279,7 +271,7 @@ class EMSpectrum():
                 line['flux'][ii] = hbetaflux*line['ratio'][ii]
 
         # Finally build the emission-line spectrum
-        log10sigma = linesigma/2.99792458E5/np.log(10) # line-width [log-10 Angstrom]
+        log10sigma = linesigma/LIGHT/np.log(10) # line-width [log-10 Angstrom]
         emspec = np.zeros(len(self.log10wave))
         for ii in range(len(line)):
             amp = line['flux'][ii]/line['wave'][ii]/np.log(10) # line-amplitude [erg/s/cm2/A]
