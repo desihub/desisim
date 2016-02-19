@@ -329,7 +329,7 @@ class ELG():
             corresponding to BASEFLUX [Angstrom].
           basemeta (astropy.Table): Table of meta-data for each base template [nbase].
           pixbound (numpy.ndarray): Pixel boundaries of BASEWAVE [Angstrom].
-          decamwise (speclite.filters instance): DECam2014 and WISE2010 FilterSequence
+          decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence 
           rfilt (speclite.filters instance): DECam2014 r-band FilterSequence
 
         """
@@ -357,7 +357,7 @@ class ELG():
 
         # Initialize the filter profiles.
         self.rfilt = filters.load_filters('decam2014-r')
-        self.decamwise = filters.load_filters('decam2014-*', 'wise2010-*')
+        self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
 
     def make_templates(self, nmodel=100, zrange=(0.6,1.6), rmagrange=(21.0,23.4),
                        oiiihbrange=(-0.5,0.2), oiidoublet_meansig=(0.73,0.05),
@@ -440,7 +440,7 @@ class ELG():
             ('D4000', 'f4'),
             ('VDISP', 'f4'), 
             ('DECAM_FLUX', 'f4', (6,)),
-            ('WISE_FLUX', 'f4', (4,))]
+            ('WISE_FLUX', 'f4', (2,))]
         meta = Table(np.zeros(nmodel, dtype=metacols))
 
         meta['OIIFLUX'].unit = 'erg/(s*cm2)'
@@ -470,7 +470,6 @@ class ELG():
                 vdisp = 10**np.repeat(logvdisp_meansig[0], nchunk)
 
             # Get the correct number and distribution of emission-line ratios. 
-            #samp = EM.forbidmog.sample(nchunk, random_state=rand)
             oiihbeta = np.zeros(nchunk)
             niihbeta = np.zeros(nchunk)
             siihbeta = np.zeros(nchunk)
@@ -569,10 +568,13 @@ class ELG():
                     meta['W1MAG'][nobj] = -2.5*np.log10(synthnano[6])+22.5
                     meta['W2MAG'][nobj] = -2.5*np.log10(synthnano[7])+22.5
                     meta['DECAM_FLUX'][nobj] = synthnano[:6]
-                    meta['WISE_FLUX'][nobj] = synthnano[6:10]
+                    meta['WISE_FLUX'][nobj] = synthnano[6:8]
                     meta['OIIFLUX'][nobj] = zoiiflux
                     meta['EWOII'][nobj] = ewoii[ii]
                     meta['OIIIHBETA'][nobj] = oiiihbeta[ii]
+                    meta['OIIHBETA'][nobj] = oiihbeta[ii]
+                    meta['NIIHBETA'][nobj] = niihbeta[ii]
+                    meta['SIIHBETA'][nobj] = siihbeta[ii]
                     meta['OIIDOUBLET'][nobj] = oiidoublet[ii]
                     meta['D4000'][nobj] = d4000[ii]
                     meta['VDISP'][nobj] = vdisp[ii]
@@ -616,7 +618,7 @@ class LRG():
             corresponding to BASEFLUX [Angstrom].
           basemeta (astropy.Table): Table of meta-data for each base template [nbase].
           pixbound (numpy.ndarray): Pixel boundaries of BASEWAVE [Angstrom].
-          decamwise (speclite.filters instance): DECam2014 and WISE2010 FilterSequence
+          decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence
           zfilt (speclite.filters instance): DECam2014 z-band FilterSequence
 
         """
@@ -644,7 +646,7 @@ class LRG():
 
         # Initialize the filter profiles.
         self.zfilt = filters.load_filters('decam2014-z')
-        self.decamwise = filters.load_filters('decam2014-*', 'wise2010-*')
+        self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
 
     def make_templates(self, nmodel=100, zrange=(0.5,1.1), zmagrange=(19.0,20.5),
                        logvdisp_meansig=(2.3,0.1), seed=None, nocolorcuts=False):
@@ -698,7 +700,7 @@ class LRG():
             ('D4000', 'f4'),
             ('VDISP', 'f4'),
             ('DECAM_FLUX', 'f4', (6,)),
-            ('WISE_FLUX', 'f4', (4,))]
+            ('WISE_FLUX', 'f4', (2,))]
         meta = Table(np.zeros(nmodel, dtype=metacols))
 
         meta['AGE'].unit = 'Gyr'
@@ -763,7 +765,7 @@ class LRG():
                     meta['W1MAG'][nobj] = -2.5*np.log10(synthnano[6])+22.5
                     meta['W2MAG'][nobj] = -2.5*np.log10(synthnano[7])+22.5
                     meta['DECAM_FLUX'][nobj] = synthnano[:6]
-                    meta['WISE_FLUX'][nobj] = synthnano[6:10]
+                    meta['WISE_FLUX'][nobj] = synthnano[6:8]
                     meta['ZMETAL'][nobj] = self.basemeta['ZMETAL'][iobj]
                     meta['AGE'][nobj] = self.basemeta['AGE'][iobj]
                     meta['D4000'][nobj] = self.basemeta['D4000'][iobj]
@@ -807,7 +809,7 @@ class STAR():
           basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths 
             corresponding to BASEFLUX [Angstrom].
           basemeta (astropy.Table): Table of meta-data for each base template [nbase].
-          decamwise (speclite.filters instance): DECam2014 and WISE2010 FilterSequence
+          decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence
           gfilt (speclite.filters instance): DECam2014 g-band FilterSequence
           rfilt (speclite.filters instance): DECam2014 r-band FilterSequence
 
@@ -836,7 +838,7 @@ class STAR():
         self.basemeta = basemeta
 
         # Initialize the filter profiles.
-        self.decamwise = filters.load_filters('decam2014-*', 'wise2010-*')
+        self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
         self.gfilt = filters.load_filters('decam2014-g')
         self.rfilt = filters.load_filters('decam2014-r')
 
@@ -889,7 +891,7 @@ class STAR():
             ('TEFF', 'f4'),
             ('FEH', 'f4'),
             ('DECAM_FLUX', 'f4', (6,)),
-            ('WISE_FLUX', 'f4', (4,))]
+            ('WISE_FLUX', 'f4', (2,))]
         meta = Table(np.zeros(nmodel, dtype=metacols))
 
         meta['LOGG'].unit = 'm/(s**2)'
@@ -955,7 +957,7 @@ class STAR():
                     meta['W1MAG'][nobj] = -2.5*np.log10(synthnano[6])+22.5
                     meta['W2MAG'][nobj] = -2.5*np.log10(synthnano[7])+22.5
                     meta['DECAM_FLUX'][nobj] = synthnano[:6]
-                    meta['WISE_FLUX'][nobj] = synthnano[6:10]
+                    meta['WISE_FLUX'][nobj] = synthnano[6:8]
                     meta['LOGG'][nobj] = self.basemeta['LOGG'][iobj]
                     meta['TEFF'][nobj] = self.basemeta['TEFF'][iobj]
                     if self.objtype!='WD':
@@ -1001,7 +1003,7 @@ class QSO():
           basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths 
             corresponding to BASEFLUX [Angstrom].
           basemeta (astropy.Table): Table of meta-data for each base template [nbase].
-          decamwise (speclite.filters instance): DECam2014 and WISE2010 FilterSequence
+          decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence
           rilt (speclite.filters instance): DECam2014 r-band FilterSequence
 
         """
@@ -1023,7 +1025,7 @@ class QSO():
 
         # Initialize the filter profiles.
         self.rfilt = filters.load_filters('decam2014-r')
-        self.decamwise = filters.load_filters('decam2014-*', 'wise2010-*')
+        self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
         
     def make_templates(self, nmodel=100, zrange=(0.5,4.0), rmagrange=(21.0,23.0),
                        seed=None, nocolorcuts=False, old_way=False):
@@ -1098,7 +1100,7 @@ class QSO():
             ('W1MAG', 'f4'),
             ('W2MAG', 'f4'),
             ('DECAM_FLUX', 'f4', (6,)),
-            ('WISE_FLUX', 'f4', (4,))]
+            ('WISE_FLUX', 'f4', (2,))]
         meta = Table(np.zeros(nmodel, dtype=metacols))
 
         nobj = 0
@@ -1149,8 +1151,6 @@ class QSO():
                 # Temporary hack until the templates can be extended redward!
                 synthmaggies['wise2010-W1'] = np.nan
                 synthmaggies['wise2010-W2'] = np.nan
-                synthmaggies['wise2010-W3'] = np.nan
-                synthmaggies['wise2010-W4'] = np.nan
 
                 synthnano = [ff*MAG2NANO for ff in synthmaggies[0]] # convert to nanomaggies
 
@@ -1179,7 +1179,7 @@ class QSO():
                     meta['W1MAG'][nobj] = -2.5*np.log10(synthnano[6])+22.5
                     meta['W2MAG'][nobj] = -2.5*np.log10(synthnano[7])+22.5
                     meta['DECAM_FLUX'][nobj] = synthnano[:6]
-                    meta['WISE_FLUX'][nobj] = synthnano[6:10]
+                    meta['WISE_FLUX'][nobj] = synthnano[6:8]
 
                     nobj = nobj+1
 
@@ -1220,8 +1220,7 @@ class BGS():
             corresponding to BASEFLUX [Angstrom].
           basemeta (astropy.Table): Table of meta-data for each base template [nbase].
           pixbound (numpy.ndarray): Pixel boundaries of BASEWAVE [Angstrom].
-          wise (speclite.filters instance): WISE2010 FilterSequence
-          decam (speclite.filters instance): DECam2014 FilterSequence
+          decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence 
           rfilt (speclite.filters instance): DECam2014 r-band FilterSequence
 
         """
@@ -1248,17 +1247,16 @@ class BGS():
         self.pixbound = pxs.cen2bound(basewave)
 
         # Initialize the filter profiles.
-        self.wise = filters.load_filters('wise2010-*')
-        self.decam = filters.load_filters('decam2014-*')
         self.rfilt = filters.load_filters('decam2014-r')
+        self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
 
     def make_templates(self, nmodel=100, zrange=(0.6,1.6), rmagrange=(15.0,19.5),
-                       oiiihbrange=(-0.5,0.1), oiidoublet_meansig=(0.73,0.05),
+                       oiiihbrange=(-1.3,0.6), oiidoublet_meansig=(0.73,0.05),
                        logvdisp_meansig=(2.0,0.17), seed=None, nocolorcuts=False,
                        nocontinuum=False):
         """Build Monte Carlo set of BGS spectra/templates.
 
-        This function chooses random subsets of the ELG continuum spectra, constructs
+        This function chooses random subsets of the BGS continuum spectra, constructs
         an emission-line spectrum, redshifts, and then finally normalizes the spectrum
         to a specific r-band magnitude.
 
@@ -1269,10 +1267,10 @@ class BGS():
           zrange (float, optional): Minimum and maximum redshift range.  Defaults
             to a uniform distribution between (0.6,1.6).
           rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
-            magnitude range.  Defaults to a uniform distribution between (21,23.4).
+            magnitude range.  Defaults to a uniform distribution between (15,19.5).
           oiiihbrange (float, optional): Minimum and maximum logarithmic
             [OIII] 5007/H-beta line-ratio.  Defaults to a uniform distribution
-            between (-0.5,0.1).
+            between (-1.3,0.6).
         
           oiidoublet_meansig (float, optional): Mean and sigma values for the (Gaussian) 
             [OII] 3726/3729 doublet ratio distribution.  Defaults to (0.73,0.05).
@@ -1324,16 +1322,22 @@ class BGS():
             ('HBETAFLUX', 'f4'),
             ('EWHBETA', 'f4'),
             ('OIIIHBETA', 'f4'),
+            ('OIIHBETA', 'f4'),
+            ('NIIHBETA', 'f4'),
+            ('SIIHBETA', 'f4'),
             ('OIIDOUBLET', 'f4'),
             ('D4000', 'f4'),
             ('VDISP', 'f4'), 
             ('DECAM_FLUX', 'f4', (6,)),
-            ('WISE_FLUX', 'f4', (4,))]
+            ('WISE_FLUX', 'f4', (2,))]
         meta = Table(np.zeros(nmodel, dtype=metacols))
 
         meta['HBETAFLUX'].unit = 'erg/(s*cm2)'
         meta['EWHBETA'].unit = 'Angstrom'
         meta['OIIIHBETA'].unit = 'dex'
+        meta['OIIHBETA'].unit = 'dex'
+        meta['NIIHBETA'].unit = 'dex'
+        meta['SIIHBETA'].unit = 'dex'
         meta['VDISP'].unit = 'km/s'
 
         # Build the spectra.
@@ -1353,8 +1357,24 @@ class BGS():
             else:
                 vdisp = 10**np.repeat(logvdisp_meansig[0], nchunk)
 
+            # Get the correct number and distribution of emission-line ratios. 
+            oiihbeta = np.zeros(nchunk)
+            niihbeta = np.zeros(nchunk)
+            siihbeta = np.zeros(nchunk)
+            oiiihbeta = np.zeros(nchunk)-99
+            need = np.where(oiiihbeta==-99)[0]
+            while len(need)>0:
+                samp = EM.forbidmog.sample(len(need), random_state=rand)
+                oiiihbeta[need] = samp[:,0]
+                oiihbeta[need] = samp[:,1]
+                niihbeta[need] = samp[:,2]
+                siihbeta[need] = samp[:,3]
+                oiiihbeta[oiiihbeta<oiiihbrange[0]] = -99
+                oiiihbeta[oiiihbeta>oiiihbrange[1]] = -99
+                need = np.where(oiiihbeta==-99)[0]
+                
             # Assume the emission-line priors are uncorrelated.
-            oiiihbeta = rand.uniform(oiiihbrange[0], oiiihbrange[1], nchunk)
+            #oiiihbeta = rand.uniform(oiiihbrange[0], oiiihbrange[1], nchunk)
             oiidoublet = rand.normal(oiidoublet_meansig[0],
                                      oiidoublet_meansig[1],
                                      nchunk)
@@ -1395,16 +1415,13 @@ class BGS():
                     flux += emflux
 
                 # Convert [grzW1W2]flux to nanomaggies.
-                decam_flux = self.decam.get_ab_maggies(flux, zwave, mask_invalid=True)
-                decam_nano = [ff*MAG2NANO for ff in decam_flux[0]]
-
-                wise_flux = self.wise.get_ab_maggies(flux, zwave, mask_invalid=True)
-                wise_nano = [ff*MAG2NANO for ff in wise_flux[0]]
+                synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
+                synthnano = [ff*MAG2NANO for ff in synthmaggies[0]] # convert to nanomaggies
 
                 if nocolorcuts:
                     colormask = [True]
                 else:
-                    colormask = [isBGS(rflux=decam_nano[2])]
+                    colormask = [isBGS(rflux=synthnano[2])]
 
                 if all(colormask):
                     if ((nobj+1)%10)==0:
@@ -1424,16 +1441,19 @@ class BGS():
 
                     meta['TEMPLATEID'][nobj] = nobj
                     meta['REDSHIFT'][nobj] = redshift[ii]
-                    meta['GMAG'][nobj] = -2.5*np.log10(decam_nano[1])+22.5
-                    meta['RMAG'][nobj] = -2.5*np.log10(decam_nano[2])+22.5
-                    meta['ZMAG'][nobj] = -2.5*np.log10(decam_nano[4])+22.5
-                    meta['W1MAG'][nobj] = -2.5*np.log10(wise_nano[0])+22.5
-                    meta['W2MAG'][nobj] = -2.5*np.log10(wise_nano[1])+22.5
-                    meta['DECAM_FLUX'][nobj] = decam_nano
-                    meta['WISE_FLUX'][nobj] = wise_nano
+                    meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
+                    meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
+                    meta['ZMAG'][nobj] = -2.5*np.log10(synthnano[4])+22.5
+                    meta['W1MAG'][nobj] = -2.5*np.log10(synthnano[6])+22.5
+                    meta['W2MAG'][nobj] = -2.5*np.log10(synthnano[7])+22.5
+                    meta['DECAM_FLUX'][nobj] = synthnano[:6]
+                    meta['WISE_FLUX'][nobj] = synthnano[6:8]
                     meta['HBETAFLUX'][nobj] = zhbetaflux
                     meta['EWHBETA'][nobj] = ewhbeta[ii]
                     meta['OIIIHBETA'][nobj] = oiiihbeta[ii]
+                    meta['OIIHBETA'][nobj] = oiihbeta[ii]
+                    meta['NIIHBETA'][nobj] = niihbeta[ii]
+                    meta['SIIHBETA'][nobj] = siihbeta[ii]
                     meta['OIIDOUBLET'][nobj] = oiidoublet[ii]
                     meta['D4000'][nobj] = d4000[ii]
                     meta['VDISP'][nobj] = vdisp[ii]
