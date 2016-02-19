@@ -1,7 +1,7 @@
 # %ECSV 0.9
 # ---
 # datatype:
-# - {name: line, datatype: str}
+# - {name: name, datatype: str}
 # - {name: wave, datatype: float64}
 # - {name: ratio, datatype: float32}
 # meta: !!omap
@@ -13,7 +13,7 @@
 #     The wavelengths are laboratory wavelengths in vacuum (Angstroms).
 # 
 #     J. Moustakas, Siena, 2015 May 7'}
-line wave ratio
+name wave ratio
   Lyalpha      1215.670      23.54656
    Halpha      6564.613      2.863158
     Hbeta      4862.683      1.000000

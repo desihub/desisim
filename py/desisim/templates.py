@@ -18,7 +18,7 @@ log = get_logger()
 LIGHT = 2.99792458E5  #- speed of light in km/s
 MAG2NANO = 10.0**(0.4*22.5)
 
-class GaussianMixtureModel(object):
+class GaussianMixtureModel():
     """Read and sample from a pre-defined Gaussian mixture model.
 
     """
@@ -89,11 +89,10 @@ class EMSpectrum():
         (note: must be a log-base10, i.e., constant-velocity pixel array!) or via the MINWAVE,
         MAXWAVE, and CDELT_KMS arguments.
 
-        In addition, two data files are required: ${DESISIM}/data/recombination_lines.dat and
-        ${DESISIM}/data/forbidden_lines.dat.
+        In addition, three data files are required: ${DESISIM}/data/recombination_lines.escv,
+        ${DESISIM}/data/forbidden_lines.esv, and ${DESISIM}/data/forbidden_mog.fits.
 
         TODO (@moustakas): Incorporate AGN-like emission-line ratios.
-        TODO (@moustakas): Change to the .ecsv format.
 
         Args:
           minwave (float, optional): Minimum value of the output wavelength
@@ -108,7 +107,11 @@ class EMSpectrum():
         Attributes:
           log10wave (numpy.ndarray): Wavelength array constructed from the input arguments.
           line (astropy.Table): Table containing the laboratoy (vacuum) wavelengths and nominal
-            line-ratios for several dozen forbidden and recombination nebular emission lines. 
+            line-ratios for several dozen forbidden and recombination nebular emission lines.
+          forbidmog (GaussianMixtureModel): Table containing the mixture of Gaussian parameters
+            encoding the forbidden emission-line priors.
+          oiiidoublet (float32): Intrinsic [OIII] 5007/4959 doublet ratio (set by atomic physics).
+          niidoublet (float32): Intrinsic [NII] 6584/6548 doublet ratio (set by atomic physics).
 
         Raises:
           IOError: If the required data files are not found.
@@ -130,6 +133,8 @@ class EMSpectrum():
                                                                'recombination_lines.ecsv'))
         forbidfile = resource_filename('desisim', os.path.join('..','..','data',
                                                                'forbidden_lines.ecsv'))
+        forbidmogfile = resource_filename('desisim', os.path.join('..','..','data',
+                                                                  'forbidden_mogs.fits'))
     
         if not os.path.isfile(recombfile):
             log.error('Required data file {} not found!'.format(recombfile))
@@ -137,22 +142,23 @@ class EMSpectrum():
         if not os.path.isfile(forbidfile):
             log.error('Required data file {} not found!'.format(forbidfile))
             raise IOError
+        if not os.path.isfile(forbidmogfile):
+            log.error('Required data file {} not found!'.format(forbidmogfile))
+            raise IOError
 
         recombdata = Table.read(recombfile, format='ascii.ecsv', guess=False)
         forbiddata = Table.read(forbidfile, format='ascii.ecsv', guess=False)
-        emdata = vstack([recombdata,forbiddata])
-        nline = len(emdata)
+        line = vstack([recombdata,forbiddata])
 
-        # Initialize and populate the line-information table.
-        self.line = Table()
-        self.line['name'] = Column(emdata['name'], dtype='a15')
-        self.line['wave'] = Column(emdata['wave'])
-        self.line['ratio'] = Column(emdata['ratio'])
-        self.line['flux'] = Column(np.ones(nline), dtype='f8')  # integrated line-flux
-        self.line['amp'] = Column(np.ones(nline), dtype='f8')   # amplitude
+        nline = len(line)
+        line['flux'] = Column(np.ones(nline), dtype='f8')  # integrated line-flux
+        line['amp'] = Column(np.ones(nline), dtype='f8')   # amplitude
+        self.line = line
 
-        forbidmogfile = os.path.join(os.getenv('DESISIM'),'data','forbidden_mogs.fits')
         self.forbidmog = GaussianMixtureModel.load(forbidmogfile)
+
+        self.oiiidoublet = 2.8875
+        self.niidoublet = 2.93579
 
     def spectrum(self, oiiihbeta=-0.2, oiidoublet=0.73, siidoublet=1.3,
                  linesigma=75.0, zshift=0.0, oiiflux=None, hbetaflux=None,
@@ -204,9 +210,6 @@ class EMSpectrum():
         """
         rand = np.random.RandomState(seed)
 
-        oiiidoublet = 2.8875    # [OIII] 5007/4959 doublet ratio (set by atomic physics)
-        niidoublet = 2.93579    # [NII] 6584/6548 doublet ratio (set by atomic physics)
-
         line = self.line.copy()
         nline = len(line)
 
@@ -217,35 +220,32 @@ class EMSpectrum():
         is6584 = np.where(line['name']=='[NII]_6584')[0]
         is6716 = np.where(line['name']=='[SII]_6716')[0]
         is6731 = np.where(line['name']=='[SII]_6731')[0]
-        is3869 = np.where(line['name']=='[NeIII]_3869')[0]
+        #is3869 = np.where(line['name']=='[NeIII]_3869')[0]
         is3726 = np.where(line['name']=='[OII]_3726')[0]
         is3729 = np.where(line['name']=='[OII]_3729')[0]
 
         # Draw from the MoGs for forbidden lines.
-        forb = self.forbidmog.sample() # 0=[OIII]/Hb, 1=[OII]/Hb, 2=[NII]/Hb, 3=[SII]/Hb
+        oiiihbeta, oiihbeta, niihbeta, siihbeta = 10**self.forbidmog.sample(random_state=rand)[0]
 
         # Normalize [OIII] 4959, 5007.
-        oiiihbeta = 10**forb[0,0]
         line['ratio'][is5007] = oiiihbeta # [OIII]/Hbeta
-        line['ratio'][is4959] = line['ratio'][is5007]/oiiidoublet
+        line['ratio'][is4959] = line['ratio'][is5007]/self.oiiidoublet
 
         # Normalize [NII] 6548,6584.
-        line['ratio'][is6584] = 10**forb[0,2] # [NII]/Hbeta
-        line['ratio'][is6548] = line['ratio'][is6584]/niidoublet
+        line['ratio'][is6584] = niihbeta # [NII]/Hbeta
+        line['ratio'][is6548] = line['ratio'][is6584]/self.niidoublet
 
         # Normalize [SII] 6716,6731.
-        line['ratio'][is6716] = 10**forb[0,3] # [SII]/Hbeta
+        line['ratio'][is6716] = siihbeta # [SII]/Hbeta
         line['ratio'][is6731] = line['ratio'][is6716]/siidoublet
 
-        # Normalize [NeIII] 3869.
-        coeff = np.asarray([1.0876,-1.1647])
-        disp = 0.1 # dex
-        line['ratio'][is3869] = 10**(np.polyval(coeff,oiiihbeta)+
-                                     rand.normal(0.0,disp))
+        ## Normalize [NeIII] 3869.
+        #coeff = np.asarray([1.0876,-1.1647])
+        #disp = 0.1 # dex
+        #line['ratio'][is3869] = 10**(np.polyval(coeff,np.log10(oiiihbeta))+
+        #                             rand.normal(0.0,disp))
 
         # Normalize [OII] 3727, split into [OII] 3726,3729.
-        oiihbeta = 10**forb[0,1] # [OII] 3727/Hbeta
-
         factor1 = oiidoublet/(1.0+oiidoublet) # convert 3727-->3726
         factor2 = 1.0/(1.0+oiidoublet)        # convert 3727-->3729
         line['ratio'][is3726] = factor1*oiihbeta
@@ -404,7 +404,7 @@ class ELG():
         # Initialize the EMSpectrum object with the same wavelength array as
         # the "base" (continuum) templates so that we don't have to resample. 
         EM = EMSpectrum(log10wave=np.log10(self.basewave))
-       
+
         # Initialize the output flux array and metadata Table.
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
 
