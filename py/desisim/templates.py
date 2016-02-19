@@ -160,15 +160,20 @@ class EMSpectrum():
         self.oiiidoublet = 2.8875
         self.niidoublet = 2.93579
 
-    def spectrum(self, oiiihbeta=-0.2, oiidoublet=0.73, siidoublet=1.3,
+    def spectrum(self, oiiihbeta=None, oiihbeta=None, niihbeta=None,
+                 siihbeta=None, oiidoublet=0.73, siidoublet=1.3,
                  linesigma=75.0, zshift=0.0, oiiflux=None, hbetaflux=None,
                  seed=None):
         """Build the actual emission-line spectrum.
 
-        Building the emission-line spectrum involves three main steps.
-        First, the ratio of the forbidden emission line-strengths
-        relative to H-beta are derived using an input [OIII] 5007/H-beta
-        ratio and the empirical relations documented elsewhere.
+        Building the emission-line spectrum involves three main steps.  First,
+        the oiiihbeta, oiihbeta, and niihbeta emission-line ratios are either
+        drawn from the empirical mixture of Gaussians (recommended!) or input
+        values are used to construct the line-ratios of the strongest optical
+        forbidden lines relative to H-beta.
+
+        Note that all three of oiiihbeta, oiihbeta, and niihbeta must be
+        specified simultaneously in order for them to be used.
 
         Second, the requested [OII] 3726,29 and [SII] 6716,31 doublet
         ratios are imposed.
@@ -181,11 +186,18 @@ class EMSpectrum():
         trumps the [OII] normalization (in the case that both are given).
 
         TODO (@moustakas): Add a suitably scaled nebular continuum spectrum.
-        TODO (@moustakas): Add more emission lines.
+        TODO (@moustakas): Add more emission lines (e.g., [NeIII] 3869).
 
         Args:
           oiiihbeta (float, optional): Desired logarithmic [OIII] 5007/H-beta
-            line-ratio (default -0.2).  A sensible range is [-0.5,0.1].
+            line-ratio (default -0.2).  A sensible range is [-0.5,0.2].
+          oiihbeta (float, optional): Desired logarithmic [OII] 3726,29/H-beta
+            line-ratio (default 0.1).  A sensible range is [0.0,0.4].
+          niihbeta (float, optional): Desired logarithmic [NII] 6584/H-beta
+            line-ratio (default -0.2).  A sensible range is [-0.6,0.0].
+          siihbeta (float, optional): Desired logarithmic [SII] 6716/H-beta
+            line-ratio (default -0.3).  A sensible range is [-0.5,0.2].
+        
           oiidoublet (float, optional): Desired [OII] 3726/3729 doublet ratio
             (default 0.73).
           siidoublet (float, optional): Desired [SII] 6716/6731 doublet ratio
@@ -225,18 +237,20 @@ class EMSpectrum():
         is3729 = np.where(line['name']=='[OII]_3729')[0]
 
         # Draw from the MoGs for forbidden lines.
-        oiiihbeta, oiihbeta, niihbeta, siihbeta = 10**self.forbidmog.sample(random_state=rand)[0]
+        if oiiihbeta==None or oiihbeta==None or niihbeta==None or siihbeta==None:
+            oiiihbeta, oiihbeta, niihbeta, siihbeta = \
+              self.forbidmog.sample(random_state=rand)[0]
 
         # Normalize [OIII] 4959, 5007.
-        line['ratio'][is5007] = oiiihbeta # [OIII]/Hbeta
+        line['ratio'][is5007] = 10**oiiihbeta # [OIII]/Hbeta
         line['ratio'][is4959] = line['ratio'][is5007]/self.oiiidoublet
 
         # Normalize [NII] 6548,6584.
-        line['ratio'][is6584] = niihbeta # [NII]/Hbeta
+        line['ratio'][is6584] = 10**niihbeta # [NII]/Hbeta
         line['ratio'][is6548] = line['ratio'][is6584]/self.niidoublet
 
         # Normalize [SII] 6716,6731.
-        line['ratio'][is6716] = siihbeta # [SII]/Hbeta
+        line['ratio'][is6716] = 10**siihbeta # [SII]/Hbeta
         line['ratio'][is6731] = line['ratio'][is6716]/siidoublet
 
         ## Normalize [NeIII] 3869.
@@ -248,8 +262,8 @@ class EMSpectrum():
         # Normalize [OII] 3727, split into [OII] 3726,3729.
         factor1 = oiidoublet/(1.0+oiidoublet) # convert 3727-->3726
         factor2 = 1.0/(1.0+oiidoublet)        # convert 3727-->3729
-        line['ratio'][is3726] = factor1*oiihbeta
-        line['ratio'][is3729] = factor2*oiihbeta
+        line['ratio'][is3726] = factor1*10**oiihbeta
+        line['ratio'][is3729] = factor2*10**oiihbeta
         
         # Normalize the full spectrum to the desired integrated [OII] 3727 or
         # H-beta flux (but not both!)
@@ -282,7 +296,7 @@ class EMSpectrum():
             emspec += amp*np.exp(-0.5*(self.log10wave-thislinewave)**2/log10sigma**2)\
                       /(np.sqrt(2.0*np.pi)*log10sigma)
 
-        return emspec, 10**self.log10wave, self.line
+        return emspec, 10**self.log10wave, line
 
 class ELG():
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs).
@@ -346,7 +360,7 @@ class ELG():
         self.decamwise = filters.load_filters('decam2014-*', 'wise2010-*')
 
     def make_templates(self, nmodel=100, zrange=(0.6,1.6), rmagrange=(21.0,23.4),
-                       oiiihbrange=(-0.5,0.1), oiidoublet_meansig=(0.73,0.05),
+                       oiiihbrange=(-0.5,0.2), oiidoublet_meansig=(0.73,0.05),
                        logvdisp_meansig=(1.9,0.15), minoiiflux=1E-17, seed=None,
                        nocolorcuts=False, nocontinuum=False):
         """Build Monte Carlo set of ELG spectra/templates.
@@ -365,7 +379,7 @@ class ELG():
             magnitude range.  Defaults to a uniform distribution between (21,23.4).
           oiiihbrange (float, optional): Minimum and maximum logarithmic
             [OIII] 5007/H-beta line-ratio.  Defaults to a uniform distribution
-            between (-0.5,0.1).
+            between (-0.5,0.2).
         
           oiidoublet_meansig (float, optional): Mean and sigma values for the (Gaussian) 
             [OII] 3726/3729 doublet ratio distribution.  Defaults to (0.73,0.05).
@@ -419,6 +433,9 @@ class ELG():
             ('OIIFLUX', 'f4'),
             ('EWOII', 'f4'),
             ('OIIIHBETA', 'f4'),
+            ('OIIHBETA', 'f4'),
+            ('NIIHBETA', 'f4'),
+            ('SIIHBETA', 'f4'),
             ('OIIDOUBLET', 'f4'),
             ('D4000', 'f4'),
             ('VDISP', 'f4'), 
@@ -429,6 +446,9 @@ class ELG():
         meta['OIIFLUX'].unit = 'erg/(s*cm2)'
         meta['EWOII'].unit = 'Angstrom'
         meta['OIIIHBETA'].unit = 'dex'
+        meta['OIIHBETA'].unit = 'dex'
+        meta['NIIHBETA'].unit = 'dex'
+        meta['SIIHBETA'].unit = 'dex'
         meta['VDISP'].unit = 'km/s'
 
         # Build the spectra.
@@ -440,7 +460,8 @@ class ELG():
             # Choose a random subset of the base templates
             chunkindx = rand.randint(0, nbase-1, nchunk)
 
-            # Assign uniform redshift and r-magnitude distributions.
+            # Assign uniform redshift, r-magnitude, and velocity dispersion
+            # distributions.
             redshift = rand.uniform(zrange[0], zrange[1], nchunk)
             rmag = rand.uniform(rmagrange[0], rmagrange[1], nchunk)
             if logvdisp_meansig[1]>0:
@@ -448,8 +469,30 @@ class ELG():
             else:
                 vdisp = 10**np.repeat(logvdisp_meansig[0], nchunk)
 
+            # Get the correct number and distribution of emission-line ratios. 
+            #samp = EM.forbidmog.sample(nchunk, random_state=rand)
+            oiihbeta = np.zeros(nchunk)
+            niihbeta = np.zeros(nchunk)
+            siihbeta = np.zeros(nchunk)
+            oiiihbeta = np.zeros(nchunk)-99
+            need = np.where(oiiihbeta==-99)[0]
+            while len(need)>0:
+                samp = EM.forbidmog.sample(len(need), random_state=rand)
+                oiiihbeta[need] = samp[:,0]
+                oiihbeta[need] = samp[:,1]
+                niihbeta[need] = samp[:,2]
+                siihbeta[need] = samp[:,3]
+                oiiihbeta[oiiihbeta<oiiihbrange[0]] = -99
+                oiiihbeta[oiiihbeta>oiiihbrange[1]] = -99
+                need = np.where(oiiihbeta==-99)[0]
+
+            #import matplotlib.pyplot as plt
+            #plt.scatter(oiiihbeta, oiihbeta) ; plt.xlim((-1.5,1)) ; plt.ylim((-1,1)) ; plt.show()
+            #plt.scatter(oiiihbeta, niihbeta) ; plt.xlim((-1.5,1)) ; plt.ylim((-2,1)) ; plt.show()
+            #import pdb ; pdb.set_trace()
+
             # Assume the emission-line priors are uncorrelated.
-            oiiihbeta = rand.uniform(oiiihbrange[0], oiiihbrange[1], nchunk)
+            #oiiihbeta = rand.uniform(oiiihbrange[0], oiiihbrange[1], nchunk)
             oiidoublet = rand.normal(oiidoublet_meansig[0],
                                      oiidoublet_meansig[1],
                                      nchunk)
@@ -478,6 +521,9 @@ class ELG():
                     linesigma=vdisp[ii],
                     oiidoublet=oiidoublet[ii],
                     oiiihbeta=oiiihbeta[ii],
+                    oiihbeta=oiihbeta[ii],
+                    niihbeta=niihbeta[ii],
+                    siihbeta=siihbeta[ii],
                     oiiflux=zoiiflux,
                     seed=emseed[ii])
                 emflux /= (1+redshift[ii]) # [erg/s/cm2/A, @redshift[ii]]
