@@ -30,7 +30,19 @@ class GaussianMixtureModel(object):
         self.n_components, self.n_dimensions = self.means.shape
     
     @staticmethod
+    def save(model, filename):
+        from astropy.io import fits
+        hdus = fits.HDUList()
+        hdr = fits.Header()
+        hdr['covtype'] = model.covariance_type
+        hdus.append(fits.ImageHDU(model.weights_, name='weights', header=hdr))
+        hdus.append(fits.ImageHDU(model.means_, name='means'))
+        hdus.append(fits.ImageHDU(model.covars_, name='covars'))
+        hdus.writeto(filename, clobber=True)
+        
+    @staticmethod
     def load(filename):
+        from astropy.io import fits
         hdus = fits.open(filename, memmap=False)
         hdr = hdus[0].header
         covtype = hdr['covtype']
@@ -81,6 +93,7 @@ class EMSpectrum():
         ${DESISIM}/data/forbidden_lines.dat.
 
         TODO (@moustakas): Incorporate AGN-like emission-line ratios.
+        TODO (@moustakas): Change to the .ecsv format.
 
         Args:
           minwave (float, optional): Minimum value of the output wavelength
@@ -135,6 +148,9 @@ class EMSpectrum():
         self.line['ratio'] = Column(emdata['ratio'])
         self.line['flux'] = Column(np.ones(nline), dtype='f8')  # integrated line-flux
         self.line['amp'] = Column(np.ones(nline), dtype='f8')   # amplitude
+
+        forbidmogfile = os.path.join(os.getenv('DESISIM'),'data','forbidden_mogs.fits')
+        self.forbidmog = GaussianMixtureModel.load(forbidmogfile)
 
     def spectrum(self, oiiihbeta=-0.2, oiidoublet=0.73, siidoublet=1.3,
                  linesigma=75.0, zshift=0.0, oiiflux=None, hbetaflux=None,
@@ -191,6 +207,8 @@ class EMSpectrum():
 
         line = self.line.copy()
         nline = len(line)
+
+        import pdb ; pdb.set_trace()
 
         # Normalize [OIII] 4959, 5007 .
         is4959 = np.where(line['name']=='[OIII]_4959')[0]
