@@ -149,7 +149,7 @@ class EMSpectrum():
 
         recombdata = Table.read(recombfile, format='ascii.ecsv', guess=False)
         forbiddata = Table.read(forbidfile, format='ascii.ecsv', guess=False)
-        line = vstack([recombdata,forbiddata])
+        line = vstack([recombdata,forbiddata], metadata_conflicts='silent')
 
         nline = len(line)
         line['flux'] = Column(np.ones(nline), dtype='f8')  # integrated line-flux
