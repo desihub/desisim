@@ -23,7 +23,9 @@ import scipy.interpolate
 import sys
 import desispec
 import desisim.io
-import specsim
+import specsim.config
+import specsim.simulator
+import astropy.units as u
 from desispec.resolution import Resolution
 from desispec.io import write_flux_calibration, write_fiberflat
 from desispec.interpolation import resample_flux
@@ -148,11 +150,12 @@ config.wavelength_grid.max = 9834.
 config.wavelength_grid.step = 0.1
 config.update()
 
-source = specsim.source.initialize(config)
+#- Initialize the quick simulator.
 qsim=specsim.simulator.Simulator(config)
+fluxunits = 1e-17 * u.erg / (u.s * u.cm ** 2 * u.Angstrom)
 
 #- simulate a fake object 0 just to get wavelength grids etc setup
-results=qsim.simulate(source)
+results=qsim.simulate()
 observedWavelengths=results.wave
 origin_wavelength=qsim.wavelengthGrid
 
@@ -273,8 +276,11 @@ for i, channel in enumerate( ['b', 'r', 'z'] ):
 for j in xrange(args.nstart,nmax): # Exclusive
     print "\rSimulating spectrum %d,  object type=%s"%(j,objtype[j]),
     sys.stdout.flush()
-    source.update(objtype[j].lower(), wavelengths, spectra[j, :], extrapolate_value=0.)
-    results=qsim.simulate(source)
+    qsim.source.update_in(
+        'Quickgen source {0}'.format(j), objtype[j].lower(),
+        wavelengths * u.Angstrom, spectra[j, :] * fluxunits)
+    qsim.source.update_out()
+    results=qsim.simulate()
 
     for i,channel in enumerate(['b','r','z']):
         nobj[j,i,:waveMaxbin[channel]]=results.nobj[waveRange[channel],i]

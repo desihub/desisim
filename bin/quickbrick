@@ -17,7 +17,8 @@ from astropy.table import Table, Column, vstack
 import astropy.units as u
 
 import desimodel.io
-import specsim
+import specsim.config
+import specsim.simulator
 import desispec
 from desispec.log import get_logger
 import desisim.templates
@@ -201,7 +202,6 @@ meta.rename_column('REDSHIFT', 'TRUEZ')
 
 #- Actually do the simulations for each target
 fluxunits = u.erg / (u.s * u.cm ** 2 * u.Angstrom)
-source = specsim.source.initialize(config)
 
 #- output arrays to fill; these cover wavelengths across all cameras
 srcflux={}
@@ -217,9 +217,11 @@ for i in range(opts.nspec):
     #- if objtype is QSO_BAD or TEST then simulate a star
     if (truth['OBJTYPE'][i] == 'QSO_BAD' or truth['OBJTYPE'][i] == 'TEST'):
         truth['OBJTYPE'][i]='STAR'
-    source.update(truth['OBJTYPE'][i].lower(), truth['WAVE'],
-                  truth['FLUX'][i] * fluxunits)
-    results = qsim.simulate(source)
+    qsim.source.update_in(
+        'Quickbrick source {0}'.format(i), truth['OBJTYPE'][i].lower(),
+        truth['WAVE'] * u.Angstrom, truth['FLUX'][i] * fluxunits)
+    qsim.source.update_out()
+    results = qsim.simulate()
 
     #- output wavelength grid is the same for all spectra
     if obswave is None :
