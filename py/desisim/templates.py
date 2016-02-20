@@ -93,6 +93,7 @@ class EMSpectrum():
         ${DESISIM}/data/forbidden_lines.esv, and ${DESISIM}/data/forbidden_mog.fits.
 
         TODO (@moustakas): Incorporate AGN-like emission-line ratios.
+        TODO (@moustakas): Think about how to best include dust attenuation in the lines. 
 
         Args:
           minwave (float, optional): Minimum value of the output wavelength
@@ -879,19 +880,33 @@ class STAR():
         # Initialize the output flux array and metadata Table.
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
 
-        metacols = [
-            ('TEMPLATEID', 'i4'),
-            ('REDSHIFT', 'f4'),
-            ('GMAG', 'f4'),
-            ('RMAG', 'f4'),
-            ('ZMAG', 'f4'),
-            ('W1MAG', 'f4'),
-            ('W2MAG', 'f4'),
-            ('LOGG', 'f4'),
-            ('TEFF', 'f4'),
-            ('FEH', 'f4'),
-            ('DECAM_FLUX', 'f4', (6,)),
-            ('WISE_FLUX', 'f4', (2,))]
+        if self.objtype=='WD':
+            metacols = [
+                ('TEMPLATEID', 'i4'),
+                ('REDSHIFT', 'f4'),
+                ('GMAG', 'f4'),
+                ('RMAG', 'f4'),
+                ('ZMAG', 'f4'),
+                ('W1MAG', 'f4'),
+                ('W2MAG', 'f4'),
+                ('LOGG', 'f4'),
+                ('TEFF', 'f4'),
+                ('DECAM_FLUX', 'f4', (6,)),
+                ('WISE_FLUX', 'f4', (2,))]
+        else:
+            metacols = [
+                ('TEMPLATEID', 'i4'),
+                ('REDSHIFT', 'f4'),
+                ('GMAG', 'f4'),
+                ('RMAG', 'f4'),
+                ('ZMAG', 'f4'),
+                ('W1MAG', 'f4'),
+                ('W2MAG', 'f4'),
+                ('LOGG', 'f4'),
+                ('TEFF', 'f4'),
+                ('FEH', 'f4'),
+                ('DECAM_FLUX', 'f4', (6,)),
+                ('WISE_FLUX', 'f4', (2,))]
         meta = Table(np.zeros(nmodel, dtype=metacols))
 
         meta['LOGG'].unit = 'm/(s**2)'
@@ -933,6 +948,10 @@ class STAR():
                 synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
                 synthnano = [ff*MAG2NANO for ff in synthmaggies[0]] # convert to nanomaggies
 
+                if self.objtype=='WD':
+                    synthmaggies['wise2010-W1'] = 0.0
+                    synthmaggies['wise2010-W2'] = 0.0
+
                 # Color cuts on just on the standard stars.
                 if self.objtype=='FSTD':
                     colormask = [isFSTD_colors(gflux=synthnano[1],
@@ -954,8 +973,9 @@ class STAR():
                     meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
                     meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
                     meta['ZMAG'][nobj] = -2.5*np.log10(synthnano[4])+22.5
-                    meta['W1MAG'][nobj] = -2.5*np.log10(synthnano[6])+22.5
-                    meta['W2MAG'][nobj] = -2.5*np.log10(synthnano[7])+22.5
+                    if self.objtype!='WD':
+                        meta['W1MAG'][nobj] = -2.5*np.log10(synthnano[6])+22.5
+                        meta['W2MAG'][nobj] = -2.5*np.log10(synthnano[7])+22.5
                     meta['DECAM_FLUX'][nobj] = synthnano[:6]
                     meta['WISE_FLUX'][nobj] = synthnano[6:8]
                     meta['LOGG'][nobj] = self.basemeta['LOGG'][iobj]
@@ -1137,20 +1157,19 @@ class QSO():
 
                 # Normalize to [erg/s/cm2/A, @redshift[ii]].  # Temporary hack
                 # until the templates can be extended redward and blueward.
+                #rnorm = self.rfilt.get_ab_maggies(obsflux, zwave)
                 padflux, padzwave = self.rfilt.pad_spectrum(obsflux, zwave, method='edge')
                 rnorm = self.rfilt.get_ab_maggies(padflux, padzwave)
-                #rnorm = self.rfilt.get_ab_maggies(obsflux, zwave)
                 norm = 10.0**(-0.4*rmag[ii])/rnorm['decam2014-r'][0]
                 flux = obsflux*norm
 
-                # Convert [grzW1W2]flux to nanomaggies.
+                # Convert [grzW1W2]flux to nanomaggies.  Temporary hack until
+                # the templates can be extended redward!
+                #synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
                 padflux, padzwave = self.decamwise.pad_spectrum(flux, zwave, method='edge')
                 synthmaggies = self.decamwise.get_ab_maggies(padflux, padzwave, mask_invalid=True)
-                #synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
-
-                # Temporary hack until the templates can be extended redward!
-                synthmaggies['wise2010-W1'] = np.nan
-                synthmaggies['wise2010-W2'] = np.nan
+                synthmaggies['wise2010-W1'] = 0.0
+                synthmaggies['wise2010-W2'] = 0.0
 
                 synthnano = [ff*MAG2NANO for ff in synthmaggies[0]] # convert to nanomaggies
 
@@ -1176,8 +1195,8 @@ class QSO():
                     meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
                     meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
                     meta['ZMAG'][nobj] = -2.5*np.log10(synthnano[4])+22.5
-                    meta['W1MAG'][nobj] = -2.5*np.log10(synthnano[6])+22.5
-                    meta['W2MAG'][nobj] = -2.5*np.log10(synthnano[7])+22.5
+                    #meta['W1MAG'][nobj] = -2.5*np.log10(synthnano[6])+22.5
+                    #meta['W2MAG'][nobj] = -2.5*np.log10(synthnano[7])+22.5
                     meta['DECAM_FLUX'][nobj] = synthnano[:6]
                     meta['WISE_FLUX'][nobj] = synthnano[6:8]
 
