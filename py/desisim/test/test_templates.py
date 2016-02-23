@@ -93,16 +93,16 @@ class TestTemplates(unittest.TestCase):
 
     @unittest.expectedFailure
     def test_missing_wise_mags(self):
-        '''QSO and stellar templates don't have WISE mags.  Flag that'''
+        '''QSO and WD templates don't have WISE mags.  Flag that'''
         qso = QSO(wave=self.wave)
         flux, wave, meta = qso.make_templates(self.nspec)
-        self.assertTrue(not np.any(np.isnan(meta['W1MAG'])))
-        self.assertTrue(not np.any(np.isnan(meta['W2MAG'])))
+        self.assertTrue(not np.any(meta['W1MAG']==0))
+        self.assertTrue(not np.any(meta['W2MAG']==0))
 
-        star = STAR(wave=self.wave)
+        wd = STAR(wave=self.wave, WD=True)
         flux, wave, meta = star.make_templates(self.nspec)
-        self.assertTrue(not np.any(np.isnan(meta['W1MAG'])))
-        self.assertTrue(not np.any(np.isnan(meta['W2MAG'])))
+        self.assertTrue(not np.any(meta['W1MAG']==0))
+        self.assertTrue(not np.any(meta['W2MAG']==0))
 
 if __name__ == '__main__':
     unittest.main()
