@@ -356,6 +356,8 @@ class ELG():
         # Pixel boundaries
         self.pixbound = pxs.cen2bound(basewave)
 
+        self.ewoiicoeff = [1.34323087,-5.02866474,5.43842874]
+
         # Initialize the filter profiles.
         self.rfilt = filters.load_filters('decam2014-r')
         self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
@@ -486,19 +488,14 @@ class ELG():
                 oiiihbeta[oiiihbeta>oiiihbrange[1]] = -99
                 need = np.where(oiiihbeta==-99)[0]
 
-            #import matplotlib.pyplot as plt
-            #plt.scatter(oiiihbeta, oiihbeta) ; plt.xlim((-1.5,1)) ; plt.ylim((-1,1)) ; plt.show()
-            #plt.scatter(oiiihbeta, niihbeta) ; plt.xlim((-1.5,1)) ; plt.ylim((-2,1)) ; plt.show()
-            #import pdb ; pdb.set_trace()
-
             # Assume the emission-line priors are uncorrelated.
             #oiiihbeta = rand.uniform(oiiihbrange[0], oiiihbrange[1], nchunk)
             oiidoublet = rand.normal(oiidoublet_meansig[0],
                                      oiidoublet_meansig[1],
                                      nchunk)
             d4000 = self.basemeta['D4000'][chunkindx]
-            ewoii = 10.0**(np.polyval([1.1074,-4.7338,5.6585],d4000)+ 
-                           rand.normal(0.0,0.25, nchunk)) # rest-frame, Angstrom
+            ewoii = 10.0**(np.polyval(self.ewoiicoeff,d4000)+
+                           rand.normal(0.0,0.3, nchunk)) # rest-frame, Angstrom
 
             # Create a distribution of seeds for the emission-line spectra.
             emseed = rand.random_integers(0, 100*nchunk, nchunk)
@@ -946,11 +943,10 @@ class STAR():
                     
                 # Convert [grzW1W2]flux to nanomaggies.
                 synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
-                synthnano = [ff*MAG2NANO for ff in synthmaggies[0]] # convert to nanomaggies
-
                 if self.objtype=='WD':
                     synthmaggies['wise2010-W1'] = 0.0
                     synthmaggies['wise2010-W2'] = 0.0
+                synthnano = [ff*MAG2NANO for ff in synthmaggies[0]] # convert to nanomaggies
 
                 # Color cuts on just on the standard stars.
                 if self.objtype=='FSTD':
@@ -988,7 +984,7 @@ class STAR():
                 # If we have enough models get out!
                 if nobj>=(nmodel-1):
                     break
-                
+
         return outflux, self.wave, meta
 
 class QSO():
@@ -1238,11 +1234,17 @@ class BGS():
           basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths 
             corresponding to BASEFLUX [Angstrom].
           basemeta (astropy.Table): Table of meta-data for each base template [nbase].
+          ewhbetamog (GaussianMixtureModel): Table containing the mixture of Gaussian 
+            parameters  encoding the empirical relationship between D(4000) and EW(Hbeta).
           pixbound (numpy.ndarray): Pixel boundaries of BASEWAVE [Angstrom].
           decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence 
           rfilt (speclite.filters instance): DECam2014 r-band FilterSequence
 
+        Raises:
+          IOError: If the required data files are not found.
+
         """
+        from pkg_resources import resource_filename
         from speclite import filters
         from desisim.io import read_basis_templates
         from desisim import pixelsplines as pxs
@@ -1264,6 +1266,16 @@ class BGS():
 
         # Pixel boundaries
         self.pixbound = pxs.cen2bound(basewave)
+
+        # Read the Gaussian mixture model.
+        #ewhbetamogfile = resource_filename('desisim', os.path.join('..','..',
+        #                                                           'data',
+        #                                                           'bgs_mogs.fits'))
+        #if not os.path.isfile(ewhbetamogfile):
+        #    log.error('Required data file {} not found!'.format(ewhbetamogfile))
+        #    raise IOError
+        #self.ewhbetamog = GaussianMixtureModel.load(ewhbetamogfile)
+        self.ewhbetacoeff = [1.28520974,-4.94408026,4.9617704]
 
         # Initialize the filter profiles.
         self.rfilt = filters.load_filters('decam2014-r')
@@ -1399,9 +1411,10 @@ class BGS():
                                      nchunk)
             d4000 = self.basemeta['D4000'][chunkindx]
 
-            # These coefficients are wrong!
-            ewhbeta = 10.0**(np.polyval([1.1074,-4.7338,5.6585],d4000)+ 
-                             rand.normal(0.0,0.25, nchunk)) # rest-frame, Angstrom
+            ewhbeta = 10.0**(np.polyval(self.ewhbetacoeff,d4000)+ 
+                             rand.normal(0.0,0.2, nchunk)) # rest-frame, Angstrom
+            #ewhbeta = self.ewhbetamog.sample(n_samples=nchunk, random_state=rand)
+            ewhbeta *= (self.basemeta['HBETA_LIMIT'][chunkindx]==0)
 
             # Create a distribution of seeds for the emission-line spectra.
             emseed = rand.random_integers(0, 100*nchunk, nchunk)
