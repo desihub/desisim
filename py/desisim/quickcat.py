@@ -119,7 +119,10 @@ def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
     #- Construct initial new z catalog
     newzcat = Table()
     newzcat['TARGETID'] = truth['TARGETID']
-    newzcat['BRICKNAME'] = truth['BRICKNAME']
+    if 'BRICKNAME' in truth.dtype.names:
+        newzcat['BRICKNAME'] = truth['BRICKNAME']
+    else:
+        newzcat['BRICKNAME'] = np.zeros(len(truth), dtype='S8')
 
     #- Copy TRUEZ -> Z so that we can add errors without altering original
     newzcat['Z'] = truth['TRUEZ'].copy()
