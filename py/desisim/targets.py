@@ -44,11 +44,14 @@ def sample_objtype(nobj, flavor):
     tgt = yaml.load(fx)
     fx.close()
 
-    # used for the mixed dark-time focal plane
-    ntgt = float(tgt['nobs_lrg'] + tgt['nobs_elg'] + tgt['nobs_qso'] + tgt['nobs_lya'] + tgt['ntarget_badqso'])
+    # DARK or BRIGHT have a combination of targets
+    if string.lower(flavor) == 'dark':
+        ntgt = float(tgt['nobs_lrg'] + tgt['nobs_elg'] + tgt['nobs_qso'] + tgt['nobs_lya'] + tgt['ntarget_badqso'])
+    elif string.lower(flavor) == 'bright':
+        ntgt = float(tgt['nobs_BG'] + tgt['nobs_MWS'])
 
     # initialize so we can ask for 0 of some kinds of survey targets later
-    nlrg = nqso = nelg = nmws = nbgs = 0
+    nlrg = nqso = nelg = nmws = nbgs = nbgs = nmws = 0
     #- Fraction of sky and standard star targets is guaranteed
     nsky = int(tgt['frac_sky'] * nobj)
     nstd = int(tgt['frac_std'] * nobj)
@@ -72,14 +75,17 @@ def sample_objtype(nobj, flavor):
         true_objtype  +=  ['ELG']*nsci    
     elif (string.lower(flavor) == 'lrg'):
         true_objtype  +=  ['LRG']*nsci
+    elif (string.lower(flavor) == 'std'):
+        true_objtype  +=  ['STD']*nsci
     elif (string.lower(flavor) == 'bgs'):
-        raise ValueError("Do not know the default objtype mix for BGS")
+        true_objtype  +=  ['BGS']*nsci
     elif (string.lower(flavor) == 'bright'):
-        raise ValueError("Do not know the default objtype mix for BRIGHT")
-    # this should be the last remaining valid option
-    elif (string.lower(flavor) != 'dark'):
-        raise ValueError("Do not know the objtype mix for flavor "+ flavor)
-    else:
+        #- BGS galaxies and MWS stars
+        nbgs = np.random.poisson(nsci * tgt['nobs_BG'] / ntgt)
+        nmws = nsci - nbgs
+        true_objtype += ['BGS']*nbgs
+        true_objtype += ['MWS_STAR']*nmws
+    elif (string.lower(flavor) == 'dark'):
         #- LRGs ELGs QSOs
         nlrg = np.random.poisson(nsci * tgt['nobs_lrg'] / ntgt)
 
@@ -91,6 +97,8 @@ def sample_objtype(nobj, flavor):
         true_objtype += ['ELG']*nelg
         true_objtype += ['LRG']*nlrg
         true_objtype += ['QSO']*nqso + ['QSO_BAD']*nqso_bad
+    else:
+        raise ValueError("Do not know the objtype mix for flavor "+ flavor)
 
     assert(len(true_objtype) == nobj)
     np.random.shuffle(true_objtype)
@@ -142,6 +150,9 @@ def get_targets(nspec, flavor, tileid=None):
     truth['OBJTYPE'] = np.zeros(nspec, dtype='S10')
     #- Note: unlike other elements, first index of WAVE isn't spectrum index
     truth['WAVE'] = wave
+
+    if flavor == 'BGS' or flavor == 'BRIGHT':
+        truth['HBETAFLUX'] = np.zeros(nspec, dtype='f4')
 
     fibermap = empty_fibermap(nspec)
 
