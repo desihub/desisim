@@ -100,9 +100,9 @@ def sample_objtype(nobj, flavor):
     else:
         raise ValueError("Do not know the objtype mix for flavor "+ flavor)
 
-    assert(len(true_objtype) == nobj, \
+    assert len(true_objtype) == nobj, \
         'len(true_objtype) mismatch for flavor {} : {} != {}'.format(\
-        flavor, len(true_objtype), nobj))
+        flavor, len(true_objtype), nobj)
     np.random.shuffle(true_objtype)
 
     target_objtype = list()
