@@ -113,19 +113,17 @@ def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
     ### print('Trimming truth to just observed targets')
     obs_targetids = np.array(nobs.keys())
     iiobs = np.in1d(truth['TARGETID'], obs_targetids)
-    newzcat = truth[iiobs]
+    truth = truth[iiobs]
     targets = targets[iiobs]
 
-    #- Copy rather than rename TRUEZ -> Z so that we can add errors
-    #- without altering original
-    newzcat['Z'] = newzcat['TRUEZ'].copy()
-    newzcat['TYPE'] = newzcat['TRUETYPE'].copy()
-    newzcat.remove_column('TRUEZ')
-    newzcat.remove_column('TRUETYPE')
-    
-    #- Remove 'CATEGORY' from input truth (leftover from fiberassign_surveysim)
-    if 'CATEGORY' in newzcat.colnames:
-        newzcat.remove_column('CATEGORY')
+    #- Construct initial new z catalog
+    newzcat = Table()
+    newzcat['TARGETID'] = truth['TARGETID']
+    newzcat['BRICKNAME'] = truth['BRICKNAME']
+
+    #- Copy TRUEZ -> Z so that we can add errors without altering original
+    newzcat['Z'] = truth['TRUEZ'].copy()
+    newzcat['TYPE'] = truth['TRUETYPE'].copy()
 
     #- Add numobs column
     ### print('Adding NUMOBS column')
