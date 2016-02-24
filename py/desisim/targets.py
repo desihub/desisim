@@ -81,7 +81,7 @@ def sample_objtype(nobj, flavor):
         true_objtype  +=  ['BGS']*nsci
     elif (string.lower(flavor) == 'bright'):
         #- BGS galaxies and MWS stars
-        nbgs = np.random.poisson(nsci * tgt['nobs_BG'] / ntgt)
+        nbgs = min(nsci, np.random.poisson(nsci * tgt['nobs_BG'] / ntgt))
         nmws = nsci - nbgs
         true_objtype += ['BGS']*nbgs
         true_objtype += ['MWS_STAR']*nmws
@@ -100,7 +100,9 @@ def sample_objtype(nobj, flavor):
     else:
         raise ValueError("Do not know the objtype mix for flavor "+ flavor)
 
-    assert(len(true_objtype) == nobj)
+    assert(len(true_objtype) == nobj, \
+        'len(true_objtype) mismatch for flavor {} : {} != {}'.format(\
+        flavor, len(true_objtype), nobj))
     np.random.shuffle(true_objtype)
 
     target_objtype = list()
