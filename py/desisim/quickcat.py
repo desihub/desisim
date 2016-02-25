@@ -21,6 +21,8 @@ from astropy.table import Table, Column
 import astropy.constants
 c = astropy.constants.c.to('km/s').value
 
+from desitarget.targets import desi_mask
+
 #- redshift errors and zwarn fractions from DESI-1657
 #- sigmav = c sigmaz / (1+z)
 _sigma_v = {
@@ -50,6 +52,8 @@ def get_observed_redshifts(truetype, truez):
         truez: array of true redshifts
         
     Returns tuple of (zout, zerr, zwarn)
+
+    TODO: Add BGS, MWS support     
     """
     zout = truez.copy()
     zerr = np.zeros(len(truez), dtype=np.float32)
@@ -67,13 +71,14 @@ def get_observed_redshifts(truetype, truez):
         
     return zout, zerr, zwarn    
 
-def quickcat(tilefiles, truth, zcat=None, perfect=False):
+def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
     """
     Generates quick output zcatalog
     
     Args:
         tilefiles : list of fiberassign tile files that were observed
-        truth : astropy Table of input truth with columns TARGETID, Z, and TYPE
+        targets : astropy Table of targets
+        truth : astropy Table of input truth with columns TARGETID, TRUEZ, and TRUETYPE
         
     Options:
         zcat : input zcatalog Table from previous observations
@@ -82,20 +87,13 @@ def quickcat(tilefiles, truth, zcat=None, perfect=False):
         
     Returns:
         zcatalog astropy Table based upon input truth, plus ZERR, ZWARN,
-        NUMOBS, and TYPE converted from integer to string
+        NUMOBS, and TYPE columns   
         
-    Notes:
-        Input truth 'TYPE' is hardcoded to match dark-time integer truth
-        categories from fiber assignment.
-        0 : 'QSO',      #- QSO-LyA
-        1 : 'QSO',      #- QSO-Tracer
-        2 : 'LRG',      #- LRG
-        3 : 'ELG',      #- ELG
-        4 : 'STAR',     #- QSO-Fake
-        5 : 'UNKNOWN',  #- LRG-Fake
-        6 : 'STAR',     #- StdStar
-        7 : 'SKY',      #- Sky
+    TODO: Add BGS, MWS support     
     """
+    #- convert to Table for easier manipulation
+    truth = Table(truth)
+    
     #- Count how many times each target was observed for this set of tiles
     ### print('Reading {} tiles'.format(len(obstiles)))
     nobs = Counter()
@@ -115,7 +113,20 @@ def quickcat(tilefiles, truth, zcat=None, perfect=False):
     ### print('Trimming truth to just observed targets')
     obs_targetids = np.array(nobs.keys())
     iiobs = np.in1d(truth['TARGETID'], obs_targetids)
-    newzcat = truth[iiobs]
+    truth = truth[iiobs]
+    targets = targets[iiobs]
+
+    #- Construct initial new z catalog
+    newzcat = Table()
+    newzcat['TARGETID'] = truth['TARGETID']
+    if 'BRICKNAME' in truth.dtype.names:
+        newzcat['BRICKNAME'] = truth['BRICKNAME']
+    else:
+        newzcat['BRICKNAME'] = np.zeros(len(truth), dtype='S8')
+
+    #- Copy TRUEZ -> Z so that we can add errors without altering original
+    newzcat['Z'] = truth['TRUEZ'].copy()
+    newzcat['TYPE'] = truth['TRUETYPE'].copy()
 
     #- Add numobs column
     ### print('Adding NUMOBS column')
@@ -124,46 +135,24 @@ def quickcat(tilefiles, truth, zcat=None, perfect=False):
     for i in range(nz):
         newzcat['NUMOBS'][i] = nobs[newzcat['TARGETID'][i]]
 
-    #- HACK: hardcoded mapping to replace truth integer TYPE
-    #- with 'ELG', 'LRG', 'QSO', etc.
-    _truetype2objtype = {
-        0 : 'QSO',      #- QSO-LyA
-        1 : 'QSO',      #- QSO-Tracer
-        2 : 'LRG',      #- LRG
-        3 : 'ELG',      #- ELG
-        4 : 'STAR',     #- QSO-Fake
-        5 : 'UNKNOWN',  #- LRG-Fake
-        6 : 'STAR',     #- StdStar
-        7 : 'SKY',      #- Sky
-    }
-
-    ### print('Converting integer TYPE -> string TYPE')
-    truetype = newzcat['TYPE']
-    for i in set(truetype):
-        assert i in _truetype2objtype.keys(), 'TYPE {} missing'.format(i)
-
-    objtype = np.empty(nz, dtype='S7')
-    for i in _truetype2objtype:
-        ii = (truetype == i)
-        objtype[ii] = _truetype2objtype[i]
-
-    #- Swap integer TYPE with string TYPE
-    newzcat.remove_column('TYPE')
-    newzcat.add_column(Column(data=objtype, name='TYPE'))
-
     #- Add ZERR and ZWARN
     ### print('Adding ZERR and ZWARN')
     if not perfect:
+        #- GALAXY -> ELG or LRG
+        objtype = newzcat['TYPE'].copy()
+        isLRG = (objtype == 'GALAXY') & ((targets['DESI_TARGET'] & desi_mask.LRG) != 0)
+        isELG = (objtype == 'GALAXY') & ((targets['DESI_TARGET'] & desi_mask.ELG) != 0)
+        objtype[isLRG] = 'LRG'
+        objtype[isELG] = 'ELG'
+        
         z, zerr, zwarn = get_observed_redshifts(objtype, newzcat['Z'])
-        newzcat['Z'] = z
+        newzcat['Z'] = z  #- update with noisy redshift
     else:
         zerr = np.zeros(nz, dtype=np.float32)
         zwarn = np.zeros(nz, dtype=np.int32)
-        
-    zerr  = Column(name='ZERR', data=zerr)
-    zwarn = Column(name='ZWARN', data=zwarn)
-    newzcat.add_column(zerr)
-    newzcat.add_column(zwarn)
+
+    newzcat['ZERR'] = zerr
+    newzcat['ZWARN'] = zwarn
 
     #- Metadata for header
     newzcat.meta['EXTNAME'] = 'ZCATALOG'
