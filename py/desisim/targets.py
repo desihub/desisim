@@ -200,7 +200,10 @@ def get_targets(nspec, flavor, tileid=None):
         elif objtype == 'STD':
             from desisim.templates import STAR
             star = STAR(wave=wave,FSTD=True)
-            simflux, wave1, meta = star.make_templates(nmodel=nobj)
+            rr = (16.0, 19.0)
+            gg = (16.0, 19.5)
+            simflux, wave1, meta = \
+                star.make_templates(nmodel=nobj, rmagrange=rr, gmagrange=gg)
 
         elif objtype == 'MWS_STAR':
             from desisim.templates import STAR
