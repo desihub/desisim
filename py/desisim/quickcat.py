@@ -28,7 +28,7 @@ from desitarget.targets import desi_mask
 _sigma_v = {
     'ELG': 19.,
     'LRG': 40.,
-    'QSO': 255.,
+    'QSO': 423.,
     'STAR': 18.,
     'SKY': 9999,      #- meaningless
     'UNKNOWN': 9999,  #- meaningless
