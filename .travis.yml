@@ -47,8 +47,6 @@ env:
         - DESISPEC_VERSION=0.4
         - DESITARGET_VERSION=0.3.2
         - DESIMODEL_VERSION=trunk
-        # desimodel/trunk requires fitsio
-        - FITSIO_VERSION=0.9.7
         - CONDA_INSTALL='conda install -c astropy-ci-extras --yes'
         - PIP_INSTALL='pip install'
         - OPTIONAL_DEPS=false

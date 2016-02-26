@@ -10,8 +10,15 @@ class TestObs(unittest.TestCase):
 
     @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
     def test_sample_nz(self):
+        n = 5
         for objtype in ['LRG', 'ELG', 'QSO', 'STAR', 'STD']:
-            n = desisim.targets.sample_nz(objtype, 5)
+            z = desisim.targets.sample_nz(objtype, n)
+            self.assertEqual(len(z), n)
+
+    def test_get_targets(self):
+        n = 5
+        for flavor in ['DARK', 'BRIGHT', 'LRG', 'ELG', 'QSO', 'BGS', 'MWS']:
+            fibermap, truth = desisim.targets.get_targets(n, flavor)
 
 #- This runs all test* functions in any TestCase class in this file
 if __name__ == '__main__':

@@ -25,6 +25,9 @@ from desisim.qso_template import fit_boss_qsos as fbq
 from desiutil.stats import perc
 import desisim.io
 
+from desispec.log import get_logger
+log = get_logger()
+
 #from xastropy.stats.basic import perc
 
 flg_xdb = True
@@ -301,7 +304,7 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
 
         # Grab PCA mean + sigma
         idx = np.where( (zQSO >= z0[ii]) & (zQSO < z1[ii]) )[0]
-        print('Making z=({:g},{:g}) with {:d} input quasars'.format(z0[ii],z1[ii],len(idx)))
+        log.debug('Making z=({:g},{:g}) with {:d} input quasars'.format(z0[ii],z1[ii],len(idx)))
 
         # Get PCA stats and random values
         for jj,ipca in enumerate(pca_list):
