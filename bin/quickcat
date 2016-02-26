@@ -19,17 +19,26 @@ import optparse
 
 parser = optparse.OptionParser(usage = "%prog [options] tile*.fits")
 # parser.add_option("-f", "--fibassign", type=str, help="fiber assignment dir")
-parser.add_option('-t', "--tilelist",  type=str, help="file with list of observed tile files")
-parser.add_option('-T', "--truth",     type=str, help="file with truth table")
+parser.add_option("--obstiles",  type=str, help="file with list of observed tile files")
+parser.add_option("--targets",   type=str, help="target file (or mtl file)")
+parser.add_option("--truth",     type=str, help="file with truth table")
 parser.add_option('-z', "--zcat",      type=str, help="previous zcatalog to update")
 parser.add_option('-o', "--output",    type=str, help="new zcatalog to write")
 parser.add_option("-p", "--perfect", action="store_true", help="perfect spectro pipeline; output=truth")
+parser.add_option("--clobber", action="store_true", help="overwrite pre-existing output file")
 opts, tilefiles = parser.parse_args()
+
+#- Sanity check
+if os.path.exists(opts.output) and not opts.clobber:
+    print('ERROR: {} already exists'.format(opts.output))
+    print('  Use --clobber to overwrite')
+    sys.exit(1)
 
 #- Load inputs
 truth = Table.read(opts.truth)
-if opts.tilelist is not None:
-    for line in open(opts.tilelist):
+targets = Table.read(opts.targets)
+if opts.obstiles is not None:
+    for line in open(opts.obstiles):
         line = line.strip()
         if line.startswith('#') or len(line) < 2:
             continue
@@ -42,12 +51,10 @@ else:
     zcat = None
 
 #- This is the actual calculation
-newzcat = quickcat(tilefiles, truth, zcat=zcat, perfect=opts.perfect)
+newzcat = quickcat(tilefiles, targets, truth, zcat=zcat, perfect=opts.perfect)
 
 #- Write it out
-if os.path.exists(opts.output):
-    os.remove(opts.output)
-newzcat.write(opts.output, format='fits')
+newzcat.write(opts.output, format='fits', overwrite=opts.clobber)
 
 
 
