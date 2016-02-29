@@ -50,7 +50,6 @@ $PIP_INSTALL git+https://github.com/desihub/desiutil.git@${DESIUTIL_VERSION}#egg
 $PIP_INSTALL git+https://github.com/desihub/specter.git@${SPECTER_VERSION}#egg=specter
 $PIP_INSTALL git+https://github.com/desihub/desispec.git@${DESISPEC_VERSION}#egg=desispec
 $PIP_INSTALL git+https://github.com/desihub/desitarget.git@${DESITARGET_VERSION}#egg=desitarget
-$PIP_INSTALL svn+https://desi.lbl.gov/svn/code/desimodel/${DESIMODEL_VERSION}#egg=desimodel
 $PIP_INSTALL speclite
 
 # DESI_ROOT and DESI_BASIS_TEMPLATES with test data
