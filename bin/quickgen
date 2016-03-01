@@ -161,6 +161,26 @@ results=qsim.simulate()
 observedWavelengths=results.wave
 origin_wavelength=qsim.wavelengthGrid
 
+# Get the camera ranges and resolution from the specsim instrument model.
+waveLimits=dict()
+waveRange=dict()
+waveMaxbin=dict()
+waves=dict()
+sigma_vs_wave = dict()
+for i,camera in enumerate(qsim.instrument.cameras):
+    channel = camera.name
+    waveLimits[channel] = (camera.wavelength_min.value, camera.wavelength_max.value)
+    waveRange[channel],=np.where((observedWavelengths>=waveLimits[channel][0])&(observedWavelengths<=waveLimits[channel][1]))
+    waveMaxbin[channel],=waveRange[channel].shape
+    waves[channel]=observedWavelengths[waveRange[channel]]
+    # Interpolate the RMS resolution from the simulation grid to the output grid.
+    interpolator = scipy.interpolate.interp1d(
+        origin_wavelength, qsim.cameras[i].sigmaWavelength,
+        kind='linear', copy=False, assume_sorted=True)
+    sigma_vs_wave[channel] = interpolator(waves[channel])
+
+maxbin=max(waveMaxbin['b'],waveMaxbin['r'],waveMaxbin['z'])
+
 #- Check if input simspec is for a continuum flat lamp instead of science
 #- This does not convolve to per-fiber resolution
 if simspec.flavor == 'flat':
@@ -190,31 +210,6 @@ if simspec.flavor == 'flat':
     print "Wrote files to", filePath
 
     sys.exit(0)
-
-# Get the camera ranges and resolution from the specsim instrument model.
-waveLimits=dict()
-waveRange=dict()
-waveMaxbin=dict()
-waves=dict()
-sigma_vs_wave = dict()
-for i,camera in enumerate(qsim.instrument.cameras):
-    channel = camera.name
-    waveLimits[channel] = (camera.wavelength_min.value, camera.wavelength_max.value)
-    waveRange[channel],=np.where((observedWavelengths>=waveLimits[channel][0])&(observedWavelengths<=waveLimits[channel][1]))
-    waveMaxbin[channel],=waveRange[channel].shape
-    waves[channel]=observedWavelengths[waveRange[channel]]
-    # Interpolate the RMS resolution from the simulation grid to the output grid.
-    interpolator = scipy.interpolate.interp1d(
-        origin_wavelength, qsim.cameras[i].sigmaWavelength,
-        kind='linear', copy=False, assume_sorted=True)
-    sigma_vs_wave[channel] = interpolator(waves[channel])
-    '''
-    sigma_vs_wave[channel] = specsim.spectrum.WavelengthFunction(
-        origin_wavelength,
-        qsim.cameras[i].sigmaWavelength).getResampledValues(waves[channel])
-    '''
-
-maxbin=max(waveMaxbin['b'],waveMaxbin['r'],waveMaxbin['z'])
 
 # Now break the simulated outputs in three different ranges.
 
