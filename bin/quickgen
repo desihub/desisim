@@ -140,18 +140,20 @@ print "************************************************"
 # Run Simulation for first Spectrum
 print "Initializing SpecSim"
 config = specsim.config.load_config('desi')
-config.atmosphere.airmass = simspec.header['AIRMASS']
-config.instrument.constants.exposure_time = '{0} s'.format(simspec.header['EXPTIME'])
-config.simulator.downsampling = 5
 
-# Set the simulation wavelength grid.
-config.wavelength_grid.min = 3569.
-config.wavelength_grid.max = 9834.
-config.wavelength_grid.step = 0.1
+# Match the simulation to the wavelength coverage of the input spectra.
+config.wavelength_grid.min = wavelengths[0]
+config.wavelength_grid.max = wavelengths[-1]
 config.update()
 
-#- Initialize the quick simulator.
-qsim=specsim.simulator.Simulator(config)
+# Initialize the quick simulator.
+qsim = specsim.simulator.Simulator(config)
+
+# Set simulation parameters from the simspec header.
+qsim.atmosphere.airmass = simspec.header['AIRMASS']
+qsim.instrument.exposure_time = simspec.header['EXPTIME'] * u.s
+
+qsim.downsampling = 5
 fluxunits = 1e-17 * u.erg / (u.s * u.cm ** 2 * u.Angstrom)
 
 #- simulate a fake object 0 just to get wavelength grids etc setup
