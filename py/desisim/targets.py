@@ -270,7 +270,6 @@ def get_targets(nspec, flavor, tileid=None):
     fibermap['TARGETID'] = np.random.randint(sys.maxint, size=nspec)
     fibermap['TARGETCAT'] = np.zeros(nspec, dtype='|S20')
     fibermap['LAMBDAREF'] = np.ones(nspec, dtype=np.float32)*5400
-    fibermap['DESI_TARGET'] = np.zeros(nspec, dtype='i8')
     fibermap['RA_TARGET'] = ra
     fibermap['DEC_TARGET'] = dec
     fibermap['X_TARGET'] = x
