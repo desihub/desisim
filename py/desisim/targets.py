@@ -14,6 +14,7 @@ import desimodel.io
 
 from desispec import brick
 from desispec.io.fibermap import empty_fibermap
+from desitarget.targetmask import desi_mask, bgs_mask, mws_mask
 
 from desisim import io
 
@@ -167,27 +168,33 @@ def get_targets(nspec, flavor, tileid=None):
 
         # Simulate spectra
         if objtype == 'SKY':
+            fibermap['DESI_TARGET'][ii] = desi_mask.SKY
             continue
 
         elif objtype == 'ELG':
             from desisim.templates import ELG
             elg = ELG(wave=wave)
             simflux, wave1, meta = elg.make_templates(nmodel=nobj)
+            fibermap['DESI_TARGET'][ii] = desi_mask.ELG
 
         elif objtype == 'LRG':
             from desisim.templates import LRG
             lrg = LRG(wave=wave)
             simflux, wave1, meta = lrg.make_templates(nmodel=nobj)
+            fibermap['DESI_TARGET'][ii] = desi_mask.LRG
 
         elif objtype == 'BGS':
             from desisim.templates import BGS
             bgs = BGS(wave=wave)
             simflux, wave1, meta = bgs.make_templates(nmodel=nobj)
+            fibermap['DESI_TARGET'][ii] = desi_mask.BGS_ANY
+            fibermap['BGS_TARGET'][ii] = bgs_mask.BGS_BRIGHT
 
         elif objtype == 'QSO':
             from desisim.templates import QSO
             qso = QSO(wave=wave)
             simflux, wave1, meta = qso.make_templates(nmodel=nobj)
+            fibermap['DESI_TARGET'][ii] = desi_mask.QSO
 
         # For a "bad" QSO simulate a normal star without color cuts, which isn't
         # right. We need to apply the QSO color-cuts to the normal stars to pull
@@ -196,6 +203,7 @@ def get_targets(nspec, flavor, tileid=None):
             from desisim.templates import STAR
             star = STAR(wave=wave)
             simflux, wave1, meta = star.make_templates(nmodel=nobj)
+            fibermap['DESI_TARGET'][ii] = desi_mask.QSO
 
         elif objtype == 'STD':
             from desisim.templates import STAR
@@ -204,12 +212,18 @@ def get_targets(nspec, flavor, tileid=None):
             gg = (16.0, 19.5)
             simflux, wave1, meta = \
                 star.make_templates(nmodel=nobj, rmagrange=rr, gmagrange=gg)
+            fibermap['DESI_TARGET'][ii] = desi_mask.STD_FSTAR
 
         elif objtype == 'MWS_STAR':
             from desisim.templates import STAR
             star = STAR(wave=wave)
             # todo: mag ranges for different flavors of STAR targets should be in desimodel
             simflux, wave1, meta = star.make_templates(nmodel=nobj,rmagrange=(15.0,20.0))
+            fibermap['DESI_TARGET'][ii] = desi_mask.MWS_ANY
+            fibermap['MWS_TARGET'][ii] = mws_mask.MWS_PLX  #- ???
+
+        else:
+            raise ValueError('Unable to simulate OBJTYPE={}'.format(objtype))
             
         truth['FLUX'][ii] = 1e17 * simflux
         truth['UNITS'] = '1e-17 erg/s/cm2/A'
@@ -256,7 +270,7 @@ def get_targets(nspec, flavor, tileid=None):
     fibermap['TARGETID'] = np.random.randint(sys.maxint, size=nspec)
     fibermap['TARGETCAT'] = np.zeros(nspec, dtype='|S20')
     fibermap['LAMBDAREF'] = np.ones(nspec, dtype=np.float32)*5400
-    fibermap['TARGET_MASK0'] = np.zeros(nspec, dtype='i8')
+    fibermap['DESI_TARGET'] = np.zeros(nspec, dtype='i8')
     fibermap['RA_TARGET'] = ra
     fibermap['DEC_TARGET'] = dec
     fibermap['X_TARGET'] = x
