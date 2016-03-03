@@ -19,7 +19,7 @@ from desispec.image import Image
 from desisim import obs, io
 
 def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
-    trimxy=False, cosmics=None):
+    trimxy=False, cosmics=None, wavemin=None, wavemax=None):
     """
     Run pixel-level simulation of input spectra
     
@@ -27,11 +27,14 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
         night (string) : YEARMMDD
         expid (integer) : exposure id
         camera (str) : e.g. b0, r1, z9
+
+    Optional:
         nspec (int) : number of spectra to simulate
         verbose (boolean) : if True, print status messages
         ncpu (int) : number of CPU cores to use in parallel
         trimxy (boolean) : trim image to just pixels with input signal
         cosmics (str) : filename with dark images with cosmics to add
+        wavemin, wavemax (float) : min/max wavelength range to simulate
 
     Reads:
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
@@ -76,6 +79,14 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
         ii = slice(nfibers*ispec, nfibers*ispec + nspec)
 
     phot = phot[ii]
+
+    #- Trim wavelenths if needed
+    if wavemin is not None:
+        ii = (wave >= wavemin)
+        phot = phot[:, ii]
+    if wavemax is not None:
+        ii = (wave <= wavemax)
+        phot = phot[:, ii]
 
     #- check if simulation has less than 500 input spectra
     if phot.shape[0] < nspec:
@@ -129,7 +140,9 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
     #- TODO: this is fragile; consider updating fibermap to use astropy Table
     #- that includes the header rather than directly assuming FITS as the
     #- underlying format.
+    simdir = os.path.dirname(simfile)
     fibermapfile = desispec.io.findfile('fibermap', night=night, expid=expid)
+    fibermapfile = os.path.join(simdir, os.path.basename(fibermapfile))
     fm, fmhdr = desispec.io.read_fibermap(fibermapfile, header=True)
     meta = dict()
     try:
@@ -147,6 +160,7 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
 
     image = Image(pix, ivar, mask, readnoise=readnoise, camera=camera, meta=meta)
     pixfile = desispec.io.findfile('pix', night=night, camera=camera, expid=expid)
+    pixfile = os.path.join(simdir, os.path.basename(pixfile))
     desispec.io.write_image(pixfile, image)
 
     if verbose:
