@@ -19,6 +19,12 @@ class TestObs(unittest.TestCase):
         n = 5
         for flavor in ['DARK', 'BRIGHT', 'LRG', 'ELG', 'QSO', 'BGS', 'MWS']:
             fibermap, truth = desisim.targets.get_targets(n, flavor)
+            
+    def test_sample_objtype(self):
+        for flavor in ['DARK', 'BRIGHT', 'LRG', 'ELG', 'QSO', 'BGS', 'MWS']:
+            for n in [5,10,50]:
+                for i in range(10):
+                    truetype, targettype = desisim.targets.sample_objtype(n, flavor)
 
 #- This runs all test* functions in any TestCase class in this file
 if __name__ == '__main__':

@@ -2,6 +2,8 @@
 Utility functions for working with simulated targets
 """
 
+from __future__ import absolute_import, division, print_function
+
 import os
 import sys
 import string
@@ -45,12 +47,6 @@ def sample_objtype(nobj, flavor):
     tgt = yaml.load(fx)
     fx.close()
 
-    # DARK or BRIGHT have a combination of targets
-    if string.lower(flavor) == 'dark':
-        ntgt = float(tgt['nobs_lrg'] + tgt['nobs_elg'] + tgt['nobs_qso'] + tgt['nobs_lya'] + tgt['ntarget_badqso'])
-    elif string.lower(flavor) == 'bright':
-        ntgt = float(tgt['nobs_BG'] + tgt['nobs_MWS'])
-
     # initialize so we can ask for 0 of some kinds of survey targets later
     nlrg = nqso = nelg = nmws = nbgs = nbgs = nmws = 0
     #- Fraction of sky and standard star targets is guaranteed
@@ -82,25 +78,39 @@ def sample_objtype(nobj, flavor):
         true_objtype  +=  ['BGS']*nsci
     elif (string.lower(flavor) == 'bright'):
         #- BGS galaxies and MWS stars
-        nbgs = min(nsci, np.random.poisson(nsci * tgt['nobs_BG'] / ntgt))
-        nmws = nsci - nbgs
+        ntgt = float(tgt['nobs_BG'] + tgt['nobs_MWS'])
+        prob_bgs = tgt['nobs_BG'] / ntgt
+        prob_mws = 1 - prob_bgs
+        
+        p = [prob_bgs, prob_mws]
+        nbgs, nmws = np.random.multinomial(nsci, p)
+        
         true_objtype += ['BGS']*nbgs
         true_objtype += ['MWS_STAR']*nmws
     elif (string.lower(flavor) == 'dark'):
         #- LRGs ELGs QSOs
-        nlrg = np.random.poisson(nsci * tgt['nobs_lrg'] / ntgt)
-
-        nqso = np.random.poisson(nsci * (tgt['nobs_qso'] + tgt['nobs_lya']) / ntgt)
-        nqso_bad = np.random.poisson(nsci * (tgt['ntarget_badqso']) / ntgt)
-
-        nelg = nobj - (nlrg+nqso+nqso_bad+nsky+nstd)
+        ntgt = float(tgt['nobs_lrg'] + tgt['nobs_elg'] + tgt['nobs_qso'] + tgt['nobs_lya'] + tgt['ntarget_badqso'])
+        prob_lrg = tgt['nobs_lrg'] / ntgt
+        prob_elg = tgt['nobs_elg'] / ntgt
+        prob_qso = (tgt['nobs_qso'] + tgt['nobs_lya']) / ntgt
+        prob_badqso = tgt['ntarget_badqso'] / ntgt
+        
+        p = [prob_lrg, prob_elg, prob_qso, prob_badqso]
+        nlrg, nelg, nqso, nbadqso = np.random.multinomial(nsci, p)
 
         true_objtype += ['ELG']*nelg
         true_objtype += ['LRG']*nlrg
-        true_objtype += ['QSO']*nqso + ['QSO_BAD']*nqso_bad
+        true_objtype += ['QSO']*nqso + ['QSO_BAD']*nbadqso
     else:
         raise ValueError("Do not know the objtype mix for flavor "+ flavor)
 
+    if len(true_objtype) != nobj:
+        print(true_objtype)
+        #--- DEBUG ---
+        import IPython
+        IPython.embed()
+        #--- DEBUG ---
+        
     assert len(true_objtype) == nobj, \
         'len(true_objtype) mismatch for flavor {} : {} != {}'.format(\
         flavor, len(true_objtype), nobj)
@@ -446,7 +456,7 @@ class TargetTile(object):
             self.assigned_type =  fin[1].data['ASSIGNEDTYPE']
         except Exception, e:
             import traceback
-            print 'ERROR in get_tiles'
+            print('ERROR in get_tiles')
             traceback.print_exc()
             raise e
 
