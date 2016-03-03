@@ -23,7 +23,6 @@ import scipy.interpolate
 import sys
 import desispec
 import desisim.io
-import specsim.config
 import specsim.simulator
 import astropy.units as u
 from desispec.resolution import Resolution
@@ -137,29 +136,19 @@ print "Simulating spectra",args.nstart, "to", nmax
 
 print "************************************************"
 
-# Run Simulation for first Spectrum
 print "Initializing SpecSim"
-config = specsim.config.load_config('desi')
-
-# Match the simulation to the wavelength coverage of the input spectra.
-config.wavelength_grid.min = wavelengths[0]
-config.wavelength_grid.max = wavelengths[-1]
-config.update()
-
-# Initialize the quick simulator.
-qsim = specsim.simulator.Simulator(config)
+qsim = specsim.simulator.Simulator('desi')
 
 # Set simulation parameters from the simspec header.
 qsim.atmosphere.airmass = simspec.header['AIRMASS']
 qsim.instrument.exposure_time = simspec.header['EXPTIME'] * u.s
 
-qsim.downsampling = 5
-fluxunits = 1e-17 * u.erg / (u.s * u.cm ** 2 * u.Angstrom)
-
 #- simulate a fake object 0 just to get wavelength grids etc setup
 results=qsim.simulate()
 observedWavelengths=results.wave
 origin_wavelength=qsim.wavelengthGrid
+
+assert np.array_equal(origin_wavelength, qsim.simulated['wavelength'])
 
 # Get the camera ranges and resolution from the specsim instrument model.
 waveLimits=dict()
@@ -173,6 +162,9 @@ for i,camera in enumerate(qsim.instrument.cameras):
     waveRange[channel],=np.where((observedWavelengths>=waveLimits[channel][0])&(observedWavelengths<=waveLimits[channel][1]))
     waveMaxbin[channel],=waveRange[channel].shape
     waves[channel]=observedWavelengths[waveRange[channel]]
+
+    assert np.array_equal(waves[channel], camera.output_wavelength.value)
+
     # Interpolate the RMS resolution from the simulation grid to the output grid.
     interpolator = scipy.interpolate.interp1d(
         origin_wavelength, qsim.cameras[i].sigmaWavelength,
@@ -270,6 +262,7 @@ for i, channel in enumerate( ['b', 'r', 'z'] ):
     resolution_data[channel] = _calc_resolution_data(sigma_vs_wave[channel], waves[channel], nspec)
 
 # Now repeat the simulation for all spectra
+fluxunits = 1e-17 * u.erg / (u.s * u.cm ** 2 * u.Angstrom)
 for j in xrange(args.nstart,nmax): # Exclusive
     print "\rSimulating spectrum %d,  object type=%s"%(j,objtype[j]),
     sys.stdout.flush()
@@ -279,14 +272,19 @@ for j in xrange(args.nstart,nmax): # Exclusive
     qsim.source.update_out()
     results=qsim.simulate()
 
-    for i,channel in enumerate(['b','r','z']):
-        nobj[j,i,:waveMaxbin[channel]]=results.nobj[waveRange[channel],i]
+    for i,channel in enumerate('brz'):
 
-        nsky[j,i,:waveMaxbin[channel]]=results.nsky[waveRange[channel],i]
+        output = qsim.camera_output[i]
+        num_pixels = len(output)
+        nobj[j, i, :num_pixels] = output['num_source_electrons']
+        nsky[j, i, :num_pixels] = output['num_sky_electrons']
 
-        nivar[j,i,:waveMaxbin[channel]]=1/((results.nobj[waveRange[channel],i])+(results.nsky[waveRange[channel],i])+(results.rdnoise[waveRange[channel],i])**2.0+(results.dknoise[waveRange[channel],i])**2.0)
-
-        sky_ivar[j,i,:waveMaxbin[channel]]=25*1/((results.nsky[waveRange[channel],i])+(results.rdnoise[waveRange[channel],i])**2.0+(results.dknoise[waveRange[channel],i])**2.0)
+        sky_var = (
+            output['num_sky_electrons'] + output['num_dark_electrons'] +
+            output['read_noise_electrons'] ** 2)
+        sky_ivar[j, i, :num_pixels] = 1.0 / sky_var
+        nivar[j, i, :num_pixels] = 1.0 / (
+            sky_var + output['num_source_electrons'])
 
         cframe_observedflux[j,i,:waveMaxbin[channel]]=results.obsflux[waveRange[channel]]*1.0e-17
         cframe_ivar[j,i,:waveMaxbin[channel]]=np.clip(results.ivar[waveRange[channel]]*1.0e34, 1e-12, np.max(results.ivar[waveRange[channel]]*1.0e34))
