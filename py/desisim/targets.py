@@ -103,13 +103,6 @@ def sample_objtype(nobj, flavor):
         true_objtype += ['QSO']*nqso + ['QSO_BAD']*nbadqso
     else:
         raise ValueError("Do not know the objtype mix for flavor "+ flavor)
-
-    if len(true_objtype) != nobj:
-        print(true_objtype)
-        #--- DEBUG ---
-        import IPython
-        IPython.embed()
-        #--- DEBUG ---
         
     assert len(true_objtype) == nobj, \
         'len(true_objtype) mismatch for flavor {} : {} != {}'.format(\
