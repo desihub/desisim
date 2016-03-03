@@ -282,9 +282,10 @@ for j in xrange(args.nstart,nmax): # Exclusive
         sky_var = (
             output['num_sky_electrons'] + output['num_dark_electrons'] +
             output['read_noise_electrons'] ** 2)
-        sky_ivar[j, i, :num_pixels] = 1.0 / sky_var
         nivar[j, i, :num_pixels] = 1.0 / (
             sky_var + output['num_source_electrons'])
+        # The factor of 25 here represents an average over 25 sky fibers.
+        sky_ivar[j, i, :num_pixels] = 25.0 / sky_var
 
         cframe_observedflux[j,i,:waveMaxbin[channel]]=results.obsflux[waveRange[channel]]*1.0e-17
         cframe_ivar[j,i,:waveMaxbin[channel]]=np.clip(results.ivar[waveRange[channel]]*1.0e34, 1e-12, np.max(results.ivar[waveRange[channel]]*1.0e34))
