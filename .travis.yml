@@ -43,8 +43,8 @@ env:
         - ASTROPY_VERSION=1.1.1
         - SPHINX_VERSION=1.3
         - DESIUTIL_VERSION=1.3.3
-        - SPECTER_VERSION=0.3
-        - DESISPEC_VERSION=0.4
+        - SPECTER_VERSION=0.4
+        - DESISPEC_VERSION=0.4.1
         - DESITARGET_VERSION=0.3.2
         - DESIMODEL_VERSION=trunk
         - CONDA_INSTALL='conda install -c astropy-ci-extras --yes'
