@@ -5,16 +5,13 @@ Tools for DESI pixel level simulations using specter
 import sys
 import os
 import os.path
-import time
-### import multiprocessing as mp
 
 import numpy as np
-import yaml
-from astropy.io import fits
 
 import desimodel.io
 import desispec.io
 from desispec.image import Image
+import desispec.cosmics
 
 from desisim import obs, io
 
@@ -125,17 +122,15 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
         cosmics = io.read_cosmics(cosmics, expid, shape=img.shape)
         pix = np.random.poisson(img) + cosmics.pix
         readnoise = cosmics.meta['RDNOISE']
-        ivar = 1.0/(pix.clip(0) + readnoise**2)
-        mask = cosmics.mask
     #- Or just add noise
     else:
-        params = desimodel.io.load_desiparams()
         channel = camera[0].lower()
         readnoise = params['ccd'][channel]['readnoise']
         pix = np.random.poisson(img) + np.random.normal(scale=readnoise, size=img.shape)
-        ivar = 1.0/(pix.clip(0) + readnoise**2)
-        mask = np.zeros(img.shape, dtype=np.uint16)
-    
+
+    ivar = 1.0/(pix.clip(0) + readnoise**2)
+    mask = np.zeros(img.shape, dtype=np.uint16)
+
     #- Metadata to be included in pix file header is in the fibermap header
     #- TODO: this is fragile; consider updating fibermap to use astropy Table
     #- that includes the header rather than directly assuming FITS as the
@@ -159,6 +154,11 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
     meta['AIRMASS'] = simspec.header['AIRMASS']
 
     image = Image(pix, ivar, mask, readnoise=readnoise, camera=camera, meta=meta)
+
+    #- In-place update of the image cosmic ray mask
+    if cosmics is not None:
+        desispec.cosmics.reject_cosmic_rays(image)
+
     pixfile = desispec.io.findfile('pix', night=night, camera=camera, expid=expid)
     pixfile = os.path.join(simdir, os.path.basename(pixfile))
     desispec.io.write_image(pixfile, image)
