@@ -44,7 +44,11 @@ parser.add_argument("--fibermap",type=str, help='input fibermap file')
 parser.add_argument("--nspec",type=int,default=5000,help='no. of spectra to be simulated, starting from first')
 parser.add_argument("--nstart", type=int, default=0,help='starting spectra # for simulation 0-4999')
 parser.add_argument("--spectrograph",type=int, default=None,help='Spectrograph no. 0-9')
+parser.add_argument("--seed", type=int, default=0,  help="random seed")
 args = parser.parse_args()
+
+# Initialize random number generator to use.
+random_state = np.random.RandomState(args.seed)
 
 # Derive spectrograph number from nstart if needed
 if args.spectrograph is None:
@@ -183,7 +187,7 @@ if simspec.flavor == 'flat':
         wave = observedWavelengths[ii]
         dw = np.gradient(simspec.wave[channel])
         meanspec = resample_flux(wave, simspec.wave[channel], np.average(simspec.phot[channel]/dw, axis=0))
-        fiberflat = np.random.normal(loc=0.0, scale=1.0/np.sqrt(meanspec), size=(nspec, len(wave)))
+        fiberflat = random_state.normal(loc=0.0, scale=1.0/np.sqrt(meanspec), size=(nspec, len(wave)))
         ivar = np.tile(1.0/meanspec, nspec).reshape(nspec, len(meanspec))
         mask = np.zeros((simspec.nspec, len(wave)))
 
@@ -214,8 +218,6 @@ cframe_ivar=np.zeros((nmax,3,maxbin))    # inverse variance of calibrated object
 frame_rand_noise=np.zeros((nmax,3,maxbin))     # random Gaussian noise to nobj+nsky
 sky_rand_noise=np.zeros((nmax,3,maxbin))  # random Gaussian noise to sky only
 cframe_rand_noise=np.zeros((nmax,3,maxbin))  # random Gaussian noise to calibrated flux
-
-np.random.seed(0)
 
 #construct resolution matrix from sigma_vs_wave.
 
@@ -270,35 +272,36 @@ for j in xrange(args.nstart,nmax): # Exclusive
         'Quickgen source {0}'.format(j), objtype[j].lower(),
         wavelengths * u.Angstrom, spectra[j, :] * fluxunits)
     qsim.source.update_out()
-    results=qsim.simulate()
+    qsim.simulate()
+    qsim.generate_random_noise(random_state)
 
     for i, output in enumerate(qsim.camera_output):
 
+        # Extract the simulation results needed to create our uncalibrated
+        # frame output file.
         num_pixels = len(output)
         nobj[j, i, :num_pixels] = output['num_source_electrons']
         nsky[j, i, :num_pixels] = output['num_sky_electrons']
+        nivar[j, i, :num_pixels] = 1.0 / output['variance_electrons']
 
-        sky_var = (
-            output['num_sky_electrons'] + output['num_dark_electrons'] +
-            output['read_noise_electrons'] ** 2)
-        nivar[j, i, :num_pixels] = 1.0 / (
-            sky_var + output['num_source_electrons'])
-        # The factor of 25 here represents an average over 25 sky fibers.
-        sky_ivar[j, i, :num_pixels] = 25.0 / sky_var
-
+        # Get results for our flux-calibrated output file.
         assert output['observed_flux'].unit == u.erg / (u.cm**2 * u.s * u.Angstrom)
         cframe_observedflux[j, i, :num_pixels] = output['observed_flux']
         cframe_ivar[j, i, :num_pixels] = output['flux_inverse_variance']
 
-        frame_rand_noise[j, i, :num_pixels] = np.random.normal(
-            scale=1.0 / np.sqrt(nivar[j, i, :num_pixels]), size=num_pixels)
-        sky_rand_noise[j, i, :num_pixels] = np.random.normal(
-            scale=1.0 / np.sqrt(sky_ivar[j,i,:num_pixels]),size=num_pixels)
-
         # Use the same noise realization in the cframe and frame, without any
         # additional noise from sky subtraction for now.
+        frame_rand_noise[j, i, :num_pixels] = output['random_noise_electrons']
         cframe_rand_noise[j, i, :num_pixels] = (
-            output['flux_calibration'] * frame_rand_noise[j, i, :num_pixels])
+            output['flux_calibration'] * output['random_noise_electrons'])
+
+        # The sky output file represents a model fit to ~40 sky fibers.
+        # We reduce the variance by a factor of 25 to account for this and
+        # give the sky an independent (Gaussian) noise realization.
+        sky_ivar[j, i, :num_pixels] = 25.0 / (
+            output['variance_electrons'] - output['num_source_electrons'])
+        sky_rand_noise[j, i, :num_pixels] = random_state.normal(
+            scale=1.0 / np.sqrt(sky_ivar[j,i,:num_pixels]),size=num_pixels)
 
 
 print
