@@ -39,6 +39,7 @@ def sample_objtype(nobj, flavor):
       LRGs and QSOs in early passes and more ELGs in later passes.
     - Also ensures at least 2 sky and 1 stdstar, even if nobj is small
     """
+    flavor = flavor.upper()
 
     #- Load target densities
     #- TODO: what about nobs_boss (BOSS-like LRGs)?
@@ -64,19 +65,19 @@ def sample_objtype(nobj, flavor):
     nsci = nobj - (nsky+nstd)
     true_objtype  = ['SKY']*nsky + ['STD']*nstd
         
-    if (string.lower(flavor) == 'mws'):
+    if (flavor == 'MWS'):
         true_objtype  +=  ['MWS_STAR']*nsci
-    elif (string.lower(flavor) == 'qso'):
+    elif (flavor == 'QSO'):
         true_objtype  +=  ['QSO']*nsci
-    elif (string.lower(flavor) == 'elg'):
+    elif (flavor == 'ELG'):
         true_objtype  +=  ['ELG']*nsci    
-    elif (string.lower(flavor) == 'lrg'):
+    elif (flavor == 'LRG'):
         true_objtype  +=  ['LRG']*nsci
-    elif (string.lower(flavor) == 'std'):
+    elif (flavor == 'STD'):
         true_objtype  +=  ['STD']*nsci
-    elif (string.lower(flavor) == 'bgs'):
+    elif (flavor == 'BGS'):
         true_objtype  +=  ['BGS']*nsci
-    elif (string.lower(flavor) == 'bright'):
+    elif (flavor == 'BRIGHT'):
         #- BGS galaxies and MWS stars
         ntgt = float(tgt['nobs_BG'] + tgt['nobs_MWS'])
         prob_bgs = tgt['nobs_BG'] / ntgt
@@ -87,7 +88,7 @@ def sample_objtype(nobj, flavor):
         
         true_objtype += ['BGS']*nbgs
         true_objtype += ['MWS_STAR']*nmws
-    elif (string.lower(flavor) == 'dark'):
+    elif (flavor == 'DARK'):
         #- LRGs ELGs QSOs
         ntgt = float(tgt['nobs_lrg'] + tgt['nobs_elg'] + tgt['nobs_qso'] + tgt['nobs_lya'] + tgt['ntarget_badqso'])
         prob_lrg = tgt['nobs_lrg'] / ntgt
@@ -135,6 +136,8 @@ def get_targets(nspec, flavor, tileid=None):
         tile_ra, tile_dec = 0.0, 0.0
     else:
         tile_ra, tile_dec = io.get_tile_radec(tileid)
+
+    flavor = flavor.upper()
 
     #- Get distribution of target types
     true_objtype, target_objtype = sample_objtype(nspec, flavor)
@@ -249,7 +252,7 @@ def get_targets(nspec, flavor, tileid=None):
             truth['D4000'][ii] = meta['D4000']
             truth['VDISP'][ii] = meta['VDISP']
 
-        if objtype == 'BGS':
+        if objtype == 'BGS':            
             truth['HBETAFLUX'][ii] = meta['HBETAFLUX']
             truth['D4000'][ii] = meta['D4000']
             truth['VDISP'][ii] = meta['VDISP']
