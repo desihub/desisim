@@ -272,9 +272,8 @@ for j in xrange(args.nstart,nmax): # Exclusive
     qsim.source.update_out()
     results=qsim.simulate()
 
-    for i,channel in enumerate('brz'):
+    for i, output in enumerate(qsim.camera_output):
 
-        output = qsim.camera_output[i]
         num_pixels = len(output)
         nobj[j, i, :num_pixels] = output['num_source_electrons']
         nsky[j, i, :num_pixels] = output['num_sky_electrons']
@@ -291,11 +290,15 @@ for j in xrange(args.nstart,nmax): # Exclusive
         cframe_observedflux[j, i, :num_pixels] = output['observed_flux']
         cframe_ivar[j, i, :num_pixels] = output['flux_inverse_variance']
 
-        frame_rand_noise[j,i,:waveMaxbin[channel]]=np.random.normal(np.zeros(waveMaxbin[channel]),np.ones(waveMaxbin[channel])/np.sqrt(nivar[j,i,:waveMaxbin[channel]]),waveMaxbin[channel])
+        frame_rand_noise[j, i, :num_pixels] = np.random.normal(
+            scale=1.0 / np.sqrt(nivar[j, i, :num_pixels]), size=num_pixels)
+        sky_rand_noise[j, i, :num_pixels] = np.random.normal(
+            scale=1.0 / np.sqrt(sky_ivar[j,i,:num_pixels]),size=num_pixels)
 
-        sky_rand_noise[j,i,:waveMaxbin[channel]]=np.random.normal(np.zeros(waveMaxbin[channel]),np.ones(waveMaxbin[channel])/np.sqrt(sky_ivar[j,i,:waveMaxbin[channel]]),waveMaxbin[channel])
-
-        cframe_rand_noise[j,i,:waveMaxbin[channel]]=np.random.normal(0.0,1.0/np.sqrt(cframe_ivar[j,i,:waveMaxbin[channel]]))
+        # Use the same noise realization in the cframe and frame, without any
+        # additional noise from sky subtraction for now.
+        cframe_rand_noise[j, i, :num_pixels] = (
+            output['flux_calibration'] * frame_rand_noise[j, i, :num_pixels])
 
 
 print
