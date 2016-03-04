@@ -287,8 +287,9 @@ for j in xrange(args.nstart,nmax): # Exclusive
         # The factor of 25 here represents an average over 25 sky fibers.
         sky_ivar[j, i, :num_pixels] = 25.0 / sky_var
 
-        cframe_observedflux[j,i,:waveMaxbin[channel]]=results.obsflux[waveRange[channel]]*1.0e-17
-        cframe_ivar[j,i,:waveMaxbin[channel]]=np.clip(results.ivar[waveRange[channel]]*1.0e34, 1e-12, np.max(results.ivar[waveRange[channel]]*1.0e34))
+        assert output['observed_flux'].unit == u.erg / (u.cm**2 * u.s * u.Angstrom)
+        cframe_observedflux[j, i, :num_pixels] = output['observed_flux']
+        cframe_ivar[j, i, :num_pixels] = output['flux_inverse_variance']
 
         frame_rand_noise[j,i,:waveMaxbin[channel]]=np.random.normal(np.zeros(waveMaxbin[channel]),np.ones(waveMaxbin[channel])/np.sqrt(nivar[j,i,:waveMaxbin[channel]]),waveMaxbin[channel])
 
