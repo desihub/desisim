@@ -150,9 +150,6 @@ qsim.instrument.exposure_time = simspec.header['EXPTIME'] * u.s
 #- simulate a fake object 0 just to get wavelength grids etc setup
 results=qsim.simulate()
 observedWavelengths=results.wave
-origin_wavelength=qsim.wavelengthGrid
-
-assert np.array_equal(origin_wavelength, qsim.simulated['wavelength'])
 
 # Get the camera ranges and resolution from the specsim instrument model.
 waveLimits=dict()
@@ -169,27 +166,25 @@ for i,camera in enumerate(qsim.instrument.cameras):
 
     assert np.array_equal(waves[channel], camera.output_wavelength.value)
 
-    # Interpolate the RMS resolution from the simulation grid to the output grid.
-    interpolator = scipy.interpolate.interp1d(
-        origin_wavelength, qsim.cameras[i].sigmaWavelength,
-        kind='linear', copy=False, assume_sorted=True)
-    sigma_vs_wave[channel] = interpolator(waves[channel])
-
 maxbin=max(waveMaxbin['b'],waveMaxbin['r'],waveMaxbin['z'])
 
 #- Check if input simspec is for a continuum flat lamp instead of science
 #- This does not convolve to per-fiber resolution
 if simspec.flavor == 'flat':
     print "Simulating flat lamp exposure"
-    for channel in ('b', 'r', 'z'):
-
-        ii = (waveLimits[channel][0] <= observedWavelengths) & (observedWavelengths <= waveLimits[channel][1])
-        wave = observedWavelengths[ii]
+    for i,camera in enumerate(qsim.instrument.cameras):
+        channel = camera.name
+        assert camera.output_wavelength.unit == u.Angstrom
+        wave = camera.output_wavelength.value
+        num_pixels = len(wave)
         dw = np.gradient(simspec.wave[channel])
-        meanspec = resample_flux(wave, simspec.wave[channel], np.average(simspec.phot[channel]/dw, axis=0))
-        fiberflat = random_state.normal(loc=0.0, scale=1.0/np.sqrt(meanspec), size=(nspec, len(wave)))
-        ivar = np.tile(1.0/meanspec, nspec).reshape(nspec, len(meanspec))
-        mask = np.zeros((simspec.nspec, len(wave)))
+        meanspec = resample_flux(
+            wave, simspec.wave[channel],
+            np.average(simspec.phot[channel]/dw, axis=0))
+        fiberflat = random_state.normal(
+            scale=1.0 / np.sqrt(meanspec), size=(nspec, num_pixels))
+        ivar = np.tile(1.0 / meanspec, [nspec, 1])
+        mask = np.zeros((simspec.nspec, num_pixels))
 
         for kk in range((args.nspec+args.nstart-1)/500+1):
             camera = channel+str(kk)
