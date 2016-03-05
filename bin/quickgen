@@ -260,8 +260,11 @@ def _calc_resolution_data(sigma, wavelengths, nspec):
 # resolution data in format as desired for frame file
 nspec=args.nspec
 resolution_data = dict()
-for i, channel in enumerate( ['b', 'r', 'z'] ):
-    resolution_data[channel] = _calc_resolution_data(sigma_vs_wave[channel], waves[channel], nspec)
+for i, channel in enumerate('brz'):
+    resolution_matrix = Resolution(
+        qsim.instrument.cameras[i].get_output_resolution_matrix())
+    resolution_data[channel] = np.tile(
+        resolution_matrix.to_fits_array(), [nspec, 1, 1])
 
 # Now repeat the simulation for all spectra
 fluxunits = 1e-17 * u.erg / (u.s * u.cm ** 2 * u.Angstrom)
