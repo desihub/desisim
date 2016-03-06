@@ -36,7 +36,6 @@ parser.add_option("-o", "--outdir", type=str,  help="output data directory; defa
 parser.add_option("-a", "--airmass", type=float,  help="airmass [%default]", default=1.25)
 parser.add_option("-t", "--testwavelength", type=float,  help="test quickbrick with a single emission line", default=None)
 parser.add_option("-s", "--seed", type=int,  help="random seed", default=None)
-parser.add_option("--wavestep", type=float,  help="initial sampling of templates", default=0.2)
 parser.add_option("--outdir_truth", type=str,  help="optional alternative outdir for truth files")
 parser.add_option("-z","--zrange", type=str, help="redshift range of the form zmin:zmax (applies only to ELG,LRG,QSO)",default=None)
 
