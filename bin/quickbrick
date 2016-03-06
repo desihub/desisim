@@ -10,7 +10,6 @@ Fall 2015
 
 import sys, os
 import numpy as np
-import scipy.sparse
 import string
 
 from astropy.table import Table, Column, vstack
@@ -19,11 +18,10 @@ from astropy.io import fits
 
 import desimodel.io
 import specsim.simulator
-import desispec
+import desispec.io
 from desispec.log import get_logger
 from desispec.resolution import Resolution
 import desisim.templates
-import desisim.obs
 
 import desisim.targets
 
