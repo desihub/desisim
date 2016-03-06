@@ -46,6 +46,8 @@ parser.add_option("--trimxy", action="store_true", help="Trim image to fit spect
 parser.add_option("--randseed", type=int, help="random number seed")
 parser.add_option("--nspec", type=int, help="Number of spectra to simulate per camera [%default]", default=500)
 parser.add_option("--ncpu",  type=int, help="Number of cpu cores to use [%default]", default=multiprocessing.cpu_count() // 2)
+parser.add_option("--wavemin",  type=float, help="Minimum wavelength to simulate")
+parser.add_option("--wavemax",  type=float, help="Maximum wavelength to simulate")
 
 opts, args = parser.parse_args()
 

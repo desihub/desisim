@@ -5,21 +5,18 @@ Tools for DESI pixel level simulations using specter
 import sys
 import os
 import os.path
-import time
-### import multiprocessing as mp
 
 import numpy as np
-import yaml
-from astropy.io import fits
 
 import desimodel.io
 import desispec.io
 from desispec.image import Image
+import desispec.cosmics
 
 from desisim import obs, io
 
 def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
-    trimxy=False, cosmics=None):
+    trimxy=False, cosmics=None, wavemin=None, wavemax=None):
     """
     Run pixel-level simulation of input spectra
     
@@ -27,11 +24,14 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
         night (string) : YEARMMDD
         expid (integer) : exposure id
         camera (str) : e.g. b0, r1, z9
+
+    Optional:
         nspec (int) : number of spectra to simulate
         verbose (boolean) : if True, print status messages
         ncpu (int) : number of CPU cores to use in parallel
         trimxy (boolean) : trim image to just pixels with input signal
         cosmics (str) : filename with dark images with cosmics to add
+        wavemin, wavemax (float) : min/max wavelength range to simulate
 
     Reads:
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
@@ -77,6 +77,14 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
 
     phot = phot[ii]
 
+    #- Trim wavelenths if needed
+    if wavemin is not None:
+        ii = (wave >= wavemin)
+        phot = phot[:, ii]
+    if wavemax is not None:
+        ii = (wave <= wavemax)
+        phot = phot[:, ii]
+
     #- check if simulation has less than 500 input spectra
     if phot.shape[0] < nspec:
         nspec = phot.shape[0]
@@ -114,22 +122,22 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
         cosmics = io.read_cosmics(cosmics, expid, shape=img.shape)
         pix = np.random.poisson(img) + cosmics.pix
         readnoise = cosmics.meta['RDNOISE']
-        ivar = 1.0/(pix.clip(0) + readnoise**2)
-        mask = cosmics.mask
     #- Or just add noise
     else:
-        params = desimodel.io.load_desiparams()
         channel = camera[0].lower()
         readnoise = params['ccd'][channel]['readnoise']
         pix = np.random.poisson(img) + np.random.normal(scale=readnoise, size=img.shape)
-        ivar = 1.0/(pix.clip(0) + readnoise**2)
-        mask = np.zeros(img.shape, dtype=np.uint16)
-    
+
+    ivar = 1.0/(pix.clip(0) + readnoise**2)
+    mask = np.zeros(img.shape, dtype=np.uint16)
+
     #- Metadata to be included in pix file header is in the fibermap header
     #- TODO: this is fragile; consider updating fibermap to use astropy Table
     #- that includes the header rather than directly assuming FITS as the
     #- underlying format.
+    simdir = os.path.dirname(simfile)
     fibermapfile = desispec.io.findfile('fibermap', night=night, expid=expid)
+    fibermapfile = os.path.join(simdir, os.path.basename(fibermapfile))
     fm, fmhdr = desispec.io.read_fibermap(fibermapfile, header=True)
     meta = dict()
     try:
@@ -146,7 +154,13 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
     meta['AIRMASS'] = simspec.header['AIRMASS']
 
     image = Image(pix, ivar, mask, readnoise=readnoise, camera=camera, meta=meta)
+
+    #- In-place update of the image cosmic ray mask
+    if cosmics is not None:
+        desispec.cosmics.reject_cosmic_rays(image)
+
     pixfile = desispec.io.findfile('pix', night=night, camera=camera, expid=expid)
+    pixfile = os.path.join(simdir, os.path.basename(pixfile))
     desispec.io.write_image(pixfile, image)
 
     if verbose:

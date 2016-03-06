@@ -2,6 +2,8 @@
 Utility functions for working with simulated targets
 """
 
+from __future__ import absolute_import, division, print_function
+
 import os
 import sys
 import string
@@ -14,6 +16,7 @@ import desimodel.io
 
 from desispec import brick
 from desispec.io.fibermap import empty_fibermap
+from desitarget.targetmask import desi_mask, bgs_mask, mws_mask
 
 from desisim import io
 
@@ -36,6 +39,7 @@ def sample_objtype(nobj, flavor):
       LRGs and QSOs in early passes and more ELGs in later passes.
     - Also ensures at least 2 sky and 1 stdstar, even if nobj is small
     """
+    flavor = flavor.upper()
 
     #- Load target densities
     #- TODO: what about nobs_boss (BOSS-like LRGs)?
@@ -43,12 +47,6 @@ def sample_objtype(nobj, flavor):
     fx = open(os.environ['DESIMODEL']+'/data/targets/targets.dat')
     tgt = yaml.load(fx)
     fx.close()
-
-    # DARK or BRIGHT have a combination of targets
-    if string.lower(flavor) == 'dark':
-        ntgt = float(tgt['nobs_lrg'] + tgt['nobs_elg'] + tgt['nobs_qso'] + tgt['nobs_lya'] + tgt['ntarget_badqso'])
-    elif string.lower(flavor) == 'bright':
-        ntgt = float(tgt['nobs_BG'] + tgt['nobs_MWS'])
 
     # initialize so we can ask for 0 of some kinds of survey targets later
     nlrg = nqso = nelg = nmws = nbgs = nbgs = nmws = 0
@@ -67,39 +65,46 @@ def sample_objtype(nobj, flavor):
     nsci = nobj - (nsky+nstd)
     true_objtype  = ['SKY']*nsky + ['STD']*nstd
         
-    if (string.lower(flavor) == 'mws'):
+    if (flavor == 'MWS'):
         true_objtype  +=  ['MWS_STAR']*nsci
-    elif (string.lower(flavor) == 'qso'):
+    elif (flavor == 'QSO'):
         true_objtype  +=  ['QSO']*nsci
-    elif (string.lower(flavor) == 'elg'):
+    elif (flavor == 'ELG'):
         true_objtype  +=  ['ELG']*nsci    
-    elif (string.lower(flavor) == 'lrg'):
+    elif (flavor == 'LRG'):
         true_objtype  +=  ['LRG']*nsci
-    elif (string.lower(flavor) == 'std'):
+    elif (flavor == 'STD'):
         true_objtype  +=  ['STD']*nsci
-    elif (string.lower(flavor) == 'bgs'):
+    elif (flavor == 'BGS'):
         true_objtype  +=  ['BGS']*nsci
-    elif (string.lower(flavor) == 'bright'):
+    elif (flavor == 'BRIGHT'):
         #- BGS galaxies and MWS stars
-        nbgs = min(nsci, np.random.poisson(nsci * tgt['nobs_BG'] / ntgt))
-        nmws = nsci - nbgs
+        ntgt = float(tgt['nobs_BG'] + tgt['nobs_MWS'])
+        prob_bgs = tgt['nobs_BG'] / ntgt
+        prob_mws = 1 - prob_bgs
+        
+        p = [prob_bgs, prob_mws]
+        nbgs, nmws = np.random.multinomial(nsci, p)
+        
         true_objtype += ['BGS']*nbgs
         true_objtype += ['MWS_STAR']*nmws
-    elif (string.lower(flavor) == 'dark'):
+    elif (flavor == 'DARK'):
         #- LRGs ELGs QSOs
-        nlrg = np.random.poisson(nsci * tgt['nobs_lrg'] / ntgt)
-
-        nqso = np.random.poisson(nsci * (tgt['nobs_qso'] + tgt['nobs_lya']) / ntgt)
-        nqso_bad = np.random.poisson(nsci * (tgt['ntarget_badqso']) / ntgt)
-
-        nelg = nobj - (nlrg+nqso+nqso_bad+nsky+nstd)
+        ntgt = float(tgt['nobs_lrg'] + tgt['nobs_elg'] + tgt['nobs_qso'] + tgt['nobs_lya'] + tgt['ntarget_badqso'])
+        prob_lrg = tgt['nobs_lrg'] / ntgt
+        prob_elg = tgt['nobs_elg'] / ntgt
+        prob_qso = (tgt['nobs_qso'] + tgt['nobs_lya']) / ntgt
+        prob_badqso = tgt['ntarget_badqso'] / ntgt
+        
+        p = [prob_lrg, prob_elg, prob_qso, prob_badqso]
+        nlrg, nelg, nqso, nbadqso = np.random.multinomial(nsci, p)
 
         true_objtype += ['ELG']*nelg
         true_objtype += ['LRG']*nlrg
-        true_objtype += ['QSO']*nqso + ['QSO_BAD']*nqso_bad
+        true_objtype += ['QSO']*nqso + ['QSO_BAD']*nbadqso
     else:
         raise ValueError("Do not know the objtype mix for flavor "+ flavor)
-
+        
     assert len(true_objtype) == nobj, \
         'len(true_objtype) mismatch for flavor {} : {} != {}'.format(\
         flavor, len(true_objtype), nobj)
@@ -131,6 +136,8 @@ def get_targets(nspec, flavor, tileid=None):
         tile_ra, tile_dec = 0.0, 0.0
     else:
         tile_ra, tile_dec = io.get_tile_radec(tileid)
+
+    flavor = flavor.upper()
 
     #- Get distribution of target types
     true_objtype, target_objtype = sample_objtype(nspec, flavor)
@@ -167,27 +174,33 @@ def get_targets(nspec, flavor, tileid=None):
 
         # Simulate spectra
         if objtype == 'SKY':
+            fibermap['DESI_TARGET'][ii] = desi_mask.SKY
             continue
 
         elif objtype == 'ELG':
             from desisim.templates import ELG
             elg = ELG(wave=wave)
             simflux, wave1, meta = elg.make_templates(nmodel=nobj)
+            fibermap['DESI_TARGET'][ii] = desi_mask.ELG
 
         elif objtype == 'LRG':
             from desisim.templates import LRG
             lrg = LRG(wave=wave)
             simflux, wave1, meta = lrg.make_templates(nmodel=nobj)
+            fibermap['DESI_TARGET'][ii] = desi_mask.LRG
 
         elif objtype == 'BGS':
             from desisim.templates import BGS
             bgs = BGS(wave=wave)
             simflux, wave1, meta = bgs.make_templates(nmodel=nobj)
+            fibermap['DESI_TARGET'][ii] = desi_mask.BGS_ANY
+            fibermap['BGS_TARGET'][ii] = bgs_mask.BGS_BRIGHT
 
         elif objtype == 'QSO':
             from desisim.templates import QSO
             qso = QSO(wave=wave)
             simflux, wave1, meta = qso.make_templates(nmodel=nobj)
+            fibermap['DESI_TARGET'][ii] = desi_mask.QSO
 
         # For a "bad" QSO simulate a normal star without color cuts, which isn't
         # right. We need to apply the QSO color-cuts to the normal stars to pull
@@ -196,6 +209,7 @@ def get_targets(nspec, flavor, tileid=None):
             from desisim.templates import STAR
             star = STAR(wave=wave)
             simflux, wave1, meta = star.make_templates(nmodel=nobj)
+            fibermap['DESI_TARGET'][ii] = desi_mask.QSO
 
         elif objtype == 'STD':
             from desisim.templates import STAR
@@ -204,12 +218,18 @@ def get_targets(nspec, flavor, tileid=None):
             gg = (16.0, 19.5)
             simflux, wave1, meta = \
                 star.make_templates(nmodel=nobj, rmagrange=rr, gmagrange=gg)
+            fibermap['DESI_TARGET'][ii] = desi_mask.STD_FSTAR
 
         elif objtype == 'MWS_STAR':
             from desisim.templates import STAR
             star = STAR(wave=wave)
             # todo: mag ranges for different flavors of STAR targets should be in desimodel
             simflux, wave1, meta = star.make_templates(nmodel=nobj,rmagrange=(15.0,20.0))
+            fibermap['DESI_TARGET'][ii] = desi_mask.MWS_ANY
+            fibermap['MWS_TARGET'][ii] = mws_mask.MWS_PLX  #- ???
+
+        else:
+            raise ValueError('Unable to simulate OBJTYPE={}'.format(objtype))
             
         truth['FLUX'][ii] = 1e17 * simflux
         truth['UNITS'] = '1e-17 erg/s/cm2/A'
@@ -232,7 +252,7 @@ def get_targets(nspec, flavor, tileid=None):
             truth['D4000'][ii] = meta['D4000']
             truth['VDISP'][ii] = meta['VDISP']
 
-        if objtype == 'BGS':
+        if objtype == 'BGS':            
             truth['HBETAFLUX'][ii] = meta['HBETAFLUX']
             truth['D4000'][ii] = meta['D4000']
             truth['VDISP'][ii] = meta['VDISP']
@@ -256,7 +276,6 @@ def get_targets(nspec, flavor, tileid=None):
     fibermap['TARGETID'] = np.random.randint(sys.maxint, size=nspec)
     fibermap['TARGETCAT'] = np.zeros(nspec, dtype='|S20')
     fibermap['LAMBDAREF'] = np.ones(nspec, dtype=np.float32)*5400
-    fibermap['TARGET_MASK0'] = np.zeros(nspec, dtype='i8')
     fibermap['RA_TARGET'] = ra
     fibermap['DEC_TARGET'] = dec
     fibermap['X_TARGET'] = x
@@ -433,7 +452,7 @@ class TargetTile(object):
             self.assigned_type =  fin[1].data['ASSIGNEDTYPE']
         except Exception, e:
             import traceback
-            print 'ERROR in get_tiles'
+            print('ERROR in get_tiles')
             traceback.print_exc()
             raise e
 
