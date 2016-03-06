@@ -52,9 +52,8 @@ assert opts.objtype is not None
 opts.objtype = opts.objtype.upper()
 assert opts.objtype in ['ELG', 'LRG', 'QSO', 'STAR', 'TEST', 'MIX']
 
-#- Set random seed if defined
-if opts.seed is not None :
-    np.random.seed(opts.seed)
+#- Initialize random state to use throughput.
+random_state = np.random.RandomState(opts.seed)
 
 #- Initialize the quick simulator object
 qsim = specsim.simulator.Simulator('desi')
@@ -170,7 +169,7 @@ for objtype in set(true_objtype):
 
 #- Create a blank fake fibermap; this is re-used by all channels
 fibermap = desispec.io.empty_fibermap(opts.nspec)
-targetids = np.random.randint(2**62, size=opts.nspec)
+targetids = random_state.randint(2**62, size=opts.nspec)
 fibermap['TARGETID'] = targetids
 night = desisim.obs.get_night()
 expid = 0
@@ -222,7 +221,7 @@ for i in range(opts.nspec):
 
     #- Run the simulation for this source and add noise.
     qsim.simulate()
-    qsim.generate_random_noise()
+    qsim.generate_random_noise(random_state)
 
     #- Fill brick arrays from the results.
     for camera, output in zip(qsim.instrument.cameras, qsim.camera_output):
