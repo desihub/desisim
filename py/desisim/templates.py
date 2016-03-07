@@ -1136,7 +1136,8 @@ class MWS_STAR(STAR):
 
         from astropy.table import Table
         from desispec.interpolation import resample_flux
-        
+        from desitarget.cuts import isMWSSTAR_colors
+
         rand = np.random.RandomState(seed)
 
         # Initialize the output flux array and metadata Table.
@@ -1187,27 +1188,30 @@ class MWS_STAR(STAR):
                 synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
                 synthnano = [ff*MAG2NANO for ff in synthmaggies[0]] # convert to nanomaggies
 
-        
-                if ((nobj+1)%10)==0:
-                    log.debug('Simulating {} template {}/{}'. \
-                              format(self.objtype, nobj+1, nmodel))
-                outflux[nobj,:] = resample_flux(self.wave, zwave, flux)
+                # Color cuts on just on the standard stars.
+                colormask = [isMWSSTAR_colors(gflux=synthnano[1], rflux=synthnano[2])]
 
-                meta['TEMPLATEID'][nobj] = nobj
-                meta['REDSHIFT'][nobj] = redshift[ii]
-                meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
-                meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
-                meta['ZMAG'][nobj] = -2.5*np.log10(synthnano[4])+22.5
-                meta['W1MAG'][nobj] = -2.5*np.log10(synthnano[6])+22.5
-                meta['W2MAG'][nobj] = -2.5*np.log10(synthnano[7])+22.5
-                meta['DECAM_FLUX'][nobj] = synthnano[:6]
-                meta['WISE_FLUX'][nobj] = synthnano[6:8]
-                meta['LOGG'][nobj] = self.basemeta['LOGG'][iobj]
-                meta['TEFF'][nobj] = self.basemeta['TEFF'][iobj]
-                meta['FEH'][nobj] = self.basemeta['FEH'][iobj]
+                if all(colormask):
+                    if ((nobj+1)%10)==0:
+                        log.debug('Simulating {} template {}/{}'. \
+                                format(self.objtype, nobj+1, nmodel))
+                    outflux[nobj,:] = resample_flux(self.wave, zwave, flux)
+    
+                    meta['TEMPLATEID'][nobj] = nobj
+                    meta['REDSHIFT'][nobj] = redshift[ii]
+                    meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
+                    meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
+                    meta['ZMAG'][nobj] = -2.5*np.log10(synthnano[4])+22.5
+                    meta['W1MAG'][nobj] = -2.5*np.log10(synthnano[6])+22.5
+                    meta['W2MAG'][nobj] = -2.5*np.log10(synthnano[7])+22.5
+                    meta['DECAM_FLUX'][nobj] = synthnano[:6]
+                    meta['WISE_FLUX'][nobj] = synthnano[6:8]
+                    meta['LOGG'][nobj] = self.basemeta['LOGG'][iobj]
+                    meta['TEFF'][nobj] = self.basemeta['TEFF'][iobj]
+                    meta['FEH'][nobj] = self.basemeta['FEH'][iobj]
                     
-                nobj = nobj+1
-
+                    nobj = nobj+1
+    
                 # If we have enough models get out!
                 if nobj>=(nmodel-1):
                     break
