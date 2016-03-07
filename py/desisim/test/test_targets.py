@@ -22,7 +22,7 @@ class TestObs(unittest.TestCase):
             fibermap, truth = desisim.targets.get_targets(n, flavor.lower())
             
     def test_sample_objtype(self):
-        for flavor in ['DARK', 'BRIGHT', 'LRG', 'ELG', 'QSO', 'BGS', 'MWS']:
+        for flavor in ['DARK', 'GRAY', 'BRIGHT', 'LRG', 'ELG', 'QSO', 'BGS', 'MWS']:
             for n in [5,10,50]:
                 for i in range(10):
                     truetype, targettype = desisim.targets.sample_objtype(n, flavor)

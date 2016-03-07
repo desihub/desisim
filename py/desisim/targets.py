@@ -77,6 +77,8 @@ def sample_objtype(nobj, flavor):
         true_objtype  +=  ['STD']*nsci
     elif (flavor == 'BGS'):
         true_objtype  +=  ['BGS']*nsci
+    elif (flavor in ('GRAY', 'GREY')):
+        true_objtype += ['ELG',] * nsci
     elif (flavor == 'BRIGHT'):
         #- BGS galaxies and MWS stars
         ntgt = float(tgt['nobs_BG'] + tgt['nobs_MWS'])

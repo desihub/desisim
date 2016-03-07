@@ -150,7 +150,7 @@ def write_simspec(meta, truth, expid, night, header=None, outfile=None):
     #- Add Metadata table HDU; use write_bintable to get units and comments
     if meta is not None:
         comments = dict(
-            OBJTYPE     = 'Object type (ELG, LRG, QSO, STD, STAR, MWS_STAR, BGS)',
+            OBJTYPE     = 'Object type (ELG,LRG,QSO,STD,STAR,MWS_STAR,BGS)',
             REDSHIFT    = 'true object redshift',
             TEMPLATEID  = 'input template ID',
             OIIFLUX     = '[OII] flux [erg/s/cm2]',
