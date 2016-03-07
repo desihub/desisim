@@ -44,6 +44,7 @@ parser.add_argument("--fibermap",type=str, help='input fibermap file')
 parser.add_argument("--nspec",type=int,default=5000,help='no. of spectra to be simulated, starting from first')
 parser.add_argument("--nstart", type=int, default=0,help='starting spectra # for simulation 0-4999')
 parser.add_argument("--spectrograph",type=int, default=None,help='Spectrograph no. 0-9')
+parser.add_argument("--config", type=str, default='desi', help='specsim configuration')
 parser.add_argument("--seed", type=int, default=0,  help="random seed")
 args = parser.parse_args()
 
@@ -140,8 +141,8 @@ print "Simulating spectra",args.nstart, "to", nmax
 
 print "************************************************"
 
-print "Initializing SpecSim"
-qsim = specsim.simulator.Simulator('desi')
+print "Initializing SpecSim with config '{0}'".format(args.config)
+qsim = specsim.simulator.Simulator(args.config)
 
 # Set simulation parameters from the simspec header.
 qsim.atmosphere.airmass = simspec.header['AIRMASS']

@@ -32,6 +32,7 @@ parser.add_option("-b", "--brickname", type=str,  help="brickname")
 parser.add_option(      "--objtype", type=str,  help="elg,lrg,qso,star or mix")
 parser.add_option("-n", "--nspec", type=int,  help="number of spectra to simulate")
 parser.add_option("-o", "--outdir", type=str,  help="output data directory; default .", default='.')
+parser.add_option("--config", type=str, help="specsim configuration", default="desi")
 #- Average DESI airmass 1.25; (See Science Req. Doc L3.3.2)
 parser.add_option("-a", "--airmass", type=float,  help="airmass [%default]", default=1.25)
 parser.add_option("-t", "--testwavelength", type=float,  help="test quickbrick with a single emission line", default=None)
@@ -53,7 +54,7 @@ assert opts.objtype in ['ELG', 'LRG', 'QSO', 'STAR', 'TEST', 'MIX']
 random_state = np.random.RandomState(opts.seed)
 
 #- Initialize the quick simulator object
-qsim = specsim.simulator.Simulator('desi')
+qsim = specsim.simulator.Simulator(opts.config)
 qsim.atmosphere.airmass = opts.airmass
 qsim.instrument.exposure_time = desiparams['exptime'] * u.s
 
