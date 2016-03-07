@@ -7,7 +7,7 @@ newexp-desi arc/flat/dark/bright/bgs/mws/elg/lrg/qso [options]
 
 dark: a mix of elg, qso and lrg targets
 bright: a mix of BGS and MWS targetls
-or just MWS, BGS, ELG, LRG, QSO targets. NOTE: BGS and bright not yet implemented. 
+or just MWS, BGS, ELG, LRG, QSO targets.  
 
 Stephen Bailey, LBL
 Fall 2014
