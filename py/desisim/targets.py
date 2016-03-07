@@ -212,19 +212,16 @@ def get_targets(nspec, flavor, tileid=None):
             fibermap['DESI_TARGET'][ii] = desi_mask.QSO
 
         elif objtype == 'STD':
-            from desisim.templates import STAR
-            star = STAR(wave=wave,FSTD=True)
-            rr = (16.0, 19.0)
-            gg = (16.0, 19.5)
-            simflux, wave1, meta = \
-                star.make_templates(nmodel=nobj, rmagrange=rr, gmagrange=gg)
+            from desisim.templates import FSTD
+            fstd = FSTD(wave=wave)
+            simflux, wave1, meta = fstd.make_templates(nmodel=nobj)
             fibermap['DESI_TARGET'][ii] = desi_mask.STD_FSTAR
 
         elif objtype == 'MWS_STAR':
-            from desisim.templates import STAR
-            star = STAR(wave=wave)
+            from desisim.templates import MWS_STAR
+            mwsstar = MWS_STAR(wave=wave)
             # todo: mag ranges for different flavors of STAR targets should be in desimodel
-            simflux, wave1, meta = star.make_templates(nmodel=nobj,rmagrange=(15.0,20.0))
+            simflux, wave1, meta = mwsstar.make_templates(nmodel=nobj,rmagrange=(15.0,20.0))
             fibermap['DESI_TARGET'][ii] = desi_mask.MWS_ANY
             fibermap['MWS_TARGET'][ii] = mws_mask.MWS_PLX  #- ???
 

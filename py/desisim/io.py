@@ -150,7 +150,7 @@ def write_simspec(meta, truth, expid, night, header=None, outfile=None):
     #- Add Metadata table HDU; use write_bintable to get units and comments
     if meta is not None:
         comments = dict(
-            OBJTYPE     = 'Object type (ELG, LRG, QSO, STD, STAR)',
+            OBJTYPE     = 'Object type (ELG, LRG, QSO, STD, STAR, MWS_STAR, BGS)',
             REDSHIFT    = 'true object redshift',
             TEMPLATEID  = 'input template ID',
             OIIFLUX     = '[OII] flux [erg/s/cm2]',
@@ -158,7 +158,7 @@ def write_simspec(meta, truth, expid, night, header=None, outfile=None):
         )
 
         units = dict(
-            # OBJTYPE     = 'Object type (ELG, LRG, QSO, STD, STAR)',
+            # OBJTYPE     = 'Object type (ELG, LRG, QSO, STD, STAR, MWS_STAR, BGS)',
             # REDSHIFT    = 'true object redshift',
             # TEMPLATEID  = 'input template ID',
             OIIFLUX      = 'erg/s/cm2',
@@ -423,7 +423,7 @@ def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
        wavelengths outwave.
 
     Args:
-      objtype (str): object type to read (e.g., ELG, LRG, QSO, STAR, FSTD, WD).
+      objtype (str): object type to read (e.g., ELG, LRG, QSO, STAR, FSTD, WD, MWS_STAR, BGS).
       outwave (numpy.array, optional): array of wavelength at which to sample
         the spectra.
       nspec (int, optional): number of templates to return
@@ -449,6 +449,8 @@ def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
 
     ltype = objtype.lower()
     if objtype == 'FSTD':
+        ltype = 'star'
+    if objtype == 'MWS_STAR':
         ltype = 'star'
 
     if infile is None:
