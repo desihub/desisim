@@ -19,7 +19,6 @@ import numpy as np
 import optparse
 import random
 import time
-import multiprocessing
 import string
 
 from desisim import obs, io

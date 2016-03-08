@@ -489,7 +489,7 @@ def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
         meta = meta[these]
 
     # Optionally resample the templates at specific wavelengths.  Use
-    #multiprocessing to speed this up.
+    # multiprocessing to speed this up.
     if outwave is None:
         outflux = flux # Do I really need to copy these variables!
         outwave = wave

@@ -18,7 +18,7 @@ from desispec.interpolation import resample_flux
 from desispec.log import get_logger
 log = get_logger()
 
-from .targets import get_targets
+from .targets import get_targets_parallel
 from . import io
 
 def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
@@ -108,7 +108,8 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
             truth['PHOT_'+channel] = phot
         
     else: # checked that flavor is valid in newexp-desi
-        fibermap, truth = get_targets(nspec, flavor, tileid=tileid)
+        log.debug('Generating {} targets'.format(nspec))
+        fibermap, truth = get_targets_parallel(nspec, flavor, tileid=tileid)
             
         flux = truth['FLUX']
         wave = truth['WAVE']
@@ -131,6 +132,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
         skyflux = np.interp(wave, skywave, skyflux)
         truth['SKYFLUX'] = skyflux
 
+        log.debug('Calculating flux -> photons')
         for channel in ('B', 'R', 'Z'):
             thru = desimodel.io.load_throughput(channel)
         

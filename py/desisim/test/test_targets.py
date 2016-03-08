@@ -4,17 +4,14 @@ import numpy as np
 
 import desisim.targets
 
-desimodel_data_available = 'DESIMODEL' in os.environ
-
 class TestObs(unittest.TestCase):
 
-    @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
     def test_sample_nz(self):
         n = 5
         for objtype in ['LRG', 'ELG', 'QSO', 'STAR', 'STD']:
             z = desisim.targets.sample_nz(objtype, n)
             self.assertEqual(len(z), n)
-
+    
     def test_get_targets(self):
         n = 5
         for flavor in ['DARK', 'BRIGHT', 'LRG', 'ELG', 'QSO', 'BGS', 'MWS']:
@@ -26,6 +23,22 @@ class TestObs(unittest.TestCase):
             for n in [5,10,50]:
                 for i in range(10):
                     truetype, targettype = desisim.targets.sample_objtype(n, flavor)
+
+    def test_parallel(self):
+        import multiprocessing as mp
+        nproc = mp.cpu_count() // 2
+        for n in [nproc, 5*nproc, 5*nproc+3]:
+            fibermap, truth = desisim.targets.get_targets_parallel(n, 'DARK')
+            if n != len(fibermap):
+                #--- DEBUG ---
+                import IPython
+                IPython.embed()
+                #--- DEBUG ---
+                
+            self.assertEqual(n, len(fibermap))
+            for key in truth.keys():
+                if key not in ('UNITS', 'WAVE'):
+                    self.assertEqual(n, truth[key].shape[0])
 
 #- This runs all test* functions in any TestCase class in this file
 if __name__ == '__main__':
