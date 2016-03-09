@@ -143,19 +143,10 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
     fibermapfile = desispec.io.findfile('fibermap', night=night, expid=expid)
     fibermapfile = os.path.join(simdir, os.path.basename(fibermapfile))
     fm, fmhdr = desispec.io.read_fibermap(fibermapfile, header=True)
-    meta = dict()
-    try:
-        meta['TELRA']  = simspec.header['TELRA']
-        meta['TELDEC'] = simspec.header['TELDEC']
-    except KeyError:  #- temporary backwards compatibilty
-        meta['TELRA']  = fmhdr['TELERA']
-        meta['TELDEC'] = fmhdr['TELEDEC']
-        
-    meta['TILEID'] = simspec.header['TILEID']
-    meta['DATE-OBS'] = simspec.header['DATE-OBS']
-    meta['FLAVOR'] = simspec.header['FLAVOR']
-    meta['EXPTIME'] = simspec.header['EXPTIME']
-    meta['AIRMASS'] = simspec.header['AIRMASS']
+
+    #- Augment the input header
+    meta = simspec.header.copy()
+    meta['SPECTRO'] = ispec
 
     image = Image(pix, ivar, mask, readnoise=readnoise, camera=camera, meta=meta)
 
