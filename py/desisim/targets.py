@@ -13,6 +13,8 @@ import yaml
 
 from desimodel.focalplane import FocalPlane
 import desimodel.io
+from desispec.log import get_logger
+log = get_logger()
 
 from desispec import brick
 from desispec.io.fibermap import empty_fibermap
@@ -77,6 +79,8 @@ def sample_objtype(nobj, flavor):
         true_objtype  +=  ['STD']*nsci
     elif (flavor == 'BGS'):
         true_objtype  +=  ['BGS']*nsci
+    elif (flavor in ('GRAY', 'GREY')):
+        true_objtype += ['ELG',] * nsci
     elif (flavor == 'BRIGHT'):
         #- BGS galaxies and MWS stars
         ntgt = float(tgt['nobs_BG'] + tgt['nobs_MWS'])
@@ -121,6 +125,42 @@ def sample_objtype(nobj, flavor):
     true_objtype = np.array(true_objtype)
 
     return true_objtype, target_objtype
+
+#- multiprocessing needs one arg, not multiple args
+def _wrap_get_targets(args):
+    nspec, flavor, tileid = args
+    return get_targets(nspec, flavor, tileid)
+    
+def get_targets_parallel(nspec, flavor, tileid=None, nproc=None):
+    import multiprocessing as mp
+    if nproc is None:
+        nproc = mp.cpu_count() // 2
+    
+    #- don't bother with parallelism if there aren't many targets
+    if nspec < 5*nproc:
+        log.debug('Not Parallelizing get_targets for only {} targets'.format(nspec))
+        return get_targets(nspec, flavor, tileid)
+    else:
+        log.debug('Parallelizing get_targets using {} cores'.format(nproc))
+        args = list()
+        n = nspec // nproc
+        for i in range(0, nspec, n):
+            if i+n < nspec:
+                args.append( (n, flavor, tileid) )
+            else:
+                args.append( (nspec-i, flavor, tileid) )
+                
+        pool = mp.Pool(nproc)
+        results = pool.map(_wrap_get_targets, args)
+        fibermaps, truthtables = zip(*results)
+        fibermap = np.concatenate(fibermaps)
+
+        truth = truthtables[0]
+        for key in truth.keys():
+            if key not in ('UNITS', 'WAVE'):
+                truth[key] = np.concatenate([t[key] for t in truthtables])
+
+        return fibermap, truth
 
 def get_targets(nspec, flavor, tileid=None):
     """

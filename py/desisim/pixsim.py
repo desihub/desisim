@@ -14,6 +14,8 @@ from desispec.image import Image
 import desispec.cosmics
 
 from desisim import obs, io
+from desispec.log import get_logger
+log = get_logger()
 
 def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
     trimxy=False, cosmics=None, wavemin=None, wavemax=None):
@@ -41,7 +43,7 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/pix-{camera}-{expid}.fits
     """
     if verbose:
-        print "Reading input files"
+        log.info("Reading input files")
 
     channel = camera[0].lower()
     ispec = int(camera[1])
@@ -62,8 +64,8 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
         phot = simspec.phot[channel]
 
     if ispec*nfibers >= simspec.nspec:
-        print "ERROR: camera {} not in the {} spectra in {}/{}".format(
-            camera, simspec.nspec, night, os.path.basename(simfile))
+        log.fatal("ERROR: camera {} not in the {} spectra in {}/{}".format(
+            camera, simspec.nspec, night, os.path.basename(simfile)))
         return
 
     #- Load PSF
@@ -81,9 +83,11 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
     if wavemin is not None:
         ii = (wave >= wavemin)
         phot = phot[:, ii]
+        wave = wave[ii]
     if wavemax is not None:
         ii = (wave <= wavemax)
         phot = phot[:, ii]
+        wave = wave[ii]
 
     #- check if simulation has less than 500 input spectra
     if phot.shape[0] < nspec:
@@ -91,7 +95,7 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
 
     #- Project to image and append that to file
     if verbose:
-        print "Projecting photons onto CCD"
+        log.info("Projecting photons onto {} CCD".format(camera))
         
     img = parallel_project(psf, wave, phot, ncpu=ncpu)
     
@@ -164,7 +168,7 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
     desispec.io.write_image(pixfile, image)
 
     if verbose:
-        print "Wrote "+pixfile
+        log.info("Wrote "+pixfile)
         
 #-------------------------------------------------------------------------
 

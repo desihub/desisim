@@ -81,7 +81,7 @@ for camera in opts.cameras:
     #- Simulate
     pixsim.simulate(opts.night, opts.expid, camera, verbose=opts.verbose,
         nspec=opts.nspec, ncpu=opts.ncpu, trimxy=opts.trimxy,
-        cosmics=opts.cosmics)
+        cosmics=opts.cosmics, wavemin=opts.wavemin, wavemax=opts.wavemax)
 
 #-------------------------------------------------------------------------
 # if opts.debug:
