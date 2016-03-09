@@ -74,6 +74,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
         truth = dict(WAVE=wave)
         meta = None
         fibermap = desispec.io.fibermap.empty_fibermap(nspec)
+        fibermap['OBJTYPE'] = 'ARC'
         for channel in ('B', 'R', 'Z'):
             thru = desimodel.io.load_throughput(channel)        
             ii = np.where( (thru.wavemin <= wave) & (wave <= thru.wavemax) )[0]
@@ -98,6 +99,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
         truth = dict(WAVE=wave, FLUX=flux)
         meta = None
         fibermap = desispec.io.fibermap.empty_fibermap(nspec)
+        fibermap['OBJTYPE'] = 'FLAT'
         for channel in ('B', 'R', 'Z'):
             thru = desimodel.io.load_throughput(channel)
             ii = (thru.wavemin <= wave) & (wave <= thru.wavemax)
