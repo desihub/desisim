@@ -125,6 +125,13 @@ class TestObs(unittest.TestCase):
         c = obs.get_next_tileid()
         self.assertNotEqual(a, c)
 
+    def test_specter_objtype(self):
+        self.assertEqual(obs.specter_objtype('MWS_STAR'), 'STAR')
+        self.assertEqual(obs.specter_objtype(['MWS_STAR',])[0], 'STAR')
+        a = np.array(['STAR', 'MWS_STAR', 'QSO_BAD', 'FSTD', 'QSO', 'ELG'])
+        b = np.array(['STAR', 'STAR', 'STAR', 'STAR', 'QSO', 'ELG'])
+        self.assertTrue(np.all(obs.specter_objtype(a) == b))
+
     def test_get_next_expid(self):
         a = obs.get_next_expid()
         b = obs.get_next_expid()

@@ -150,7 +150,7 @@ def write_simspec(meta, truth, expid, night, header=None, outfile=None):
     #- Add Metadata table HDU; use write_bintable to get units and comments
     if meta is not None:
         comments = dict(
-            OBJTYPE     = 'Object type (ELG, LRG, QSO, STD, STAR, MWS_STAR, BGS)',
+            OBJTYPE     = 'Object type (ELG,LRG,QSO,STD,STAR,MWS_STAR,BGS)',
             REDSHIFT    = 'true object redshift',
             TEMPLATEID  = 'input template ID',
             OIIFLUX     = '[OII] flux [erg/s/cm2]',
@@ -489,7 +489,7 @@ def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
         meta = meta[these]
 
     # Optionally resample the templates at specific wavelengths.  Use
-    #multiprocessing to speed this up.
+    # multiprocessing to speed this up.
     if outwave is None:
         outflux = flux # Do I really need to copy these variables!
         outwave = wave

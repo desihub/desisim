@@ -73,6 +73,20 @@ class TestPixsim(unittest.TestCase):
         self.assertTrue(os.path.exists(io.findfile('simpix', night, expid, camera)))
         self.assertTrue(os.path.exists(io.findfile('pix', night, expid, camera)))
 
+    @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
+    @unittest.skipUnless(desi_root_available, '$DESI_ROOT not set')
+    def test_pixsim_waveminmax(self):
+        night = '20150105'
+        expid = 123
+        camera = 'r0'
+        obs.new_exposure('arc', night=night, expid=expid, nspec=3)
+        pixsim.simulate(night, expid, camera, nspec=3, trimxy=True,
+            wavemin=6000, wavemax=6100)
+
+        self.assertTrue(os.path.exists(io.findfile('simspec', night, expid)))
+        simspec = io.read_simspec(io.findfile('simspec', night, expid))
+        self.assertTrue(os.path.exists(io.findfile('simpix', night, expid, camera)))
+        self.assertTrue(os.path.exists(io.findfile('pix', night, expid, camera)))
     @unittest.skipUnless(desi_templates_available, 'The DESI templates directory ($DESI_ROOT/spectro/templates) was not detected.')
     @unittest.skipUnless(desimodel_data_available, '$DESIMODEL/data not available')
     def test_pixsim_cosmics(self):
