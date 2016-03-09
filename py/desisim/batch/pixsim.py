@@ -33,7 +33,6 @@ def batch_newexp(batchfile, flavors, nspec=5000, night=None, expids=None):
         fx.write("#SBATCH --time={}\n".format(timestr))
         fx.write("#SBATCH --job-name=newexp\n")
         fx.write("#SBATCH --output={}\n".format(logfile))
-        fx.write("#SBATCH --export=NONE\n\n")
         
         fx.write("if [ ${NERSC_HOST} = edison ]; then\n")
         fx.write("  nproc=24\n")
@@ -54,7 +53,8 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
     Write a slurm batch script for run newexp-desi for the list of flavors
     '''
     nexp = len(flavors)
-    nodes = nexp*30
+    nspectrographs = (nspec-1) // 500 + 1
+    nodes = nexp * nspectrographs * 3
     timestr = '00:30:00'
     logfile = '{}.%j.log'.format(batchfile)
     
@@ -79,8 +79,7 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
         fx.write("#SBATCH --time={}\n".format(timestr))
         fx.write("#SBATCH --job-name=newexp\n")
         fx.write("#SBATCH --output={}\n".format(logfile))
-        fx.write("#SBATCH --export=NONE\n\n")
-        
+
         fx.write("if [ ${NERSC_HOST} = edison ]; then\n")
         fx.write("  nproc=24\n")
         fx.write("else\n")
@@ -89,7 +88,7 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
         
         for expid, flavor in zip(expids, flavors):
             fx.write('\n#--- Exposure {} ({})\n'.format(expid, flavor))
-            for spectrograph in range(10):
+            for spectrograph in range(nspectrographs):
                 for channel in ['b', 'r', 'z']:
                     if flavor in ('arc', 'flat'):
                         cosmics = cosmics_dir + '/cosmics-bias-{}.fits'.format(channel)
