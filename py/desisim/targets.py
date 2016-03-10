@@ -137,10 +137,11 @@ def get_targets_parallel(nspec, flavor, tileid=None, nproc=None):
         nproc = mp.cpu_count() // 2
     
     #- don't bother with parallelism if there aren't many targets
-    if nspec < 5*nproc:
+    if nspec < 20:
         log.debug('Not Parallelizing get_targets for only {} targets'.format(nspec))
         return get_targets(nspec, flavor, tileid)
     else:
+        nproc = min(nproc, nspec//10)        
         log.debug('Parallelizing get_targets using {} cores'.format(nproc))
         args = list()
         n = nspec // nproc
@@ -159,6 +160,10 @@ def get_targets_parallel(nspec, flavor, tileid=None, nproc=None):
         for key in truth.keys():
             if key not in ('UNITS', 'WAVE'):
                 truth[key] = np.concatenate([t[key] for t in truthtables])
+
+        #- Fix FIBER and SPECTROID entries in fibermap
+        fibermap['FIBER'] = np.arange(nspec)
+        fibermap['SPECTROID'] = fibermap['FIBER'] // 500
 
         return fibermap, truth
 
