@@ -47,10 +47,16 @@ def batch_newexp(batchfile, flavors, nspec=5000, night=None, expids=None,
         nodes = calc_nodes(nexp, tasktime=1.5, maxtime=20)
         
     if pixprod is None:
-        pixprod = os.environ['PIXPROD']
+        if 'PIXPROD' in os.environ:
+            pixprod = os.environ['PIXPROD']
+        else:
+            raise ValueError('must provide pixprod or set $PIXPROD')
         
     if desi_spectro_sim is None:
-        desi_spectro_sim = os.environ['DESI_SPECTRO_SIM']
+        if 'DESI_SPECTRO_SIM' in os.environ:
+            desi_spectro_sim = os.environ['DESI_SPECTRO_SIM']
+        else:
+            raise ValueError('must provide desi_spectro_sim or set $DESI_SPECTRO_SIM')
         
     log.info('output dir {}/{}/{}'.format(desi_spectro_sim, pixprod, night))
     
@@ -103,10 +109,16 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
     assert len(expids) == len(flavors)
 
     if pixprod is None:
-        pixprod = os.environ['PIXPROD']
+        if 'PIXPROD' in os.environ:
+            pixprod = os.environ['PIXPROD']
+        else:
+            raise ValueError('must provide pixprod or set $PIXPROD')
         
     if desi_spectro_sim is None:
-        desi_spectro_sim = os.environ['DESI_SPECTRO_SIM']
+        if 'DESI_SPECTRO_SIM' in os.environ:
+            desi_spectro_sim = os.environ['DESI_SPECTRO_SIM']
+        else:
+            raise ValueError('must provide desi_spectro_sim or set $DESI_SPECTRO_SIM')
 
     log.info('output dir {}/{}/{}'.format(desi_spectro_sim, pixprod, night))
 
