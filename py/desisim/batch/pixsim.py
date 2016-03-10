@@ -3,6 +3,21 @@ Provides utility functions for batch processing of pixel-level simulations at
 NERSC.  This is a temporary pragmatic package -- after desispec.pipeline code
 is merged and vetted, this should use that infrastructure for more rigorous
 logging, environment setup, and scaling flexibility.
+
+Example:
+
+#- From python
+import desisim.batch.pixsim
+flavors = ['arc', 'flat', 'dark', 'dark', 'gray', 'gray', 'bright', 'bright']
+expids = range(len(flavors))
+desisim.batch.pixsim.batch_newexp('newexp-blat.sh', flavors, expids=expids)
+desisim.batch.pixsim.batch_pixsim('pixsim-blat.sh', flavors, expids=expids)
+
+#- then from the command line
+[edison] sbatch newexp-batch.sh
+Submitted batch job 233895
+[edison] sbatch -d afterok:233895 pixsim-batch.sh
+Submitted batch job 233901
 '''
 
 from __future__ import absolute_import, division, print_function
