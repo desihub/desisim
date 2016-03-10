@@ -112,7 +112,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
     else: # checked that flavor is valid in newexp-desi
         log.debug('Generating {} targets'.format(nspec))
         fibermap, truth = get_targets_parallel(nspec, flavor, tileid=tileid)
-            
+
         flux = truth['FLUX']
         wave = truth['WAVE']
         nwave = len(wave)

@@ -29,13 +29,9 @@ class TestObs(unittest.TestCase):
         nproc = mp.cpu_count() // 2
         for n in [nproc, 5*nproc, 5*nproc+3]:
             fibermap, truth = desisim.targets.get_targets_parallel(n, 'DARK')
-            if n != len(fibermap):
-                #--- DEBUG ---
-                import IPython
-                IPython.embed()
-                #--- DEBUG ---
-                
             self.assertEqual(n, len(fibermap))
+            self.assertEqual(n, len(set(fibermap['FIBER'])))  #- unique FIBER
+            self.assertTrue(np.all(fibermap['SPECTROID'] == fibermap['FIBER']//500))
             for key in truth.keys():
                 if key not in ('UNITS', 'WAVE'):
                     self.assertEqual(n, truth[key].shape[0])
