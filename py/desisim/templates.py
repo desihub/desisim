@@ -413,7 +413,7 @@ class ELG():
             Set this parameter to zero to not have a minimum flux cut.
 
           sne_rfluxratiorange (float, optional): r-band flux ratio of the SNeIa
-            spectrum with respect to the underlying galaxy
+            spectrum with respect to the underlying galaxy.
         
           seed (long, optional): input seed for the random numbers.
           nocolorcuts (bool, optional): Do not apply the fiducial grz color-cuts
@@ -621,7 +621,6 @@ class ELG():
                     if self.add_SNeIa:
                         meta['SNE_TEMPLATEID'][nobj] = self.sne_basemeta['TEMPLATEID'][sne_chunkindx[ii]]
                         meta['SNE_EPOCH'][nobj] = self.sne_basemeta['EPOCH'][sne_chunkindx[ii]]
-                        #meta['SNE_EPOCH'][nobj] = sne_epoch[ii]
                         meta['SNE_RFLUXRATIO'][nobj] = sne_rfluxratio[ii]
 
                     nobj = nobj+1
@@ -1521,10 +1520,8 @@ class BGS():
           rfilt (speclite.filters instance): DECam2014 r-band FilterSequence
 
         Optional Attributes:
-          sne_baseflux (numpy.ndarray): Array [sne_nbase,sne_npix] of the base rest-frame
-            SNeIa spectra [erg/s/cm2/A].
-          sne_basewave (numpy.ndarray): Array [sne_npix] of rest-frame wavelengths 
-            corresponding to SNE_BASEFLUX [Angstrom].
+          sne_baseflux (numpy.ndarray): Array [sne_nbase,sne_npix] of the base
+            rest-frame SNeIa spectra interpolated onto BASEWAVE [erg/s/cm2/A].
           sne_basemeta (astropy.Table): Table of meta-data for each base SNeIa
             spectra [sne_nbase].
 
@@ -1552,13 +1549,15 @@ class BGS():
         self.basewave = basewave
         self.basemeta = basemeta
 
-        # Optionally read the SNe Ia basis templates.
+        # Optionally read the SNe Ia basis templates and resample.
         self.add_SNeIa = add_SNeIa
         if self.add_SNeIa:
-            sne_baseflux, sne_basewave, sne_basemeta = read_basis_templates(objtype='SNE')
+            sne_baseflux1, sne_basewave, sne_basemeta = read_basis_templates(objtype='SNE')
+            sne_baseflux = np.zeros((len(sne_basemeta), len(self.basewave)))
+            for ii in range(len(sne_basemeta)):
+                sne_baseflux[ii,:] = resample_flux(self.basewave, sne_basewave, sne_baseflux1[ii,:])
             self.sne_baseflux = sne_baseflux
-            self.sne_basewave = sne_basewave
-            self.sne_basemeta = sne_basemeta            
+            self.sne_basemeta = sne_basemeta
 
         # Pixel boundaries
         self.pixbound = pxs.cen2bound(basewave)
@@ -1606,7 +1605,7 @@ class BGS():
             Defaults to log10-sigma=2.0+/-0.17 km/s
         
           sne_rfluxratiorange (float, optional): r-band flux ratio of the SNeIa
-            spectrum with respect to the underlying galaxy
+            spectrum with respect to the underlying galaxy.
 
           seed (long, optional): input seed for the random numbers.
           nocolorcuts (bool, optional): Do not apply the fiducial color-cuts
@@ -1736,10 +1735,7 @@ class BGS():
                 restflux = self.baseflux[iobj,:]
 
                 if self.add_SNeIa:
-                    sne_zwave = self.sne_basewave.astype(float)*(1+redshift[ii])
-                    sne_restflux1 = self.sne_baseflux[sne_chunkindx[ii],:]
-                    sne_restflux = resample_flux(zwave, sne_zwave, sne_restflux1)
-
+                    sne_restflux = self.sne_baseflux[sne_chunkindx[ii],:]
                     galnorm = self.rfilt.get_ab_maggies(restflux, zwave)
                     snenorm = self.rfilt.get_ab_maggies(sne_restflux, zwave)
                     restflux += sne_restflux*galnorm['decam2014-r'][0]/snenorm['decam2014-r'][0]*sne_rfluxratio[ii]
@@ -1813,7 +1809,6 @@ class BGS():
                     if self.add_SNeIa:
                         meta['SNE_TEMPLATEID'][nobj] = self.sne_basemeta['TEMPLATEID'][sne_chunkindx[ii]]
                         meta['SNE_EPOCH'][nobj] = self.sne_basemeta['EPOCH'][sne_chunkindx[ii]]
-                        #meta['SNE_EPOCH'][nobj] = sne_epoch[ii]
                         meta['SNE_RFLUXRATIO'][nobj] = sne_rfluxratio[ii]
 
                     nobj = nobj+1
