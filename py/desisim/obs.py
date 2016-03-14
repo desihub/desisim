@@ -1,5 +1,7 @@
 #- Utility functions related to simulating observations for DESI
 
+from __future__ import absolute_import, division, print_function
+
 import os, sys
 import numpy as np
 import yaml
@@ -13,7 +15,10 @@ import desimodel.io
 import desispec.io
 from desispec.interpolation import resample_flux
 
-from targets import get_targets
+from desispec.log import get_logger
+log = get_logger()
+
+from .targets import get_targets_parallel
 from . import io
 
 def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
@@ -58,7 +63,8 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
         night = str(night)  #- just in case we got an integer instead of string
         dateobs = time.strptime(night+':22', '%Y%m%d:%H')
     
-    params = desimodel.io.load_desiparams()    
+    params = desimodel.io.load_desiparams()
+    flavor = flavor.lower()
     if flavor == 'arc':
         infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.2/arc-lines-average.fits'
         d = fits.getdata(infile, 1)
@@ -68,6 +74,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
         truth = dict(WAVE=wave)
         meta = None
         fibermap = desispec.io.fibermap.empty_fibermap(nspec)
+        fibermap['OBJTYPE'] = 'ARC'
         for channel in ('B', 'R', 'Z'):
             thru = desimodel.io.load_throughput(channel)        
             ii = np.where( (thru.wavemin <= wave) & (wave <= thru.wavemax) )[0]
@@ -92,6 +99,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
         truth = dict(WAVE=wave, FLUX=flux)
         meta = None
         fibermap = desispec.io.fibermap.empty_fibermap(nspec)
+        fibermap['OBJTYPE'] = 'FLAT'
         for channel in ('B', 'R', 'Z'):
             thru = desimodel.io.load_throughput(channel)
             ii = (thru.wavemin <= wave) & (wave <= thru.wavemax)
@@ -102,8 +110,9 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
             truth['PHOT_'+channel] = phot
         
     else: # checked that flavor is valid in newexp-desi
-        fibermap, truth = get_targets(nspec, flavor, tileid=tileid)
-            
+        log.debug('Generating {} targets'.format(nspec))
+        fibermap, truth = get_targets_parallel(nspec, flavor, tileid=tileid)
+
         flux = truth['FLUX']
         wave = truth['WAVE']
         nwave = len(wave)
@@ -112,15 +121,20 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
             exptime = params['exptime']
     
         #- Load sky [Magic knowledge of units 1e-17 erg/s/cm2/A/arcsec2]
-        if flavor.lower() in ('bright', 'bgs', 'mws'):
+        if flavor in ('bright', 'bgs', 'mws'):
             skyfile = os.getenv('DESIMODEL')+'/data/spectra/spec-sky-bright.dat'
+        elif flavor in ('gray', 'grey'):
+            skyfile = os.getenv('DESIMODEL')+'/data/spectra/spec-sky-grey.dat'
         else:
             skyfile = os.getenv('DESIMODEL')+'/data/spectra/spec-sky.dat'
+
+        log.info('skyfile '+skyfile)
 
         skywave, skyflux = np.loadtxt(skyfile, unpack=True)
         skyflux = np.interp(wave, skywave, skyflux)
         truth['SKYFLUX'] = skyflux
 
+        log.debug('Calculating flux -> photons')
         for channel in ('B', 'R', 'Z'):
             thru = desimodel.io.load_throughput(channel)
         
@@ -128,8 +142,8 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
         
             #- Project flux to photons
             phot = thru.photons(wave[ii], flux[:,ii], units=truth['UNITS'],
-                    objtype=truth['OBJTYPE'], exptime=exptime,
-                    airmass=airmass)
+                    objtype=specter_objtype(truth['OBJTYPE']),
+                    exptime=exptime, airmass=airmass)
                 
             truth['PHOT_'+channel] = phot
             truth['WAVE_'+channel] = wave[ii]
@@ -177,7 +191,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
     #- ISO 8601 DATE-OBS year-mm-ddThh:mm:ss
     fiberfile = desispec.io.findfile('fibermap', night, expid)
     desispec.io.write_fibermap(fiberfile, fibermap, header=hdr)
-    print fiberfile
+    log.info('Wrote '+fiberfile)
     
     #- Write simspec; expand fibermap header
     hdr['AIRMASS'] = (airmass, 'Airmass at middle of exposure')
@@ -185,7 +199,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
     hdr['DATE-OBS'] = (time.strftime('%FT%T', dateobs), 'Start of exposure')
 
     simfile = io.write_simspec(meta, truth, expid, night, header=hdr)
-    print(simfile)
+    log.info('Wrote '+simfile)
 
     #- Update obslog that we succeeded with this exposure
     update_obslog(flavor, expid, dateobs, tileid)
@@ -197,6 +211,36 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
         del os.environ['DESI_SPECTRO_DATA']
     
     return fibermap, truth
+
+#- Mapping of DESI objtype to things specter knows about
+def specter_objtype(desitype):
+    '''
+    Convert a list of DESI object types into ones that specter knows about
+    '''
+    intype = np.atleast_1d(desitype)
+    desi2specter = dict(
+        STAR='STAR', STD='STAR', STD_FSTAR='STAR', FSTD='STAR', MWS_STAR='STAR',
+        LRG='LRG', ELG='ELG', QSO='QSO', QSO_BAD='STAR',
+        BGS='LRG', # !!!
+        SKY='SKY'
+    )
+    
+    unknown_types = set(intype) - set(desi2specter.keys())
+    if len(unknown_types) > 0:
+        raise ValueError('Unknown input objtypes {}'.format(unknown_types))
+    
+    results = np.zeros(len(intype), dtype='S8')
+    for objtype in desi2specter:
+        ii = (intype == objtype)
+        results[ii] = desi2specter[objtype]
+        
+    assert np.count_nonzero(results == '') == 0
+    
+    if isinstance(desitype, (str, unicode)):
+        return results[0]
+    else:
+        return results
+        
 
 def get_next_tileid():
     """

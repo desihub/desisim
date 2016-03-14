@@ -3,7 +3,7 @@ from __future__ import division
 import os
 import unittest
 import numpy as np
-from desisim.templates import ELG, LRG, QSO, STAR
+from desisim.templates import ELG, LRG, QSO, STAR, FSTD, MWS_STAR
 
 desimodel_data_available = 'DESIMODEL' in os.environ
 desi_templates_available = 'DESI_ROOT' in os.environ
@@ -26,7 +26,7 @@ class TestTemplates(unittest.TestCase):
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_simple(self):
         '''Confirm that creating templates works at all'''
-        for T in [ELG, LRG, QSO, STAR]:
+        for T in [ELG, LRG, QSO, STAR, FSTD, MWS_STAR]:
             template_factory = T(wave=self.wave)
             flux, wave, meta = template_factory.make_templates(self.nspec)
             self._check_output_size(flux, wave, meta)
@@ -60,13 +60,20 @@ class TestTemplates(unittest.TestCase):
         self.assertTrue('TEFF' in meta.dtype.names)
         self.assertTrue('FEH' in meta.dtype.names)
 
-        star = STAR(wave=self.wave, FSTD=True)
-        flux, wave, meta = star.make_templates(self.nspec)
+        fstd = FSTD(wave=self.wave)
+        flux, wave, meta = fstd.make_templates(self.nspec)
         self._check_output_size(flux, wave, meta)
         self.assertTrue('LOGG' in meta.dtype.names)
         self.assertTrue('TEFF' in meta.dtype.names)
         self.assertTrue('FEH' in meta.dtype.names)
 
+        mwsstar = MWS_STAR(wave=self.wave)
+        flux, wave, meta = mwsstar.make_templates(self.nspec)
+        self._check_output_size(flux, wave, meta)
+        self.assertTrue('LOGG' in meta.dtype.names)
+        self.assertTrue('TEFF' in meta.dtype.names)
+        self.assertTrue('FEH' in meta.dtype.names)
+        
         star = STAR(wave=self.wave, WD=True)
         flux, wave, meta = star.make_templates(self.nspec)
         self._check_output_size(flux, wave, meta)
@@ -77,7 +84,7 @@ class TestTemplates(unittest.TestCase):
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_random_seed(self):
         '''Test that random seed works to get the same results back'''
-        for T in [ELG, LRG, QSO, STAR]:
+        for T in [ELG, LRG, QSO, STAR, FSTD, MWS_STAR]:
             Tx = T(wave=self.wave)
             flux1, wave1, meta1 = Tx.make_templates(self.nspec, seed=1)
             flux2, wave2, meta2 = Tx.make_templates(self.nspec, seed=1)

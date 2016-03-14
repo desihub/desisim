@@ -42,9 +42,9 @@ module-whatis "Sets up $product/$version in your environment."
 # A mandatory dependency is a module load command followed by a prereq
 # command.  An optional dependency is not followed by a prereq statement.
 #
-module load desiutil
+### module load desiutil
 prereq desiutil
-module load desimodel
+### module load desimodel
 prereq desimodel
 #
 # ENVIRONMENT SECTION

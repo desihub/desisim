@@ -1,0 +1,62 @@
+#!/usr/bin/env python
+
+"""
+quickcat v0 : simulates the data flow from fiber assignment output to
+zcatalog creation.
+
+WORK IN PROGRESS
+"""
+
+from __future__ import absolute_import, division, print_function
+
+import sys, os
+import numpy as np
+from astropy.table import Table, Column
+
+from desisim.quickcat import quickcat
+
+import optparse
+
+parser = optparse.OptionParser(usage = "%prog [options] tile*.fits")
+# parser.add_option("-f", "--fibassign", type=str, help="fiber assignment dir")
+parser.add_option("--obstiles",  type=str, help="file with list of observed tile files")
+parser.add_option("--targets",   type=str, help="target file (or mtl file)")
+parser.add_option("--truth",     type=str, help="file with truth table")
+parser.add_option('-z', "--zcat",      type=str, help="previous zcatalog to update")
+parser.add_option('-o', "--output",    type=str, help="new zcatalog to write")
+parser.add_option("-p", "--perfect", action="store_true", help="perfect spectro pipeline; output=truth")
+parser.add_option("--clobber", action="store_true", help="overwrite pre-existing output file")
+opts, tilefiles = parser.parse_args()
+
+#- Sanity check
+if os.path.exists(opts.output) and not opts.clobber:
+    print('ERROR: {} already exists'.format(opts.output))
+    print('  Use --clobber to overwrite')
+    sys.exit(1)
+
+#- Load inputs
+truth = Table.read(opts.truth)
+targets = Table.read(opts.targets)
+if opts.obstiles is not None:
+    for line in open(opts.obstiles):
+        line = line.strip()
+        if line.startswith('#') or len(line) < 2:
+            continue
+        else:
+            tilefiles.append(line)
+        
+if opts.zcat is not None:
+    zcat = Table.read(opts.zcat, format='fits')
+else:
+    zcat = None
+
+#- This is the actual calculation
+newzcat = quickcat(tilefiles, targets, truth, zcat=zcat, perfect=opts.perfect)
+
+#- Write it out
+newzcat.write(opts.output, format='fits', overwrite=opts.clobber)
+
+
+
+
+

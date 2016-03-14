@@ -10,19 +10,18 @@ Fall 2015
 
 import sys, os
 import numpy as np
-import scipy.sparse
 import string
 
 from astropy.table import Table, Column, vstack
 import astropy.units as u
+from astropy.io import fits
 
 import desimodel.io
-import specsim.config
 import specsim.simulator
-import desispec
+import desispec.io
 from desispec.log import get_logger
+from desispec.resolution import Resolution
 import desisim.templates
-import desisim.obs
 
 import desisim.targets
 
@@ -33,12 +32,11 @@ parser.add_option("-b", "--brickname", type=str,  help="brickname")
 parser.add_option(      "--objtype", type=str,  help="elg,lrg,qso,star or mix")
 parser.add_option("-n", "--nspec", type=int,  help="number of spectra to simulate")
 parser.add_option("-o", "--outdir", type=str,  help="output data directory; default .", default='.')
+parser.add_option("--config", type=str, help="specsim configuration", default="desi")
 #- Average DESI airmass 1.25; (See Science Req. Doc L3.3.2)
 parser.add_option("-a", "--airmass", type=float,  help="airmass [%default]", default=1.25)
 parser.add_option("-t", "--testwavelength", type=float,  help="test quickbrick with a single emission line", default=None)
 parser.add_option("-s", "--seed", type=int,  help="random seed", default=None)
-parser.add_option("--wavestep", type=float,  help="initial sampling of templates", default=0.2)
-parser.add_option("--downsampling", type=int,  help="downsampling value", default=3)
 parser.add_option("--outdir_truth", type=str,  help="optional alternative outdir for truth files")
 parser.add_option("-z","--zrange", type=str, help="redshift range of the form zmin:zmax (applies only to ELG,LRG,QSO)",default=None)
 
@@ -52,27 +50,16 @@ assert opts.objtype is not None
 opts.objtype = opts.objtype.upper()
 assert opts.objtype in ['ELG', 'LRG', 'QSO', 'STAR', 'TEST', 'MIX']
 
-#- Set random seed if defined
-if opts.seed is not None :
-    np.random.seed(opts.seed)
+#- Initialize random state to use throughput.
+random_state = np.random.RandomState(opts.seed)
 
-#- Load the default DESI simulation configuration.
-config = specsim.config.load_config('desi')
+#- Initialize the quick simulator object
+qsim = specsim.simulator.Simulator(opts.config)
+qsim.atmosphere.airmass = opts.airmass
+qsim.instrument.exposure_time = desiparams['exptime'] * u.s
 
-#- Modify defaults from command-line args.
-config.atmosphere.airmass = opts.airmass
-config.instrument.constants.exposure_time = '{0} s'.format(desiparams['exptime'])
-config.simulator.downsampling = opts.downsampling
-
-#- Wavelength grid to cover all channels
-config.wavelength_grid.min = desimodel.io.load_throughput('b').wavemin
-config.wavelength_grid.max = desimodel.io.load_throughput('z').wavemax
-config.wavelength_grid.step = opts.wavestep
-config.update()
-wave = config.wavelength.value
-
-#- Create the quick simulator object
-qsim = specsim.simulator.Simulator(config)
+#- Lookup the source wavelength grid.
+wave = qsim.source.wavelength_out.to(u.Angstrom).value
 
 #- If opts.objtype='MIX', get distribution of target types from sample_objtype
 if opts.objtype.lower() == 'mix':
@@ -180,7 +167,7 @@ for objtype in set(true_objtype):
 
 #- Create a blank fake fibermap; this is re-used by all channels
 fibermap = desispec.io.empty_fibermap(opts.nspec)
-targetids = np.random.randint(2**62, size=opts.nspec)
+targetids = random_state.randint(2**62, size=opts.nspec)
 fibermap['TARGETID'] = targetids
 night = desisim.obs.get_night()
 expid = 0
@@ -200,90 +187,63 @@ meta.add_column(Column(targetids, name='TARGETID'))
 #- rename REDSHIFT -> TRUEZ anticipating later table joins with zbest.Z
 meta.rename_column('REDSHIFT', 'TRUEZ')
 
+#- Initialize per-camera output arrays that will be saved to the brick files.
+cwave, trueflux, noisyflux, obsivar, resolution, sflux = {}, {}, {}, {}, {}, {}
+for camera in qsim.instrument.cameras:
+    cwave[camera.name] = (
+        camera.output_wavelength.to(u.Angstrom).value.astype(np.float32))
+    nwave = len(cwave[camera.name])
+    trueflux[camera.name] = np.empty((opts.nspec, nwave), dtype=np.float32)
+    noisyflux[camera.name] = np.empty_like(trueflux[camera.name])
+    obsivar[camera.name] = np.empty_like(trueflux[camera.name])
+    # Lookup this camera's resolution matrix and convert to the sparse
+    # format used in desispec.
+    R = Resolution(camera.get_output_resolution_matrix())
+    resolution[camera.name] = np.tile(R.to_fits_array(), [opts.nspec, 1, 1])
+    # Source flux uses the high-resolution simulation grid.
+    sflux = np.empty((opts.nspec, len(wave)), dtype=np.float32)
+
 #- Actually do the simulations for each target
 fluxunits = u.erg / (u.s * u.cm ** 2 * u.Angstrom)
-
-#- output arrays to fill; these cover wavelengths across all cameras
-srcflux={}
-trueflux={}
-obsivar={}
-obswave=None
-for camera in qsim.instrument.cameras:
-    trueflux[camera.name]=list()
-    obsivar[camera.name]=list()
-
-#- convert list of arrays to 2D arrays
 for i in range(opts.nspec):
     #- if objtype is QSO_BAD or TEST then simulate a star
     if (truth['OBJTYPE'][i] == 'QSO_BAD' or truth['OBJTYPE'][i] == 'TEST'):
         truth['OBJTYPE'][i]='STAR'
+
+    #- Update the source model to simulate.
     qsim.source.update_in(
         'Quickbrick source {0}'.format(i), truth['OBJTYPE'][i].lower(),
         truth['WAVE'] * u.Angstrom, truth['FLUX'][i] * fluxunits)
     qsim.source.update_out()
-    results = qsim.simulate()
+    sflux[i][:] = 1e17 * qsim.source.flux_out.to(fluxunits).value
 
-    #- output wavelength grid is the same for all spectra
-    if obswave is None :
-        obswave=results.wave
-    else :
-        assert (np.sum((obswave-results.wave)**2)==0.)
+    #- Run the simulation for this source and add noise.
+    qsim.simulate()
+    qsim.generate_random_noise(random_state)
 
-    # now we collect the results
-    for j, camera in enumerate(qsim.instrument.cameras):
-        trueflux[camera.name].append(results.camflux[:,j])
-        obsivar[camera.name].append(results.camivar[:,j])
+    #- Fill brick arrays from the results.
+    for camera, output in zip(qsim.instrument.cameras, qsim.camera_output):
+        assert output['observed_flux'].unit == fluxunits
+        trueflux[camera.name][i][:] = 1e17 * output['observed_flux']
+        noisyflux[camera.name][i][:] = 1e17 * (
+            output['observed_flux'] +
+            output['flux_calibration'] * output['random_noise_electrons'])
+        obsivar[camera.name][i][:] = 1e-34 * output['flux_inverse_variance']
 
-    # collect the source flux
-    srcflux[i]=list()
-    srcflux[i]=qsim.sourceFlux
+#- Define a utility function for adding truth to an output FITS file.
+def add_truth(hdus, header, channel):
+    header = desispec.io.fitsheader(header)
+    hdus.append(
+        fits.ImageHDU(trueflux[channel], name='_TRUEFLUX', header=header))
+    if channel == 'b':
+        swave = wave.astype(np.float32)
+        hdus.append(fits.ImageHDU(swave, name='_SOURCEWAVE', header=header))
+        hdus.append(fits.ImageHDU(sflux, name='_SOURCEFLUX', header=header))
+    hdus.append(fits.BinTableHDU(meta.as_array(), name='_TRUTH'))
 
-srcfl=dict()
-srcfl['SOURCE']=np.zeros( (opts.nspec,len(qsim.wavelengthGrid)) )
-for i in range(opts.nspec):
-    srcflux[i]=np.array(srcflux[i])
-    srcfl['SOURCE'][i] = srcflux[i]
+#- Write brick output
+for channel in 'brz':
 
-#- convert list of arrays to 2D arrays
-for camera in qsim.instrument.cameras:
-    trueflux[camera.name] = np.array(trueflux[camera.name])
-    obsivar[camera.name] = np.array(obsivar[camera.name])
-
-#- add noise
-noisyflux={}
-for camera in qsim.instrument.cameras:
-    noisyflux[camera.name] = np.zeros_like(trueflux[camera.name])
-    ii = np.where(obsivar[camera.name] > 0.01)
-    sigma = 1/np.sqrt(obsivar[camera.name][ii])
-    noisyflux[camera.name][ii] = trueflux[camera.name][ii] + np.random.normal(loc=0, scale=sigma)
-
-#- Select the wavelengths for each camera and output brick files
-for j, camera in enumerate(qsim.instrument.cameras):
-    channel = camera.name
-    #- Sparse full resolution matrix for this camera
-    R = qsim.cameras[j].sparseKernel
-
-    #- Trim R to range with non-zeros in even multiples of the downsampling
-    nd = opts.downsampling
-    ii = np.where(R.sum(axis=0).A[0])[0]
-    begin, end = (ii[0]//nd)*nd, ((ii[-1]+1)//nd)*nd
-    R = R[begin:end, begin:end]
-
-    #- indices of downsampled flux, ivar to keep
-    iiobs = np.arange(begin, end, nd) // nd
-
-    #- Downsample the resolution matrix
-    s = R.shape[1]//nd, nd, R.shape[0]//nd, nd
-    Rx = R.toarray().reshape(s).sum(-1).sum(1) / nd
-    Rdata = scipy.sparse.dia_matrix(Rx).data
-
-    #- replicate for all spectra for the output file
-    Rdata = np.array([Rdata for i in range(opts.nspec)])
-
-
-#    print 'wavelenthGrid %s, sourceFlux %s'%(qsim.wavelengthGrid,qsim.sourceFlux)
-
-    #- Write brick output
     filename = 'brick-{}-{}.fits'.format(channel, opts.brickname)
     filepath = os.path.join(opts.outdir, filename)
     if os.path.exists(filepath):
@@ -291,33 +251,22 @@ for j, camera in enumerate(qsim.instrument.cameras):
 
     header = dict(BRICKNAM=opts.brickname, CHANNEL=channel)
     brick = desispec.io.Brick(filepath, mode='update', header=header)
-    brick.add_objects(noisyflux[channel][:,iiobs].astype(np.float32), obsivar[channel][:,iiobs].astype(np.float32),
-        obswave[iiobs].astype(np.float32), Rdata.astype(np.float32), fibermap, night, expid)
+    brick.add_objects(
+        noisyflux[channel], obsivar[channel],
+        cwave[channel], resolution[channel], fibermap, night, expid)
     brick.close()
 
     #- Append truth to the file
     #- Note: Resolution convolved true flux, not high resolution source flux;
     #-       This makes chi2 calculations easier
-    from astropy.io import fits
-
     if opts.outdir_truth is None : # add truth in same file
         fx = fits.open(filepath, mode='append')
-        header = desispec.io.fitsheader(header)
-        fx.append(fits.ImageHDU(trueflux[channel][:,iiobs].astype(np.float32), name='_TRUEFLUX', header=header))
-        if (channel == 'b'):
-            fx.append(fits.ImageHDU(qsim.wavelengthGrid.astype(np.float32), name='_SOURCEWAVE', header=header))
-            fx.append(fits.ImageHDU(srcfl['SOURCE'].astype(np.float32), name='_SOURCEFLUX', header=header))
-        fx.append(fits.BinTableHDU(meta.as_array(), name='_TRUTH'))
+        add_truth(fx, header, channel)
         fx.flush()
         fx.close()
-    else :
-        header = desispec.io.fitsheader(header)
+    else:
         hdulist = fits.HDUList([fits.PrimaryHDU(header=header)])
-        hdulist.append(fits.ImageHDU(trueflux[channel][:,iiobs].astype(np.float32), name='_TRUEFLUX', header=header))
-        if (channel == 'b'):
-            hdulist.append(fits.ImageHDU(qsim.wavelengthGrid.astype(np.float32), name='_SOURCEWAVE', header=header))
-            hdulist.append(fits.ImageHDU(srcfl['SOURCE'].astype(np.float32), name='_SOURCEFLUX', header=header))
-        hdulist.append(fits.BinTableHDU(meta.as_array(), name='_TRUTH'))
+        add_truth(hdulist, header, channel)
         filename = 'truth-brick-{}-{}.fits'.format(channel, opts.brickname)
         filepath = os.path.join(opts.outdir_truth, filename)
         hdulist.writeto(filepath,clobber=True)
