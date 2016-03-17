@@ -321,7 +321,8 @@ class ELG():
             [default 2 Angstrom/pixel].
           wave (numpy.ndarray): Input/output observed-frame wavelength array,
             overriding the minwave, maxwave, and cdelt arguments [Angstrom].
-          add_SNeIa (boolean, optional): optionally include SNe Ia spectra
+          add_SNeIa (boolean, optional): optionally include a random-epoch SNe
+            Ia spectrum in the integrated spectrum [default False]
 
         Attributes:
           objtype (str): 'ELG'
@@ -635,7 +636,8 @@ class LRG():
     """Generate Monte Carlo spectra of luminous red galaxies (LRGs).
 
     """
-    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None):
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
+                 add_SNeIa=False):
         """Read the LRG basis continuum templates, filter profiles and initialize the
            output wavelength array.
 
@@ -652,6 +654,8 @@ class LRG():
             [default 2 Angstrom/pixel].
           wave (numpy.ndarray): Input/output observed-frame wavelength array,
             overriding the minwave, maxwave, and cdelt arguments [Angstrom].
+          add_SNeIa (boolean, optional): optionally include a random-epoch SNe
+            Ia spectrum in the integrated spectrum [default False]
     
         Attributes:
           objtype (str): 'LRG'
@@ -663,12 +667,20 @@ class LRG():
           basemeta (astropy.Table): Table of meta-data for each base template [nbase].
           pixbound (numpy.ndarray): Pixel boundaries of BASEWAVE [Angstrom].
           decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence
+          rfilt (speclite.filters instance): DECam2014 r-band FilterSequence
           zfilt (speclite.filters instance): DECam2014 z-band FilterSequence
 
+        Optional Attributes:
+          sne_baseflux (numpy.ndarray): Array [sne_nbase,sne_npix] of the base
+            rest-frame SNeIa spectra interpolated onto BASEWAVE [erg/s/cm2/A].
+          sne_basemeta (astropy.Table): Table of meta-data for each base SNeIa
+            spectra [sne_nbase].
+        
         """
         from speclite import filters
         from desisim.io import read_basis_templates
         from desisim import pixelsplines as pxs
+        from desispec.interpolation import resample_flux
 
         self.objtype = 'LRG'
 
@@ -685,15 +697,27 @@ class LRG():
         self.basewave = basewave
         self.basemeta = basemeta
 
+        # Optionally read the SNe Ia basis templates and resample.
+        self.add_SNeIa = add_SNeIa
+        if self.add_SNeIa:
+            sne_baseflux1, sne_basewave, sne_basemeta = read_basis_templates(objtype='SNE')
+            sne_baseflux = np.zeros((len(sne_basemeta), len(self.basewave)))
+            for ii in range(len(sne_basemeta)):
+                sne_baseflux[ii,:] = resample_flux(self.basewave, sne_basewave, sne_baseflux1[ii,:])
+            self.sne_baseflux = sne_baseflux
+            self.sne_basemeta = sne_basemeta
+            
         # Pixel boundaries
         self.pixbound = pxs.cen2bound(basewave)
 
         # Initialize the filter profiles.
+        self.rfilt = filters.load_filters('decam2014-r')
         self.zfilt = filters.load_filters('decam2014-z')
         self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
 
     def make_templates(self, nmodel=100, zrange=(0.5,1.1), zmagrange=(19.0,20.5),
-                       logvdisp_meansig=(2.3,0.1), seed=None, nocolorcuts=False):
+                       logvdisp_meansig=(2.3,0.1), sne_rfluxratiorange=(0.1,1.0),
+                       seed=None, nocolorcuts=False):
         """Build Monte Carlo set of LRG spectra/templates.
 
         This function chooses random subsets of the LRG continuum spectra and
@@ -709,6 +733,10 @@ class LRG():
           logvdisp_meansig (float, optional): Logarithmic mean and sigma values
             for the (Gaussian) stellar velocity dispersion distribution.
             Defaults to log10-sigma=2.3+/-0.1 km/s
+        
+          sne_rfluxratiorange (float, optional): r-band flux ratio of the SNeIa
+            spectrum with respect to the underlying galaxy.
+        
           seed (long, optional): input seed for the random numbers.
           nocolorcuts (bool, optional): Do not apply the fiducial rzW1
             color-cuts cuts (default False).
@@ -745,10 +773,17 @@ class LRG():
             ('VDISP', 'f4'),
             ('DECAM_FLUX', 'f4', (6,)),
             ('WISE_FLUX', 'f4', (2,))]
+        if self.add_SNeIa:
+            metacols.extend([
+                ('SNE_TEMPLATEID', 'i4'),
+                ('SNE_RFLUXRATIO', 'f4'),
+                ('SNE_EPOCH', 'f4')])
         meta = Table(np.zeros(nmodel, dtype=metacols))
 
         meta['AGE'].unit = 'Gyr'
         meta['VDISP'].unit = 'km/s'
+        if self.add_SNeIa:
+            meta['SNE_EPOCH'].unit = 'days'
 
         # Build the spectra.
         nobj = 0
@@ -769,11 +804,24 @@ class LRG():
             else:
                 vdisp = 10**np.repeat(logvdisp_meansig[0], nchunk)
 
+            # Get the (optional) distribution of SNe Ia priors.
+            if self.add_SNeIa:
+                sne_rfluxratio = rand.uniform(sne_rfluxratiorange[0], sne_rfluxratiorange[1], nchunk)
+                sne_chunkindx = rand.randint(0, len(self.sne_basemeta)-1, nchunk)
+
             # Unfortunately we have to loop here.
             for ii, iobj in enumerate(chunkindx):
                 zwave = self.basewave.astype(float)*(1.0+redshift[ii])
                 restflux = self.baseflux[iobj,:] # [erg/s/cm2/A @10pc]
 
+                if self.add_SNeIa:
+                    sne_restflux = self.sne_baseflux[sne_chunkindx[ii],:]
+                    galnorm = self.rfilt.get_ab_maggies(restflux, zwave)
+                    snenorm = self.rfilt.get_ab_maggies(sne_restflux, zwave)
+                    restflux += sne_restflux*galnorm['decam2014-r'][0]/snenorm['decam2014-r'][0]*sne_rfluxratio[ii]
+
+                #import pdb ; pdb.set_trace()
+                    
                 # Normalize to [erg/s/cm2/A, @redshift[ii]]
                 znorm = self.zfilt.get_ab_maggies(restflux, zwave)
                 norm = 10.0**(-0.4*zmag[ii])/znorm['decam2014-z'][0]
@@ -791,7 +839,7 @@ class LRG():
                                        w1flux=synthnano[6])]
 
                 if all(colormask):
-                    if ((nobj+1)%10)==0:
+                    if ((nobj+1) % 10) == 0:
                         log.debug('Simulating {} template {}/{}'. \
                                   format(self.objtype, nobj+1, nmodel))
 
@@ -815,6 +863,11 @@ class LRG():
                     meta['D4000'][nobj] = self.basemeta['D4000'][iobj]
                     meta['VDISP'][nobj] = vdisp[ii]
 
+                    if self.add_SNeIa:
+                        meta['SNE_TEMPLATEID'][nobj] = self.sne_basemeta['TEMPLATEID'][sne_chunkindx[ii]]
+                        meta['SNE_EPOCH'][nobj] = self.sne_basemeta['EPOCH'][sne_chunkindx[ii]]
+                        meta['SNE_RFLUXRATIO'][nobj] = sne_rfluxratio[ii]
+
                     nobj = nobj+1
 
                 # If we have enough models get out!
@@ -822,7 +875,6 @@ class LRG():
                     break
 
         return outflux, self.wave, meta
-
     
 class STAR(object):
     """Base Class for generating Monte Carlo spectra of the various flavors of DESI stellar targets.
@@ -1503,7 +1555,8 @@ class BGS():
             [default 2 Angstrom/pixel].
           wave (numpy.ndarray): Input/output observed-frame wavelength array,
             overriding the minwave, maxwave, and cdelt arguments [Angstrom].
-          add_SNeIa (boolean, optional): optionally include SNe Ia spectra
+          add_SNeIa (boolean, optional): optionally include a random-epoch SNe
+            Ia spectrum in the integrated spectrum [default False]
 
         Attributes:
           objtype (str): 'BGS'
@@ -1533,6 +1586,7 @@ class BGS():
         from speclite import filters
         from desisim.io import read_basis_templates
         from desisim import pixelsplines as pxs
+        from desispec.interpolation import resample_flux
 
         self.objtype = 'BGS'
 
