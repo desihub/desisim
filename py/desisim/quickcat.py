@@ -107,7 +107,7 @@ def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
     if zcat is not None:
         ### print('Counting targets from previous zobs')
         for targetid, n in zip(zcat['TARGETID'], zcat['NUMOBS']):
-            nobs[targetid] += 1
+            nobs[targetid] += n
 
     #- Trim truth down to just ones that have already been observed
     ### print('Trimming truth to just observed targets')
