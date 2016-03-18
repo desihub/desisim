@@ -43,6 +43,11 @@ class _sim_setup(object):
         else:
             raise NameError('fiberassign was not set')
 
+        if 'template_fiberassign' in kwargs.keys() :
+            self.template_fiberassign = kwargs['template_fiberassign']        
+        else:
+            raise NameError('template_fiberassign was not set')
+
 
         self.tmp_output_path = os.path.join(self.output_path, 'tmp/')
         self.tmp_fiber_path = os.path.join(self.tmp_output_path, 'fiberassign/')
@@ -50,4 +55,17 @@ class _sim_setup(object):
         self.truthfile  = os.path.join(self.targets_path,'truth.fits')
         self.targetsfile = os.path.join(self.targets_path,'targets.fits')
         self.zcatfile = None
+        
+        self.ids = []
+        self.tilefiles = []
+         
+def create_directories(_setup):
+    if not os.path.exists(_setup.output_path):
+        os.makedirs(_setup.output_path)
+        
+    if not os.path.exists(_setup.tmp_output_path):
+        os.makedirs(_setup.tmp_output_path)
+
+    if not os.path.exists(_setup.tmp_fiber_path):
+        os.makedirs(_setup.tmp_fiber_path)
 
