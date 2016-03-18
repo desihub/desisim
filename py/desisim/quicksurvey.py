@@ -56,9 +56,13 @@ class _sim_setup(object):
         self.targetsfile = os.path.join(self.targets_path,'targets.fits')
         self.zcatfile = None
         
-        self.ids = []
+        self.tile_ids = []
         self.tilefiles = []
-         
+        self.mtl_epochs = []
+
+def set_mtl_epochs(_setup, epochs_list = [0]):
+    _setup.mtl_epochs = list(epochs_list)
+
 def create_directories(_setup):
     if not os.path.exists(_setup.output_path):
         os.makedirs(_setup.output_path)
@@ -69,3 +73,17 @@ def create_directories(_setup):
     if not os.path.exists(_setup.tmp_fiber_path):
         os.makedirs(_setup.tmp_fiber_path)
 
+def create_surveyfile(_setup):
+    # create survey list from mtl_epochs IDS
+    surveyfile = os.path.join(_setup.tmp_output_path, "survey_list.txt")
+    _setup.tile_ids = []
+    for i in _setup.mtl_epochs:
+        epochfile = os.path.join(_setup.epochs_path, "epoch{}.txt".format(i))        
+        if os.path.exists(epochfile):
+            _setup.tile_ids = np.append(_setup.tile_ids, np.loadtxt(epochfile))
+        else:
+            raise NameError('epochfile {} was not found'.format(epochfile))
+
+    _setup.tile_ids = np.int_(_setup.tile_ids)
+    np.savetxt(surveyfile, _setup.tile_ids, fmt='%d')
+    print("{} tiles to be included in fiberassign".format(len(_setup.tile_ids)))
