@@ -173,15 +173,15 @@ def simulate_epoch(_setup, perfect=False, epoch_id=0):
 
 
     #create a list of fibermap tiles to read and update zcat
-    _setup.ids = []
+    _setup.tile_ids = []
     for i in _setup.fiber_epochs:
         epochfile = os.path.join(_setup.epochs_path, "epoch{}.txt".format(i))        
-        _setup.ids = np.append(_setup.ids, np.loadtxt(epochfile))
-    _setup.ids = np.int_(_setup.ids)
+        _setup.tile_ids = np.append(_setup.tile_ids, np.loadtxt(epochfile))
+    _setup.tile_ids = np.int_(_setup.tile_ids)
 
 
     _setup.tilefiles = []
-    for i in _setup.ids:
+    for i in _setup.tile_ids:
         tilename = os.path.join(_setup.tmp_fiber_path, 'tile_%05d.fits'%(i))
         if os.path.isfile(tilename):
             _setup.tilefiles.append(tilename)
@@ -203,9 +203,9 @@ def simulate_epoch(_setup, perfect=False, epoch_id=0):
 
     # backup data into separate directories
 
-def print_efficiency_stats(truth, mtl, zcat):
+def print_efficiency_stats(truth, mtl_initial, zcat):
     print('Overall efficiency')
-    tmp_init = join(mtl, truth, keys='TARGETID')    
+    tmp_init = join(mtl_initial, truth, keys='TARGETID')    
     total = join(zcat, tmp_init, keys='TARGETID')
 
     true_types = ['LRG', 'ELG', 'QSO']
@@ -258,12 +258,19 @@ def simulate_setup(_setup):
 
     for epoch in _setup.epochs_list:
         print('Epoch {}'.format(epoch))
+
         set_mtl_epochs(_setup, epochs_list = _setup.epochs_list[epoch:])
+
         set_fiber_epochs(_setup, epochs_list = _setup.epochs_list[epoch])
+
         create_surveyfile(_setup)
+
         create_fiberassign_input(_setup)
+
         simulate_epoch(_setup, perfect=True, epoch_id = _setup.epochs_list[epoch])
+
         backup_epoch_data(_setup, epoch_id = _setup.epochs_list[epoch])
+
         reset_lists(_setup)
 
     cleanup_directories(_setup)
