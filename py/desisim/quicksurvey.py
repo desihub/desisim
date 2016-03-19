@@ -21,7 +21,7 @@ import os.path
 import desitarget.mtl
 from desisim.quickcat import quickcat
 
-class _sim_setup(object):
+class SimSetup(object):
     def __init__(self, **kwargs):
         if 'output_path' in kwargs.keys() :
             self.output_path = kwargs['output_path']        
@@ -48,24 +48,30 @@ class _sim_setup(object):
         else:
             raise NameError('template_fiberassign was not set')
 
-
+        if 'n_epochs' in kwargs.keys() :
+            self.n_epochs = kwargs['n_epochs']
+        else:
+            raise NameError('n_epochs was not set')
+                
         self.tmp_output_path = os.path.join(self.output_path, 'tmp/')
         self.tmp_fiber_path = os.path.join(self.tmp_output_path, 'fiberassign/')
         self.surveyfile = os.path.join(self.tmp_output_path, 'survey_list.txt')
         self.truthfile  = os.path.join(self.targets_path,'truth.fits')
         self.targetsfile = os.path.join(self.targets_path,'targets.fits')
         self.zcat_file = None
-        
+        self.mtl_file = None
+
         self.tile_ids = []
         self.tilefiles = []
         self.mtl_epochs = []
         self.fiber_epochs = []
+        self.epochs_list = range(self.n_epochs)
 
 def reset_lists(_setup):
     _setup.tile_ids = []
     _setup.tilefiles = []
     _setup.mtl_epochs = []
-    _setup.fiber_epochs = []
+    _setup.fiber_epochs = []    
 
 def set_mtl_epochs(_setup, epochs_list = [0]):
     if hasattr(epochs_list, '__iter__'):
@@ -94,6 +100,26 @@ def cleanup_directories(_setup):
     if os.path.exists(_setup.tmp_output_path):
         shutil.rmtree(_setup.tmp_output_path)
 
+def backup_epoch_data(_setup, epoch_id=0):
+    backup_path = os.path.join(_setup.output_path, '{}'.format(epoch_id))
+
+    # keep a copy of zcat.fits
+    if not os.path.exists(backup_path):
+        os.makedirs(backup_path)        
+
+    # keep a copy of mtl.fits 
+    shutil.copy(_setup.mtl_file, backup_path)
+    shutil.copy(_setup.zcat_file, backup_path)
+
+    # keep a copy of all the fiberassign files 
+    fiber_backup_path = os.path.join(backup_path, 'fiberassign')
+    if not os.path.exists(fiber_backup_path):
+        os.makedirs(fiber_backup_path)
+
+    for tilefile in _setup.tilefiles:
+        shutil.copy(tilefile, fiber_backup_path)
+
+
 def create_surveyfile(_setup):
     # create survey list from mtl_epochs IDS
     surveyfile = os.path.join(_setup.tmp_output_path, "survey_list.txt")
@@ -116,18 +142,19 @@ def create_fiberassign_input(_setup):
     fx.close()
 
 
-def simulate_epoch(_setup, perfect=False):
+def simulate_epoch(_setup, perfect=False, epoch_id=0):
     #load truth / targets / zcat
     truth = Table.read(os.path.join(_setup.targets_path,'truth.fits'))
     targets = Table.read(os.path.join(_setup.targets_path,'targets.fits'))
-    
+
+    _setup.mtl_file = os.path.join(_setup.tmp_output_path, 'mtl.fits')    
     if _setup.zcat_file is None:
         mtl = desitarget.mtl.make_mtl(targets)
-        mtl.write(os.path.join(_setup.tmp_output_path, 'mtl.fits'), overwrite=True)
+        mtl.write(_setup.mtl_file, overwrite=True)
     else:
         zcat = Table.read(_setup.zcat_file, format='fits')
         mtl = desitarget.mtl.make_mtl(targets, zcat)
-        mtl.write(os.path.join(_setup.tmp_output_path, 'mtl.fits'), overwrite=True)
+        mtl.write(_setup.mtl_file, overwrite=True)
     print("Finished MTL")
 
     # clean all fibermap fits files before running fiberassing
@@ -150,27 +177,43 @@ def simulate_epoch(_setup, perfect=False):
     _setup.ids = np.int_(_setup.ids)
 
 
-    tilefiles = []
+    _setup.tilefiles = []
     for i in _setup.ids:
         tilename = os.path.join(_setup.tmp_fiber_path, 'tile_%05d.fits'%(i))
         if os.path.isfile(tilename):
-            tilefiles.append(tilename)
+            _setup.tilefiles.append(tilename)
         else:
             print('Suggested but does not exist {}'.format(tilename))
-    print("{} tiles to gather in fiberassign output".format(len(tilefiles)))
+    print("{} tiles to gather in fiberassign output".format(len(_setup.tilefiles)))
     
     # write the zcat
     if _setup.zcat_file is None:
         _setup.zcat_file = os.path.join(_setup.tmp_output_path, 'zcat.fits')
-        zcat = quickcat(tilefiles, targets, truth, zcat=None, perfect=perfect)
+        zcat = quickcat(_setup.tilefiles, targets, truth, zcat=None, perfect=perfect)
         zcat.write(_setup.zcat_file, overwrite=True)
     else:
         _setup.zcat_file = os.path.join(_setup.tmp_output_path, 'zcat.fits')
         zcat = Table.read(_setup.zcat_file, format='fits')
-        newzcat = quickcat(tilefiles, targets, truth, zcat=zcat, perfect=perfect)
+        newzcat = quickcat(_setup.tilefiles, targets, truth, zcat=zcat, perfect=perfect)
         newzcat.write(_setup.zcat_file, format='fits', overwrite=True)
     print("Finished zcat")
 
-    reset_lists(_setup)
-    
+    # backup data into separate directories
+
+                  
+
+def simulate_setup(_setup):
+    create_directories(_setup)
+
+    for epoch in _setup.epochs_list:
+        print('Epoch {}'.format(epoch))
+        set_mtl_epochs(_setup, epochs_list = _setup.epochs_list[epoch:])
+        set_fiber_epochs(_setup, epochs_list = _setup.epochs_list[epoch])
+        create_surveyfile(_setup)
+        create_fiberassign_input(_setup)
+        simulate_epoch(_setup, perfect=True, epoch_id = _setup.epochs_list[epoch])
+        backup_epoch_data(_setup, epoch_id = _setup.epochs_list[epoch])
+        reset_lists(_setup)
+
+    cleanup_directories(_setup)
 
