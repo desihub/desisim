@@ -18,6 +18,7 @@ import subprocess
 from astropy.table import Table, Column
 import os.path
 from collections import Counter
+from time import time, asctime
 
 import desitarget.mtl
 from desisim.quickcat import quickcat
@@ -151,6 +152,7 @@ def simulate_epoch(_setup, perfect=False, epoch_id=0):
     targets = Table.read(os.path.join(_setup.targets_path,'targets.fits'))
 
     _setup.mtl_file = os.path.join(_setup.tmp_output_path, 'mtl.fits')    
+    print("{} Starting MTL".format(asctime()))
     if _setup.zcat_file is None:
         mtl = desitarget.mtl.make_mtl(targets)
         mtl.write(_setup.mtl_file, overwrite=True)
@@ -158,7 +160,7 @@ def simulate_epoch(_setup, perfect=False, epoch_id=0):
         zcat = Table.read(_setup.zcat_file, format='fits')
         mtl = desitarget.mtl.make_mtl(targets, zcat)
         mtl.write(_setup.mtl_file, overwrite=True)
-    print("Finished MTL")
+    print("{} Finished MTL".format(asctime()))
 
     # clean all fibermap fits files before running fiberassing
     tilefiles = sorted(glob.glob(_setup.tmp_fiber_path+'/tile*.fits'))
@@ -167,9 +169,9 @@ def simulate_epoch(_setup, perfect=False, epoch_id=0):
             os.remove(tilefile)
             
     # launch fiberassign
-    print("Launched fiberassign")
+    print("{} Launching fiberassign".format(asctime()))
     p = subprocess.call([_setup.fiberassign_exec, os.path.join(_setup.tmp_output_path, 'fa_features.txt')], stdout=subprocess.PIPE)
-    print("Finished fiberassign")
+    print("{} Finished fiberassign".format(asctime()))
 
 
     #create a list of fibermap tiles to read and update zcat
@@ -187,7 +189,7 @@ def simulate_epoch(_setup, perfect=False, epoch_id=0):
             _setup.tilefiles.append(tilename)
         else:
             print('Suggested but does not exist {}'.format(tilename))
-    print("{} tiles to gather in zcat".format(len(_setup.tilefiles)))
+    print("{} {} tiles to gather in zcat".format(asctime(), len(_setup.tilefiles)))
     
     # write the zcat
     if _setup.zcat_file is None:
@@ -199,7 +201,7 @@ def simulate_epoch(_setup, perfect=False, epoch_id=0):
         zcat = Table.read(_setup.zcat_file, format='fits')
         newzcat = quickcat(_setup.tilefiles, targets, truth, zcat=zcat, perfect=perfect)
         newzcat.write(_setup.zcat_file, format='fits', overwrite=True)
-    print("Finished zcat")
+    print("{} Finished zcat".format(asctime()))
 
     # backup data into separate directories
 
