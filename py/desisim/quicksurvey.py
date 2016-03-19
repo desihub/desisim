@@ -3,7 +3,7 @@ Code for quickly simulating the survey results given a mock catalog and
 a list of tile epochs to observe.
 
 Direclty Depends on the following desiproducts
-     * targets.mtl 
+     * desitarget.mtl 
      * desisim.quickcat
      * fiberassign
 '''
@@ -17,9 +17,12 @@ import glob
 import subprocess
 from astropy.table import Table, Column
 import os.path
+from collections import Counter
 
 import desitarget.mtl
 from desisim.quickcat import quickcat
+from astropy.table import join
+from desitarget.targets import desi_mask
 
 class SimSetup(object):
     def __init__(self, **kwargs):
@@ -184,7 +187,7 @@ def simulate_epoch(_setup, perfect=False, epoch_id=0):
             _setup.tilefiles.append(tilename)
         else:
             print('Suggested but does not exist {}'.format(tilename))
-    print("{} tiles to gather in fiberassign output".format(len(_setup.tilefiles)))
+    print("{} tiles to gather in zcat".format(len(_setup.tilefiles)))
     
     # write the zcat
     if _setup.zcat_file is None:
@@ -200,7 +203,55 @@ def simulate_epoch(_setup, perfect=False, epoch_id=0):
 
     # backup data into separate directories
 
-                  
+def print_efficiency_stats(truth, mtl, zcat):
+    print('Overall efficiency')
+    tmp_init = join(mtl, truth, keys='TARGETID')    
+    total = join(zcat, tmp_init, keys='TARGETID')
+
+    true_types = ['LRG', 'ELG', 'QSO']
+    zcat_types = ['GALAXY', 'GALAXY', 'QSO']
+    
+    for true_type, zcat_type in zip(true_types, zcat_types):
+        i_initial = ((tmp_init['DESI_TARGET'] & desi_mask.mask(true_type)) != 0) & (tmp_init['TRUETYPE'] == zcat_type)
+        i_final = ((total['DESI_TARGET'] & desi_mask.mask(true_type)) != 0) & (total['TYPE'] == zcat_type)             
+        n_t = 1.0*len(total['TARGETID'][i_final])
+        n_i = 1.0*len(tmp_init['TARGETID'][i_initial])
+        print("\t {} fraction : {}".format(true_type, n_t/n_i))
+    #print("\t TRUE:ZCAT\n\t {}\n".format(Counter(zip(total['DESI_TARGET'], total['TYPE']))))
+    return
+
+def print_numobs_stats(truth, targets, zcat):
+    print('Target distributions')
+    #- truth and targets are row-matched, so directly add columns instead of join
+    for colname in targets.colnames:
+        if colname not in truth.colnames:
+            truth[colname] = targets[colname]
+
+    xcat = join(zcat, truth, keys='TARGETID')
+
+    for times_observed in range(1,5):
+        print('\t Fraction (number) with exactly {} observations'.format(times_observed))
+        ii = (xcat['NUMOBS']==times_observed)
+        c = Counter(xcat['DESI_TARGET'][ii])
+
+        total = np.sum(c.values())
+        for k in c.keys():
+            print("\t\t {}: {} ({} total)".format(desi_mask.names(k), c[k]/total, c[k]))
+    return
+
+def efficiency_numobs_stats(_setup, epoch_id=0):
+    backup_path = os.path.join(_setup.output_path, '{}'.format(epoch_id))
+    backup_path_0 = os.path.join(_setup.output_path, '{}'.format(0))
+
+    truth = Table.read(os.path.join(_setup.targets_path,'truth.fits'))
+    targets = Table.read(os.path.join(_setup.targets_path,'targets.fits'))
+    mtl0 = Table.read(os.path.join(backup_path_0,'mtl.fits'))
+    zcat = Table.read(os.path.join(backup_path, 'zcat.fits'))
+
+    print_efficiency_stats(truth, mtl0, zcat)
+    print_numobs_stats(truth, targets, zcat)
+    return
+
 
 def simulate_setup(_setup):
     create_directories(_setup)
@@ -217,3 +268,8 @@ def simulate_setup(_setup):
 
     cleanup_directories(_setup)
 
+
+def summary_setup(_setup):    
+    for epoch in _setup.epochs_list:
+        print('Summary for Epoch {}'.format(epoch))
+        efficiency_numobs_stats(_setup, epoch_id = epoch)
