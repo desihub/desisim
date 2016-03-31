@@ -22,7 +22,7 @@ from .targets import get_targets_parallel
 from . import io
 
 def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
-    airmass=1.0, exptime=None):
+                 airmass=1.0, exptime=None, testslit=False, arc_lines_filename=None):
     """
     Create a new exposure and output input simulation files.
     Does not generate pixel-level simulations or noisy spectra.
@@ -34,6 +34,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
         expid (optional): positive integer exposure ID
         tileid (optional): tile ID
         airmass (optional): airmass, default 1.0
+        testslit (optional): simulate test slit if True, default False
     
     Writes:
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/fibermap-{expid}.fits
@@ -66,14 +67,54 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
     params = desimodel.io.load_desiparams()
     flavor = flavor.lower()
     if flavor == 'arc':
-        infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.2/arc-lines-average.fits'
+        if arc_lines_filename is None :
+            infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.2/arc-lines-average.fits'
+        else :
+            infile = arc_lines_filename
         d = fits.getdata(infile, 1)
         wave = d['AIRWAVE']
         phot = d['ELECTRONS']
         
         truth = dict(WAVE=wave)
         meta = None
-        fibermap = desispec.io.fibermap.empty_fibermap(nspec)
+        if  testslit :
+            # from WBS 1.6 PDR Fiber Slit document
+            # science slit has 20 bundles of 25 fibers
+            # test slit has 1 fiber per bundle except in the middle where it is fully populated
+            nspectro=10
+            testslit_nspec_per_spectro=19+25
+            testslit_nspec = nspectro*testslit_nspec_per_spectro
+            fibermap = np.zeros(testslit_nspec, dtype=desispec.io.fibermap.fibermap_columns)
+            fibermap['FIBER'] = np.zeros((testslit_nspec)).astype(int)
+            fibermap['SPECTROID'] = np.zeros((testslit_nspec)).astype(int)
+            for spectro in range(nspectro) :
+                fiber_index=testslit_nspec_per_spectro*spectro
+                first_fiber_id=500*spectro 
+                for b in range(10) :
+                    fibermap['FIBER'][fiber_index]  = 25*b+first_fiber_id # "Top of top block"
+                    fibermap['SPECTROID'][fiber_index] = spectro
+                    fiber_index+=1                    
+                for f in range(25) :
+                    fibermap['FIBER'][fiber_index] = 25*10+f+first_fiber_id # "Middle block is fully populated"
+                    fibermap['SPECTROID'][fiber_index] = spectro
+                    fiber_index+=1
+                for b in range(11,20) :
+                    fibermap['FIBER'][fiber_index] = 25*b+24+first_fiber_id # "Bottom of bottom block"
+                    fibermap['SPECTROID'][fiber_index] = spectro
+                    fiber_index+=1
+            
+            if nspec != testslit_nspec :
+                log.warning("changing nspec %d -> %d because testslit"%(nspec,testslit_nspec))
+                nspec=testslit_nspec
+        else : 
+            fibermap = desispec.io.fibermap.empty_fibermap(nspec)
+
+
+    
+
+
+
+
         fibermap['OBJTYPE'] = 'ARC'
         for channel in ('B', 'R', 'Z'):
             thru = desimodel.io.load_throughput(channel)        

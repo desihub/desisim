@@ -38,8 +38,10 @@ parser.add_option("--exptime",  type=int,   help="exposure time in seconds, defa
 parser.add_option("--night",    type=str,   help="YEARMMDD")
 parser.add_option("--nspec",    type=int,   help="Number of spectra to simulate [%default]", default=5000)
 parser.add_option("--airmass",  type=float, help="Airmass [%default]", default=1.0)
-parser.add_option("--randseed", type=int,   help="random number seed"
-                  )
+parser.add_option("--randseed", type=int,   help="random number seed")
+parser.add_option("--testslit", action="store_true", help="test slit simulation with fewer fibers")
+parser.add_option("--arc-lines", type=str, help="alternate arc lines filename", default=None)
+
 
 opts, args = parser.parse_args()
 
@@ -93,8 +95,9 @@ np.random.seed(opts.randseed)
 
 #- Generate the new exposure
 obs.new_exposure(opts.flavor, nspec=opts.nspec, \
-    night=opts.night, expid=opts.expid,         \
-    tileid=opts.tileid, airmass=opts.airmass, exptime=opts.exptime)
+                 night=opts.night, expid=opts.expid, \
+                 tileid=opts.tileid, airmass=opts.airmass, exptime=opts.exptime, \
+                 testslit=opts.testslit,arc_lines_filename=opts.arc_lines)
 
 #-------------------------------------------------------------------------
 # if opts.debug:
