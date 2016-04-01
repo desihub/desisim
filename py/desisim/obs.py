@@ -26,7 +26,7 @@ def testslit_fibermap() :
     # science slit has 20 bundles of 25 fibers
     # test slit has 1 fiber per bundle except in the middle where it is fully populated
     nspectro=10
-    testslit_nspec_per_spectro=19+25
+    testslit_nspec_per_spectro=20
     testslit_nspec = nspectro*testslit_nspec_per_spectro
     fibermap = np.zeros(testslit_nspec, dtype=desispec.io.fibermap.fibermap_columns)
     fibermap['FIBER'] = np.zeros((testslit_nspec)).astype(int)
@@ -34,18 +34,10 @@ def testslit_fibermap() :
     for spectro in range(nspectro) :
         fiber_index=testslit_nspec_per_spectro*spectro
         first_fiber_id=500*spectro 
-        for b in range(10) :
-            fibermap['FIBER'][fiber_index]  = 25*b+first_fiber_id # "Top of top block"
+        for b in range(20) :
+            fibermap['FIBER'][fiber_index]  = 25*b+24*(b>10)*first_fiber_id # "Top of top block or Bottom of bottom block"
             fibermap['SPECTROID'][fiber_index] = spectro
             fiber_index+=1                    
-        for f in range(25) :
-            fibermap['FIBER'][fiber_index] = 25*10+f+first_fiber_id # "Middle block is fully populated"
-            fibermap['SPECTROID'][fiber_index] = spectro
-            fiber_index+=1
-        for b in range(11,20) :
-            fibermap['FIBER'][fiber_index] = 25*b+24+first_fiber_id # "Bottom of bottom block"
-            fibermap['SPECTROID'][fiber_index] = spectro
-            fiber_index+=1            
     return fibermap
 
 def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
@@ -138,9 +130,6 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
         flux = resample_flux(ww, wave, flux)
         wave = ww
 
-        #- Convert to 2D for projection
-        flux = np.tile(flux, nspec).reshape(nspec, len(wave))
-
         truth = dict(WAVE=wave, FLUX=flux)
         meta = None
         if  testslit :
@@ -151,6 +140,9 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
         else : 
             fibermap = desispec.io.fibermap.empty_fibermap(nspec)
         
+        #- Convert to 2D for projection        
+        flux = np.tile(flux, nspec).reshape(nspec, len(wave))
+
         fibermap['OBJTYPE'] = 'FLAT'
         for channel in ('B', 'R', 'Z'):
             thru = desimodel.io.load_throughput(channel)
