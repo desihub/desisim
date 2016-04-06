@@ -102,7 +102,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
         if phot is None :
             try :
                 wave = d['AIRWAVE']
-                phot = d['ELECTRONS2']
+                phot = d['ELECTRONS']
             except KeyError:
                 pass
         if phot is None :
