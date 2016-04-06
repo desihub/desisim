@@ -95,9 +95,27 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
         else :
             infile = arc_lines_filename
         d = fits.getdata(infile, 1)
-        wave = d['AIRWAVE']
-        phot = d['ELECTRONS']
         
+        keys = d.columns.names
+        wave=None
+        phot=None
+        if phot is None :
+            try :
+                wave = d['AIRWAVE']
+                phot = d['ELECTRONS2']
+            except KeyError:
+                pass
+        if phot is None :
+            try :
+                wave = d['WAVE']
+                phot = d['ELECTRONS']
+            except KeyError:
+                pass
+        if phot is None :
+            log.error("cannot read arc line fits file '%s' (don't know the format)"%infile)
+            raise KeyError("cannot read arc line fits file")
+            
+
         truth = dict(WAVE=wave)
         meta = None
         if  testslit :
