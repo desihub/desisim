@@ -22,23 +22,27 @@ from .targets import get_targets_parallel
 from . import io
 
 def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
-    airmass=1.0, exptime=None):
+    airmass=1.0, exptime=None, randseed=None):
     """
     Create a new exposure and output input simulation files.
     Does not generate pixel-level simulations or noisy spectra.
-    
+
     Args:
         flavor: 'arc', 'flat', 'bright', 'dark', 'bgs', 'mws', ...
-        nspec (optional): integer number of spectra to simulate
-        night (optional): YEARMMDD string
-        expid (optional): positive integer exposure ID
-        tileid (optional): tile ID
-        airmass (optional): airmass, default 1.0
-    
+
+    Options:
+        nspec : integer number of spectra to simulate
+        night : YEARMMDD string
+        expid : positive integer exposure ID
+        tileid : integer tile ID
+        airmass : airmass, default 1.0
+        exptime : exposure time in seconds
+        randseed : random seed
+
     Writes:
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/fibermap-{expid}.fits
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
-        
+
     Returns:
         fibermap numpy structured array
         truth dictionary
@@ -111,7 +115,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
         
     else: # checked that flavor is valid in newexp-desi
         log.debug('Generating {} targets'.format(nspec))
-        fibermap, truth = get_targets_parallel(nspec, flavor, tileid=tileid)
+        fibermap, truth = get_targets_parallel(nspec, flavor, tileid=tileid, randseed=randseed)
 
         flux = truth['FLUX']
         wave = truth['WAVE']
