@@ -38,8 +38,7 @@ parser.add_option("--exptime",  type=int,   help="exposure time in seconds, defa
 parser.add_option("--night",    type=str,   help="YEARMMDD")
 parser.add_option("--nspec",    type=int,   help="Number of spectra to simulate [%default]", default=5000)
 parser.add_option("--airmass",  type=float, help="Airmass [%default]", default=1.0)
-parser.add_option("--randseed", type=int,   help="random number seed"
-                  )
+parser.add_option("--seed", type=int,   help="random number seed")
 
 opts, args = parser.parse_args()
 
@@ -68,7 +67,7 @@ if opts.flavor not in ['arc','flat','dark','gray','grey','bright','bgs','mws','l
     log.fatal('ERROR: unknown flavor {}'.format(opts.flavor))
     sys.exit(1)
 
-    
+
 #- TODO: don't hardcode these default exposure times
 if opts.exptime is None:
     if opts.flavor == 'arc':
@@ -82,19 +81,21 @@ if opts.exptime is None:
     else:
         print('Do not know the default exposure time for flavor' + opts.flavor)
         sys.exit(1)
-    
-    
+
 #- Initialize random seeds
-if opts.randseed is None:
-    opts.randseed = opts.tileid
-        
-random.seed(opts.randseed)
-np.random.seed(opts.randseed)
+if opts.seed is None:
+    opts.seed = opts.tileid
+
+#- Set the random seed, even though we further propagate it into the
+#- underlying get_targets and make_templates code
+random.seed(opts.seed)
+np.random.seed(opts.seed)
 
 #- Generate the new exposure
 obs.new_exposure(opts.flavor, nspec=opts.nspec, \
     night=opts.night, expid=opts.expid,         \
-    tileid=opts.tileid, airmass=opts.airmass, exptime=opts.exptime)
+    tileid=opts.tileid, airmass=opts.airmass, exptime=opts.exptime, \
+    seed=opts.seed)
 
 #-------------------------------------------------------------------------
 # if opts.debug:
