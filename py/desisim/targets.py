@@ -128,10 +128,10 @@ def sample_objtype(nobj, flavor):
 
 #- multiprocessing needs one arg, not multiple args
 def _wrap_get_targets(args):
-    nspec, flavor, tileid, randseed = args
-    return get_targets(nspec, flavor, tileid, randseed=randseed)
+    nspec, flavor, tileid, seed = args
+    return get_targets(nspec, flavor, tileid, seed=seed)
     
-def get_targets_parallel(nspec, flavor, tileid=None, nproc=None, randseed=None):
+def get_targets_parallel(nspec, flavor, tileid=None, nproc=None, seed=None):
     import multiprocessing as mp
     if nproc is None:
         nproc = mp.cpu_count() // 2
@@ -139,27 +139,20 @@ def get_targets_parallel(nspec, flavor, tileid=None, nproc=None, randseed=None):
     #- don't bother with parallelism if there aren't many targets
     if nspec < 20:
         log.debug('Not Parallelizing get_targets for only {} targets'.format(nspec))
-        np.random.seed(randseed)
-        return get_targets(nspec, flavor, tileid)
+        return get_targets(nspec, flavor, tileid, seed=seed)
     else:
         nproc = min(nproc, nspec//10)        
         log.debug('Parallelizing get_targets using {} cores'.format(nproc))
         args = list()
         n = nspec // nproc
-        if randseed is not None:
-            #- use large multiplier since we don't want thread 2 of randseed=1
-            #- to produce the same results as thread 1 of randseed=2
-            irandseed = randseed*100000
-        else:
-            irandseed = None
-
+        #- Generate random seeds for each process to use as a random seed
+        np.random.seed(seed)
+        seeds = np.random.randint(2**32, size=nspec)
         for i in range(0, nspec, n):
-            if irandseed is not None:
-                irandseed += 1
             if i+n < nspec:
-                args.append( (n, flavor, tileid, irandseed) )
+                args.append( (n, flavor, tileid, seeds[i]) )
             else:
-                args.append( (nspec-i, flavor, tileid, irandseed) )
+                args.append( (nspec-i, flavor, tileid, seeds[i]) )
 
         pool = mp.Pool(nproc)
         results = pool.map(_wrap_get_targets, args)
@@ -177,13 +170,11 @@ def get_targets_parallel(nspec, flavor, tileid=None, nproc=None, randseed=None):
 
         return fibermap, truth
 
-def get_targets(nspec, flavor, tileid=None, randseed=None):
+def get_targets(nspec, flavor, tileid=None, seed=None):
     """
     Returns:
         fibermap
         truth table
-
-    TODO (@moustakas): Deal with the random seed correctly.
 
     TODO: document this better
     """
@@ -193,8 +184,8 @@ def get_targets(nspec, flavor, tileid=None, randseed=None):
         tile_ra, tile_dec = io.get_tile_radec(tileid)
 
     flavor = flavor.upper()
-    log.debug('Using randseed {}'.format(randseed))
-    np.random.seed(randseed)
+    log.debug('Using random seed {}'.format(seed))
+    np.random.seed(seed)
 
     #- Get distribution of target types
     true_objtype, target_objtype = sample_objtype(nspec, flavor)
@@ -237,26 +228,26 @@ def get_targets(nspec, flavor, tileid=None, randseed=None):
         elif objtype == 'ELG':
             from desisim.templates import ELG
             elg = ELG(wave=wave)
-            simflux, wave1, meta = elg.make_templates(nmodel=nobj, seed=randseed)
+            simflux, wave1, meta = elg.make_templates(nmodel=nobj, seed=seed)
             fibermap['DESI_TARGET'][ii] = desi_mask.ELG
 
         elif objtype == 'LRG':
             from desisim.templates import LRG
             lrg = LRG(wave=wave)
-            simflux, wave1, meta = lrg.make_templates(nmodel=nobj, seed=randseed)
+            simflux, wave1, meta = lrg.make_templates(nmodel=nobj, seed=seed)
             fibermap['DESI_TARGET'][ii] = desi_mask.LRG
 
         elif objtype == 'BGS':
             from desisim.templates import BGS
             bgs = BGS(wave=wave)
-            simflux, wave1, meta = bgs.make_templates(nmodel=nobj, seed=randseed)
+            simflux, wave1, meta = bgs.make_templates(nmodel=nobj, seed=seed)
             fibermap['DESI_TARGET'][ii] = desi_mask.BGS_ANY
             fibermap['BGS_TARGET'][ii] = bgs_mask.BGS_BRIGHT
 
         elif objtype == 'QSO':
             from desisim.templates import QSO
             qso = QSO(wave=wave)
-            simflux, wave1, meta = qso.make_templates(nmodel=nobj, seed=randseed)
+            simflux, wave1, meta = qso.make_templates(nmodel=nobj, seed=seed)
             fibermap['DESI_TARGET'][ii] = desi_mask.QSO
 
         # For a "bad" QSO simulate a normal star without color cuts, which isn't
@@ -265,20 +256,20 @@ def get_targets(nspec, flavor, tileid=None, randseed=None):
         elif objtype == 'QSO_BAD':
             from desisim.templates import STAR
             star = STAR(wave=wave)
-            simflux, wave1, meta = star.make_templates(nmodel=nobj, seed=randseed)
+            simflux, wave1, meta = star.make_templates(nmodel=nobj, seed=seed)
             fibermap['DESI_TARGET'][ii] = desi_mask.QSO
 
         elif objtype == 'STD':
             from desisim.templates import FSTD
             fstd = FSTD(wave=wave)
-            simflux, wave1, meta = fstd.make_templates(nmodel=nobj, seed=randseed)
+            simflux, wave1, meta = fstd.make_templates(nmodel=nobj, seed=seed)
             fibermap['DESI_TARGET'][ii] = desi_mask.STD_FSTAR
 
         elif objtype == 'MWS_STAR':
             from desisim.templates import MWS_STAR
             mwsstar = MWS_STAR(wave=wave)
             # todo: mag ranges for different flavors of STAR targets should be in desimodel
-            simflux, wave1, meta = mwsstar.make_templates(nmodel=nobj,rmagrange=(15.0,20.0), seed=randseed)
+            simflux, wave1, meta = mwsstar.make_templates(nmodel=nobj,rmagrange=(15.0,20.0), seed=seed)
             fibermap['DESI_TARGET'][ii] = desi_mask.MWS_ANY
             fibermap['MWS_TARGET'][ii] = mws_mask.MWS_PLX  #- ???
 

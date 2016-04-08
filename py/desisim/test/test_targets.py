@@ -39,27 +39,28 @@ class TestObs(unittest.TestCase):
                     self.assertEqual(n, truth[key].shape[0])
 
     def test_random(self):
-        nspec = 30
-        fibermap1, truth1 = desisim.targets.get_targets_parallel(nspec, 'DARK', randseed=1)
-        fibermap2a, truth2a = desisim.targets.get_targets_parallel(nspec, 'DARK', randseed=2)
-        fibermap2b, truth2b = desisim.targets.get_targets_parallel(nspec, 'DARK', randseed=2)
+        for nspec in (15, 30):
+            fibermap1, truth1 = desisim.targets.get_targets_parallel(nspec, 'DARK', seed=nspec+1)
+            fibermap2a, truth2a = desisim.targets.get_targets_parallel(nspec, 'DARK', seed=nspec+2)
+            fibermap2b, truth2b = desisim.targets.get_targets_parallel(nspec, 'DARK', seed=nspec+2)
 
-        #- Check that 1 and 2a do not have the same spectra
-        self.assertTrue(np.all(fibermap1['TARGETID'] != fibermap2a['TARGETID']))
-        self.assertTrue(np.all(truth1['REDSHIFT'] != truth2a['REDSHIFT']))
+            #- Check that 1 and 2a do not have the same spectra
+            notsky = (fibermap1['OBJTYPE'] != 'SKY') & (fibermap2a['OBJTYPE'] != 'SKY')
+            self.assertTrue(np.all(truth1['REDSHIFT'][notsky] != truth2a['REDSHIFT'][notsky]))
+            self.assertTrue(np.all(fibermap1['TARGETID'] != fibermap2a['TARGETID']))
 
-        #- Check 2a and 2b have the same spectra
-        self.assertTrue(np.all(fibermap2a['TARGETID'] == fibermap2b['TARGETID']))
-        self.assertTrue(np.all(truth2a['REDSHIFT'] == truth2b['REDSHIFT']))
-        self.assertTrue(np.all(truth2a['OIIFLUX'] == truth2b['OIIFLUX']))
-        self.assertTrue(np.all(truth2a['FLUX'] == truth2b['FLUX']))
+            #- Check 2a and 2b have the same spectra
+            self.assertTrue(np.all(truth2a['REDSHIFT'][notsky] == truth2b['REDSHIFT'][notsky]))
+            self.assertTrue(np.all(fibermap2a['TARGETID'] == fibermap2b['TARGETID']))
+            self.assertTrue(np.all(truth2a['OIIFLUX'] == truth2b['OIIFLUX']))
+            self.assertTrue(np.all(truth2a['FLUX'] == truth2b['FLUX']))
 
-        #- Check for duplicates
-        for i in range(nspec-1):
-            if truth1['OBJTYPE'][i] != 'SKY':
-                for j in range(i+1, nspec):
-                    self.assertFalse(np.all(truth1['FLUX'][i] == truth1['FLUX'][j]),
-                        'Spectra {} and {} are identical'.format(i,j))
+            #- Check for duplicates
+            for i in range(nspec-1):
+                if truth1['OBJTYPE'][i] != 'SKY':
+                    for j in range(i+1, nspec):
+                        self.assertFalse(np.all(truth1['FLUX'][i] == truth1['FLUX'][j]),
+                            'Spectra {} and {} are identical'.format(i,j))
 
 #- This runs all test* functions in any TestCase class in this file
 if __name__ == '__main__':

@@ -22,7 +22,7 @@ from .targets import get_targets_parallel
 from . import io
 
 def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
-    airmass=1.0, exptime=None, randseed=None):
+    airmass=1.0, exptime=None, seed=None):
     """
     Create a new exposure and output input simulation files.
     Does not generate pixel-level simulations or noisy spectra.
@@ -37,7 +37,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
         tileid : integer tile ID
         airmass : airmass, default 1.0
         exptime : exposure time in seconds
-        randseed : random seed
+        seed : random seed
 
     Writes:
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/fibermap-{expid}.fits
@@ -115,7 +115,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
         
     else: # checked that flavor is valid in newexp-desi
         log.debug('Generating {} targets'.format(nspec))
-        fibermap, truth = get_targets_parallel(nspec, flavor, tileid=tileid, randseed=randseed)
+        fibermap, truth = get_targets_parallel(nspec, flavor, tileid=tileid, seed=seed)
 
         flux = truth['FLUX']
         wave = truth['WAVE']
