@@ -43,7 +43,7 @@ parser.add_option("--arms", type=str, help="spectrograph arms, e.g. b,r,z", defa
 parser.add_option("--cosmics", type=str, help="fits file with dark images with cosmics to add")
 parser.add_option("--verbose", action="store_true", help="print more stuff")
 parser.add_option("--trimxy", action="store_true", help="Trim image to fit spectra")
-parser.add_option("--randseed", type=int, help="random number seed")
+parser.add_option("--seed", type=int, help="random number seed")
 parser.add_option("--nspec", type=int, help="Number of spectra to simulate per camera [%default]", default=500)
 parser.add_option("--ncpu",  type=int, help="Number of cpu cores to use [%default]", default=multiprocessing.cpu_count() // 2)
 parser.add_option("--wavemin",  type=float, help="Minimum wavelength to simulate")
@@ -74,8 +74,8 @@ if opts.cameras is None:
 else:
     opts.cameras = opts.cameras.split(',')
 
-random.seed(opts.randseed)
-np.random.seed(opts.randseed)
+random.seed(opts.seed)
+np.random.seed(opts.seed)
 
 for camera in opts.cameras:
     #- Simulate
