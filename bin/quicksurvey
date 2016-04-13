@@ -23,5 +23,6 @@ setup = qs.SimSetup(output_path = args.output_dir,
                     template_fiberassign = args.template_fiberassign, 
                     n_epochs = args.n_epochs)
 
-qs.simulate_setup(setup)
+setup.simulate()
+
 
