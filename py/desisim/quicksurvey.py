@@ -208,7 +208,7 @@ class SimSetup(object):
         fx.write(params.format(inputdir = self.tmp_output_path, targetdir = self.targets_path))
         fx.close()
         
-    def simulate_epoch(self, perfect=False, epoch_id=0):
+    def simulate_epoch(self, perfect=False, epoch_id=0, truth=None, targets=None, mtl=None, zcat=None):
         """Core routine simulating a DESI epoch, 
 
         Args:
@@ -216,6 +216,10 @@ class SimSetup(object):
             perfect (boolean): Default: False. Selects whether how redshifts are taken from the truth file.
                 True: redshifts are taken without any error from the truth file.
                 False: redshifts include uncertainties.
+            truth (Table): Truth data
+            targets (Table): Targets data
+            mtl (Table): Merged Targets List data
+            zcat (Table): Redshift Catalog Data
         Notes:
             This routine simulates three steps:
             * Merged target list creation
@@ -223,16 +227,18 @@ class SimSetup(object):
             * Redshift catalogue construction
         """
         #load truth / targets / zcat
-        truth = Table.read(os.path.join(self.targets_path,'truth.fits'))
-        targets = Table.read(os.path.join(self.targets_path,'targets.fits'))
-
+        if truth is None:
+            truth = Table.read(os.path.join(self.targets_path,'truth.fits'))
+        if targets is None:
+            targets = Table.read(os.path.join(self.targets_path,'targets.fits'))
+            
         self.mtl_file = os.path.join(self.tmp_output_path, 'mtl.fits')    
         print("{} Starting MTL".format(asctime()))
-        if self.zcat_file is None:
+        if self.zcat_file is None:            
             mtl = desitarget.mtl.make_mtl(targets)
             mtl.write(self.mtl_file, overwrite=True)
         else:
-            zcat = Table.read(self.zcat_file, format='fits')
+            #zcat = Table.read(self.zcat_file, format='fits')
             mtl = desitarget.mtl.make_mtl(targets, zcat)
             mtl.write(self.mtl_file, overwrite=True)
         print("{} Finished MTL".format(asctime()))
@@ -271,15 +277,15 @@ class SimSetup(object):
         # write the zcat, it uses the tilesfiles constructed in the last step
         if self.zcat_file is None:
             self.zcat_file = os.path.join(self.tmp_output_path, 'zcat.fits')
-            zcat = quickcat(self.tilefiles, targets, truth, zcat=None, perfect=perfect)
-            zcat.write(self.zcat_file, overwrite=True)
+            newzcat = quickcat(self.tilefiles, targets, truth, zcat=None, perfect=perfect)
+            newzcat.write(self.zcat_file, overwrite=True)
         else:
             self.zcat_file = os.path.join(self.tmp_output_path, 'zcat.fits')
-            zcat = Table.read(self.zcat_file, format='fits')
+            #zcat = Table.read(self.zcat_file, format='fits')
             newzcat = quickcat(self.tilefiles, targets, truth, zcat=zcat, perfect=perfect)
             newzcat.write(self.zcat_file, format='fits', overwrite=True)
         print("{} Finished zcat".format(asctime()))
-
+        return truth, targets, mtl, newzcat
 
 
     def simulate(self):
@@ -287,6 +293,7 @@ class SimSetup(object):
         """
         self.create_directories()
 
+        truth=targets=mtl=zcat=None
         for epoch in self.epochs_list:
             print('Epoch {}'.format(epoch))
 
@@ -298,7 +305,8 @@ class SimSetup(object):
 
             self.create_fiberassign_input()
 
-            self.simulate_epoch(perfect=True, epoch_id = self.epochs_list[epoch])
+            truth, targets, mtl, zcat = self.simulate_epoch(perfect=True, epoch_id = self.epochs_list[epoch], 
+                                                            truth=truth, targets=targets, mtl=mtl, zcat=zcat)
 
             self.backup_epoch_data(epoch_id = self.epochs_list[epoch])
 
