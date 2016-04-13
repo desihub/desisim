@@ -26,6 +26,17 @@ from astropy.table import join
 from desitarget.targets import desi_mask
 
 class SimSetup(object):
+    """Setup to simulate the DESI survey
+    
+    Attributes:
+        output_path (str): Path to write the outputs.x
+        targets_path (str): Path where the files targets.fits can be found
+        epochs_path (str): Path where the epoch files can be found.
+        fiberassign_exec (str): Name of the fiberassign executable
+        template_fiberassign (str): Filename of the template input for fiberassign
+        n_epochs (int): number of epochs to be simulated.
+                
+    """
     def __init__(self, **kwargs):
         if 'output_path' in kwargs.keys() :
             self.output_path = kwargs['output_path']        
