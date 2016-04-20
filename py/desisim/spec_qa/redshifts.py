@@ -14,7 +14,7 @@ from matplotlib import pyplot as plt
 import matplotlib.gridspec as gridspec
 
 from astropy.io import fits
-from astropy.table import Table, vstack, hstack, MaskedColumn
+from astropy.table import Table, vstack, hstack, MaskedColumn, join
 
 from desispec import util
 from desispec.io import read_fiberflat
@@ -31,14 +31,14 @@ from desispec.fiberflat import apply_fiberflat
 def calc_dz(simz_tab):
     '''Calcualte deltaz/(1+z) for a given simz_tab
     '''
-    dz = (simz_tab['REDM_Z']-simz_tab['REDSHIFT'])/(1+simz_tab['REDSHIFT'])
+    dz = (simz_tab['Z']-simz_tab['REDSHIFT'])/(1+simz_tab['REDSHIFT'])
     #
     return dz
 
 def calc_dzsig(simz_tab):
     '''Calcualte deltaz/sig(z) for a given simz_tab
     '''
-    dzsig = (simz_tab['REDM_Z']-simz_tab['REDSHIFT'])/simz_tab['REDM_ZERR']
+    dzsig = (simz_tab['Z']-simz_tab['REDSHIFT'])/simz_tab['ZERR']
     #
     return dzsig
 
@@ -95,7 +95,8 @@ def calc_stats(simz_tab, objtype, flux_lim=True):
 
     # Number of objects with RedMonster
     zobj_tab = slice_simz(simz_tab,objtype=objtype,redm=True)
-    stat_dict['N_RM'] = len(zobj_tab) 
+    stat_dict['N_RM'] = len(zobj_tab)
+
 
     # Redshift measured (includes catastrophics)
     #   For ELGs, cut on OII_Flux too
@@ -113,8 +114,16 @@ def calc_stats(simz_tab, objtype, flux_lim=True):
         survey=True,good=True)
     stat_dict['N_GDZ'] = len(gdz_tab)
 
+    # Redshift with ZWARN=0
+    zwarn0_tab = slice_simz(simz_tab,objtype=objtype,
+                         survey=True,all_zwarn0=True,good=True)
+    stat_dict['N_ZWARN0'] = len(zwarn0_tab)
+
     # Efficiency
     stat_dict['EFF'] = float(len(gdz_tab))/float(stat_dict['N_SURVEY'])
+
+    # Purity
+    stat_dict['PURITY'] = float(len(gdz_tab))/float(stat_dict['N_ZWARN0'])
 
     # delta z
     dz = calc_dz(gdz_tab)
@@ -227,19 +236,21 @@ def load_z(fibermap_files, zbest_files, outfil=None):
 
     # Fill up
     ztags = ['Z','ZERR','ZWARN','TYPE']
-    new_tags = ['REDM_Z','REDM_ZERR','REDM_ZWARN','REDM_TYPE']
+    #new_tags = ['Z','ZERR','ZWARN','TYPE']
     new_clms = []
     mask = np.array([True]*nsim)
     mask[sim_idx] = False
     for kk,ztag in enumerate(ztags):
         # Generate a MaskedColumn
-        new_clm  = MaskedColumn([zb_tab[ztag][z_idx[0]]]*nsim,
-            name=new_tags[kk], mask=mask)
+        new_clm = MaskedColumn([zb_tab[ztag][z_idx[0]]]*nsim,
+            name=ztag, mask=mask)
+        #name=new_tags[kk], mask=mask)
         # Fill
         new_clm[sim_idx] = zb_tab[ztag][z_idx]
         # Append
         new_clms.append(new_clm)
     # Add columns
+
     simz_tab.add_columns(new_clms)
 
     # Write?
@@ -270,22 +281,22 @@ def obj_requirements(zstats, objtype):
     req_dict = all_dict[objtype]
 
     tst_fail = ''
-    passf = 'PASS'
+    passf = str('PASS')
     for key in req_dict.keys():
-        ipassf = 'PASS'
+        ipassf = str('PASS')
         if key in ['EFF']: # Greater than requirement
             if zstats[key] < req_dict[key]:
-                ipassf = 'FAIL'
+                ipassf = str('FAIL')
                 tst_fail = tst_fail+key+'-'
         else:
             if zstats[key] > req_dict[key]:
-                ipassf = 'FAIL'
+                ipassf = str('FAIL')
                 tst_fail = tst_fail+key+'-'
         # Update
         pf_dict[key] = ipassf
-        if ipassf == 'FAIL':
-            passf = 'FAIL'
-    if passf == 'FAIL':
+        if ipassf == str('FAIL'):
+            passf = str('FAIL')
+    if passf == str('FAIL'):
         tst_fail = tst_fail[:-1]
         print('OBJ={:s} failed tests {:s}'.format(objtype,tst_fail))
     #
@@ -293,12 +304,15 @@ def obj_requirements(zstats, objtype):
     return pf_dict, passf
 
 def slice_simz(simz_tab, objtype=None, redm=False, survey=False, 
-    catastrophic=False, good=False):
+    catastrophic=False, good=False, all_zwarn0=False):
     '''Slice input simz_tab in one of many ways
     Parameters:
     ----------
-    redm: bool, optional
+    redm : bool, optional
       RedMonster analysis required?
+    all_zwarn0 : bool, optional
+      Ignores catastrophic failures in the slicing to return
+      all sources with ZWARN==0
     '''
     # Init
     nrow = len(simz_tab)
@@ -310,12 +324,12 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
         objtype_mask = simz_tab['OBJTYPE_1'] == objtype
     # RedMonster analysis
     if redm:
-        redm_mask = simz_tab['REDM_Z'].mask == False # Not masked in Table
+        redm_mask = simz_tab['Z'].mask == False # Not masked in Table
     else:
         redm_mask = np.array([True]*nrow)
     # Survey
     if survey:
-        survey_mask = (simz_tab['REDM_Z'].mask == False)
+        survey_mask = (simz_tab['Z'].mask == False)
         # Flux limit
         elg = np.where((simz_tab['OBJTYPE_1']=='ELG') & survey_mask)[0]
         elg_mask = elg_flux_lim(simz_tab['REDSHIFT'][elg], 
@@ -329,18 +343,19 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
         if catastrophic:
             catgd_mask = np.array([False]*nrow)
         else:
-            catgd_mask = simz_tab['REDM_ZWARN']==0
+            catgd_mask = simz_tab['ZWARN']==0
         for obj in ['ELG','LRG','QSO_L','QSO_T']:
             dv = catastrophic_dv(obj) # km/s
             omask = np.where((simz_tab['OBJTYPE_1'] == obj)&
-                (simz_tab['REDM_ZWARN']==0))[0]
+                (simz_tab['ZWARN']==0))[0]
             dz = calc_dz(simz_tab[omask]) # dz/1+z
             cat = np.where(np.abs(dz)*3e5 > dv)[0]
             # Update
             if catastrophic:
                 catgd_mask[omask[cat]] = True
             else:
-                catgd_mask[omask[cat]] = False
+                if not all_zwarn0:
+                    catgd_mask[omask[cat]] = False
     else:
         catgd_mask = np.array([True]*nrow) 
 
@@ -504,21 +519,21 @@ def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
 
     # Catastrophic
     cat_tab = slice_simz(simz_tab,survey=True, catastrophic=True)
-    ax.scatter(cat_tab['REDSHIFT'], cat_tab['REDM_Z'],
+    ax.scatter(cat_tab['REDSHIFT'], cat_tab['Z'],
         marker='x', s=9, label='CAT', color='red')
 
     notype = []
     for otype in otypes: 
         gd_o = np.where(zobj_tab['OBJTYPE_1']==otype)[0]
         notype.append(len(gd_o))
-        ax.scatter(zobj_tab['REDSHIFT'][gd_o], zobj_tab['REDM_Z'][gd_o], 
+        ax.scatter(zobj_tab['REDSHIFT'][gd_o], zobj_tab['Z'][gd_o],
             marker='o', s=1, label=sty_otype[otype]['lbl'], color=sty_otype[otype]['color'])
     ax.set_ylabel(r'$z_{\rm red}$')
     ax.set_xlabel(r'$z_{\rm true}$')
     ax.set_xlim(-0.1, 1.02*np.max(np.array([np.max(zobj_tab['REDSHIFT']),
-        np.max(zobj_tab['REDM_Z'])])))
+        np.max(zobj_tab['Z'])])))
     ax.set_ylim(-0.1, np.max(np.array([np.max(zobj_tab['REDSHIFT']),
-        np.max(zobj_tab['REDM_Z'])])))
+        np.max(zobj_tab['Z'])])))
     # Legend
     legend = ax.legend(loc='upper left', borderpad=0.3,
                         handletextpad=0.3, fontsize='small')
@@ -618,3 +633,225 @@ def summ_stats(simz_tab, outfil=None):
     #return stat_tab 
 
 
+
+def plot_slices(x, y, ok, bad, x_lo, x_hi, y_cut, num_slices=5, min_count=100,
+                axis=None):
+    """Scatter plot with 68, 95 percentiles superimposed in slices.
+
+    Requires that the matplotlib package is installed.
+
+    Parameters
+    ----------
+    x : array of float
+        X-coordinates to scatter plot.  Points outside [x_lo, x_hi] are
+        not displayed.
+    y : array of float
+        Y-coordinates to scatter plot.  Y values are assumed to be roughly
+        symmetric about zero.
+    ok : array of bool
+        Array of booleans that identify which fits are considered good.
+    bad : array of bool
+        Array of booleans that identify which fits have failed catastrophically.
+    x_lo : float
+        Minimum value of x to plot.
+    x_hi : float
+        Maximum value of x to plot.
+    y_cut : float
+        The target maximum value of |y|.  A dashed line at this value is
+        added to the plot, and the vertical axis is clipped at
+        |y| = 1.25 * y_cut (but values outside this range are included in
+        the percentile statistics).
+    num_slices : int
+        Number of equally spaced slices to divide the interval [x_lo, x_hi]
+        into.
+    min_count : int
+        Do not use slices with fewer points for superimposed percentile
+        statistics.
+    axis : matplotlib axis object or None
+        Uses the current axis if this is None.
+    """
+    #import matplotlib.pyplot as plt
+
+    if axis is None:
+        axis = plt.gca()
+
+    x_bins = np.linspace(x_lo, x_hi, num_slices + 1)
+    x_i = np.digitize(x, x_bins) - 1
+    limits = []
+    counts = []
+    for s in xrange(num_slices):
+        # Calculate percentile statistics for ok fits.
+        y_slice = y[ok & (x_i == s)]
+        counts.append(len(y_slice))
+        if counts[-1] > 0:
+            limits.append(np.percentile(y_slice, (2.5, 16, 50, 84, 97.5)))
+        else:
+            limits.append((0., 0., 0., 0., 0.))
+    limits = np.array(limits)
+    counts = np.array(counts)
+
+    # Plot scatter of all fits.
+    axis.scatter(x[ok], y[ok], s=15, marker='.', lw=0, color='b', alpha=0.5)
+    axis.scatter(x[~ok], y[~ok], s=15, marker='x', lw=0, color='k', alpha=0.5)
+
+    # Plot quantiles in slices with enough fits.
+    stepify = lambda y: np.vstack([y, y]).transpose().flatten()
+    y_m2 = stepify(limits[:, 0])
+    y_m1 = stepify(limits[:, 1])
+    y_med = stepify(limits[:, 2])
+    y_p1 = stepify(limits[:, 3])
+    y_p2 = stepify(limits[:, 4])
+    xstack = stepify(x_bins)[1:-1]
+    for i in xrange(num_slices):
+        s = slice(2 * i, 2 * i + 2)
+        if counts[i] >= min_count:
+            axis.fill_between(
+                xstack[s], y_m2[s], y_p2[s], alpha=0.15, color='red')
+            axis.fill_between(
+                xstack[s], y_m1[s], y_p1[s], alpha=0.25, color='red')
+            axis.plot(xstack[s], y_med[s], 'r-', lw=2.)
+
+    # Plot cut lines.
+    axis.axhline(+y_cut, ls=':', color='k')
+    axis.axhline(0., ls='-', color='k')
+    axis.axhline(-y_cut, ls=':', color='k')
+
+    # Plot histograms of of not ok and catastrophic fits.
+    rhs = axis.twinx()
+
+    weights = np.ones_like(x[bad]) / len(x[ok])
+    if len(weights) > 0:
+        try:
+            rhs.hist(
+                x[bad], range=(x_lo, x_hi), bins=num_slices, histtype='step',
+                weights=weights, color='k', cumulative=True)
+        except UnboundLocalError:
+            print('All values lie outside the plot range')
+
+    weights = np.ones_like(x[~ok]) / len(x)
+    if len(weights) > 0:
+        try:
+            rhs.hist(
+                x[~ok], range=(x_lo, x_hi), bins=num_slices, histtype='step',
+                weights=weights, color='k', ls='dashed', cumulative=True)
+        except UnboundLocalError:
+            print('All values lie outside the plot range')
+
+    axis.set_ylim(-1.25 * y_cut, +1.25 * y_cut)
+    axis.set_xlim(x_lo, x_hi)
+
+    return axis, rhs
+
+def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
+
+    # INIT
+    nrows = 2
+    objtype = ['ELG', 'LRG', 'QSO_T', 'QSO_L']
+    fluxes = ['OIIFLUX','ZMAG','GMAG','GMAG']
+    ncols = len(objtype)
+    #title = r'$\Delta v$ vs. z'
+
+    # Plotting dicts
+    if pdict is None:
+        pdict = dict(ELG={'TRUEZ': { 'n': 15, 'min': 0.6, 'max': 1.6, 'label': 'redshift', 'overlap': 1 },
+                          'RMAG': {'n': 12, 'min': 21.0, 'max': 23.4, 'label': 'r-band magnitude', 'overlap': 0},
+                          'OIIFLUX': {'n': 10, 'min': 0.0, 'max': 4.0e-16, 'label': '[OII] flux', 'overlap': 1}},
+                     LRG={'TRUEZ': {'n': 12, 'min': 0.5, 'max': 1.0, 'label': 'redshift', 'overlap': 2 },
+                          'ZMAG': {'n': 15, 'min': 17.0, 'max': 20.5, 'label': 'z-band magnitude', 'overlap': 2 }},
+                     QSO_T={'TRUEZ': {'n': 12, 'min': 0.5, 'max': 2.1, 'label': 'redshift', 'overlap': 2 },
+                          'GMAG': {'n': 15, 'min': 21.0, 'max': 23.0, 'label': 'g-band magnitude', 'overlap': 2 }},
+                     QSO_L={'TRUEZ': {'n': 12, 'min': 2.1, 'max': 4.0, 'label': 'redshift', 'overlap': 2 },
+                            'GMAG': {'n': 15, 'min': 21.0, 'max': 20.5, 'label': 'g-band magnitude', 'overlap': 2 }},
+        )
+
+    # Initialize a new page of plots.
+    figure, axes = plt.subplots(
+        nrows, ncols, figsize=(11, 8.5), facecolor='white',
+        sharey=True)
+    #figure.suptitle(title)
+
+    # True Redshift
+    row = 0
+    ptype = 'TRUEZ'
+    for row in range(nrows):
+        for i,otype in enumerate(objtype):
+            print(row, otype)
+            if row == 0:
+                ptype = 'TRUEZ'
+            else:
+                ptype = fluxes[i]
+                if ptype == 'OIIFLUX':
+                    mtag = 'O2FLUX'
+                else:
+                    mtag = 'MAG'
+            # Grab the set of measurments
+            survey = slice_simz(simz_tab, objtype=otype, redm=True, survey=True)
+            # Simple stats
+            ok = survey['ZWARN'] == 0
+            dv = calc_dz(survey)*3e5 # dz/1+z
+            bad = dv > catastrophic_dv(otype)
+            #if i==2:
+            #    pdb.set_trace()
+
+            # Plot the truth distribution for this variable.
+            if ptype == 'TRUEZ':
+                x = survey['REDSHIFT']
+            else:
+                if mtag == 'O2FLUX':
+                    x = survey[mtag]
+                else:
+                    x = survey[mtag][:,0]  # SHOULD USE PROPER FILTER EVENTUALLY
+            nslice, x_min, x_max = pdict[otype][ptype]['n'], pdict[otype][ptype]['min'], pdict[otype][ptype]['max']
+            rhs = None
+            max_dv = 1000.
+            max_frac = 0.1
+            overlap = pdict[otype][ptype]['overlap']
+
+            # axis
+            col = i
+            axis = axes[row][col]
+
+            #if (row==1) & (col==1):
+            #    pdb.set_trace()
+
+            lhs, rhs = plot_slices(
+                x=x, y=dv, ok=ok, bad=bad, x_lo=x_min, x_hi=x_max,
+                num_slices=nslice, y_cut=max_dv, axis=axis, min_count=min_count)
+            # Add a label even if the fitter has no results.
+            xy = (0.5, 1.0)
+            coords = 'axes fraction'
+            axis.annotate(
+                otype, xy=xy, xytext=xy, xycoords=coords,
+                textcoords=coords, horizontalalignment='center',
+                verticalalignment='top', size='large', weight='bold')
+
+            rhs.set_ylim(0., max_frac)
+            if col < ncols - 1:
+                plt.setp([rhs.get_yticklabels()], visible=False)
+            else:
+                # Hide the last y-axis label except on the first row.
+                if row > 0:
+                    plt.setp([rhs.get_yticklabels()[-2:]], visible=False)
+                rhs.set_ylabel('zwarn, catastrophic cummulative fraction')
+
+            if col > 0:
+                plt.setp([axis.get_yticklabels()], visible=False)
+            else:
+                axis.set_ylabel('Redshift fit residual $\Delta v$ [km/s]')
+
+            #if row < nrows - 1:
+            #    plt.setp([axis.get_xticklabels()], visible=False)
+            #else:
+            axis.set_xlabel('{0} {1}'.format(otype, ptype))
+            # Hide overlapping x-axis labels except in the bottom right.
+            if overlap and (col < ncols - 1):
+                plt.setp(
+                    [axis.get_xticklabels()[-overlap:]], visible=False)
+
+        figure.subplots_adjust(
+            left=0.08, bottom=0.07, right=0.92, top=0.95,
+            hspace=0.2, wspace=0.0)
+
+    if pp is not None:
+        pp.savefig()
+    plt.close()
