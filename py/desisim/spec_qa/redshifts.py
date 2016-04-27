@@ -182,15 +182,20 @@ def load_z(fibermap_files, zbest_files, outfil=None):
     sps_tabs = []
     for fibermap_file in fibermap_files:
         fbm_hdu = fits.open(fibermap_file)
+
+        # skip calibration exposures
+        flavor = fbm_hdu[1].header['FLAVOR']
+        if flavor in ('arc', 'flat', 'bias'):
+            fbm_hdu.close()
+            continue
+
         print('Reading: {:s}'.format(fibermap_file))
         # Load simspec
         simspec_fil = fibermap_file.replace('fibermap','simspec')
         sps_hdu = fits.open(simspec_fil)
         # Make Tables
-        assert fbm_hdu[1].name == 'FIBERMAP'
-        fbm_tabs.append(Table(fbm_hdu[1].data))
-        assert sps_hdu[2].name == 'METADATA'
-        sps_tabs.append(Table(sps_hdu[2].data))
+        fbm_tabs.append(Table(fbm_hdu['FIBERMAP'].data))
+        sps_tabs.append(Table(sps_hdu['METADATA'].data))
     # Stack
     fbm_tab = vstack(fbm_tabs)
     sps_tab = vstack(sps_tabs)
@@ -220,6 +225,7 @@ def load_z(fibermap_files, zbest_files, outfil=None):
         zb_hdu = fits.open(zbest_file)
         zb_tabs.append(Table(zb_hdu[1].data))
     # Stack
+
     zb_tab = vstack(zb_tabs)
     univ, uni_idx = np.unique(np.array(zb_tab['TARGETID']),return_index=True)
     zb_tab = zb_tab[uni_idx]
@@ -333,7 +339,7 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
         # Flux limit
         elg = np.where((simz_tab['OBJTYPE_1']=='ELG') & survey_mask)[0]
         elg_mask = elg_flux_lim(simz_tab['REDSHIFT'][elg], 
-            simz_tab['O2FLUX'][elg])
+            simz_tab['OIIFLUX'][elg])
         # Update
         survey_mask[elg[~elg_mask]] = False
     else:
@@ -473,7 +479,7 @@ def obj_fig(simz_tab, objtype, summ_stats, outfil=None, pp=None):
             elif kk == 3:
                 if objtype == 'ELG':
                     lbl = r'[OII] Flux ($10^{-16}$)'
-                    xval = gdz_tab['O2FLUX']*1e16
+                    xval = gdz_tab['OIIFLUX']*1e16
                     xmin,xmax=0.3,20
                     ax.set_xscale("log", nonposy='clip')
                 else:
@@ -781,7 +787,7 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
             else:
                 ptype = fluxes[i]
                 if ptype == 'OIIFLUX':
-                    mtag = 'O2FLUX'
+                    mtag = 'OIIFLUX'
                 else:
                     mtag = 'MAG'
             # Grab the set of measurments
@@ -797,7 +803,7 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
             if ptype == 'TRUEZ':
                 x = survey['REDSHIFT']
             else:
-                if mtag == 'O2FLUX':
+                if mtag == 'OIIFLUX':
                     x = survey[mtag]
                 else:
                     x = survey[mtag][:,0]  # SHOULD USE PROPER FILTER EVENTUALLY

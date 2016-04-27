@@ -10,6 +10,7 @@ Read fibermaps and zbest files to generate QA related to redshifts
 
 import argparse
 import os.path
+import sys
 
 import yaml
 import pdb
@@ -60,8 +61,16 @@ def main():
         for brick in brick_names:
             zbest_path=desispec.io.findfile('zbest',brickname=brick)
             if os.path.exists(zbest_path):
+                log.debug('Found {}'.format(os.path.basename(zbest_path)))
                 zbest_files.append(zbest_path)
+            else:
+                log.warn('Missing {}'.format(os.path.basename(zbest_path)))
+
     zbest_files = list(set(zbest_files))
+
+    if len(zbest_files) == 0:
+        log.fatal('No zbest files found')
+        sys.exit(1)
 
     # Load Table
     simz_tab = dsqa_z.load_z(fibermap_files, zbest_files)
