@@ -16,17 +16,8 @@ import matplotlib.gridspec as gridspec
 from astropy.io import fits
 from astropy.table import Table, vstack, hstack, MaskedColumn, join
 
-from desispec import util
-from desispec.io import read_fiberflat
-from desispec import interpolation as desi_interp
+from desispec.log import get_logger, DEBUG
 
-from desispec.io import frame as desi_io_frame
-from desispec.io import fibermap as desi_io_fmap
-from desispec.io import read_sky
-from desispec.io import meta as dio_meta
-from desispec import sky as dspec_sky
-
-from desispec.fiberflat import apply_fiberflat
 
 def calc_dz(simz_tab):
     '''Calcualte deltaz/(1+z) for a given simz_tab
@@ -35,12 +26,14 @@ def calc_dz(simz_tab):
     #
     return dz
 
+
 def calc_dzsig(simz_tab):
     '''Calcualte deltaz/sig(z) for a given simz_tab
     '''
     dzsig = (simz_tab['Z']-simz_tab['REDSHIFT'])/simz_tab['ZERR']
     #
     return dzsig
+
 
 def elg_flux_lim(z, oii_flux):
     '''Assess which objects pass the ELG flux limit
@@ -75,15 +68,15 @@ def elg_flux_lim(z, oii_flux):
     return mask
 
 def calc_stats(simz_tab, objtype, flux_lim=True):
-    '''Calculate redshift statistics for a given objtype
+    """Calculate redshift statistics for a given objtype
 
     Parameters:
     -----------
-    objtype: str
+    objtype : str
       Object type, e.g. 'ELG', 'LRG'
-    flux_lim: bool, optional
+    flux_lim : bool, optional
       Impose the flux limit for ELGs? [True] 
-    '''
+    """
     # Cut on targets that were analyzed by RedMonster
 
     # Init
@@ -174,6 +167,7 @@ def load_z(fibermap_files, zbest_files, outfil=None):
       Table of target info including Redmonster redshifts
     '''
     # imports
+    log = get_logger()
 
     # Init
 
@@ -189,7 +183,7 @@ def load_z(fibermap_files, zbest_files, outfil=None):
             fbm_hdu.close()
             continue
 
-        print('Reading: {:s}'.format(fibermap_file))
+        log.info('Reading: {:s}'.format(fibermap_file))
         # Load simspec
         simspec_fil = fibermap_file.replace('fibermap','simspec')
         sps_hdu = fits.open(simspec_fil)
@@ -278,6 +272,7 @@ def obj_requirements(zstats, objtype):
     pf_dict: dict  
       Pass/fail dict
     '''
+    log = get_logger()
     pf_dict = {}
     # 
     all_dict=dict(ELG={'RMS_DZ':0.0005, 'MEAN_DZ': 0.0002, 'CAT_RATE': 0.05, 'EFF': 0.90},
@@ -304,7 +299,7 @@ def obj_requirements(zstats, objtype):
             passf = str('FAIL')
     if passf == str('FAIL'):
         tst_fail = tst_fail[:-1]
-        print('OBJ={:s} failed tests {:s}'.format(objtype,tst_fail))
+        log.warn('OBJ={:s} failed tests {:s}'.format(objtype,tst_fail))
     #
     #pf_dict['FINAL'] = passf
     return pf_dict, passf
@@ -677,6 +672,7 @@ def plot_slices(x, y, ok, bad, x_lo, x_hi, y_cut, num_slices=5, min_count=100,
         Uses the current axis if this is None.
     """
     #import matplotlib.pyplot as plt
+    log = get_logger()
 
     if axis is None:
         axis = plt.gca()
@@ -732,7 +728,7 @@ def plot_slices(x, y, ok, bad, x_lo, x_hi, y_cut, num_slices=5, min_count=100,
                 x[bad], range=(x_lo, x_hi), bins=num_slices, histtype='step',
                 weights=weights, color='k', cumulative=True)
         except UnboundLocalError:
-            print('All values lie outside the plot range')
+            log.warn('All values lie outside the plot range')
 
     weights = np.ones_like(x[~ok]) / len(x)
     if len(weights) > 0:
@@ -741,14 +737,26 @@ def plot_slices(x, y, ok, bad, x_lo, x_hi, y_cut, num_slices=5, min_count=100,
                 x[~ok], range=(x_lo, x_hi), bins=num_slices, histtype='step',
                 weights=weights, color='k', ls='dashed', cumulative=True)
         except UnboundLocalError:
-            print('All values lie outside the plot range')
+            log.warn('All values lie outside the plot range')
 
     axis.set_ylim(-1.25 * y_cut, +1.25 * y_cut)
     axis.set_xlim(x_lo, x_hi)
 
     return axis, rhs
 
+
 def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
+    """  Generate a summary figure comparing zfind to ztruth
+
+    Parameters
+    ----------
+    simz_tab : Table
+      Table of redshift information
+    pp : PdfPages object
+    pdict : dict
+      Guides the plotting parameters
+    min_count : int, optional
+    """
 
     # INIT
     nrows = 2
@@ -767,7 +775,7 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
                      QSO_T={'TRUEZ': {'n': 12, 'min': 0.5, 'max': 2.1, 'label': 'redshift', 'overlap': 2 },
                           'GMAG': {'n': 15, 'min': 21.0, 'max': 23.0, 'label': 'g-band magnitude', 'overlap': 2 }},
                      QSO_L={'TRUEZ': {'n': 12, 'min': 2.1, 'max': 4.0, 'label': 'redshift', 'overlap': 2 },
-                            'GMAG': {'n': 15, 'min': 21.0, 'max': 20.5, 'label': 'g-band magnitude', 'overlap': 2 }},
+                            'GMAG': {'n': 15, 'min': 21.0, 'max': 23.0, 'label': 'g-band magnitude', 'overlap': 2 }},
         )
 
     # Initialize a new page of plots.
@@ -781,7 +789,6 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
     ptype = 'TRUEZ'
     for row in range(nrows):
         for i,otype in enumerate(objtype):
-            print(row, otype)
             if row == 0:
                 ptype = 'TRUEZ'
             else:

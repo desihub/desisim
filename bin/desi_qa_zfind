@@ -20,6 +20,7 @@ import desispec.io
 from desispec.log import get_logger, DEBUG
 
 from desisim.spec_qa import redshifts as dsqa_z
+from desiutil.io import yamlify
 
 def main():
 
@@ -65,6 +66,7 @@ def main():
                 zbest_files.append(zbest_path)
             else:
                 log.warn('Missing {}'.format(os.path.basename(zbest_path)))
+                #pdb.set_trace()
 
     zbest_files = list(set(zbest_files))
 
@@ -81,12 +83,15 @@ def main():
     # Run stats
     summ_dict = dsqa_z.summ_stats(simz_tab)
     if args.qafile is not None:
+        log.info("Generating yaml file: {:s}".format(args.qafile))
+        # yamlify
         # Write yaml
         with open(args.qafile, 'w') as outfile:
-            outfile.write(yaml.dump(meta))#, default_flow_style=True) )
-            outfile.write(yaml.dump(summ_dict, default_flow_style=False) )
+            outfile.write(yaml.dump(yamlify(meta)))#, default_flow_style=True) )
+            outfile.write(yaml.dump(yamlify(summ_dict), default_flow_style=False))
 
     if args.qafig is not None:
+        log.info("Generating PDF file: {:s}".format(args.qafig))
         pp = PdfPages(args.qafig)
         # Summary for dz of all types
         dsqa_z.dz_summ(simz_tab, pp=pp)
