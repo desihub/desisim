@@ -13,7 +13,7 @@ import os.path
 import sys
 
 import yaml
-import pdb
+#import pdb
 from matplotlib.backends.backend_pdf import PdfPages
 
 import desispec.io
@@ -57,7 +57,12 @@ def main():
         else:
             fibermap_files.append(fibermap_path)
         # Search for zbest files
-        fibermap_data = desispec.io.read_fibermap(fibermap_path)
+        fibermap_data, header = desispec.io.read_fibermap(fibermap_path, header=True)
+        flavor = header['FLAVOR']
+        if flavor.lower() in ('arc', 'flat', 'bias'):
+            log.debug('Skipping calibration {} exposure {:08d}'.format(flavor, exposure))
+            continue        
+        
         brick_names = set(fibermap_data['BRICKNAME'])
         for brick in brick_names:
             zbest_path=desispec.io.findfile('zbest',brickname=brick)
@@ -87,7 +92,7 @@ def main():
         # yamlify
         # Write yaml
         with open(args.qafile, 'w') as outfile:
-            outfile.write(yaml.dump(yamlify(meta)))#, default_flow_style=True) )
+            outfile.write(yaml.dump(yamlify(meta), default_flow_style=False))
             outfile.write(yaml.dump(yamlify(summ_dict), default_flow_style=False))
 
     if args.qafig is not None:
