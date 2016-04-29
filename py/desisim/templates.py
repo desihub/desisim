@@ -574,7 +574,8 @@ class ELG():
 
                 # Convert [grzW1W2]flux to nanomaggies.
                 synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
-                synthnano = [ff*MAG2NANO for ff in synthmaggies[0]] # convert to nanomaggies
+                synthnano = np.array([ff*MAG2NANO for ff in synthmaggies[0]]) # convert to nanomaggies
+                synthnano[synthnano == 0] = 10**(0.4*(22.5-99)) # if flux==0 then set mag==99 (below)
                 #import pdb ; pdb.set_trace()
                 
                 oiimask = [zoiiflux>minoiiflux]
@@ -830,7 +831,8 @@ class LRG():
 
                 # Convert [grzW1W2]flux to nanomaggies.
                 synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
-                synthnano = [ff*MAG2NANO for ff in synthmaggies[0]] # convert to nanomaggies
+                synthnano = np.array([ff*MAG2NANO for ff in synthmaggies[0]]) # convert to nanomaggies
+                synthnano[synthnano == 0] = 10**(0.4*(22.5-99)) # if flux==0 then set mag==99 (below)
 
                 if nocolorcuts:
                     colormask = [True]
@@ -1042,7 +1044,8 @@ class STAR(object):
                 if self.objtype=='WD':
                     synthmaggies['wise2010-W1'] = 0.0
                     synthmaggies['wise2010-W2'] = 0.0
-                synthnano = [ff*MAG2NANO for ff in synthmaggies[0]] # convert to nanomaggies
+                synthnano = np.array([ff*MAG2NANO for ff in synthmaggies[0]]) # convert to nanomaggies
+                synthnano[synthnano == 0] = 10**(0.4*(22.5-99)) # if flux==0 then set mag==99 (below)
 
                 if ((nobj+1)%10)==0:
                     log.debug('Simulating {} template {}/{}'. \
@@ -1054,9 +1057,9 @@ class STAR(object):
                 meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
                 meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
                 meta['ZMAG'][nobj] = -2.5*np.log10(synthnano[4])+22.5
+                meta['W1MAG'][nobj] = -2.5*np.log10(synthnano[6])+22.5
+                meta['W2MAG'][nobj] = -2.5*np.log10(synthnano[7])+22.5
                 if self.objtype!='WD':
-                    meta['W1MAG'][nobj] = -2.5*np.log10(synthnano[6])+22.5
-                    meta['W2MAG'][nobj] = -2.5*np.log10(synthnano[7])+22.5
                     meta['FEH'][nobj] = self.basemeta['FEH'][iobj]
                 meta['DECAM_FLUX'][nobj] = synthnano[:6]
                 meta['WISE_FLUX'][nobj] = synthnano[6:8]
@@ -1161,7 +1164,8 @@ class FSTD(STAR):
                     
                 # Convert [grzW1W2]flux to nanomaggies.
                 synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
-                synthnano = [ff*MAG2NANO for ff in synthmaggies[0]] # convert to nanomaggies
+                synthnano = np.array([ff*MAG2NANO for ff in synthmaggies[0]]) # convert to nanomaggies
+                synthnano[synthnano == 0] = 10**(0.4*(22.5-99)) # if flux==0 then set mag==99 (below)
 
                 # Color cuts on just on the standard stars.
                 colormask = [isFSTD_colors(gflux=synthnano[1],
@@ -1285,7 +1289,8 @@ class MWS_STAR(STAR):
                     
                 # Convert [grzW1W2]flux to nanomaggies.
                 synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
-                synthnano = [ff*MAG2NANO for ff in synthmaggies[0]] # convert to nanomaggies
+                synthnano = np.array([ff*MAG2NANO for ff in synthmaggies[0]]) # convert to nanomaggies
+                synthnano[synthnano == 0] = 10**(0.4*(22.5-99)) # if flux==0 then set mag==99 (below)
 
                 # Color cuts on just on the standard stars.
                 colormask = [isMWSSTAR_colors(gflux=synthnano[1], rflux=synthnano[2])]
@@ -1497,7 +1502,8 @@ class QSO():
                 synthmaggies['wise2010-W1'] = 0.0
                 synthmaggies['wise2010-W2'] = 0.0
 
-                synthnano = [ff*MAG2NANO for ff in synthmaggies[0]] # convert to nanomaggies
+                synthnano = np.array([ff*MAG2NANO for ff in synthmaggies[0]]) # convert to nanomaggies
+                synthnano[synthnano == 0] = 10**(0.4*(22.5-99)) # if flux==0 then set mag==99 (below)
 
                 if nocolorcuts:
                     colormask = [True]
@@ -1521,8 +1527,8 @@ class QSO():
                     meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
                     meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
                     meta['ZMAG'][nobj] = -2.5*np.log10(synthnano[4])+22.5
-                    #meta['W1MAG'][nobj] = -2.5*np.log10(synthnano[6])+22.5
-                    #meta['W2MAG'][nobj] = -2.5*np.log10(synthnano[7])+22.5
+                    meta['W1MAG'][nobj] = -2.5*np.log10(synthnano[6])+22.5
+                    meta['W2MAG'][nobj] = -2.5*np.log10(synthnano[7])+22.5
                     meta['DECAM_FLUX'][nobj] = synthnano[:6]
                     meta['WISE_FLUX'][nobj] = synthnano[6:8]
 
@@ -1819,8 +1825,8 @@ class BGS():
 
                 # Convert [grzW1W2]flux to nanomaggies.
                 synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
-                synthnano = [ff*MAG2NANO for ff in synthmaggies[0]] # convert to nanomaggies
-                synthnano[synthnano==0] = 10**(0.4*(22.5-99)) # if flux==0 then set mag==99 (below)
+                synthnano = np.array([ff*MAG2NANO for ff in synthmaggies[0]]) # convert to nanomaggies
+                synthnano[synthnano == 0] = 10**(0.4*(22.5-99)) # if flux==0 then set mag==99 (below)
                 #import pdb ; pdb.set_trace()
 
                 if nocolorcuts:

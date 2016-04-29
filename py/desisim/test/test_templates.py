@@ -62,7 +62,6 @@ class TestTemplates(unittest.TestCase):
             z = meta['REDSHIFT'][i]
             ii = (4854*(1+z) < wave) & (wave < 4868*(1+z))
             hbetaflux = np.sum(flux[i,ii]*np.gradient(wave[ii]))
-            print(z, hbetaflux, meta['HBETAFLUX'][i])
             self.assertAlmostEqual(hbetaflux, meta['HBETAFLUX'][i], 2)
 
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
@@ -99,7 +98,7 @@ class TestTemplates(unittest.TestCase):
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_random_seed(self):
         '''Test that random seed works to get the same results back'''
-        for T in [ELG, LRG, QSO, STAR, FSTD, MWS_STAR]:
+        for T in [ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR]:
             Tx = T(wave=self.wave)
             flux1, wave1, meta1 = Tx.make_templates(self.nspec, seed=1)
             flux2, wave2, meta2 = Tx.make_templates(self.nspec, seed=1)
@@ -129,13 +128,13 @@ class TestTemplates(unittest.TestCase):
         '''QSO and WD templates don't have WISE mags.  Flag that'''
         qso = QSO(wave=self.wave)
         flux, wave, meta = qso.make_templates(self.nspec)
-        self.assertTrue(not np.any(meta['W1MAG']==0))
-        self.assertTrue(not np.any(meta['W2MAG']==0))
+        self.assertTrue(not np.any(meta['W1MAG']==99))
+        self.assertTrue(not np.any(meta['W2MAG']==99))
 
         wd = STAR(wave=self.wave, WD=True)
         flux, wave, meta = star.make_templates(self.nspec)
-        self.assertTrue(not np.any(meta['W1MAG']==0))
-        self.assertTrue(not np.any(meta['W2MAG']==0))
+        self.assertTrue(not np.any(meta['W1MAG']==99))
+        self.assertTrue(not np.any(meta['W2MAG']==99))
 
 if __name__ == '__main__':
     unittest.main()
