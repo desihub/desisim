@@ -54,7 +54,7 @@ $PIP_INSTALL speclite
 
 # DESI_ROOT and DESI_BASIS_TEMPLATES with test data
 export DESISIM=$PWD
-testdata_version=0.2
+testdata_version=0.2.1
 cd ./data
 wget https://github.com/desihub/desisim-testdata/archive/$testdata_version.zip
 unzip $testdata_version.zip
