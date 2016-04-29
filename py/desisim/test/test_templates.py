@@ -3,7 +3,7 @@ from __future__ import division
 import os
 import unittest
 import numpy as np
-from desisim.templates import ELG, LRG, QSO, STAR, FSTD, MWS_STAR, BGS
+from desisim.templates import ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR
 
 desimodel_data_available = 'DESIMODEL' in os.environ
 desi_templates_available = 'DESI_ROOT' in os.environ
@@ -26,7 +26,7 @@ class TestTemplates(unittest.TestCase):
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_simple(self):
         '''Confirm that creating templates works at all'''
-        for T in [ELG, LRG, QSO, STAR, FSTD, MWS_STAR]:
+        for T in [ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR]:
             template_factory = T(wave=self.wave)
             flux, wave, meta = template_factory.make_templates(self.nspec)
             self._check_output_size(flux, wave, meta)
@@ -49,6 +49,21 @@ class TestTemplates(unittest.TestCase):
             ii = (3722*(1+z) < wave) & (wave < 3736*(1+z))
             OIIflux = np.sum(flux[i,ii]*np.gradient(wave[ii]))
             self.assertAlmostEqual(OIIflux, meta['OIIFLUX'][i], 2)
+
+    @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
+    def test_HBETA(self):
+        '''Confirm that BGS H-beta flux matches meta table description'''
+        wave = np.arange(5000, 7000.1, 0.2)
+        flux, ww, meta = BGS(wave=wave).make_templates(zrange=[0.1,0.4],
+            nmodel=20, nocolorcuts=True, nocontinuum=True,
+            logvdisp_meansig=[np.log10(75),0.0])
+
+        for i in range(len(meta)):
+            z = meta['REDSHIFT'][i]
+            ii = (4854*(1+z) < wave) & (wave < 4868*(1+z))
+            hbetaflux = np.sum(flux[i,ii]*np.gradient(wave[ii]))
+            print(z, hbetaflux, meta['HBETAFLUX'][i])
+            self.assertAlmostEqual(hbetaflux, meta['HBETAFLUX'][i], 2)
 
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_stars(self):

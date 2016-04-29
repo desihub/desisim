@@ -575,6 +575,7 @@ class ELG():
                 # Convert [grzW1W2]flux to nanomaggies.
                 synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
                 synthnano = [ff*MAG2NANO for ff in synthmaggies[0]] # convert to nanomaggies
+                #import pdb ; pdb.set_trace()
                 
                 oiimask = [zoiiflux>minoiiflux]
                 if nocolorcuts:
@@ -1630,7 +1631,7 @@ class BGS():
         self.rfilt = filters.load_filters('decam2014-r')
         self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
 
-    def make_templates(self, nmodel=100, zrange=(0.6,1.6), rmagrange=(15.0,19.5),
+    def make_templates(self, nmodel=100, zrange=(0.01,0.4), rmagrange=(15.0,19.5),
                        oiiihbrange=(-1.3,0.6), oiidoublet_meansig=(0.73,0.05),
                        logvdisp_meansig=(2.0,0.17), sne_rfluxratiorange=(0.1,1.0), 
                        seed=None, nocolorcuts=False, nocontinuum=False):
@@ -1819,6 +1820,8 @@ class BGS():
                 # Convert [grzW1W2]flux to nanomaggies.
                 synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
                 synthnano = [ff*MAG2NANO for ff in synthmaggies[0]] # convert to nanomaggies
+                synthnano[synthnano==0] = 10**(0.4*(22.5-99)) # if flux==0 then set mag==99 (below)
+                #import pdb ; pdb.set_trace()
 
                 if nocolorcuts:
                     colormask = [True]
