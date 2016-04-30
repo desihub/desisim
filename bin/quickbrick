@@ -29,7 +29,7 @@ import desisim.targets
 import optparse
 parser = optparse.OptionParser(usage = "%prog [options]")
 parser.add_option("-b", "--brickname", type=str,  help="brickname")
-parser.add_option(      "--objtype", type=str,  help="elg,lrg,qso,star or mix")
+parser.add_option(      "--objtype", type=str,  help="elg,lrg,qso,star,mws or mix")
 parser.add_option("-n", "--nspec", type=int,  help="number of spectra to simulate")
 parser.add_option("-o", "--outdir", type=str,  help="output data directory; default .", default='.')
 parser.add_option("--config", type=str, help="specsim configuration", default="desi")
@@ -48,7 +48,7 @@ desiparams = desimodel.io.load_desiparams()
 assert opts.brickname is not None
 assert opts.objtype is not None
 opts.objtype = opts.objtype.upper()
-assert opts.objtype in ['ELG', 'LRG', 'QSO', 'STAR', 'TEST', 'MIX']
+assert opts.objtype in ['ELG', 'LRG', 'QSO', 'STAR', 'MWS', 'TEST', 'MIX']
 
 #- Initialize random state to use throughput.
 random_state = np.random.RandomState(opts.seed)
@@ -56,18 +56,17 @@ random_state = np.random.RandomState(opts.seed)
 #- Initialize the quick simulator object
 qsim = specsim.simulator.Simulator(opts.config)
 qsim.atmosphere.airmass = opts.airmass
-qsim.instrument.exposure_time = desiparams['exptime'] * u.s
-
+if  opts.objtype.lower() == 'mws':
+    qsim.instrument.exposure_time = desiparams['exptime_bright'] * u.s
+else:
+    qsim.instrument.exposure_time = desiparams['exptime_dark'] * u.s
+    
 #- Lookup the source wavelength grid.
 wave = qsim.source.wavelength_out.to(u.Angstrom).value
 
 #- If opts.objtype='MIX', get distribution of target types from sample_objtype
 if opts.objtype.lower() == 'mix':
-    true_objtype, target_objtype = desisim.targets.sample_objtype(opts.nspec)
-    #- replace 'STD' by 'STAR' (otherwise quicksim.simulate won't work)
-    k=np.where((true_objtype == 'STD'))
-    true_objtype=true_objtype.astype('S10')
-    true_objtype[k]='STAR'
+    true_objtype, target_objtype = desisim.targets.sample_objtype(opts.nspec, opts.objtype)
 else:
     true_objtype=np.tile(np.array([opts.objtype]),(opts.nspec))
 
@@ -127,9 +126,20 @@ for objtype in set(true_objtype):
             flux, tmpwave, meta1 = qso.make_templates(nmodel=nobj,seed=opts.seed)
         truth['FLUX'][ii]=flux
         meta=vstack([meta,meta1])
-    elif objtype =='STAR' or objtype == 'QSO_BAD': #- if objtype=QSO_BAD, use STAR template
+    elif objtype =='STAR': # this should call FSTD templates for STD stars
         star = desisim.templates.STAR(wave=wave)
         flux, tmpwave, meta1 = star.make_templates(nmodel=nobj,seed=opts.seed)
+        truth['FLUX'][ii]=flux
+        meta=vstack([meta,meta1])
+    elif objtype == 'QSO_BAD': #- if objtype=QSO_BAD, use STAR template no color cuts
+        star = desisim.templates.STAR(wave=wave)
+        flux, tmpwave, meta1 = star.make_templates(nmodel=nobj,seed=opts.seed)
+        truth['FLUX'][ii]=flux
+        meta=vstack([meta,meta1])
+    elif objtype == 'MWS':
+        mwsstar = desisim.templates.MWS_STAR(wave=wave)
+        # todo: mag ranges for different flavors of STAR targets should be in desimodel
+        flux, tmpwave, meta1 = mwsstar.make_templates(nmodel=nobj,rmagrange=(15.0,20.0), seed=opts.seed)
         truth['FLUX'][ii]=flux
         meta=vstack([meta,meta1])
     elif objtype == 'SKY':
@@ -181,11 +191,25 @@ for k in range(opts.nspec):
 meta=meta_new
 
 #- Add TARGETID and the true OBJTYPE to the template meta table
-meta.add_column(Column(true_objtype, dtype='S10', name='OBJTYPE'))
+meta.add_column(Column(true_objtype, dtype='S10', name='TRUE_OBJTYPE'))
 meta.add_column(Column(targetids, name='TARGETID'))
+
+# I'm not sure this works here or later
+#- replace 'STD' and 'MWS_STAR' by 'STAR' (otherwise quicksim.simulate won't work) 
+k=np.where((true_objtype == 'STD'))
+true_objtype=true_objtype.astype('S10')
+true_objtype[k]='STAR'
+k=np.where((true_objtype == 'MWS'))
+true_objtype=true_objtype.astype('S10')
+true_objtype[k]='STAR'
+
+#- Now add fixed-up OBJTYPE to the template meta table
+meta.add_column(Column(true_objtype, dtype='S10', name='OBJTYPE'))
 
 #- rename REDSHIFT -> TRUEZ anticipating later table joins with zbest.Z
 meta.rename_column('REDSHIFT', 'TRUEZ')
+
+
 
 #- Initialize per-camera output arrays that will be saved to the brick files.
 cwave, trueflux, noisyflux, obsivar, resolution, sflux = {}, {}, {}, {}, {}, {}
@@ -207,7 +231,7 @@ for camera in qsim.instrument.cameras:
 fluxunits = u.erg / (u.s * u.cm ** 2 * u.Angstrom)
 for i in range(opts.nspec):
     #- if objtype is QSO_BAD or TEST then simulate a star
-    if (truth['OBJTYPE'][i] == 'QSO_BAD' or truth['OBJTYPE'][i] == 'TEST'):
+    if (truth['OBJTYPE'][i] == 'QSO_BAD' or truth['OBJTYPE'][i] == 'TEST' or truth['OBJTYPE'][i] == 'MWS'):
         truth['OBJTYPE'][i]='STAR'
 
     #- Update the source model to simulate.
