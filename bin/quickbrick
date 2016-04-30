@@ -49,33 +49,34 @@ def parse():
                                      description='Quickly generate brick files.')
 
     # Mandatory input
-    parser.add_argument('-b', '--brickname', type=srt, help='brickname')
+    parser.add_argument('-b', '--brickname', type=str, help='unique output brickname suffix', metavar='')
 
     # Simulation options
-    parser.add_argument('--objtype', type=str,  help='ELG, LRG, QSO, BGS, STAR, MWS, WD, or MIX', default='MIX')
-    parser.add_argument('--config', type=str, help='specsim configuration', default='desi')
-    parser.add_argument('-n', '--nspec', type=int,  help='number of spectra to simulate', default=100)
-    parser.add_argument('-a', '--airmass', type=float,  help='airmass', default=1.25) # Science Req. Doc L3.3.2
-    parser.add_argument('-e', '--exptime', type=float,  help='exposure time (s) (default based on config)')
-    parser.add_argument('-s', '--seed', type=int,  help='random seed', default=None)
-    parser.add_argument('-o', '--outdir', type=str,  help='output directory', default='.')
-    parser.add_argument('--outdir-truth', type=str,  help='optional alternative output directory for truth files')
+    parser.add_argument('--objtype', type=str,  help='ELG, LRG, QSO, BGS, MWS, WD, DARK_MIX, or BRIGHT_MIX', default='DARK_MIX', metavar='')
+    parser.add_argument('--config', type=str, help='specsim configuration', default='desi', metavar='')
+    parser.add_argument('-n', '--nspec', type=int,  help='number of spectra to simulate', default=100, metavar='')
+    parser.add_argument('-a', '--airmass', type=float,  help='airmass', default=1.25, metavar='') # Science Req. Doc L3.3.2
+    parser.add_argument('-e', '--exptime', type=float,  help='exposure time (s) (default based on config)', metavar='')
+    parser.add_argument('-s', '--seed', type=int,  help='random seed', default=None, metavar='')
+    parser.add_argument('-o', '--outdir', type=str,  help='output directory', default='.', metavar='')
+    parser.add_argument('--outdir-truth', type=str,  help='optional alternative output directory for truth files', default='.', metavar='')
 
     # Object type-specific options.
     obj_parser = parser.add_argument_group('options for specific object types')
-    obj_parser.add_argument('--zrange-qso', type=float, default=(0.5,4.0), nargs=2, 
+    obj_parser.add_argument('--zrange-qso', type=float, default=(0.5,4.0), nargs=2, metavar='', 
                             help='minimum and maximum redshift range for QSO')
-    obj_parser.add_argument('--zrange-elg', type=float, default=(0.6,1.6), nargs=2, 
+    obj_parser.add_argument('--zrange-elg', type=float, default=(0.6,1.6), nargs=2, metavar='', 
                             help='minimum and maximum redshift range for ELG')
-    obj_parser.add_argument('--zrange-lrg', type=float, default=(0.5,1.1), nargs=2, 
+    obj_parser.add_argument('--zrange-lrg', type=float, default=(0.5,1.1), nargs=2, metavar='', 
                             help='minimum and maximum redshift range for LRG')
-    obj_parser.add_argument('--zrange-bgs', type=float, default=(0.01,0.4), nargs=2, 
+    obj_parser.add_argument('--zrange-bgs', type=float, default=(0.01,0.4), nargs=2, metavar='', 
                             help='minimum and maximum redshift range for BGS')
   
     # Options corresponding to the bright-time survey only.
     bts_parser = parser.add_argument_group('options for Bright Time Surveys (BGS and MWS)')
-    bts_parser.add_argument('--moon-phase', type=float,  help='moon phase (0=full, 1=new)', default=0.7)
-    bts_parser.add_argument('--moon-angle', type=float,  help='separation angle to the moon (0-90)', default=50)
+    bts_parser.add_argument('--moon-phase', type=float,  help='moon phase (0=full, 1=new)', default=0.7, metavar='')
+    bts_parser.add_argument('--moon-angle', type=float,  help='separation angle to the moon (0-90 deg)', default=50, metavar='')
+    bts_parser.add_argument('--moon-zenith', type=float,  help='zenith angle of the moon (0-90 deg)', default=60, metavar='')
 
     args = parser.parse_args()
     if args.brickname is None:
@@ -92,94 +93,103 @@ def main(args):
     objtype = args.objtype.upper()
     random_state = np.random.RandomState(args.seed)
 
-    desiparams = desimodel.io.load_desiparams() # default parameters
+    # Initialize the quick simulator object and its optional parameters.
+    desiparams = desimodel.io.load_desiparams()
 
-    # Initialize the quick simulator object.
     qsim = specsim.simulator.Simulator(args.config)
-    qsim.atmosphere.airmass = args.airmass
-    if  objtype == 'MWS' or :
+    if objtype == 'BGS' or objtype == 'MWS' or objtype == 'BRIGHT_MIX':
         qsim.instrument.exposure_time = desiparams['exptime_bright'] * u.s
+        qsim.moon.moon_zenith = args.moon_zenith * u.deg
+        qsim.moon.separation_angle = args.moon_angle * u.deg
+        qsim.moon.moon_phase = args.moon_phase
     else:
         qsim.instrument.exposure_time = desiparams['exptime_dark'] * u.s
-    
-    wave = qsim.source.wavelength_out.to(u.Angstrom).value
 
-    #- If opts.objtype='MIX', get distribution of target types from sample_objtype
-    if objtype == 'MIX':
-        true_objtype, target_objtype = desisim.targets.sample_objtype(args.nspec, objtype)
+    if args.exptime is not None:
+        qsim.instrument.exposure_time = args.exptime * u.s
+
+    qsim.atmosphere.airmass = args.airmass
+
+    # Get the appropriate mixture of object types
+    if objtype == 'DARK_MIX':
+        true_objtype, target_objtype = desisim.targets.sample_objtype(args.nspec, 'DARK')
+    elif objtype == 'BRIGHT_MIX':
+        true_objtype, target_objtype = desisim.targets.sample_objtype(args.nspec, 'BRIGHT')
     else:
         true_objtype = np.tile(np.array([objtype]),(args.nspec))
+    print(true_objtype)
 
-    truth=dict()
-    meta=Table()
-    truth['OBJTYPE']=np.zeros(opts.nspec, dtype='S10')
-    truth['FLUX']=np.zeros( (opts.nspec, len(wave)) )
-    truth['WAVE']=wave
-    jj=list()
+    # Default output wavelength range.
+    wave = qsim.source.wavelength_out.to(u.Angstrom).value
 
-    zrange=None
-    if opts.zrange is not None :
+    # Initialize the output truth table.
+    truth = dict()
+    meta = Table()
+    truth['OBJTYPE'] = np.zeros(opts.nspec, dtype='S10')
+    truth['FLUX'] = np.zeros((opts.nspec, len(wave)))
+    truth['WAVE'] = wave
+    jj = list()
 
-        vals=opts.zrange.split(":")
-        if len(vals)!=2 :
-            log.error("cannot interpret zrange argument '%s', expect zmin:zmax"%opts.zrange)
-            sys.exit(1)
-        try :
-            zmin=string.atof(vals[0])
-            zmax=string.atof(vals[1])
-        except ValueError :
-            log.error("cannot interpret zrange argument '%s', expect zmin:zmax"%opts.zrange)
-            sys.exit(1)
-        if zmax<=zmin :
-            log.error("zmax must be greater than zmin (and zmin=%f zmax=%f)"%(zmin,zmax))
-            sys.exit(1)
-        zrange=(zmin,zmax)
-        log.info("will use custom redshift range %s"%str(zrange))
+    #zrange=None
+    #if opts.zrange is not None :
+    #
+    #    vals=opts.zrange.split(":")
+    #    if len(vals)!=2 :
+    #        log.error("cannot interpret zrange argument '%s', expect zmin:zmax"%opts.zrange)
+    #        sys.exit(1)
+    #    try :
+    #        zmin=string.atof(vals[0])
+    #        zmax=string.atof(vals[1])
+    #    except ValueError :
+    #        log.error("cannot interpret zrange argument '%s', expect zmin:zmax"%opts.zrange)
+    #        sys.exit(1)
+    #    if zmax<=zmin :
+    #        log.error("zmax must be greater than zmin (and zmin=%f zmax=%f)"%(zmin,zmax))
+    #        sys.exit(1)
+    #    zrange=(zmin,zmax)
+    #    log.info("will use custom redshift range %s"%str(zrange))
 
     for objtype in set(true_objtype):
         ii = np.where(true_objtype == objtype)[0]
         nobj = len(ii)
-        truth['OBJTYPE'][ii]=objtype
+        truth['OBJTYPE'][ii] = objtype
 
-        #- Generate a set of templates
+        # Generate the templates
         if objtype == 'ELG':
             elg = desisim.templates.ELG(wave=wave)
-            if zrange is not None :
-                flux, tmpwave, meta1 = elg.make_templates(nmodel=nobj,seed=opts.seed,zrange=zrange)
-            else :
-                flux, tmpwave, meta1 = elg.make_templates(nmodel=nobj,seed=opts.seed)
+            flux, tmpwave, meta1 = elg.make_templates(nmodel=nobj, seed=args.seed, zrange=args.zrange-elg)
             truth['FLUX'][ii]=flux
             meta=vstack([meta,meta1])
         elif objtype == 'LRG':
             lrg = desisim.templates.LRG(wave=wave)
             if zrange is not None :
-                flux, tmpwave, meta1 = lrg.make_templates(nmodel=nobj,seed=opts.seed,zrange=zrange)
+                flux, tmpwave, meta1 = lrg.make_templates(nmodel=nobj,seed=args.seed,zrange=zrange)
             else :
-                flux, tmpwave, meta1 = lrg.make_templates(nmodel=nobj,seed=opts.seed)
+                flux, tmpwave, meta1 = lrg.make_templates(nmodel=nobj,seed=args.seed)
             truth['FLUX'][ii]=flux
             meta=vstack([meta,meta1])
         elif objtype == 'QSO':
             qso = desisim.templates.QSO(wave=wave)
             if zrange is not None :
-                flux, tmpwave, meta1 = qso.make_templates(nmodel=nobj,seed=opts.seed,zrange=zrange)
+                flux, tmpwave, meta1 = qso.make_templates(nmodel=nobj,seed=args.seed,zrange=zrange)
             else :
-                flux, tmpwave, meta1 = qso.make_templates(nmodel=nobj,seed=opts.seed)
+                flux, tmpwave, meta1 = qso.make_templates(nmodel=nobj,seed=args.seed)
             truth['FLUX'][ii]=flux
             meta=vstack([meta,meta1])
         elif objtype =='STAR': # this should call FSTD templates for STD stars
             star = desisim.templates.STAR(wave=wave)
-            flux, tmpwave, meta1 = star.make_templates(nmodel=nobj,seed=opts.seed)
+            flux, tmpwave, meta1 = star.make_templates(nmodel=nobj,seed=args.seed)
             truth['FLUX'][ii]=flux
             meta=vstack([meta,meta1])
         elif objtype == 'QSO_BAD': #- if objtype=QSO_BAD, use STAR template no color cuts
             star = desisim.templates.STAR(wave=wave)
-            flux, tmpwave, meta1 = star.make_templates(nmodel=nobj,seed=opts.seed)
+            flux, tmpwave, meta1 = star.make_templates(nmodel=nobj,seed=args.seed)
             truth['FLUX'][ii]=flux
             meta=vstack([meta,meta1])
         elif objtype == 'MWS':
             mwsstar = desisim.templates.MWS_STAR(wave=wave)
             # todo: mag ranges for different flavors of STAR targets should be in desimodel
-            flux, tmpwave, meta1 = mwsstar.make_templates(nmodel=nobj,rmagrange=(15.0,20.0), seed=opts.seed)
+            flux, tmpwave, meta1 = mwsstar.make_templates(nmodel=nobj,rmagrange=(15.0,20.0), seed=args.seed)
             truth['FLUX'][ii]=flux
             meta=vstack([meta,meta1])
         elif objtype == 'SKY':
