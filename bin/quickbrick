@@ -4,7 +4,11 @@
 #
 # -*- coding: utf-8 -*-
 
-"""Quickly generate DESI brick files."""
+"""Quickly generate DESI brick files.
+
+TODO (@moustakas): Use the correct fiberloss file for BGS objects.
+
+"""
 
 from __future__ import division, print_function
 
@@ -26,22 +30,6 @@ from desisim.obs import get_night
 import desisim.templates
 
 from desispec.log import get_logger
-log = get_logger()
-
-def _add_truth(hdus, header, meta, trueflux, sflux, wave, channel):
-    """utility function for adding truth to an output FITS file."""
-    header = fitsheader(header)
-    hdus.append(
-        fits.ImageHDU(trueflux[channel], name='_TRUEFLUX', header=header))
-    if channel == 'b':
-        swave = wave.astype(np.float32)
-        hdus.append(fits.ImageHDU(swave, name='_SOURCEWAVE', header=header))
-        hdus.append(fits.ImageHDU(sflux, name='_SOURCEFLUX', header=header))
-    hdus.append(fits.BinTableHDU(meta.as_array(), name='_TRUTH'))
-
-def _getout(parser):
-    parser.print_help()
-    sys.exit(1)
 
 def parse():
 
@@ -59,6 +47,7 @@ def parse():
     parser.add_argument('-e', '--exptime', type=float,  help='exposure time (s) (default based on config)', metavar='')
     parser.add_argument('-s', '--seed', type=int,  help='random seed', default=None, metavar='')
     parser.add_argument('-o', '--outdir', type=str,  help='output directory', default='.', metavar='')
+    parser.add_argument('-v', '--verbose', action='store_true', help='toggle on verbose output')
     parser.add_argument('--outdir-truth', type=str,  help='optional alternative output directory for truth files', metavar='')
 
     # Object type-specific options.
@@ -81,7 +70,8 @@ def parse():
     args = parser.parse_args()
     if args.brickname is None:
         log.info('brickname input required')
-        _getout(parser)
+        parser.print_help()
+        sys.exit(1)
 
     # TODO (@moustakas): error checking on objtype
     #assert opts.objtype in ['ELG', 'LRG', 'QSO', 'STAR', 'MWS', 'TEST', 'MIX']
@@ -90,6 +80,13 @@ def parse():
 
 def main(args):
 
+    # Set up the logger.
+    if args.verbose:
+        lvl = 'DEBUG'
+    else:
+        lvl = 'INFO'
+    log = get_logger(level=lvl)
+    
     objtype = args.objtype.upper()
     random_state = np.random.RandomState(args.seed)
 
@@ -162,9 +159,8 @@ def main(args):
             flux = np.zeros((nobj, npix))
             meta1 = Table(dict(REDSHIFT=np.zeros(nobj, dtype=np.float32)))
         elif thisobj == 'TEST':
-            #objtype = 'STAR' # for specsim
             flux = np.zeros((args.nspec, npix))
-            i = np.where(wave>5800.0-1E-6)[0][0]
+            indx = np.where(wave>5800.0-1E-6)[0][0]
             ref_integrated_flux = 1E-10
             ref_cst_flux_density = 1E-17
     
@@ -172,11 +168,11 @@ def main(args):
             continuum   = (np.arange(args.nspec)%2 == 1).astype(np.float32)
     
             for spec in range(args.nspec) :
-                flux[spec,i] = single_line[spec]*ref_integrated_flux/np.gradient(wave)[i] # single line
+                flux[spec,indx] = single_line[spec]*ref_integrated_flux/np.gradient(wave)[indx] # single line
                 flux[spec] += continuum[spec]*ref_cst_flux_density # flat continuum
     
             meta1 = Table(dict(REDSHIFT=np.zeros(args.nspec, dtype=np.float32),
-                               LINE=wave[i]*np.ones(args.nspec, dtype=np.float32),
+                               LINE=wave[indx]*np.ones(args.nspec, dtype=np.float32),
                                LINEFLUX=single_line*ref_integrated_flux,
                                CONSTFLUXDENSITY=continuum*ref_cst_flux_density))
         else:
@@ -187,12 +183,9 @@ def main(args):
         truth['FLUX'][ii] = flux
         meta = vstack([meta, meta1])
         jj.append(ii.tolist())
-        #print(thisobj, nobj, npix, len(meta), len(meta1))
-        #print(truth)
         
         # Sanity check on units; templates currently return ergs, not 1e-17 ergs...
         assert (thisobj == 'SKY') or (np.max(truth['FLUX']) < 1e-6)
-
 
     # Create a blank fake fibermap; this is re-used by all channels.
     fibermap = empty_fibermap(args.nspec)
@@ -213,15 +206,6 @@ def main(args):
     meta.add_column(Column(true_objtype, dtype='S10', name='TRUE_OBJTYPE'))
     meta.add_column(Column(targetids, name='TARGETID'))
 
-    ## I'm not sure this works here or later
-    ##- replace 'STD' and 'MWS_STAR' by 'STAR' (otherwise quicksim.simulate won't work) 
-    #k=np.where((true_objtype == 'STD'))
-    #true_objtype=true_objtype.astype('S10')
-    #true_objtype[k]='STAR'
-    #k=np.where((true_objtype == 'MWS'))
-    #true_objtype=true_objtype.astype('S10')
-    #true_objtype[k]='STAR'
-    
     # Now add fixed-up OBJTYPE to the template meta table
     meta.add_column(Column(true_objtype, dtype='S10', name='OBJTYPE'))
 
@@ -253,8 +237,7 @@ def main(args):
             truth['OBJTYPE'][ii] == 'TEST'):
             thisobjtype = 'STAR'
         elif truth['OBJTYPE'][ii] == 'BGS':
-            log.info('Using incorrect fiberloss file for object type BGS!')
-            thisobjtype = 'ELG'
+            thisobjtype = 'ELG' # TODO (@moustakas): Fix this!
         else:
             thisobjtype = truth['OBJTYPE'][ii]
 
@@ -295,18 +278,28 @@ def main(args):
         # Append truth to the file. Note: we add the resolution-convolved true
         # flux, not the high resolution source flux, which makes chi2
         # calculations easier.
+        header = fitsheader(header)
         if args.outdir_truth is None : # add truth in same file
             fx = fits.open(filepath, mode='append')
             _add_truth(fx, header, meta, trueflux, sflux, wave, channel)
             fx.flush()
             fx.close()
         else:
-            import pdb ; pdb.set_trace()
             filename = 'truth-brick-{}-{}.fits'.format(channel, args.brickname)
             filepath = os.path.join(args.outdir_truth, filename)
             hdulist = fits.HDUList([fits.PrimaryHDU(header=header)])
             _add_truth(hdulist, header, meta, trueflux, sflux, wave, channel)
             hdulist.writeto(filepath, clobber=True)
+
+def _add_truth(hdus, header, meta, trueflux, sflux, wave, channel):
+    """Utility function for adding truth to an output FITS file."""
+    hdus.append(
+        fits.ImageHDU(trueflux[channel], name='_TRUEFLUX', header=header))
+    if channel == 'b':
+        swave = wave.astype(np.float32)
+        hdus.append(fits.ImageHDU(swave, name='_SOURCEWAVE', header=header))
+        hdus.append(fits.ImageHDU(sflux, name='_SOURCEFLUX', header=header))
+    hdus.append(fits.BinTableHDU(meta.as_array(), name='_TRUTH'))
 
 if __name__ == '__main__':
     args = parse()
