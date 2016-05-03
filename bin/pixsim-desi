@@ -14,74 +14,77 @@ Stephen Bailey, LBL
 January 2014
 """
 
-from __future__ import division
+from desisim import pixsim
+pixsim.main()
 
-import sys
-import os
-import numpy as np
-import optparse
-import random
-import time
-import multiprocessing
-
-from desisim import pixsim, obs, io
-from desispec.log import get_logger
-log = get_logger()
-
-#- Parse options
-parser = optparse.OptionParser(
-    usage = "%prog [options]",
-    epilog = "See $SPECTER_DIR/doc/datamodel.md for input format details"
-    )
-        
-parser.add_option("--night", type=str, help="YEARMMDD")
-parser.add_option("--expid", type=int, help="exposure id")
-### parser.add_option("--simfile", type=str, help="input sim file")
-parser.add_option("--cameras", type=str, help="cameras, e.g. b0,r5,z9")
-parser.add_option("--spectrographs", type=str, help="spectrograph numbers, e.g. 0,1,9", default='0')
-parser.add_option("--arms", type=str, help="spectrograph arms, e.g. b,r,z", default='b,r,z')
-parser.add_option("--cosmics", type=str, help="fits file with dark images with cosmics to add")
-parser.add_option("--verbose", action="store_true", help="print more stuff")
-parser.add_option("--trimxy", action="store_true", help="Trim image to fit spectra")
-parser.add_option("--seed", type=int, help="random number seed")
-parser.add_option("--nspec", type=int, help="Number of spectra to simulate per camera [%default]", default=500)
-parser.add_option("--ncpu",  type=int, help="Number of cpu cores to use [%default]", default=multiprocessing.cpu_count() // 2)
-parser.add_option("--wavemin",  type=float, help="Minimum wavelength to simulate")
-parser.add_option("--wavemax",  type=float, help="Maximum wavelength to simulate")
-
-opts, args = parser.parse_args()
-
-#- Check environment
-envOK = True
-for envvar in ('DESIMODEL', 'PIXPROD', 'DESI_SPECTRO_SIM'):
-    if envvar not in os.environ:
-        log.fatal("${} is required".format(envvar))
-        envOK = False
-if not envOK:
-    print "Set those environment variable(s) and then try again"
-    sys.exit(1)
-
-if opts.nspec > 500:
-    raise ValueError, "--nspec {}>500 is not allowed".format(opts.nspec)
-
-#- develop camera list
-if opts.cameras is None:
-    opts.cameras = list()
-    opts.spectrograph = [int(x) for x in opts.spectrographs.split(',')]
-    for arm in opts.arms.split(','):
-        for ispec in opts.spectrograph:
-            opts.cameras.append(arm+str(ispec))
-else:
-    opts.cameras = opts.cameras.split(',')
-
-random.seed(opts.seed)
-np.random.seed(opts.seed)
-
-for camera in opts.cameras:
-    #- Simulate
-    pixsim.simulate(opts.night, opts.expid, camera, verbose=opts.verbose,
-        nspec=opts.nspec, ncpu=opts.ncpu, trimxy=opts.trimxy,
-        cosmics=opts.cosmics, wavemin=opts.wavemin, wavemax=opts.wavemax)
+# from __future__ import division
+# 
+# import sys
+# import os
+# import numpy as np
+# import optparse
+# import random
+# import time
+# import multiprocessing
+# 
+# from desisim import pixsim, obs, io
+# from desispec.log import get_logger
+# log = get_logger()
+# 
+# #- Parse options
+# parser = optparse.OptionParser(
+#     usage = "%prog [options]",
+#     epilog = "See $SPECTER_DIR/doc/datamodel.md for input format details"
+#     )
+#         
+# parser.add_option("--night", type=str, help="YEARMMDD")
+# parser.add_option("--expid", type=int, help="exposure id")
+# ### parser.add_option("--simfile", type=str, help="input sim file")
+# parser.add_option("--cameras", type=str, help="cameras, e.g. b0,r5,z9")
+# parser.add_option("--spectrographs", type=str, help="spectrograph numbers, e.g. 0,1,9", default='0')
+# parser.add_option("--arms", type=str, help="spectrograph arms, e.g. b,r,z", default='b,r,z')
+# parser.add_option("--cosmics", type=str, help="fits file with dark images with cosmics to add")
+# parser.add_option("--verbose", action="store_true", help="print more stuff")
+# parser.add_option("--trimxy", action="store_true", help="Trim image to fit spectra")
+# parser.add_option("--seed", type=int, help="random number seed")
+# parser.add_option("--nspec", type=int, help="Number of spectra to simulate per camera [%default]", default=500)
+# parser.add_option("--ncpu",  type=int, help="Number of cpu cores to use [%default]", default=multiprocessing.cpu_count() // 2)
+# parser.add_option("--wavemin",  type=float, help="Minimum wavelength to simulate")
+# parser.add_option("--wavemax",  type=float, help="Maximum wavelength to simulate")
+# 
+# opts, args = parser.parse_args()
+# 
+# #- Check environment
+# envOK = True
+# for envvar in ('DESIMODEL', 'PIXPROD', 'DESI_SPECTRO_SIM'):
+#     if envvar not in os.environ:
+#         log.fatal("${} is required".format(envvar))
+#         envOK = False
+# if not envOK:
+#     print "Set those environment variable(s) and then try again"
+#     sys.exit(1)
+# 
+# if opts.nspec > 500:
+#     raise ValueError, "--nspec {}>500 is not allowed".format(opts.nspec)
+# 
+# #- develop camera list
+# if opts.cameras is None:
+#     opts.cameras = list()
+#     opts.spectrograph = [int(x) for x in opts.spectrographs.split(',')]
+#     for arm in opts.arms.split(','):
+#         for ispec in opts.spectrograph:
+#             opts.cameras.append(arm+str(ispec))
+# else:
+#     opts.cameras = opts.cameras.split(',')
+# 
+# random.seed(opts.seed)
+# np.random.seed(opts.seed)
+# 
+# for camera in opts.cameras:
+#     #- Simulate
+#     pixsim.simulate(opts.night, opts.expid, camera, verbose=opts.verbose,
+#         nspec=opts.nspec, ncpu=opts.ncpu, trimxy=opts.trimxy,
+#         cosmics=opts.cosmics, wavemin=opts.wavemin, wavemax=opts.wavemax)
 
 #-------------------------------------------------------------------------
 # if opts.debug:

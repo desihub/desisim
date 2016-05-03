@@ -62,7 +62,7 @@ class TestPixsim(unittest.TestCase):
     #     trimxy=False, cosmics=None):
     @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
     @unittest.skipUnless(desi_root_available, '$DESI_ROOT not set')
-    def _test_pixsim(self):
+    def test_pixsim(self):
         night = '20150105'
         expid = 123
         camera = 'r0'
@@ -76,7 +76,7 @@ class TestPixsim(unittest.TestCase):
 
     @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
     @unittest.skipUnless(desi_root_available, '$DESI_ROOT not set')
-    def _test_pixsim_waveminmax(self):
+    def test_pixsim_waveminmax(self):
         night = '20150105'
         expid = 123
         camera = 'r0'
@@ -90,7 +90,7 @@ class TestPixsim(unittest.TestCase):
         self.assertTrue(os.path.exists(io.findfile('pix', night, expid, camera)))
     @unittest.skipUnless(desi_templates_available, 'The DESI templates directory ($DESI_ROOT/spectro/templates) was not detected.')
     @unittest.skipUnless(desimodel_data_available, '$DESIMODEL/data not available')
-    def _test_pixsim_cosmics(self):
+    def test_pixsim_cosmics(self):
         night = '20150105'
         expid = 124
         camera = 'r0'
@@ -103,7 +103,7 @@ class TestPixsim(unittest.TestCase):
         self.assertTrue(os.path.exists(io.findfile('pix', night, expid, camera)))
 
     @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
-    def _test_project(self):
+    def test_project(self):
         psf = desimodel.io.load_psf('z')
         wave = np.arange(8000, 8010)
         phot = np.ones((2, len(wave)))

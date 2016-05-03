@@ -8,6 +8,7 @@ import sys
 import os
 import os.path
 import multiprocessing as mp
+import random
 
 import numpy as np
 
@@ -70,14 +71,17 @@ def expand_args(args):
         args.simspec = io.findfile('simspec', args.night, args.expid)
     else:
         if (args.night is None) or (args.expid is None):
+            from astropy.io import fits
             hdr = fits.getheader(args.simspec)
         if args.night is None:
             args.night = str(hdr['NIGHT'])
         if args.expid is None:
             args.expid = int(hdr['EXPID'])
-            
+
+    #- write to same directory as simspec
     if args.rawfile is None:
-        args.rawfile = desispec.io.findfile('raw', args.night, args.expid)
+        rawfile = os.path.basename(desispec.io.findfile('raw', args.night, args.expid))
+        args.rawfile = os.path.join(os.path.dirname(args.simspec), rawfile)
         
     if args.pixfile or args.simpixfile:
         if len(args.cameras) != 1:
@@ -138,15 +142,7 @@ def main(args=None):
         import specter.io
         psf = specter.io.load_psf(args.psf)
 
-    if args.simspec is None:
-        simfile = io.findfile('simspec', night=args.night, expid=args.expid)
-        simspec = io.read_simspec(simfile)
-    else:
-        simspec = io.read_simspec(args.simspec)
-
-    if opts.night is not None:
-        if opts.expid is None:
-            opts.expid = obs.get_next_expid()
+    simspec = io.read_simspec(args.simspec)
 
     for camera in args.cameras:
         channel = camera[0].lower()
@@ -155,36 +151,38 @@ def main(args=None):
         if args.psf is None:
             psf = desimodel.io.load_psf(channel)
             
-        wave = simspec.wave[channel]
-        if simspec.skyphot is not None:
-            phot = simspec.phot[channel] + simspec.skyphot[channel]
-        else:
-            phot = simspec.phot[channel]
-        
         if args.cosmics is not None:
             cosmics = io.read_cosmics(cosmics, expid, shape=img.shape)
+        else:
+            cosmics = None
         
-        rawpix, rawheader, truepix = pixsim(wave, phot, psf)
-        image = preproc(rawpix, rawheader)
+        image, rawpix, truepix = simulate(camera, simspec, psf,
+            nspec=args.nspec, ncpu=args.ncpu, cosmics=cosmics,
+            wavemin=args.wavemin, wavemax=args.wavemax)
 
-        desispec.io.write_raw(args.rawfile, rawpix, rawheader)
+        #- TODO: wrong header
+        desispec.io.write_raw(args.rawfile, rawpix, image.meta)
+        log.info('Wrote {} image to {}'.format(camera, args.rawfile))
         
         if args.pixfile is None:
             pixfile = desispec.io.findfile('pix', args.night, args.expid,
-                camera = args.cameras[0])
+                camera = camera)
+            pixfile = os.path.join(os.path.dirname(args.rawfile), os.path.basename(pixfile))
         else:
             pixfile = args.pixfile
 
-        desispec.io.write_pix(pixfile, image)
+        desispec.io.write_image(pixfile, image)
+        log.info('Wrote '+pixfile)
 
         if args.simpixfile is None:
             simpixfile = io.findfile('simpix', args.night, args.expid,
-                camera=args.cameras[0])
+                camera=camera)
         else:
             simpixfile = args.simpixfile
             
         io.write_simpix(simpixfile, truepix, meta=image.meta)
-        desispec.io.write_image(pixfilename, image)
+        desispec.io.write_image(simpixfile, image)
+        log.info('Wrote '+simpixfile)
 
 def simulate_frame(night, expid, camera, **kwargs):
     #- night, expid, camera -> input file names
@@ -256,7 +254,7 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
         return
 
     wave = simspec.wave[channel]
-    phot = simspec.phot[channel] + simspec.skyphot
+    phot = simspec.phot[channel] + simspec.skyphot[channel]
 
     #- Trim to just the spectra for this spectrograph
     if nspec is None:
@@ -310,7 +308,7 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
     if 'overscanpixels' in params['ccd'][channel]:
         noverscan = params['ccd'][channel]['overscanpixels']
     else:
-        noverscan = 30
+        noverscan = 50
 
     gain = params['ccd'][channel]['gain']
     ny = pix.shape[0] // 2

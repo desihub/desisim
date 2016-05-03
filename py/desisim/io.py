@@ -225,20 +225,24 @@ def read_simspec(filename):
     #- All flavors have photons
     wave = dict()
     phot = dict()
+    skyphot = dict()
     for channel in ('b', 'r', 'z'):
         wave[channel] = fx['WAVE_'+channel.upper()].data
         phot[channel] = fx['PHOT_'+channel.upper()].data
+        skyext = 'SKYPHOT_'+channel.upper()
+        if skyext in fx:
+            skyphot[channel] = fx[skyext].data
+        else:
+            skyphot[channel] = np.zeros_like(phot[channel])
 
     if flavor == 'arc':
         fx.close()
-        skyphot = np.zeros_like(phot)
         return SimSpec(flavor, wave, phot, skyphot=skyphot, header=hdr)
 
     elif flavor == 'flat':
         wave['brz'] = fx['WAVE'].data
         flux = fx['FLUX'].data
         fx.close()
-        skyphot = np.zeros_like(phot)
         return SimSpec(flavor, wave, phot, skyphot=skyphot, flux=flux, header=hdr)
 
     else:  #- multiple science flavors: dark, bright, bgs, mws, etc.
