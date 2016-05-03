@@ -130,12 +130,9 @@ class EMSpectrum():
             self.log10wave = log10wave
 
         # Read the files which contain the recombination and forbidden lines. 
-        recombfile = resource_filename('desisim', os.path.join('..','..','data',
-                                                               'recombination_lines.ecsv'))
-        forbidfile = resource_filename('desisim', os.path.join('..','..','data',
-                                                               'forbidden_lines.ecsv'))
-        forbidmogfile = resource_filename('desisim', os.path.join('..','..','data',
-                                                                  'forbidden_mogs.fits'))
+        recombfile = resource_filename('desisim', os.path.join('data','recombination_lines.ecsv'))
+        forbidfile = resource_filename('desisim', os.path.join('data','forbidden_lines.ecsv'))
+        forbidmogfile = resource_filename('desisim', os.path.join('data','forbidden_mogs.fits'))
     
         if not os.path.isfile(recombfile):
             log.error('Required data file {} not found!'.format(recombfile))
