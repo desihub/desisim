@@ -72,7 +72,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
     if flavor == 'arc':
         infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.3/arc-lines-average-in-vacuum.fits'
         d = fits.getdata(infile, 1)
-        wave = d['AIRWAVE']
+        wave = d['VACUUM_WAVE']
         phot = d['ELECTRONS']
         
         truth = dict(WAVE=wave)
