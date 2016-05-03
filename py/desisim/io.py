@@ -231,13 +231,15 @@ def read_simspec(filename):
 
     if flavor == 'arc':
         fx.close()
-        return SimSpec(flavor, wave, phot, header=hdr)
+        skyphot = np.zeros_like(phot)
+        return SimSpec(flavor, wave, phot, skyphot=skyphot, header=hdr)
 
     elif flavor == 'flat':
         wave['brz'] = fx['WAVE'].data
         flux = fx['FLUX'].data
         fx.close()
-        return SimSpec(flavor, wave, phot, flux=flux, header=hdr)
+        skyphot = np.zeros_like(phot)
+        return SimSpec(flavor, wave, phot, skyphot=skyphot, flux=flux, header=hdr)
 
     else:  #- multiple science flavors: dark, bright, bgs, mws, etc.
         wave['brz'] = fx['WAVE'].data
@@ -266,10 +268,26 @@ def write_simpix(outfile, image, meta):
     """
 
     meta = desispec.io.util.fitsheader(meta)
+    
+    #- Strip unnecessary keywords
+    for key in ('EXTNAME', 'LOGLAM', 'AIRORVAC', 'CRVAL1', 'CDELT1'):
+        if key in meta:
+            del meta[key]
+            
+    for amp in ('1', '2', '3', '4'):
+        for key in ('PRESEC', 'CCDSEC', 'BIASSEC'):
+            if key+amp in meta:
+                del meta[key+amp]
+    
     hdu = fits.PrimaryHDU(image.astype(np.float32), header=meta)
     hdu.header['EXTNAME'] = 'SIMPIX'  #- formally not allowed by FITS standard
-    hdu.header['DEPNAM00'] = 'specter'
-    hdu.header['DEVVER00'] = ('0.0.0', 'TODO: Specter version')
+    try:
+        import specter
+        hdu.header['DEPNAM00'] = 'specter'
+        hdu.header['DEPVER00'] = (specter.__version__, 'Specter version')
+    except ImportError:
+        pass
+        
     hdu.writeto(outfile, clobber=True)
 
 #-------------------------------------------------------------------------
