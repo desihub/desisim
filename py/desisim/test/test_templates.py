@@ -3,7 +3,7 @@ from __future__ import division
 import os
 import unittest
 import numpy as np
-from desisim.templates import ELG, LRG, QSO, STAR, FSTD, MWS_STAR
+from desisim.templates import ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR
 
 desimodel_data_available = 'DESIMODEL' in os.environ
 desi_templates_available = 'DESI_ROOT' in os.environ
@@ -26,7 +26,7 @@ class TestTemplates(unittest.TestCase):
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_simple(self):
         '''Confirm that creating templates works at all'''
-        for T in [ELG, LRG, QSO, STAR, FSTD, MWS_STAR]:
+        for T in [ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR]:
             template_factory = T(wave=self.wave)
             flux, wave, meta = template_factory.make_templates(self.nspec)
             self._check_output_size(flux, wave, meta)
@@ -49,6 +49,20 @@ class TestTemplates(unittest.TestCase):
             ii = (3722*(1+z) < wave) & (wave < 3736*(1+z))
             OIIflux = np.sum(flux[i,ii]*np.gradient(wave[ii]))
             self.assertAlmostEqual(OIIflux, meta['OIIFLUX'][i], 2)
+
+    @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
+    def test_HBETA(self):
+        '''Confirm that BGS H-beta flux matches meta table description'''
+        wave = np.arange(5000, 7000.1, 0.2)
+        flux, ww, meta = BGS(wave=wave).make_templates(zrange=[0.1,0.4],
+            nmodel=20, nocolorcuts=True, nocontinuum=True,
+            logvdisp_meansig=[np.log10(75),0.0])
+
+        for i in range(len(meta)):
+            z = meta['REDSHIFT'][i]
+            ii = (4854*(1+z) < wave) & (wave < 4868*(1+z))
+            hbetaflux = np.sum(flux[i,ii]*np.gradient(wave[ii]))
+            self.assertAlmostEqual(hbetaflux, meta['HBETAFLUX'][i], 2)
 
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_stars(self):
@@ -84,7 +98,7 @@ class TestTemplates(unittest.TestCase):
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_random_seed(self):
         '''Test that random seed works to get the same results back'''
-        for T in [ELG, LRG, QSO, STAR, FSTD, MWS_STAR]:
+        for T in [ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR]:
             Tx = T(wave=self.wave)
             flux1, wave1, meta1 = Tx.make_templates(self.nspec, seed=1)
             flux2, wave2, meta2 = Tx.make_templates(self.nspec, seed=1)
@@ -98,18 +112,30 @@ class TestTemplates(unittest.TestCase):
                     self.assertTrue(np.all(meta1[col] == meta2[col]),
                         'metadata {} inconsistent for objtype {}'.format(col, Tx.objtype))
 
+    @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
+    def test_sne(self):
+        '''Test options for adding in SNeIa spectra'''
+        for T in [ELG, LRG, BGS]:
+            template_factory = T(wave=self.wave, add_SNeIa=True)
+            flux, wave, meta = template_factory.make_templates(self.nspec, nocolorcuts=True, 
+                                                               sne_rfluxratiorange=(0.5,0.7))
+            self._check_output_size(flux, wave, meta)
+            self.assertTrue('SNE_TEMPLATEID' in meta.dtype.names)
+            self.assertTrue('SNE_RFLUXRATIO' in meta.dtype.names)
+            self.assertTrue('SNE_EPOCH' in meta.dtype.names)
+
     @unittest.expectedFailure
     def test_missing_wise_mags(self):
         '''QSO and WD templates don't have WISE mags.  Flag that'''
         qso = QSO(wave=self.wave)
         flux, wave, meta = qso.make_templates(self.nspec)
-        self.assertTrue(not np.any(meta['W1MAG']==0))
-        self.assertTrue(not np.any(meta['W2MAG']==0))
+        self.assertTrue(not np.any(meta['W1MAG']==99))
+        self.assertTrue(not np.any(meta['W2MAG']==99))
 
         wd = STAR(wave=self.wave, WD=True)
         flux, wave, meta = star.make_templates(self.nspec)
-        self.assertTrue(not np.any(meta['W1MAG']==0))
-        self.assertTrue(not np.any(meta['W2MAG']==0))
+        self.assertTrue(not np.any(meta['W1MAG']==99))
+        self.assertTrue(not np.any(meta['W2MAG']==99))
 
 if __name__ == '__main__':
     unittest.main()
