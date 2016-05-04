@@ -97,8 +97,8 @@ np.random.seed(opts.seed)
 #- Generate the new exposure
 obs.new_exposure(opts.flavor, nspec=opts.nspec, \
                  night=opts.night, expid=opts.expid, \
-                 tileid=opts.tileid, airmass=opts.airmass, exptime=opts.exptime, seed=opts.seed \
-                 testslit=opts.testslit,arc_lines_filename=opts.arc_lines,flat_spectrum_filename=opts.flat_spectrum)
+                 tileid=opts.tileid, airmass=opts.airmass, exptime=opts.exptime, seed=opts.seed, \
+                 testslit=opts.testslit, arc_lines_filename=opts.arc_lines, flat_spectrum_filename=opts.flat_spectrum)
 
 #-------------------------------------------------------------------------
 # if opts.debug:
