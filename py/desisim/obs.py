@@ -70,9 +70,9 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
     params = desimodel.io.load_desiparams()
     flavor = flavor.lower()
     if flavor == 'arc':
-        infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.2/arc-lines-average.fits'
+        infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.3/arc-lines-average-in-vacuum.fits'
         d = fits.getdata(infile, 1)
-        wave = d['AIRWAVE']
+        wave = d['VACUUM_WAVE']
         phot = d['ELECTRONS']
         
         truth = dict(WAVE=wave)
@@ -86,7 +86,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
             truth['PHOT_'+channel] = np.tile(phot[ii], nspec).reshape(nspec, len(ii))
 
     elif flavor == 'flat':
-        infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.2/flat-3100K-quartz-iodine.fits'
+        infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.3/flat-3100K-quartz-iodine.fits'
         flux = fits.getdata(infile, 0)
         hdr = fits.getheader(infile, 0)
         wave = desispec.io.util.header2wave(hdr)
