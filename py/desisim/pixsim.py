@@ -52,7 +52,10 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
 
     #- Load DESI parameters
     params = desimodel.io.load_desiparams()
-    nfibers = params['spectro']['nfibers']
+    
+    #- this is not necessarily true, the truth in is the fibermap
+    # nfibers = params['spectro']['nfibers']
+    
 
     #- Load simspec file
     simfile = io.findfile('simspec', night=night, expid=expid)
@@ -62,23 +65,35 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
         phot = simspec.phot[channel] + simspec.skyphot[channel]
     else:
         phot = simspec.phot[channel]
-
-    if ispec*nfibers >= simspec.nspec:
-        log.fatal("ERROR: camera {} not in the {} spectra in {}/{}".format(
-            camera, simspec.nspec, night, os.path.basename(simfile)))
-        return
-
+    
+    
+    #- Metadata to be included in pix file header is in the fibermap header
+    #- TODO: this is fragile; consider updating fibermap to use astropy Table
+    #- that includes the header rather than directly assuming FITS as the
+    #- underlying format.
+    simdir = os.path.dirname(simfile)
+    fibermapfile = desispec.io.findfile('fibermap', night=night, expid=expid)
+    fibermapfile = os.path.join(simdir, os.path.basename(fibermapfile))
+    fm, fmhdr = desispec.io.read_fibermap(fibermapfile, header=True)
+    
+    #- Get the list of spectra indices in the simspec.phot file that correspond of this camera
+    ii=np.where(fm["SPECTROID"]==ispec)[0]
+    
+    #- Truncate if larger than requested nspec
+    if ii.size > nspec :
+        ii=ii[:nspec]
+        
+    #- Now we have to place our non empty fibers back to the reference fiber positions of the sims
+    #- that expect nfibers_sim fibers
+    nfibers_sim = params['spectro']['nfibers']
+    simphot = np.zeros((nfibers_sim,phot.shape[1]))
+    simphot[fm["FIBER"][ii]-nfibers_sim*ispec]=phot[ii]
+    #- overwrite phot
+    phot=simphot
+    
     #- Load PSF
     psf = desimodel.io.load_psf(channel)
-
-    #- Trim to just the spectra for this spectrograph
-    if nspec is None:
-        ii = slice(nfibers*ispec, nfibers*(ispec+1))
-    else:
-        ii = slice(nfibers*ispec, nfibers*ispec + nspec)
-
-    phot = phot[ii]
-
+    
     #- Trim wavelenths if needed
     if wavemin is not None:
         ii = (wave >= wavemin)
@@ -135,14 +150,7 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
     ivar = 1.0/(pix.clip(0) + readnoise**2)
     mask = np.zeros(img.shape, dtype=np.uint16)
 
-    #- Metadata to be included in pix file header is in the fibermap header
-    #- TODO: this is fragile; consider updating fibermap to use astropy Table
-    #- that includes the header rather than directly assuming FITS as the
-    #- underlying format.
-    simdir = os.path.dirname(simfile)
-    fibermapfile = desispec.io.findfile('fibermap', night=night, expid=expid)
-    fibermapfile = os.path.join(simdir, os.path.basename(fibermapfile))
-    fm, fmhdr = desispec.io.read_fibermap(fibermapfile, header=True)
+   
 
     #- Augment the input header
     meta = simspec.header.copy()

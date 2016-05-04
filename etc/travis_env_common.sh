@@ -54,14 +54,15 @@ $PIP_INSTALL speclite
 
 # DESI_ROOT and DESI_BASIS_TEMPLATES with test data
 export DESISIM=$PWD
-testdata_version=0.2
-cd ./data
+testdata_version=0.3
+
+#cd ./data
 wget https://github.com/desihub/desisim-testdata/archive/$testdata_version.zip
 unzip $testdata_version.zip
 source desisim-testdata-$testdata_version/setup-testdata.sh
 # export DESI_ROOT=$PWD/desisim-testdata-master/desi
-# export DESI_BASIS_TEMPLATES=$DESI_ROOT/spectro/templates/basis_templates/test-v2.0
-cd ..
+# export DESI_BASIS_TEMPLATES=$DESI_ROOT/spectro/templates/basis_templates/test-v2.1
+#cd ..
 
 # DESIMODEL
 # This gets cloned into desisim/desimodel - is that a problem?
