@@ -21,8 +21,29 @@ log = get_logger()
 from .targets import get_targets_parallel
 from . import io
 
-def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
-    airmass=1.0, exptime=None, seed=None):
+def testslit_fibermap() :
+    # from WBS 1.6 PDR Fiber Slit document
+    # science slit has 20 bundles of 25 fibers
+    # test slit has 1 fiber per bundle except in the middle where it is fully populated
+    nspectro=10
+    testslit_nspec_per_spectro=20
+    testslit_nspec = nspectro*testslit_nspec_per_spectro
+    fibermap = np.zeros(testslit_nspec, dtype=desispec.io.fibermap.fibermap_columns)
+    fibermap['FIBER'] = np.zeros((testslit_nspec)).astype(int)
+    fibermap['SPECTROID'] = np.zeros((testslit_nspec)).astype(int)
+    for spectro in range(nspectro) :
+        fiber_index=testslit_nspec_per_spectro*spectro
+        first_fiber_id=500*spectro 
+        for b in range(20) :
+            fibermap['FIBER'][fiber_index]  = 25*b+24*(b>10)*first_fiber_id # "Top of top block or Bottom of bottom block"
+            fibermap['SPECTROID'][fiber_index] = spectro
+            fiber_index+=1                    
+    return fibermap
+
+def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
+                 airmass=1.0, exptime=None, seed=None, testslit=False,
+                 arc_lines_filename=None, flat_spectrum_filename=None):
+    
     """
     Create a new exposure and output input simulation files.
     Does not generate pixel-level simulations or noisy spectra.
@@ -38,6 +59,9 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
         airmass : airmass, default 1.0
         exptime : exposure time in seconds
         seed : random seed
+        testslit : simulate test slit if True, default False
+        arc_lines_filename : use alternate arc lines filename (used if flavor="arc")
+        flat_spectrum_filename : use alternate flat spectrum filename (used if flavor="flat")
 
     Writes:
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/fibermap-{expid}.fits
@@ -70,14 +94,42 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
     params = desimodel.io.load_desiparams()
     flavor = flavor.lower()
     if flavor == 'arc':
-        infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.3/arc-lines-average-in-vacuum.fits'
+        if arc_lines_filename is None :
+            infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.3/arc-lines-average-in-vacuum.fits'
+        else :
+            infile = arc_lines_filename
         d = fits.getdata(infile, 1)
-        wave = d['VACUUM_WAVE']
-        phot = d['ELECTRONS']
         
+        keys = d.columns.names
+        wave=None
+        phot=None
+        if phot is None :
+            try :
+                wave = d['VACUUM_WAVE']
+                phot = d['ELECTRONS']
+            except KeyError:
+                pass
+        if phot is None :
+            try :
+                wave = d['WAVE']
+                phot = d['ELECTRONS']
+            except KeyError:
+                pass
+        if phot is None :
+            log.error("cannot read arc line fits file '%s' (don't know the format)"%infile)
+            raise KeyError("cannot read arc line fits file")
+            
+
         truth = dict(WAVE=wave)
         meta = None
-        fibermap = desispec.io.fibermap.empty_fibermap(nspec)
+        if  testslit :
+            fibermap = testslit_fibermap()
+            if nspec != fibermap.size :
+                log.warning("forcing nspec %d -> %d (testslit sim.)"%(nspec,fibermap.size))
+                nspec=fibermap.size
+        else : 
+            fibermap = desispec.io.fibermap.empty_fibermap(nspec)
+        
         fibermap['OBJTYPE'] = 'ARC'
         for channel in ('B', 'R', 'Z'):
             thru = desimodel.io.load_throughput(channel)        
@@ -86,7 +138,12 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
             truth['PHOT_'+channel] = np.tile(phot[ii], nspec).reshape(nspec, len(ii))
 
     elif flavor == 'flat':
-        infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.3/flat-3100K-quartz-iodine.fits'
+        
+        if flat_spectrum_filename is None :
+            infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.3/flat-3100K-quartz-iodine.fits'
+        else :
+            infile = flat_spectrum_filename
+
         flux = fits.getdata(infile, 0)
         hdr = fits.getheader(infile, 0)
         wave = desispec.io.util.header2wave(hdr)
@@ -97,12 +154,19 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
         flux = resample_flux(ww, wave, flux)
         wave = ww
 
-        #- Convert to 2D for projection
-        flux = np.tile(flux, nspec).reshape(nspec, len(wave))
-
         truth = dict(WAVE=wave, FLUX=flux)
         meta = None
-        fibermap = desispec.io.fibermap.empty_fibermap(nspec)
+        if  testslit :
+            fibermap = testslit_fibermap()
+            if nspec != fibermap.size :
+                log.warning("forcing nspec %d -> %d (testslit sim.)"%(nspec,fibermap.size))
+                nspec=fibermap.size
+        else : 
+            fibermap = desispec.io.fibermap.empty_fibermap(nspec)
+        
+        #- Convert to 2D for projection        
+        flux = np.tile(flux, nspec).reshape(nspec, len(wave))
+
         fibermap['OBJTYPE'] = 'FLAT'
         for channel in ('B', 'R', 'Z'):
             thru = desimodel.io.load_throughput(channel)
