@@ -40,29 +40,33 @@ def testslit_fibermap() :
             fiber_index+=1                    
     return fibermap
 
-def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
-                 airmass=1.0, exptime=None, testslit=False,\
+def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
+                 airmass=1.0, exptime=None, seed=None, testslit=False,
                  arc_lines_filename=None, flat_spectrum_filename=None):
+    
     """
     Create a new exposure and output input simulation files.
     Does not generate pixel-level simulations or noisy spectra.
-    
+
     Args:
         flavor: 'arc', 'flat', 'bright', 'dark', 'bgs', 'mws', ...
-        nspec (optional): integer number of spectra to simulate
-        night (optional): YEARMMDD string
-        expid (optional): positive integer exposure ID
-        tileid (optional): tile ID
-        airmass (optional): airmass, default 1.0
-        testslit (optional): simulate test slit if True, default False
-        arc_lines_filename (option) : use alternate arc lines filename (used if flavor="arc")
-        flat_spectrum_filename (option) : use alternate flat spectrum filename (used if flavor="flat")
-        
-    
+
+    Options:
+        nspec : integer number of spectra to simulate
+        night : YEARMMDD string
+        expid : positive integer exposure ID
+        tileid : integer tile ID
+        airmass : airmass, default 1.0
+        exptime : exposure time in seconds
+        seed : random seed
+        testslit : simulate test slit if True, default False
+        arc_lines_filename : use alternate arc lines filename (used if flavor="arc")
+        flat_spectrum_filename : use alternate flat spectrum filename (used if flavor="flat")
+
     Writes:
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/fibermap-{expid}.fits
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
-        
+
     Returns:
         fibermap numpy structured array
         truth dictionary
@@ -91,7 +95,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
     flavor = flavor.lower()
     if flavor == 'arc':
         if arc_lines_filename is None :
-            infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.2/arc-lines-average.fits'
+            infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.3/arc-lines-average-in-vacuum.fits'
         else :
             infile = arc_lines_filename
         d = fits.getdata(infile, 1)
@@ -101,7 +105,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
         phot=None
         if phot is None :
             try :
-                wave = d['AIRWAVE']
+                wave = d['VACUUM_WAVE']
                 phot = d['ELECTRONS']
             except KeyError:
                 pass
@@ -134,10 +138,12 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
             truth['PHOT_'+channel] = np.tile(phot[ii], nspec).reshape(nspec, len(ii))
 
     elif flavor == 'flat':
+        
         if flat_spectrum_filename is None :
-            infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.2/flat-3100K-quartz-iodine.fits'
+            infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.3/flat-3100K-quartz-iodine.fits'
         else :
             infile = flat_spectrum_filename
+
         flux = fits.getdata(infile, 0)
         hdr = fits.getheader(infile, 0)
         wave = desispec.io.util.header2wave(hdr)
@@ -173,7 +179,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
         
     else: # checked that flavor is valid in newexp-desi
         log.debug('Generating {} targets'.format(nspec))
-        fibermap, truth = get_targets_parallel(nspec, flavor, tileid=tileid)
+        fibermap, truth = get_targets_parallel(nspec, flavor, tileid=tileid, seed=seed)
 
         flux = truth['FLUX']
         wave = truth['WAVE']

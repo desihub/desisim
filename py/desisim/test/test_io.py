@@ -119,7 +119,7 @@ class TestIO(unittest.TestCase):
         c3 = io.read_cosmics(infile, expid=1, shape=shape, jitter=False)
         self.assertTrue(np.any(c2.pix != c3.pix))
 
-    #- read_templates(wave, objtype, nspec=None, randseed=1, infile=None):
+    #- read_templates(wave, objtype, nspec=None, seed=1, infile=None):
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES not set')
     def test_read_templates(self):
         wave = np.arange(7000, 7020)
