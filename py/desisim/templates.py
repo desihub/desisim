@@ -573,7 +573,6 @@ class ELG():
                 synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
                 synthnano = np.array([ff*MAG2NANO for ff in synthmaggies[0]]) # convert to nanomaggies
                 synthnano[synthnano == 0] = 10**(0.4*(22.5-99)) # if flux==0 then set mag==99 (below)
-                #import pdb ; pdb.set_trace()
                 
                 oiimask = [zoiiflux>minoiiflux]
                 if nocolorcuts:
@@ -819,8 +818,6 @@ class LRG():
                     snenorm = self.rfilt.get_ab_maggies(sne_restflux, zwave)
                     restflux += sne_restflux*galnorm['decam2014-r'][0]/snenorm['decam2014-r'][0]*sne_rfluxratio[ii]
 
-                #import pdb ; pdb.set_trace()
-                    
                 # Normalize to [erg/s/cm2/A, @redshift[ii]]
                 znorm = self.zfilt.get_ab_maggies(restflux, zwave)
                 norm = 10.0**(-0.4*zmag[ii])/znorm['decam2014-z'][0]
@@ -1824,7 +1821,6 @@ class BGS():
                 synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
                 synthnano = np.array([ff*MAG2NANO for ff in synthmaggies[0]]) # convert to nanomaggies
                 synthnano[synthnano == 0] = 10**(0.4*(22.5-99)) # if flux==0 then set mag==99 (below)
-                #import pdb ; pdb.set_trace()
 
                 if nocolorcuts:
                     colormask = [True]

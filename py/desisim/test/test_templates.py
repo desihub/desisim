@@ -117,8 +117,8 @@ class TestTemplates(unittest.TestCase):
         '''Test options for adding in SNeIa spectra'''
         for T in [ELG, LRG, BGS]:
             template_factory = T(wave=self.wave, add_SNeIa=True)
-            flux, wave, meta = template_factory.make_templates(self.nspec, sne_rfluxratiorange=(0.5,0.7))
-            #import pdb ; pdb.set_trace()
+            flux, wave, meta = template_factory.make_templates(self.nspec, nocolorcuts=True, 
+                                                               sne_rfluxratiorange=(0.5,0.7))
             self._check_output_size(flux, wave, meta)
             self.assertTrue('SNE_TEMPLATEID' in meta.dtype.names)
             self.assertTrue('SNE_RFLUXRATIO' in meta.dtype.names)
