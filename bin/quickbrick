@@ -59,6 +59,9 @@ def parse():
                             help='minimum and maximum redshift range for LRG')
     obj_parser.add_argument('--zrange-bgs', type=float, default=(0.01,0.4), nargs=2, metavar='', 
                             help='minimum and maximum redshift range for BGS')
+    obj_parser.add_argument('--sne-rfluxratiorange', type=float, default=(0.1,1.0), nargs=2, metavar='', 
+                            help='r-band flux ratio of the SNeIa spectrum relative to the galaxy')
+    obj_parser.add_argument('--add-SNeIa', action='store_true', help='include SNeIa spectra')
   
     # Options corresponding to the bright-time survey only.
     bts_parser = parser.add_argument_group('options for Bright Time Surveys (BGS and MWS)')
@@ -136,17 +139,20 @@ def main(args):
 
         # Generate the templates
         if thisobj == 'ELG':
-            elg = desisim.templates.ELG(wave=wave)
-            flux, tmpwave, meta1 = elg.make_templates(nmodel=nobj, seed=args.seed, zrange=args.zrange_elg)
+            elg = desisim.templates.ELG(wave=wave, add_SNeIa=args.add_SNeIa)
+            flux, tmpwave, meta1 = elg.make_templates(nmodel=nobj, seed=args.seed, zrange=args.zrange_elg,
+                                                      sne_rfluxratiorange=args.sne_rfluxratiorange)
         elif thisobj == 'LRG':
-            lrg = desisim.templates.LRG(wave=wave)
-            flux, tmpwave, meta1 = lrg.make_templates(nmodel=nobj, seed=args.seed, zrange=args.zrange_lrg)
+            lrg = desisim.templates.LRG(wave=wave, add_SNeIa=args.add_SNeIa)
+            flux, tmpwave, meta1 = lrg.make_templates(nmodel=nobj, seed=args.seed, zrange=args.zrange_lrg,
+                                                      sne_rfluxratiorange=args.sne_rfluxratiorange)
         elif thisobj == 'QSO':
             qso = desisim.templates.QSO(wave=wave)
             flux, tmpwave, meta1 = qso.make_templates(nmodel=nobj, seed=args.seed, zrange=args.zrange_qso)
         elif thisobj == 'BGS':
-            bgs = desisim.templates.BGS(wave=wave)
-            flux, tmpwave, meta1 = bgs.make_templates(nmodel=nobj, seed=args.seed, zrange=args.zrange_bgs)
+            bgs = desisim.templates.BGS(wave=wave, add_SNeIa=args.add_SNeIa)
+            flux, tmpwave, meta1 = bgs.make_templates(nmodel=nobj, seed=args.seed, zrange=args.zrange_bgs,
+                                                      sne_rfluxratiorange=args.sne_rfluxratiorange)
         elif thisobj =='STD':
             fstd = desisim.templates.FSTD(wave=wave)
             flux, tmpwave, meta1 = fstd.make_templates(nmodel=nobj, seed=args.seed)
