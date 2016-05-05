@@ -96,12 +96,20 @@ class TestIO(unittest.TestCase):
             ra, dec = io.get_tile_radec('blat')
 
     def test_resize(self):
+        for origsize in [(4,5), (4,4), (7,5)]:
+            image = np.random.uniform(size=(4,5))
+            for ny in [3,4,5,7,9,15]:
+                for nx in [3,5,7,19]:
+                    shape = (ny, nx)
+                    x = io._resize(image, shape)
+                    self.assertEqual(x.shape, shape)
+                
+        #- sub- and super- selection should remain centered on original image
         image = np.random.uniform(size=(4,5))
-        for ny in [3,4,5,7,9,15]:
-            for nx in [3,5,7,19]:
-                shape = (ny, nx)
-                x = io._resize(image, shape)
-                self.assertEqual(x.shape, shape)
+        tmp = io._resize(image, (4,3))
+        self.assertTrue(np.all(tmp == image[:, 1:-1]))
+        tmp = io._resize(image, (4,7))
+        self.assertTrue(np.all(tmp[:,1:-1] == image))
 
     #- read_cosmics(filename, expid=1, shape=None, jitter=True):
     @unittest.skipUnless(desi_templates_available, 'The DESI templates directory ($DESI_ROOT/spectro/templates) was not detected.')

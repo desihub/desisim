@@ -2,11 +2,14 @@
 I/O routines for desisim
 """
 
+from __future__ import absolute_import, division, print_function
+
 import os
 import time
 from glob import glob
 
 from astropy.io import fits
+from astropy.stats import sigma_clipped_stats
 import numpy as np
 import multiprocessing
 
@@ -20,6 +23,8 @@ import desispec.io.util
 
 from desispec.log import get_logger
 log = get_logger()
+
+from desisim.util import spline_medfilt2d
 
 #-------------------------------------------------------------------------
 def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
@@ -300,10 +305,28 @@ def write_simpix(outfile, image, meta):
 #- Utility function to resize an image while preserving its 2D arrangement
 #- (unlike np.resize)
 def _resize(image, shape):
-    ny = shape[0] // image.shape[0] + 1
-    nx = shape[1] // image.shape[1] + 1
+    """
+    Resize input image to have new shape, preserving its 2D arrangement
+    
+    Args:
+        image : 2D ndarray
+        shape : tuple (ny,nx) for desired output shape
+        
+    Returns:
+        new image with image.shape == shape
+    """
+    
+    #- Tile larger in odd integer steps so that sub-/super-selection can
+    #- be centered on the input image
+    fx = shape[1] / image.shape[1]
+    fy = shape[0] / image.shape[0]
+    nx = int(2*np.ceil( (fx-1) / 2) + 1)
+    ny = int(2*np.ceil( (fy-1) / 2) + 1)
+    
     newpix = np.tile(image, (ny, nx))
-    return newpix[0:shape[0], 0:shape[1]]
+    ix = newpix.shape[1] // 2 - shape[1] // 2
+    iy = newpix.shape[0] // 2 - shape[0] // 2
+    return newpix[iy:iy+shape[0], ix:ix+shape[1]]
 
 def read_cosmics(filename, expid=1, shape=None, jitter=True):
     """
@@ -338,13 +361,16 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
     meta = fx['IMAGE-'+imagekeys[i]].header
     meta['CRIMAGE'] = (imagekeys[i], 'input cosmic ray image')
 
+    #- De-trend each amplifier
+    nx = pix.shape[1] // 2
+    ny = pix.shape[0] // 2
+    pix[0:ny, 0:nx] -= spline_medfilt2d(pix[0:ny, 0:nx])
+    pix[0:ny, nx:2*nx] -= spline_medfilt2d(pix[0:ny, nx:2*nx])
+    pix[ny:2*ny, 0:nx] -= spline_medfilt2d(pix[ny:2*ny, 0:nx])
+    pix[ny:2*ny, nx:2*nx] -= spline_medfilt2d(pix[ny:2*ny, nx:2*nx])
+
     if shape is not None:
         if len(shape) != 2: raise ValueError('Invalid shape {}'.format(shape))
-        newpix = np.empty(shape, dtype=np.float64)
-        ny = min(shape[0], pix.shape[0])
-        nx = min(shape[1], pix.shape[1])
-        newpix[0:ny, 0:nx] = pix[0:ny, 0:nx]
-
         pix = _resize(pix, shape)
         ivar = _resize(ivar, shape)
         mask = _resize(mask, shape)
@@ -365,10 +391,10 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
             mask = np.flipud(mask)
             meta['CRFLIPUD'] = (True, 'Input cosmics image flipped Up/Down')
         else:
-            meta['CRFLIPUD'] = (True, 'Input cosmics image NOT flipped Up/Down')
+            meta['CRFLIPUD'] = (False, 'Input cosmics image NOT flipped Up/Down')
 
         #- Randomly roll image a bit
-        nx, ny = np.random.randint(-200, 200, size=2)
+        nx, ny = np.random.randint(-100, 100, size=2)
         pix = np.roll(np.roll(pix, ny, axis=0), nx, axis=1)
         ivar = np.roll(np.roll(ivar, ny, axis=0), nx, axis=1)
         mask = np.roll(np.roll(mask, ny, axis=0), nx, axis=1)
@@ -376,17 +402,42 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
         meta['CRSHIFTY'] = (nx, 'Input cosmics image shift in y')
     else:
         meta['CRFLIPLR'] = (False, 'Input cosmics image NOT flipped Left/Right')
-        meta['CRFLIPUD'] = (True, 'Input cosmics image NOT flipped Up/Down')
+        meta['CRFLIPUD'] = (False, 'Input cosmics image NOT flipped Up/Down')
         meta['CRSHIFTX'] = (0, 'Input cosmics image shift in x')
         meta['CRSHIFTY'] = (0, 'Input cosmics image shift in y')
 
-    #- RDNOISEn -> average RDNOISE
-    if 'RDNOISE' not in meta:
-        x = meta['RDNOISE0']+meta['RDNOISE1']+meta['RDNOISE2']+meta['RDNOISE3']
-        meta['RDNOISE'] = x / 4.0
+    del meta['RDNOISE0']
+    #- Amp 1 lower left
+    nx = pix.shape[1] // 2
+    ny = pix.shape[0] // 2
+    iixy = np.s_[0:ny, 0:nx]
+    cx = pix[iixy][mask[iixy] == 0]
+    mean, median, std = sigma_clipped_stats(cx, sigma=3, iters=5)
+    if std != std:
+        #--- DEBUG ---
+        import IPython
+        IPython.embed()
+        #--- DEBUG ---
+        
+    meta['RDNOISE1'] = std
+
+    #- Amp 2 lower right
+    iixy = np.s_[0:ny, nx:2*nx]
+    cx = pix[iixy][mask[iixy] == 0]
+    mean, median, std = sigma_clipped_stats(cx, sigma=3, iters=5)
+    meta['RDNOISE2'] = std
+
+    #- Amp 3 upper left
+    iixy = np.s_[ny:2*ny, 0:nx]
+    mean, median, std = sigma_clipped_stats(pix[iixy], sigma=3, iters=5)
+    meta['RDNOISE3'] = std
+
+    #- Amp 4 upper right
+    iixy = np.s_[ny:2*ny, nx:2*nx]
+    mean, median, std = sigma_clipped_stats(pix[iixy], sigma=3, iters=5)
+    meta['RDNOISE4'] = std
 
     return Image(pix, ivar, mask, meta=meta)
-
 
 #-------------------------------------------------------------------------
 #- desimodel

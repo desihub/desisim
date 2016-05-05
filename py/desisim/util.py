@@ -1,10 +1,35 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import print_function, division
+import numpy as np
 
 """
 Utility functions for desisim.  These may belong elsewhere..?
 """
+
+def spline_medfilt2d(image, kernel_size=201):
+    '''
+    Returns a 2D spline interpolation of a median filtered input image
+    '''
+    if 3*kernel_size > min(image.shape):
+        raise ValueError(
+            'kernel_size {} must be < min image shape {}//3'.format(
+                kernel_size, min(image.shape)))
+        
+    from scipy.interpolate import RectBivariateSpline
+    n = kernel_size // 2
+    xx = np.arange(n, image.shape[1], kernel_size)
+    yy = np.arange(n, image.shape[0], kernel_size)
+    zz = np.zeros((len(yy), len(xx)))
+    for i,x in enumerate(xx):
+        for j,y in enumerate(yy):
+            xy = np.s_[y-n:y+n+1, x-n:x+n+1]
+            zz[j,i] = np.median(image[xy])
+            
+    s = RectBivariateSpline(xx, yy, zz)
+    background = s(np.arange(image.shape[0]), np.arange(image.shape[1]))
+
+    return background            
 
 def medxbin(x,y,binsize,minpts=20,xmin=None,xmax=None):
     """

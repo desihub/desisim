@@ -9,6 +9,7 @@ import os
 import os.path
 import multiprocessing as mp
 import random
+from time import asctime
 
 import numpy as np
 
@@ -114,7 +115,7 @@ def parse(options=None):
     parser.add_argument("--spectrographs", type=str, help="spectrograph numbers, e.g. 0,1,9", default='0')
     parser.add_argument("--arms", type=str, help="spectrograph arms, e.g. b,r,z", default='b,r,z')
 
-    parser.add_argument("--verbose", action="store_true", help="print more stuff")
+    parser.add_argument("--preproc", action="store_true", help="preprocess raw -> pix files")
     # parser.add_argument("--trimxy", action="store_true", help="Trim image to fit spectra")
     parser.add_argument("--seed", type=int, help="random number seed")
     parser.add_argument("--nspec", type=int, help="Number of spectra to simulate per camera [%default]", default=500)
@@ -132,6 +133,7 @@ def parse(options=None):
     return args
 
 def main(args=None):
+    log.info('Starting pixsim {}'.format(asctime()))
     if args is None:
         args = parse()
 
@@ -152,7 +154,8 @@ def main(args=None):
             psf = desimodel.io.load_psf(channel)
             
         if args.cosmics is not None:
-            cosmics = io.read_cosmics(cosmics, expid, shape=img.shape)
+            shape = (psf.npix_y, psf.npix_x)
+            cosmics = io.read_cosmics(args.cosmics, args.expid, shape=shape)
         else:
             cosmics = None
         
@@ -160,19 +163,21 @@ def main(args=None):
             nspec=args.nspec, ncpu=args.ncpu, cosmics=cosmics,
             wavemin=args.wavemin, wavemax=args.wavemax)
 
-        #- TODO: wrong header
+        #- TODO: this uses the wrong header
         desispec.io.write_raw(args.rawfile, rawpix, image.meta)
         log.info('Wrote {} image to {}'.format(camera, args.rawfile))
         
         if args.pixfile is None:
-            pixfile = desispec.io.findfile('pix', args.night, args.expid,
-                camera = camera)
-            pixfile = os.path.join(os.path.dirname(args.rawfile), os.path.basename(pixfile))
+            if args.preproc:
+                pixfile = desispec.io.findfile('pix', args.night, args.expid,
+                    camera = camera)
+                pixfile = os.path.join(
+                    os.path.dirname(args.rawfile), os.path.basename(pixfile))
+                desispec.io.write_image(pixfile, image)
+                log.info('Wrote '+pixfile)
         else:
-            pixfile = args.pixfile
-
-        desispec.io.write_image(pixfile, image)
-        log.info('Wrote '+pixfile)
+            desispec.io.write_image(args.pixfile, image)
+            log.info('Wrote ' + args.pixfile)
 
         if args.simpixfile is None:
             simpixfile = io.findfile('simpix', args.night, args.expid,
@@ -181,8 +186,9 @@ def main(args=None):
             simpixfile = args.simpixfile
             
         io.write_simpix(simpixfile, truepix, meta=image.meta)
-        desispec.io.write_image(simpixfile, image)
         log.info('Wrote '+simpixfile)
+
+    log.info('Finished pixsim {}'.format(asctime()))
 
 def simulate_frame(night, expid, camera, **kwargs):
     #- night, expid, camera -> input file names
@@ -214,6 +220,7 @@ def simulate_frame(night, expid, camera, **kwargs):
 def simulate(camera, simspec, psf, nspec=None, ncpu=None,
     trimxy=False, cosmics=None, wavemin=None, wavemax=None):
 
+    log.info('Starting pixsim.simulate {}'.format(asctime()))
     #- parse camera name into channel and spectrograph number
     channel = camera[0].lower()
     ispec = int(camera[1])
@@ -249,9 +256,10 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
     #---------------------------------------------------------------------
 
     if ispec*nfibers >= simspec.nspec:
-        log.error("camera {} not covered by simspec with {} spectra".format(
-            camera, simspec.nspec))
-        return
+        msg = "camera {} not covered by simspec with {} spectra".format(
+            camera, simspec.nspec)
+        log.error(msg)
+        raise ValueError(msg)
 
     wave = simspec.wave[channel]
     phot = simspec.phot[channel] + simspec.skyphot[channel]
@@ -281,24 +289,36 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
     #- Project to image and append that to file
     log.info("Projecting photons onto {} CCD".format(camera))        
     truepix = parallel_project(psf, wave, phot, ncpu=ncpu)
-    
-    # if trimxy:
-    #     xmin, xmax, ymin, ymax = psf.xyrange((0,nspec), wave)
-    #     img = img[0:ymax, 0:xmax]
-        # img = img[ymin:ymax, xmin:xmax]
-        # hdr['CRVAL1'] = xmin+1
-        # hdr['CRVAL2'] = ymin+1
+
+    #- Start metadata header
+    header = dict()
+    header['CAMERA'] = camera
+    gain = params['ccd'][channel]['gain']
+    for amp in ('1', '2', '3', '4'):
+        header['GAIN'+amp] = gain
 
     #- Add cosmics from library of dark images
+    ny = truepix.shape[0] // 2
+    nx = truepix.shape[1] // 2
     if cosmics is not None:
-        cosmics = io.read_cosmics(cosmics, expid, shape=img.shape)
         # set to zeros values with mask bit 0 (= dead column or hot pixels)
         cosmics_pix = cosmics.pix*((cosmics.mask&1)==0)
         pix = np.random.poisson(truepix) + cosmics_pix
-        readnoise = cosmics.meta['RDNOISE']
+        header['RDNOISE1'] = cosmics.meta['RDNOISE1']
+        header['RDNOISE2'] = cosmics.meta['RDNOISE2']
+        header['RDNOISE3'] = cosmics.meta['RDNOISE3']
+        header['RDNOISE4'] = cosmics.meta['RDNOISE4']
+        log.info('RDNOISE1 {}'.format(header['RDNOISE1']))
+        log.info('RDNOISE2 {}'.format(header['RDNOISE2']))
+        log.info('RDNOISE3 {}'.format(header['RDNOISE3']))
+        log.info('RDNOISE4 {}'.format(header['RDNOISE4']))
     else:
         pix = truepix
         readnoise = params['ccd'][channel]['readnoise']
+        header['RDNOISE1'] = readnoise
+        header['RDNOISE2'] = readnoise
+        header['RDNOISE3'] = readnoise
+        header['RDNOISE4'] = readnoise
 
     #- data already has noise if cosmics were added
     noisydata = (cosmics is not None)
@@ -309,32 +329,31 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
         noverscan = params['ccd'][channel]['overscanpixels']
     else:
         noverscan = 50
-
-    gain = params['ccd'][channel]['gain']
-    ny = pix.shape[0] // 2
-    nx = pix.shape[1] // 2
+    
     nyraw = ny
     nxraw = nx + nprescan + noverscan
     rawpix = np.empty( (nyraw*2, nxraw*2), dtype=np.int32 )
+
+    #- Amp 0 Lower Left
     rawpix[0:nyraw, 0:nxraw] = \
-        photpix2raw(pix[0:ny, 0:nx], gain, readnoise,
+        photpix2raw(pix[0:ny, 0:nx], gain, header['RDNOISE1'], readorder='lr',
             nprescan=nprescan, noverscan=noverscan, noisydata=noisydata)
-    rawpix[nyraw:nyraw+nyraw, 0:nxraw] = \
-        photpix2raw(pix[ny:ny+ny, 0:nx], gain, readnoise,
-            nprescan=nprescan, noverscan=noverscan, noisydata=noisydata)
+
+    #- Amp 2 Lower Right
     rawpix[0:nyraw, nxraw:nxraw+nxraw] = \
-        photpix2raw(pix[0:ny, nx:nx+nx], gain, readnoise,
+        photpix2raw(pix[0:ny, nx:nx+nx], gain, header['RDNOISE2'], readorder='rl',
             nprescan=nprescan, noverscan=noverscan, noisydata=noisydata)
+
+    #- Amp 3 Upper Left
+    rawpix[nyraw:nyraw+nyraw, 0:nxraw] = \
+        photpix2raw(pix[ny:ny+ny, 0:nx], gain, header['RDNOISE3'], readorder='lr',
+            nprescan=nprescan, noverscan=noverscan, noisydata=noisydata)
+
+    #- Amp 4 Upper Right
     rawpix[nyraw:nyraw+nyraw, nxraw:nxraw+nxraw] = \
-        photpix2raw(pix[ny:ny+ny, nx:nx+nx], gain, readnoise,
+        photpix2raw(pix[ny:ny+ny, nx:nx+nx], gain, header['RDNOISE4'], readorder='rl',
             nprescan=nprescan, noverscan=noverscan, noisydata=noisydata)
-    
-    header = dict()
-    header['CAMERA'] = camera
-    for amp in ('1', '2', '3', '4'):
-        header['GAIN'+amp] = gain
-        header['RDNOISE'+amp] = readnoise
-        
+
     def xyslice2header(xyslice):
         '''
         convert 2D slice into IRAF style [a:b,c:d] header value
@@ -370,19 +389,28 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
     header['CCDSEC4']  = xyslice2header(np.s_[ny:2*ny, nx:2*nx])
 
     image = desispec.preproc.preproc(rawpix, header)
-
+    log.info('Finished pixsim.simulate {}'.format(asctime()))
+        
     return image, rawpix, truepix
 
-def photpix2raw(phot, gain, readnoise, offset=None, nprescan=7, noverscan=50, noisydata=True):
+def photpix2raw(phot, gain, readnoise, offset=None, nprescan=7, noverscan=50,
+    readorder='lr', noisydata=True):
     '''
     Add prescan, overscan, noise, and integerization
 
     returns image = int((poisson(phot) + offset + gauss(readnoise))/gain)
+
+    readorder = 'lr' or 'rl'
     
     TODO: document     
     '''
     ny = phot.shape[0]
     nx = phot.shape[1] + nprescan + noverscan
+
+    #- reading from right to left is effectively swapping pre/overscan counts
+    if readorder.lower() in ('rl', 'rightleft'):
+        nprescan, noverscan = noverscan, nprescan
+
     img = np.zeros((ny, nx), dtype=float)
     img[:, nprescan:nprescan+phot.shape[1]] = phot
     
@@ -399,8 +427,8 @@ def photpix2raw(phot, gain, readnoise, offset=None, nprescan=7, noverscan=50, no
         
     else:
         #- Add offset and noise to everything
-        img = np.random.normal(loc=offset, scale=readnoise, size=img.shape)
-        img += np.random.poisson(img)
+        noise = np.random.normal(loc=offset, scale=readnoise, size=img.shape)
+        img = np.random.poisson(img) + noise
         img /= gain
 
     return img.astype(np.int32)
