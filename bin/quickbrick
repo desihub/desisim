@@ -25,7 +25,7 @@ from specsim.simulator import Simulator
 from desimodel.io import load_desiparams
 from desispec.io import fitsheader, empty_fibermap, Brick
 from desispec.resolution import Resolution
-from desispec.log import get_logger, INFO
+from desispec.log import get_logger, DEBUG
 from desisim.targets import sample_objtype
 from desisim.obs import get_night
 import desisim.templates
@@ -76,7 +76,7 @@ def main(args):
 
     # Set up the logger.
     if args.verbose:
-        log = get_logger(INFO)
+        log = get_logger(DEBUG)
     else:
         log = get_logger()
 
@@ -93,12 +93,12 @@ def main(args):
     random_state = np.random.RandomState(args.seed)
 
     # Initialize the quick simulator object and its optional parameters.
-    log.info('Initializing specsim Simulator with configuration file {}'.format(args.config))
+    log.debug('Initializing specsim Simulator with configuration file {}'.format(args.config))
     desiparams = load_desiparams()
     qsim = Simulator(args.config)
 
     objtype = args.objtype.upper()
-    log.info('Using OBJTYPE {}'.format(objtype))
+    log.debug('Using OBJTYPE {}'.format(objtype))
     if objtype == 'BGS' or objtype == 'MWS' or objtype == 'BRIGHT_MIX':
         qsim.instrument.exposure_time = desiparams['exptime_bright'] * u.s
         qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
@@ -274,7 +274,7 @@ def main(args):
         filepath = os.path.join(args.outdir, filename)
         if os.path.exists(filepath):
             os.remove(filepath)
-        log.info('Writing output file {}'.format(filepath))
+        log.debug('Writing {}'.format(filepath))
 
         header = dict(BRICKNAM=args.brickname, CHANNEL=channel)
         brick = Brick(filepath, mode='update', header=header)
