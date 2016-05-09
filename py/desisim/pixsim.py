@@ -139,6 +139,8 @@ def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
     #- in this case, don't add readnoise since the dark image already has it
     if cosmics is not None:
         cosmics = io.read_cosmics(cosmics, expid, shape=img.shape)
+        # set to zeros values with mask bit 0 (= dead column or hot pixels)
+        cosmics_pix = cosmics.pix*((cosmics.mask&1)==0)
         pix = np.random.poisson(img) + cosmics.pix
         readnoise = cosmics.meta['RDNOISE']
     #- Or just add noise
