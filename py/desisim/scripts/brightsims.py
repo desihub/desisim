@@ -1,6 +1,6 @@
 """
-desisim.brightsims
-==================
+desisim.scripts.brightsims
+==========================
 
 Generate a canonical set of bright-time simulations.
 """
@@ -91,7 +91,3 @@ def main(args):
         qsim.atmosphere.moon.moon_phase = args.moon_phase
     else:
         qsim.instrument.exposure_time = desiparams['exptime_dark'] * u.s
-
-if __name__ == '__main__':
-    args = parse()
-    main(args)
