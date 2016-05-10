@@ -11,37 +11,26 @@ import os
 import sys
 import numpy as np
 import argparse
+from argparse import Namespace
 
-from astropy.table import Table, Column, vstack
-import astropy.units as u
-from astropy.io import fits
-
-from specsim.simulator import Simulator
-from desimodel.io import load_desiparams
-from desispec.io import fitsheader, empty_fibermap, Brick
-from desispec.resolution import Resolution
+import desisim.scripts.quickbrick as quickbrick
 from desispec.log import get_logger, DEBUG
-from desisim.targets import sample_objtype
-from desisim.obs import get_night
-import desisim.templates
 
 def parse(options=None):
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-                                     description='Quickly generate brick files.')
+                                     description='Generate a canonical set of bright-time simulations.')
 
-    # Mandatory input
-    parser.add_argument('-p', '--prefix', type=str, help='unique output brickname suffix (required input)', metavar='')
+    parser.add_argument('-b', '--brickname', type=str, help='unique output brickname suffix', default='brightsims', metavar='')
 
-    # Simulation options
-    parser.add_argument('--objtype', type=str,  help='ELG, LRG, QSO, BGS, MWS, WD, DARK_MIX, or BRIGHT_MIX', default='DARK_MIX', metavar='')
-    parser.add_argument('-b', '--nbrick', type=int,  help='number of spectra to simulate', default=100, metavar='')
-    parser.add_argument('-n', '--nspec', type=int,  help='number of spectra to simulate', default=100, metavar='')
+    parser.add_argument('--objtype', type=str,  help='BGS, MWS, or BRIGHT_MIX', default='BRIGHT_MIX', metavar='')
+    parser.add_argument('--nbrick', type=int,  help='number of bricks to simulate', default=10, metavar='')
+    parser.add_argument('--nspec', type=int,  help='number of spectra (per brick) to simulate', default=100, metavar='')
 
     parser.add_argument('-s', '--seed', type=int,  help='random seed', default=None, metavar='')
     parser.add_argument('-o', '--outdir', type=str,  help='output directory', default='.', metavar='')
     parser.add_argument('-v', '--verbose', action='store_true', help='toggle on verbose output')
 
-    parser.add_argument('--exptime-range', type=float, default=(300300), nargs=2, metavar='', 
+    parser.add_argument('--exptime-range', type=float, default=(300,300), nargs=2, metavar='', 
                         help='minimum and maximum exposure time (s)')
     parser.add_argument('--airmass-range', type=float, default=(1.25,1.25), nargs=2, metavar='', 
                         help='minimum and maximum airmass')
@@ -67,25 +56,39 @@ def main(args):
     else:
         log = get_logger()
 
-
-    known_objtype = ('ELG', 'LRG', 'QSO', 'BGS', 'MWS', 'WD', 'DARK_MIX', 'BRIGHT_MIX')
-    if args.objtype.upper() not in known_objtype:
-        log.critical('Unknown OBJTYPE {}'.format(args.objtype))
-        return -1
-        
-    rand = np.random.RandomState(args.seed)
-
-    # Initialize the quick simulator object and its optional parameters.
-    log.debug('Initializing specsim Simulator with configuration file {}'.format(args.config))
-    desiparams = load_desiparams()
-    qsim = Simulator(args.config)
-
     objtype = args.objtype.upper()
+
     log.debug('Using OBJTYPE {}'.format(objtype))
-    if objtype == 'BGS' or objtype == 'MWS' or objtype == 'BRIGHT_MIX':
-        qsim.instrument.exposure_time = desiparams['exptime_bright'] * u.s
-        qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
-        qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
-        qsim.atmosphere.moon.moon_phase = args.moon_phase
-    else:
-        qsim.instrument.exposure_time = desiparams['exptime_dark'] * u.s
+    log.debug('Simulating {:g} bricks each with {:g} spectra'.format(args.nbrick, args.nspec))
+
+    # Draw priors uniformly given the input ranges.
+    rand = np.random.RandomState(args.seed)
+    exptime = rand.uniform(args.exptime_range[0], args.exptime_range[1], args.nbrick)
+    airmass = rand.uniform(args.airmass_range[0], args.airmass_range[1], args.nbrick)
+    moonphase = rand.uniform(args.moon_phase_range[0], args.moon_phase_range[1], args.nbrick)
+    moonangle = rand.uniform(args.moon_angle_range[0], args.moon_angle_range[1], args.nbrick)
+    moonzenith = rand.uniform(args.moon_zenith_range[0], args.moon_zenith_range[1], args.nbrick)
+
+    print(range(args.nbrick))
+
+    for ii in range(args.nbrick):
+        thisbrick = '{}-{:03d}'.format(args.brickname, ii)
+        log.debug('Building brick {}'.format(thisbrick))
+        
+        brickargs = ['--brickname', thisbrick,
+                     '--objtype', args.objtype,
+                     '--nspec', '{}'.format(args.nspec),
+                     '--outdir', args.outdir,
+                     '--outdir-truth', args.outdir,
+                     '--exptime', '{}'.format(exptime[ii]),
+                     '--airmass', '{}'.format(airmass[ii]),
+                     '--moon-phase', '{}'.format(moonphase[ii]),
+                     '--moon-angle', '{}'.format(moonangle[ii]),
+                     '--moon-zenith', '{}'.format(moonzenith[ii])]
+        if args.seed is not None:
+            brickargs.append('--seed', '{}'.format(args.seed))
+                
+        quickargs = quickbrick.parse(brickargs)
+        if args.verbose:
+            quickargs.verbose = True
+        quickbrick.main(quickargs)
