@@ -30,26 +30,28 @@ def parse(options=None):
                                      description='Quickly generate brick files.')
 
     # Mandatory input
-    parser.add_argument('-b', '--brickname', type=str, help='unique output brickname suffix (required input)', metavar='')
+    parser.add_argument('-p', '--prefix', type=str, help='unique output brickname suffix (required input)', metavar='')
 
     # Simulation options
     parser.add_argument('--objtype', type=str,  help='ELG, LRG, QSO, BGS, MWS, WD, DARK_MIX, or BRIGHT_MIX', default='DARK_MIX', metavar='')
-    parser.add_argument('--config', type=str, help='specsim configuration', default='desi', metavar='')
     parser.add_argument('-b', '--nbrick', type=int,  help='number of spectra to simulate', default=100, metavar='')
     parser.add_argument('-n', '--nspec', type=int,  help='number of spectra to simulate', default=100, metavar='')
 
-    parser.add_argument('-a', '--airmass', type=float,  help='airmass', default=1.25, metavar='')
-    parser.add_argument('-e', '--exptime', type=float,  help='exposure time (s) (default based on config)', metavar='')
     parser.add_argument('-s', '--seed', type=int,  help='random seed', default=None, metavar='')
     parser.add_argument('-o', '--outdir', type=str,  help='output directory', default='.', metavar='')
     parser.add_argument('-v', '--verbose', action='store_true', help='toggle on verbose output')
-  
-    # Options corresponding to the bright-time survey only.
-    bts_parser = parser.add_argument_group('options for Bright Time Surveys (BGS and MWS)')
-    bts_parser.add_argument('--moon-phase', type=float,  help='moon phase (0=full, 1=new)', default=0.7, metavar='')
-    bts_parser.add_argument('--moon-angle', type=float,  help='separation angle to the moon (0-90 deg)', default=50, metavar='')
-    bts_parser.add_argument('--moon-zenith', type=float,  help='zenith angle of the moon (0-90 deg)', default=30, metavar='')
 
+    parser.add_argument('--exptime-range', type=float, default=(300300), nargs=2, metavar='', 
+                        help='minimum and maximum exposure time (s)')
+    parser.add_argument('--airmass-range', type=float, default=(1.25,1.25), nargs=2, metavar='', 
+                        help='minimum and maximum airmass')
+    parser.add_argument('--moon-phase-range', type=float, default=(0.0,1.0), nargs=2, metavar='', 
+                        help='minimum and maximum lunar phase (0=full, 1=new')
+    parser.add_argument('--moon-angle-range', type=float, default=(0,90), nargs=2, metavar='', 
+                        help='minimum and maximum lunar separation angle (0-90 deg')
+    parser.add_argument('--moon-zenith-range', type=float, default=(0,90), nargs=2, metavar='', 
+                        help='minimum and maximum lunar zenith angle (0-90 deg')
+ 
     args = None
     if options is None:
         args = parser.parse_args()
@@ -65,17 +67,13 @@ def main(args):
     else:
         log = get_logger()
 
-    # Basic error checking.
-    if args.brickname is None:
-        log.critical('BRICKNAME input required')
-        return -1
 
     known_objtype = ('ELG', 'LRG', 'QSO', 'BGS', 'MWS', 'WD', 'DARK_MIX', 'BRIGHT_MIX')
     if args.objtype.upper() not in known_objtype:
         log.critical('Unknown OBJTYPE {}'.format(args.objtype))
         return -1
         
-    random_state = np.random.RandomState(args.seed)
+    rand = np.random.RandomState(args.seed)
 
     # Initialize the quick simulator object and its optional parameters.
     log.debug('Initializing specsim Simulator with configuration file {}'.format(args.config))
