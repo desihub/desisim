@@ -163,16 +163,14 @@ def main(args=None):
             nspec=args.nspec, ncpu=args.ncpu, cosmics=cosmics,
             wavemin=args.wavemin, wavemax=args.wavemax)
 
-        #- TODO: this uses the wrong header
-        desispec.io.write_raw(args.rawfile, rawpix, image.meta)
+        desispec.io.write_raw(args.rawfile, rawpix, camera=camera,
+            header=image.meta, primary_header=simspec.header)
         log.info('Wrote {} image to {}'.format(camera, args.rawfile))
         
         if args.pixfile is None:
             if args.preproc:
                 pixfile = desispec.io.findfile('pix', args.night, args.expid,
-                    camera = camera)
-                pixfile = os.path.join(
-                    os.path.dirname(args.rawfile), os.path.basename(pixfile))
+                    camera = camera, outdir=os.path.dirname(args.rawfile))
                 desispec.io.write_image(pixfile, image)
                 log.info('Wrote '+pixfile)
         else:
@@ -191,6 +189,27 @@ def main(args=None):
     log.info('Finished pixsim {}'.format(asctime()))
 
 def simulate_frame(night, expid, camera, **kwargs):
+    """
+    Simulate a single frame, including I/O
+    
+    Args:
+        night: YEARMMDD string
+        expid: integer exposure ID
+        camera: b0, r1, .. z9
+
+    Additional keyword args are passed to pixsim.simulate()
+    
+    Reads:
+        $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
+        
+    Writes:
+        $DESI_SPECTRO_SIM/$PIXPROD/{night}/simpix-{camera}-{expid}.fits
+        $DESI_SPECTRO_SIM/$PIXPROD/{night}/desi-{expid}.fits
+        $DESI_SPECTRO_SIM/$PIXPROD/{night}/pix-{camera}-{expid}.fits
+        
+    For a lower-level pixel simulation interface that doesn't perform I/O,
+    see pixsim.simulate()
+    """
     #- night, expid, camera -> input file names
     simspecfile = io.findfile('simspec', night=night, expid=expid)
     
@@ -218,7 +237,26 @@ def simulate_frame(night, expid, camera, **kwargs):
     desispec.io.write_image(pixfile, image)
 
 def simulate(camera, simspec, psf, nspec=None, ncpu=None,
-    trimxy=False, cosmics=None, wavemin=None, wavemax=None):
+    cosmics=None, wavemin=None, wavemax=None):
+    """
+    Run pixel-level simulation of input spectra
+    
+    Args:
+        camera (string) : b0, r1, .. z9
+        simspec : desispec.io.SimSpec object e.g. from desispec.io.read_simspec()
+        psf : subclass of specter.psf.psf.PSF, e.g. from desimodel.io.load_psf()
+
+    Optional:
+        nspec (int) : number of spectra to simulate
+        ncpu (int) : number of CPU cores to use in parallel
+        cosmics : desispec.image.Image object from desisim.io.read_cosmics()
+        wavemin, wavemax (float) : min/max wavelength range to simulate
+
+    Returns (image, rawpix, truepix) tuple, where
+        image : preprocessed Image object
+        rawpix : 2D ndarray of unprocessed raw pixel data
+        truepix : 2D ndarray of truth for image.pix    
+    """
 
     log.info('Starting pixsim.simulate {}'.format(asctime()))
     #- parse camera name into channel and spectrograph number
@@ -308,10 +346,6 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
         header['RDNOISE2'] = cosmics.meta['RDNOISE2']
         header['RDNOISE3'] = cosmics.meta['RDNOISE3']
         header['RDNOISE4'] = cosmics.meta['RDNOISE4']
-        log.info('RDNOISE1 {}'.format(header['RDNOISE1']))
-        log.info('RDNOISE2 {}'.format(header['RDNOISE2']))
-        log.info('RDNOISE3 {}'.format(header['RDNOISE3']))
-        log.info('RDNOISE4 {}'.format(header['RDNOISE4']))
     else:
         pix = truepix
         readnoise = params['ccd'][channel]['readnoise']
@@ -319,6 +353,11 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
         header['RDNOISE2'] = readnoise
         header['RDNOISE3'] = readnoise
         header['RDNOISE4'] = readnoise
+
+    log.info('RDNOISE1 {}'.format(header['RDNOISE1']))
+    log.info('RDNOISE2 {}'.format(header['RDNOISE2']))
+    log.info('RDNOISE3 {}'.format(header['RDNOISE3']))
+    log.info('RDNOISE4 {}'.format(header['RDNOISE4']))
 
     #- data already has noise if cosmics were added
     noisydata = (cosmics is not None)
@@ -393,16 +432,34 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
         
     return image, rawpix, truepix
 
-def photpix2raw(phot, gain, readnoise, offset=None, nprescan=7, noverscan=50,
-    readorder='lr', noisydata=True):
+def photpix2raw(phot, gain=1.0, readnoise=3.0, offset=None,
+    nprescan=7, noverscan=50, readorder='lr', noisydata=True):
     '''
-    Add prescan, overscan, noise, and integerization
+    Add prescan, overscan, noise, and integerization to an image
 
-    returns image = int((poisson(phot) + offset + gauss(readnoise))/gain)
+    Args:
+        phot: 2D float array of mean input photons per pixel
+        
+    Options:
+        gain (float): electrons/ADU
+        readnoise (float): CCD readnoise in electrons
+        offset (float): bias offset to add
+        nprescan (int): number of prescan pixels to add
+        noverscan (int): number of overscan pixels to add
+        readorder : 'lr' or 'rl' to indicate readout order
+            'lr' : add prescan on left and overscan on right of image
+            'rl' : add prescan on right and overscan on left of image
+        noisydata (boolean) : if True, don't add noise to the signal region,
+            e.g. because input signal already had noise from a cosmics image
 
-    readorder = 'lr' or 'rl'
-    
-    TODO: document     
+    Returns 2D integer ndarray:
+        image = int((poisson(phot) + offset + gauss(readnoise))/gain)
+
+    Integerization happens twice: the mean photons are poisson sampled
+    into integers, but then offets, readnoise, and gain are applied before
+    resampling into ADU integers
+
+    This is intended to be used per-amplifier, not for an entire CCD image.
     '''
     ny = phot.shape[0]
     nx = phot.shape[1] + nprescan + noverscan
@@ -432,144 +489,6 @@ def photpix2raw(phot, gain, readnoise, offset=None, nprescan=7, noverscan=50,
         img /= gain
 
     return img.astype(np.int32)
-
-#-------------------------------------------------------------------------
-# def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
-#     trimxy=False, cosmics=None, wavemin=None, wavemax=None):
-#     """
-#     Run pixel-level simulation of input spectra
-#     
-#     Args:
-#         night (string) : YEARMMDD
-#         expid (integer) : exposure id
-#         camera (str) : e.g. b0, r1, z9
-# 
-#     Optional:
-#         nspec (int) : number of spectra to simulate
-#         verbose (boolean) : if True, print status messages
-#         ncpu (int) : number of CPU cores to use in parallel
-#         trimxy (boolean) : trim image to just pixels with input signal
-#         cosmics (str) : filename with dark images with cosmics to add
-#         wavemin, wavemax (float) : min/max wavelength range to simulate
-# 
-#     Reads:
-#         $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
-#         
-#     Writes:
-#         $DESI_SPECTRO_SIM/$PIXPROD/{night}/simpix-{camera}-{expid}.fits
-#         $DESI_SPECTRO_SIM/$PIXPROD/{night}/pix-{camera}-{expid}.fits
-#     """
-#     if verbose:
-#         log.info("Reading input files")
-# 
-#     channel = camera[0].lower()
-#     ispec = int(camera[1])
-#     assert channel in 'brz'
-#     assert 0 <= ispec < 10
-# 
-#     #- Load DESI parameters
-#     params = desimodel.io.load_desiparams()
-#     nfibers = params['spectro']['nfibers']
-# 
-#     #- Load simspec file
-#     simfile = io.findfile('simspec', night=night, expid=expid)
-#     simspec = io.read_simspec(simfile)
-#     wave = simspec.wave[channel]
-#     if simspec.skyphot is not None:
-#         phot = simspec.phot[channel] + simspec.skyphot[channel]
-#     else:
-#         phot = simspec.phot[channel]
-# 
-#     if ispec*nfibers >= simspec.nspec:
-#         log.fatal("ERROR: camera {} not in the {} spectra in {}/{}".format(
-#             camera, simspec.nspec, night, os.path.basename(simfile)))
-#         return
-# 
-#     #- Load PSF
-#     psf = desimodel.io.load_psf(channel)
-# 
-#     #- Trim to just the spectra for this spectrograph
-#     if nspec is None:
-#         ii = slice(nfibers*ispec, nfibers*(ispec+1))
-#     else:
-#         ii = slice(nfibers*ispec, nfibers*ispec + nspec)
-# 
-#     phot = phot[ii]
-# 
-#     #- Trim wavelenths if needed
-#     if wavemin is not None:
-#         ii = (wave >= wavemin)
-#         phot = phot[:, ii]
-#         wave = wave[ii]
-#     if wavemax is not None:
-#         ii = (wave <= wavemax)
-#         phot = phot[:, ii]
-#         wave = wave[ii]
-# 
-#     #- check if simulation has less than 500 input spectra
-#     if phot.shape[0] < nspec:
-#         nspec = phot.shape[0]
-# 
-#     #- Project to image and append that to file
-#     if verbose:
-#         log.info("Projecting photons onto {} CCD".format(camera))
-#         
-#     img = parallel_project(psf, wave, phot, ncpu=ncpu)
-#     
-#     if trimxy:
-#         xmin, xmax, ymin, ymax = psf.xyrange((0,nspec), wave)
-#         img = img[0:ymax, 0:xmax]
-#         # img = img[ymin:ymax, xmin:xmax]
-#         # hdr['CRVAL1'] = xmin+1
-#         # hdr['CRVAL2'] = ymin+1
-# 
-#     #- Prepare header
-#     hdr = simspec.header
-#     tmp = '/'.join(simfile.split('/')[-3:])  #- last 3 elements of path
-#     hdr['SIMFILE'] = (tmp, 'Input simulation file')
-# 
-#     #- Strip unnecessary keywords
-#     for key in ('EXTNAME', 'LOGLAM', 'AIRORVAC', 'CRVAL1', 'CDELT1'):
-#         if key in hdr:
-#             del hdr[key]
-# 
-#     #- Write noiseless output
-#     simpixfile = io.findfile('simpix', night=night, expid=expid, camera=camera)
-#     io.write_simpix(simpixfile, img, meta=hdr)
-# 
-#     #- Add cosmics from library of dark images
-#     #- in this case, don't add readnoise since the dark image already has it
-#     if cosmics is not None:
-#         cosmics = io.read_cosmics(cosmics, expid, shape=img.shape)
-#         pix = np.random.poisson(img) + cosmics.pix
-#         readnoise = cosmics.meta['RDNOISE']
-#     #- Or just add noise
-#     else:
-#         channel = camera[0].lower()
-#         readnoise = params['ccd'][channel]['readnoise']
-#         pix = np.random.poisson(img) + np.random.normal(scale=readnoise, size=img.shape)
-# 
-#     ivar = 1.0/(pix.clip(0) + readnoise**2)
-#     mask = np.zeros(img.shape, dtype=np.uint16)
-# 
-#     #- Augment the input header
-#     meta = simspec.header.copy()
-#     meta['SPECTRO'] = ispec
-# 
-#     image = Image(pix, ivar, mask, readnoise=readnoise, camera=camera, meta=meta)
-# 
-#     #- In-place update of the image cosmic ray mask
-#     if cosmics is not None:
-#         desispec.cosmics.reject_cosmic_rays(image)
-# 
-#     pixfile = desispec.io.findfile('pix', night=night, camera=camera, expid=expid)
-#     pixfile = os.path.join(simdir, os.path.basename(pixfile))
-#     desispec.io.write_image(pixfile, image)
-# 
-#     if verbose:
-#         log.info("Wrote "+pixfile)
-        
-#-------------------------------------------------------------------------
 
 #- Helper function for multiprocessing parallel project
 def _project(args):

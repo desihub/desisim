@@ -412,13 +412,7 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
     ny = pix.shape[0] // 2
     iixy = np.s_[0:ny, 0:nx]
     cx = pix[iixy][mask[iixy] == 0]
-    mean, median, std = sigma_clipped_stats(cx, sigma=3, iters=5)
-    if std != std:
-        #--- DEBUG ---
-        import IPython
-        IPython.embed()
-        #--- DEBUG ---
-        
+    mean, median, std = sigma_clipped_stats(cx, sigma=3, iters=5)        
     meta['RDNOISE1'] = std
 
     #- Amp 2 lower right

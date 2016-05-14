@@ -11,7 +11,6 @@ from desisim import io
 from desisim import obs
 from desisim import pixsim
 
-desimodel_data_available = 'DESIMODEL' in os.environ
 desi_templates_available = 'DESI_ROOT' in os.environ
 desi_root_available = 'DESI_ROOT' in os.environ
 
@@ -58,51 +57,65 @@ class TestPixsim(unittest.TestCase):
         if os.path.exists(cls.testDir):
             rmtree(cls.testDir)
 
-    # def simulate(night, expid, camera, nspec=None, verbose=False, ncpu=None,
-    #     trimxy=False, cosmics=None):
-    @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
     @unittest.skipUnless(desi_root_available, '$DESI_ROOT not set')
     def test_pixsim(self):
         night = '20150105'
         expid = 123
         camera = 'r0'
         obs.new_exposure('arc', night=night, expid=expid, nspec=3)
-        pixsim.simulate_frame(night, expid, camera, nspec=3, trimxy=True)
+        pixsim.simulate_frame(night, expid, camera, nspec=3)
 
         self.assertTrue(os.path.exists(io.findfile('simspec', night, expid)))
         simspec = io.read_simspec(io.findfile('simspec', night, expid))
         self.assertTrue(os.path.exists(io.findfile('simpix', night, expid, camera)))
         self.assertTrue(os.path.exists(io.findfile('pix', night, expid, camera)))
 
-    @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
     @unittest.skipUnless(desi_root_available, '$DESI_ROOT not set')
     def test_pixsim_waveminmax(self):
         night = '20150105'
         expid = 123
         camera = 'r0'
         obs.new_exposure('arc', night=night, expid=expid, nspec=3)
-        pixsim.simulate_frame(night, expid, camera, nspec=3, trimxy=True,
+        pixsim.simulate_frame(night, expid, camera, nspec=3,
             wavemin=6000, wavemax=6100)
 
         self.assertTrue(os.path.exists(io.findfile('simspec', night, expid)))
         simspec = io.read_simspec(io.findfile('simspec', night, expid))
         self.assertTrue(os.path.exists(io.findfile('simpix', night, expid, camera)))
         self.assertTrue(os.path.exists(io.findfile('pix', night, expid, camera)))
+
     @unittest.skipUnless(desi_templates_available, 'The DESI templates directory ($DESI_ROOT/spectro/templates) was not detected.')
-    @unittest.skipUnless(desimodel_data_available, '$DESIMODEL/data not available')
     def test_pixsim_cosmics(self):
         night = '20150105'
         expid = 124
         camera = 'r0'
         obs.new_exposure('arc', night=night, expid=expid, nspec=3)
-        pixsim.simulate_frame(night, expid, camera, nspec=3, trimxy=True, cosmics=self.cosmics)
+        pixsim.simulate_frame(night, expid, camera, nspec=3, cosmics=self.cosmics)
 
         self.assertTrue(os.path.exists(io.findfile('simspec', night, expid)))
         simspec = io.read_simspec(io.findfile('simspec', night, expid))
         self.assertTrue(os.path.exists(io.findfile('simpix', night, expid, camera)))
         self.assertTrue(os.path.exists(io.findfile('pix', night, expid, camera)))
 
-    @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
+    def test_simulate(self):
+        import desispec.image
+        night = '20150105'
+        expid = 124
+        camera = 'r0'
+        nspec = 3
+        obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
+        simspec = io.read_simspec(io.findfile('simspec', night, expid))
+        psf = desimodel.io.load_psf(camera[0])
+        
+        image, rawpix, truepix = pixsim.simulate(camera, simspec, psf, nspec=nspec)
+
+        self.assertTrue(isinstance(image, desispec.image.Image))
+        self.assertTrue(isinstance(rawpix, np.ndarray))
+        self.assertTrue(isinstance(truepix, np.ndarray))
+        self.assertEqual(image.pix.shape, truepix.shape)
+        self.assertEqual(image.pix.shape[0], rawpix.shape[0])
+        self.assertLess(image.pix.shape[1], rawpix.shape[1])  #- raw has overscan
+
     def test_project(self):
         psf = desimodel.io.load_psf('z')
         wave = np.arange(8000, 8010)
@@ -133,7 +146,6 @@ class TestPixsim(unittest.TestCase):
         with self.assertRaises(ValueError):
             opts = ['--night', night, '--expid', expid, '--camera', 'b0,r1', '--pixfile', 'blat.fits']
             pixsim.parse(opts)
-        
 
     def test_expand_args(self):
         night = '20151223'
