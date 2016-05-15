@@ -5,6 +5,9 @@ desisim.spec_qa.high_level
 Module to run high_level QA on a given DESI run
  Written by JXP on 3 Sep 2015
 """
+import matplotlib
+matplotlib.use('Agg')
+
 from __future__ import print_function, absolute_import, division, unicode_literals
 
 import numpy as np
