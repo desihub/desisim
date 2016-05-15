@@ -149,7 +149,8 @@ def main(args=None):
     for camera in args.cameras:
         channel = camera[0].lower()
         assert channel in ('b', 'r', 'z'), "Unknown camera {} doesn't start with b,r,z".format(camera)
-
+        
+        #- Read inputs for this camera
         if args.psf is None:
             psf = desimodel.io.load_psf(channel)
             
@@ -159,10 +160,12 @@ def main(args=None):
         else:
             cosmics = None
         
+        #- Do the actual simulation
         image, rawpix, truepix = simulate(camera, simspec, psf,
             nspec=args.nspec, ncpu=args.ncpu, cosmics=cosmics,
             wavemin=args.wavemin, wavemax=args.wavemax)
 
+        #- Write outputs
         desispec.io.write_raw(args.rawfile, rawpix, camera=camera,
             header=image.meta, primary_header=simspec.header)
         log.info('Wrote {} image to {}'.format(camera, args.rawfile))
