@@ -8,7 +8,7 @@ Module to run high_level QA on a given DESI run
 from __future__ import print_function, absolute_import, division, unicode_literals
 
 import matplotlib
-matplotlib.use('Agg')
+# matplotlib.use('Agg')
 
 import numpy as np
 import sys, os, pdb, glob

@@ -14,6 +14,8 @@ import sys
 
 import yaml
 #import pdb
+import matplotlib
+matplotlib.use('pdf')
 from matplotlib.backends.backend_pdf import PdfPages
 
 import desispec.io
@@ -39,6 +41,11 @@ def main():
         log = get_logger(DEBUG)
     else:
         log = get_logger()
+
+    import matplotlib.pyplot as plt
+    log.debug('matplotlib backend is {}'.format(plt.get_backend()))
+    log.debug('interactive backends {}'.format(matplotlib.rcsetup.interactive_bk))
+    log.debug('non-interactive backends {}'.format(matplotlib.rcsetup.non_interactive_bk))
 
     if args.night is None:
         log.critical('Missing required night argument.')
