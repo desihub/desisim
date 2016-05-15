@@ -154,6 +154,7 @@ def catastrophic_dv(objtype):
     #
     return cat_dict[objtype]
 
+
 def get_sty_otype():
     '''Styles for plots'''
     sty_otype = dict(ELG={'color':'green', 'lbl':'ELG'},
@@ -162,6 +163,7 @@ def get_sty_otype():
         QSO_L={'color':'blue', 'lbl':'QSO z>2.1'},
         QSO_T={'color':'cyan', 'lbl':'QSO z<2.1'})
     return sty_otype
+
 
 def load_z(fibermap_files, zbest_files, outfil=None):
     '''Load input and output redshift values for a set of exposures
@@ -389,8 +391,8 @@ def obj_fig(simz_tab, objtype, summ_stats, outfil=None, pp=None):
     """
     logs = get_logger()
     gdz_tab = slice_simz(simz_tab,objtype=objtype, survey=True,good=True)
-    if len(gdz_tab) == 0:
-        logs.warn("No good objects of type {:s}".format(objtype))
+    if len(gdz_tab) <= 1:
+        logs.warn("Not enough objects of type {:s} for QA".format(objtype))
         return
 
     # Plot
@@ -650,7 +652,6 @@ def summ_stats(simz_tab, outfil=None):
     #return stat_tab 
 
 
-
 def plot_slices(x, y, ok, bad, x_lo, x_hi, y_cut, num_slices=5, min_count=100,
                 axis=None):
     """Scatter plot with 68, 95 percentiles superimposed in slices.
@@ -773,6 +774,7 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
       Guides the plotting parameters
     min_count : int, optional
     """
+    log = get_logger()
 
     # INIT
     nrows = 2
@@ -795,6 +797,7 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
         )
 
     # Initialize a new page of plots.
+    plt.clf()
     figure, axes = plt.subplots(
         nrows, ncols, figsize=(11, 8.5), facecolor='white',
         sharey=True)
@@ -813,7 +816,7 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
                     mtag = 'OIIFLUX'
                 else:
                     mtag = 'MAG'
-            # Grab the set of measurments
+            # Grab the set of measurements
             survey = slice_simz(simz_tab, objtype=otype, redm=True, survey=True)
             # Simple stats
             ok = survey['ZWARN'] == 0
@@ -841,11 +844,14 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
             axis = axes[row][col]
 
             #if (row==1) & (col==1):
-            #    pdb.set_trace()
+            #pdb.set_trace()
 
+            if len(survey) < 100:
+                log.warn("Insufficient objects of type {:s}.  Skipping slice QA".format(otype))
+                continue
             lhs, rhs = plot_slices(
-                x=x, y=dv, ok=ok, bad=bad, x_lo=x_min, x_hi=x_max,
-                num_slices=nslice, y_cut=max_dv, axis=axis, min_count=min_count)
+                    x=x, y=dv, ok=ok, bad=bad, x_lo=x_min, x_hi=x_max,
+                    num_slices=nslice, y_cut=max_dv, axis=axis, min_count=min_count)
             # Add a label even if the fitter has no results.
             xy = (0.5, 1.0)
             coords = 'axes fraction'
