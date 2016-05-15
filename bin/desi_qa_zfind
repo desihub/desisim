@@ -104,6 +104,7 @@ def main():
         dsqa_z.summ_fig(simz_tab, summ_dict, meta, pp=pp)
         for objtype in ['ELG','LRG', 'QSO_T', 'QSO_L']:
             dsqa_z.obj_fig(simz_tab, objtype, summ_dict, pp=pp)
+        log.info("closing")
         # All done
         pp.close()
 
