@@ -99,10 +99,8 @@ def main():
         log.info("Generating PDF file: {:s}".format(args.qafig))
         pp = PdfPages(args.qafig)
         # Summary for dz of all types
-        log.info("dz summary PDF")
         dsqa_z.dz_summ(simz_tab, pp=pp)
         # Summary of individual types
-        log.info("summary fig PDF")
         dsqa_z.summ_fig(simz_tab, summ_dict, meta, pp=pp)
         for objtype in ['ELG','LRG', 'QSO_T', 'QSO_L']:
             dsqa_z.obj_fig(simz_tab, objtype, summ_dict, pp=pp)
