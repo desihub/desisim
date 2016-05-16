@@ -78,8 +78,8 @@ class TestIO(unittest.TestCase):
         outfile = io.findfile('simpix', '20150104', 5, 'z3')
         pix = np.random.uniform( (5,10) )
         meta = dict(BLAT='foo', BAR='biz')
-        io.write_simpix(outfile, pix, meta)
-        image, header = fits.getdata(outfile, header=True)
+        io.write_simpix(outfile, pix, camera='b0', meta=meta)
+        image, header = fits.getdata(outfile, 'B0', header=True)
         self.assertEqual(image.dtype.itemsize, 4)
         self.assertTrue(np.all(pix.astype(np.float32) == image))
         for key in meta:

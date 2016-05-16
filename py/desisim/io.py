@@ -55,7 +55,7 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
     #- Definition of where files go
     location = dict(
         simspec = '{outdir:s}/simspec-{expid:08d}.fits',
-        simpix = '{outdir:s}/simpix-{camera:s}-{expid:08d}.fits',
+        simpix = '{outdir:s}/simpix-{expid:08d}.fits',
         pix = '{outdir:s}/pix-{camera:s}-{expid:08d}.fits',
     )
 
@@ -265,7 +265,7 @@ def read_simspec(filename):
             skyphot=skyphot, metadata=metadata, header=hdr)
 
 
-def write_simpix(outfile, image, meta):
+def write_simpix(outfile, image, camera, meta):
     """
     Write simpix data to outfile
 
@@ -277,27 +277,25 @@ def write_simpix(outfile, image, meta):
     """
 
     meta = desispec.io.util.fitsheader(meta)
+
+    #- Create a new file with a blank primary HDU if needed
+    if not os.path.exists(outfile):
+        header = meta.copy()
+        try:
+            import specter
+            header['DEPNAM00'] = 'specter'
+            header['DEPVER00'] = (specter.__version__, 'Specter version')
+        except ImportError:
+            pass
+
+        fits.PrimaryHDU(None, header=header).writeto(outfile)
     
-    #- Strip unnecessary keywords
-    for key in ('EXTNAME', 'LOGLAM', 'AIRORVAC', 'CRVAL1', 'CDELT1'):
-        if key in meta:
-            del meta[key]
-            
-    for amp in ('1', '2', '3', '4'):
-        for key in ('PRESEC', 'CCDSEC', 'BIASSEC'):
-            if key+amp in meta:
-                del meta[key+amp]
-    
-    hdu = fits.PrimaryHDU(image.astype(np.float32), header=meta)
-    hdu.header['EXTNAME'] = 'SIMPIX'  #- formally not allowed by FITS standard
-    try:
-        import specter
-        hdu.header['DEPNAM00'] = 'specter'
-        hdu.header['DEPVER00'] = (specter.__version__, 'Specter version')
-    except ImportError:
-        pass
-        
-    hdu.writeto(outfile, clobber=True)
+    #- Add the new HDU    
+    hdu = fits.ImageHDU(image.astype(np.float32), header=meta, name=camera.upper())
+    hdus = fits.open(outfile, mode='append', memmap=False)    
+    hdus.append(hdu)
+    hdus.flush()
+    hdus.close()
 
 #-------------------------------------------------------------------------
 #- Cosmics

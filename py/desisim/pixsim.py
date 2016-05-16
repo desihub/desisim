@@ -83,12 +83,10 @@ def expand_args(args):
     if args.rawfile is None:
         rawfile = os.path.basename(desispec.io.findfile('raw', args.night, args.expid))
         args.rawfile = os.path.join(os.path.dirname(args.simspec), rawfile)
-        
-    if args.pixfile or args.simpixfile:
-        if len(args.cameras) != 1:
-            msg = 'if --pixfile or --simpixfile, must specify a single --camera'
-            log.error(msg)
-            raise ValueError(msg)
+
+    if args.preproc:
+        if args.preproc_dir is None:
+            args.preproc_dir = os.path.dirname(args.rawfile)
 
 #-------------------------------------------------------------------------
 #- Parse options
@@ -103,11 +101,13 @@ def parse(options=None):
     parser.add_argument("--cosmics", type=str, help="fits file with dark images with cosmics to add")
     parser.add_argument("--simspec", type=str, help="input simspec file")
         
-    #- Output files
+    #- Output options
     parser.add_argument("--rawfile", type=str, help="output raw data file")
-    parser.add_argument("--pixfile", type=str, help="output preprocessed image file")
     parser.add_argument("--simpixfile", type=str, help="output truth image file")
+    parser.add_argument("--preproc", action="store_true", help="preprocess raw -> pix files")
+    parser.add_argument("--preproc_dir", type=str, help="directory for output preprocessed pix files")
         
+    #- Alternately derive inputs/outputs from night, expid, and cameras
     parser.add_argument("--night", type=str, help="YEARMMDD")
     parser.add_argument("--expid", type=int, help="exposure id")
     parser.add_argument("--cameras", type=str, help="cameras, e.g. b0,r5,z9")
@@ -115,10 +115,9 @@ def parse(options=None):
     parser.add_argument("--spectrographs", type=str, help="spectrograph numbers, e.g. 0,1,9", default='0')
     parser.add_argument("--arms", type=str, help="spectrograph arms, e.g. b,r,z", default='b,r,z')
 
-    parser.add_argument("--preproc", action="store_true", help="preprocess raw -> pix files")
     # parser.add_argument("--trimxy", action="store_true", help="Trim image to fit spectra")
     parser.add_argument("--seed", type=int, help="random number seed")
-    parser.add_argument("--nspec", type=int, help="Number of spectra to simulate per camera [%default]", default=500)
+    parser.add_argument("--nspec", type=int, help="Number of spectra to simulate per camera %(default)s", default=500)
     parser.add_argument("--ncpu",  type=int, help="Number of cpu cores to use %(default)s", default=mp.cpu_count() // 2)
     parser.add_argument("--wavemin",  type=float, help="Minimum wavelength to simulate")
     parser.add_argument("--wavemax",  type=float, help="Maximum wavelength to simulate")
@@ -126,7 +125,7 @@ def parse(options=None):
     if options is None:
         args = parser.parse_args()
     else:
-        options = [str(x) for x in options]
+        options = [str(x) for x in options]        
         args = parser.parse_args(options)
 
     expand_args(args)
@@ -169,25 +168,14 @@ def main(args=None):
         desispec.io.write_raw(args.rawfile, rawpix, camera=camera,
             header=image.meta, primary_header=simspec.header)
         log.info('Wrote {} image to {}'.format(camera, args.rawfile))
-        
-        if args.pixfile is None:
-            if args.preproc:
-                pixfile = desispec.io.findfile('pix', args.night, args.expid,
-                    camera = camera, outdir=os.path.dirname(args.rawfile))
-                desispec.io.write_image(pixfile, image)
-                log.info('Wrote '+pixfile)
-        else:
-            desispec.io.write_image(args.pixfile, image)
-            log.info('Wrote ' + args.pixfile)
+        io.write_simpix(simpixfile, truepix, camera=camera, meta=simspec.meta)
+        log.info('Wrote {} image to {}'.format(camera, args.simpixfile))
 
-        if args.simpixfile is None:
-            simpixfile = io.findfile('simpix', args.night, args.expid,
-                camera=camera)
-        else:
-            simpixfile = args.simpixfile
-            
-        io.write_simpix(simpixfile, truepix, meta=image.meta)
-        log.info('Wrote '+simpixfile)
+    if opts.preproc:
+        log.info('Preprocessing raw -> pix files')
+        from desispec.scripts import preproc
+        preproc_opts = ['--infile', args.rawfile, '--outdir', args.preproc_dir]
+        preproc.main(preproc.parse(preproc_opts))
 
     log.info('Finished pixsim {}'.format(asctime()))
 
@@ -228,7 +216,7 @@ def simulate_frame(night, expid, camera, **kwargs):
 
     #- Outputs; force "real" data files into simulation directory
     simpixfile = io.findfile('simpix', night=night, expid=expid, camera=camera)
-    io.write_simpix(simpixfile, truepix, meta=image.meta)
+    io.write_simpix(simpixfile, truepix, camera=camera, meta=image.meta)
 
     simdir = io.simdir(night=night)
     rawfile = desispec.io.findfile('desi', night=night, expid=expid)

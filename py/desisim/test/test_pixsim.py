@@ -143,10 +143,6 @@ class TestPixsim(unittest.TestCase):
         with self.assertRaises(ValueError):
             pixsim.parse([])
 
-        with self.assertRaises(ValueError):
-            opts = ['--night', night, '--expid', expid, '--camera', 'b0,r1', '--pixfile', 'blat.fits']
-            pixsim.parse(opts)
-
     def test_expand_args(self):
         night = '20151223'
         expid = 1
