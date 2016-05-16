@@ -15,7 +15,7 @@ import sys
 import yaml
 #import pdb
 import matplotlib
-matplotlib.use('pdf')
+matplotlib.use('agg')
 from matplotlib.backends.backend_pdf import PdfPages
 
 import desispec.io
