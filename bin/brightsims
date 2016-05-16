@@ -8,8 +8,8 @@
 
 """
 
-import desisim.scripts.brightsims as sims
+from desisim.scripts import brightsims
 
 if __name__ == '__main__':
-    args = sims.parse()
-    sims.main(args)
+    args = brightsims.parse()
+    brightsims.main(args)

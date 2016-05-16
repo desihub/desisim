@@ -32,7 +32,8 @@ def parse(options=None):
     parser.add_argument('--nspec', type=int,  help='number of spectra (per brick) to simulate', default=100, metavar='')
 
     parser.add_argument('-s', '--seed', type=int,  help='random seed', default=None, metavar='')
-    parser.add_argument('-o', '--outdir', type=str,  help='output directory', default='.', metavar='')
+    parser.add_argument('-o', '--brickdir', type=str,  help='top-level output bricks directory',
+                        default='./bricks', metavar='')
     parser.add_argument('-v', '--verbose', action='store_true', help='toggle on verbose output')
 
     parser.add_argument('--exptime-range', type=float, default=(300,300), nargs=2, metavar='', 
@@ -75,7 +76,7 @@ def main(args):
     moonzenith = rand.uniform(args.moon_zenith_range[0], args.moon_zenith_range[1], args.nbrick)
 
     # Build a metadata table with the simulation inputs.
-    metafile = makepath(os.path.join(args.outdir, '{}-metacat.fits'.format(args.brickname)))
+    metafile = makepath(os.path.join(args.outdir, '{}-input.fits'.format(args.brickname)))
     metacols = [
         ('BRICKNAME', 'S20'),
         ('SEED', 'S20'),
@@ -96,7 +97,7 @@ def main(args):
     meta['MOONANGLE'] = moonangle
     meta['MOONZENITH'] = moonzenith
 
-    log.info('Writing {}'.format(metafile))
+    log.debug('Writing {}'.format(metafile))
     write_bintable(metafile, meta, extname='METADATA', clobber=True)
 
     for ii in range(args.nbrick):
@@ -114,7 +115,8 @@ def main(args):
                      '--moon-angle', '{}'.format(moonangle[ii]),
                      '--moon-zenith', '{}'.format(moonzenith[ii])]
         if args.seed is not None:
-            brickargs.append('--seed', '{}'.format(args.seed))
+            brickargs.append('--seed')
+            brickargs.append('{}'.format(args.seed))
                 
         quickargs = quickbrick.parse(brickargs)
         if args.verbose:
