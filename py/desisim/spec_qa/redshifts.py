@@ -7,6 +7,9 @@ Module to run high_level QA on a given DESI run
 """
 from __future__ import print_function, absolute_import, division, unicode_literals
 
+import matplotlib
+# matplotlib.use('Agg')
+
 import numpy as np
 import sys, os, pdb, glob
 
@@ -100,7 +103,10 @@ def calc_stats(simz_tab, objtype, flux_lim=True):
     cat_tab = slice_simz(simz_tab,objtype=objtype,
         survey=True,catastrophic=True)
     stat_dict['NCAT'] = len(cat_tab)
-    stat_dict['CAT_RATE'] = len(cat_tab)/stat_dict['N_SURVEY']
+    if stat_dict['N_SURVEY'] > 0:
+        stat_dict['CAT_RATE'] = len(cat_tab)/stat_dict['N_SURVEY']
+    else:
+        stat_dict['CAT_RATE'] = 0
 
     # Good redshifts
     gdz_tab = slice_simz(simz_tab,objtype=objtype,
@@ -113,13 +119,21 @@ def calc_stats(simz_tab, objtype, flux_lim=True):
     stat_dict['N_ZWARN0'] = len(zwarn0_tab)
 
     # Efficiency
-    stat_dict['EFF'] = float(len(gdz_tab))/float(stat_dict['N_SURVEY'])
+    if stat_dict['N_SURVEY'] > 0:
+        stat_dict['EFF'] = float(len(gdz_tab))/float(stat_dict['N_SURVEY'])
+    else:
+        stat_dict['EFF'] = 1.
 
     # Purity
-    stat_dict['PURITY'] = float(len(gdz_tab))/float(stat_dict['N_ZWARN0'])
+    if stat_dict['N_ZWARN0'] > 0:
+        stat_dict['PURITY'] = float(len(gdz_tab))/float(stat_dict['N_ZWARN0'])
+    else:
+        stat_dict['PURITY'] = 1.
 
     # delta z
     dz = calc_dz(gdz_tab)
+    if len(dz) == 0:
+        dz = np.zeros(1)
     stat_dict['MEAN_DZ'] = float(np.mean(dz))
     stat_dict['MEDIAN_DZ'] = float(np.median(dz))
     stat_dict['RMS_DZ'] = float(np.std(dz))
@@ -140,6 +154,7 @@ def catastrophic_dv(objtype):
     #
     return cat_dict[objtype]
 
+
 def get_sty_otype():
     '''Styles for plots'''
     sty_otype = dict(ELG={'color':'green', 'lbl':'ELG'},
@@ -148,6 +163,7 @@ def get_sty_otype():
         QSO_L={'color':'blue', 'lbl':'QSO z>2.1'},
         QSO_T={'color':'cyan', 'lbl':'QSO z<2.1'})
     return sty_otype
+
 
 def load_z(fibermap_files, zbest_files, outfil=None):
     '''Load input and output redshift values for a set of exposures
@@ -188,8 +204,8 @@ def load_z(fibermap_files, zbest_files, outfil=None):
         simspec_fil = fibermap_file.replace('fibermap','simspec')
         sps_hdu = fits.open(simspec_fil)
         # Make Tables
-        fbm_tabs.append(Table(fbm_hdu['FIBERMAP'].data))
-        sps_tabs.append(Table(sps_hdu['METADATA'].data))
+        fbm_tabs.append(Table(fbm_hdu['FIBERMAP'].data,masked=True))
+        sps_tabs.append(Table(sps_hdu['METADATA'].data,masked=True))
     # Stack
     fbm_tab = vstack(fbm_tabs)
     sps_tab = vstack(sps_tabs)
@@ -304,6 +320,7 @@ def obj_requirements(zstats, objtype):
     #pf_dict['FINAL'] = passf
     return pf_dict, passf
 
+
 def slice_simz(simz_tab, objtype=None, redm=False, survey=False, 
     catastrophic=False, good=False, all_zwarn0=False):
     '''Slice input simz_tab in one of many ways
@@ -325,7 +342,7 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
         objtype_mask = simz_tab['OBJTYPE_1'] == objtype
     # RedMonster analysis
     if redm:
-        redm_mask = simz_tab['Z'].mask == False # Not masked in Table
+        redm_mask = simz_tab['Z'].mask == False  # Not masked in Table
     else:
         redm_mask = np.array([True]*nrow)
     # Survey
@@ -370,22 +387,23 @@ def obj_fig(simz_tab, objtype, summ_stats, outfil=None, pp=None):
     """Generate QA plot for a given object type
     Parameters:
     simz_tab
+    objtype : str
     """
-    from scipy.stats import norm, chi2
-
-    #sobj = np.where(summ_stats['OBJTYPE'] == objtype)[0][0]
+    logs = get_logger()
+    gdz_tab = slice_simz(simz_tab,objtype=objtype, survey=True,good=True)
+    if len(gdz_tab) <= 1:
+        logs.warn("Not enough objects of type {:s} for QA".format(objtype))
+        return
 
     # Plot
     sty_otype = get_sty_otype()
     fig = plt.figure(figsize=(8, 6.0))
     gs = gridspec.GridSpec(2,2)
-    fig.suptitle('{:s}: Summary'.format(sty_otype[objtype]['lbl']), 
+    # Title
+    fig.suptitle('{:s}: Summary'.format(sty_otype[objtype]['lbl']),
         fontsize='large')
 
-    # Title 
 
-    survey_tab = slice_simz(simz_tab,objtype=objtype,survey=True)
-    gdz_tab = slice_simz(simz_tab,objtype=objtype, survey=True,good=True)
 
     # Offset
     for kk in range(4):
@@ -422,7 +440,7 @@ def obj_fig(simz_tab, objtype, summ_stats, outfil=None, pp=None):
         else:
             yval = calc_dz(gdz_tab)
             ylbl = (r'$(z_{\rm red}-z_{\rm true}) / (1+z)$')
-            ylim = 5.*summ_stats[objtype]['RMS_DZ'] 
+            ylim = max(5.*summ_stats[objtype]['RMS_DZ'],1e-5)
             if (np.median(summ_stats[objtype]['MEDIAN_DZ']) > 
                 summ_stats[objtype]['RMS_DZ']):
                 yoff = summ_stats[objtype]['MEDIAN_DZ']
@@ -634,7 +652,6 @@ def summ_stats(simz_tab, outfil=None):
     #return stat_tab 
 
 
-
 def plot_slices(x, y, ok, bad, x_lo, x_hi, y_cut, num_slices=5, min_count=100,
                 axis=None):
     """Scatter plot with 68, 95 percentiles superimposed in slices.
@@ -757,6 +774,7 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
       Guides the plotting parameters
     min_count : int, optional
     """
+    log = get_logger()
 
     # INIT
     nrows = 2
@@ -779,6 +797,7 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
         )
 
     # Initialize a new page of plots.
+    plt.clf()
     figure, axes = plt.subplots(
         nrows, ncols, figsize=(11, 8.5), facecolor='white',
         sharey=True)
@@ -797,7 +816,7 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
                     mtag = 'OIIFLUX'
                 else:
                     mtag = 'MAG'
-            # Grab the set of measurments
+            # Grab the set of measurements
             survey = slice_simz(simz_tab, objtype=otype, redm=True, survey=True)
             # Simple stats
             ok = survey['ZWARN'] == 0
@@ -825,11 +844,14 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
             axis = axes[row][col]
 
             #if (row==1) & (col==1):
-            #    pdb.set_trace()
+            #pdb.set_trace()
 
+            if len(survey) < 100:
+                log.warn("Insufficient objects of type {:s}.  Skipping slice QA".format(otype))
+                continue
             lhs, rhs = plot_slices(
-                x=x, y=dv, ok=ok, bad=bad, x_lo=x_min, x_hi=x_max,
-                num_slices=nslice, y_cut=max_dv, axis=axis, min_count=min_count)
+                    x=x, y=dv, ok=ok, bad=bad, x_lo=x_min, x_hi=x_max,
+                    num_slices=nslice, y_cut=max_dv, axis=axis, min_count=min_count)
             # Add a label even if the fitter has no results.
             xy = (0.5, 1.0)
             coords = 'axes fraction'

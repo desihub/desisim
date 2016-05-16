@@ -14,6 +14,8 @@ import sys
 
 import yaml
 #import pdb
+import matplotlib
+matplotlib.use('agg')
 from matplotlib.backends.backend_pdf import PdfPages
 
 import desispec.io
@@ -39,6 +41,11 @@ def main():
         log = get_logger(DEBUG)
     else:
         log = get_logger()
+
+    import matplotlib.pyplot as plt
+    log.debug('matplotlib backend is {}'.format(plt.get_backend()))
+    log.debug('interactive backends {}'.format(matplotlib.rcsetup.interactive_bk))
+    log.debug('non-interactive backends {}'.format(matplotlib.rcsetup.non_interactive_bk))
 
     if args.night is None:
         log.critical('Missing required night argument.')
@@ -104,6 +111,7 @@ def main():
         dsqa_z.summ_fig(simz_tab, summ_dict, meta, pp=pp)
         for objtype in ['ELG','LRG', 'QSO_T', 'QSO_L']:
             dsqa_z.obj_fig(simz_tab, objtype, summ_dict, pp=pp)
+        log.info("closing")
         # All done
         pp.close()
 
