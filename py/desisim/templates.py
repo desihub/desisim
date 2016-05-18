@@ -382,7 +382,7 @@ class ELG():
     def make_templates(self, nmodel=100, zrange=(0.6,1.6), rmagrange=(21.0,23.4),
                        oiiihbrange=(-0.5,0.2), oiidoublet_meansig=(0.73,0.05),
                        logvdisp_meansig=(1.9,0.15), minoiiflux=1E-17,
-                       sne_rfluxratiorange=(0.1,1.0), seed=None,
+                       sne_rfluxratiorange=(0.1,1.0), redshift_in=None, seed=None,
                        nocolorcuts=False, nocontinuum=False):
         """Build Monte Carlo set of ELG spectra/templates.
 
@@ -412,8 +412,10 @@ class ELG():
 
           sne_rfluxratiorange (float, optional): r-band flux ratio of the SNeIa
             spectrum with respect to the underlying galaxy.
-        
-          seed (long, optional): input seed for the random numbers.
+
+          redshift_in (float, optional): Input/output template redshifts.  Array
+            size must equal NMODEL.  Overwrites ZRANGE input.        
+          seed (long, optional): Input seed for the random numbers.
           nocolorcuts (bool, optional): Do not apply the fiducial grz color-cuts
             cuts (default False).
           nocontinuum (bool, optional): Do not include the stellar continuum
@@ -436,6 +438,11 @@ class ELG():
 
         if nocontinuum:
             nocolorcuts = True
+
+        if redshift_in is not None:
+            if len(redshift_in) != nmodel:
+                log.fatal('REDSHIFT_IN must be an NMODEL-length array')
+            redshift1 = redshift_in # initialize
 
         rand = np.random.RandomState(seed)
 
@@ -493,7 +500,11 @@ class ELG():
 
             # Assign uniform redshift, r-magnitude, and velocity dispersion
             # distributions.
-            redshift = rand.uniform(zrange[0], zrange[1], nchunk)
+            if redshift_in is None:
+                redshift = rand.uniform(zrange[0], zrange[1], nchunk)
+            else:
+                redshift = redshift_in
+
             rmag = rand.uniform(rmagrange[0], rmagrange[1], nchunk)
             if logvdisp_meansig[1]>0:
                 vdisp = 10**rand.normal(logvdisp_meansig[0], logvdisp_meansig[1], nchunk)
@@ -621,6 +632,12 @@ class ELG():
                         meta['SNE_TEMPLATEID'][nobj] = self.sne_basemeta['TEMPLATEID'][sne_chunkindx[ii]]
                         meta['SNE_EPOCH'][nobj] = self.sne_basemeta['EPOCH'][sne_chunkindx[ii]]
                         meta['SNE_RFLUXRATIO'][nobj] = sne_rfluxratio[ii]
+
+                    if redshift_in is not None:
+                        redshift_in = np.delete(redshift_in, np.where(redshift_in==redshift[ii])[0])
+                        print(ii, nobj, ii-nobj, len(redshift_in), redshift_in, meta['REDSHIFT'])
+                        #if (ii*nobj)==25:
+                        #    import pdb ; pdb.set_trace()
 
                     nobj = nobj+1
 
