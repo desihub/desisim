@@ -609,7 +609,7 @@ class ELG():
                     
                     outflux[nobj,:] = resample_flux(self.wave, zwave, flux)
 
-                    meta['TEMPLATEID'][nobj] = nobj
+                    meta['TEMPLATEID'][nobj] = iobj
                     meta['REDSHIFT'][nobj] = redshift[ii]
                     meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
                     meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
@@ -634,9 +634,6 @@ class ELG():
                         meta['SNE_RFLUXRATIO'][nobj] = sne_rfluxratio[ii]
 
                     nobj = nobj+1
-                    
-                #import pdb ; pdb.set_trace()
-                #print(ii, nobj, iobj, redshift_in, redshift[ii], meta['REDSHIFT'])
                 #print(ii, iobj, nobj, redshift[ii])
 
                 # If we have enough models get out!
@@ -864,7 +861,7 @@ class LRG():
                         
                     outflux[nobj,:] = resample_flux(self.wave, zwave, flux)
 
-                    meta['TEMPLATEID'][nobj] = nobj
+                    meta['TEMPLATEID'][nobj] = iobj
                     meta['REDSHIFT'][nobj] = redshift[ii]
                     meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
                     meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
@@ -1064,7 +1061,7 @@ class STAR(object):
                                 format(self.objtype, nobj+1, nmodel))
                 outflux[nobj,:] = resample_flux(self.wave, zwave, flux)
 
-                meta['TEMPLATEID'][nobj] = nobj
+                meta['TEMPLATEID'][nobj] = iobj
                 meta['REDSHIFT'][nobj] = redshift[ii]
                 meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
                 meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
@@ -1189,7 +1186,7 @@ class FSTD(STAR):
                                   format(self.objtype, nobj+1, nmodel))
                     outflux[nobj,:] = resample_flux(self.wave, zwave, flux)
 
-                    meta['TEMPLATEID'][nobj] = nobj
+                    meta['TEMPLATEID'][nobj] = iobj
                     meta['REDSHIFT'][nobj] = redshift[ii]
                     meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
                     meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
@@ -1313,7 +1310,7 @@ class MWS_STAR(STAR):
                                 format(self.objtype, nobj+1, nmodel))
                     outflux[nobj,:] = resample_flux(self.wave, zwave, flux)
     
-                    meta['TEMPLATEID'][nobj] = nobj
+                    meta['TEMPLATEID'][nobj] = iobj
                     meta['REDSHIFT'][nobj] = redshift[ii]
                     meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
                     meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
@@ -1533,7 +1530,7 @@ class QSO():
                                   format(self.objtype, nobj+1, nmodel))
                     outflux[nobj,:] = resample_flux(self.wave, zwave, flux)
 
-                    meta['TEMPLATEID'][nobj] = nobj
+                    meta['TEMPLATEID'][nobj] = iobj
                     if old_way:
                         meta['REDSHIFT'][nobj] = self.basemeta['Z'][this]
                     meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
@@ -1861,7 +1858,7 @@ class BGS():
                     
                     outflux[nobj,:] = resample_flux(self.wave, zwave, flux)
 
-                    meta['TEMPLATEID'][nobj] = nobj
+                    meta['TEMPLATEID'][nobj] = iobj
                     meta['REDSHIFT'][nobj] = redshift[ii]
                     meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
                     meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
