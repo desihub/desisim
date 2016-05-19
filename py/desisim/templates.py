@@ -503,7 +503,7 @@ class ELG():
             if redshift_in is None:
                 redshift = rand.uniform(zrange[0], zrange[1], nchunk)
             else:
-                redshift = redshift_in
+                redshift = np.repeat(redshift_in[nobj], nchunk)
 
             rmag = rand.uniform(rmagrange[0], rmagrange[1], nchunk)
             if logvdisp_meansig[1]>0:
@@ -633,17 +633,18 @@ class ELG():
                         meta['SNE_EPOCH'][nobj] = self.sne_basemeta['EPOCH'][sne_chunkindx[ii]]
                         meta['SNE_RFLUXRATIO'][nobj] = sne_rfluxratio[ii]
 
-                    if redshift_in is not None:
-                        redshift_in = np.delete(redshift_in, np.where(redshift_in==redshift[ii])[0])
-                        print(ii, nobj, ii-nobj, len(redshift_in), redshift_in, meta['REDSHIFT'])
-                        #if (ii*nobj)==25:
-                        #    import pdb ; pdb.set_trace()
-
                     nobj = nobj+1
+                    
+                #import pdb ; pdb.set_trace()
+                #print(ii, nobj, iobj, redshift_in, redshift[ii], meta['REDSHIFT'])
+                #print(ii, iobj, nobj, redshift[ii])
 
                 # If we have enough models get out!
                 if nobj>=(nmodel-1):
                     break
+
+                if redshift_in is not None:
+                    redshift = np.repeat(redshift_in[nobj], nchunk)
 
         return outflux, self.wave, meta
 
