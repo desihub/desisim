@@ -32,7 +32,9 @@ def parse(options=None):
     parser.add_argument('--nspec', type=int,  help='number of spectra (per brick) to simulate', default=100, metavar='')
 
     parser.add_argument('-s', '--seed', type=int,  help='random seed', default=None, metavar='')
-    parser.add_argument('-o', '--brickdir', type=str,  help='top-level output bricks directory',
+    parser.add_argument('-o', '--outdir', type=str,  help='output directory for simulation parameters',
+                        default='.', metavar='')
+    parser.add_argument('--brickdir', type=str,  help='top-level output bricks directory',
                         default='./bricks', metavar='')
     parser.add_argument('-v', '--verbose', action='store_true', help='toggle on verbose output')
 
@@ -107,8 +109,8 @@ def main(args):
         brickargs = ['--brickname', thisbrick,
                      '--objtype', args.objtype,
                      '--nspec', '{}'.format(args.nspec),
-                     '--outdir', args.outdir,
-                     '--outdir-truth', args.outdir,
+                     '--outdir', args.brickdir,
+                     '--outdir-truth', args.brickdir,
                      '--exptime', '{}'.format(exptime[ii]),
                      '--airmass', '{}'.format(airmass[ii]),
                      '--moon-phase', '{}'.format(moonphase[ii]),
