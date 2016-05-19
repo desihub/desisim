@@ -124,6 +124,18 @@ class TestTemplates(unittest.TestCase):
             self.assertTrue('SNE_RFLUXRATIO' in meta.dtype.names)
             self.assertTrue('SNE_EPOCH' in meta.dtype.names)
 
+    #@unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
+    #def test_redshift_in(self):
+    #    '''Test options for passing an input redshift array'''
+    #    for T in [ELG]:
+    #        template_factory = T(wave=self.wave, add_SNeIa=True)
+    #        flux, wave, meta = template_factory.make_templates(self.nspec, nocolorcuts=True, 
+    #                                                           sne_rfluxratiorange=(0.5,0.7))
+    #        self._check_output_size(flux, wave, meta)
+    #        self.assertTrue('SNE_TEMPLATEID' in meta.dtype.names)
+    #        self.assertTrue('SNE_RFLUXRATIO' in meta.dtype.names)
+    #        self.assertTrue('SNE_EPOCH' in meta.dtype.names)
+
     @unittest.expectedFailure
     def test_missing_wise_mags(self):
         '''QSO and WD templates don't have WISE mags.  Flag that'''
