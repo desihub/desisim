@@ -45,7 +45,7 @@ def parse(options=None):
 
     parser.add_argument('--moon-phase-range', type=float, default=(0.0, 1.0), nargs=2, metavar='', 
                         help='minimum and maximum lunar phase (0=full, 1=new')
-    parser.add_argument('--moon-angle-range', type=float, default=(0, 90), nargs=2, metavar='', 
+    parser.add_argument('--moon-angle-range', type=float, default=(0, 150), nargs=2, metavar='', 
                         help='minimum and maximum lunar separation angle (0-180 deg')
     parser.add_argument('--moon-zenith-range', type=float, default=(0, 60), nargs=2, metavar='', 
                         help='minimum and maximum lunar zenith angle (0-90 deg')
