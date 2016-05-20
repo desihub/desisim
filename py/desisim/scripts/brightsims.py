@@ -38,16 +38,23 @@ def parse(options=None):
                         default='./bricks', metavar='')
     parser.add_argument('-v', '--verbose', action='store_true', help='toggle on verbose output')
 
-    parser.add_argument('--exptime-range', type=float, default=(300,300), nargs=2, metavar='', 
+    parser.add_argument('--exptime-range', type=float, default=(300, 300), nargs=2, metavar='', 
                         help='minimum and maximum exposure time (s)')
-    parser.add_argument('--airmass-range', type=float, default=(1.25,1.25), nargs=2, metavar='', 
+    parser.add_argument('--airmass-range', type=float, default=(1.25, 1.25), nargs=2, metavar='', 
                         help='minimum and maximum airmass')
-    parser.add_argument('--moon-phase-range', type=float, default=(0.0,1.0), nargs=2, metavar='', 
+
+    parser.add_argument('--moon-phase-range', type=float, default=(0.0, 1.0), nargs=2, metavar='', 
                         help='minimum and maximum lunar phase (0=full, 1=new')
-    parser.add_argument('--moon-angle-range', type=float, default=(0,90), nargs=2, metavar='', 
+    parser.add_argument('--moon-angle-range', type=float, default=(0, 90), nargs=2, metavar='', 
                         help='minimum and maximum lunar separation angle (0-90 deg')
-    parser.add_argument('--moon-zenith-range', type=float, default=(0,60), nargs=2, metavar='', 
+    parser.add_argument('--moon-zenith-range', type=float, default=(0, 60), nargs=2, metavar='', 
                         help='minimum and maximum lunar zenith angle (0-90 deg')
+
+    bgs_parser = parser.add_argument_group('options for BGS objects')
+    bgs_parser.add_argument('--zrange-bgs', type=float, default=(0.01, 0.4), nargs=2, metavar='', 
+                            help='minimum and maximum redshift')
+    bgs_parser.add_argument('--rmagrange-bgs', type=float, default=(15.0, 19.5), nargs=2, metavar='',
+                            help='Minimum and maximum r-band (AB) magnitude range')
  
     args = None
     if options is None:
@@ -102,6 +109,7 @@ def main(args):
     log.debug('Writing {}'.format(metafile))
     write_bintable(metafile, meta, extname='METADATA', clobber=True)
 
+    # Generate each brick in turn.
     for ii in range(args.nbrick):
         thisbrick = meta['BRICKNAME'][ii]
         log.debug('Building brick {}'.format(thisbrick))
@@ -115,7 +123,9 @@ def main(args):
                      '--airmass', '{}'.format(airmass[ii]),
                      '--moon-phase', '{}'.format(moonphase[ii]),
                      '--moon-angle', '{}'.format(moonangle[ii]),
-                     '--moon-zenith', '{}'.format(moonzenith[ii])]
+                     '--moon-zenith', '{}'.format(moonzenith[ii]),
+                     '--zrange-bgs', '{}'.format(args.zrange_bgs[0]), '{}'.format(args.zrange_bgs[1]),
+                     '--rmagrange-bgs', '{}'.format(args.rmagrange_bgs[0]), '{}'.format(args.rmagrange_bgs[1])]
         if args.seed is not None:
             brickargs.append('--seed')
             brickargs.append('{}'.format(args.seed))

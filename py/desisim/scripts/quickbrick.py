@@ -58,15 +58,18 @@ def parse(options=None):
 
     # Object type-specific options.
     obj_parser = parser.add_argument_group('options for specific object types')
-    obj_parser.add_argument('--zrange-qso', type=float, default=(0.5,4.0), nargs=2, metavar='', 
+    obj_parser.add_argument('--zrange-qso', type=float, default=(0.5, 4.0), nargs=2, metavar='', 
                             help='minimum and maximum redshift range for QSO')
-    obj_parser.add_argument('--zrange-elg', type=float, default=(0.6,1.6), nargs=2, metavar='', 
+    obj_parser.add_argument('--zrange-elg', type=float, default=(0.6, 1.6), nargs=2, metavar='', 
                             help='minimum and maximum redshift range for ELG')
-    obj_parser.add_argument('--zrange-lrg', type=float, default=(0.5,1.1), nargs=2, metavar='', 
+    obj_parser.add_argument('--zrange-lrg', type=float, default=(0.5, 1.1), nargs=2, metavar='', 
                             help='minimum and maximum redshift range for LRG')
-    obj_parser.add_argument('--zrange-bgs', type=float, default=(0.01,0.4), nargs=2, metavar='', 
+    obj_parser.add_argument('--zrange-bgs', type=float, default=(0.01, 0.4), nargs=2, metavar='', 
                             help='minimum and maximum redshift range for BGS')
-    obj_parser.add_argument('--sne-rfluxratiorange', type=float, default=(0.1,1.0), nargs=2, metavar='', 
+    obj_parser.add_argument('--rmagrange-bgs', type=float, default=(15.0, 19.5), nargs=2, metavar='',
+                            help='Minimum and maximum BGS r-band (AB) magnitude range')
+
+    obj_parser.add_argument('--sne-rfluxratiorange', type=float, default=(0.1, 1.0), nargs=2, metavar='', 
                             help='r-band flux ratio of the SNeIa spectrum relative to the galaxy')
     obj_parser.add_argument('--add-SNeIa', action='store_true', help='include SNeIa spectra')
   
@@ -163,6 +166,7 @@ def main(args):
         elif thisobj == 'BGS':
             bgs = desisim.templates.BGS(wave=wave, add_SNeIa=args.add_SNeIa)
             flux, tmpwave, meta1 = bgs.make_templates(nmodel=nobj, seed=args.seed, zrange=args.zrange_bgs,
+                                                      rmagrange=args.rmagrange_bgs,
                                                       sne_rfluxratiorange=args.sne_rfluxratiorange)
         elif thisobj =='STD':
             fstd = desisim.templates.FSTD(wave=wave)
