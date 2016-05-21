@@ -320,7 +320,7 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
     truepix = parallel_project(psf, wave, phot, ncpu=ncpu)
 
     #- Start metadata header
-    header = dict()
+    header = simspec.header.copy()
     header['CAMERA'] = camera
     gain = params['ccd'][channel]['gain']
     for amp in ('1', '2', '3', '4'):
@@ -420,7 +420,7 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
 
     image = desispec.preproc.preproc(rawpix, header)
     log.info('Finished pixsim.simulate {}'.format(asctime()))
-        
+
     return image, rawpix, truepix
 
 def photpix2raw(phot, gain=1.0, readnoise=3.0, offset=None,
