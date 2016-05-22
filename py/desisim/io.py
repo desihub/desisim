@@ -64,7 +64,7 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
         raise ValueError("Unknown filetype {}; known types are {}".format(filetype, location.keys()))
 
     #- Some but not all filetypes require camera
-    if filetype in ('simpix', 'pix') and camera is None:
+    if filetype == 'pix' and camera is None:
         raise ValueError('camera is required for filetype '+filetype)
 
     #- get outfile location and cleanup extraneous // from path

@@ -33,7 +33,7 @@ pixsim --simspec SIMSPEC
 pixsim --simspec SIMSPEC --night 20160102 --expid 23
 
 #- override outputs
-pixsim --simspec SIMSPEC --outrawfile blat.fits
+pixsim --simspec SIMSPEC --rawfile blat.fits
 '''
 
 def expand_args(args):
@@ -70,10 +70,10 @@ def expand_args(args):
             log.error(msg)
             raise ValueError(msg)
         args.simspec = io.findfile('simspec', args.night, args.expid)
-    else:
-        if (args.night is None) or (args.expid is None):
-            from astropy.io import fits
-            hdr = fits.getheader(args.simspec)
+
+    if (args.night is None) or (args.expid is None):
+        from astropy.io import fits
+        hdr = fits.getheader(args.simspec)
         if args.night is None:
             args.night = str(hdr['NIGHT'])
         if args.expid is None:
@@ -87,6 +87,11 @@ def expand_args(args):
     if args.preproc:
         if args.preproc_dir is None:
             args.preproc_dir = os.path.dirname(args.rawfile)
+    
+    if args.simpixfile is None:
+        args.simpixfile = io.findfile(
+            'simpix', night=args.night, expid=args.expid,
+            outdir=os.path.dirname(args.rawfile))
 
 #-------------------------------------------------------------------------
 #- Parse options
@@ -133,8 +138,8 @@ def parse(options=None):
 
 def main(args=None):
     log.info('Starting pixsim {}'.format(asctime()))
-    if args is None:
-        args = parse()
+    if isinstance(args, (list, tuple, type(None))):
+        args = parse(args)
 
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -168,10 +173,10 @@ def main(args=None):
         desispec.io.write_raw(args.rawfile, rawpix, camera=camera,
             header=image.meta, primary_header=simspec.header)
         log.info('Wrote {} image to {}'.format(camera, args.rawfile))
-        io.write_simpix(simpixfile, truepix, camera=camera, meta=simspec.meta)
+        io.write_simpix(args.simpixfile, truepix, camera=camera, meta=simspec.header)
         log.info('Wrote {} image to {}'.format(camera, args.simpixfile))
 
-    if opts.preproc:
+    if args.preproc:
         log.info('Preprocessing raw -> pix files')
         from desispec.scripts import preproc
         preproc_opts = ['--infile', args.rawfile, '--outdir', args.preproc_dir]
@@ -253,8 +258,9 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
     #- parse camera name into channel and spectrograph number
     channel = camera[0].lower()
     ispec = int(camera[1])
-    assert channel in 'brz'
-    assert 0 <= ispec < 10
+    assert channel in 'brz', 'unrecognized channel {} camera {}'.format(channel, camera)
+    assert 0 <= ispec < 10, 'unrecognized spectrograph {} camera {}'.format(ispec, camera)
+    assert len(camera) == 2, 'unrecognized camera {}'.format(camera)
 
     #- Load DESI parameters
     params = desimodel.io.load_desiparams()

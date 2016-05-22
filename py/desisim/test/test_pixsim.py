@@ -3,6 +3,7 @@ from uuid import uuid1
 from shutil import rmtree
 
 import numpy as np
+from astropy.io import fits
 
 import desimodel.io
 import desispec.io
@@ -116,6 +117,49 @@ class TestPixsim(unittest.TestCase):
         self.assertEqual(image.pix.shape[0], rawpix.shape[0])
         self.assertLess(image.pix.shape[1], rawpix.shape[1])  #- raw has overscan
 
+    def test_main(self):
+        night = '20150105'
+        expid = 124
+        camera = 'r0'
+        nspec = 3
+        obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
+        
+        #- run pixsim
+        opts = ['--night', night, '--expid', expid, '--nspec', nspec]
+        pixsim.main(opts)
+
+        #- verify outputs
+        simpixfile = io.findfile('simpix', night, expid)
+        self.assertTrue(os.path.exists(simpixfile))
+        rawfile = desispec.io.findfile('raw', night, expid)
+        self.assertTrue(os.path.exists(rawfile))
+        fx = fits.open(rawfile)
+        self.assertTrue('B0' in fx)
+        self.assertTrue('R0' in fx)
+        self.assertTrue('Z0' in fx)
+        fx.close()
+
+        #- Re-run; derive night from simspec input while overriding expid
+        simspecfile = io.findfile('simspec', night, expid)
+        altrawfile = rawfile + '.blat'
+        opts = [
+            '--simspec', simspecfile,
+            '--expid', expid+1,
+            '--rawfile', altrawfile,
+            '--cameras', 'b0,r0',
+            '--preproc',
+            '--wavemin', 5000, '--wavemax', 7000.0,
+            ]
+        pixsim.main(opts)
+        simpixfile = io.findfile('simpix', night, expid+1)
+        self.assertTrue(os.path.exists(simpixfile))
+        self.assertTrue(os.path.exists(altrawfile))
+        fx = fits.open(altrawfile)
+        self.assertTrue('B0' in fx)
+        self.assertTrue('R0' in fx)
+        self.assertTrue('Z0' not in fx)
+        fx.close()
+        
     def test_project(self):
         psf = desimodel.io.load_psf('z')
         wave = np.arange(8000, 8010)
