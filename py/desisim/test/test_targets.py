@@ -38,6 +38,15 @@ class TestObs(unittest.TestCase):
                 if key not in ('UNITS', 'WAVE'):
                     self.assertEqual(n, truth[key].shape[0])
 
+    def test_parallel_radec(self):
+        '''Ensure that parallel generated ra,dec are unique'''
+        nspec = 600
+        fibermap, truth = desisim.targets.get_targets_parallel(nspec, 'SKY')
+        nra = len(set(fibermap['RA_TARGET']))
+        ndec = len(set(fibermap['DEC_TARGET']))
+        self.assertEqual(nra, nspec)
+        self.assertEqual(ndec, nspec)
+
     def test_random(self):
         for nspec in (15, 30):
             fibermap1, truth1 = desisim.targets.get_targets_parallel(nspec, 'DARK', seed=nspec+1)
