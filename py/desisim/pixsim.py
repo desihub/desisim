@@ -167,6 +167,7 @@ def main(args=None):
 
     for i in range(mpicomm.rank, ncameras, mpicomm.size):
         camera = args.cameras[i]
+        log.debug('Rank {} processing camera {}'.format(mpicomm.rank, camera))
         channel = camera[0].lower()
         assert channel in ('b', 'r', 'z'), "Unknown camera {} doesn't start with b,r,z".format(camera)
         
@@ -205,6 +206,7 @@ def main(args=None):
         log.info('Preprocessing raw -> pix files')
         from desispec.scripts import preproc
         preproc_opts = ['--infile', args.rawfile, '--outdir', args.preproc_dir]
+        preproc_opts += ['--cameras', ','.join(args.cameras)]
         preproc.main(preproc.parse(preproc_opts))
 
     if mpicomm.rank == 0:
