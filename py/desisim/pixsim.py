@@ -123,7 +123,8 @@ def parse(options=None):
     # parser.add_argument("--trimxy", action="store_true", help="Trim image to fit spectra")
     parser.add_argument("--seed", type=int, help="random number seed")
     parser.add_argument("--nspec", type=int, help="Number of spectra to simulate per camera %(default)s", default=500)
-    parser.add_argument("--ncpu",  type=int, help="Number of cpu cores to use %(default)s", default=mp.cpu_count() // 2)
+    parser.add_argument("--mpi", action="store_true", help="Use MPI parallelism")
+    parser.add_argument("--ncpu",  type=int, help="Number of cpu cores per thread to use %(default)s", default=mp.cpu_count() // 2)
     parser.add_argument("--wavemin",  type=float, help="Minimum wavelength to simulate")
     parser.add_argument("--wavemax",  type=float, help="Maximum wavelength to simulate")
 
@@ -137,9 +138,23 @@ def parse(options=None):
     return args
 
 def main(args=None):
-    log.info('Starting pixsim {}'.format(asctime()))
+    log.info('Starting pixsim at {}'.format(asctime()))
     if isinstance(args, (list, tuple, type(None))):
         args = parse(args)
+
+    if args.mpi:
+        from mpi4py import MPI
+        mpicomm = MPI.COMM_WORLD
+    else:
+        from desisim.util import _FakeMPIComm
+        mpicomm = _FakeMPIComm()
+
+    log.info('Starting pixsim rank {} at {}'.format(mpicomm.rank, asctime()))
+
+    ncameras = len(args.cameras)
+    if ncameras % mpicomm.size != 0:
+        log.fatal('Number of cameras {} must be evenly divisible by MPI size {}'.format(ncameras, mpicomm.size))
+        mpicomm.Abort()
 
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -150,7 +165,8 @@ def main(args=None):
 
     simspec = io.read_simspec(args.simspec)
 
-    for camera in args.cameras:
+    for i in range(mpicomm.rank, ncameras, mpicomm.size):
+        camera = args.cameras[i]
         channel = camera[0].lower()
         assert channel in ('b', 'r', 'z'), "Unknown camera {} doesn't start with b,r,z".format(camera)
         
@@ -169,20 +185,30 @@ def main(args=None):
             nspec=args.nspec, ncpu=args.ncpu, cosmics=cosmics,
             wavemin=args.wavemin, wavemax=args.wavemax)
 
-        #- Write outputs
-        desispec.io.write_raw(args.rawfile, rawpix, camera=camera,
-            header=image.meta, primary_header=simspec.header)
-        log.info('Wrote {} image to {}'.format(camera, args.rawfile))
-        io.write_simpix(args.simpixfile, truepix, camera=camera, meta=simspec.header)
-        log.info('Wrote {} image to {}'.format(camera, args.simpixfile))
+        #- Synchronize with other MPI threads before continuing with output
+        mpicomm.Barrier()
 
-    if args.preproc:
+        #- Loop over MPI ranks, letting each one take its turn writing output
+        for rank in range(mpicomm.size):
+            if rank == mpicomm.rank:
+                desispec.io.write_raw(args.rawfile, rawpix, camera=camera,
+                    header=image.meta, primary_header=simspec.header)
+                log.info('Wrote {} image to {}'.format(camera, args.rawfile))
+                io.write_simpix(args.simpixfile, truepix, camera=camera,
+                    meta=simspec.header)
+                log.info('Wrote {} image to {}'.format(camera, args.simpixfile))
+                mpicomm.Barrier()
+            else:
+                mpicomm.Barrier()
+
+    if args.preproc and mpicomm.rank == 0:
         log.info('Preprocessing raw -> pix files')
         from desispec.scripts import preproc
         preproc_opts = ['--infile', args.rawfile, '--outdir', args.preproc_dir]
         preproc.main(preproc.parse(preproc_opts))
 
-    log.info('Finished pixsim {}'.format(asctime()))
+    if mpicomm.rank == 0:
+        log.info('Finished pixsim {}'.format(asctime()))
 
 def simulate_frame(night, expid, camera, **kwargs):
     """

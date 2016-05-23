@@ -69,9 +69,6 @@ class TestIO(unittest.TestCase):
             io.findfile('pix', night, expid)  #- missing camera
 
         with self.assertRaises(ValueError):
-            io.findfile('simpix', night, expid)  #- missing camera
-
-        with self.assertRaises(ValueError):
             io.findfile('blat', night, expid, camera)  #- bad filetype
 
     def test_write_simpix(self):
