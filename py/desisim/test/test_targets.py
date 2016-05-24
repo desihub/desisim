@@ -40,7 +40,7 @@ class TestObs(unittest.TestCase):
 
     def test_parallel_radec(self):
         '''Ensure that parallel generated ra,dec are unique'''
-        nspec = 600
+        nspec = 60
         fibermap, truth = desisim.targets.get_targets_parallel(nspec, 'SKY')
         nra = len(set(fibermap['RA_TARGET']))
         ndec = len(set(fibermap['DEC_TARGET']))
