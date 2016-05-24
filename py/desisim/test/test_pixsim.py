@@ -179,10 +179,13 @@ class TestPixsim(unittest.TestCase):
         night = '20151223'
         expid = 1
         opts = ['--psf', 'blat.fits', '--night', night, '--expid', expid]
+        opts += ['--spectrographs', '0,3']
         args = pixsim.parse(opts)
         self.assertEqual(args.psf, 'blat.fits')
         self.assertEqual(args.night, night)
         self.assertEqual(args.expid, expid)
+        self.assertEqual(args.spectrographs, [0,3])
+        self.assertEqual(args.cameras, ['b0', 'b3', 'r0', 'r3', 'z0', 'z3'])
         
         with self.assertRaises(ValueError):
             pixsim.parse([])
@@ -190,12 +193,10 @@ class TestPixsim(unittest.TestCase):
     def test_expand_args(self):
         night = '20151223'
         expid = 1
-        opts = ['--psf', 'blat.fits', '--night', night, '--expid', expid]
+
+        opts = ['--night', night, '--expid', expid, '--spectrographs', '0']
         args = pixsim.parse(opts)
         self.assertEqual(args.rawfile, desispec.io.findfile('raw', night, expid))
-
-        opts = ['--night', night, '--expid', expid]
-        args = pixsim.parse(opts)
         self.assertEqual(args.cameras, ['b0','r0','z0'])
 
         opts = ['--night', night, '--expid', expid, '--spectrographs', '0,1',

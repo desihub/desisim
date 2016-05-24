@@ -61,17 +61,20 @@ def expand_args(args):
             raise ValueError(msg)
         args.simspec = io.findfile('simspec', args.night, args.expid)
 
-    if (args.night is None) or (args.expid is None) or (args.spectrographs is None):
+    if (args.cameras is None) and (args.spectrographs is None):
         from astropy.io import fits
-        with fits.open(args.simspec) as fx:
-            if args.night is None:
-                args.night = str(fx[0].header['NIGHT'])
-            if args.expid is None:
-                args.expid = int(fx[0].header['EXPID'])
-            if args.spectrographs is None:
-                nspec = fx['PHOT_B'].header['NAXIS2']
-                nspectrographs = (nspec-1) // 500 + 1
-                args.spectrographs = range(nspectrographs)
+        hdr = fits.getheader(args.simspec, 'PHOT_B')
+        nspec = hdr['NAXIS2']
+        nspectrographs = (nspec-1) // 500 + 1
+        args.spectrographs = range(nspectrographs)
+
+    if (args.night is None) or (args.expid is None):
+        from astropy.io import fits
+        hdr = fits.getheader(args.simspec)
+        if args.night is None:
+            args.night = str(hdr['NIGHT'])
+        if args.expid is None:
+            args.expid = int(hdr['EXPID'])
 
     if isinstance(args.spectrographs, str):
         args.spectrographs = [int(x) for x in args.spectrographs.split(',')]
