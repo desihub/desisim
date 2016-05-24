@@ -1,0 +1,15 @@
+#!/usr/bin/env python
+#
+# See top-level LICENSE.rst file for Copyright information
+#
+# -*- coding: utf-8 -*-
+
+"""Generate a set of canonical bright-time simulations.
+
+"""
+
+from desisim.scripts import brightsims
+
+if __name__ == '__main__':
+    args = brightsims.parse()
+    brightsims.main(args)
