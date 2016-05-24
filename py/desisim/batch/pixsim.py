@@ -96,7 +96,7 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
     '''
     nexp = len(flavors)
     nspectrographs = (nspec-1) // 500 + 1
-    ntasks = nexp * nspectrographs * 3
+    ntasks = nexp * 3
     timestr = '00:30:00'
     logfile = '{}.%j.log'.format(batchfile)
     
@@ -127,16 +127,17 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
         cosmics_dir = os.getenv('DESI_ROOT') + '/spectro/templates/cosmics/v0.2/'
 
     if nodes is None:
-        nodes = calc_nodes(ntasks, tasktime=5, maxtime=20)
+        # nodes = calc_nodes(ntasks, tasktime=5, maxtime=20)
+        nodes = nexp * nspectrographs
         
-    cmd = "srun -n 1 -N 1 -c $nproc /usr/bin/time pixsim-desi --verbose --night {night} --expid {expid} --cameras {camera} --cosmics {cosmics}"    
+    cmd = "srun -n {nspectrographs} -N {nspectrographs} -c $nproc /usr/bin/time pixsim-desi --mpi --verbose --night {night} --expid {expid} --arms {channel} --cosmics {cosmics}"
     with open(batchfile, 'w') as fx:
         fx.write("#!/bin/bash -l\n\n")
         fx.write("#SBATCH --partition=debug\n")
         fx.write("#SBATCH --account=desi\n")
         fx.write("#SBATCH --nodes={}\n".format(nodes))
         fx.write("#SBATCH --time={}\n".format(timestr))
-        fx.write("#SBATCH --job-name=newexp\n")
+        fx.write("#SBATCH --job-name=pixsim\n")
         fx.write("#SBATCH --output={}\n".format(logfile))
 
         fx.write("if [ ${NERSC_HOST} = edison ]; then\n")
@@ -148,23 +149,21 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
         fx.write('export DESI_SPECTRO_SIM={}\n'.format(desi_spectro_sim))
         fx.write('export PIXPROD={}\n'.format(pixprod))
 
-        for expid, flavor in zip(expids, flavors):
-            fx.write('\n#--- Exposure {} ({})\n'.format(expid, flavor))
-            for spectrograph in range(nspectrographs):
-                for channel in ['b', 'r', 'z']:
-                    if flavor in ('arc', 'flat'):
-                        cosmics = cosmics_dir + '/cosmics-bias-{}.fits'.format(channel)
-                    else:
-                        cosmics = cosmics_dir + '/cosmics-dark-{}.fits'.format(channel)
-                        
-                    camera = '{}{}'.format(channel, spectrograph)
+        for channel in ['b', 'r', 'z']:
+            for expid, flavor in zip(expids, flavors):
+                if flavor in ('arc', 'flat'):
+                    cosmics = cosmics_dir + '/cosmics-bias-{}.fits'.format(channel)
+                else:
+                    cosmics = cosmics_dir + '/cosmics-dark-{}.fits'.format(channel)
+
+                fx.write('\n#--- Exposure {} ({}) channel {}\n'.format(expid, flavor, channel))
                     
-                    cx = cmd.format(night=night, expid=expid, cosmics=cosmics,
-                        camera=camera,
-                    )
-                    fx.write(cx + ' &\n')
+                cx = cmd.format(night=night, expid=expid, cosmics=cosmics,
+                    channel=channel, nspectrographs=nspectrographs,
+                )
+                fx.write(cx + ' &\n')
             
-        fx.write('\nwait\n')
+            fx.write('\nwait\n')
 
 
             

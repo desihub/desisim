@@ -54,16 +54,6 @@ def expand_args(args):
     if outpixfile or outsimpixfile:
         assert len(cameras) == 1
     '''
-    #- expand camera list
-    if args.cameras is None:
-        args.cameras = list()
-        args.spectrographs = [int(x) for x in args.spectrographs.split(',')]
-        for arm in args.arms.split(','):
-            for ispec in args.spectrographs:
-                args.cameras.append(arm+str(ispec))
-    else:
-        args.cameras = args.cameras.split(',')
-
     if args.simspec is None:
         if args.night is None or args.expid is None:
             msg = 'Must set --simspec or both --night and --expid'
@@ -71,13 +61,30 @@ def expand_args(args):
             raise ValueError(msg)
         args.simspec = io.findfile('simspec', args.night, args.expid)
 
-    if (args.night is None) or (args.expid is None):
+    if (args.night is None) or (args.expid is None) or (args.spectrographs is None):
         from astropy.io import fits
-        hdr = fits.getheader(args.simspec)
-        if args.night is None:
-            args.night = str(hdr['NIGHT'])
-        if args.expid is None:
-            args.expid = int(hdr['EXPID'])
+        with fits.open(args.simspec) as fx:
+            if args.night is None:
+                args.night = str(fx[0].header['NIGHT'])
+            if args.expid is None:
+                args.expid = int(fx[0].header['EXPID'])
+            if args.spectrographs is None:
+                nspec = fx['PHOT_B'].header['NAXIS2']
+                nspectrographs = (nspec-1) // 500 + 1
+                args.spectrographs = range(nspectrographs)
+
+    if isinstance(args.spectrographs, str):
+        args.spectrographs = [int(x) for x in args.spectrographs.split(',')]
+                
+    #- expand camera list
+    if args.cameras is None:
+        args.cameras = list()
+        for arm in args.arms.split(','):
+            for ispec in args.spectrographs:
+                args.cameras.append(arm+str(ispec))
+    else:
+        args.cameras = args.cameras.split(',')
+
 
     #- write to same directory as simspec
     if args.rawfile is None:
@@ -117,10 +124,11 @@ def parse(options=None):
     parser.add_argument("--expid", type=int, help="exposure id")
     parser.add_argument("--cameras", type=str, help="cameras, e.g. b0,r5,z9")
 
-    parser.add_argument("--spectrographs", type=str, help="spectrograph numbers, e.g. 0,1,9", default='0')
+    parser.add_argument("--spectrographs", type=str, help="spectrograph numbers, e.g. 0,1,9")
     parser.add_argument("--arms", type=str, help="spectrograph arms, e.g. b,r,z", default='b,r,z')
 
     # parser.add_argument("--trimxy", action="store_true", help="Trim image to fit spectra")
+    parser.add_argument("--verbose", action="store_true", help="Include debug log info")
     parser.add_argument("--seed", type=int, help="random number seed")
     parser.add_argument("--nspec", type=int, help="Number of spectra to simulate per camera %(default)s", default=500)
     parser.add_argument("--mpi", action="store_true", help="Use MPI parallelism")
@@ -142,17 +150,26 @@ def main(args=None):
     if isinstance(args, (list, tuple, type(None))):
         args = parse(args)
 
+    if args.verbose:
+        import logging
+        log.setLevel(logging.DEBUG)
+
     if args.mpi:
         from mpi4py import MPI
         mpicomm = MPI.COMM_WORLD
+        log.debug('Using mpi4py MPI communicator')
     else:
         from desisim.util import _FakeMPIComm
+        log.debug('Using fake MPI communicator')
         mpicomm = _FakeMPIComm()
 
     log.info('Starting pixsim rank {} at {}'.format(mpicomm.rank, asctime()))
+    log.debug('MPI rank {} size {} / {} {}'.format(
+        mpicomm.rank, mpicomm.size, mpicomm.Get_rank(), mpicomm.Get_size()))
 
     ncameras = len(args.cameras)
     if ncameras % mpicomm.size != 0:
+        log.fatal('Processing cameras {}'.format(args.cameras))
         log.fatal('Number of cameras {} must be evenly divisible by MPI size {}'.format(ncameras, mpicomm.size))
         mpicomm.Abort()
 
