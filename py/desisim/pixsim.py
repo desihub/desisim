@@ -314,7 +314,7 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
     params = desimodel.io.load_desiparams()
     
     #- this is not necessarily true, the truth in is the fibermap
-    # nfibers = params['spectro']['nfibers']
+    nfibers = params['spectro']['nfibers']
 
     #---------------------------------------------------------------------
     #- This section had a merge conflict; I think it comes from supporting
