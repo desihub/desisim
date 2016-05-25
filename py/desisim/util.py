@@ -63,8 +63,11 @@ def spline_medfilt2d(image, kernel_size=201):
         for j,y in enumerate(yy):
             xy = np.s_[y-n:y+n+1, x-n:x+n+1]
             zz[j,i] = np.median(image[xy])
-            
-    s = RectBivariateSpline(xx, yy, zz)
+    
+    #- adjust spline order for small test data
+    kx = min(3, len(xx)-1)
+    ky = min(3, len(yy)-1)
+    s = RectBivariateSpline(xx, yy, zz, kx=kx, ky=ky)
     background = s(np.arange(image.shape[0]), np.arange(image.shape[1]))
 
     return background            

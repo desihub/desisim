@@ -134,6 +134,7 @@ class TestPixsim(unittest.TestCase):
         rawfile = desispec.io.findfile('raw', night, expid)
         self.assertTrue(os.path.exists(rawfile))
         fx = fits.open(rawfile)
+
         self.assertTrue('B0' in fx)
         self.assertTrue('R0' in fx)
         self.assertTrue('Z0' in fx)

@@ -362,10 +362,12 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
     #- De-trend each amplifier
     nx = pix.shape[1] // 2
     ny = pix.shape[0] // 2
-    pix[0:ny, 0:nx] -= spline_medfilt2d(pix[0:ny, 0:nx])
-    pix[0:ny, nx:2*nx] -= spline_medfilt2d(pix[0:ny, nx:2*nx])
-    pix[ny:2*ny, 0:nx] -= spline_medfilt2d(pix[ny:2*ny, 0:nx])
-    pix[ny:2*ny, nx:2*nx] -= spline_medfilt2d(pix[ny:2*ny, nx:2*nx])
+    kernel_size = min(201, ny//3, nx//3)
+    
+    pix[0:ny, 0:nx] -= spline_medfilt2d(pix[0:ny, 0:nx], kernel_size)
+    pix[0:ny, nx:2*nx] -= spline_medfilt2d(pix[0:ny, nx:2*nx], kernel_size)
+    pix[ny:2*ny, 0:nx] -= spline_medfilt2d(pix[ny:2*ny, 0:nx], kernel_size)
+    pix[ny:2*ny, nx:2*nx] -= spline_medfilt2d(pix[ny:2*ny, nx:2*nx], kernel_size)
 
     if shape is not None:
         if len(shape) != 2: raise ValueError('Invalid shape {}'.format(shape))
@@ -410,7 +412,7 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
     ny = pix.shape[0] // 2
     iixy = np.s_[0:ny, 0:nx]
     cx = pix[iixy][mask[iixy] == 0]
-    mean, median, std = sigma_clipped_stats(cx, sigma=3, iters=5)        
+    mean, median, std = sigma_clipped_stats(cx, sigma=3, iters=5)       
     meta['RDNOISE1'] = std
 
     #- Amp 2 lower right
