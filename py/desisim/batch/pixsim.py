@@ -22,6 +22,9 @@ Submitted batch job 233901
 
 from __future__ import absolute_import, division, print_function
 import os
+
+import desispec.io
+
 from desisim import obs
 from desisim.batch import calc_nodes
 
@@ -81,11 +84,13 @@ def batch_newexp(batchfile, flavors, nspec=5000, night=None, expids=None,
         fx.write('export DESI_SPECTRO_SIM={}\n'.format(desi_spectro_sim))
         fx.write('export PIXPROD={}\n'.format(pixprod))
         fx.write('\n')
+        fx.write('echo Starting at `date`\n\n')
         
         for expid, flavor in zip(expids, flavors):
             fx.write(cmd.format(nspec=nspec, night=night, expid=expid, flavor=flavor)+' &\n')
             
         fx.write('\nwait\n')
+        fx.write('\necho Done at `date`\n')
 
     return expids
 
@@ -120,7 +125,8 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
         else:
             raise ValueError('must provide desi_spectro_sim or set $DESI_SPECTRO_SIM')
 
-    log.info('output dir {}/{}/{}'.format(desi_spectro_sim, pixprod, night))
+    outdir = os.path.normpath(os.path.join(desi_spectro_sim, pixprod, night))
+    log.info('output dir {}'.format(outdir))
 
     #- HARDCODE !!!
     if cosmics_dir is None:
@@ -149,6 +155,8 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
         fx.write('export DESI_SPECTRO_SIM={}\n'.format(desi_spectro_sim))
         fx.write('export PIXPROD={}\n'.format(pixprod))
 
+        fx.write('\necho Starting at `date`\n')
+
         for channel in ['b', 'r', 'z']:
             for expid, flavor in zip(expids, flavors):
                 if flavor in ('arc', 'flat'):
@@ -165,5 +173,14 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
             
             fx.write('\nwait\n')
 
+        fx.write('\n#--- Preprocessing raw -> pix\n\n')
+        for expid in expids:
+            rawfile = desispec.io.findfile('raw', night=night, expid=expid)
+            cmd = 'srun -n 1 -N 1 -c $nproc desi_preproc --infile {}'.format(rawfile)
+            fx.write(cmd + ' &\n')
+        
+        fx.write('\nwait\n')
+        fx.write('echo Done at `date`\n')
+            
 
             
