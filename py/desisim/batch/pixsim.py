@@ -136,7 +136,7 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
         # nodes = calc_nodes(ntasks, tasktime=5, maxtime=20)
         nodes = nexp * nspectrographs
         
-    cmd = "srun -n {nspectrographs} -N {nspectrographs} -c $nproc /usr/bin/time pixsim-desi --mpi --verbose --night {night} --expid {expid} --arms {channel} --cosmics {cosmics}"
+    cmd = "srun -n {nspectrographs} -N {nspectrographs} -c $nproc /usr/bin/time pixsim-desi --mpi --verbose --preproc --night {night} --expid {expid} --arms {channel} --cosmics {cosmics}"
     with open(batchfile, 'w') as fx:
         fx.write("#!/bin/bash -l\n\n")
         fx.write("#SBATCH --partition=debug\n")
@@ -157,12 +157,16 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
 
         fx.write('\necho Starting at `date`\n')
 
-        for channel in ['b', 'r', 'z']:
+        #- r & z have the same CCDs and thus can use the same cosmics file;
+        #- process them together to avoid another python startup overhead.
+        #- b channel has to be treated separately with different cosmics.
+        
+        for channel in ['b', 'r,z']:
             for expid, flavor in zip(expids, flavors):
                 if flavor in ('arc', 'flat'):
-                    cosmics = cosmics_dir + '/cosmics-bias-{}.fits'.format(channel)
+                    cosmics = cosmics_dir + '/cosmics-bias-{}.fits'.format(channel[0])
                 else:
-                    cosmics = cosmics_dir + '/cosmics-dark-{}.fits'.format(channel)
+                    cosmics = cosmics_dir + '/cosmics-dark-{}.fits'.format(channel[0])
 
                 fx.write('\n#--- Exposure {} ({}) channel {}\n'.format(expid, flavor, channel))
                     
@@ -173,14 +177,4 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
             
             fx.write('\nwait\n')
 
-        fx.write('\n#--- Preprocessing raw -> pix\n\n')
-        for expid in expids:
-            rawfile = desispec.io.findfile('raw', night=night, expid=expid)
-            cmd = 'srun -n 1 -N 1 -c $nproc desi_preproc --infile {}'.format(rawfile)
-            fx.write(cmd + ' &\n')
-        
-        fx.write('\nwait\n')
         fx.write('echo Done at `date`\n')
-            
-
-            
