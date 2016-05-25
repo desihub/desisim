@@ -382,8 +382,8 @@ class ELG():
     def make_templates(self, nmodel=100, zrange=(0.6,1.6), rmagrange=(21.0,23.4),
                        oiiihbrange=(-0.5,0.2), oiidoublet_meansig=(0.73,0.05),
                        logvdisp_meansig=(1.9,0.15), minoiiflux=1E-17,
-                       sne_rfluxratiorange=(0.1,1.0), redshift_in=None, seed=None,
-                       nocolorcuts=False, nocontinuum=False):
+                       sne_rfluxratiorange=(0.1,1.0), redshift_in=None,
+                       maxiter=100, seed=None, nocolorcuts=False, nocontinuum=False):
         """Build Monte Carlo set of ELG spectra/templates.
 
         This function chooses random subsets of the ELG continuum spectra, constructs
@@ -414,7 +414,9 @@ class ELG():
             spectrum with respect to the underlying galaxy.
 
           redshift_in (float, optional): Input/output template redshifts.  Array
-            size must equal NMODEL.  Overwrites ZRANGE input.        
+            size must equal NMODEL.  Overwrites ZRANGE input.
+          maxiter (int, optional): Maximum number of iterations in the while
+            loop [default 100].
           seed (long, optional): Input seed for the random numbers.
           nocolorcuts (bool, optional): Do not apply the fiducial grz color-cuts
             cuts (default False).
@@ -442,7 +444,6 @@ class ELG():
         if redshift_in is not None:
             if len(redshift_in) != nmodel:
                 log.fatal('REDSHIFT_IN must be an NMODEL-length array')
-            redshift1 = redshift_in # initialize
 
         rand = np.random.RandomState(seed)
 
@@ -488,6 +489,11 @@ class ELG():
         meta['VDISP'].unit = 'km/s'
         if self.add_SNeIa:
             meta['SNE_EPOCH'].unit = 'days'
+
+        ## Pre-select the set of templates that can pass the color-cuts.
+        #if redshift_in is None:
+        #    redshift = rand.uniform(zrange[0], zrange[1], nmodel)
+        #import pdb ; pdb.set_trace()
 
         # Build the spectra.
         nobj = 0
@@ -578,7 +584,12 @@ class ELG():
                 if nocontinuum:
                     flux = emflux
                 else:
+                    # Add the emission-line spectrum and renormalize.
                     flux += emflux
+                    rnorm = self.rfilt.get_ab_maggies(flux, zwave)
+                    norm = 10.0**(-0.4*rmag[ii])/rnorm['decam2014-r'][0]
+                    flux *= norm
+                    zoiiflux *= norm # [erg/s/cm2]
 
                 # Convert [grzW1W2]flux to nanomaggies.
                 synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
@@ -1830,7 +1841,12 @@ class BGS():
                 if nocontinuum:
                     flux = emflux
                 else:
+                    # Add the emission-line spectrum and renormalize.
                     flux += emflux
+                    rnorm = self.rfilt.get_ab_maggies(flux, zwave)
+                    norm = 10.0**(-0.4*rmag[ii])/rnorm['decam2014-r'][0]
+                    flux *= norm
+                    zoiiflux *= norm # [erg/s/cm2]
 
                 # Convert [grzW1W2]flux to nanomaggies.
                 synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
