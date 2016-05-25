@@ -437,6 +437,7 @@ class ELG():
         from desispec.interpolation import resample_flux
         from desisim import pixelsplines as pxs
         from desitarget.cuts import isELG
+        from speclite import redshift as doredshift
 
         if nocontinuum:
             nocolorcuts = True
@@ -492,8 +493,22 @@ class ELG():
 
         ## Pre-select the set of templates that can pass the color-cuts.
         #if redshift_in is None:
-        #    redshift = rand.uniform(zrange[0], zrange[1], nmodel)
+        #    redshift_in = rand.uniform(zrange[0], zrange[1], nmodel)
+        #
+        #print(self.basewave.shape)
+        #print(self.baseflux.shape)
+        #print(len(redshift_in))
+        #zbase = doredshift(z_in=0.0, z_out=np.tile(redshift_in, len(self.basemeta)).reshape(len(self.basemeta), nmodel),
+        #                   rules=[dict(name='wave', exponent=+1, array_in=self.basewave),
+        #                          dict(name='flux', exponent=-1, array_in=self.baseflux)])
         #import pdb ; pdb.set_trace()
+        # 
+        #for ii in range(nmodel):
+        #    rules = [dict(name='wave', exponent=+1, array_in=self.basewave),
+        #             dict(name='flux', exponent=-1, array_in=self.baseflux[ii,:])]
+        #    zbase = doredshift(z_in=0.0, z_out=redshift_in[ii], rules=rules)
+        #    #synthmaggies = self.decamwise.get_ab_maggies(zbase['flux'], zbase['wave']) , mask_invalid=True)
+        #    import pdb ; pdb.set_trace()
 
         # Build the spectra.
         nobj = 0
