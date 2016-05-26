@@ -78,7 +78,8 @@ matrix:
 
         # Try all python versions with the latest numpy
         - os: linux
-            env: PYTHON_VERSION=2.7 SETUP_CMD='test --coverage'
+          ### env: PYTHON_VERSION=2.7 SETUP_CMD='test --coverage'
+          env: PYTHON_VERSION=2.7 SETUP_CMD='test'
 
         # - os: osx
         #   env: PYTHON_VERSION=2.7 SETUP_CMD='test'
