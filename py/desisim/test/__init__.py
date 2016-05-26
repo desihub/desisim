@@ -6,9 +6,16 @@ def test_suite():
     """Returns unittest.TestSuite of desisim tests for use by setup.py"""
 
     #- DEBUG Travis test failures
-    return unittest.defaultTestLoader.loadTestsFromNames(
-        ['desisim.test.test_io', 'desisim.test.test_obs']
-    )
+    return unittest.defaultTestLoader.loadTestsFromNames([
+        'desisim.test.test_batch',
+        'desisim.test.test_io',     #- OK
+        'desisim.test.test_obs',    #- OK
+        # 'desisim.test.test_pixsim',
+        # 'desisim.test.test_quickcat',
+        # 'desisim.test.test_targets',
+        'desisim.test.test_templates',
+        'desisim.test.test_toplevel',
+        ])
     #- DEBUG Travis test failures
 
     # from os.path import dirname
