@@ -40,7 +40,7 @@ class TestPixsim(unittest.TestCase):
             cls.cosmics = (os.environ['DESI_ROOT'] +
                 '/spectro/templates/cosmics/v0.2/cosmics-bias-r.fits')
         else:
-            cls.cosmics = None
+            cls.cosmics = None        
 
     #- Cleanup test files if they exist
     @classmethod
@@ -58,23 +58,33 @@ class TestPixsim(unittest.TestCase):
         if os.path.exists(cls.testDir):
             rmtree(cls.testDir)
 
+    def setUp(self):
+        self.night = '20150105'
+        self.expid = 124
+
+    def tearDown(self):
+        rawfile = desispec.io.findfile('raw', self.night, self.expid)
+        if os.path.exists(rawfile):
+            os.remove(rawfile)
+        fibermap = desispec.io.findfile('fibermap', self.night, self.expid)
+        if os.path.exists(fibermap):
+            os.remove(fibermap)
+        simspecfile = io.findfile('simspec', self.night, self.expid)
+        if os.path.exists(simspecfile):
+            os.remove(simspecfile)
+        for camera in ('b0', 'r0', 'z0'):
+            pixfile = desispec.io.findfile('pix', self.night, self.expid, camera=camera)
+            if os.path.exists(pixfile):
+                os.remove(pixfile)
+            simpixfile = io.findfile('simpix', self.night, self.expid, camera=camera)
+            if os.path.exists(simpixfile):
+                os.remove(simpixfile)
+        
+
     @unittest.skipUnless(desi_root_available, '$DESI_ROOT not set')
     def test_pixsim(self):
-        night = '20150105'
-        expid = 123
-        camera = 'r0'
-        obs.new_exposure('arc', night=night, expid=expid, nspec=3)
-        pixsim.simulate_frame(night, expid, camera, nspec=3)
-
-        self.assertTrue(os.path.exists(io.findfile('simspec', night, expid)))
-        simspec = io.read_simspec(io.findfile('simspec', night, expid))
-        self.assertTrue(os.path.exists(io.findfile('simpix', night, expid, camera)))
-        self.assertTrue(os.path.exists(io.findfile('pix', night, expid, camera)))
-
-    @unittest.skipUnless(desi_root_available, '$DESI_ROOT not set')
-    def test_pixsim_waveminmax(self):
-        night = '20150105'
-        expid = 123
+        night = self.night
+        expid = self.expid
         camera = 'r0'
         obs.new_exposure('arc', night=night, expid=expid, nspec=3)
         pixsim.simulate_frame(night, expid, camera, nspec=3,
@@ -87,8 +97,8 @@ class TestPixsim(unittest.TestCase):
 
     @unittest.skipUnless(desi_templates_available, 'The DESI templates directory ($DESI_ROOT/spectro/templates) was not detected.')
     def test_pixsim_cosmics(self):
-        night = '20150105'
-        expid = 124
+        night = self.night
+        expid = self.expid
         camera = 'r0'
         obs.new_exposure('arc', night=night, expid=expid, nspec=3)
         pixsim.simulate_frame(night, expid, camera, nspec=3, cosmics=self.cosmics)
@@ -100,8 +110,8 @@ class TestPixsim(unittest.TestCase):
 
     def test_simulate(self):
         import desispec.image
-        night = '20150105'
-        expid = 124
+        night = self.night
+        expid = self.expid
         camera = 'r0'
         nspec = 3
         obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
@@ -118,8 +128,8 @@ class TestPixsim(unittest.TestCase):
         self.assertLess(image.pix.shape[1], rawpix.shape[1])  #- raw has overscan
 
     def test_main(self):
-        night = '20150105'
-        expid = 124
+        night = self.night
+        expid = self.expid
         camera = 'r0'
         nspec = 3
         obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
@@ -139,6 +149,10 @@ class TestPixsim(unittest.TestCase):
         self.assertTrue('R0' in fx)
         self.assertTrue('Z0' in fx)
         fx.close()
+
+        #- cleanup as we go
+        os.remove(simpixfile)
+        os.remove(rawfile)
 
         #- Re-run; derive night from simspec input while overriding expid
         simspecfile = io.findfile('simspec', night, expid)
@@ -160,6 +174,10 @@ class TestPixsim(unittest.TestCase):
         self.assertTrue('R0' in fx)
         self.assertTrue('Z0' not in fx)
         fx.close()
+
+        #- cleanup as we go
+        os.remove(simpixfile)
+        os.remove(altrawfile)
         
     def test_project(self):
         psf = desimodel.io.load_psf('z')
@@ -177,8 +195,8 @@ class TestPixsim(unittest.TestCase):
             del os.environ['UNITTEST_SILENT']
 
     def test_parse(self):
-        night = '20151223'
-        expid = 1
+        night = self.night
+        expid = self.expid
         opts = ['--psf', 'blat.fits', '--night', night, '--expid', expid]
         opts += ['--spectrographs', '0,3']
         args = pixsim.parse(opts)
@@ -192,8 +210,8 @@ class TestPixsim(unittest.TestCase):
             pixsim.parse([])
 
     def test_expand_args(self):
-        night = '20151223'
-        expid = 1
+        night = self.night
+        expid = self.expid
 
         opts = ['--night', night, '--expid', expid, '--spectrographs', '0']
         args = pixsim.parse(opts)
