@@ -82,7 +82,7 @@ class TestPixsim(unittest.TestCase):
         
 
     @unittest.skipUnless(desi_root_available, '$DESI_ROOT not set')
-    def test_pixsim(self):
+    def __test_pixsim(self):
         night = self.night
         expid = self.expid
         camera = 'r0'
@@ -96,7 +96,7 @@ class TestPixsim(unittest.TestCase):
         self.assertTrue(os.path.exists(io.findfile('pix', night, expid, camera)))
 
     @unittest.skipUnless(desi_templates_available, 'The DESI templates directory ($DESI_ROOT/spectro/templates) was not detected.')
-    def test_pixsim_cosmics(self):
+    def __test_pixsim_cosmics(self):
         night = self.night
         expid = self.expid
         camera = 'r0'
@@ -108,7 +108,7 @@ class TestPixsim(unittest.TestCase):
         self.assertTrue(os.path.exists(io.findfile('simpix', night, expid, camera)))
         self.assertTrue(os.path.exists(io.findfile('pix', night, expid, camera)))
 
-    def test_simulate(self):
+    def __test_simulate(self):
         import desispec.image
         night = self.night
         expid = self.expid
@@ -127,7 +127,7 @@ class TestPixsim(unittest.TestCase):
         self.assertEqual(image.pix.shape[0], rawpix.shape[0])
         self.assertLess(image.pix.shape[1], rawpix.shape[1])  #- raw has overscan
 
-    def __test_main(self):
+    def test_main(self):
         night = self.night
         expid = self.expid
         camera = 'r0'
@@ -179,7 +179,7 @@ class TestPixsim(unittest.TestCase):
         os.remove(simpixfile)
         os.remove(altrawfile)
         
-    def test_project(self):
+    def __test_project(self):
         psf = desimodel.io.load_psf('z')
         wave = np.arange(8000, 8010)
         phot = np.ones((2, len(wave)))
@@ -194,7 +194,7 @@ class TestPixsim(unittest.TestCase):
             xyrange, pix = pixsim._project(args)
             del os.environ['UNITTEST_SILENT']
 
-    def test_parse(self):
+    def __test_parse(self):
         night = self.night
         expid = self.expid
         opts = ['--psf', 'blat.fits', '--night', night, '--expid', expid]
@@ -209,7 +209,7 @@ class TestPixsim(unittest.TestCase):
         with self.assertRaises(ValueError):
             pixsim.parse([])
 
-    def test_expand_args(self):
+    def __test_expand_args(self):
         night = self.night
         expid = self.expid
 
