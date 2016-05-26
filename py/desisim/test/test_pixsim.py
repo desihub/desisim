@@ -127,7 +127,7 @@ class TestPixsim(unittest.TestCase):
         self.assertEqual(image.pix.shape[0], rawpix.shape[0])
         self.assertLess(image.pix.shape[1], rawpix.shape[1])  #- raw has overscan
 
-    def test_main(self):
+    def __test_main(self):
         night = self.night
         expid = self.expid
         camera = 'r0'

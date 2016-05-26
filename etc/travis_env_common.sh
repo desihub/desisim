@@ -87,3 +87,5 @@ then
   $PIP_INSTALL cpp-coveralls;
   $PIP_INSTALL coverage coveralls;
 fi
+
+export DESI_LOGLEVEL=debug
