@@ -95,7 +95,7 @@ def batch_newexp(batchfile, flavors, nspec=5000, night=None, expids=None,
     return expids
 
 def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
-    cosmics_dir=None, nodes=None, pixprod=None, desi_spectro_sim=None):
+    nodes=None, pixprod=None, desi_spectro_sim=None):
     '''
     Write a slurm batch script for run newexp-desi for the list of flavors
     '''
@@ -128,15 +128,11 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
     outdir = os.path.normpath(os.path.join(desi_spectro_sim, pixprod, night))
     log.info('output dir {}'.format(outdir))
 
-    #- HARDCODE !!!
-    if cosmics_dir is None:
-        cosmics_dir = os.getenv('DESI_ROOT') + '/spectro/templates/cosmics/v0.2/'
-
     if nodes is None:
         # nodes = calc_nodes(ntasks, tasktime=5, maxtime=20)
         nodes = nexp * nspectrographs
         
-    cmd = "srun -n {nspectrographs} -N {nspectrographs} -c $nproc /usr/bin/time pixsim-desi --mpi --verbose --preproc --night {night} --expid {expid} --arms {channel} --cosmics {cosmics}"
+    cmd = "srun -n {nspectrographs} -N {nspectrographs} -c $nproc /usr/bin/time pixsim-desi --mpi --verbose --preproc --cosmics --night {night} --expid {expid}"
     with open(batchfile, 'w') as fx:
         fx.write("#!/bin/bash -l\n\n")
         fx.write("#SBATCH --partition=debug\n")
@@ -157,24 +153,12 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
 
         fx.write('\necho Starting at `date`\n')
 
-        #- r & z have the same CCDs and thus can use the same cosmics file;
-        #- process them together to avoid another python startup overhead.
-        #- b channel has to be treated separately with different cosmics.
+        for expid, flavor in zip(expids, flavors):
+            fx.write('\n#--- Exposure {} ({})\n'.format(expid, flavor))
+                
+            cx = cmd.format(night=night, expid=expid, nspectrographs=nspectrographs)
+            fx.write(cx + ' &\n')
         
-        for channel in ['b', 'r,z']:
-            for expid, flavor in zip(expids, flavors):
-                if flavor in ('arc', 'flat'):
-                    cosmics = cosmics_dir + '/cosmics-bias-{}.fits'.format(channel[0])
-                else:
-                    cosmics = cosmics_dir + '/cosmics-dark-{}.fits'.format(channel[0])
-
-                fx.write('\n#--- Exposure {} ({}) channel {}\n'.format(expid, flavor, channel))
-                    
-                cx = cmd.format(night=night, expid=expid, cosmics=cosmics,
-                    channel=channel, nspectrographs=nspectrographs,
-                )
-                fx.write(cx + ' &\n')
-            
-            fx.write('\nwait\n')
+        fx.write('\nwait\n')
 
         fx.write('echo Done at `date`\n')

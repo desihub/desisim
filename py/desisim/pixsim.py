@@ -113,7 +113,9 @@ def parse(options=None):
 
     #- Input files
     parser.add_argument("--psf", type=str, help="PSF filename")
-    parser.add_argument("--cosmics", type=str, help="fits file with dark images with cosmics to add")
+    parser.add_argument("--cosmics", action="store_true", help="Add cosmics")
+    parser.add_argument("--cosmics_dir", type=str, help="Input directory with cosmics templates")
+    parser.add_argument("--cosmics_file", type=str, help="Input file with cosmics templates")
     parser.add_argument("--simspec", type=str, help="input simspec file")
         
     #- Output options
@@ -195,9 +197,16 @@ def main(args=None):
         if args.psf is None:
             psf = desimodel.io.load_psf(channel)
             
-        if args.cosmics is not None:
+        if args.cosmics:
+            if args.cosmics_file is None:
+                cosmics_file = io.find_cosmics(camera, simspec.header['EXPTIME'],
+                                               cosmics_dir=args.cosmics_dir)
+                log.info('cosmics templates {}'.format(cosmics_file))
+            else:
+                cosmics_file = args.cosmics_file
+
             shape = (psf.npix_y, psf.npix_x)
-            cosmics = io.read_cosmics(args.cosmics, args.expid, shape=shape)
+            cosmics = io.read_cosmics(cosmics_file, args.expid, shape=shape)
         else:
             cosmics = None
         

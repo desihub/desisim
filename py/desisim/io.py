@@ -326,6 +326,39 @@ def _resize(image, shape):
     iy = newpix.shape[0] // 2 - shape[0] // 2
     return newpix[iy:iy+shape[0], ix:ix+shape[1]]
 
+def find_cosmics(camera, exptime=1000, cosmics_dir=None):
+    '''
+    Return full path to cosmics template file to use
+    
+    Args:
+        camera (str): e.g. 'b0', 'r1', 'z9'
+    
+    Options:
+        exptime (int): exposure time in seconds
+        cosmics_dir: directory to look for cosmics templates; defaults to
+            $DESI_COSMICS_TEMPLATES if set or otherwise
+            $DESI_ROOT/spectro/templates/cosmics/v0.2  (note HARDCODED version)
+            
+    Exposure times <120 sec will use the bias templates; otherwise they will
+    use the dark cosmics templates
+    '''
+    if cosmics_dir is None:
+        if 'DESI_COSMICS_TEMPLATES' in os.environ:
+            cosmics_dir = os.environ['DESI_COSMICS_TEMPLATES']
+        else:
+            cosmics_dir = os.environ['DESI_ROOT']+'/spectro/templates/cosmics/v0.2/'
+    
+    if exptime < 120:
+        exptype = 'bias'
+    else:
+        exptype = 'dark'
+        
+    channel = camera[0].lower()
+    assert channel in 'brz', 'Unknown camera {}'.format(camera)
+    
+    cosmicsfile = '{}/cosmics-{}-{}.fits'.format(cosmics_dir, exptype, channel)
+    return os.path.normpath(cosmicsfile)
+
 def read_cosmics(filename, expid=1, shape=None, jitter=True):
     """
     Reads a dark image with cosmics from the input filename.
