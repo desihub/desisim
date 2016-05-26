@@ -11,10 +11,10 @@ def test_suite():
         'desisim.test.test_io',     #- OK
         'desisim.test.test_obs',    #- OK
         # 'desisim.test.test_pixsim',
-        # 'desisim.test.test_quickcat',
-        # 'desisim.test.test_targets',
+        'desisim.test.test_quickcat',
+        'desisim.test.test_targets',
         'desisim.test.test_templates',
-        'desisim.test.test_toplevel',
+        'desisim.test.test_top_level',
         ])
     #- DEBUG Travis test failures
 
