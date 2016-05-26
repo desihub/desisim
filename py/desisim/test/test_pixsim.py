@@ -156,7 +156,7 @@ class TestPixsim(unittest.TestCase):
 
         #- Re-run; derive night from simspec input while overriding expid
         simspecfile = io.findfile('simspec', night, expid)
-        altrawfile = rawfile + '.blat'
+        altrawfile = desispec.io.findfile('raw', night, expid) + '.blat'
         opts = [
             '--simspec', simspecfile,
             '--expid', expid+1,
