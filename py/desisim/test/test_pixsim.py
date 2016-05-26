@@ -155,29 +155,29 @@ class TestPixsim(unittest.TestCase):
         os.remove(rawfile)
 
         #- Re-run; derive night from simspec input while overriding expid
-        simspecfile = io.findfile('simspec', night, expid)
-        altrawfile = rawfile + '.blat'
-        opts = [
-            '--simspec', simspecfile,
-            '--expid', expid+1,
-            '--rawfile', altrawfile,
-            '--cameras', 'b0,r0',
-            '--preproc',
-            '--wavemin', 5000, '--wavemax', 7000.0,
-            ]
-        pixsim.main(opts)
-        simpixfile = io.findfile('simpix', night, expid+1)
-        self.assertTrue(os.path.exists(simpixfile))
-        self.assertTrue(os.path.exists(altrawfile))
-        fx = fits.open(altrawfile)
-        self.assertTrue('B0' in fx)
-        self.assertTrue('R0' in fx)
-        self.assertTrue('Z0' not in fx)
-        fx.close()
-
-        #- cleanup as we go
-        os.remove(simpixfile)
-        os.remove(altrawfile)
+        # simspecfile = io.findfile('simspec', night, expid)
+        # altrawfile = rawfile + '.blat'
+        # opts = [
+        #     '--simspec', simspecfile,
+        #     '--expid', expid+1,
+        #     '--rawfile', altrawfile,
+        #     '--cameras', 'b0,r0',
+        #     '--preproc',
+        #     '--wavemin', 5000, '--wavemax', 7000.0,
+        #     ]
+        # pixsim.main(opts)
+        # simpixfile = io.findfile('simpix', night, expid+1)
+        # self.assertTrue(os.path.exists(simpixfile))
+        # self.assertTrue(os.path.exists(altrawfile))
+        # fx = fits.open(altrawfile)
+        # self.assertTrue('B0' in fx)
+        # self.assertTrue('R0' in fx)
+        # self.assertTrue('Z0' not in fx)
+        # fx.close()
+        # 
+        # #- cleanup as we go
+        # os.remove(simpixfile)
+        # os.remove(altrawfile)
         
     def __test_project(self):
         psf = desimodel.io.load_psf('z')
