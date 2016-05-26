@@ -7,14 +7,14 @@ def test_suite():
 
     #- DEBUG Travis test failures
     return unittest.defaultTestLoader.loadTestsFromNames([
-        'desisim.test.test_batch',
-        'desisim.test.test_io',     #- OK
-        'desisim.test.test_obs',    #- OK
-        # 'desisim.test.test_pixsim',
-        'desisim.test.test_quickcat',
-        'desisim.test.test_targets',
-        'desisim.test.test_templates',
-        'desisim.test.test_top_level',
+        # 'desisim.test.test_batch',      #- OK
+        # 'desisim.test.test_io',         #- OK
+        # 'desisim.test.test_obs',        #- OK
+        'desisim.test.test_pixsim',
+        # 'desisim.test.test_quickcat',   #- OK
+        # 'desisim.test.test_targets',    #- OK
+        # 'desisim.test.test_templates',  #- OK
+        # 'desisim.test.test_top_level',  #- OK
         ])
     #- DEBUG Travis test failures
 
