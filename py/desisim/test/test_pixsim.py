@@ -135,24 +135,24 @@ class TestPixsim(unittest.TestCase):
         obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
         
         #- run pixsim
-        # opts = ['--night', night, '--expid', expid, '--nspec', nspec]
-        # pixsim.main(opts)
-        # 
-        # #- verify outputs
-        # simpixfile = io.findfile('simpix', night, expid)
-        # self.assertTrue(os.path.exists(simpixfile))
-        # rawfile = desispec.io.findfile('raw', night, expid)
-        # self.assertTrue(os.path.exists(rawfile))
-        # fx = fits.open(rawfile)
-        # 
-        # self.assertTrue('B0' in fx)
-        # self.assertTrue('R0' in fx)
-        # self.assertTrue('Z0' in fx)
-        # fx.close()
-        # 
-        # #- cleanup as we go
-        # os.remove(simpixfile)
-        # os.remove(rawfile)
+        opts = ['--night', night, '--expid', expid, '--nspec', nspec]
+        pixsim.main(opts)
+        
+        #- verify outputs
+        simpixfile = io.findfile('simpix', night, expid)
+        self.assertTrue(os.path.exists(simpixfile))
+        rawfile = desispec.io.findfile('raw', night, expid)
+        self.assertTrue(os.path.exists(rawfile))
+        fx = fits.open(rawfile)
+        
+        self.assertTrue('B0' in fx)
+        self.assertTrue('R0' in fx)
+        self.assertTrue('Z0' in fx)
+        fx.close()
+        
+        #- cleanup as we go
+        os.remove(simpixfile)
+        os.remove(rawfile)
 
         #- Re-run; derive night from simspec input while overriding expid
         simspecfile = io.findfile('simspec', night, expid)
