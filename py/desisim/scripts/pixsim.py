@@ -154,6 +154,22 @@ def main(args=None):
     log.debug('MPI rank {} size {} / {} {}'.format(
         mpicomm.rank, mpicomm.size, mpicomm.Get_rank(), mpicomm.Get_size()))
 
+    #- Pre-flight check that these cameras haven't been done yet
+    if mpicomm.rank == 0 and os.path.exists(args.rawfile):
+        log.debug('Checking if cameras are already in output file')
+        from astropy.io import fits
+        fx = fits.open(args.rawfile)
+        oops = False
+        for camera in args.cameras:
+            if camera.upper() in fx:
+                log.error('Camera {} already in {}'.format(camera, args.rawfile))
+                oops = True
+        
+        fx.close()
+        if oops:
+            log.fatal('Exiting due to repeat cameras already in output file')
+            mpicomm.Abort()
+
     ncameras = len(args.cameras)
     if ncameras % mpicomm.size != 0:
         log.fatal('Processing cameras {}'.format(args.cameras))
