@@ -82,7 +82,7 @@ class TestPixsim(unittest.TestCase):
         
 
     @unittest.skipUnless(desi_root_available, '$DESI_ROOT not set')
-    def __test_pixsim(self):
+    def test_pixsim(self):
         night = self.night
         expid = self.expid
         camera = 'r0'
@@ -96,7 +96,7 @@ class TestPixsim(unittest.TestCase):
         self.assertTrue(os.path.exists(io.findfile('pix', night, expid, camera)))
 
     @unittest.skipUnless(desi_templates_available, 'The DESI templates directory ($DESI_ROOT/spectro/templates) was not detected.')
-    def __test_pixsim_cosmics(self):
+    def test_pixsim_cosmics(self):
         night = self.night
         expid = self.expid
         camera = 'r0'
@@ -108,7 +108,7 @@ class TestPixsim(unittest.TestCase):
         self.assertTrue(os.path.exists(io.findfile('simpix', night, expid, camera)))
         self.assertTrue(os.path.exists(io.findfile('pix', night, expid, camera)))
 
-    def __test_simulate(self):
+    def test_simulate(self):
         import desispec.image
         night = self.night
         expid = self.expid
@@ -127,32 +127,34 @@ class TestPixsim(unittest.TestCase):
         self.assertEqual(image.pix.shape[0], rawpix.shape[0])
         self.assertLess(image.pix.shape[1], rawpix.shape[1])  #- raw has overscan
 
-    def test_main1(self):
-        night = self.night
-        expid = self.expid
-        camera = 'r0'
-        nspec = 3
-        obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
-        
-        #- run pixsim
-        opts = ['--night', night, '--expid', expid, '--nspec', nspec]
-        pixsim.main(opts)
-        
-        #- verify outputs
-        simpixfile = io.findfile('simpix', night, expid)
-        self.assertTrue(os.path.exists(simpixfile))
-        rawfile = desispec.io.findfile('raw', night, expid)
-        self.assertTrue(os.path.exists(rawfile))
-        fx = fits.open(rawfile)
-        
-        self.assertTrue('B0' in fx)
-        self.assertTrue('R0' in fx)
-        self.assertTrue('Z0' in fx)
-        fx.close()
-        
-        #- cleanup as we go
-        os.remove(simpixfile)
-        os.remove(rawfile)
+    #- Travis tests hang when writing coverage when both test_main1 and
+    #- test_main2 are called.  Commenting out the simpler one for now.
+    # def test_main1(self):
+    #     night = self.night
+    #     expid = self.expid
+    #     camera = 'r0'
+    #     nspec = 3
+    #     obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
+    #     
+    #     #- run pixsim
+    #     opts = ['--night', night, '--expid', expid, '--nspec', nspec]
+    #     pixsim.main(opts)
+    #     
+    #     #- verify outputs
+    #     simpixfile = io.findfile('simpix', night, expid)
+    #     self.assertTrue(os.path.exists(simpixfile))
+    #     rawfile = desispec.io.findfile('raw', night, expid)
+    #     self.assertTrue(os.path.exists(rawfile))
+    #     fx = fits.open(rawfile)
+    #     
+    #     self.assertTrue('B0' in fx)
+    #     self.assertTrue('R0' in fx)
+    #     self.assertTrue('Z0' in fx)
+    #     fx.close()
+    #     
+    #     #- cleanup as we go
+    #     os.remove(simpixfile)
+    #     os.remove(rawfile)
 
     def test_main_override(self):
         night = self.night
@@ -186,7 +188,7 @@ class TestPixsim(unittest.TestCase):
         os.remove(simpixfile)
         os.remove(altrawfile)
         
-    def __test_project(self):
+    def test_project(self):
         psf = desimodel.io.load_psf('z')
         wave = np.arange(8000, 8010)
         phot = np.ones((2, len(wave)))
@@ -201,7 +203,7 @@ class TestPixsim(unittest.TestCase):
             xyrange, pix = pixsim._project(args)
             del os.environ['UNITTEST_SILENT']
 
-    def __test_parse(self):
+    def test_parse(self):
         night = self.night
         expid = self.expid
         opts = ['--psf', 'blat.fits', '--night', night, '--expid', expid]
@@ -216,7 +218,7 @@ class TestPixsim(unittest.TestCase):
         with self.assertRaises(ValueError):
             pixsim.parse([])
 
-    def __test_expand_args(self):
+    def test_expand_args(self):
         night = self.night
         expid = self.expid
 
