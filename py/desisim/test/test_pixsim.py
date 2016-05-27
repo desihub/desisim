@@ -11,6 +11,7 @@ import desispec.io
 from desisim import io
 from desisim import obs
 from desisim import pixsim
+import desisim.scripts.pixsim
 
 desi_templates_available = 'DESI_ROOT' in os.environ
 desi_root_available = 'DESI_ROOT' in os.environ
@@ -174,7 +175,7 @@ class TestPixsim(unittest.TestCase):
             '--preproc',
             '--wavemin', 5000, '--wavemax', 7000.0,
             ]
-        pixsim.main(opts)
+        desisim.scripts.pixsim.main(opts)
         simpixfile = io.findfile('simpix', night, expid+1)
         self.assertTrue(os.path.exists(simpixfile))
         self.assertTrue(os.path.exists(altrawfile))
@@ -208,7 +209,7 @@ class TestPixsim(unittest.TestCase):
         expid = self.expid
         opts = ['--psf', 'blat.fits', '--night', night, '--expid', expid]
         opts += ['--spectrographs', '0,3']
-        args = pixsim.parse(opts)
+        args = desisim.scripts.pixsim.parse(opts)
         self.assertEqual(args.psf, 'blat.fits')
         self.assertEqual(args.night, night)
         self.assertEqual(args.expid, expid)
@@ -216,28 +217,28 @@ class TestPixsim(unittest.TestCase):
         self.assertEqual(args.cameras, ['b0', 'b3', 'r0', 'r3', 'z0', 'z3'])
         
         with self.assertRaises(ValueError):
-            pixsim.parse([])
+            desisim.scripts.pixsim.parse([])
 
     def test_expand_args(self):
         night = self.night
         expid = self.expid
 
         opts = ['--night', night, '--expid', expid, '--spectrographs', '0']
-        args = pixsim.parse(opts)
+        args = desisim.scripts.pixsim.parse(opts)
         self.assertEqual(args.rawfile, desispec.io.findfile('raw', night, expid))
         self.assertEqual(args.cameras, ['b0','r0','z0'])
 
         opts = ['--night', night, '--expid', expid, '--spectrographs', '0,1',
             '--arms', 'b,z']
-        args = pixsim.parse(opts)
+        args = desisim.scripts.pixsim.parse(opts)
         self.assertEqual(args.cameras, ['b0', 'b1', 'z0', 'z1'])
 
         opts = ['--cameras', 'b0', '--night', night, '--expid', expid]
-        args = pixsim.parse(opts)
+        args = desisim.scripts.pixsim.parse(opts)
         self.assertEqual(args.cameras, ['b0'])
 
         opts = ['--cameras', 'b0,r1', '--night', night, '--expid', expid]
-        args = pixsim.parse(opts)
+        args = desisim.scripts.pixsim.parse(opts)
         self.assertEqual(args.cameras, ['b0','r1'])
 
 #- This runs all test* functions in any TestCase class in this file

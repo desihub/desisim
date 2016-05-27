@@ -7,5 +7,6 @@ Stephen Bailey, LBL
 January 2015
 """
 
-from desisim import pixsim
-pixsim.main()
+import sys
+from desisim.scripts import pixsim
+sys.exit(pixsim.main())
