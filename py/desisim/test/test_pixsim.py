@@ -127,7 +127,7 @@ class TestPixsim(unittest.TestCase):
         self.assertEqual(image.pix.shape[0], rawpix.shape[0])
         self.assertLess(image.pix.shape[1], rawpix.shape[1])  #- raw has overscan
 
-    def test_main(self):
+    def test_main1(self):
         night = self.night
         expid = self.expid
         camera = 'r0'
@@ -154,7 +154,14 @@ class TestPixsim(unittest.TestCase):
         os.remove(simpixfile)
         os.remove(rawfile)
 
-        #- Re-run; derive night from simspec input while overriding expid
+    def test_main_override(self):
+        night = self.night
+        expid = self.expid
+        camera = 'r0'
+        nspec = 3
+        obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
+
+        #- derive night from simspec input while overriding expid
         simspecfile = io.findfile('simspec', night, expid)
         altrawfile = desispec.io.findfile('raw', night, expid) + '.blat'
         opts = [
