@@ -35,7 +35,12 @@ def testslit_fibermap() :
         fiber_index=testslit_nspec_per_spectro*spectro
         first_fiber_id=500*spectro 
         for b in range(20) :
-            fibermap['FIBER'][fiber_index]  = 25*b+24*(b>10)*first_fiber_id # "Top of top block or Bottom of bottom block"
+            # Fibers at Top of top block or Bottom of bottom block
+            if b <= 10:
+                fibermap['FIBER'][fiber_index]  = 25*b + first_fiber_id
+            else:
+                fibermap['FIBER'][fiber_index]  = 25*b + 24 + first_fiber_id
+                
             fibermap['SPECTROID'][fiber_index] = spectro
             fiber_index+=1                    
     return fibermap

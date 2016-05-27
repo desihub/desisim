@@ -117,6 +117,7 @@ def parse(options=None):
     parser.add_argument("--cosmics_dir", type=str, help="Input directory with cosmics templates")
     parser.add_argument("--cosmics_file", type=str, help="Input file with cosmics templates")
     parser.add_argument("--simspec", type=str, help="input simspec file")
+    parser.add_argument("--fibermap", type=str, help="fibermap file (optional)")
         
     #- Output options
     parser.add_argument("--rawfile", type=str, help="output raw data file")
@@ -134,6 +135,7 @@ def parse(options=None):
 
     # parser.add_argument("--trimxy", action="store_true", help="Trim image to fit spectra")
     parser.add_argument("--verbose", action="store_true", help="Include debug log info")
+    parser.add_argument("--overwrite", action="store_true", help="Overwrite existing raw and simpix files")
     parser.add_argument("--seed", type=int, help="random number seed")
     parser.add_argument("--nspec", type=int, help="Number of spectra to simulate per camera %(default)s", default=500)
     parser.add_argument("--mpi", action="store_true", help="Use MPI parallelism")
@@ -187,6 +189,20 @@ def main(args=None):
 
     simspec = io.read_simspec(args.simspec)
 
+    if args.fibermap:
+        fibermap = desispec.io.read_fibermap(args.fibermap)
+        fibers = fibermap['FIBER']
+    else:
+        fibers = None
+
+    if args.overwrite and os.path.exists(args.rawfile):
+        log.debug('removing {}'.format(args.rawfile))
+        os.remove(args.rawfile)
+
+    if args.overwrite and os.path.exists(args.simpixfile):
+        log.debug('removing {}'.format(args.simpixfile))
+        os.remove(args.simpixfile)
+
     for i in range(mpicomm.rank, ncameras, mpicomm.size):
         camera = args.cameras[i]
         log.debug('Rank {} processing camera {}'.format(mpicomm.rank, camera))
@@ -211,7 +227,7 @@ def main(args=None):
             cosmics = None
         
         #- Do the actual simulation
-        image, rawpix, truepix = simulate(camera, simspec, psf,
+        image, rawpix, truepix = simulate(camera, simspec, psf, fibers=fibers,
             nspec=args.nspec, ncpu=args.ncpu, cosmics=cosmics,
             wavemin=args.wavemin, wavemax=args.wavemax)
 
@@ -289,7 +305,7 @@ def simulate_frame(night, expid, camera, **kwargs):
     pixfile = os.path.join(simdir, os.path.basename(pixfile))
     desispec.io.write_image(pixfile, image)
 
-def simulate(camera, simspec, psf, nspec=None, ncpu=None,
+def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
     cosmics=None, wavemin=None, wavemax=None):
     """
     Run pixel-level simulation of input spectra
@@ -300,6 +316,7 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
         psf : subclass of specter.psf.psf.PSF, e.g. from desimodel.io.load_psf()
 
     Optional:
+        fibers (array_like):  fibers included in this simspec
         nspec (int) : number of spectra to simulate
         ncpu (int) : number of CPU cores to use in parallel
         cosmics : desispec.image.Image object from desisim.io.read_cosmics()
@@ -325,46 +342,38 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
     #- this is not necessarily true, the truth in is the fibermap
     nfibers = params['spectro']['nfibers']
 
-    #---------------------------------------------------------------------
-    #- This section had a merge conflict; I think it comes from supporting
-    #- teststands with only a subset of fibers.  Commenting out while
-    #- rebasing rawpixsim, and then we can come back to re-implementing
-    #- what this is trying to accomplish.
-    #
-    # #- Get the list of spectra indices in the simspec.phot file that correspond of this camera
-    # ii=np.where(fm["SPECTROID"]==ispec)[0]
-    # 
-    # #- Truncate if larger than requested nspec
-    # if ii.size > nspec :
-    #     ii=ii[:nspec]
-    #     
-    # #- Now we have to place our non empty fibers back to the reference fiber positions of the sims
-    # #- that expect nfibers_sim fibers
-    # nfibers_sim = params['spectro']['nfibers']
-    # simphot = np.zeros((nfibers_sim,phot.shape[1]))
-    # simphot[fm["FIBER"][ii]-nfibers_sim*ispec]=phot[ii]
-    # #- overwrite phot
-    # phot=simphot
-    #---------------------------------------------------------------------
+    if fibers is not None:
+        fibers = np.asarray(fibers)
+        allphot = simspec.phot[channel] + simspec.skyphot[channel]
+        
+        #- Trim to just fibers on this spectrograph
+        ii = np.where(fibers//500 == ispec)[0]
+        fibers = fibers[ii]
 
-    if ispec*nfibers >= simspec.nspec:
-        msg = "camera {} not covered by simspec with {} spectra".format(
-            camera, simspec.nspec)
-        log.error(msg)
-        raise ValueError(msg)
+        phot = np.zeros((nfibers, allphot.shape[1]))
+        phot[fibers%500] = allphot[ii]
+        
+        log.debug('Simulating fibers {}'.format(fibers))
 
-    wave = simspec.wave[channel]
-    phot = simspec.phot[channel] + simspec.skyphot[channel]
-
-    #- Trim to just the spectra for this spectrograph
-    if nspec is None:
-        ii = slice(nfibers*ispec, nfibers*(ispec+1))
     else:
-        ii = slice(nfibers*ispec, nfibers*ispec + nspec)
+        if ispec*nfibers >= simspec.nspec:
+            msg = "camera {} not covered by simspec with {} spectra".format(
+                camera, simspec.nspec)
+            log.error(msg)
+            raise ValueError(msg)
 
-    phot = phot[ii]
+        phot = simspec.phot[channel] + simspec.skyphot[channel]
+
+        #- Trim to just the fibers for this spectrograph
+        if nspec is None:
+            ii = slice(nfibers*ispec, nfibers*(ispec+1))
+        else:
+            ii = slice(nfibers*ispec, nfibers*ispec + nspec)
+
+        phot = phot[ii]
 
     #- Trim wavelenths if needed
+    wave = simspec.wave[channel]
     if wavemin is not None:
         ii = (wave >= wavemin)
         phot = phot[:, ii]
