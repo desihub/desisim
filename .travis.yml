@@ -111,6 +111,8 @@ install:
 
 script:
     - $MAIN_CMD $SETUP_CMD
+    - echo done at `date`
+    - ls
 
 after_success:
     - if [[ $SETUP_CMD == 'test --coverage' ]]; then coveralls; fi
