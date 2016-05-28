@@ -155,7 +155,7 @@ def main(args=None):
         mpicomm.rank, mpicomm.size, mpicomm.Get_rank(), mpicomm.Get_size()))
 
     #- Pre-flight check that these cameras haven't been done yet
-    if (mpicomm.rank == 0) and (not os.path.overwrite) and os.path.exists(args.rawfile):
+    if (mpicomm.rank == 0) and (not args.overwrite) and os.path.exists(args.rawfile):
         log.debug('Checking if cameras are already in output file')
         from astropy.io import fits
         fx = fits.open(args.rawfile)
