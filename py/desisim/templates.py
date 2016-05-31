@@ -635,7 +635,8 @@ class ELG():
                     
                     outflux[nobj,:] = resample_flux(self.wave, zwave, flux)
 
-                    meta['TEMPLATEID'][nobj] = iobj
+                    #import pdb ; pdb.set_trace()
+                    meta['TEMPLATEID'][nobj] = chunkindx[ii]
                     meta['REDSHIFT'][nobj] = redshift[ii]
                     meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
                     meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
@@ -655,7 +656,7 @@ class ELG():
                     meta['VDISP'][nobj] = vdisp[ii]
 
                     if self.add_SNeIa:
-                        meta['SNE_TEMPLATEID'][nobj] = self.sne_basemeta['TEMPLATEID'][sne_chunkindx[ii]]
+                        meta['SNE_TEMPLATEID'][nobj] = sne_chunkindx[ii]
                         meta['SNE_EPOCH'][nobj] = self.sne_basemeta['EPOCH'][sne_chunkindx[ii]]
                         meta['SNE_RFLUXRATIO'][nobj] = sne_rfluxratio[ii]
 
@@ -887,7 +888,7 @@ class LRG():
                         
                     outflux[nobj,:] = resample_flux(self.wave, zwave, flux)
 
-                    meta['TEMPLATEID'][nobj] = iobj
+                    meta['TEMPLATEID'][nobj] = chunkindx[ii]
                     meta['REDSHIFT'][nobj] = redshift[ii]
                     meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
                     meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
@@ -902,7 +903,7 @@ class LRG():
                     meta['VDISP'][nobj] = vdisp[ii]
 
                     if self.add_SNeIa:
-                        meta['SNE_TEMPLATEID'][nobj] = self.sne_basemeta['TEMPLATEID'][sne_chunkindx[ii]]
+                        meta['SNE_TEMPLATEID'][nobj] = sne_chunkindx[ii]
                         meta['SNE_EPOCH'][nobj] = self.sne_basemeta['EPOCH'][sne_chunkindx[ii]]
                         meta['SNE_RFLUXRATIO'][nobj] = sne_rfluxratio[ii]
 
@@ -1087,7 +1088,7 @@ class STAR(object):
                                 format(self.objtype, nobj+1, nmodel))
                 outflux[nobj,:] = resample_flux(self.wave, zwave, flux)
 
-                meta['TEMPLATEID'][nobj] = iobj
+                meta['TEMPLATEID'][nobj] = chunkindx[ii]
                 meta['REDSHIFT'][nobj] = redshift[ii]
                 meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
                 meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
@@ -1212,7 +1213,7 @@ class FSTD(STAR):
                                   format(self.objtype, nobj+1, nmodel))
                     outflux[nobj,:] = resample_flux(self.wave, zwave, flux)
 
-                    meta['TEMPLATEID'][nobj] = iobj
+                    meta['TEMPLATEID'][nobj] = chunkindx[ii]
                     meta['REDSHIFT'][nobj] = redshift[ii]
                     meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
                     meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
@@ -1336,7 +1337,7 @@ class MWS_STAR(STAR):
                                 format(self.objtype, nobj+1, nmodel))
                     outflux[nobj,:] = resample_flux(self.wave, zwave, flux)
     
-                    meta['TEMPLATEID'][nobj] = iobj
+                    meta['TEMPLATEID'][nobj] = chunkindx[ii]
                     meta['REDSHIFT'][nobj] = redshift[ii]
                     meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
                     meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
@@ -1556,7 +1557,7 @@ class QSO():
                                   format(self.objtype, nobj+1, nmodel))
                     outflux[nobj,:] = resample_flux(self.wave, zwave, flux)
 
-                    meta['TEMPLATEID'][nobj] = iobj
+                    meta['TEMPLATEID'][nobj] = chunkindx[ii]
                     if old_way:
                         meta['REDSHIFT'][nobj] = self.basemeta['Z'][this]
                     meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
@@ -1889,7 +1890,7 @@ class BGS():
                     
                     outflux[nobj,:] = resample_flux(self.wave, zwave, flux)
 
-                    meta['TEMPLATEID'][nobj] = iobj
+                    meta['TEMPLATEID'][nobj] = chunkindx[ii]
                     meta['REDSHIFT'][nobj] = redshift[ii]
                     meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
                     meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
@@ -1909,7 +1910,7 @@ class BGS():
                     meta['VDISP'][nobj] = vdisp[ii]
 
                     if self.add_SNeIa:
-                        meta['SNE_TEMPLATEID'][nobj] = self.sne_basemeta['TEMPLATEID'][sne_chunkindx[ii]]
+                        meta['SNE_TEMPLATEID'][nobj] = sne_chunkindx[ii]
                         meta['SNE_EPOCH'][nobj] = self.sne_basemeta['EPOCH'][sne_chunkindx[ii]]
                         meta['SNE_RFLUXRATIO'][nobj] = sne_rfluxratio[ii]
 
