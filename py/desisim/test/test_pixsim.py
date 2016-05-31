@@ -130,7 +130,7 @@ class TestPixsim(unittest.TestCase):
 
     #- Travis tests hang when writing coverage when both test_main1 and
     #- test_main2 are called.  Commenting out the simpler one for now.
-    @unittest.skipIf(False, 'Skip test that is causing coverage tests to hang.')
+    @unittest.skipIf(True, 'Skip test that is causing coverage tests to hang.')
     def test_main1(self):
         night = self.night
         expid = self.expid
@@ -158,7 +158,7 @@ class TestPixsim(unittest.TestCase):
         os.remove(simpixfile)
         os.remove(rawfile)
 
-    @unittest.skipIf(True, 'Skip test that is causing coverage tests to hang.')
+    @unittest.skipIf(False, 'Skip test that is causing coverage tests to hang.')
     def test_main_override(self):
         night = self.night
         expid = self.expid
