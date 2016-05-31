@@ -41,16 +41,31 @@ env:
         - NUMPY_VERSION=1.10
         - SCIPY_VERSION=0.16
         - ASTROPY_VERSION=1.1.1
-        - SPHINX_VERSION=1.3
+        # - SPHINX_VERSION=1.3
         - DESIUTIL_VERSION=1.4.0
+        - DESIMODEL_VERSION=0.4.4
+        - DESIMODEL_DATA=branches/test-0.4
+        - DESISIM_TESTDATA_VERSION=0.3.2
+        - SPECLITE_VERSION=0.4
         - SPECTER_VERSION=0.5.0
         - DESISPEC_VERSION=0.6.0
         - DESITARGET_VERSION=0.3.3
         # - DESIMODEL_VERSION=trunk
-        - CONDA_INSTALL='conda install -c astropy-ci-extras --yes'
-        - PIP_INSTALL='pip install'
-        - OPTIONAL_DEPS=false
+        - DESI_LOGLEVEL=DEBUG
         - MAIN_CMD='python setup.py'
+        # These packages will always be installed.
+        - CONDA_DEPENDENCIES=""
+        # These packages will only be installed if we really need them.
+        - CONDA_ALL_DEPENDENCIES="scipy matplotlib coverage==3.7.1 pyyaml"
+        # These packages will always be installed.
+        - PIP_DEPENDENCIES=""
+        # These packages will only be installed if we really need them.
+        - PIP_ALL_DEPENDENCIES="speclite==${SPECLITE_VERSION} coveralls"
+        # These pip packages need to be installed in a certain order, so we
+        # do that separately from the astropy/ci-helpers scripts.
+        - DESIHUB_PIP_DEPENDENCIES="desiutil=${DESIUTIL_VERSION} desimodel=${DESIMODEL_VERSION} specter=${SPECTER_VERSION} desispec=${DESISPEC_VERSION} desitarget=${DESITARGET_VERSION}"
+        # Debug the Travis install process.
+        - DEBUG=False
     matrix:
         - PYTHON_VERSION=2.7 SETUP_CMD='egg_info'
 
@@ -79,6 +94,8 @@ matrix:
         # Try all python versions with the latest numpy
         - os: linux
           env: PYTHON_VERSION=2.7 SETUP_CMD='test --coverage'
+               CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
+               PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
 
         # - os: osx
         #   env: PYTHON_VERSION=2.7 SETUP_CMD='test'
@@ -107,9 +124,23 @@ matrix:
         #   env: MAIN_CMD='pep8 astropy --count' SETUP_CMD=''
 
 install:
-    - source etc/travis_env_$TRAVIS_OS_NAME.sh
+    - git clone git://github.com/astropy/ci-helpers.git
+    - source ci-helpers/travis/setup_conda_$TRAVIS_OS_NAME.sh
+    # egg_info causes the astropy/ci-helpers script to exit before the pip
+    # packages are installed, thus desiutil is not installed in that script.
+    - for p in $DESIHUB_PIP_DEPENDENCIES; do r=$(echo $p | cut -d= -f1); v=$(echo $p | cut -d= -f2); pip install git+https://github.com/desihub/${r}.git@${v}#egg=${r}; done
+    # Install desimodel and desisim test data
+    - export DESIMODEL=${HOME}/desimodel/${DESIMODEL_VERSION}
+    - mkdir -p ${DESIMODEL}
+    - svn export https://desi.lbl.gov/svn/code/desimodel/${DESIMODEL_DATA}/data ${DESIMODEL}/data
+    - echo DESIMODEL=${DESIMODEL}
+    - export DESISIM=$PWD
+    - wget https://github.com/desihub/desisim-testdata/archive/${DESISIM_TESTDATA_VERSION}.zip
+    - unzip ${DESISIM_TESTDATA_VERSION}.zip
+    - source desisim-testdata-${DESISIM_TESTDATA_VERSION}/setup-testdata.sh
 
 script:
+    - df -h
     - $MAIN_CMD $SETUP_CMD
     - echo done at `date`
     - ls
