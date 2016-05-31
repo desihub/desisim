@@ -130,32 +130,33 @@ class TestPixsim(unittest.TestCase):
 
     #- Travis tests hang when writing coverage when both test_main1 and
     #- test_main2 are called.  Commenting out the simpler one for now.
-    # def test_main1(self):
-    #     night = self.night
-    #     expid = self.expid
-    #     camera = 'r0'
-    #     nspec = 3
-    #     obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
-    #
-    #     #- run pixsim
-    #     opts = ['--night', night, '--expid', expid, '--nspec', nspec]
-    #     pixsim.main(opts)
-    #
-    #     #- verify outputs
-    #     simpixfile = io.findfile('simpix', night, expid)
-    #     self.assertTrue(os.path.exists(simpixfile))
-    #     rawfile = desispec.io.findfile('raw', night, expid)
-    #     self.assertTrue(os.path.exists(rawfile))
-    #     fx = fits.open(rawfile)
-    #
-    #     self.assertTrue('B0' in fx)
-    #     self.assertTrue('R0' in fx)
-    #     self.assertTrue('Z0' in fx)
-    #     fx.close()
-    #
-    #     #- cleanup as we go
-    #     os.remove(simpixfile)
-    #     os.remove(rawfile)
+    @unittest.skipIf(False, 'Skip test that is causing coverage tests to hang.')
+    def test_main1(self):
+        night = self.night
+        expid = self.expid
+        camera = 'r0'
+        nspec = 3
+        obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
+
+        #- run pixsim
+        opts = ['--night', night, '--expid', expid, '--nspec', nspec]
+        desisim.scripts.pixsim.main(opts)
+
+        #- verify outputs
+        simpixfile = io.findfile('simpix', night, expid)
+        self.assertTrue(os.path.exists(simpixfile))
+        rawfile = desispec.io.findfile('raw', night, expid)
+        self.assertTrue(os.path.exists(rawfile))
+        fx = fits.open(rawfile)
+
+        self.assertTrue('B0' in fx)
+        self.assertTrue('R0' in fx)
+        self.assertTrue('Z0' in fx)
+        fx.close()
+
+        #- cleanup as we go
+        os.remove(simpixfile)
+        os.remove(rawfile)
 
     @unittest.skipIf(True, 'Skip test that is causing coverage tests to hang.')
     def test_main_override(self):
