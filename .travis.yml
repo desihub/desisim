@@ -54,7 +54,7 @@ env:
         - DESI_LOGLEVEL=DEBUG
         - MAIN_CMD='python setup.py'
         # These packages will always be installed.
-        - CONDA_DEPENDENCIES=""
+        - CONDA_DEPENDENCIES="pyyaml"
         # These packages will only be installed if we really need them.
         - CONDA_ALL_DEPENDENCIES="scipy matplotlib coverage==3.7.1 pyyaml"
         # These packages will always be installed.
@@ -138,12 +138,10 @@ install:
     - wget https://github.com/desihub/desisim-testdata/archive/${DESISIM_TESTDATA_VERSION}.zip
     - unzip ${DESISIM_TESTDATA_VERSION}.zip
     - source desisim-testdata-${DESISIM_TESTDATA_VERSION}/setup-testdata.sh
+    - df -h
 
 script:
-    - df -h
     - $MAIN_CMD $SETUP_CMD
-    - echo done at `date`
-    - ls
 
 after_success:
     - if [[ $SETUP_CMD == 'test --coverage' ]]; then coveralls; fi
