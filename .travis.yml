@@ -96,11 +96,11 @@ matrix:
           env: PYTHON_VERSION=2.7 SETUP_CMD='bdist_egg'
 
         # Try all python versions with the latest numpy
-        # - os: linux
-        #   env: PYTHON_VERSION=2.7 SETUP_CMD='test --coverage'
-        #        CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
-        #        PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
-        #        DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES
+        - os: linux
+          env: PYTHON_VERSION=2.7 SETUP_CMD='test --coverage'
+               CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
+               PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
+               DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES
 
         - os: linux
           env: PYTHON_VERSION=2.7 SETUP_CMD='test'
