@@ -159,12 +159,13 @@ class TestPixsim(unittest.TestCase):
         os.remove(simpixfile)
         os.remove(rawfile)
 
-    @unittest.skipIf(True, 'Skip test that is causing coverage tests to hang.')
+    @unittest.skipIf(False, 'Skip test that is causing coverage tests to hang.')
     def test_main_override(self):
         night = self.night
         expid = self.expid
         camera = 'r0'
         nspec = 3
+        ncpu = -1  # Disable multiprocessing
         obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
 
         #- derive night from simspec input while overriding expid
@@ -177,6 +178,7 @@ class TestPixsim(unittest.TestCase):
             '--cameras', 'b0,r0',
             '--preproc',
             '--wavemin', 5000, '--wavemax', 7000.0,
+            '--ncpu', ncpu,
             ]
         desisim.scripts.pixsim.main(opts)
         simpixfile = io.findfile('simpix', night, expid+1)
