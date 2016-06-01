@@ -130,16 +130,17 @@ class TestPixsim(unittest.TestCase):
 
     #- Travis tests hang when writing coverage when both test_main1 and
     #- test_main2 are called.  Commenting out the simpler one for now.
-    @unittest.skipIf(True, 'Skip test that is causing coverage tests to hang.')
+    @unittest.skipIf(False, 'Skip test that is causing coverage tests to hang.')
     def test_main1(self):
         night = self.night
         expid = self.expid
         camera = 'r0'
         nspec = 3
+        ncpu = -1  # Disable multiprocessing
         obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
 
         #- run pixsim
-        opts = ['--night', night, '--expid', expid, '--nspec', nspec]
+        opts = ['--night', night, '--expid', expid, '--nspec', nspec, '--ncpu', -1]
         desisim.scripts.pixsim.main(opts)
 
         #- verify outputs
