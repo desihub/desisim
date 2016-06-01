@@ -77,17 +77,17 @@ class GaussianMixtureModel():
                     self.means[comp], self.covars[comp], num_comp_in_X)
         return X
 
-def _lineratios(N=1, EM=None, rand=None)
+def _lineratios(nobj=1, EM=None, oiiihbrange=(-0.5, 0.2), rand=None):
     """Get the correct number and distribution of emission-line ratios."""
     if EM is None:
         EM = EMSpectrum()
     if rand is None:
         rand = np.random.RandomState()
 
-    oiihbeta = np.zeros(nchunk)
-    niihbeta = np.zeros(nchunk)
-    siihbeta = np.zeros(nchunk)
-    oiiihbeta = np.zeros(nchunk)-99
+    oiihbeta = np.zeros(nobj)
+    niihbeta = np.zeros(nobj)
+    siihbeta = np.zeros(nobj)
+    oiiihbeta = np.zeros(nobj)-99
     need = np.where(oiiihbeta==-99)[0]
     while len(need)>0:
         samp = EM.forbidmog.sample(len(need), random_state=rand)
@@ -101,6 +101,59 @@ def _lineratios(N=1, EM=None, rand=None)
 
     return oiihbeta, niihbeta, siihbeta, oiiihbeta
 
+def _getnanomaggies(flux, wave, filt):
+    """Convert [grzW1W2]flux to nanomaggies."""
+
+    synthmaggies = filt.get_ab_maggies(flux, zwave, mask_invalid=True)
+    synthnano = np.array([ff*MAG2NANO for ff in synthmaggies[0]]) # convert to nanomaggies
+    synthnano[synthnano == 0] = 10**(0.4*(22.5-99)) # if flux==0 then set mag==99 (below)
+
+    return synthnano
+
+def _metatable(nmodel=1, objtype='ELG', add_SNeIa=None):
+    """Initialize the metadata table for each object type."""
+    from astropy.table import Table
+
+    if objtype.upper() == 'ELG':
+        metacols = [
+            ('TEMPLATEID', 'i4'),
+            ('REDSHIFT', 'f4'),
+            ('GMAG', 'f4'),
+            ('RMAG', 'f4'),
+            ('ZMAG', 'f4'),
+            ('W1MAG', 'f4'),
+            ('W2MAG', 'f4'),
+            ('OIIFLUX', 'f4'),
+            ('EWOII', 'f4'),
+            ('OIIIHBETA', 'f4'),
+            ('OIIHBETA', 'f4'),
+            ('NIIHBETA', 'f4'),
+            ('SIIHBETA', 'f4'),
+            ('OIIDOUBLET', 'f4'),
+            ('D4000', 'f4'),
+            ('VDISP', 'f4'), 
+            ('DECAM_FLUX', 'f4', (6,)),
+            ('WISE_FLUX', 'f4', (2,))]
+        if add_SNeIa:
+            metacols.extend([
+                ('SNE_TEMPLATEID', 'i4'),
+                ('SNE_RFLUXRATIO', 'f4'),
+                ('SNE_EPOCH', 'f4')])
+    meta = Table(np.zeros(nmodel, dtype=metacols))
+
+    # Add units.
+    if objtype.upper() == 'ELG':
+        meta['OIIFLUX'].unit = 'erg/(s*cm2)'
+        meta['EWOII'].unit = 'Angstrom'
+        meta['OIIIHBETA'].unit = 'dex'
+        meta['OIIHBETA'].unit = 'dex'
+        meta['NIIHBETA'].unit = 'dex'
+        meta['SIIHBETA'].unit = 'dex'
+        meta['VDISP'].unit = 'km/s'
+        if add_SNeIa:
+            meta['SNE_EPOCH'].unit = 'days'
+
+    return meta
 
 class EMSpectrum():
     """Construct a complete nebular emission-line spectrum.
@@ -481,106 +534,54 @@ class ELG():
 
         # Initialize the output flux array and metadata Table.
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
+        meta = _metatable(nmodel, self.objtype, self.add_SNeIa)
 
-        metacols = [
-            ('TEMPLATEID', 'i4'),
-            ('REDSHIFT', 'f4'),
-            ('GMAG', 'f4'),
-            ('RMAG', 'f4'),
-            ('ZMAG', 'f4'),
-            ('W1MAG', 'f4'),
-            ('W2MAG', 'f4'),
-            ('OIIFLUX', 'f4'),
-            ('EWOII', 'f4'),
-            ('OIIIHBETA', 'f4'),
-            ('OIIHBETA', 'f4'),
-            ('NIIHBETA', 'f4'),
-            ('SIIHBETA', 'f4'),
-            ('OIIDOUBLET', 'f4'),
-            ('D4000', 'f4'),
-            ('VDISP', 'f4'), 
-            ('DECAM_FLUX', 'f4', (6,)),
-            ('WISE_FLUX', 'f4', (2,))]
-        if self.add_SNeIa:
-            metacols.extend([
-                ('SNE_TEMPLATEID', 'i4'),
-                ('SNE_RFLUXRATIO', 'f4'),
-                ('SNE_EPOCH', 'f4')])
-        meta = Table(np.zeros(nmodel, dtype=metacols))
-
-        meta['OIIFLUX'].unit = 'erg/(s*cm2)'
-        meta['EWOII'].unit = 'Angstrom'
-        meta['OIIIHBETA'].unit = 'dex'
-        meta['OIIHBETA'].unit = 'dex'
-        meta['NIIHBETA'].unit = 'dex'
-        meta['SIIHBETA'].unit = 'dex'
-        meta['VDISP'].unit = 'km/s'
-        if self.add_SNeIa:
-            meta['SNE_EPOCH'].unit = 'days'
-
-        # Assign uniform redshift, r-magnitude, and velocity dispersion
-        # distributions.
+        # Assign redshift, r-magnitude, velocity dispersion, and emission-line priors. 
         if redshift is None:
-            redshift = rand.uniform(zrange[0], zrange[1], nchunk)
+            redshift = rand.uniform(zrange[0], zrange[1], nmodel)
 
-        rmag = rand.uniform(rmagrange[0], rmagrange[1], nchunk)
+        rmag = rand.uniform(rmagrange[0], rmagrange[1], nmodel)
         if logvdisp_meansig[1]>0:
-            vdisp = 10**rand.normal(logvdisp_meansig[0], logvdisp_meansig[1], nchunk)
+            vdisp = 10**rand.normal(logvdisp_meansig[0], logvdisp_meansig[1], nmodel)
         else:
-            vdisp = 10**np.repeat(logvdisp_meansig[0], nchunk)
+            vdisp = 10**np.repeat(logvdisp_meansig[0], nmodel)
 
-        # Get the correct number and distribution of emission-line ratios.
-        oiihbeta, niihbeta, siihbeta, oiiihbeta = _lineratios(nmodel, EM=EM, rand=rand)
         oiidoublet = rand.normal(oiidoublet_meansig[0], oiidoublet_meansig[1], nmodel)
+        oiihbeta, niihbeta, siihbeta, oiiihbeta = _lineratios(nmodel, EM, oiiihbrange, rand)
 
+        # Create a distribution of seeds for the emission-line spectra.
+        emseed = rand.random_integers(0, 100*nmodel, nmodel)
         
-        d4000 = self.basemeta['D4000'][chunkindx]
-        ewoii = 10.0**(np.polyval(self.ewoiicoeff,d4000)+
-                       rand.normal(0.0,0.3, nchunk)) # rest-frame, Angstrom
+        # Get the (optional) distribution of SNe Ia priors.
+        if self.add_SNeIa:
+            sne_rfluxratio = rand.uniform(sne_rfluxratiorange[0], sne_rfluxratiorange[1], nmodel)
+            sne_chunkindx = rand.randint(0, len(self.sne_basemeta)-1, nmodel)
 
-            # Create a distribution of seeds for the emission-line spectra.
-            emseed = rand.random_integers(0, 100*nchunk, nchunk)
-
-            # Get the (optional) distribution of SNe Ia priors.
-            if self.add_SNeIa:
-                sne_rfluxratio = rand.uniform(sne_rfluxratiorange[0], sne_rfluxratiorange[1], nchunk)
-                sne_chunkindx = rand.randint(0, len(self.sne_basemeta)-1, nchunk)
-
-
-
-        # Build the spectra.
-        nbase = len(self.basemeta)
-        chunkindx = np.tile(np.arange(nbase), (nmodel, 1))
-
-        for ii in range(nmodel):
-            
-
-
-            import pdb ; pdb.set_trace()
-
-        
         #nobj = 0
         #chunksize = np.min(nmodel, self.chunksize)
         #nchunk = long(np.ceil(nmodel / chunksize)
         #for ichunk, in range(nchunk):
         #nchunk = min(nmodel, 500)
-        #
-        #for indx in bigchunkindx:
-        #    rand.shuffle(indx)
 
-        import pdb ; pdb.set_trace()
+        # Build the spectra.  Each output object gets randomly assigned a
+        # continuum template. However, if that template doesn't pass the color
+        # cuts (at the specified redshift), then we iterate through the rest of
+        # the templates.  If no template passes the color cuts, then raise an
+        # exception.
+        nbase = len(self.basemeta)
+        templateid = np.tile(np.arange(nbase), (nmodel, 1))
+        for tempid in templateid:
+            rand.shuffle(tempid)
 
-        while nobj<=(nmodel-1):
-            # Choose a random subset of the base templates
-            chunkindx = rand.randint(0, nbase-1, nchunk)
+        for ii in range(nmodel):
+            zwave = self.basewave.astype(float)*(1.0 + redshift[ii])
 
-            # Unfortunately we have to loop here.
-            for ii, iobj in enumerate(chunkindx):
-                zwave = self.basewave.astype(float)*(1.0+redshift[ii])
-                restflux = self.baseflux[iobj,:]
+            for jj in range(nbase):
+                tempid = templateid[ii, jj]
+                restflux = self.baseflux[tempid, :]
 
                 if self.add_SNeIa:
-                    sne_restflux = self.sne_baseflux[sne_chunkindx[ii],:]
+                    sne_restflux = self.sne_baseflux[sne_chunkindx[ii], :]
                     galnorm = self.rfilt.get_ab_maggies(restflux, zwave)
                     snenorm = self.rfilt.get_ab_maggies(sne_restflux, zwave)
                     restflux += sne_restflux*galnorm['decam2014-r'][0]/snenorm['decam2014-r'][0]*sne_rfluxratio[ii]
@@ -591,7 +592,11 @@ class ELG():
                 flux = restflux*norm
 
                 # Create an emission-line spectrum with the right [OII] flux [erg/s/cm2]. 
-                oiiflux = self.basemeta['OII_CONTINUUM'][iobj]*ewoii[ii] 
+                d4000 = self.basemeta['D4000'][tempid]
+                ewoii = 10.0**(np.polyval(self.ewoiicoeff, d4000)+
+                               rand.normal(0.0,0.3)) # rest-frame, Angstrom
+
+                oiiflux = self.basemeta['OII_CONTINUUM'][tempid]*ewoii 
                 zoiiflux = oiiflux*norm # [erg/s/cm2]
 
                 emflux, emwave, emline = EM.spectrum(
@@ -615,11 +620,8 @@ class ELG():
                     flux *= norm
                     zoiiflux *= norm # [erg/s/cm2]
 
-                # Convert [grzW1W2]flux to nanomaggies.
-                synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
-                synthnano = np.array([ff*MAG2NANO for ff in synthmaggies[0]]) # convert to nanomaggies
-                synthnano[synthnano == 0] = 10**(0.4*(22.5-99)) # if flux==0 then set mag==99 (below)
-                
+                synthnano = _getnanomaggies(flux, wave, self.decamwise)
+
                 oiimask = [zoiiflux>minoiiflux]
                 if nocolorcuts:
                     colormask = [True]
