@@ -77,6 +77,31 @@ class GaussianMixtureModel():
                     self.means[comp], self.covars[comp], num_comp_in_X)
         return X
 
+def _lineratios(N=1, EM=None, rand=None)
+    """Get the correct number and distribution of emission-line ratios."""
+    if EM is None:
+        EM = EMSpectrum()
+    if rand is None:
+        rand = np.random.RandomState()
+
+    oiihbeta = np.zeros(nchunk)
+    niihbeta = np.zeros(nchunk)
+    siihbeta = np.zeros(nchunk)
+    oiiihbeta = np.zeros(nchunk)-99
+    need = np.where(oiiihbeta==-99)[0]
+    while len(need)>0:
+        samp = EM.forbidmog.sample(len(need), random_state=rand)
+        oiiihbeta[need] = samp[:,0]
+        oiihbeta[need] = samp[:,1]
+        niihbeta[need] = samp[:,2]
+        siihbeta[need] = samp[:,3]
+        oiiihbeta[oiiihbeta<oiiihbrange[0]] = -99
+        oiiihbeta[oiiihbeta>oiiihbrange[1]] = -99
+        need = np.where(oiiihbeta==-99)[0]
+
+    return oiihbeta, niihbeta, siihbeta, oiiihbeta
+
+
 class EMSpectrum():
     """Construct a complete nebular emission-line spectrum.
 
@@ -301,7 +326,7 @@ class ELG():
 
     """
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
-                 add_SNeIa=False):
+                 chunksize=500, add_SNeIa=False):
         """Read the ELG basis continuum templates, filter profiles and initialize the
            output wavelength array.
 
@@ -318,11 +343,14 @@ class ELG():
             [default 2 Angstrom/pixel].
           wave (numpy.ndarray): Input/output observed-frame wavelength array,
             overriding the minwave, maxwave, and cdelt arguments [Angstrom].
+          chunksize (int, optional): Generate the models in chunks that are each
+            CHUNKSIZE large [default 500].
           add_SNeIa (boolean, optional): optionally include a random-epoch SNe
             Ia spectrum in the integrated spectrum [default False]
 
         Attributes:
           objtype (str): 'ELG'
+          chunksize (int): See Args.
           wave (numpy.ndarray): Output wavelength array [Angstrom].
           baseflux (numpy.ndarray): Array [nbase,npix] of the base rest-frame
             ELG continuum spectra [erg/s/cm2/A].
@@ -346,6 +374,7 @@ class ELG():
         from desispec.interpolation import resample_flux
 
         self.objtype = 'ELG'
+        self.chunksize = chunksize
 
         # Initialize the output wavelength array (linear spacing) unless it is
         # already provided.
@@ -382,8 +411,8 @@ class ELG():
     def make_templates(self, nmodel=100, zrange=(0.6,1.6), rmagrange=(21.0,23.4),
                        oiiihbrange=(-0.5,0.2), oiidoublet_meansig=(0.73,0.05),
                        logvdisp_meansig=(1.9,0.15), minoiiflux=1E-17,
-                       sne_rfluxratiorange=(0.1,1.0), redshift_in=None,
-                       maxiter=100, seed=None, nocolorcuts=False, nocontinuum=False):
+                       sne_rfluxratiorange=(0.1,1.0), redshift=None,
+                       seed=None, nocolorcuts=False, nocontinuum=False):
         """Build Monte Carlo set of ELG spectra/templates.
 
         This function chooses random subsets of the ELG continuum spectra, constructs
@@ -415,8 +444,6 @@ class ELG():
 
           redshift_in (float, optional): Input/output template redshifts.  Array
             size must equal NMODEL.  Overwrites ZRANGE input.
-          maxiter (int, optional): Maximum number of iterations in the while
-            loop [default 100].
           seed (long, optional): Input seed for the random numbers.
           nocolorcuts (bool, optional): Do not apply the fiducial grz color-cuts
             cuts (default False).
@@ -442,9 +469,9 @@ class ELG():
         if nocontinuum:
             nocolorcuts = True
 
-        if redshift_in is not None:
-            if len(redshift_in) != nmodel:
-                log.fatal('REDSHIFT_IN must be an NMODEL-length array')
+        if redshift is not None:
+            if len(redshift) != nmodel:
+                log.fatal('REDSHIFT must be an NMODEL-length array')
 
         rand = np.random.RandomState(seed)
 
@@ -491,71 +518,25 @@ class ELG():
         if self.add_SNeIa:
             meta['SNE_EPOCH'].unit = 'days'
 
-        ## Pre-select the set of templates that can pass the color-cuts.
-        #if redshift_in is None:
-        #    redshift_in = rand.uniform(zrange[0], zrange[1], nmodel)
-        #
-        #print(self.basewave.shape)
-        #print(self.baseflux.shape)
-        #print(len(redshift_in))
-        #zbase = doredshift(z_in=0.0, z_out=np.tile(redshift_in, len(self.basemeta)).reshape(len(self.basemeta), nmodel),
-        #                   rules=[dict(name='wave', exponent=+1, array_in=self.basewave),
-        #                          dict(name='flux', exponent=-1, array_in=self.baseflux)])
-        #import pdb ; pdb.set_trace()
-        # 
-        #for ii in range(nmodel):
-        #    rules = [dict(name='wave', exponent=+1, array_in=self.basewave),
-        #             dict(name='flux', exponent=-1, array_in=self.baseflux[ii,:])]
-        #    zbase = doredshift(z_in=0.0, z_out=redshift_in[ii], rules=rules)
-        #    #synthmaggies = self.decamwise.get_ab_maggies(zbase['flux'], zbase['wave']) , mask_invalid=True)
-        #    import pdb ; pdb.set_trace()
+        # Assign uniform redshift, r-magnitude, and velocity dispersion
+        # distributions.
+        if redshift is None:
+            redshift = rand.uniform(zrange[0], zrange[1], nchunk)
 
-        # Build the spectra.
-        nobj = 0
-        nbase = len(self.basemeta)
-        nchunk = min(nmodel, 500)
+        rmag = rand.uniform(rmagrange[0], rmagrange[1], nchunk)
+        if logvdisp_meansig[1]>0:
+            vdisp = 10**rand.normal(logvdisp_meansig[0], logvdisp_meansig[1], nchunk)
+        else:
+            vdisp = 10**np.repeat(logvdisp_meansig[0], nchunk)
 
-        while nobj<=(nmodel-1):
-            # Choose a random subset of the base templates
-            chunkindx = rand.randint(0, nbase-1, nchunk)
+        # Get the correct number and distribution of emission-line ratios.
+        oiihbeta, niihbeta, siihbeta, oiiihbeta = _lineratios(nmodel, EM=EM, rand=rand)
+        oiidoublet = rand.normal(oiidoublet_meansig[0], oiidoublet_meansig[1], nmodel)
 
-            # Assign uniform redshift, r-magnitude, and velocity dispersion
-            # distributions.
-            if redshift_in is None:
-                redshift = rand.uniform(zrange[0], zrange[1], nchunk)
-            else:
-                redshift = np.repeat(redshift_in[nobj], nchunk)
-
-            rmag = rand.uniform(rmagrange[0], rmagrange[1], nchunk)
-            if logvdisp_meansig[1]>0:
-                vdisp = 10**rand.normal(logvdisp_meansig[0], logvdisp_meansig[1], nchunk)
-            else:
-                vdisp = 10**np.repeat(logvdisp_meansig[0], nchunk)
-
-            # Get the correct number and distribution of emission-line ratios. 
-            oiihbeta = np.zeros(nchunk)
-            niihbeta = np.zeros(nchunk)
-            siihbeta = np.zeros(nchunk)
-            oiiihbeta = np.zeros(nchunk)-99
-            need = np.where(oiiihbeta==-99)[0]
-            while len(need)>0:
-                samp = EM.forbidmog.sample(len(need), random_state=rand)
-                oiiihbeta[need] = samp[:,0]
-                oiihbeta[need] = samp[:,1]
-                niihbeta[need] = samp[:,2]
-                siihbeta[need] = samp[:,3]
-                oiiihbeta[oiiihbeta<oiiihbrange[0]] = -99
-                oiiihbeta[oiiihbeta>oiiihbrange[1]] = -99
-                need = np.where(oiiihbeta==-99)[0]
-
-            # Assume the emission-line priors are uncorrelated.
-            #oiiihbeta = rand.uniform(oiiihbrange[0], oiiihbrange[1], nchunk)
-            oiidoublet = rand.normal(oiidoublet_meansig[0],
-                                     oiidoublet_meansig[1],
-                                     nchunk)
-            d4000 = self.basemeta['D4000'][chunkindx]
-            ewoii = 10.0**(np.polyval(self.ewoiicoeff,d4000)+
-                           rand.normal(0.0,0.3, nchunk)) # rest-frame, Angstrom
+        
+        d4000 = self.basemeta['D4000'][chunkindx]
+        ewoii = 10.0**(np.polyval(self.ewoiicoeff,d4000)+
+                       rand.normal(0.0,0.3, nchunk)) # rest-frame, Angstrom
 
             # Create a distribution of seeds for the emission-line spectra.
             emseed = rand.random_integers(0, 100*nchunk, nchunk)
@@ -564,6 +545,34 @@ class ELG():
             if self.add_SNeIa:
                 sne_rfluxratio = rand.uniform(sne_rfluxratiorange[0], sne_rfluxratiorange[1], nchunk)
                 sne_chunkindx = rand.randint(0, len(self.sne_basemeta)-1, nchunk)
+
+
+
+        # Build the spectra.
+        nbase = len(self.basemeta)
+        chunkindx = np.tile(np.arange(nbase), (nmodel, 1))
+
+        for ii in range(nmodel):
+            
+
+
+            import pdb ; pdb.set_trace()
+
+        
+        #nobj = 0
+        #chunksize = np.min(nmodel, self.chunksize)
+        #nchunk = long(np.ceil(nmodel / chunksize)
+        #for ichunk, in range(nchunk):
+        #nchunk = min(nmodel, 500)
+        #
+        #for indx in bigchunkindx:
+        #    rand.shuffle(indx)
+
+        import pdb ; pdb.set_trace()
+
+        while nobj<=(nmodel-1):
+            # Choose a random subset of the base templates
+            chunkindx = rand.randint(0, nbase-1, nchunk)
 
             # Unfortunately we have to loop here.
             for ii, iobj in enumerate(chunkindx):
@@ -671,6 +680,28 @@ class ELG():
                     redshift = np.repeat(redshift_in[nobj], nchunk)
 
         return outflux, self.wave, meta
+
+        ## Pre-select the set of templates that can pass the color-cuts.
+        #if redshift_in is None:
+        #    redshift_in = rand.uniform(zrange[0], zrange[1], nmodel)
+        #
+        #print(self.basewave.shape)
+        #print(self.baseflux.shape)
+        #print(len(redshift_in))
+        #zbase = doredshift(z_in=0.0, z_out=np.tile(redshift_in, len(self.basemeta)).reshape(len(self.basemeta), nmodel),
+        #                   rules=[dict(name='wave', exponent=+1, array_in=self.basewave),
+        #                          dict(name='flux', exponent=-1, array_in=self.baseflux)])
+        #import pdb ; pdb.set_trace()
+        # 
+        #for ii in range(nmodel):
+        #    rules = [dict(name='wave', exponent=+1, array_in=self.basewave),
+        #             dict(name='flux', exponent=-1, array_in=self.baseflux[ii,:])]
+        #    zbase = doredshift(z_in=0.0, z_out=redshift_in[ii], rules=rules)
+        #    #synthmaggies = self.decamwise.get_ab_maggies(zbase['flux'], zbase['wave']) , mask_invalid=True)
+        #    import pdb ; pdb.set_trace()
+
+
+
 
 class LRG():
     """Generate Monte Carlo spectra of luminous red galaxies (LRGs).
