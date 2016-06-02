@@ -357,7 +357,7 @@ def parallel_project(psf, wave, phot, ncpu=None):
         #- on a Mac, 1/2 cores is about the same speed as all of them
         ncpu = mp.cpu_count() // 2
 
-    if ncpu < 0:
+    if ncpu <= 1:
         #- Serial version
         ### print "Serial project"
         img = psf.project(wave, phot)
