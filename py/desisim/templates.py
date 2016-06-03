@@ -438,8 +438,7 @@ class ELG():
 
         # Read the rest-frame continuum basis spectra.
         baseflux, basewave, basemeta = read_basis_templates(objtype=self.objtype)
-        print('HACK!!!!!!!!!!!!!')
-        baseflux = baseflux[:500, :] ; basemeta = basemeta[:500]
+        #baseflux = baseflux[:500, :] ; basemeta = basemeta[:500]
         self.baseflux = baseflux
         self.basewave = basewave
         self.basemeta = basemeta
@@ -465,7 +464,7 @@ class ELG():
 
     def make_templates(self, nmodel=100, zrange=(0.6,1.6), rmagrange=(21.0,23.4),
                        oiiihbrange=(-0.5,0.2), oiidoublet_meansig=(0.73,0.05),
-                       logvdisp_meansig=(1.9,0.15), minoiiflux=1E-17,
+                       logvdisp_meansig=(1.9,0.15), minoiiflux=1E-18,
                        sne_rfluxratiorange=(0.1,1.0), redshift=None,
                        seed=None, nocolorcuts=False, nocontinuum=False):
         """Build Monte Carlo set of ELG spectra/templates.
@@ -491,7 +490,7 @@ class ELG():
           logvdisp_meansig (float, optional): Logarithmic mean and sigma values
             for the (Gaussian) stellar velocity dispersion distribution.
             Defaults to log10-sigma=1.9+/-0.15 km/s
-          minoiiflux (float, optional): Minimum [OII] 3727 flux [default 1E-17 erg/s/cm2].
+          minoiiflux (float, optional): Minimum [OII] 3727 flux [default 1E-18 erg/s/cm2].
             Set this parameter to zero to not have a minimum flux cut.
 
           sne_rfluxratiorange (float, optional): r-band flux ratio of the SNeIa
@@ -593,7 +592,6 @@ class ELG():
         # Build the spectra.
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
         synthnano = np.zeros((nbase, len(self.decamwise)))
-        print('HACK!!!!')
         for ii in range(nmodel):
             print(ii)
             log.debug('Simulating {} template {}/{}'. \
