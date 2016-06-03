@@ -104,7 +104,7 @@ def _lineratios(nobj=1, EM=None, oiiihbrange=(-0.5, 0.2), rand=None):
 def _getnanomaggies(flux, wave, filt):
     """Convert [grzW1W2]flux to nanomaggies."""
 
-    synthmaggies = filt.get_ab_maggies(flux, zwave, mask_invalid=True)
+    synthmaggies = filt.get_ab_maggies(flux, wave, mask_invalid=True)
     synthnano = np.array([ff*MAG2NANO for ff in synthmaggies[0]]) # convert to nanomaggies
     synthnano[synthnano == 0] = 10**(0.4*(22.5-99)) # if flux==0 then set mag==99 (below)
 
@@ -302,15 +302,15 @@ class EMSpectrum():
         nline = len(line)
 
         # Convenience variables.
-        is4959 = np.where(line['name']=='[OIII]_4959')[0]
-        is5007 = np.where(line['name']=='[OIII]_5007')[0]
-        is6548 = np.where(line['name']=='[NII]_6548')[0]
-        is6584 = np.where(line['name']=='[NII]_6584')[0]
-        is6716 = np.where(line['name']=='[SII]_6716')[0]
-        is6731 = np.where(line['name']=='[SII]_6731')[0]
-        #is3869 = np.where(line['name']=='[NeIII]_3869')[0]
-        is3726 = np.where(line['name']=='[OII]_3726')[0]
-        is3729 = np.where(line['name']=='[OII]_3729')[0]
+        is4959 = np.where(line['name'] == '[OIII]_4959')[0]
+        is5007 = np.where(line['name'] == '[OIII]_5007')[0]
+        is6548 = np.where(line['name'] == '[NII]_6548')[0]
+        is6584 = np.where(line['name'] == '[NII]_6584')[0]
+        is6716 = np.where(line['name'] == '[SII]_6716')[0]
+        is6731 = np.where(line['name'] == '[SII]_6731')[0]
+        #is3869 = np.where(line['name'] == '[NeIII]_3869')[0]
+        is3726 = np.where(line['name'] == '[OII]_3726')[0]
+        is3729 = np.where(line['name'] == '[OII]_3729')[0]
 
         # Draw from the MoGs for forbidden lines.
         if oiiihbeta==None or oiihbeta==None or niihbeta==None or siihbeta==None:
@@ -438,6 +438,8 @@ class ELG():
 
         # Read the rest-frame continuum basis spectra.
         baseflux, basewave, basemeta = read_basis_templates(objtype=self.objtype)
+        print('HACK!!!!!!!!!!!!!')
+        baseflux = baseflux[:500, :] ; basemeta = basemeta[:500]
         self.baseflux = baseflux
         self.basewave = basewave
         self.basemeta = basemeta
@@ -532,11 +534,22 @@ class ELG():
         # the "base" (continuum) templates so that we don't have to resample. 
         EM = EMSpectrum(log10wave=np.log10(self.basewave))
 
-        # Initialize the output flux array and metadata Table.
-        outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
-        meta = _metatable(nmodel, self.objtype, self.add_SNeIa)
+        # Each (output) model gets randomly assigned a continuum template.
+        # However, if that template doesn't pass the color cuts (at the
+        # specified redshift), then we iterate through the rest of the
+        # templates.  If no template passes the color cuts, then raise an
+        # exception.  If we don't care about color cuts, just grab one template
+        # for each output model.
+        if nocolorcuts:
+            nbase = 1
+            templateid = rand.randint(0, len(self.basemeta)-1, (nmodel, 1))
+        else:
+            nbase = len(self.basemeta)
+            templateid = np.tile(np.arange(nbase), (nmodel, 1))
+            for tempid in templateid:
+                rand.shuffle(tempid)
 
-        # Assign redshift, r-magnitude, velocity dispersion, and emission-line priors. 
+        # Assign redshift, r-magnitude, and velocity dispersion priors. 
         if redshift is None:
             redshift = rand.uniform(zrange[0], zrange[1], nmodel)
 
@@ -546,164 +559,103 @@ class ELG():
         else:
             vdisp = 10**np.repeat(logvdisp_meansig[0], nmodel)
 
+        # Initialize the emission line priors with varying line-ratios and the
+        # appropriate relative [OII] flux.  Also create a distribution of seeds
+        # for the emission-line spectra.
         oiidoublet = rand.normal(oiidoublet_meansig[0], oiidoublet_meansig[1], nmodel)
         oiihbeta, niihbeta, siihbeta, oiiihbeta = _lineratios(nmodel, EM, oiiihbrange, rand)
 
-        # Create a distribution of seeds for the emission-line spectra.
-        emseed = rand.random_integers(0, 100*nmodel, nmodel)
-        
+        d4000 = self.basemeta['D4000']
+        ewoii = np.tile(10.0**(np.polyval(self.ewoiicoeff, d4000)), (nmodel, 1)) + \
+          rand.normal(0.0, 0.3, (nmodel, nbase)) # rest-frame, Angstrom
+        oiiflux = np.tile(self.basemeta['OII_CONTINUUM'].data, (nmodel, 1)) * ewoii 
+
+        emseed = rand.randint(2**32, size=nmodel)
+
+        # Populate some of the metadata table.
+        meta = _metatable(nmodel, self.objtype, self.add_SNeIa)
+        meta['REDSHIFT'] = redshift
+        meta['OIIIHBETA'] = oiiihbeta
+        meta['OIIHBETA'] = oiihbeta
+        meta['NIIHBETA'] = niihbeta
+        meta['SIIHBETA'] = siihbeta
+        meta['OIIDOUBLET'] = oiidoublet
+        meta['VDISP'] = vdisp
+                
         # Get the (optional) distribution of SNe Ia priors.
         if self.add_SNeIa:
             sne_rfluxratio = rand.uniform(sne_rfluxratiorange[0], sne_rfluxratiorange[1], nmodel)
-            sne_chunkindx = rand.randint(0, len(self.sne_basemeta)-1, nmodel)
+            sne_tempid = rand.randint(0, len(self.sne_basemeta)-1, nmodel)
+            meta['SNE_TEMPLATEID'] = sne_tempid
+            meta['SNE_EPOCH'] = self.sne_basemeta['EPOCH'][sne_tempid]
+            meta['SNE_RFLUXRATIO'] = sne_rfluxratio
 
-        #nobj = 0
-        #chunksize = np.min(nmodel, self.chunksize)
-        #nchunk = long(np.ceil(nmodel / chunksize)
-        #for ichunk, in range(nchunk):
-        #nchunk = min(nmodel, 500)
-
-        # Build the spectra.  Each output object gets randomly assigned a
-        # continuum template. However, if that template doesn't pass the color
-        # cuts (at the specified redshift), then we iterate through the rest of
-        # the templates.  If no template passes the color cuts, then raise an
-        # exception.
-        nbase = len(self.basemeta)
-        templateid = np.tile(np.arange(nbase), (nmodel, 1))
-        for tempid in templateid:
-            rand.shuffle(tempid)
-
+        # Build the spectra.
+        outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
+        synthnano = np.zeros((nbase, len(self.decamwise)))
+        print('HACK!!!!')
         for ii in range(nmodel):
+            print(ii)
+            log.debug('Simulating {} template {}/{}'. \
+                      format(self.objtype, ii+1, nmodel))
             zwave = self.basewave.astype(float)*(1.0 + redshift[ii])
 
-            for jj in range(nbase):
-                tempid = templateid[ii, jj]
-                restflux = self.baseflux[tempid, :]
+            # Generate the emission-line spectrum.
+            npix = len(self.basewave)
+            emflux, emwave, emline = EM.spectrum(
+                linesigma=vdisp[ii],
+                oiidoublet=oiidoublet[ii],
+                oiiihbeta=oiiihbeta[ii],
+                oiihbeta=oiihbeta[ii],
+                niihbeta=niihbeta[ii],
+                siihbeta=siihbeta[ii],
+                oiiflux=1.0,
+                seed=emseed[ii])
 
-                if self.add_SNeIa:
-                    sne_restflux = self.sne_baseflux[sne_chunkindx[ii], :]
-                    galnorm = self.rfilt.get_ab_maggies(restflux, zwave)
-                    snenorm = self.rfilt.get_ab_maggies(sne_restflux, zwave)
-                    restflux += sne_restflux*galnorm['decam2014-r'][0]/snenorm['decam2014-r'][0]*sne_rfluxratio[ii]
-                    
-                # Normalize to [erg/s/cm2/A, @redshift[ii]]
-                rnorm = self.rfilt.get_ab_maggies(restflux, zwave)
-                norm = 10.0**(-0.4*rmag[ii])/rnorm['decam2014-r'][0]
-                flux = restflux*norm
+            if nocontinuum:
+                restflux = np.tile(emflux, (nbase, 1)) * \
+                  np.tile(oiiflux[ii, templateid[ii, :]], (1, npix)).reshape(nbase, npix)
+            else:
+                restflux = self.baseflux[templateid[ii, :], :] + np.tile(emflux, (nbase, 1)) * \
+                  np.tile(oiiflux[ii, templateid[ii, :]], (1, npix)).reshape(nbase, npix)
 
-                # Create an emission-line spectrum with the right [OII] flux [erg/s/cm2]. 
-                d4000 = self.basemeta['D4000'][tempid]
-                ewoii = 10.0**(np.polyval(self.ewoiicoeff, d4000)+
-                               rand.normal(0.0,0.3)) # rest-frame, Angstrom
+            # Add in the supernova spectrum here.
+            # ...
+            #if self.add_SNeIa:
+            #    sne_restflux = self.sne_baseflux[sne_tempid[ii], :]
+            #    galnorm = self.rfilt.get_ab_maggies(restflux, zwave)
+            #    snenorm = self.rfilt.get_ab_maggies(sne_restflux, zwave)
+            #    restflux += sne_restflux*galnorm['decam2014-r'][0]/snenorm['decam2014-r'][0]*sne_rfluxratio[ii]
 
-                oiiflux = self.basemeta['OII_CONTINUUM'][tempid]*ewoii 
-                zoiiflux = oiiflux*norm # [erg/s/cm2]
+            # Synthesize photometry to determine which models will pass the
+            # color-cuts.
+            maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
+            for ff, key in enumerate(maggies.columns):
+                synthnano[:, ff] = maggies[key]*10**(-0.4*(rmag[ii]-22.5))/maggies['decam2014-r']
+            zoiiflux = oiiflux[ii, :]*10**(-0.4*rmag[ii])/np.array(maggies['decam2014-r'])
 
-                emflux, emwave, emline = EM.spectrum(
-                    linesigma=vdisp[ii],
-                    oiidoublet=oiidoublet[ii],
-                    oiiihbeta=oiiihbeta[ii],
-                    oiihbeta=oiihbeta[ii],
-                    niihbeta=niihbeta[ii],
-                    siihbeta=siihbeta[ii],
-                    oiiflux=zoiiflux,
-                    seed=emseed[ii])
-                emflux /= (1+redshift[ii]) # [erg/s/cm2/A, @redshift[ii]]
+            colormask = isELG(gflux=synthnano[:, 1], 
+                              rflux=synthnano[:, 2], 
+                              zflux=synthnano[:, 4])
+            if np.any(colormask*(zoiiflux>minoiiflux)) == False:
+                log.fatal('None of the ELG basis templates pass the color cuts at redshift {}!'.format(redshift[ii]))
 
-                if nocontinuum:
-                    flux = emflux
-                else:
-                    # Add the emission-line spectrum and renormalize.
-                    flux += emflux
-                    rnorm = self.rfilt.get_ab_maggies(flux, zwave)
-                    norm = 10.0**(-0.4*rmag[ii])/rnorm['decam2014-r'][0]
-                    flux *= norm
-                    zoiiflux *= norm # [erg/s/cm2]
+            # Populate the output flux vector (suitably normalized) and metadata table.
+            
+            tempid = templateid[ii, np.where(colormask*(zoiiflux>minoiiflux))[0][0]] # Pick the first one.
+            outflux[ii, :] = resample_flux(self.wave, zwave, restflux[tempid, :] * \
+                                           10**(-0.4*rmag[ii])/maggies['decam2014-r'][tempid])
 
-                synthnano = _getnanomaggies(flux, wave, self.decamwise)
-
-                oiimask = [zoiiflux>minoiiflux]
-                if nocolorcuts:
-                    colormask = [True]
-                else:
-                    colormask = [isELG(gflux=synthnano[1],
-                                       rflux=synthnano[2],
-                                       zflux=synthnano[4])]
-
-                if all(colormask) and all(oiimask):
-                    if ((nobj+1)%10)==0:
-                        log.debug('Simulating {} template {}/{}'. \
-                                  format(self.objtype, nobj+1, nmodel))
-
-                    # (@moustakas) pxs.gauss_blur_matrix is producing lots of
-                    # ringing in the emission lines, so deal with it later.
-                    
-                    # Convolve (just the stellar continuum) and resample.
-                    #if nocontinuum is False:
-                        #sigma = 1.0+self.basewave*vdisp[ii]/LIGHT
-                        #flux = pxs.gauss_blur_matrix(self.pixbound,sigma) * flux
-                        #flux = (flux-emflux)*pxs.gauss_blur_matrix(self.pixbound,sigma) + emflux
-                    
-                    outflux[nobj,:] = resample_flux(self.wave, zwave, flux)
-
-                    #import pdb ; pdb.set_trace()
-                    meta['TEMPLATEID'][nobj] = chunkindx[ii]
-                    meta['REDSHIFT'][nobj] = redshift[ii]
-                    meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
-                    meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
-                    meta['ZMAG'][nobj] = -2.5*np.log10(synthnano[4])+22.5
-                    meta['W1MAG'][nobj] = -2.5*np.log10(synthnano[6])+22.5
-                    meta['W2MAG'][nobj] = -2.5*np.log10(synthnano[7])+22.5
-                    meta['DECAM_FLUX'][nobj] = synthnano[:6]
-                    meta['WISE_FLUX'][nobj] = synthnano[6:8]
-                    meta['OIIFLUX'][nobj] = zoiiflux
-                    meta['EWOII'][nobj] = ewoii[ii]
-                    meta['OIIIHBETA'][nobj] = oiiihbeta[ii]
-                    meta['OIIHBETA'][nobj] = oiihbeta[ii]
-                    meta['NIIHBETA'][nobj] = niihbeta[ii]
-                    meta['SIIHBETA'][nobj] = siihbeta[ii]
-                    meta['OIIDOUBLET'][nobj] = oiidoublet[ii]
-                    meta['D4000'][nobj] = d4000[ii]
-                    meta['VDISP'][nobj] = vdisp[ii]
-
-                    if self.add_SNeIa:
-                        meta['SNE_TEMPLATEID'][nobj] = sne_chunkindx[ii]
-                        meta['SNE_EPOCH'][nobj] = self.sne_basemeta['EPOCH'][sne_chunkindx[ii]]
-                        meta['SNE_RFLUXRATIO'][nobj] = sne_rfluxratio[ii]
-
-                    nobj = nobj+1
-                #print(ii, iobj, nobj, redshift[ii])
-
-                # If we have enough models get out!
-                if nobj>=(nmodel-1):
-                    break
-
-                if redshift_in is not None:
-                    redshift = np.repeat(redshift_in[nobj], nchunk)
+            meta['TEMPLATEID'][ii] = tempid
+            meta['OIIFLUX'][ii] = zoiiflux[tempid]
+            meta['EWOII'][ii] = ewoii[ii, tempid]
+            meta['D4000'][ii] = d4000[tempid]
+            for magkey, magindx in zip(('GMAG','RMAG','ZMAG','W1MAG','W2MAG'), (1,2,4,6,7)):
+                meta[magkey][ii] = 22.5-2.5*np.log10(synthnano[tempid, magindx])
+            meta['DECAM_FLUX'][ii] = synthnano[tempid, :6]
+            meta['WISE_FLUX'][ii] = synthnano[tempid, 6:8]
 
         return outflux, self.wave, meta
-
-        ## Pre-select the set of templates that can pass the color-cuts.
-        #if redshift_in is None:
-        #    redshift_in = rand.uniform(zrange[0], zrange[1], nmodel)
-        #
-        #print(self.basewave.shape)
-        #print(self.baseflux.shape)
-        #print(len(redshift_in))
-        #zbase = doredshift(z_in=0.0, z_out=np.tile(redshift_in, len(self.basemeta)).reshape(len(self.basemeta), nmodel),
-        #                   rules=[dict(name='wave', exponent=+1, array_in=self.basewave),
-        #                          dict(name='flux', exponent=-1, array_in=self.baseflux)])
-        #import pdb ; pdb.set_trace()
-        # 
-        #for ii in range(nmodel):
-        #    rules = [dict(name='wave', exponent=+1, array_in=self.basewave),
-        #             dict(name='flux', exponent=-1, array_in=self.baseflux[ii,:])]
-        #    zbase = doredshift(z_in=0.0, z_out=redshift_in[ii], rules=rules)
-        #    #synthmaggies = self.decamwise.get_ab_maggies(zbase['flux'], zbase['wave']) , mask_invalid=True)
-        #    import pdb ; pdb.set_trace()
-
-
-
 
 class LRG():
     """Generate Monte Carlo spectra of luminous red galaxies (LRGs).
