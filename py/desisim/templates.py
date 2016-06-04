@@ -473,7 +473,14 @@ class ELG():
         an emission-line spectrum, redshifts, and then finally normalizes the spectrum
         to a specific r-band magnitude.
 
-        TODO (@moustakas): optionally normalize to a g-band magnitude
+        In detail, each (output) model gets randomly assigned a continuum
+        (basis) template.  However, if that template doesn't pass the color cuts
+        (at the specified redshift), then we iterate through the rest of the
+        templates.  If no template passes the color cuts, then raise an
+        exception.  If we don't care about color cuts, just grab one template
+        for each output model.
+
+        TODO (@moustakas): optionally normalize to a g-band magnitude.
 
         Args:
           nmodel (int, optional): Number of models to generate (default 100). 
@@ -521,7 +528,9 @@ class ELG():
         from speclite import redshift as doredshift
 
         if nocontinuum:
+            log.warning('NOCONTINUUM keyword found; forcing NOCOLORCUTS=True and ADD_SNEIA=False')
             nocolorcuts = True
+            self.add_SNeIa = False
 
         if redshift is not None:
             if len(redshift) != nmodel:
@@ -533,20 +542,25 @@ class ELG():
         # the "base" (continuum) templates so that we don't have to resample. 
         EM = EMSpectrum(log10wave=np.log10(self.basewave))
 
-        # Each (output) model gets randomly assigned a continuum template.
-        # However, if that template doesn't pass the color cuts (at the
-        # specified redshift), then we iterate through the rest of the
-        # templates.  If no template passes the color cuts, then raise an
-        # exception.  If we don't care about color cuts, just grab one template
-        # for each output model.
-        if nocolorcuts:
-            nbase = 1
-            templateid = rand.randint(0, len(self.basemeta)-1, (nmodel, 1))
-        else:
-            nbase = len(self.basemeta)
-            templateid = np.tile(np.arange(nbase), (nmodel, 1))
-            for tempid in templateid:
-                rand.shuffle(tempid)
+        #if nocolorcuts:
+        #    nbase = 1
+        #    templateid = rand.randint(0, len(self.basemeta)-1, (nmodel, 1))
+        #else:
+        #    nbase = len(self.basemeta)
+        #    templateid = np.tile(np.arange(nbase), (nmodel, 1))
+        #    for tempid in templateid:
+        #        rand.shuffle(tempid)
+
+        # Shuffle the basis templates and then split them into ~equal chunks, so
+        # we can speed up the calculations below.
+        nbase = len(self.basemeta)
+        chunksize = np.min((nbase, 50))
+        nchunk = long(np.ceil(nbase / chunksize))
+
+        alltemplateid = np.tile(np.arange(nbase), (nmodel, 1))
+        for tempid in alltemplateid:
+            rand.shuffle(tempid)
+        alltemplateid_chunk = np.array_split(alltemplateid, nchunk, axis=1)
 
         # Assign redshift, r-magnitude, and velocity dispersion priors. 
         if redshift is None:
@@ -591,14 +605,15 @@ class ELG():
 
         # Build the spectra.
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
-        synthnano = np.zeros((nbase, len(self.decamwise)))
+
+        success = np.zeros(nmodel)
         for ii in range(nmodel):
             print(ii)
             log.debug('Simulating {} template {}/{}'. \
                       format(self.objtype, ii+1, nmodel))
             zwave = self.basewave.astype(float)*(1.0 + redshift[ii])
 
-            # Generate the emission-line spectrum.
+            # Generate the emission-line spectrum for this model.
             npix = len(self.basewave)
             emflux, emwave, emline = EM.spectrum(
                 linesigma=vdisp[ii],
@@ -610,48 +625,70 @@ class ELG():
                 oiiflux=1.0,
                 seed=emseed[ii])
 
-            if nocontinuum:
-                restflux = np.tile(emflux, (nbase, 1)) * \
-                  np.tile(oiiflux[ii, templateid[ii, :]], (1, npix)).reshape(nbase, npix)
-            else:
-                restflux = self.baseflux[templateid[ii, :], :] + np.tile(emflux, (nbase, 1)) * \
-                  np.tile(oiiflux[ii, templateid[ii, :]], (1, npix)).reshape(nbase, npix)
+            for ichunk in range(nchunk):
+                print(ichunk)
+                templateid = alltemplateid_chunk[ichunk][ii, :]
+                nbasechunk = len(templateid)
+                
+                if nocontinuum:
+                    restflux = np.tile(emflux, (nbasechunk, 1)) * \
+                      np.tile(oiiflux[ii, templateid], (1, npix)).reshape(nbasechunk, npix)
+                else:
+                    restflux = self.baseflux[templateid, :] + np.tile(emflux, (nbasechunk, 1)) * \
+                      np.tile(oiiflux[ii, templateid], (1, npix)).reshape(nbasechunk, npix)
 
-            # Add in the supernova spectrum here.
-            # ...
-            #if self.add_SNeIa:
-            #    sne_restflux = self.sne_baseflux[sne_tempid[ii], :]
-            #    galnorm = self.rfilt.get_ab_maggies(restflux, zwave)
-            #    snenorm = self.rfilt.get_ab_maggies(sne_restflux, zwave)
-            #    restflux += sne_restflux*galnorm['decam2014-r'][0]/snenorm['decam2014-r'][0]*sne_rfluxratio[ii]
+                # Add in the supernova spectrum here.
+                # ...
+                #if self.add_SNeIa:
+                #    sne_restflux = self.sne_baseflux[sne_tempid[ii], :]
+                #    galnorm = self.rfilt.get_ab_maggies(restflux, zwave)
+                #    snenorm = self.rfilt.get_ab_maggies(sne_restflux, zwave)
+                #    restflux += sne_restflux*galnorm['decam2014-r'][0]/snenorm['decam2014-r'][0]*sne_rfluxratio[ii]
 
-            # Synthesize photometry to determine which models will pass the
-            # color-cuts.
-            maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
-            for ff, key in enumerate(maggies.columns):
-                synthnano[:, ff] = maggies[key]*10**(-0.4*(rmag[ii]-22.5))/maggies['decam2014-r']
-            zoiiflux = oiiflux[ii, :]*10**(-0.4*rmag[ii])/np.array(maggies['decam2014-r'])
+                # Synthesize photometry to determine which models will pass the
+                # color-cuts.
+                maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
+                synthnano = np.zeros((nbasechunk, len(self.decamwise)))
+                for ff, key in enumerate(maggies.columns):
+                    synthnano[:, ff] = maggies[key] * 10**(-0.4*(rmag[ii]-22.5)) / maggies['decam2014-r']
 
-            colormask = isELG(gflux=synthnano[:, 1], 
-                              rflux=synthnano[:, 2], 
-                              zflux=synthnano[:, 4])
-            if np.any(colormask*(zoiiflux>minoiiflux)) == False:
-                log.fatal('None of the ELG basis templates pass the color cuts at redshift {}!'.format(redshift[ii]))
+                zoiiflux = oiiflux[ii, templateid] * 10**(-0.4*rmag[ii]) / np.array(maggies['decam2014-r'])
 
-            # Populate the output flux vector (suitably normalized) and metadata table.
-            
-            tempid = templateid[ii, np.where(colormask*(zoiiflux>minoiiflux))[0][0]] # Pick the first one.
-            outflux[ii, :] = resample_flux(self.wave, zwave, restflux[tempid, :] * \
-                                           10**(-0.4*rmag[ii])/maggies['decam2014-r'][tempid])
+                if nocolorcuts:
+                    colormask = [True]
+                else:
+                    colormask = isELG(gflux=synthnano[:, 1], 
+                                      rflux=synthnano[:, 2], 
+                                      zflux=synthnano[:, 4])
 
-            meta['TEMPLATEID'][ii] = tempid
-            meta['OIIFLUX'][ii] = zoiiflux[tempid]
-            meta['EWOII'][ii] = ewoii[ii, tempid]
-            meta['D4000'][ii] = d4000[tempid]
-            for magkey, magindx in zip(('GMAG','RMAG','ZMAG','W1MAG','W2MAG'), (1,2,4,6,7)):
-                meta[magkey][ii] = 22.5-2.5*np.log10(synthnano[tempid, magindx])
-            meta['DECAM_FLUX'][ii] = synthnano[tempid, :6]
-            meta['WISE_FLUX'][ii] = synthnano[tempid, 6:8]
+                # If the color-cuts pass then populate the output flux vector
+                # (suitably normalized) and metadata table and finish up.
+                if np.any(colormask*(zoiiflux>minoiiflux)):
+                    success[ii] = 1
+
+                    this = np.where(colormask*(zoiiflux>minoiiflux))[0][0] # Pick the first one.
+                    tempid = templateid[this]
+                    outflux[ii, :] = resample_flux(self.wave, zwave, restflux[this, :] * \
+                                                   10**(-0.4*rmag[ii])/maggies['decam2014-r'][this])
+
+                    meta['TEMPLATEID'][ii] = tempid
+                    meta['OIIFLUX'][ii] = zoiiflux[this]
+                    meta['EWOII'][ii] = ewoii[ii, tempid]
+                    meta['D4000'][ii] = d4000[tempid]
+                    for magkey, magindx in zip(('GMAG','RMAG','ZMAG','W1MAG','W2MAG'), (1,2,4,6,7)):
+                        meta[magkey][ii] = 22.5-2.5*np.log10(synthnano[this, magindx])
+                    meta['DECAM_FLUX'][ii] = synthnano[this, :6]
+                    meta['WISE_FLUX'][ii] = synthnano[this, 6:8]
+
+                    break
+
+        # Check if any spectra were not 
+
+        import pdb ; pdb.set_trace()
+        #if np.any(colormask*(zoiiflux>minoiiflux)) == False:
+        #    log.fatal('None of the ELG basis templates pass the color cuts at redshift {}!'.format(redshift[ii]))
+        #    return 0
+
 
         return outflux, self.wave, meta
 
