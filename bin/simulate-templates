@@ -162,17 +162,17 @@ def main():
             from desisim.templates import ELG
             elg = ELG(minwave=args.minwave, maxwave=args.maxwave, cdelt=args.cdelt,
                       add_SNeIa=args.add_SNeIa)
-            import numpy as np
-            rand = np.random.RandomState(args.seed)
-            redshift = rand.uniform(0.1, 1.6, 10)
+            #import numpy as np
+            #rand = np.random.RandomState(args.seed)
+            #redshift = rand.uniform(0.7, 1.6, 50)
             flux, wave, meta = elg.make_templates(nmodel=args.nmodel,
                                                   zrange=args.zrange_elg,
                                                   logvdisp_meansig=args.logvdisp_elg,
                                                   rmagrange=args.rmagrange_elg,
                                                   minoiiflux=args.minoiiflux,
                                                   seed=args.seed,
-                                                  nocolorcuts=args.nocolorcuts,
-                                                  redshift_in=redshift)
+                                                  nocolorcuts=args.nocolorcuts)
+                                                  #redshift=redshift)
             log.info('Writing {}'.format(outfile))
             write_templates(outfile, flux, wave, meta, objtype)
 

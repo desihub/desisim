@@ -124,6 +124,8 @@ class TestTemplates(unittest.TestCase):
             self.assertTrue('SNE_RFLUXRATIO' in meta.dtype.names)
             self.assertTrue('SNE_EPOCH' in meta.dtype.names)
 
+    # Need to add a test of the input/output photometry.
+
     #@unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     #def test_redshift_in(self):
     #    '''Test options for passing an input redshift array'''

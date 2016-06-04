@@ -101,15 +101,6 @@ def _lineratios(nobj=1, EM=None, oiiihbrange=(-0.5, 0.2), rand=None):
 
     return oiihbeta, niihbeta, siihbeta, oiiihbeta
 
-def _getnanomaggies(flux, wave, filt):
-    """Convert [grzW1W2]flux to nanomaggies."""
-
-    synthmaggies = filt.get_ab_maggies(flux, wave, mask_invalid=True)
-    synthnano = np.array([ff*MAG2NANO for ff in synthmaggies[0]]) # convert to nanomaggies
-    synthnano[synthnano == 0] = 10**(0.4*(22.5-99)) # if flux==0 then set mag==99 (below)
-
-    return synthnano
-
 def _metatable(nmodel=1, objtype='ELG', add_SNeIa=None):
     """Initialize the metadata table for each object type."""
     from astropy.table import Table
@@ -380,7 +371,7 @@ class ELG():
 
     """
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
-                 chunksize=500, add_SNeIa=False):
+                 add_SNeIa=False):
         """Read the ELG basis continuum templates, filter profiles and initialize the
            output wavelength array.
 
@@ -397,14 +388,11 @@ class ELG():
             [default 2 Angstrom/pixel].
           wave (numpy.ndarray): Input/output observed-frame wavelength array,
             overriding the minwave, maxwave, and cdelt arguments [Angstrom].
-          chunksize (int, optional): Generate the models in chunks that are each
-            CHUNKSIZE large [default 500].
           add_SNeIa (boolean, optional): optionally include a random-epoch SNe
             Ia spectrum in the integrated spectrum [default False]
 
         Attributes:
           objtype (str): 'ELG'
-          chunksize (int): See Args.
           wave (numpy.ndarray): Output wavelength array [Angstrom].
           baseflux (numpy.ndarray): Array [nbase,npix] of the base rest-frame
             ELG continuum spectra [erg/s/cm2/A].
@@ -428,7 +416,6 @@ class ELG():
         from desispec.interpolation import resample_flux
 
         self.objtype = 'ELG'
-        self.chunksize = chunksize
 
         # Initialize the output wavelength array (linear spacing) unless it is
         # already provided.
@@ -439,7 +426,6 @@ class ELG():
 
         # Read the rest-frame continuum basis spectra.
         baseflux, basewave, basemeta = read_basis_templates(objtype=self.objtype)
-        #baseflux = baseflux[:500, :] ; basemeta = basemeta[:500]
         self.baseflux = baseflux
         self.basewave = basewave
         self.basemeta = basemeta
@@ -504,7 +490,7 @@ class ELG():
           sne_rfluxratiorange (float, optional): r-band flux ratio of the SNeIa
             spectrum with respect to the underlying galaxy.
 
-          redshift_in (float, optional): Input/output template redshifts.  Array
+          redshift (float, optional): Input/output template redshifts.  Array
             size must equal NMODEL.  Overwrites ZRANGE input.
           seed (long, optional): Input seed for the random numbers.
           nocolorcuts (bool, optional): Do not apply the fiducial grz color-cuts
