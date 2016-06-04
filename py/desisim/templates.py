@@ -153,6 +153,7 @@ def _metatable(nmodel=1, objtype='ELG', add_SNeIa=None):
         if add_SNeIa:
             meta['SNE_EPOCH'].unit = 'days'
 
+    meta['TEMPLATEID'] = -1 # Initialize
     return meta
 
 class EMSpectrum():
@@ -542,15 +543,6 @@ class ELG():
         # the "base" (continuum) templates so that we don't have to resample. 
         EM = EMSpectrum(log10wave=np.log10(self.basewave))
 
-        #if nocolorcuts:
-        #    nbase = 1
-        #    templateid = rand.randint(0, len(self.basemeta)-1, (nmodel, 1))
-        #else:
-        #    nbase = len(self.basemeta)
-        #    templateid = np.tile(np.arange(nbase), (nmodel, 1))
-        #    for tempid in templateid:
-        #        rand.shuffle(tempid)
-
         # Shuffle the basis templates and then split them into ~equal chunks, so
         # we can speed up the calculations below.
         nbase = len(self.basemeta)
@@ -595,7 +587,8 @@ class ELG():
         meta['OIIDOUBLET'] = oiidoublet
         meta['VDISP'] = vdisp
                 
-        # Get the (optional) distribution of SNe Ia priors.
+        # Get the (optional) distribution of SNe Ia priors.  Eventually we need
+        # to make this physically consistent.
         if self.add_SNeIa:
             sne_rfluxratio = rand.uniform(sne_rfluxratiorange[0], sne_rfluxratiorange[1], nmodel)
             sne_tempid = rand.randint(0, len(self.sne_basemeta)-1, nmodel)
@@ -608,10 +601,12 @@ class ELG():
 
         success = np.zeros(nmodel)
         for ii in range(nmodel):
-            print(ii)
-            log.debug('Simulating {} template {}/{}'. \
-                      format(self.objtype, ii+1, nmodel))
             zwave = self.basewave.astype(float)*(1.0 + redshift[ii])
+
+            # Get the SN spectrum and normalization factor.
+            if self.add_SNeIa:
+                sne_restflux = self.sne_baseflux[sne_tempid[ii], :]
+                snenorm = self.rfilt.get_ab_maggies(sne_restflux, zwave)
 
             # Generate the emission-line spectrum for this model.
             npix = len(self.basewave)
@@ -626,7 +621,8 @@ class ELG():
                 seed=emseed[ii])
 
             for ichunk in range(nchunk):
-                print(ichunk)
+                log.debug('Simulating {} template {}/{} in chunk {}/{}'. \
+                          format(self.objtype, ii+1, nmodel, ichunk, nchunk))
                 templateid = alltemplateid_chunk[ichunk][ii, :]
                 nbasechunk = len(templateid)
                 
@@ -637,13 +633,12 @@ class ELG():
                     restflux = self.baseflux[templateid, :] + np.tile(emflux, (nbasechunk, 1)) * \
                       np.tile(oiiflux[ii, templateid], (1, npix)).reshape(nbasechunk, npix)
 
-                # Add in the supernova spectrum here.
-                # ...
-                #if self.add_SNeIa:
-                #    sne_restflux = self.sne_baseflux[sne_tempid[ii], :]
-                #    galnorm = self.rfilt.get_ab_maggies(restflux, zwave)
-                #    snenorm = self.rfilt.get_ab_maggies(sne_restflux, zwave)
-                #    restflux += sne_restflux*galnorm['decam2014-r'][0]/snenorm['decam2014-r'][0]*sne_rfluxratio[ii]
+                # Add in the SN spectrum.
+                if self.add_SNeIa:
+                    galnorm = self.rfilt.get_ab_maggies(restflux, zwave)
+                    snenorm = np.tile(galnorm['decam2014-r'].data, (1, npix)).reshape(nbasechunk, npix) * \
+                      np.tile(sne_rfluxratio[ii]/snenorm['decam2014-r'].data, (nbasechunk, npix))
+                    restflux += np.tile(sne_restflux, (nbasechunk, 1)) * snenorm
 
                 # Synthesize photometry to determine which models will pass the
                 # color-cuts.
@@ -663,10 +658,10 @@ class ELG():
 
                 # If the color-cuts pass then populate the output flux vector
                 # (suitably normalized) and metadata table and finish up.
-                if np.any(colormask*(zoiiflux>minoiiflux)):
+                if np.any(colormask*(zoiiflux > minoiiflux)):
                     success[ii] = 1
 
-                    this = np.where(colormask*(zoiiflux>minoiiflux))[0][0] # Pick the first one.
+                    this = np.where(colormask*(zoiiflux > minoiiflux))[0][0] # Pick the first one.
                     tempid = templateid[this]
                     outflux[ii, :] = resample_flux(self.wave, zwave, restflux[this, :] * \
                                                    10**(-0.4*rmag[ii])/maggies['decam2014-r'][this])
@@ -682,13 +677,10 @@ class ELG():
 
                     break
 
-        # Check if any spectra were not 
-
-        import pdb ; pdb.set_trace()
-        #if np.any(colormask*(zoiiflux>minoiiflux)) == False:
-        #    log.fatal('None of the ELG basis templates pass the color cuts at redshift {}!'.format(redshift[ii]))
-        #    return 0
-
+        # Check to see if any spectra could not be computed.
+        if ~np.all(success):
+            log.warning('{} spectra could not be computed given the input '+\
+                        'redshifts (or redshift priors)!'.format(np.sum(success == 0)))
 
         return outflux, self.wave, meta
 
@@ -1882,7 +1874,7 @@ class BGS():
                     rnorm = self.rfilt.get_ab_maggies(flux, zwave)
                     norm = 10.0**(-0.4*rmag[ii])/rnorm['decam2014-r'][0]
                     flux *= norm
-                    zoiiflux *= norm # [erg/s/cm2]
+                    zhbetaflux *= norm # [erg/s/cm2]
 
                 # Convert [grzW1W2]flux to nanomaggies.
                 synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
