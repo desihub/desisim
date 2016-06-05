@@ -176,8 +176,14 @@ def main(args=None):
         log.fatal('Number of cameras {} must be evenly divisible by MPI size {}'.format(ncameras, mpicomm.size))
         mpicomm.Abort()
 
-    random.seed(args.seed)
+    #- Use original seed to generate different random seeds for each MPI rank
     np.random.seed(args.seed)
+    while True:
+        seeds = np.random.randint(0, 2**32-1, size=mpicomm.size)
+        if np.unique(seeds).size == size:
+            random.seed(seeds[mpicomm.rank])
+            np.random.seed(seeds[mpicomm.rank])
+            break
 
     if args.psf is not None:
         import specter.io
