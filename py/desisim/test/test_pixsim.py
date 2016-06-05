@@ -128,19 +128,20 @@ class TestPixsim(unittest.TestCase):
         self.assertEqual(image.pix.shape[0], rawpix.shape[0])
         self.assertLess(image.pix.shape[1], rawpix.shape[1])  #- raw has overscan
 
-    #- Travis tests hang when writing coverage when both test_main1 and
-    #- test_main2 are called.  Commenting out the simpler one for now.
+    #- Travis tests hang when writing coverage when both test_main* were
+    #- called, though the tests work on other systems.
+    #- Disabling multiprocessing also "fixed" this for unknown reasons.
     @unittest.skipIf(False, 'Skip test that is causing coverage tests to hang.')
-    def test_main1(self):
+    def test_main_defaults(self):
         night = self.night
         expid = self.expid
         camera = 'r0'
         nspec = 3
-        ncpu = -1  # Disable multiprocessing
+        ncpu = 0  # Disable multiprocessing
         obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
 
         #- run pixsim
-        opts = ['--night', night, '--expid', expid, '--nspec', nspec, '--ncpu', -1]
+        opts = ['--night', night, '--expid', expid, '--nspec', nspec, '--ncpu', ncpu]
         desisim.scripts.pixsim.main(opts)
 
         #- verify outputs
@@ -165,7 +166,7 @@ class TestPixsim(unittest.TestCase):
         expid = self.expid
         camera = 'r0'
         nspec = 3
-        ncpu = -1  # Disable multiprocessing
+        ncpu = 0  # Disable multiprocessing
         obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
 
         #- derive night from simspec input while overriding expid
