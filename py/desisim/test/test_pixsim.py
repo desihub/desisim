@@ -140,7 +140,7 @@ class TestPixsim(unittest.TestCase):
         expid = self.expid
         camera = 'r0'
         nspec = 3
-        ncpu = None     #- auto select number of processes
+        ncpu = 3
         obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
 
         #- run pixsim
@@ -173,7 +173,7 @@ class TestPixsim(unittest.TestCase):
         expid = self.expid
         camera = 'r0'
         nspec = 3
-        ncpu = None     #- auto select number of processes
+        ncpu = 3
         obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
 
         #- derive night from simspec input while overriding expid

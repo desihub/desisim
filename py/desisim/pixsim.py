@@ -383,6 +383,11 @@ def parallel_project(psf, wave, phot, ncpu=None):
         for xyrange, subimg in xy_subimg:
             xmin, xmax, ymin, ymax = xyrange
             img[ymin:ymax, xmin:xmax] += subimg
+        
+        #- This might help with Travis test hangs
+        pool.close()
+        ### pool.terminate()
+        pool.join()
             
     return img
     
