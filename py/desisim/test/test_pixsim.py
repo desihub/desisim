@@ -137,7 +137,7 @@ class TestPixsim(unittest.TestCase):
         expid = self.expid
         camera = 'r0'
         nspec = 3
-        ncpu = 0  # Disable multiprocessing
+        ncpu = 2
         obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
 
         #- run pixsim
@@ -166,7 +166,7 @@ class TestPixsim(unittest.TestCase):
         expid = self.expid
         camera = 'r0'
         nspec = 3
-        ncpu = 0  # Disable multiprocessing
+        ncpu = 2
         obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
 
         #- derive night from simspec input while overriding expid
