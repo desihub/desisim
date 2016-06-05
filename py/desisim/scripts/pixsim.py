@@ -180,7 +180,7 @@ def main(args=None):
     np.random.seed(args.seed)
     while True:
         seeds = np.random.randint(0, 2**32-1, size=mpicomm.size)
-        if np.unique(seeds).size == size:
+        if np.unique(seeds).size == mpicomm.size:
             random.seed(seeds[mpicomm.rank])
             np.random.seed(seeds[mpicomm.rank])
             break

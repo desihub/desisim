@@ -144,7 +144,10 @@ class TestPixsim(unittest.TestCase):
         obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
 
         #- run pixsim
-        opts = ['--night', night, '--expid', expid, '--nspec', nspec, '--ncpu', ncpu]
+        opts = ['--night', night, '--expid', expid, '--nspec', nspec]
+        if ncpu is not None:
+            opts.extend( ['--ncpu', ncpu] )
+            
         log.debug('testing pixsim.main({})'.format(opts))
         desisim.scripts.pixsim.main(opts)
 
@@ -183,8 +186,10 @@ class TestPixsim(unittest.TestCase):
             '--cameras', 'b0,r0',
             '--preproc',
             '--wavemin', 5000, '--wavemax', 7000.0,
-            '--ncpu', ncpu,
             ]
+        if ncpu is not None:
+            opts.extend( ['--ncpu', ncpu] )
+
         log.debug('testing pixsim.main({})'.format(opts))
         desisim.scripts.pixsim.main(opts)
         simpixfile = io.findfile('simpix', night, expid+1)
