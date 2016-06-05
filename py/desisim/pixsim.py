@@ -360,10 +360,12 @@ def parallel_project(psf, wave, phot, ncpu=None):
     if ncpu <= 1:
         #- Serial version
         ### print "Serial project"
+        log.debug('Not using multiprocessing (ncpu={})'.format(ncpu))
         img = psf.project(wave, phot)
     else:
         #- multiprocessing version
         #- Split the spectra into ncpu groups
+        log.debug('Using multiprocessing (ncpu={})'.format(ncpu))
         nspec = phot.shape[0]
         iispec = np.linspace(0, nspec, ncpu+1).astype(int)
         args = list()
