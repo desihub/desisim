@@ -131,13 +131,13 @@ class TestPixsim(unittest.TestCase):
     #- Travis tests hang when writing coverage when both test_main* were
     #- called, though the tests work on other systems.
     #- Disabling multiprocessing also "fixed" this for unknown reasons.
-    @unittest.skipIf(True, 'Skip test that is causing coverage tests to hang.')
+    @unittest.skipIf(False, 'Skip test that is causing coverage tests to hang.')
     def test_main_defaults(self):
         night = self.night
         expid = self.expid
         camera = 'r0'
         nspec = 3
-        ncpu = 2
+        ncpu = None     #- auto select number of processes
         obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
 
         #- run pixsim
@@ -166,7 +166,7 @@ class TestPixsim(unittest.TestCase):
         expid = self.expid
         camera = 'r0'
         nspec = 3
-        ncpu = 2
+        ncpu = None     #- auto select number of processes
         obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
 
         #- derive night from simspec input while overriding expid
