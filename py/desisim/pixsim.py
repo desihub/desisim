@@ -359,7 +359,6 @@ def parallel_project(psf, wave, phot, ncpu=None):
 
     if ncpu <= 1:
         #- Serial version
-        ### print "Serial project"
         log.debug('Not using multiprocessing (ncpu={})'.format(ncpu))
         img = psf.project(wave, phot)
     else:
@@ -375,8 +374,6 @@ def parallel_project(psf, wave, phot, ncpu=None):
 
         #- Create pool of workers to do the projection using _project
         #- xyrange, subimg = _project( [psf, wave, phot, specmin] )
-        ### print "parallel_project {} groups with {} CPU cores".format(len(args), ncpu)
-
         pool = mp.Pool(ncpu)
         xy_subimg = pool.map(_project, args)
         img = np.zeros( (psf.npix_y, psf.npix_x) )
@@ -384,9 +381,8 @@ def parallel_project(psf, wave, phot, ncpu=None):
             xmin, xmax, ymin, ymax = xyrange
             img[ymin:ymax, xmin:xmax] += subimg
         
-        #- This might help with Travis test hangs
+        #- Prevents hangs of Travis tests
         pool.close()
-        ### pool.terminate()
         pool.join()
             
     return img
