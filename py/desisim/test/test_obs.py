@@ -138,6 +138,16 @@ class TestObs(unittest.TestCase):
         c = obs.get_next_expid()
         self.assertNotEqual(a, b)
         self.assertNotEqual(b, c)
+        
+    def test_testslit_fibermap(self):
+        #- Should have one fiber per bundle = 10*20 = 200
+        fm = obs.testslit_fibermap()
+        self.assertTrue(len(fm) == 200)     #- 10 spectro * 20 bundles
+        self.assertTrue(len(set(fm['FIBER'])) == 200)   #- unique fibers
+        for i in range(10):
+            self.assertIn(i*500, fm['FIBER'])
+            self.assertIn(i*500+499, fm['FIBER'])
+    
 
 #- This runs all test* functions in any TestCase class in this file
 if __name__ == '__main__':

@@ -2,11 +2,14 @@
 I/O routines for desisim
 """
 
+from __future__ import absolute_import, division, print_function
+
 import os
 import time
 from glob import glob
 
 from astropy.io import fits
+from astropy.stats import sigma_clipped_stats
 import numpy as np
 import multiprocessing
 
@@ -20,6 +23,8 @@ import desispec.io.util
 
 from desispec.log import get_logger
 log = get_logger()
+
+from desisim.util import spline_medfilt2d
 
 #-------------------------------------------------------------------------
 def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
@@ -50,7 +55,7 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
     #- Definition of where files go
     location = dict(
         simspec = '{outdir:s}/simspec-{expid:08d}.fits',
-        simpix = '{outdir:s}/simpix-{camera:s}-{expid:08d}.fits',
+        simpix = '{outdir:s}/simpix-{expid:08d}.fits',
         pix = '{outdir:s}/pix-{camera:s}-{expid:08d}.fits',
     )
 
@@ -59,7 +64,7 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
         raise ValueError("Unknown filetype {}; known types are {}".format(filetype, location.keys()))
 
     #- Some but not all filetypes require camera
-    if filetype in ('simpix', 'pix') and camera is None:
+    if filetype == 'pix' and camera is None:
         raise ValueError('camera is required for filetype '+filetype)
 
     #- get outfile location and cleanup extraneous // from path
@@ -225,19 +230,25 @@ def read_simspec(filename):
     #- All flavors have photons
     wave = dict()
     phot = dict()
+    skyphot = dict()
     for channel in ('b', 'r', 'z'):
         wave[channel] = fx['WAVE_'+channel.upper()].data
         phot[channel] = fx['PHOT_'+channel.upper()].data
+        skyext = 'SKYPHOT_'+channel.upper()
+        if skyext in fx:
+            skyphot[channel] = fx[skyext].data
+        else:
+            skyphot[channel] = np.zeros_like(phot[channel])
 
     if flavor == 'arc':
         fx.close()
-        return SimSpec(flavor, wave, phot, header=hdr)
+        return SimSpec(flavor, wave, phot, skyphot=skyphot, header=hdr)
 
     elif flavor == 'flat':
         wave['brz'] = fx['WAVE'].data
         flux = fx['FLUX'].data
         fx.close()
-        return SimSpec(flavor, wave, phot, flux=flux, header=hdr)
+        return SimSpec(flavor, wave, phot, skyphot=skyphot, flux=flux, header=hdr)
 
     else:  #- multiple science flavors: dark, bright, bgs, mws, etc.
         wave['brz'] = fx['WAVE'].data
@@ -254,7 +265,7 @@ def read_simspec(filename):
             skyphot=skyphot, metadata=metadata, header=hdr)
 
 
-def write_simpix(outfile, image, meta):
+def write_simpix(outfile, image, camera, meta):
     """
     Write simpix data to outfile
 
@@ -266,11 +277,25 @@ def write_simpix(outfile, image, meta):
     """
 
     meta = desispec.io.util.fitsheader(meta)
-    hdu = fits.PrimaryHDU(image.astype(np.float32), header=meta)
-    hdu.header['EXTNAME'] = 'SIMPIX'  #- formally not allowed by FITS standard
-    hdu.header['DEPNAM00'] = 'specter'
-    hdu.header['DEVVER00'] = ('0.0.0', 'TODO: Specter version')
-    hdu.writeto(outfile, clobber=True)
+
+    #- Create a new file with a blank primary HDU if needed
+    if not os.path.exists(outfile):
+        header = meta.copy()
+        try:
+            import specter
+            header['DEPNAM00'] = 'specter'
+            header['DEPVER00'] = (specter.__version__, 'Specter version')
+        except ImportError:
+            pass
+
+        fits.PrimaryHDU(None, header=header).writeto(outfile)
+    
+    #- Add the new HDU    
+    hdu = fits.ImageHDU(image.astype(np.float32), header=meta, name=camera.upper())
+    hdus = fits.open(outfile, mode='append', memmap=False)    
+    hdus.append(hdu)
+    hdus.flush()
+    hdus.close()
 
 #-------------------------------------------------------------------------
 #- Cosmics
@@ -278,10 +303,61 @@ def write_simpix(outfile, image, meta):
 #- Utility function to resize an image while preserving its 2D arrangement
 #- (unlike np.resize)
 def _resize(image, shape):
-    ny = shape[0] // image.shape[0] + 1
-    nx = shape[1] // image.shape[1] + 1
+    """
+    Resize input image to have new shape, preserving its 2D arrangement
+    
+    Args:
+        image : 2D ndarray
+        shape : tuple (ny,nx) for desired output shape
+        
+    Returns:
+        new image with image.shape == shape
+    """
+    
+    #- Tile larger in odd integer steps so that sub-/super-selection can
+    #- be centered on the input image
+    fx = shape[1] / image.shape[1]
+    fy = shape[0] / image.shape[0]
+    nx = int(2*np.ceil( (fx-1) / 2) + 1)
+    ny = int(2*np.ceil( (fy-1) / 2) + 1)
+    
     newpix = np.tile(image, (ny, nx))
-    return newpix[0:shape[0], 0:shape[1]]
+    ix = newpix.shape[1] // 2 - shape[1] // 2
+    iy = newpix.shape[0] // 2 - shape[0] // 2
+    return newpix[iy:iy+shape[0], ix:ix+shape[1]]
+
+def find_cosmics(camera, exptime=1000, cosmics_dir=None):
+    '''
+    Return full path to cosmics template file to use
+    
+    Args:
+        camera (str): e.g. 'b0', 'r1', 'z9'
+    
+    Options:
+        exptime (int): exposure time in seconds
+        cosmics_dir: directory to look for cosmics templates; defaults to
+            $DESI_COSMICS_TEMPLATES if set or otherwise
+            $DESI_ROOT/spectro/templates/cosmics/v0.2  (note HARDCODED version)
+            
+    Exposure times <120 sec will use the bias templates; otherwise they will
+    use the dark cosmics templates
+    '''
+    if cosmics_dir is None:
+        if 'DESI_COSMICS_TEMPLATES' in os.environ:
+            cosmics_dir = os.environ['DESI_COSMICS_TEMPLATES']
+        else:
+            cosmics_dir = os.environ['DESI_ROOT']+'/spectro/templates/cosmics/v0.2/'
+    
+    if exptime < 120:
+        exptype = 'bias'
+    else:
+        exptype = 'dark'
+        
+    channel = camera[0].lower()
+    assert channel in 'brz', 'Unknown camera {}'.format(camera)
+    
+    cosmicsfile = '{}/cosmics-{}-{}.fits'.format(cosmics_dir, exptype, channel)
+    return os.path.normpath(cosmicsfile)
 
 def read_cosmics(filename, expid=1, shape=None, jitter=True):
     """
@@ -316,13 +392,18 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
     meta = fx['IMAGE-'+imagekeys[i]].header
     meta['CRIMAGE'] = (imagekeys[i], 'input cosmic ray image')
 
+    #- De-trend each amplifier
+    nx = pix.shape[1] // 2
+    ny = pix.shape[0] // 2
+    kernel_size = min(201, ny//3, nx//3)
+    
+    pix[0:ny, 0:nx] -= spline_medfilt2d(pix[0:ny, 0:nx], kernel_size)
+    pix[0:ny, nx:2*nx] -= spline_medfilt2d(pix[0:ny, nx:2*nx], kernel_size)
+    pix[ny:2*ny, 0:nx] -= spline_medfilt2d(pix[ny:2*ny, 0:nx], kernel_size)
+    pix[ny:2*ny, nx:2*nx] -= spline_medfilt2d(pix[ny:2*ny, nx:2*nx], kernel_size)
+
     if shape is not None:
         if len(shape) != 2: raise ValueError('Invalid shape {}'.format(shape))
-        newpix = np.empty(shape, dtype=np.float64)
-        ny = min(shape[0], pix.shape[0])
-        nx = min(shape[1], pix.shape[1])
-        newpix[0:ny, 0:nx] = pix[0:ny, 0:nx]
-
         pix = _resize(pix, shape)
         ivar = _resize(ivar, shape)
         mask = _resize(mask, shape)
@@ -343,10 +424,10 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
             mask = np.flipud(mask)
             meta['CRFLIPUD'] = (True, 'Input cosmics image flipped Up/Down')
         else:
-            meta['CRFLIPUD'] = (True, 'Input cosmics image NOT flipped Up/Down')
+            meta['CRFLIPUD'] = (False, 'Input cosmics image NOT flipped Up/Down')
 
         #- Randomly roll image a bit
-        nx, ny = np.random.randint(-200, 200, size=2)
+        nx, ny = np.random.randint(-100, 100, size=2)
         pix = np.roll(np.roll(pix, ny, axis=0), nx, axis=1)
         ivar = np.roll(np.roll(ivar, ny, axis=0), nx, axis=1)
         mask = np.roll(np.roll(mask, ny, axis=0), nx, axis=1)
@@ -354,17 +435,36 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
         meta['CRSHIFTY'] = (nx, 'Input cosmics image shift in y')
     else:
         meta['CRFLIPLR'] = (False, 'Input cosmics image NOT flipped Left/Right')
-        meta['CRFLIPUD'] = (True, 'Input cosmics image NOT flipped Up/Down')
+        meta['CRFLIPUD'] = (False, 'Input cosmics image NOT flipped Up/Down')
         meta['CRSHIFTX'] = (0, 'Input cosmics image shift in x')
         meta['CRSHIFTY'] = (0, 'Input cosmics image shift in y')
 
-    #- RDNOISEn -> average RDNOISE
-    if 'RDNOISE' not in meta:
-        x = meta['RDNOISE0']+meta['RDNOISE1']+meta['RDNOISE2']+meta['RDNOISE3']
-        meta['RDNOISE'] = x / 4.0
+    del meta['RDNOISE0']
+    #- Amp 1 lower left
+    nx = pix.shape[1] // 2
+    ny = pix.shape[0] // 2
+    iixy = np.s_[0:ny, 0:nx]
+    cx = pix[iixy][mask[iixy] == 0]
+    mean, median, std = sigma_clipped_stats(cx, sigma=3, iters=5)       
+    meta['RDNOISE1'] = std
+
+    #- Amp 2 lower right
+    iixy = np.s_[0:ny, nx:2*nx]
+    cx = pix[iixy][mask[iixy] == 0]
+    mean, median, std = sigma_clipped_stats(cx, sigma=3, iters=5)
+    meta['RDNOISE2'] = std
+
+    #- Amp 3 upper left
+    iixy = np.s_[ny:2*ny, 0:nx]
+    mean, median, std = sigma_clipped_stats(pix[iixy], sigma=3, iters=5)
+    meta['RDNOISE3'] = std
+
+    #- Amp 4 upper right
+    iixy = np.s_[ny:2*ny, nx:2*nx]
+    mean, median, std = sigma_clipped_stats(pix[iixy], sigma=3, iters=5)
+    meta['RDNOISE4'] = std
 
     return Image(pix, ivar, mask, meta=meta)
-
 
 #-------------------------------------------------------------------------
 #- desimodel
