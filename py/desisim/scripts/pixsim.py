@@ -258,5 +258,5 @@ def main(args=None):
         preproc.main(preproc.parse(preproc_opts))
 
     if mpicomm.rank == 0:
-        log.info('Finished pixsim {}'.format(asctime()))
+        log.info('Finished pixsim {} expid {} at {}'.format(args.night, args.expid, asctime()))
 
