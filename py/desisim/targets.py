@@ -106,6 +106,11 @@ def sample_objtype(nobj, flavor):
         true_objtype += ['ELG']*nelg
         true_objtype += ['LRG']*nlrg
         true_objtype += ['QSO']*nqso + ['QSO_BAD']*nbadqso
+    elif flavor == 'SKY':
+        #- override everything else and just return sky objects
+        nlrg = nqso = nelg = nmws = nbgs = nbgs = nmws = nstd = 0
+        nsky = nobj
+        true_objtype = ['SKY',] * nobj
     else:
         raise ValueError("Do not know the objtype mix for flavor "+ flavor)
         
@@ -128,8 +133,8 @@ def sample_objtype(nobj, flavor):
 
 #- multiprocessing needs one arg, not multiple args
 def _wrap_get_targets(args):
-    nspec, flavor, tileid, seed = args
-    return get_targets(nspec, flavor, tileid, seed=seed)
+    nspec, flavor, tileid, seed, specmin = args
+    return get_targets(nspec, flavor, tileid, seed=seed, specmin=specmin)
     
 def get_targets_parallel(nspec, flavor, tileid=None, nproc=None, seed=None):
     import multiprocessing as mp
@@ -150,9 +155,9 @@ def get_targets_parallel(nspec, flavor, tileid=None, nproc=None, seed=None):
         seeds = np.random.randint(2**32, size=nspec)
         for i in range(0, nspec, n):
             if i+n < nspec:
-                args.append( (n, flavor, tileid, seeds[i]) )
+                args.append( (n, flavor, tileid, seeds[i], i) )
             else:
-                args.append( (nspec-i, flavor, tileid, seeds[i]) )
+                args.append( (nspec-i, flavor, tileid, seeds[i], i) )
 
         pool = mp.Pool(nproc)
         results = pool.map(_wrap_get_targets, args)
@@ -170,7 +175,7 @@ def get_targets_parallel(nspec, flavor, tileid=None, nproc=None, seed=None):
 
         return fibermap, truth
 
-def get_targets(nspec, flavor, tileid=None, seed=None):
+def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
     """
     Returns:
         fibermap
@@ -306,8 +311,8 @@ def get_targets(nspec, flavor, tileid=None, seed=None):
     fiberpos = desimodel.io.load_fiberpos()
 
     #- Where are these targets?  Centered on positioners for now.
-    x = fiberpos['X'][0:nspec]
-    y = fiberpos['Y'][0:nspec]
+    x = fiberpos['X'][specmin:specmin+nspec]
+    y = fiberpos['Y'][specmin:specmin+nspec]
     fp = FocalPlane(tile_ra, tile_dec)
     ra = np.zeros(nspec)
     dec = np.zeros(nspec)
@@ -316,8 +321,8 @@ def get_targets(nspec, flavor, tileid=None, seed=None):
 
     #- Fill in the rest of the fibermap structure
     fibermap['FIBER'] = np.arange(nspec, dtype='i4')
-    fibermap['POSITIONER'] = fiberpos['POSITIONER'][0:nspec]
-    fibermap['SPECTROID'] = fiberpos['SPECTROGRAPH'][0:nspec]
+    fibermap['POSITIONER'] = fiberpos['POSITIONER'][specmin:specmin+nspec]
+    fibermap['SPECTROID'] = fiberpos['SPECTROGRAPH'][specmin:specmin+nspec]
     fibermap['TARGETID'] = np.random.randint(sys.maxint, size=nspec)
     fibermap['TARGETCAT'] = np.zeros(nspec, dtype='|S20')
     fibermap['LAMBDAREF'] = np.ones(nspec, dtype=np.float32)*5400

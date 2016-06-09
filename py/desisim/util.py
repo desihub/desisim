@@ -1,10 +1,76 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import print_function, division
+import numpy as np
 
 """
 Utility functions for desisim.  These may belong elsewhere..?
 """
+
+#- Experimental
+class _FakeMPIComm(object):
+    '''
+    Provides a fake MPI communicator with a very small subset of the actual
+    functions that mpi4py.MPI.COMM_WORLD provides.  This can be used by
+    programs that want to gracefully fall back from MPI to serial code if they
+    only need to get rank, size, and do barriers.
+    '''
+    def __init__(self):
+        '''creates a fake MPI communicator'''
+        self._size = 1
+        self._rank = 0
+    
+    @property
+    def size(self):
+        return self._size
+
+    @property
+    def rank(self):
+        return self._rank
+    
+    def Get_size(self):
+        '''mimics a real MPI communicator; returns 1'''
+        return self._size
+        
+    def Get_rank(self):
+        '''mimics a real MPI communicator; returns 0'''
+        return self._rank
+        
+    def Barrier(self):
+        '''mimics a real MPI communicator, but doesn't do anything here'''
+        pass
+
+    def Abort(self):
+        '''Stop hard'''
+        import sys
+        sys.exit(1)
+
+def spline_medfilt2d(image, kernel_size=201):
+    '''
+    Returns a 2D spline interpolation of a median filtered input image
+    '''
+    if 3*kernel_size > min(image.shape):
+        raise ValueError(
+            'kernel_size {} must be < min image shape {}//3'.format(
+                kernel_size, min(image.shape)))
+        
+    from scipy.interpolate import RectBivariateSpline
+    n = kernel_size // 2
+    xx = np.arange(n, image.shape[1], kernel_size)
+    yy = np.arange(n, image.shape[0], kernel_size)
+    zz = np.zeros((len(yy), len(xx)))
+    for i,x in enumerate(xx):
+        for j,y in enumerate(yy):
+            xy = np.s_[y-n:y+n+1, x-n:x+n+1]
+            zz[j,i] = np.median(image[xy])
+    
+    #- adjust spline order for small test data
+    kx = min(3, len(xx)-1)
+    ky = min(3, len(yy)-1)
+    s = RectBivariateSpline(xx, yy, zz, kx=kx, ky=ky)
+    background = s(np.arange(image.shape[0]), np.arange(image.shape[1]))
+
+    return background            
 
 def medxbin(x,y,binsize,minpts=20,xmin=None,xmax=None):
     """
