@@ -512,7 +512,6 @@ class ELG():
         from desispec.interpolation import resample_flux
         from desisim import pixelsplines as pxs
         from desitarget.cuts import isELG
-        from speclite import redshift as doredshift
 
         if nocontinuum:
             log.warning('NOCONTINUUM keyword found; forcing NOCOLORCUTS=True and ADD_SNEIA=False')
