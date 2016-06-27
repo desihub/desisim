@@ -172,7 +172,7 @@ if simspec.flavor == 'flat':
         fiberflat = random_state.normal(
             scale=1.0 / np.sqrt(meanspec), size=(nspec, num_pixels))
         ivar = np.tile(1.0 / meanspec, [nspec, 1])
-        mask = np.zeros((simspec.nspec, num_pixels))
+        mask = np.zeros((simspec.nspec, num_pixels), dtype=np.uint32)
 
         for kk in range((args.nspec+args.nstart-1)/500+1):
             camera = channel+str(kk)
@@ -338,7 +338,7 @@ for channel in 'brz':
             skyflux=nsky[start:end,armName[channel],:num_pixels] + \
             sky_rand_noise[start:end,armName[channel],:num_pixels]
             skyivar=sky_ivar[start:end,armName[channel],:num_pixels]
-            skymask=np.zeros(skyflux.shape, dtype=int)
+            skymask=np.zeros(skyflux.shape, dtype=np.uint32)
 
             # write sky file
             skymodel = SkyModel(waves[channel], skyflux, skyivar, skymask)
@@ -358,7 +358,7 @@ for channel in 'brz':
     #- For now, model it as the noise of combining ~10 spectra
             calibivar=10/cframe_ivar[start:end,armName[channel],:num_pixels]
             #mask=(1/calibivar>0).astype(long)??
-            mask=np.zeros(calibration.shape, dtype=int)
+            mask=np.zeros(calibration.shape, dtype=np.uint32)
 
            # write flux calibration
             fluxcalib = FluxCalib(waves[channel], calibration, calibivar, mask)
