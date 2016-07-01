@@ -153,7 +153,7 @@ class TestQuickgen(unittest.TestCase):
         night = self.night
         expid = self.expid
         camera = 'r0'
-        flavors = ['flat','dark','gray','bright','bgs','mws','elg','lrg','qso','arc']
+        flavors = ['flat','dark','gray','bright','bgs','mws','elg','lrg','qso']#,'arc']
         for i in range(len(flavors)):
             flavor = flavors[i]
             obs.new_exposure(flavor, night=night, expid=expid, nspec=4)

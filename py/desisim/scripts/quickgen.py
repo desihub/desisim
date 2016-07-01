@@ -146,7 +146,6 @@ def main(args=None):
         spectra = (const.h/const.erg)*const.c*(sp/wavelengths)/1.0e-17
     else:
         wavelengths = simspec.wave['brz']
-        print wavelengths
         spectra = simspec.flux
 
     # Note spectra=data/1.0e-17# flux in units of 1.0e-17 ergs/cm^2/s/A
@@ -218,6 +217,9 @@ def main(args=None):
         sys.exit(0)
 
     elif simspec.flavor =='arc':
+
+        raise ValueError('arc exposures currently causing scipy interpolation error, ongoing work to fix this')
+
         nobj=np.zeros((nmax,3,maxbin))     # Object Photons
         nivar=np.zeros((nmax,3,maxbin))     # inverse variance
         frame_rand_noise=np.zeros((nmax,3,maxbin))     # random Gaussian noise to nobj
