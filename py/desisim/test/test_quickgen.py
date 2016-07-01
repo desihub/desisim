@@ -153,7 +153,7 @@ class TestQuickgen(unittest.TestCase):
         night = self.night
         expid = self.expid
         camera = 'r0'
-        flavors = ['arc','flat','dark','gray','bright','bgs','mws','elg','lrg','qso']
+        flavors = ['flat','dark','gray','bright','bgs','mws','elg','lrg','qso','arc']
         for i in range(len(flavors)):
             flavor = flavors[i]
             obs.new_exposure(flavor, night=night, expid=expid, nspec=4)
@@ -167,7 +167,7 @@ class TestQuickgen(unittest.TestCase):
             opts = ['--simspec', simspec, '--fibermap', fibermap]
             log.debug('testing quickgen({})'.format(opts))
 
-            if flavor == 'flat' or flavor == 'arc':
+            if flavor == 'flat':
                 try:
                     desisim.scripts.quickgen.main(opts)
                 except SystemExit:
@@ -179,6 +179,19 @@ class TestQuickgen(unittest.TestCase):
 
                 #- cleanup flat outputs
                 os.remove(fiberflatfile)
+
+            elif flavor == 'arc':
+                try:
+                    desisim.scripts.quickgen.main(opts)
+                except SystemExit:
+                    pass
+
+                #- verify arc outputs
+                framefile = desispec.io.findfile('frameflat', night, expid, camera)
+                self.assertTrue(os.path.exists(frameflatfile))
+
+                #- cleanup arc outputs
+                os.remove(framefile)
 
             else:
                 desisim.scripts.quickgen.main(opts)
