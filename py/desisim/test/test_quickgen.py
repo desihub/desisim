@@ -187,8 +187,8 @@ class TestQuickgen(unittest.TestCase):
                     pass
 
                 #- verify arc outputs
-                framefile = desispec.io.findfile('frameflat', night, expid, camera)
-                self.assertTrue(os.path.exists(frameflatfile))
+                framefile = desispec.io.findfile('frame', night, expid, camera)
+                self.assertTrue(os.path.exists(framefile))
 
                 #- cleanup arc outputs
                 os.remove(framefile)
