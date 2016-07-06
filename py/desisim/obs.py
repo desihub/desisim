@@ -106,24 +106,24 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
         d = fits.getdata(infile, 1)
         
         keys = d.columns.names
+                
         wave=None
         phot=None
-        if phot is None :
-            try :
-                wave = d['VACUUM_WAVE']
-                phot = d['ELECTRONS']
-            except KeyError:
-                pass
-        if phot is None :
-            try :
-                wave = d['WAVE']
-                phot = d['ELECTRONS']
-            except KeyError:
-                pass
-        if phot is None :
+        elec=None
+        
+        if ( 'VACUUM_WAVE' in keys ) :
+            wave = d['VACUUM_WAVE']
+        elif ( 'WAVE' in keys ) :
+            wave = d['WAVE']
+        if ("ELECTRONS" in keys) :
+            elec = d['ELECTRONS']
+        elif ("PHOTONS" in keys) :
+            phot= d['PHOTONS']
+            
+        if ( ( phot is None ) and (elec is None) ) or wave is None :
             log.error("cannot read arc line fits file '%s' (don't know the format)"%infile)
             raise KeyError("cannot read arc line fits file")
-            
+        
 
         truth = dict(WAVE=wave)
         meta = None
@@ -140,7 +140,11 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
             thru = desimodel.io.load_throughput(channel)        
             ii = np.where( (thru.wavemin <= wave) & (wave <= thru.wavemax) )[0]
             truth['WAVE_'+channel] = wave[ii]
-            truth['PHOT_'+channel] = np.tile(phot[ii], nspec).reshape(nspec, len(ii))
+            if phot is not None :
+                elec = phot*np.interp(wave,thru._wave,thru._thru,left=0,right=0)
+            truth['PHOT_'+channel] = np.tile(elec[ii], nspec).reshape(nspec, len(ii))
+            
+                
 
     elif flavor == 'flat':
         
