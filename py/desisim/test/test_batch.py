@@ -4,7 +4,7 @@ import unittest
 from desisim.batch import calc_nodes
 from desisim.batch.pixsim import batch_newexp, batch_pixsim
 
-class TestBlat(unittest.TestCase):
+class TestBatch(unittest.TestCase):
     
     def setUp(self):
         self.batchfile = 'batch-d4ae52ada252.sh'
@@ -12,6 +12,7 @@ class TestBlat(unittest.TestCase):
         self._DESI_SPECTRO_SIM = os.getenv('DESI_SPECTRO_SIM')
         os.environ['PIXPROD'] = 'test'
         os.environ['DESI_SPECTRO_SIM'] = '/test/dir'
+        os.environ['DESI_SPECTRO_DATA'] = '/test/dir/test'
 
     def tearDown(self):
         if os.path.exists(self.batchfile):

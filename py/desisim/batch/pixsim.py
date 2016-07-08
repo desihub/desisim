@@ -32,7 +32,7 @@ from desispec.log import get_logger
 log = get_logger()
 
 def batch_newexp(batchfile, flavors, nspec=5000, night=None, expids=None,
-    nodes=None, pixprod=None, desi_spectro_sim=None):
+    nodes=None, pixprod=None, desi_spectro_sim=None, tileids=None):
     '''
     Write a slurm batch script for run newexp-desi for the list of flavors
     '''
@@ -48,6 +48,19 @@ def batch_newexp(batchfile, flavors, nspec=5000, night=None, expids=None,
         
     if nodes is None:
         nodes = calc_nodes(nexp, tasktime=1.5, maxtime=20)
+
+    if tileids is None:
+        tileids = list()
+        brighttile = darktile = obs.get_next_tileid()
+        for flavor in flavors:
+            if flavor.lower() in ['dark', 'gray', 'grey', 'lrg', 'elg', 'qso']:
+                tileids.append(darktile)
+                darktile += 1
+            elif flavor.lower() in ['bright', 'bgs', 'mws']:
+                tileids.append(brighttile)
+                brighttile += 1
+            else:  #- calibration exposures
+                tileids.append(-1)
         
     if pixprod is None:
         if 'PIXPROD' in os.environ:
@@ -65,7 +78,7 @@ def batch_newexp(batchfile, flavors, nspec=5000, night=None, expids=None,
     
     assert len(expids) == len(flavors)
     
-    cmd = "srun -n 1 -N 1 -c $nproc /usr/bin/time newexp-desi --night {night} --nspec {nspec} --flavor {flavor} --expid {expid}"
+    cmd = "srun -n 1 -N 1 -c $nproc /usr/bin/time newexp-desi --night {night} --nspec {nspec} --flavor {flavor} --expid {expid} --tileid {tileid}"
     with open(batchfile, 'w') as fx:
         fx.write("#!/bin/bash -l\n\n")
         fx.write("#SBATCH --partition=debug\n")
@@ -86,8 +99,8 @@ def batch_newexp(batchfile, flavors, nspec=5000, night=None, expids=None,
         fx.write('\n')
         fx.write('echo Starting at `date`\n\n')
         
-        for expid, flavor in zip(expids, flavors):
-            fx.write(cmd.format(nspec=nspec, night=night, expid=expid, flavor=flavor)+' &\n')
+        for expid, flavor, tileid in zip(expids, flavors, tileids):
+            fx.write(cmd.format(nspec=nspec, night=night, expid=expid, flavor=flavor, tileid=tileid)+' &\n')
             
         fx.write('\nwait\n')
         fx.write('\necho Done at `date`\n')
@@ -132,7 +145,7 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
         # nodes = calc_nodes(ntasks, tasktime=5, maxtime=20)
         nodes = nexp * nspectrographs
         
-    cmd = "srun -n {nspectrographs} -N {nspectrographs} -c $nproc /usr/bin/time pixsim-desi --mpi --verbose --preproc --cosmics --night {night} --expid {expid}"
+    cmd = "srun -n {nspectrographs} -N {nspectrographs} -c $nproc /usr/bin/time pixsim-desi --mpi --verbose --cosmics --night {night} --expid {expid}"
     with open(batchfile, 'w') as fx:
         fx.write("#!/bin/bash -l\n\n")
         fx.write("#SBATCH --partition=debug\n")
@@ -154,11 +167,22 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
         fx.write('\necho Starting at `date`\n')
 
         for expid, flavor in zip(expids, flavors):
-            fx.write('\n#--- Exposure {} ({})\n'.format(expid, flavor))
+            fx.write('\n#- Exposure {} ({})\n'.format(expid, flavor))
                 
             cx = cmd.format(night=night, expid=expid, nspectrographs=nspectrographs)
             fx.write(cx + ' &\n')
         
         fx.write('\nwait\n')
-
+        
+        fx.write('\n#- Preprocess raw data\n')
+        cmd = 'srun -n 1 -N 1 desi_preproc --infile {infile} --outdir {outdir} --cameras {cameras}'
+        outdir = os.path.join(desi_spectro_sim, pixprod, night)
+        for expid in expids:
+            infile = desispec.io.findfile('raw', night=night, expid=expid, outdir=outdir)
+            for i in range(nspectrographs):
+                cameras = 'b{},r{},z{}'.format(i,i,i)
+                cx = cmd.format(infile=infile, outdir=outdir, cameras=cameras)
+                fx.write(cx+' &\n')
+                
+        fx.write('\nwait\n')
         fx.write('echo Done at `date`\n')
