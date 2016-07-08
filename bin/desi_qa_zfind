@@ -31,7 +31,9 @@ def main():
         help = 'Provide verbose reporting of progress.')
     parser.add_argument('--night', type=str, default = None, metavar = 'YYYYMMDD',
         help = 'Night to process in the format YYYYMMDD')
-    parser.add_argument('--specprod', type = str, default = None, metavar = 'PATH',
+    parser.add_argument('--reduxdir', type = str, default = None, metavar = 'PATH',
+                        help = 'Override default path ($DESI_SPECTRO_REDUX/$PRODNAME) to processed data.')
+    parser.add_argument('--rawdir', type = str, default = None, metavar = 'PATH',
                         help = 'Override default path ($DESI_SPECTRO_REDUX/$PRODNAME) to processed data.')
     parser.add_argument('--qafile', type = str, default = None, required=False,
                         help = 'path of QA file.')
@@ -42,11 +44,6 @@ def main():
     else:
         log = get_logger()
 
-    import matplotlib.pyplot as plt
-    log.debug('matplotlib backend is {}'.format(plt.get_backend()))
-    log.debug('interactive backends {}'.format(matplotlib.rcsetup.interactive_bk))
-    log.debug('non-interactive backends {}'.format(matplotlib.rcsetup.non_interactive_bk))
-
     if args.night is None:
         log.critical('Missing required night argument.')
         return -1
@@ -54,10 +51,10 @@ def main():
     # Grab list of fibermap files
     fibermap_files = []
     zbest_files = []
-    for exposure in desispec.io.get_exposures(args.night, specprod_dir = args.specprod):
+    for exposure in desispec.io.get_exposures(args.night, raw=True, rawdata_dir=args.rawdir):
         # Ignore exposures with no fibermap, assuming they are calibration data.
-        fibermap_path = desispec.io.findfile(filetype = 'fibermap',night = args.night,
-                                             expid = exposure, specprod_dir = args.specprod)
+        fibermap_path = desispec.io.findfile(filetype='fibermap', night=args.night,
+                                             expid=exposure, rawdata_dir = args.rawdir)
         if not os.path.exists(fibermap_path):
             log.debug('Skipping exposure %08d with no fibermap.' % exposure)
             continue
