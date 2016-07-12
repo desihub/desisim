@@ -56,7 +56,7 @@ if args.spectrograph is None:
     args.spectrograph = args.nstart / 500
 
 # Look for Directory tree/ environment set up
-# Directory Tree is $DESI_SPECTRO_REDUX/$PRODNAME/exposures/NIGHT/EXPID/*.fits
+# Directory Tree is $DESI_SPECTRO_REDUX/$SPECPROD/exposures/NIGHT/EXPID/*.fits
 # Perhaps can be synced with desispec findfile?
 # But read fibermap file and extract the headers needed for Directory tree
 
@@ -98,14 +98,14 @@ else:
     except:
         raise
 
-#---------PRODNAME-----------------
+#---------SPECPROD-----------------
 
-PRODNAME_DIR='prodname'
-if 'PRODNAME' not in os.environ:
-    print 'PRODNAME environment is not set.'
+SPECPROD_DIR='prodname'
+if 'SPECPROD' not in os.environ:
+    print 'SPECPROD environment is not set.'
 else:
-    PRODNAME_DIR=os.environ['PRODNAME']
-prod_Dir=os.path.join(DESI_SPECTRO_REDUX_DIR,PRODNAME_DIR)
+    SPECPROD_DIR=os.environ['SPECPROD']
+prod_Dir=os.path.join(DESI_SPECTRO_REDUX_DIR,SPECPROD_DIR)
 
 if os.path.exists(prod_Dir):
 
