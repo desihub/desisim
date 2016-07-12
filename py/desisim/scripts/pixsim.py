@@ -186,8 +186,8 @@ def main(args=None):
             break
 
     if args.psf is not None:
-        import specter.io
-        psf = specter.io.load_psf(args.psf)
+        from specter.psf import load_psf
+        psf = load_psf(args.psf)
 
     simspec = io.read_simspec(args.simspec)
 
