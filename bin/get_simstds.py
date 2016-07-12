@@ -73,9 +73,9 @@ if __name__ == '__main__':
     
     if opts.outfile is None:
         assert 'DESI_SPECTRO_REDUX' in os.environ
-        assert 'PRODNAME' in os.environ
+        assert 'SPECPROD' in os.environ
 
-        outdir = os.path.join(os.getenv('DESI_SPECTRO_REDUX'), os.getenv('PRODNAME'),
+        outdir = os.path.join(os.getenv('DESI_SPECTRO_REDUX'), os.getenv('SPECPROD'),
             'exposures', night, '{:08d}'.format(expid))
         opts.outfile = '{}/stdflux-sp{}-{:08d}.fits'.format(outdir, opts.spectroid, expid)
         print opts.outfile

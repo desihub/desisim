@@ -32,9 +32,9 @@ def main():
     parser.add_argument('--night', type=str, default = None, metavar = 'YYYYMMDD',
         help = 'Night to process in the format YYYYMMDD')
     parser.add_argument('--reduxdir', type = str, default = None, metavar = 'PATH',
-                        help = 'Override default path ($DESI_SPECTRO_REDUX/$PRODNAME) to processed data.')
+                        help = 'Override default path ($DESI_SPECTRO_REDUX/$SPECPROD) to processed data.')
     parser.add_argument('--rawdir', type = str, default = None, metavar = 'PATH',
-                        help = 'Override default path ($DESI_SPECTRO_REDUX/$PRODNAME) to processed data.')
+                        help = 'Override default path ($DESI_SPECTRO_REDUX/$SPECPROD) to processed data.')
     parser.add_argument('--qafile', type = str, default = None, required=False,
                         help = 'path of QA file.')
     parser.add_argument('--qafig', type=str, default=None, help = 'path of QA figure file')
@@ -87,7 +87,7 @@ def main():
     simz_tab = dsqa_z.load_z(fibermap_files, zbest_files)
 
     # Meta data
-    meta = dict(SIMSPECV='9.999', PRODNAME=os.getenv('PRODNAME'))
+    meta = dict(SIMSPECV='9.999', SPECPROD=os.getenv('SPECPROD'))
 
     # Run stats
     summ_dict = dsqa_z.summ_stats(simz_tab)

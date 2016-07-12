@@ -251,8 +251,7 @@ def load_z(fibermap_files, zbest_files, outfil=None):
     assert np.array_equal(sim_id[sim_idx],z_id[z_idx])
 
     # Fill up
-    ztags = ['Z','ZERR','ZWARN','TYPE']
-    #new_tags = ['Z','ZERR','ZWARN','TYPE']
+    ztags = ['Z','ZERR','ZWARN','SPECTYPE']
     new_clms = []
     mask = np.array([True]*nsim)
     mask[sim_idx] = False
@@ -586,10 +585,10 @@ def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
     # Meta
     xlbl = 0.1
     ylbl = 0.85
-    ax.text(xlbl, ylbl, 'PRODNAME: {:s}'.format(meta['PRODNAME']), transform=ax.transAxes, ha='left')
+    ax.text(xlbl, ylbl, 'SPECPROD: {:s}'.format(meta['SPECPROD']), transform=ax.transAxes, ha='left')
     yoff=0.15
     for key in meta.keys():
-        if key == 'PRODNAME':
+        if key == 'SPECPROD':
             continue
         ylbl -= yoff
         ax.text(xlbl+0.1, ylbl, key+': {:s}'.format(meta[key]), 
