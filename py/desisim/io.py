@@ -297,6 +297,58 @@ def write_simpix(outfile, image, camera, meta):
     hdus.flush()
     hdus.close()
 
+def load_simspec_summary(indir, verbose=False):
+    '''
+    Combine fibermap and simspec files under indir into single truth catalog
+    
+    Args:
+        indir: path to input directory; search this and all subdirectories
+        
+    Returns:
+        astropy.table.Table with true Z catalog
+    '''
+    import astropy.table
+    truth = list()
+    for fibermapfile in desispec.io.iterfiles(indir, 'fibermap'):
+        fibermap = astropy.table.Table.read(fibermapfile, 'FIBERMAP')
+        if verbose:
+            print('')
+        #- skip calibration frames
+        if 'FLAVOR' in fibermap.meta:
+            if fibermap.meta['FLAVOR'].lower() in ('arc', 'flat', 'bias'):
+                continue
+        elif 'OBSTYPE' in fibermap.meta:
+            if fibermap.meta['OBSTYPE'].lower() in ('arc', 'flat', 'bias', 'dark'):
+                continue
+        
+        simspecfile = fibermapfile.replace('fibermap-', 'simspec-')
+        if not os.path.exists(simspecfile):
+            raise IOError('fibermap without matching simspec: {}'.format(fibermapfile))
+        
+        simspec = astropy.table.Table.read(simspecfile, 'METADATA')
+        
+        #- cleanup prior to merging
+        if 'REDSHIFT' in simspec.colnames:
+            simspec.rename_column('REDSHIFT', 'TRUEZ')
+        if 'OBJTYPE' in simspec.colnames:
+            simspec.rename_column('OBJTYPE', 'TRUETYPE')
+        for key in ('DATASUM', 'CHECKSUM', 'TELRA', 'TELDEC', 'EXTNAME'):
+            if key in fibermap.meta.keys():
+                del fibermap.meta[key]
+            if key in simspec.meta.keys():
+                del simspec.meta[key]
+        
+        #- convert some header keywords to new columns
+        for key in ('TILEID', 'EXPID', 'FLAVOR', 'NIGHT'):
+            fibermap[key] = fibermap.meta[key]
+            del fibermap.meta[key]
+        
+        truth.append(astropy.table.hstack([fibermap, simspec]))
+    
+    truth = astropy.table.vstack(truth)
+    return truth
+
+
 #-------------------------------------------------------------------------
 #- Cosmics
 

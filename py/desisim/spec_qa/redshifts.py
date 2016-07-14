@@ -304,17 +304,23 @@ def obj_requirements(zstats, objtype):
             if zstats[key] < req_dict[key]:
                 ipassf = str('FAIL')
                 tst_fail = tst_fail+key+'-'
+                log.warn('{:s} failed requirement {:s}: {} < {}'.format(objtype, key, zstats[key], req_dict[key]))
+            else:
+                log.debug('{:s} passed requirement {:s}: {} >= {}'.format(objtype, key, zstats[key], req_dict[key]))
         else:
             if zstats[key] > req_dict[key]:
                 ipassf = str('FAIL')
                 tst_fail = tst_fail+key+'-'
+                log.warn('{:s} failed requirement {:s}: {} > {}'.format(objtype, key, zstats[key], req_dict[key]))
+            else:
+                log.debug('{:s} passed requirement {:s}: {} <= {}'.format(objtype, key, zstats[key], req_dict[key]))
         # Update
         pf_dict[key] = ipassf
         if ipassf == str('FAIL'):
             passf = str('FAIL')
     if passf == str('FAIL'):
         tst_fail = tst_fail[:-1]
-        log.warn('OBJ={:s} failed tests {:s}'.format(objtype,tst_fail))
+        # log.warn('OBJ={:s} failed tests {:s}'.format(objtype,tst_fail))
     #
     #pf_dict['FINAL'] = passf
     return pf_dict, passf
@@ -788,11 +794,11 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
                           'RMAG': {'n': 12, 'min': 21.0, 'max': 23.4, 'label': 'r-band magnitude', 'overlap': 0},
                           'OIIFLUX': {'n': 10, 'min': 0.0, 'max': 4.0e-16, 'label': '[OII] flux', 'overlap': 1}},
                      LRG={'TRUEZ': {'n': 12, 'min': 0.5, 'max': 1.0, 'label': 'redshift', 'overlap': 2 },
-                          'ZMAG': {'n': 15, 'min': 17.0, 'max': 20.5, 'label': 'z-band magnitude', 'overlap': 2 }},
+                          'ZMAG': {'n': 15, 'min': 22.0, 'max': 26, 'label': 'z-band magnitude', 'overlap': 2 }},
                      QSO_T={'TRUEZ': {'n': 12, 'min': 0.5, 'max': 2.1, 'label': 'redshift', 'overlap': 2 },
-                          'GMAG': {'n': 15, 'min': 21.0, 'max': 23.0, 'label': 'g-band magnitude', 'overlap': 2 }},
+                          'GMAG': {'n': 15, 'min': 18.0, 'max': 24.0, 'label': 'g-band magnitude', 'overlap': 2 }},
                      QSO_L={'TRUEZ': {'n': 12, 'min': 2.1, 'max': 4.0, 'label': 'redshift', 'overlap': 2 },
-                            'GMAG': {'n': 15, 'min': 21.0, 'max': 23.0, 'label': 'g-band magnitude', 'overlap': 2 }},
+                            'GMAG': {'n': 15, 'min': 18.0, 'max': 24.0, 'label': 'g-band magnitude', 'overlap': 2 }},
         )
 
     # Initialize a new page of plots.
@@ -877,14 +883,15 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
             #    plt.setp([axis.get_xticklabels()], visible=False)
             #else:
             axis.set_xlabel('{0} {1}'.format(otype, ptype))
+                        
             # Hide overlapping x-axis labels except in the bottom right.
             if overlap and (col < ncols - 1):
                 plt.setp(
                     [axis.get_xticklabels()[-overlap:]], visible=False)
 
         figure.subplots_adjust(
-            left=0.08, bottom=0.07, right=0.92, top=0.95,
-            hspace=0.2, wspace=0.0)
+            left=0.1, bottom=0.07, right=0.9, top=0.95,
+            hspace=0.2, wspace=0.05)
 
     if pp is not None:
         pp.savefig()
