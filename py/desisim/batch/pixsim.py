@@ -51,16 +51,18 @@ def batch_newexp(batchfile, flavors, nspec=5000, night=None, expids=None,
 
     if tileids is None:
         tileids = list()
-        brighttile = darktile = obs.get_next_tileid()
         for flavor in flavors:
-            if flavor.lower() in ['dark', 'gray', 'grey', 'lrg', 'elg', 'qso']:
-                tileids.append(darktile)
-                darktile += 1
-            elif flavor.lower() in ['bright', 'bgs', 'mws']:
-                tileids.append(brighttile)
-                brighttile += 1
-            else:  #- calibration exposures
-                tileids.append(-1)
+            flavor = flavor.lower()
+            t = obs.get_next_tileid(program=flavor)
+            tileids.append(t)
+            if flavor in ('arc', 'flat'):
+                obs.update_obslog(obstype=flavor, program='calib', tileid=t)
+            elif flavor in ('bright', 'bgs', 'mws'):
+                obs.update_obslog(obstype='science', program='bright', tileid=t)
+            elif flavor in ('gray', 'grey'):
+                obs.update_obslog(obstype='science', program='gray', tileid=t)
+            else:
+                obs.update_obslog(obstype='science', program='dark', tileid=t)
         
     if pixprod is None:
         if 'PIXPROD' in os.environ:
@@ -98,6 +100,10 @@ def batch_newexp(batchfile, flavors, nspec=5000, night=None, expids=None,
         fx.write('export PIXPROD={}\n'.format(pixprod))
         fx.write('\n')
         fx.write('echo Starting at `date`\n\n')
+        
+        fx.write('mkdir -p $DESI_SPECTRO_SIM/$PIXPROD/etc\n')
+        fx.write('mkdir -p $DESI_SPECTRO_SIM/$PIXPROD/{}\n'.format(night))
+        fx.write('\n')
         
         for expid, flavor, tileid in zip(expids, flavors, tileids):
             fx.write(cmd.format(nspec=nspec, night=night, expid=expid, flavor=flavor, tileid=tileid)+' &\n')
