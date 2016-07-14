@@ -18,7 +18,7 @@ import desisim.io
 import specsim.simulator
 import astropy.units as u
 from desispec.resolution import Resolution
-from desispec.io import write_flux_calibration, write_fiberflat
+from desispec.io import write_flux_calibration, write_fiberflat, fibermap
 from desispec.interpolation import resample_flux
 from desispec.frame import Frame
 from desispec.fiberflat import FiberFlat
@@ -77,7 +77,7 @@ def main(args=None):
     if args.fibermap:
 
         print "Reading fibermap file %s"%(args.fibermap)
-        tbdata,hdr=desispec.io.fibermap.read_fibermap(args.fibermap, header=True)
+        tbdata,hdr=fibermap.read_fibermap(args.fibermap, header=True)
         objtype=tbdata['OBJTYPE'].copy()
         #need to replace STD and MWS_STAR object types with STAR and BGS object types with LRG since quicksim expects star instead of std or mws_star and LRG instead of BGS
         stdindx=np.where(objtype=='STD') # match STD with STAR
@@ -139,22 +139,17 @@ def main(args=None):
     print 'Now Reading the input file',args.simspec
     simspec = desisim.io.read_simspec(args.simspec)
     if simspec.flavor == 'arc':
-        import scipy.constants as const
-        wl = np.concatenate((simspec.wave['b'],simspec.wave['r'],simspec.wave['z']))
-        wavelengths = np.array(sorted(set(wl)))
-        sp = np.concatenate((simspec.phot['b'][0][:31],simspec.phot['r'][0][:55],simspec.phot['z'][0]))
-        spectra = (const.h/const.erg)*const.c*(sp/wavelengths)/1.0e-17
+        pass
     else:
         wavelengths = simspec.wave['brz']
         spectra = simspec.flux
 
     # Note spectra=data/1.0e-17# flux in units of 1.0e-17 ergs/cm^2/s/A
 
-    print "Wavelength range:", wavelengths[0], "to", wavelengths[-1]
+        print "Wavelength range:", wavelengths[0], "to", wavelengths[-1]
+        nwave = len(wavelengths)
 
     nspec = simspec.nspec
-    nwave = len(wavelengths)
-
     if nspec < args.nspec:
         print "Only {} spectra in input file".format(nspec)
         args.nspec = nspec
@@ -217,12 +212,35 @@ def main(args=None):
         sys.exit(0)
 
     elif simspec.flavor =='arc':
+        print "Simulating arc line exposure"
 
-        raise ValueError('arc exposures currently causing scipy interpolation error, ongoing work to fix this')
+        for channel in ['b','r','z']:
+           if channel == 'b':
+               sp_b = np.zeros(len(waves[channel]))
+               for i in range(len(simspec.wave[channel])):
+                   wavelengths = simspec.wave[channel][i]
+                   flux_index = np.argmin(abs(wavelengths-waves[channel]))
+                   sp_b[flux_index] = simspec.phot[channel][0][i]
+                   spectra_b=np.hstack((sp_b,np.zeros(maxbin-len(sp_b))))
+           elif channel == 'r':
+               sp_r = np.zeros(len(waves[channel]))
+               for i in range(len(simspec.wave[channel])):
+                   wavelengths = simspec.wave[channel][i]
+                   flux_index = np.argmin(abs(wavelengths-waves[channel]))
+                   sp_r[flux_index] = simspec.phot[channel][0][i]
+                   spectra_r=np.hstack((sp_r,np.zeros(maxbin-len(sp_r))))
+           elif channel == 'z':
+              sp_z = np.zeros(len(waves[channel]))
+              for i in range(len(simspec.wave[channel])):
+                   wavelengths = simspec.wave[channel][i]
+                   flux_index = np.argmin(abs(wavelengths-waves[channel]))
+                   sp_z[flux_index] = simspec.phot[channel][0][i]
+                   spectra_z=np.hstack((sp_z,np.zeros(maxbin-len(sp_z))))
 
-        nobj=np.zeros((nmax,3,maxbin))     # Object Photons
-        nivar=np.zeros((nmax,3,maxbin))     # inverse variance
-        frame_rand_noise=np.zeros((nmax,3,maxbin))     # random Gaussian noise to nobj
+        spectra = [spectra_b,spectra_r,spectra_z]
+
+        nobj=np.tile(spectra,(nmax,1)).reshape((5,3,4798))     # arc flux
+        nivar=np.zeros(nobj.shape)     # inverse variance
 
         # resolution data in format as desired for frame file
         nspec=args.nspec
@@ -233,68 +251,38 @@ def main(args=None):
             resolution_data[channel] = np.tile(
                 resolution_matrix.to_fits_array(), [nspec, 1, 1])
 
-        fluxunits = u.erg / (u.s * u.cm ** 2 * u.Angstrom)
-        print "Simulating arc line exposure"
-        sys.stdout.flush()
-        qsim.source.update_in(
-            'Quickgen source {0}'.format, objtype.lower(),
-            wavelengths * u.Angstrom, spectra * fluxunits)
-        qsim.source.update_out()
-        qsim.simulate()
-        qsim.generate_random_noise(random_state)
-
-        for i, output in enumerate(qsim.camera_output):
-
-            # Extract the simulation results needed to create our uncalibrated
-            # frame output file (only frame file needed for arc).
-            num_pixels = len(output)
-            nobj[j, i, :num_pixels] = output['num_source_electrons']
-            frame_rand_noise[j, i, :num_pixels] = output['random_noise_electrons']
-
+        armName={"b":0,"r":1,"z":2}
         for channel in 'brz':
-
-            #Before writing, convert from counts/bin to counts/A (as in Pixsim output)
-            #Quicksim Default:
-            #FLUX - input spectrum resampled to this binning; no noise added [1e-17 erg/s/cm2/s/Ang]
-            #COUNTS_OBJ - object counts in 0.5 Ang bin
-    
             num_pixels = len(waves[channel])
-            dwave=np.gradient(waves[channel])
-            nobj[:,armName[channel],:num_pixels]/=dwave
-            frame_rand_noise[:,armName[channel],:num_pixels]/=dwave
-            nivar[:,armName[channel],:num_pixels]*=dwave**2
 
-        # Looping over spectrograph
+            # Looping over spectrograph
+    
+            for ii in range((args.nspec+args.nstart-1)/500+1):
+    
+                start=max(500*ii,args.nstart) # first spectrum for a given spectrograph
+                end=min(500*(ii+1),nmax) # last spectrum for the spectrograph
+    
+                if (args.spectrograph <= ii):
+                    camera = "{}{}".format(channel, ii)
+                    print "writing files for channel:",channel,", spectrograph:",ii, ", spectra:", start,'to',end
+                    num_pixels = len(waves[channel])
+    
+                    framefileName=desispec.io.findfile("frame",NIGHT,EXPID,camera)    
+                    frame_flux=nobj[start:end,armName[channel],:num_pixels]
+                    frame_ivar=nivar[start:end,armName[channel],:num_pixels]
 
-        for ii in range((args.nspec+args.nstart-1)/500+1):
-
-            start=max(500*ii,args.nstart) # first spectrum for a given spectrograph
-            end=min(500*(ii+1),nmax) # last spectrum for the spectrograph
-
-            if (args.spectrograph <= ii):
-                camera = "{}{}".format(channel, ii)
-                print "writing files for channel:",channel,", spectrograph:",ii, ", spectra:", start,'to',end
-                num_pixels = len(waves[channel])
-
-                framefileName=desispec.io.findfile("frame",NIGHT,EXPID,camera)
-
-                frame_flux=nobj[start:end,armName[channel],:num_pixels]+ \
-                nsky[start:end,armName[channel],:num_pixels] + \
-                frame_rand_noise[start:end,armName[channel],:num_pixels]
-                frame_ivar=nivar[start:end,armName[channel],:num_pixels]
-
-                sh1=frame_flux.shape[0]  # required for slicing the resolution metric, resolusion matrix has (nspec,ndiag,wave)
-                if (args.nstart==start):
-                    resol=resolution_data[channel][:sh1,:,:]
-                else:
-                    resol=resolution_data[channel][-sh1:,:,:]
-
-                # create frame file. first create desispec.Frame object
-                frame=Frame(waves[channel],frame_flux,frame_ivar,resolution_data=resol,spectrograph=ii)
-                desispec.io.write_frame(framefileName, frame)
-
-        filePath=os.path.join(prod_Dir,'calib2d',NIGHT)
-        print "Wrote files to", filePath
+                    sh1=frame_flux.shape[0]  # required for slicing the resolution metric, resolusion matrix has (nspec,ndiag,wave)
+                    if (args.nstart==start):
+                        resol=resolution_data[channel][:sh1,:,:]
+                    else:
+                        resol=resolution_data[channel][-sh1:,:,:]
+    
+                    # create frame file. first create desispec.Frame object
+                    frame=Frame(waves[channel],frame_flux,frame_ivar,resolution_data=resol,spectrograph=ii)
+                    desispec.io.write_frame(framefileName, frame)
+    
+            filePath=os.path.join(prod_Dir,'exposures',NIGHT,"%08d"%EXPID)
+            print "Wrote files to", filePath
 
         sys.exit(0)
 
