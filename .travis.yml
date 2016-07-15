@@ -65,7 +65,7 @@ env:
         # These pip packages need to be installed in a certain order, so we
         # do that separately from the astropy/ci-helpers scripts.
         - DESIHUB_PIP_DEPENDENCIES="desiutil=${DESIUTIL_VERSION}"
-        - DESIHUB_PIP_ALL_DEPENDENCIES="desiutil=${DESIUTIL_VERSION} desimodel=${DESIMODEL_VERSION} specter=${SPECTER_VERSION} desispec=${DESISPEC_VERSION} desitarget=${DESITARGET_VERSION} specsimversion=${SPECSIM_VERSION}"
+        - DESIHUB_PIP_ALL_DEPENDENCIES="desiutil=${DESIUTIL_VERSION} desimodel=${DESIMODEL_VERSION} specter=${SPECTER_VERSION} desispec=${DESISPEC_VERSION} desitarget=${DESITARGET_VERSION} specsim=${SPECSIM_VERSION}"
         # Debug the Travis install process.
         - DEBUG=False
     matrix:
