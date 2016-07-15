@@ -7,3 +7,4 @@ speclite
 specsim
 svn+https://desi.lbl.gov/svn/code/desimodel/branches/pip-install#egg=desimodel
 git+https://github.com/desihub/desispec.git@0.8.0#egg=desispec
+git+https://github.com/desihub/desiutil.git@1.6.0#egg=desiutil
