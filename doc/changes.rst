@@ -5,7 +5,7 @@ desisim change log
 0.12.1 (unreleased)
 -------------------
 
-* no changes yet
+* desi_qa_zfind: fixed --reduxdir option; improved plots
 
 0.12.0 (2016-07-14)
 -------------------

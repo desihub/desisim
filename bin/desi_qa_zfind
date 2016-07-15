@@ -69,7 +69,7 @@ def main():
         
         brick_names = set(fibermap_data['BRICKNAME'])
         for brick in brick_names:
-            zbest_path=desispec.io.findfile('zbest',brickname=brick)
+            zbest_path=desispec.io.findfile('zbest',brickname=brick, specprod_dir=args.reduxdir)
             if os.path.exists(zbest_path):
                 log.debug('Found {}'.format(os.path.basename(zbest_path)))
                 zbest_files.append(zbest_path)

@@ -221,13 +221,17 @@ def load_z(fibermap_files, zbest_files, outfil=None):
     simz_tab.sort('TARGETID')
     nsim = len(simz_tab)
 
+    # Cleanup some names
+    simz_tab.rename_column('OBJTYPE_1', 'OBJTYPE')
+    simz_tab.rename_column('OBJTYPE_2', 'TRUETYPE')
+
     # Rename QSO
-    qsol = np.where( (simz_tab['OBJTYPE_1'] == 'QSO') & 
+    qsol = np.where( (simz_tab['TRUETYPE'] == 'QSO') & 
         (simz_tab['REDSHIFT'] >= 2.1))[0]
-    simz_tab['OBJTYPE_1'][qsol] = 'QSO_L'
-    qsot = np.where( (simz_tab['OBJTYPE_1'] == 'QSO') & 
+    simz_tab['TRUETYPE'][qsol] = 'QSO_L'
+    qsot = np.where( (simz_tab['TRUETYPE'] == 'QSO') & 
         (simz_tab['REDSHIFT'] < 2.1))[0]
-    simz_tab['OBJTYPE_1'][qsot] = 'QSO_T'
+    simz_tab['TRUETYPE'][qsot] = 'QSO_T'
 
     # Load up zbest files
     zb_tabs = []
@@ -344,7 +348,7 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
     if objtype is None:
         objtype_mask = np.array([True]*nrow)
     else:
-        objtype_mask = simz_tab['OBJTYPE_1'] == objtype
+        objtype_mask = simz_tab['TRUETYPE'] == objtype
     # RedMonster analysis
     if redm:
         redm_mask = simz_tab['Z'].mask == False  # Not masked in Table
@@ -354,7 +358,7 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
     if survey:
         survey_mask = (simz_tab['Z'].mask == False)
         # Flux limit
-        elg = np.where((simz_tab['OBJTYPE_1']=='ELG') & survey_mask)[0]
+        elg = np.where((simz_tab['TRUETYPE']=='ELG') & survey_mask)[0]
         elg_mask = elg_flux_lim(simz_tab['REDSHIFT'][elg], 
             simz_tab['OIIFLUX'][elg])
         # Update
@@ -369,7 +373,7 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
             catgd_mask = simz_tab['ZWARN']==0
         for obj in ['ELG','LRG','QSO_L','QSO_T']:
             dv = catastrophic_dv(obj) # km/s
-            omask = np.where((simz_tab['OBJTYPE_1'] == obj)&
+            omask = np.where((simz_tab['TRUETYPE'] == obj)&
                 (simz_tab['ZWARN']==0))[0]
             dz = calc_dz(simz_tab[omask]) # dz/1+z
             cat = np.where(np.abs(dz)*3e5 > dv)[0]
@@ -548,7 +552,7 @@ def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
 
     notype = []
     for otype in otypes: 
-        gd_o = np.where(zobj_tab['OBJTYPE_1']==otype)[0]
+        gd_o = np.where(zobj_tab['TRUETYPE']==otype)[0]
         notype.append(len(gd_o))
         ax.scatter(zobj_tab['REDSHIFT'][gd_o], zobj_tab['Z'][gd_o],
             marker='o', s=1, label=sty_otype[otype]['lbl'], color=sty_otype[otype]['color'])
@@ -568,7 +572,7 @@ def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
 
     for otype in otypes: 
         # Grab
-        gd_o = np.where(zobj_tab['OBJTYPE_1']==otype)[0]
+        gd_o = np.where(zobj_tab['TRUETYPE']==otype)[0]
         # Stat
         dz = calc_dz(zobj_tab[gd_o]) 
         ax.scatter(zobj_tab['REDSHIFT'][gd_o], dz, marker='o', 
@@ -609,7 +613,7 @@ def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
     yoff=0.15
     for jj,otype in enumerate(otypes):
         ylbl -= yoff
-        gd_o = simz_tab['OBJTYPE_1']==otype
+        gd_o = simz_tab['TRUETYPE']==otype
         ax.text(xlbl+0.1, ylbl, sty_otype[otype]['lbl']+': {:d} ({:d})'.format(np.sum(gd_o),notype[jj]),
             transform=ax.transAxes, ha='left', fontsize='small')
 
@@ -792,13 +796,13 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
     if pdict is None:
         pdict = dict(ELG={'TRUEZ': { 'n': 15, 'min': 0.6, 'max': 1.6, 'label': 'redshift', 'overlap': 1 },
                           'RMAG': {'n': 12, 'min': 21.0, 'max': 23.4, 'label': 'r-band magnitude', 'overlap': 0},
-                          'OIIFLUX': {'n': 10, 'min': 0.0, 'max': 4.0e-16, 'label': '[OII] flux', 'overlap': 1}},
+                          'OIIFLUX': {'n': 10, 'min': 0.0, 'max': 5.0e-16, 'label': '[OII] flux', 'overlap': 2}},
                      LRG={'TRUEZ': {'n': 12, 'min': 0.5, 'max': 1.0, 'label': 'redshift', 'overlap': 2 },
-                          'ZMAG': {'n': 15, 'min': 19.0, 'max': 21.0, 'label': 'z-band magnitude', 'overlap': 2 }},
-                     QSO_T={'TRUEZ': {'n': 12, 'min': 0.5, 'max': 2.1, 'label': 'redshift', 'overlap': 2 },
-                          'GMAG': {'n': 15, 'min': 19.0, 'max': 24.0, 'label': 'g-band magnitude', 'overlap': 2 }},
-                     QSO_L={'TRUEZ': {'n': 12, 'min': 2.1, 'max': 4.0, 'label': 'redshift', 'overlap': 2 },
-                            'GMAG': {'n': 15, 'min': 19.0, 'max': 24.0, 'label': 'g-band magnitude', 'overlap': 2 }},
+                          'ZMAG': {'n': 15, 'min': 19.0, 'max': 21.0, 'label': 'z-band magnitude', 'overlap': 1 }},
+                     QSO_T={'TRUEZ': {'n': 12, 'min': 0.5, 'max': 2.1, 'label': 'redshift', 'overlap': 1 },
+                          'GMAG': {'n': 15, 'min': 19.0, 'max': 24.0, 'label': 'g-band magnitude', 'overlap': 1 }},
+                     QSO_L={'TRUEZ': {'n': 12, 'min': 2.1, 'max': 4.0, 'label': 'redshift', 'overlap': 1 },
+                            'GMAG': {'n': 15, 'min': 19.0, 'max': 24.0, 'label': 'g-band magnitude', 'overlap': 1 }},
         )
 
     # Initialize a new page of plots.
@@ -843,8 +847,6 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
                     x = survey['MAG'][:,2]
                 else:
                     raise ValueError('unknown ptype {}'.format(ptype))
-
-            print('####', otype, ptype, np.min(x), np.max(x))
 
             nslice, x_min, x_max = pdict[otype][ptype]['n'], pdict[otype][ptype]['min'], pdict[otype][ptype]['max']
             rhs = None
@@ -891,12 +893,13 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
             #    plt.setp([axis.get_xticklabels()], visible=False)
             #else:
             axis.set_xlabel('{0} {1}'.format(otype, ptype))
-            lhs.set_xlim(x_min, x_max)
-                        
+            axis.set_xlim(x_min, x_max)
+            
             # Hide overlapping x-axis labels except in the bottom right.
             if overlap and (col < ncols - 1):
-                plt.setp(
-                    [axis.get_xticklabels()[-overlap:]], visible=False)
+                axis.set_xticks(axis.get_xticks()[0:-overlap])
+                # plt.setp(
+                #     [axis.get_xticklabels()[-overlap:]], visible=False)
 
         figure.subplots_adjust(
             left=0.1, bottom=0.07, right=0.9, top=0.95,
