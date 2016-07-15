@@ -89,7 +89,8 @@ def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
         preproc (boolean) : also preprocess raw data (default True)
 
     Returns (image, rawpix, truepix) tuple, where
-        image : preprocessed Image object (None if preproc=False)
+        image : preprocessed Image object
+            (only header is meaningful if preproc=False)
         rawpix : 2D ndarray of unprocessed raw pixel data
         truepix : 2D ndarray of truth for image.pix    
     """
@@ -261,7 +262,7 @@ def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
         image = desispec.preproc.preproc(rawpix, header)
     else:
         log.debug('Skipping preprocessing')
-        image = None
+        image = Image(np.zeros(rawpix.shape), np.zeros(rawpix.shape), meta=header)
 
     log.info('Finished pixsim.simulate {}'.format(asctime()))
 
