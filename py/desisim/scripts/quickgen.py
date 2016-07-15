@@ -212,7 +212,7 @@ def main(args=None):
         sys.exit(0)
 
     elif simspec.flavor =='arc':
-        # note: treating fiberloss as perfect and CCD efficiency as 100%
+        # note: treating fiberloss as perfect and electrons/s as photons/s
         import scipy.constants as const
         print "Simulating arc line exposure"
 
