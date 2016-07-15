@@ -33,7 +33,7 @@ class TestQuickgen(unittest.TestCase):
             missing_env = True
     
         for name in (
-            'DESI_SPECTRO_SIM', 'DESI_SPECTRO_REDUX', 'PIXPROD', 'PRODNAME', 'DESIMODEL'):
+            'DESI_SPECTRO_SIM', 'DESI_SPECTRO_REDUX', 'PIXPROD', 'SPECPROD', 'DESIMODEL'):
             if name not in os.environ:
                 log.warning("missing ${0}".format(name))
                 missing_env = True
@@ -42,7 +42,7 @@ class TestQuickgen(unittest.TestCase):
             log.warning("Why are these needed?")
             log.warning("    Simulations written to $DESI_SPECTRO_SIM/$PIXPROD/")
             log.warning("    Raw data read from $DESI_SPECTRO_DATA/")
-            log.warning("    Spectro pipeline output written to $DESI_SPECTRO_REDUX/$PRODNAME/")
+            log.warning("    Spectro pipeline output written to $DESI_SPECTRO_REDUX/$SPECPROD/")
             log.warning("    Templates are read from $DESI_BASIS_TEMPLATES")
     
         #- Wait until end to raise exception so that we report everything that
@@ -59,13 +59,15 @@ class TestQuickgen(unittest.TestCase):
         cls.testDir = os.path.join(os.environ['HOME'],'desi_test_io')
         cls.origEnv = dict(
             PIXPROD = None,
+            SPECPROD = None,
             DESI_SPECTRO_SIM = None,
             DESI_SPECTRO_DATA = None,
         )
         cls.testEnv = dict(
-            PIXPROD = 'test',
+            PIXPROD = 'test-quickgen',
+            SPECPROD = 'test-quickgen',
             DESI_SPECTRO_SIM = os.path.join(cls.testDir,'spectro','sim'),
-            DESI_SPECTRO_DATA = os.path.join(cls.testDir,'spectro','sim', 'test'),
+            DESI_SPECTRO_DATA = os.path.join(cls.testDir,'spectro','sim', 'test-quickgen'),
             )
         for e in cls.origEnv:
             if e in os.environ:
@@ -153,10 +155,11 @@ class TestQuickgen(unittest.TestCase):
         night = self.night
         expid = self.expid
         camera = 'r0'
-        flavors = ['flat','dark','gray','bright','bgs','mws','elg','lrg','qso']#,'arc']
+        # flavors = ['flat','dark','gray','bright','bgs','mws','elg','lrg','qso']#,'arc']
+        flavors = ['arc', 'flat', 'dark', 'bright']
         for i in range(len(flavors)):
             flavor = flavors[i]
-            obs.new_exposure(flavor, night=night, expid=expid, nspec=4)
+            obs.new_exposure(flavor, night=night, expid=expid, nspec=20)
     
             #- output to same directory as input
             os.environ['DESI_SPECTRO_REDUX'] = os.path.join(os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'))
