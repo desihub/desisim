@@ -71,7 +71,7 @@ def simulate_frame(night, expid, camera, **kwargs):
     desispec.io.write_image(pixfile, image)
 
 def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
-    cosmics=None, wavemin=None, wavemax=None):
+    cosmics=None, wavemin=None, wavemax=None, preproc=True):
     """
     Run pixel-level simulation of input spectra
     
@@ -86,9 +86,11 @@ def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
         ncpu (int) : number of CPU cores to use in parallel
         cosmics : desispec.image.Image object from desisim.io.read_cosmics()
         wavemin, wavemax (float) : min/max wavelength range to simulate
+        preproc (boolean) : also preprocess raw data (default True)
 
     Returns (image, rawpix, truepix) tuple, where
         image : preprocessed Image object
+            (only header is meaningful if preproc=False)
         rawpix : 2D ndarray of unprocessed raw pixel data
         truepix : 2D ndarray of truth for image.pix    
     """
@@ -255,7 +257,13 @@ def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
     header['BIASSEC4'] = xyslice2header(np.s_[nyraw:2*nyraw, xoffset:xoffset+noverscan])
     header['CCDSEC4']  = xyslice2header(np.s_[ny:2*ny, nx:2*nx])
 
-    image = desispec.preproc.preproc(rawpix, header)
+    if preproc:
+        log.debug('Running preprocessing at {}'.format(asctime()))
+        image = desispec.preproc.preproc(rawpix, header)
+    else:
+        log.debug('Skipping preprocessing')
+        image = Image(np.zeros(rawpix.shape), np.zeros(rawpix.shape), meta=header)
+
     log.info('Finished pixsim.simulate {}'.format(asctime()))
 
     return image, rawpix, truepix

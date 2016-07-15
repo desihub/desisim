@@ -327,7 +327,7 @@ def print_efficiency_stats(truth, mtl_initial, zcat):
     
     for true_type, zcat_type in zip(true_types, zcat_types):
         i_initial = ((tmp_init['DESI_TARGET'] & desi_mask.mask(true_type)) != 0) & (tmp_init['TRUETYPE'] == zcat_type)
-        i_final = ((total['DESI_TARGET'] & desi_mask.mask(true_type)) != 0) & (total['TYPE'] == zcat_type)             
+        i_final = ((total['DESI_TARGET'] & desi_mask.mask(true_type)) != 0) & (total['SPECTYPE'] == zcat_type)             
         n_t = 1.0*len(total['TARGETID'][i_final])
         n_i = 1.0*len(tmp_init['TARGETID'][i_initial])
         print("\t {} fraction : {}".format(true_type, n_t/n_i))

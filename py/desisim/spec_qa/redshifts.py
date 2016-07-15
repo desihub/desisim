@@ -251,8 +251,7 @@ def load_z(fibermap_files, zbest_files, outfil=None):
     assert np.array_equal(sim_id[sim_idx],z_id[z_idx])
 
     # Fill up
-    ztags = ['Z','ZERR','ZWARN','TYPE']
-    #new_tags = ['Z','ZERR','ZWARN','TYPE']
+    ztags = ['Z','ZERR','ZWARN','SPECTYPE']
     new_clms = []
     mask = np.array([True]*nsim)
     mask[sim_idx] = False
@@ -305,17 +304,23 @@ def obj_requirements(zstats, objtype):
             if zstats[key] < req_dict[key]:
                 ipassf = str('FAIL')
                 tst_fail = tst_fail+key+'-'
+                log.warn('{:s} failed requirement {:s}: {} < {}'.format(objtype, key, zstats[key], req_dict[key]))
+            else:
+                log.debug('{:s} passed requirement {:s}: {} >= {}'.format(objtype, key, zstats[key], req_dict[key]))
         else:
             if zstats[key] > req_dict[key]:
                 ipassf = str('FAIL')
                 tst_fail = tst_fail+key+'-'
+                log.warn('{:s} failed requirement {:s}: {} > {}'.format(objtype, key, zstats[key], req_dict[key]))
+            else:
+                log.debug('{:s} passed requirement {:s}: {} <= {}'.format(objtype, key, zstats[key], req_dict[key]))
         # Update
         pf_dict[key] = ipassf
         if ipassf == str('FAIL'):
             passf = str('FAIL')
     if passf == str('FAIL'):
         tst_fail = tst_fail[:-1]
-        log.warn('OBJ={:s} failed tests {:s}'.format(objtype,tst_fail))
+        # log.warn('OBJ={:s} failed tests {:s}'.format(objtype,tst_fail))
     #
     #pf_dict['FINAL'] = passf
     return pf_dict, passf
@@ -586,10 +591,10 @@ def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
     # Meta
     xlbl = 0.1
     ylbl = 0.85
-    ax.text(xlbl, ylbl, 'PRODNAME: {:s}'.format(meta['PRODNAME']), transform=ax.transAxes, ha='left')
+    ax.text(xlbl, ylbl, 'SPECPROD: {:s}'.format(meta['SPECPROD']), transform=ax.transAxes, ha='left')
     yoff=0.15
     for key in meta.keys():
-        if key == 'PRODNAME':
+        if key == 'SPECPROD':
             continue
         ylbl -= yoff
         ax.text(xlbl+0.1, ylbl, key+': {:s}'.format(meta[key]), 
@@ -789,11 +794,11 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
                           'RMAG': {'n': 12, 'min': 21.0, 'max': 23.4, 'label': 'r-band magnitude', 'overlap': 0},
                           'OIIFLUX': {'n': 10, 'min': 0.0, 'max': 4.0e-16, 'label': '[OII] flux', 'overlap': 1}},
                      LRG={'TRUEZ': {'n': 12, 'min': 0.5, 'max': 1.0, 'label': 'redshift', 'overlap': 2 },
-                          'ZMAG': {'n': 15, 'min': 17.0, 'max': 20.5, 'label': 'z-band magnitude', 'overlap': 2 }},
+                          'ZMAG': {'n': 15, 'min': 19.0, 'max': 21.0, 'label': 'z-band magnitude', 'overlap': 2 }},
                      QSO_T={'TRUEZ': {'n': 12, 'min': 0.5, 'max': 2.1, 'label': 'redshift', 'overlap': 2 },
-                          'GMAG': {'n': 15, 'min': 21.0, 'max': 23.0, 'label': 'g-band magnitude', 'overlap': 2 }},
+                          'GMAG': {'n': 15, 'min': 19.0, 'max': 24.0, 'label': 'g-band magnitude', 'overlap': 2 }},
                      QSO_L={'TRUEZ': {'n': 12, 'min': 2.1, 'max': 4.0, 'label': 'redshift', 'overlap': 2 },
-                            'GMAG': {'n': 15, 'min': 21.0, 'max': 23.0, 'label': 'g-band magnitude', 'overlap': 2 }},
+                            'GMAG': {'n': 15, 'min': 19.0, 'max': 24.0, 'label': 'g-band magnitude', 'overlap': 2 }},
         )
 
     # Initialize a new page of plots.
@@ -812,12 +817,10 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
                 ptype = 'TRUEZ'
             else:
                 ptype = fluxes[i]
-                if ptype == 'OIIFLUX':
-                    mtag = 'OIIFLUX'
-                else:
-                    mtag = 'MAG'
+
             # Grab the set of measurements
             survey = slice_simz(simz_tab, objtype=otype, redm=True, survey=True)
+
             # Simple stats
             ok = survey['ZWARN'] == 0
             dv = calc_dz(survey)*3e5 # dz/1+z
@@ -828,11 +831,21 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
             # Plot the truth distribution for this variable.
             if ptype == 'TRUEZ':
                 x = survey['REDSHIFT']
+            elif ptype == 'OIIFLUX':
+                x = survey['OIIFLUX']
             else:
-                if mtag == 'OIIFLUX':
-                    x = survey[mtag]
+                log.warn('Assuming hardcoded filter order')
+                if ptype == 'GMAG':
+                    x = survey['MAG'][:,0]
+                elif ptype == 'RMAG':
+                    x = survey['MAG'][:,1]
+                elif ptype == 'ZMAG':
+                    x = survey['MAG'][:,2]
                 else:
-                    x = survey[mtag][:,0]  # SHOULD USE PROPER FILTER EVENTUALLY
+                    raise ValueError('unknown ptype {}'.format(ptype))
+
+            print('####', otype, ptype, np.min(x), np.max(x))
+
             nslice, x_min, x_max = pdict[otype][ptype]['n'], pdict[otype][ptype]['min'], pdict[otype][ptype]['max']
             rhs = None
             max_dv = 1000.
@@ -853,7 +866,7 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
                     x=x, y=dv, ok=ok, bad=bad, x_lo=x_min, x_hi=x_max,
                     num_slices=nslice, y_cut=max_dv, axis=axis, min_count=min_count)
             # Add a label even if the fitter has no results.
-            xy = (0.5, 1.0)
+            xy = (0.5, 0.98)
             coords = 'axes fraction'
             axis.annotate(
                 otype, xy=xy, xytext=xy, xycoords=coords,
@@ -878,14 +891,16 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
             #    plt.setp([axis.get_xticklabels()], visible=False)
             #else:
             axis.set_xlabel('{0} {1}'.format(otype, ptype))
+            lhs.set_xlim(x_min, x_max)
+                        
             # Hide overlapping x-axis labels except in the bottom right.
             if overlap and (col < ncols - 1):
                 plt.setp(
                     [axis.get_xticklabels()[-overlap:]], visible=False)
 
         figure.subplots_adjust(
-            left=0.08, bottom=0.07, right=0.92, top=0.95,
-            hspace=0.2, wspace=0.0)
+            left=0.1, bottom=0.07, right=0.9, top=0.95,
+            hspace=0.2, wspace=0.05)
 
     if pp is not None:
         pp.savefig()
