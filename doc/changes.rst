@@ -2,7 +2,12 @@
 desisim change log
 ==================
 
-0.12.0 (unreleased)
+0.12.1 (unreleased)
+-------------------
+
+* no changes yet
+
+0.12.0 (2016-07-14)
 -------------------
 
 * desi_qa_zfind options to override raw and processed data directories
