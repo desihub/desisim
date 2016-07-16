@@ -246,8 +246,10 @@ def main(args=None):
         nspec=args.nspec
         resolution_data = dict()
         for i, channel in enumerate('brz'):
+            print('Getting resolution matrix for channel '+channel)
             resolution_matrix = Resolution(
                 qsim.instrument.cameras[i].get_output_resolution_matrix())
+            print('...got it')
             resolution_data[channel] = np.tile(
                 resolution_matrix.to_fits_array(), [nspec, 1, 1])
 

@@ -161,7 +161,7 @@ class TestQuickgen(unittest.TestCase):
         flavors = ['arc', 'flat', 'dark', 'bright']
         for i in range(len(flavors)):
             flavor = flavors[i]
-            obs.new_exposure(flavor, night=night, expid=expid, nspec=20)
+            obs.new_exposure(flavor, night=night, expid=expid, nspec=2)
     
             #- output to same directory as input
             os.environ['DESI_SPECTRO_REDUX'] = os.path.join(os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'))
