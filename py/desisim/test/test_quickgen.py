@@ -62,12 +62,14 @@ class TestQuickgen(unittest.TestCase):
             SPECPROD = None,
             DESI_SPECTRO_SIM = None,
             DESI_SPECTRO_DATA = None,
+            DESI_SPECTRO_REDUX = None,
         )
         cls.testEnv = dict(
             PIXPROD = 'test-quickgen',
             SPECPROD = 'test-quickgen',
             DESI_SPECTRO_SIM = os.path.join(cls.testDir,'spectro','sim'),
             DESI_SPECTRO_DATA = os.path.join(cls.testDir,'spectro','sim', 'test-quickgen'),
+            DESI_SPECTRO_REDUX = os.path.join(cls.testDir,'spectro','redux'),
             )
         for e in cls.origEnv:
             if e in os.environ:
