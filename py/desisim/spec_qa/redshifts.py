@@ -906,8 +906,6 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
             # Hide overlapping x-axis labels except in the bottom right.
             if overlap and (col < ncols - 1):
                 axis.set_xticks(axis.get_xticks()[0:-overlap])
-                # plt.setp(
-                #     [axis.get_xticklabels()[-overlap:]], visible=False)
 
         figure.subplots_adjust(
             left=0.1, bottom=0.07, right=0.9, top=0.95,
