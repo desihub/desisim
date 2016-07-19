@@ -201,15 +201,23 @@ def load_z(fibermap_files, zbest_files, outfil=None):
 
         log.info('Reading: {:s}'.format(fibermap_file))
         # Load simspec
-        simspec_fil = fibermap_file.replace('fibermap','simspec')
-        sps_hdu = fits.open(simspec_fil)
+        simspec_file = fibermap_file.replace('fibermap','simspec')
+        sps_hdu = fits.open(simspec_file)
         # Make Tables
         fbm_tabs.append(Table(fbm_hdu['FIBERMAP'].data,masked=True))
         sps_tabs.append(Table(sps_hdu['METADATA'].data,masked=True))
+        sps_hdu.close()
+
     # Stack
     fbm_tab = vstack(fbm_tabs)
     sps_tab = vstack(sps_tabs)
     del fbm_tabs, sps_tabs
+
+    # Add the version number header keywords from fibermap_files[0]
+    hdr = fits.getheader(fibermap_files[0], 'FIBERMAP')
+    for key, value in sorted(hdr.items()):
+        if key.startswith('DEPNAM') or key.startswith('DEPVER'):
+            fbm_tab.meta[key] = value
 
     # Drop to unique
     univ, uni_idx = np.unique(np.array(fbm_tab['TARGETID']),return_index=True)

@@ -23,6 +23,7 @@ from desispec.log import get_logger, DEBUG
 
 from desisim.spec_qa import redshifts as dsqa_z
 from desiutil.io import yamlify
+import desiutil.depend
 
 def main():
 
@@ -87,8 +88,13 @@ def main():
     simz_tab = dsqa_z.load_z(fibermap_files, zbest_files)
 
     # Meta data
-    meta = dict(SIMSPECV='9.999', SPECPROD=os.getenv('SPECPROD'))
-
+    meta = dict(
+        DESISIM = desiutil.depend.getdep(simz_tab.meta, 'desisim'),
+        SPECTER = desiutil.depend.getdep(simz_tab.meta, 'specter'),
+        SPECPROD = os.getenv('SPECPROD', 'unknown'),
+        PIXPROD = os.getenv('PIXPROD', 'unknown'),
+        )
+    
     # Run stats
     summ_dict = dsqa_z.summ_stats(simz_tab)
     if args.qafile is not None:
@@ -108,7 +114,7 @@ def main():
         dsqa_z.summ_fig(simz_tab, summ_dict, meta, pp=pp)
         for objtype in ['ELG','LRG', 'QSO_T', 'QSO_L']:
             dsqa_z.obj_fig(simz_tab, objtype, summ_dict, pp=pp)
-        log.info("closing")
+        log.info("closing QA figure file")
         # All done
         pp.close()
 
