@@ -126,7 +126,7 @@ def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
 
     #- Copy TRUEZ -> Z so that we can add errors without altering original
     newzcat['Z'] = truth['TRUEZ'].copy()
-    newzcat['TYPE'] = truth['TRUETYPE'].copy()
+    newzcat['SPECTYPE'] = truth['TRUETYPE'].copy()
 
     #- Add numobs column
     ### print('Adding NUMOBS column')
@@ -139,7 +139,7 @@ def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
     ### print('Adding ZERR and ZWARN')
     if not perfect:
         #- GALAXY -> ELG or LRG
-        objtype = newzcat['TYPE'].copy()
+        objtype = newzcat['SPECTYPE'].copy()
         isLRG = (objtype == 'GALAXY') & ((targets['DESI_TARGET'] & desi_mask.LRG) != 0)
         isELG = (objtype == 'GALAXY') & ((targets['DESI_TARGET'] & desi_mask.ELG) != 0)
         objtype[isLRG] = 'LRG'

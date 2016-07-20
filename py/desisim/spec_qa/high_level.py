@@ -27,7 +27,7 @@ def get_meta():
     '''Get META data on production
     '''
     # Dummy for now
-    meta = dict(SIMSPECV='9.999', PRODNAME=os.getenv('PRODNAME'))
+    meta = dict(SIMSPECV='9.999', SPECPROD=os.getenv('SPECPROD'))
     return meta
 
 def main():
@@ -35,7 +35,7 @@ def main():
     '''
     # Check environmental variables are set
     assert 'DESI_SPECTRO_DATA' in os.environ, 'Missing $DESI_SPECTRO_DATA environment variable'
-    assert 'PRODNAME' in os.environ, 'Missing $PRODNAME environment variable'
+    assert 'SPECPROD' in os.environ, 'Missing $SPECPROD environment variable'
     assert 'DESI_SPECTRO_REDUX' in os.environ, 'Missing $DESI_SPECTRO_REDUX environment variable'
 
     # Grab nights in data redux

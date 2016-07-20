@@ -9,7 +9,7 @@ import sqlite3
 import fcntl
 import time
 from astropy.io import fits
-from astropy.table import Table
+from astropy import table
 
 import desimodel.io
 import desispec.io
@@ -106,24 +106,24 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
         d = fits.getdata(infile, 1)
         
         keys = d.columns.names
+                
         wave=None
         phot=None
-        if phot is None :
-            try :
-                wave = d['VACUUM_WAVE']
-                phot = d['ELECTRONS']
-            except KeyError:
-                pass
-        if phot is None :
-            try :
-                wave = d['WAVE']
-                phot = d['ELECTRONS']
-            except KeyError:
-                pass
-        if phot is None :
+        elec=None
+        
+        if ( 'VACUUM_WAVE' in keys ) :
+            wave = d['VACUUM_WAVE']
+        elif ( 'WAVE' in keys ) :
+            wave = d['WAVE']
+        if ("ELECTRONS" in keys) :
+            elec = d['ELECTRONS']
+        elif ("PHOTONS" in keys) :
+            phot= d['PHOTONS']
+            
+        if ( ( phot is None ) and (elec is None) ) or wave is None :
             log.error("cannot read arc line fits file '%s' (don't know the format)"%infile)
             raise KeyError("cannot read arc line fits file")
-            
+        
 
         truth = dict(WAVE=wave)
         meta = None
@@ -140,7 +140,11 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
             thru = desimodel.io.load_throughput(channel)        
             ii = np.where( (thru.wavemin <= wave) & (wave <= thru.wavemax) )[0]
             truth['WAVE_'+channel] = wave[ii]
-            truth['PHOT_'+channel] = np.tile(phot[ii], nspec).reshape(nspec, len(ii))
+            if phot is not None :
+                elec = phot*np.interp(wave,thru._wave,thru._thru,left=0,right=0)
+            truth['PHOT_'+channel] = np.tile(elec[ii], nspec).reshape(nspec, len(ii))
+            
+                
 
     elif flavor == 'flat':
         
@@ -275,7 +279,10 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
     log.info('Wrote '+simfile)
 
     #- Update obslog that we succeeded with this exposure
-    update_obslog(flavor, expid, dateobs, tileid)
+    if flavor in ('arc', 'flat'):
+        update_obslog(obstype=flavor, program='calib', expid=expid, dateobs=dateobs, tileid=tileid)
+    else:
+        update_obslog(obstype='science', program=flavor, expid=expid, dateobs=dateobs, tileid=tileid)
     
     #- Restore $DESI_SPECTRO_DATA
     if datadir_orig is not None:
@@ -315,15 +322,41 @@ def specter_objtype(desitype):
         return results
         
 
-def get_next_tileid():
+def get_next_tileid(program='dark'):
     """
     Return tileid of next tile to observe
+    
+    Options:
+        program: dark, gray, or bright
     
     Note: simultaneous calls will return the same tileid;
           it does *not* reserve the tileid
     """
+    program = program.lower()
+    if program not in ('dark', 'gray', 'grey', 'bright',
+                       'elg', 'lrg', 'qso', 'lya', 'bgs', 'mws'):
+        return -1
+    
     #- Read DESI tiling and trim to just tiles in DESI footprint
-    tiles = desimodel.io.load_tiles()
+    tiles = table.Table(desimodel.io.load_tiles())
+
+    #- HACK: update tilelist to include PROGRAM, etc.
+    if 'PROGRAM' not in tiles.colnames:
+        tiles['PASS'] -= min(tiles['PASS'])  #- standardize to starting at 0 not 1
+    
+        brighttiles = tiles[tiles['PASS'] <= 2].copy()
+        brighttiles['TILEID'] += 50000
+        brighttiles['PASS'] += 5
+    
+        tiles = table.vstack([tiles, brighttiles])
+
+        program_col = table.Column(name='PROGRAM', length=len(tiles), dtype='S6')
+        tiles.add_column(program_col)
+        tiles['PROGRAM'][tiles['PASS'] <= 3] = 'dark'
+        tiles['PROGRAM'][tiles['PASS'] == 4] = 'gray'
+        tiles['PROGRAM'][tiles['PASS'] >= 5] = 'bright'
+    else:
+        log.error('It looks like desimodel has updated the tile format; update this code')        
 
     #- If obslog doesn't exist yet, start at tile 0
     dbfile = io.simdir()+'/etc/obslog.sqlite'
@@ -332,12 +365,17 @@ def get_next_tileid():
     else:
         #- Read obslog to get tiles that have already been observed
         db = sqlite3.connect(dbfile)
-        result = db.execute('SELECT tileid FROM obslog')
+        result = db.execute('SELECT tileid FROM obslog WHERE program="{}"'.format(program))
         obstiles = set( [row[0] for row in result] )
         db.close()
     
     #- Just pick the next tile in sequential order
-    nexttile = int(min(set(tiles['TILEID']) - obstiles))        
+    program_tiles = tiles['TILEID'][tiles['PROGRAM'] == program]
+    nexttile = int(min(set(program_tiles) - obstiles))
+    
+    log.debug('{} tiles in program {}'.format(len(program_tiles), program))
+    log.debug('{} observed tiles'.format(len(obstiles)))
+    
     return nexttile
     
 def get_next_expid(n=None):
@@ -420,18 +458,21 @@ def get_night(t=None, utc=None):
     
 #- I'm not really sure this is a good idea.
 #- I'm sure I will want to change the schema later...
-def update_obslog(obstype='dark', expid=None, dateobs=None,
+def update_obslog(obstype='science', program='dark', expid=None, dateobs=None,
     tileid=-1, ra=None, dec=None):
     """
     Update obslog with a new exposure
     
-    obstype : 'arc', 'flat', 'bias', 'dark', 'test', 'science', 'dark', ...
+    obstype : 'arc', 'flat', 'bias', 'test', 'science', ...
+    program : 'dark', 'gray', 'bright', 'calib'
     expid   : integer exposure ID, default from get_next_expid()
     dateobs : time.struct_time tuple; default time.localtime()
     tileid  : integer TileID, default -1, i.e. not a DESI tile
     ra, dec : float (ra, dec) coordinates, default tile ra,dec or (0,0)
     
     returns tuple (expid, dateobs)
+    
+    TODO: normalize obstype vs. program; see desisim issue #97
     """
     #- Connect to sqlite database file and create DB if needed
     dbdir = io.simdir() + '/etc'
@@ -446,6 +487,7 @@ def update_obslog(obstype='dark', expid=None, dateobs=None,
         dateobs DATETIME,                   -- seconds since Unix Epoch (1970)
         night TEXT,                         -- YEARMMDD
         obstype TEXT DEFAULT "science",
+        program TEXT DEFAULT "dark",
         tileid INTEGER DEFAULT -1,
         ra REAL DEFAULT 0.0,
         dec REAL DEFAULT 0.0
@@ -464,15 +506,17 @@ def update_obslog(obstype='dark', expid=None, dateobs=None,
         if tileid < 0:
             ra, dec = (0.0, 0.0)
         else:
-            ra, dec = io.get_tile_radec(tileid)
+            #- TODO: mod 50k is to convert bright tileids to locations of
+            #- dark tileids; update this when new tiling file exists
+            ra, dec = io.get_tile_radec(tileid % 50000)
             
     night = get_night(utc=dateobs)
         
     insert = """\
-    INSERT OR REPLACE INTO obslog(expid,dateobs,night,obstype,tileid,ra,dec)
-    VALUES (?,?,?,?,?,?,?)
+    INSERT OR REPLACE INTO obslog(expid,dateobs,night,obstype,program,tileid,ra,dec)
+    VALUES (?,?,?,?,?,?,?,?)
     """
-    db.execute(insert, (expid, time.mktime(dateobs), night, obstype, tileid, ra, dec))
+    db.execute(insert, (expid, time.mktime(dateobs), night, obstype.upper(), program, tileid, ra, dec))
     db.commit()
     
     return expid, dateobs

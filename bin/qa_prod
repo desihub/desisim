@@ -31,7 +31,7 @@ opts, args = parser.parse_args()
 
 #- Check environment
 envOK = True
-for envvar in ('DESI_SPECTRO_REDUX', 'PRODNAME', 'DESI_SPECTRO_DATA'):
+for envvar in ('DESI_SPECTRO_REDUX', 'SPECPROD', 'DESI_SPECTRO_DATA'):
     if envvar not in os.environ:
         log.fatal("${} is required".format(envvar))
         envOK = False

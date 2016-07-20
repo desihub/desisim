@@ -107,7 +107,7 @@ class TestObs(unittest.TestCase):
         #- code that they did anything correct.
         expid, dateobs = obs.update_obslog(expid=1)
         self.assertEqual(expid, 1)
-        expid, dateobs = obs.update_obslog(obstype='arc', expid=2)
+        expid, dateobs = obs.update_obslog(obstype='arc', program='calib', expid=2)
         self.assertEqual(expid, 2)
         expid, dateobs = obs.update_obslog(obstype='science', expid=3, tileid=1)
         expid, dateobs = obs.update_obslog(obstype='science', expid=3,
@@ -121,9 +121,23 @@ class TestObs(unittest.TestCase):
         self.assertEqual(a, b)
 
         #- But then register the obs, and we should get a different tile
+        print('### Updating obslog ###')
         obs.update_obslog(expid=0, tileid=a)
-        c = obs.get_next_tileid()
+        print('### Getting more tiles ###')
+        c = obs.get_next_tileid()        
         self.assertNotEqual(a, c)
+        
+        #- different programs should be different tiles
+        a = obs.get_next_tileid(program='dark')
+        b = obs.get_next_tileid(program='gray')
+        c = obs.get_next_tileid(program='bright')
+        self.assertNotEqual(a, b)
+        self.assertNotEqual(a, c)
+        
+        #- program is case insensitive
+        a = obs.get_next_tileid(program='GRAY')
+        b = obs.get_next_tileid(program='gray')
+        self.assertEqual(a, b)
 
     def test_specter_objtype(self):
         self.assertEqual(obs.specter_objtype('MWS_STAR'), 'STAR')
