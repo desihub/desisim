@@ -458,7 +458,14 @@ class ELG(GALAXY):
     """
     def __init__(self, objtype='ELG', minwave=3600.0, maxwave=10000.0, cdelt=2.0,
                  wave=None, add_SNeIa=False):
+        """Read the BGS basis continuum templates, filter profiles and initialize the
+           output wavelength array.
+        
+        Attributes:
+          ewoiicoeff (float, array): empirically derived coefficients to map
+            D(4000) to EW([OII]).
 
+        """
         super(ELG, self).__init__(objtype=objtype, minwave=minwave, maxwave=maxwave,
                                   cdelt=cdelt, wave=wave, add_SNeIa=add_SNeIa)
 
@@ -691,84 +698,16 @@ class LRG(GALAXY):
     """Generate Monte Carlo spectra of luminous red galaxies (LRGs).
 
     """
-    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
-                 add_SNeIa=False):
+    def __init__(self, objtype='LRG', minwave=3600.0, maxwave=10000.0, cdelt=2.0,
+                 wave=None, add_SNeIa=False):
         """Read the LRG basis continuum templates, filter profiles and initialize the
            output wavelength array.
-
-        Only a linearly-spaced output wavelength array is currently supported.
-
-        TODO (@moustakas): Incorporate size and morphological priors.
-
-        Args:
-          minwave (float, optional): minimum value of the output wavelength
-            array [default 3600 Angstrom].
-          maxwave (float, optional): minimum value of the output wavelength
-            array [default 10000 Angstrom].
-          cdelt (float, optional): spacing of the output wavelength array
-            [default 2 Angstrom/pixel].
-          wave (numpy.ndarray): Input/output observed-frame wavelength array,
-            overriding the minwave, maxwave, and cdelt arguments [Angstrom].
-          add_SNeIa (boolean, optional): optionally include a random-epoch SNe
-            Ia spectrum in the integrated spectrum [default False]
-
+        
         Attributes:
-          objtype (str): 'LRG'
-          wave (numpy.ndarray): Output wavelength array [Angstrom].
-          baseflux (numpy.ndarray): Array [nbase,npix] of the base rest-frame
-            LRG continuum spectra [erg/s/cm2/A].
-          basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths
-            corresponding to BASEFLUX [Angstrom].
-          basemeta (astropy.Table): Table of meta-data for each base template [nbase].
-          pixbound (numpy.ndarray): Pixel boundaries of BASEWAVE [Angstrom].
-          decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence
-          rfilt (speclite.filters instance): DECam2014 r-band FilterSequence
-          zfilt (speclite.filters instance): DECam2014 z-band FilterSequence
-
-        Optional Attributes:
-          sne_baseflux (numpy.ndarray): Array [sne_nbase,sne_npix] of the base
-            rest-frame SNeIa spectra interpolated onto BASEWAVE [erg/s/cm2/A].
-          sne_basemeta (astropy.Table): Table of meta-data for each base SNeIa
-            spectra [sne_nbase].
 
         """
-        from speclite import filters
-        from desisim.io import read_basis_templates
-        from desisim import pixelsplines as pxs
-        from desispec.interpolation import resample_flux
-
-        self.objtype = 'LRG'
-
-        # Initialize the output wavelength array (linear spacing) unless it is
-        # already provided.
-        if wave is None:
-            npix = (maxwave-minwave)/cdelt+1
-            wave = np.linspace(minwave,maxwave,npix)
-        self.wave = wave
-
-        # Read the rest-frame continuum basis spectra.
-        baseflux, basewave, basemeta = read_basis_templates(objtype=self.objtype)
-        self.baseflux = baseflux
-        self.basewave = basewave
-        self.basemeta = basemeta
-
-        # Optionally read the SNe Ia basis templates and resample.
-        self.add_SNeIa = add_SNeIa
-        if self.add_SNeIa:
-            sne_baseflux1, sne_basewave, sne_basemeta = read_basis_templates(objtype='SNE')
-            sne_baseflux = np.zeros((len(sne_basemeta), len(self.basewave)))
-            for ii in range(len(sne_basemeta)):
-                sne_baseflux[ii,:] = resample_flux(self.basewave, sne_basewave, sne_baseflux1[ii,:])
-            self.sne_baseflux = sne_baseflux
-            self.sne_basemeta = sne_basemeta
-
-        # Pixel boundaries
-        self.pixbound = pxs.cen2bound(basewave)
-
-        # Initialize the filter profiles.
-        self.rfilt = filters.load_filters('decam2014-r')
-        self.zfilt = filters.load_filters('decam2014-z')
-        self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
+        super(LRG, self).__init__(objtype=objtype, minwave=minwave, maxwave=maxwave,
+                                  cdelt=cdelt, wave=wave, add_SNeIa=add_SNeIa)
 
     def make_templates(self, nmodel=100, zrange=(0.5,1.1), zmagrange=(19.0,20.5),
                        logvdisp_meansig=(2.3,0.1), sne_rfluxratiorange=(0.1,1.0),
@@ -951,6 +890,7 @@ class STAR(object):
           decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence
           gfilt (speclite.filters instance): DECam2014 g-band FilterSequence
           rfilt (speclite.filters instance): DECam2014 r-band FilterSequence
+          zfilt (speclite.filters instance): DECam2014 z-band FilterSequence
 
         """
         from speclite import filters
@@ -978,6 +918,7 @@ class STAR(object):
         self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
         self.gfilt = filters.load_filters('decam2014-g')
         self.rfilt = filters.load_filters('decam2014-r')
+        self.zfilt = filters.load_filters('decam2014-z')
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0,200.0), rmagrange=(18.0,23.5),
                        gmagrange=(16.0,19.0), seed=None):
@@ -1160,6 +1101,8 @@ class FSTD(STAR):
 
         # Initialize the output flux array and metadata Table.
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
+
+        #import pdb ; pdb.set_trace()
 
         metacols = [
             ('TEMPLATEID', 'i4'),
@@ -1395,7 +1338,9 @@ class QSO():
             corresponding to BASEFLUX [Angstrom].
           basemeta (astropy.Table): Table of meta-data for each base template [nbase].
           decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence
+          gilt (speclite.filters instance): DECam2014 g-band FilterSequence
           rilt (speclite.filters instance): DECam2014 r-band FilterSequence
+          zilt (speclite.filters instance): DECam2014 z-band FilterSequence
 
         """
         from speclite import filters
@@ -1415,10 +1360,12 @@ class QSO():
         self.z_wind = z_wind
 
         # Initialize the filter profiles.
-        self.rfilt = filters.load_filters('decam2014-r')
         self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
+        self.gfilt = filters.load_filters('decam2014-g')
+        self.rfilt = filters.load_filters('decam2014-r')
+        self.zfilt = filters.load_filters('decam2014-z')
 
-    def make_templates(self, nmodel=100, zrange=(0.5,4.0), rmagrange=(21.0,23.0),
+    def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(21.0, 23.0),
                        seed=None, nocolorcuts=False, old_way=False):
         """Build Monte Carlo set of QSO spectra/templates.
 
@@ -1473,6 +1420,9 @@ class QSO():
                 zmnx=zrange, no_write=True, rebin_wave=self.wave, rstate=rand,
                 N_perz=N_perz
             )
+
+            import pdb ; pdb.set_trace()
+            
             # Cut down
             ridx = rand.choice(xrange(len(redshifts)), nmodel, replace=False)
             self.baseflux = all_flux[:,ridx]
@@ -1584,89 +1534,21 @@ class BGS(GALAXY):
     """Generate Monte Carlo spectra of bright galaxy survey galaxies (BGSs).
 
     """
-    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
-                 add_SNeIa=False):
+    def __init__(self, objtype='BGS', minwave=3600.0, maxwave=10000.0, cdelt=2.0,
+                 wave=None, add_SNeIa=False):
         """Read the BGS basis continuum templates, filter profiles and initialize the
            output wavelength array.
-
-        Only a linearly-spaced output wavelength array is currently supported.
-
-        TODO (@moustakas): Incorporate size and morphological priors.
-
-        Args:
-          minwave (float, optional): minimum value of the output wavelength
-            array [default 3600 Angstrom].
-          maxwave (float, optional): minimum value of the output wavelength
-            array [default 10000 Angstrom].
-          cdelt (float, optional): spacing of the output wavelength array
-            [default 2 Angstrom/pixel].
-          wave (numpy.ndarray): Input/output observed-frame wavelength array,
-            overriding the minwave, maxwave, and cdelt arguments [Angstrom].
-          add_SNeIa (boolean, optional): optionally include a random-epoch SNe
-            Ia spectrum in the integrated spectrum [default False]
-
+        
         Attributes:
-          objtype (str): 'BGS'
-          wave (numpy.ndarray): Output wavelength array [Angstrom].
-          baseflux (numpy.ndarray): Array [nbase,npix] of the base rest-frame
-            BGS continuum spectra [erg/s/cm2/A].
-          basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths
-            corresponding to BASEFLUX [Angstrom].
-          basemeta (astropy.Table): Table of meta-data for each base template [nbase].
-          ewhbetamog (GaussianMixtureModel): Table containing the mixture of Gaussian
-            parameters  encoding the empirical relationship between D(4000) and EW(Hbeta).
-          pixbound (numpy.ndarray): Pixel boundaries of BASEWAVE [Angstrom].
-          decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence
-          rfilt (speclite.filters instance): DECam2014 r-band FilterSequence
-
-        Optional Attributes:
-          sne_baseflux (numpy.ndarray): Array [sne_nbase,sne_npix] of the base
-            rest-frame SNeIa spectra interpolated onto BASEWAVE [erg/s/cm2/A].
-          sne_basemeta (astropy.Table): Table of meta-data for each base SNeIa
-            spectra [sne_nbase].
-
-        Raises:
-          IOError: If the required data files are not found.
+          ewhbetamog (GaussianMixtureModel): Table containing the mixture of
+            Gaussian parameters encoding the empirical relationship between
+            D(4000) and EW(Hbeta).
 
         """
-        from speclite import filters
-        from desisim.io import read_basis_templates
-        from desisim import pixelsplines as pxs
-        from desispec.interpolation import resample_flux
-
-        self.objtype = 'BGS'
-
-        # Initialize the output wavelength array (linear spacing) unless it is
-        # already provided.
-        if wave is None:
-            npix = (maxwave-minwave)/cdelt+1
-            wave = np.linspace(minwave,maxwave,npix)
-        self.wave = wave
-
-        # Read the rest-frame continuum basis spectra.
-        baseflux, basewave, basemeta = read_basis_templates(objtype=self.objtype)
-        self.baseflux = baseflux
-        self.basewave = basewave
-        self.basemeta = basemeta
-
-        # Optionally read the SNe Ia basis templates and resample.
-        self.add_SNeIa = add_SNeIa
-        if self.add_SNeIa:
-            sne_baseflux1, sne_basewave, sne_basemeta = read_basis_templates(objtype='SNE')
-            sne_baseflux = np.zeros((len(sne_basemeta), len(self.basewave)))
-            for ii in range(len(sne_basemeta)):
-                sne_baseflux[ii,:] = resample_flux(self.basewave, sne_basewave, sne_baseflux1[ii,:])
-            self.sne_baseflux = sne_baseflux
-            self.sne_basemeta = sne_basemeta
-
-        # Pixel boundaries
-        self.pixbound = pxs.cen2bound(basewave)
+        super(BGS, self).__init__(objtype=objtype, minwave=minwave, maxwave=maxwave,
+                                  cdelt=cdelt, wave=wave, add_SNeIa=add_SNeIa)
 
         self.ewhbetacoeff = [1.28520974, -4.94408026, 4.9617704]
-
-        # Initialize the filter profiles.
-        self.rfilt = filters.load_filters('decam2014-r')
-        self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
 
     def make_templates(self, nmodel=100, zrange=(0.01,0.4), rmagrange=(15.0,19.5),
                        oiiihbrange=(-1.3,0.6), oiidoublet_meansig=(0.73,0.05),

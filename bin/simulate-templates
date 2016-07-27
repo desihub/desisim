@@ -155,9 +155,6 @@ def main():
                                                   rmagrange=args.rmagrange_bgs,
                                                   sne_rfluxratiorange=args.sne_rfluxratiorange, 
                                                   seed=args.seed)
-            log.info('Writing {}'.format(outfile))
-            write_templates(outfile, flux, wave, meta, objtype)
-
         elif objtype == 'ELG':
             from desisim.templates import ELG
             elg = ELG(minwave=args.minwave, maxwave=args.maxwave, cdelt=args.cdelt,
@@ -173,9 +170,6 @@ def main():
                                                   seed=args.seed,
                                                   nocolorcuts=args.nocolorcuts)
                                                   #redshift=redshift)
-            log.info('Writing {}'.format(outfile))
-            write_templates(outfile, flux, wave, meta, objtype)
-
         elif objtype == 'LRG':
             from desisim.templates import LRG
             lrg = LRG(minwave=args.minwave, maxwave=args.maxwave, cdelt=args.cdelt,
@@ -186,9 +180,6 @@ def main():
                                                   logvdisp_meansig=args.logvdisp_lrg,
                                                   seed=args.seed,
                                                   nocolorcuts=args.nocolorcuts)
-            log.info('Writing {}'.format(outfile))
-            write_templates(outfile, flux, wave, meta, objtype)
-
         elif objtype == 'QSO':
             from desisim.templates import QSO
             qso = QSO(minwave=args.minwave, maxwave=args.maxwave, cdelt=args.cdelt)
@@ -197,33 +188,27 @@ def main():
                                                   rmagrange=args.rmagrange_qso,
                                                   seed=args.seed,
                                                   nocolorcuts=args.nocolorcuts)
-            log.info('Writing {}'.format(outfile))
-            write_templates(outfile, flux, wave, meta, objtype)
-
-        elif objtype == 'STAR' or objtype == 'FSTD' or objtype == 'WD':
+        elif objtype == 'STAR':
             from desisim.templates import STAR
-            FSTD = objtype=='FSTD'
-            WD = objtype=='WD'
-            star = STAR(minwave=args.minwave, maxwave=args.maxwave,
-                        cdelt=args.cdelt, FSTD=FSTD, WD=WD)
-            if FSTD: # simulate an F-standard
-                flux, wave, meta = star.make_templates(nmodel=args.nmodel,
-                                                       vrad_meansig=args.vrad_fstd,
-                                                       rmagrange=args.rmagrange_fstd,
-                                                       seed=args.seed)
-            elif WD: # simulate a white dwarf
-                flux, wave, meta = star.make_templates(nmodel=args.nmodel,
-                                                       vrad_meansig=args.vrad_wd,
-                                                       gmagrange=args.gmagrange_wd,
-                                                       seed=args.seed)
-            else: # simulate a normal star
-                flux, wave, meta = star.make_templates(nmodel=args.nmodel,
-                                                       vrad_meansig=args.vrad_star,
-                                                       rmagrange=args.rmagrange_star,
-                                                       seed=args.seed)
-            log.info('Writing {}'.format(outfile))
-            write_templates(outfile, flux, wave, meta, objtype)
-
+            star = STAR(minwave=args.minwave, maxwave=args.maxwave, cdelt=args.cdelt)
+            flux, wave, meta = star.make_templates(nmodel=args.nmodel,
+                                                   vrad_meansig=args.vrad_wd,
+                                                   gmagrange=args.gmagrange_wd,
+                                                   seed=args.seed)
+        elif objtype == 'WD':
+            from desisim.templates import STAR
+            wd = STAR(minwave=args.minwave, maxwave=args.maxwave, cdelt=args.cdelt, WD=True)
+            flux, wave, meta = wd.make_templates(nmodel=args.nmodel,
+                                                 vrad_meansig=args.vrad_wd,
+                                                 gmagrange=args.gmagrange_wd,
+                                                 seed=args.seed)
+        elif objtype == 'FSTD':
+            from desisim.templates import FSTD
+            fstd = FSTD(minwave=args.minwave, maxwave=args.maxwave, cdelt=args.cdelt)
+            flux, wave, meta = fstd.make_templates(nmodel=args.nmodel,
+                                                   vrad_meansig=args.vrad_fstd,
+                                                   rmagrange=args.rmagrange_fstd,
+                                                   seed=args.seed)
         elif objtype == 'SNE':
             from desisim.templates import SNE
             sne = SNE(minwave=args.minwave, maxwave=args.maxwave, cdelt=args.cdelt)
@@ -232,13 +217,13 @@ def main():
                                                   rfluxratio=args.rfluxratio_sne,
                                                   epoch=args.epoch_sne,
                                                   seed=args.seed)
-            log.info('Writing {}'.format(outfile))
-            write_templates(outfile, flux, wave, meta, objtype)
-
         else:
             log.warning('Object type {} not recognized'.format(objtype))
             sys.exit(1)
-    
+
+    log.info('Writing {}'.format(outfile))
+    write_templates(outfile, flux, wave, meta, objtype)
+            
     # Generate diagnostic QAplots (just a placeholder right now).
     if not args.noplots:
         import matplotlib.pyplot as plt
