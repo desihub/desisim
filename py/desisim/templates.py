@@ -135,6 +135,8 @@ def _metatable(nmodel=1, objtype='ELG', add_SNeIa=None):
         meta.add_column(Column(name='VDISP', length=nmodel, dtype='f4', unit='km/s'))
 
     if uobjtype == 'LRG':
+        meta.add_column(Column(name='ZMETAL', length=nmodel, dtype='f4'))
+        meta.add_column(Column(name='AGE', length=nmodel, dtype='f4', unit='Gyr'))
         meta.add_column(Column(name='D4000', length=nmodel, dtype='f4'))
         meta.add_column(Column(name='VDISP', length=nmodel, dtype='f4', unit='km/s'))
 
@@ -441,7 +443,7 @@ class ELG():
         # Pixel boundaries
         self.pixbound = pxs.cen2bound(basewave)
 
-        self.ewoiicoeff = [1.34323087,-5.02866474,5.43842874]
+        self.ewoiicoeff = [1.34323087, -5.02866474, 5.43842874]
 
         # Initialize the filter profiles.
         self.rfilt = filters.load_filters('decam2014-r')
@@ -505,7 +507,6 @@ class ELG():
         Raises:
 
         """
-        from astropy.table import Table
         from desisim.templates import EMSpectrum
         from desispec.interpolation import resample_flux
         from desisim import pixelsplines as pxs
@@ -756,7 +757,7 @@ class LRG():
 
     def make_templates(self, nmodel=100, zrange=(0.5,1.1), zmagrange=(19.0,20.5),
                        logvdisp_meansig=(2.3,0.1), sne_rfluxratiorange=(0.1,1.0),
-                       seed=None, nocolorcuts=False):
+                       redshift=None, seed=None, nocolorcuts=False):
         """Build Monte Carlo set of LRG spectra/templates.
 
         This function chooses random subsets of the LRG continuum spectra and
@@ -776,6 +777,8 @@ class LRG():
           sne_rfluxratiorange (float, optional): r-band flux ratio of the SNeIa
             spectrum with respect to the underlying galaxy.
 
+          redshift (float, optional): Input/output template redshifts.  Array
+            size must equal NMODEL.  Overwrites ZRANGE input.
           seed (long, optional): input seed for the random numbers.
           nocolorcuts (bool, optional): Do not apply the fiducial rzW1
             color-cuts cuts (default False).
@@ -788,129 +791,117 @@ class LRG():
         Raises:
 
         """
-        from astropy.table import Table
         from desispec.interpolation import resample_flux
         from desisim import pixelsplines as pxs
         from desitarget.cuts import isLRG
 
+        if redshift is not None:
+            if len(redshift) != nmodel:
+                log.fatal('REDSHIFT must be an NMODEL-length array')
+                
         rand = np.random.RandomState(seed)
 
-        # Initialize the output flux array and metadata Table.
-        outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
+        # Shuffle the basis templates and then split them into ~equal chunks, so
+        # we can speed up the calculations below.
+        nbase = len(self.basemeta)
+        chunksize = np.min((nbase, 50))
+        nchunk = long(np.ceil(nbase / chunksize))
 
-        metacols = [
-            ('TEMPLATEID', 'i4'),
-            ('REDSHIFT', 'f4'),
-            ('GMAG', 'f4'),
-            ('RMAG', 'f4'),
-            ('ZMAG', 'f4'),
-            ('W1MAG', 'f4'),
-            ('W2MAG', 'f4'),
-            ('ZMETAL', 'f4'),
-            ('AGE', 'f4'),
-            ('D4000', 'f4'),
-            ('VDISP', 'f4'),
-            ('DECAM_FLUX', 'f4', (6,)),
-            ('WISE_FLUX', 'f4', (2,))]
-        if self.add_SNeIa:
-            metacols.extend([
-                ('SNE_TEMPLATEID', 'i4'),
-                ('SNE_RFLUXRATIO', 'f4'),
-                ('SNE_EPOCH', 'f4')])
-        meta = Table(np.zeros(nmodel, dtype=metacols))
+        alltemplateid = np.tile(np.arange(nbase), (nmodel, 1))
+        for tempid in alltemplateid:
+            rand.shuffle(tempid)
+        alltemplateid_chunk = np.array_split(alltemplateid, nchunk, axis=1)
 
-        meta['AGE'].unit = 'Gyr'
-        meta['VDISP'].unit = 'km/s'
+        # Assign redshift, z-magnitude, and velocity dispersion priors. 
+        if redshift is None:
+            redshift = rand.uniform(zrange[0], zrange[1], nmodel)
+
+        zmag = rand.uniform(zmagrange[0], zmagrange[1], nmodel)
+        if logvdisp_meansig[1]>0:
+            vdisp = 10**rand.normal(logvdisp_meansig[0], logvdisp_meansig[1], nmodel)
+        else:
+            vdisp = 10**np.repeat(logvdisp_meansig[0], nmodel)
+
+        # Populate some of the metadata table.
+        meta = _metatable(nmodel, self.objtype, self.add_SNeIa)
+        for key, value in zip(('REDSHIFT', 'VDISP'),
+                               (redshift, vdisp)):
+            meta[key] = value
+        
+        # Get the (optional) distribution of SNe Ia priors.  Eventually we need
+        # to make this physically consistent.
         if self.add_SNeIa:
-            meta['SNE_EPOCH'].unit = 'days'
+            sne_rfluxratio = rand.uniform(sne_rfluxratiorange[0], sne_rfluxratiorange[1], nmodel)
+            sne_tempid = rand.randint(0, len(self.sne_basemeta)-1, nmodel)
+            meta['SNE_TEMPLATEID'] = sne_tempid
+            meta['SNE_EPOCH'] = self.sne_basemeta['EPOCH'][sne_tempid]
+            meta['SNE_RFLUXRATIO'] = sne_rfluxratio
 
         # Build the spectra.
-        nobj = 0
-        nbase = len(self.basemeta)
-        nchunk = min(nmodel, 500)
+        outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
 
-        while nobj<=(nmodel-1):
-            # Choose a random subset of the base templates
-            chunkindx = rand.randint(0, nbase-1, nchunk)
+        success = np.zeros(nmodel)
+        for ii in range(nmodel):
+            zwave = self.basewave.astype(float)*(1.0 + redshift[ii])
 
-            # Assign uniform redshift, z-magnitude, and velocity dispersion
-            # distributions.
-            redshift = rand.uniform(zrange[0], zrange[1], nchunk)
-            zmag = rand.uniform(zmagrange[0], zmagrange[1], nchunk)
-
-            if logvdisp_meansig[1]>0:
-                vdisp = 10**rand.normal(logvdisp_meansig[0], logvdisp_meansig[1], nchunk)
-            else:
-                vdisp = 10**np.repeat(logvdisp_meansig[0], nchunk)
-
-            # Get the (optional) distribution of SNe Ia priors.
+            # Get the SN spectrum and normalization factor.
             if self.add_SNeIa:
-                sne_rfluxratio = rand.uniform(sne_rfluxratiorange[0], sne_rfluxratiorange[1], nchunk)
-                sne_chunkindx = rand.randint(0, len(self.sne_basemeta)-1, nchunk)
+                sne_restflux = self.sne_baseflux[sne_tempid[ii], :]
+                snenorm = self.rfilt.get_ab_maggies(sne_restflux, zwave)
 
-            # Unfortunately we have to loop here.
-            for ii, iobj in enumerate(chunkindx):
-                zwave = self.basewave.astype(float)*(1.0+redshift[ii])
-                restflux = self.baseflux[iobj,:] # [erg/s/cm2/A @10pc]
+            for ichunk in range(nchunk):
+                log.debug('Simulating {} template {}/{} in chunk {}/{}'. \
+                          format(self.objtype, ii+1, nmodel, ichunk, nchunk))
+                templateid = alltemplateid_chunk[ichunk][ii, :]
+                nbasechunk = len(templateid)
+                
+                restflux = self.baseflux[templateid, :]
 
+                # Add in the SN spectrum.
                 if self.add_SNeIa:
-                    sne_restflux = self.sne_baseflux[sne_chunkindx[ii],:]
                     galnorm = self.rfilt.get_ab_maggies(restflux, zwave)
-                    snenorm = self.rfilt.get_ab_maggies(sne_restflux, zwave)
-                    restflux += sne_restflux*galnorm['decam2014-r'][0]/snenorm['decam2014-r'][0]*sne_rfluxratio[ii]
+                    snenorm = np.tile(galnorm['decam2014-r'].data, (1, npix)).reshape(nbasechunk, npix) * \
+                      np.tile(sne_rfluxratio[ii]/snenorm['decam2014-r'].data, (nbasechunk, npix))
+                    restflux += np.tile(sne_restflux, (nbasechunk, 1)) * snenorm
 
-                # Normalize to [erg/s/cm2/A, @redshift[ii]]
-                znorm = self.zfilt.get_ab_maggies(restflux, zwave)
-                norm = 10.0**(-0.4*zmag[ii])/znorm['decam2014-z'][0]
-                flux = restflux*norm
-
-                # Convert [grzW1W2]flux to nanomaggies.
-                synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
-                synthnano = np.array([ff*MAG2NANO for ff in synthmaggies[0]]) # convert to nanomaggies
-                synthnano[synthnano == 0] = 10**(0.4*(22.5-99)) # if flux==0 then set mag==99 (below)
+                # Synthesize photometry to determine which models will pass the
+                # color-cuts.
+                maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
+                synthnano = np.zeros((nbasechunk, len(self.decamwise)))
+                for ff, key in enumerate(maggies.columns):
+                    synthnano[:, ff] = maggies[key] * 10**(-0.4*(zmag[ii]-22.5)) / maggies['decam2014-z']
 
                 if nocolorcuts:
                     colormask = [True]
                 else:
-                    colormask = [isLRG(rflux=synthnano[2],
-                                       zflux=synthnano[4],
-                                       w1flux=synthnano[6])]
+                    colormask = isLRG(rflux=synthnano[:, 2], 
+                                      zflux=synthnano[:, 4], 
+                                      w1flux=synthnano[:, 6])
 
-                if all(colormask):
-                    if ((nobj+1) % 10) == 0:
-                        log.debug('Simulating {} template {}/{}'. \
-                                  format(self.objtype, nobj+1, nmodel))
+                # If the color-cuts pass then populate the output flux vector
+                # (suitably normalized) and metadata table and finish up.
+                if np.any(colormask):
+                    success[ii] = 1
+                        
+                    this = np.where(colormask)[0][0] # Pick the first one.
+                    tempid = templateid[this]
+                    outflux[ii, :] = resample_flux(self.wave, zwave, restflux[this, :] * \
+                                                   10**(-0.4*zmag[ii])/maggies['decam2014-z'][this])
 
-                    # Convolve and resample
-                    sigma = 1.0+self.basewave*vdisp[ii]/LIGHT
-                    flux = pxs.gauss_blur_matrix(self.pixbound, sigma) * flux
+                    meta['TEMPLATEID'][ii] = tempid
+                    meta['D4000'][ii] = self.basemeta['D4000'][tempid]
+                    meta['AGE'][ii] = self.basemeta['AGE'][tempid]
+                    meta['ZMETAL'][ii] = self.basemeta['ZMETAL'][tempid]
+                    for magkey, magindx in zip(('GMAG','RMAG','ZMAG','W1MAG','W2MAG'), (1, 2, 4, 6, 7)):
+                        meta[magkey][ii] = 22.5-2.5*np.log10(synthnano[this, magindx])
+                    meta['DECAM_FLUX'][ii] = synthnano[this, :6]
+                    meta['WISE_FLUX'][ii] = synthnano[this, 6:8]
 
-                    outflux[nobj,:] = resample_flux(self.wave, zwave, flux)
-
-                    meta['TEMPLATEID'][nobj] = chunkindx[ii]
-                    meta['REDSHIFT'][nobj] = redshift[ii]
-                    meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
-                    meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
-                    meta['ZMAG'][nobj] = -2.5*np.log10(synthnano[4])+22.5
-                    meta['W1MAG'][nobj] = -2.5*np.log10(synthnano[6])+22.5
-                    meta['W2MAG'][nobj] = -2.5*np.log10(synthnano[7])+22.5
-                    meta['DECAM_FLUX'][nobj] = synthnano[:6]
-                    meta['WISE_FLUX'][nobj] = synthnano[6:8]
-                    meta['ZMETAL'][nobj] = self.basemeta['ZMETAL'][iobj]
-                    meta['AGE'][nobj] = self.basemeta['AGE'][iobj]
-                    meta['D4000'][nobj] = self.basemeta['D4000'][iobj]
-                    meta['VDISP'][nobj] = vdisp[ii]
-
-                    if self.add_SNeIa:
-                        meta['SNE_TEMPLATEID'][nobj] = sne_chunkindx[ii]
-                        meta['SNE_EPOCH'][nobj] = self.sne_basemeta['EPOCH'][sne_chunkindx[ii]]
-                        meta['SNE_RFLUXRATIO'][nobj] = sne_rfluxratio[ii]
-
-                    nobj = nobj+1
-
-                # If we have enough models get out!
-                if nobj>=(nmodel-1):
                     break
+
+        # Check to see if any spectra could not be computed.
+        if ~np.all(success):
+            log.warning('{} spectra could not be computed given the input redshifts (or redshift priors)!'.format(np.sum(success == 0)))
 
         return outflux, self.wave, meta
 
@@ -1002,7 +993,6 @@ class STAR(object):
         Raises:
 
         """
-        from astropy.table import Table
         from desispec.interpolation import resample_flux
 
         rand = np.random.RandomState(seed)
@@ -1711,7 +1701,6 @@ class BGS():
         Raises:
 
         """
-        from astropy.table import Table
         from desisim.templates import EMSpectrum
         from desispec.interpolation import resample_flux
         from desisim import pixelsplines as pxs
