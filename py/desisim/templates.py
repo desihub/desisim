@@ -652,7 +652,7 @@ class ELG(GALAXY):
                 zoiiflux = oiiflux[ii, templateid] * 10**(-0.4*rmag[ii]) / np.array(maggies['decam2014-r'])
 
                 if nocolorcuts:
-                    colormask = [True]
+                    colormask = np.repeat(1, nbasechunk)
                 else:
                     colormask = isELG(gflux=synthnano[:, 1], 
                                       rflux=synthnano[:, 2], 
@@ -672,7 +672,7 @@ class ELG(GALAXY):
                         #flux = pxs.gauss_blur_matrix(self.pixbound,sigma) * flux
                         #flux = (flux-emflux)*pxs.gauss_blur_matrix(self.pixbound,sigma) + emflux
                         
-                    this = np.where(colormask*(zoiiflux > minoiiflux))[0][0] # Pick the first one.
+                    this = rand.choice(np.where(colormask*(zoiiflux > minoiiflux))[0]) # Pick one randomly.
                     tempid = templateid[this]
                     outflux[ii, :] = resample_flux(self.wave, zwave, restflux[this, :] * \
                                                    10**(-0.4*rmag[ii])/maggies['decam2014-r'][this])
@@ -826,7 +826,7 @@ class LRG(GALAXY):
                     synthnano[:, ff] = maggies[key] * 10**(-0.4*(zmag[ii]-22.5)) / maggies['decam2014-z']
 
                 if nocolorcuts:
-                    colormask = [True]
+                    colormask = np.repeat(1, nbasechunk)
                 else:
                     colormask = isLRG(rflux=synthnano[:, 2], 
                                       zflux=synthnano[:, 4], 
@@ -837,7 +837,7 @@ class LRG(GALAXY):
                 if np.any(colormask):
                     success[ii] = 1
                         
-                    this = np.where(colormask)[0][0] # Pick the first one.
+                    this = rand.choice(np.where(colormask)[0]) # Pick one randomly.
                     tempid = templateid[this]
                     outflux[ii, :] = resample_flux(self.wave, zwave, restflux[this, :] * \
                                                    10**(-0.4*zmag[ii])/maggies['decam2014-z'][this])
@@ -1380,7 +1380,7 @@ class QSO():
             size must equal NMODEL.  Overwrites ZRANGE input.
           seed (long, optional): input seed for the random numbers.
           nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
-            cuts (default False) (not yet supported).
+            cuts (default False).
 
         Returns:
           outflux (numpy.ndarray): Array [nmodel,npix] of observed-frame spectra [erg/s/cm2/A].
@@ -1399,144 +1399,81 @@ class QSO():
                 log.fatal('REDSHIFT must be an NMODEL-length array')
             zrange = (np.min(redshift), np.max(redshift))
 
-        # Uniform prior on r-band magnitude.
+        log.warning('Color-cuts not yet supported; forcing nocolorcuts=True')
+        nocolorcuts = True
+
         rand = np.random.RandomState(seed)
-        rmag = rand.uniform(rmagrange[0], rmagrange[1], nmodel)
 
         # Generate the QSO templates on-the-fly in chunks until enough models
         # pass the color cuts.
         chunksize = np.min((nmodel, 50))
         nchunk = long(np.ceil(nmodel / chunksize))
 
-        # Build the spectra.
+        # Assign redshift and r-magnitude priors.
+        if redshift is None:
+            redshift = rand.uniform(zrange[0], zrange[1], nmodel)
+
         nzbin = (zrange[1]-zrange[0])/self.z_wind
         N_perz = int(chunksize // nzbin + 2)
         #N_perz = int(nmodel//nzbin + 2)
-                
+
+        rmag = rand.uniform(rmagrange[0], rmagrange[1], nmodel)
+
+        # Populate some of the metadata table.
+        meta = _metatable(nmodel, self.objtype)
+        meta['TEMPLATEID'] = np.arange(nmodel)
+        meta['REDSHIFT'] = redshift
+            
+        # Build the spectra.
+        zwave = self.wave # [observed-frame, Angstrom]
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
 
         success = np.zeros(nmodel)
         for ii in range(nmodel):
-            _, restflux, redshifts = dqt.desi_qso_templates(
-                zmnx=zrange, no_write=True, rebin_wave=self.wave, rstate=rand,
+            _, final_flux, redshifts = dqt.desi_qso_templates(
+                no_write=True, rebin_wave=zwave, rstate=rand,
                 N_perz=N_perz, redshift=redshift[ii])
-
-            import pdb ; pdb.set_trace()
+            restflux = final_flux.T
+            nmade = np.shape(restflux)[0]
 
             # Synthesize photometry to determine which models will pass the
-            # color-cuts.
-            maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
-            synthnano = np.zeros((nbasechunk, len(self.decamwise)))
+            # color-cuts.  We have to temporarily pad because the spectra don't
+            # go red enough.
+            padflux, padzwave = self.rfilt.pad_spectrum(restflux, zwave, method='edge')
+            maggies = self.decamwise.get_ab_maggies(padflux, padzwave, mask_invalid=True)
+
+            synthnano = np.zeros((nmade, len(self.decamwise)))
             for ff, key in enumerate(maggies.columns):
                 synthnano[:, ff] = maggies[key] * 10**(-0.4*(rmag[ii]-22.5)) / maggies['decam2014-r']
-            
 
-            if redshift is None:
-                # Cut down
-                ridx = rand.choice(xrange(len(redshifts)), nmodel, replace=False)
-                restflux = all_flux[:, ridx].T
-                redshift = redshifts[ridx]
+            if nocolorcuts:
+                colormask = np.repeat(1, nmade)
             else:
-                restflux = all_flux.T
+                colormask = [isQSO(gflux=synthnano[1], # ToDo!
+                                   rflux=synthnano[2],
+                                   zflux=synthnano[4],
+                                   wflux=(synthnano[6],
+                                          synthnano[7]))]
 
-            # Normalize 
+            # If the color-cuts pass then populate the output flux vector
+            # (suitably normalized) and metadata table and finish up.
+            if np.any(colormask):
+              success[ii] = 1
 
+              this = rand.choice(np.where(colormask)[0]) # Pick one randomly.
+              outflux[ii, :] = restflux[this, :]*10**(-0.4*rmag[ii])/maggies['decam2014-r'][this]
 
+              # Temporary hack until the models go redder.
+              for magkey, magindx in zip(('GMAG','RMAG','ZMAG'), (1, 2, 4)):
+                  meta[magkey][ii] = 22.5-2.5*np.log10(synthnano[this, magindx])
+              #for magkey, magindx in zip(('GMAG','RMAG','ZMAG','W1MAG','W2MAG'), (1, 2, 4, 6, 7)):
+              #    meta[magkey][ii] = 22.5-2.5*np.log10(synthnano[this, magindx])
+              meta['DECAM_FLUX'][ii] = synthnano[this, :6]
+              meta['WISE_FLUX'][ii] = synthnano[this, 6:8]
 
-
-
-
-        # Initialize the output flux array and metadata Table.
-        outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
-
-        meta = _metatable(nmodel, self.objtype, self.add_SNeIa)
-        meta['TEMPLATEID'] = np.arange(nmodel)
-        meta['REDSHIFT'] = redshift
-
-        nobj = 0
-        if old_way:
-            nbase = self.baseflux.shape[0]
-            nchunk = min(nmodel,500)
-        else:
-            meta['REDSHIFT'] = self.z
-            nbase = self.baseflux.shape[1]
-            nchunk = nmodel
-
-        while nobj<=(nmodel-1):
-            # Choose a random subset of the base templates
-            if old_way:
-                chunkindx = rand.randint(0, nbase-1, nchunk)
-            else:
-                chunkindx = xrange(nchunk)
-
-            # Assign uniform redshift and g-magnitude distributions.
-            # redshift = rand.uniform(zrange[0],zrange[1],nchunk)
-            rmag = rand.uniform(rmagrange[0], rmagrange[1], nchunk)
-            zwave = self.basewave # Hack!
-
-            # Unfortunately we have to loop here.
-            for ii, iobj in enumerate(chunkindx):
-                if old_way:
-                    this = rand.randint(0, nbase-1)
-                else:
-                    this = ii
-                if old_way:
-                    obsflux = self.baseflux[this,:] # [erg/s/cm2/A]
-                else:
-                    obsflux = self.baseflux[:, this] # [erg/s/cm2/A]
-
-                # Normalize to [erg/s/cm2/A, @redshift[ii]].  # Temporary hack
-                # until the templates can be extended redward and blueward.
-                #rnorm = self.rfilt.get_ab_maggies(obsflux, zwave)
-                padflux, padzwave = self.rfilt.pad_spectrum(obsflux, zwave, method='edge')
-                rnorm = self.rfilt.get_ab_maggies(padflux, padzwave)
-                norm = 10.0**(-0.4*rmag[ii])/rnorm['decam2014-r'][0]
-                flux = obsflux*norm
-
-                # Convert [grzW1W2]flux to nanomaggies.  Temporary hack until
-                # the templates can be extended redward!
-                #synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
-                padflux, padzwave = self.decamwise.pad_spectrum(flux, zwave, method='edge')
-                synthmaggies = self.decamwise.get_ab_maggies(padflux, padzwave, mask_invalid=True)
-                synthmaggies['wise2010-W1'] = 0.0
-                synthmaggies['wise2010-W2'] = 0.0
-
-                synthnano = np.array([ff*MAG2NANO for ff in synthmaggies[0]]) # convert to nanomaggies
-                synthnano[synthnano == 0] = 10**(0.4*(22.5-99)) # if flux==0 then set mag==99 (below)
-
-                if nocolorcuts:
-                    colormask = [True]
-                else:
-                    #colormask = [isQSO(gflux=synthnano[1], # ToDo!
-                    #                   rflux=synthnano[2],
-                    #                   zflux=synthnano[4],
-                    #                   wflux=(synthnano[6],
-                    #                          synthnano[7]))]
-                    colormask = [True]
-
-                if all(colormask):
-                    if ((nobj+1)%10)==0:
-                        log.debug('Simulating {} template {}/{}'. \
-                                  format(self.objtype, nobj+1, nmodel))
-                    outflux[nobj,:] = resample_flux(self.wave, zwave, flux)
-
-                    meta['TEMPLATEID'][nobj] = chunkindx[ii]
-                    if old_way:
-                        meta['REDSHIFT'][nobj] = self.basemeta['Z'][this]
-                    meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
-                    meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
-                    meta['ZMAG'][nobj] = -2.5*np.log10(synthnano[4])+22.5
-                    meta['W1MAG'][nobj] = -2.5*np.log10(synthnano[6])+22.5
-                    meta['W2MAG'][nobj] = -2.5*np.log10(synthnano[7])+22.5
-                    meta['DECAM_FLUX'][nobj] = synthnano[:6]
-                    meta['WISE_FLUX'][nobj] = synthnano[6:8]
-
-                    nobj = nobj+1
-
-                # If we have enough models get out!
-                if nobj>=(nmodel-1):
-                    break
-
+        # Check to see if any spectra could not be computed.
+        if ~np.all(success):
+            log.warning('{} spectra could not be computed given the input redshifts (or redshift priors)!'.format(np.sum(success == 0)))
         return outflux, self.wave, meta
 
 class BGS(GALAXY):
@@ -1733,7 +1670,7 @@ class BGS(GALAXY):
                 zhbetaflux = hbetaflux[ii, templateid] * 10**(-0.4*rmag[ii]) / np.array(maggies['decam2014-r'])
 
                 if nocolorcuts:
-                    colormask = [True]
+                    colormask = np.repeat(1, nbasechunk)
                 else:
                     colormask = isBGS(rflux=synthnano[:, 2])
 
@@ -1751,7 +1688,7 @@ class BGS(GALAXY):
                         #flux = pxs.gauss_blur_matrix(self.pixbound,sigma) * flux
                         #flux = (flux-emflux)*pxs.gauss_blur_matrix(self.pixbound,sigma) + emflux
                         
-                    this = np.where(colormask)[0][0] # Pick the first one.
+                    this = rand.choice(np.where(colormask)[0]) # Pick one randomly.
                     tempid = templateid[this]
                     outflux[ii, :] = resample_flux(self.wave, zwave, restflux[this, :] * \
                                                    10**(-0.4*rmag[ii])/maggies['decam2014-r'][this])
