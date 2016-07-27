@@ -1366,7 +1366,7 @@ class QSO():
         self.zfilt = filters.load_filters('decam2014-z')
 
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(21.0, 23.0),
-                       redshift=None, seed=None, nocolorcuts=False, old_way=False):
+                       redshift=None, seed=None, nocolorcuts=False):
         """Build Monte Carlo set of QSO spectra/templates.
 
         This function generates a random set of QSO continua spectra and
@@ -1404,54 +1404,31 @@ class QSO():
                 log.fatal('REDSHIFT must be an NMODEL-length array')
             zrange = (np.min(redshift), np.max(redshift))
 
-        # Backwards compatiblity hack
-        if desisim.io._qso_format_version(self.basis_file) == 1:
-            old_way = True
-
-        # This is a temporary hack because the QSO basis templates are
-        # already in the observed frame.
-        if old_way:
-            flux, wave, meta = desisim.io.read_basis_templates('qso', infile=self.basis_file)
-
-            keep = np.where(((meta['Z']>=zrange[0])*1)*
-                            ((meta['Z']<=zrange[1])*1))[0]
-            self.baseflux = flux[keep,:]
-            self.basewave = wave
-            self.basemeta = meta[keep]
-            self.z = meta['Z'][keep]
-        else:
-            # Generate on-the-fly
-            nzbin = (zrange[1]-zrange[0])/self.z_wind
-            N_perz = int(nmodel//nzbin + 2)
+        # Generate the QSO templates on-the-fly (in the observed frame).
+        nzbin = (zrange[1]-zrange[0])/self.z_wind
+        N_perz = int(nmodel//nzbin + 2)
                 
-            _, all_flux, redshifts = dqt.desi_qso_templates(
-                zmnx=zrange, no_write=True, rebin_wave=self.wave, rstate=rand,
-                N_perz=N_perz, redshift=redshift)
+        _, all_flux, redshifts = dqt.desi_qso_templates(
+            zmnx=zrange, no_write=True, rebin_wave=self.wave, rstate=rand,
+            N_perz=N_perz, redshift=redshift)
 
-            self.basewave = self.wave
-            if redshift is None:
-                # Cut down
-                ridx = rand.choice(xrange(len(redshifts)), nmodel, replace=False)
-                self.baseflux = all_flux[:,ridx]
-                self.z = redshifts[ridx]
-            else:
-                self.baseflux = all_flux[:,ridx]
-                self.z = redshifts[ridx]
+        if redshift is None:
+            # Cut down
+            ridx = rand.choice(xrange(len(redshifts)), nmodel, replace=False)
+            obsflux = all_flux[:, ridx].T
+            redshift = redshifts[ridx]
+        else:
+            obsflux = all_flux.T
 
         # Initialize the output flux array and metadata Table.
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
 
-        metacols = [
-            ('TEMPLATEID', 'i4'),
-            ('REDSHIFT', 'f4'),
-            ('GMAG', 'f4'),
-            ('RMAG', 'f4'),
-            ('ZMAG', 'f4'),
-            ('W1MAG', 'f4'),
-            ('W2MAG', 'f4'),
-            ('DECAM_FLUX', 'f4', (6,)),
-            ('WISE_FLUX', 'f4', (2,))]
-        meta = Table(np.zeros(nmodel, dtype=metacols))
+        meta = _metatable(nmodel, self.objtype, self.add_SNeIa)
+        meta['TEMPLATEID'] = np.arange(nmodel)
+        meta['REDSHIFT'] = redshift
+
+        
+        
 
         nobj = 0
         if old_way:
