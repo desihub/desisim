@@ -1404,18 +1404,9 @@ class QSO():
 
         rand = np.random.RandomState(seed)
 
-        # Generate the QSO templates on-the-fly in chunks until enough models
-        # pass the color cuts.
-        chunksize = np.min((nmodel, 50))
-        nchunk = long(np.ceil(nmodel / chunksize))
-
         # Assign redshift and r-magnitude priors.
         if redshift is None:
             redshift = rand.uniform(zrange[0], zrange[1], nmodel)
-
-        nzbin = (zrange[1]-zrange[0])/self.z_wind
-        N_perz = int(chunksize // nzbin + 2)
-        #N_perz = int(nmodel//nzbin + 2)
 
         rmag = rand.uniform(rmagrange[0], rmagrange[1], nmodel)
 
@@ -1424,12 +1415,18 @@ class QSO():
         meta['TEMPLATEID'] = np.arange(nmodel)
         meta['REDSHIFT'] = redshift
             
-        # Build the spectra.
+        # Build the spectra on-the-fly in chunks until enough models pass the
+        # color cuts.
+        nzbin = (zrange[1]-zrange[0])/self.z_wind                                                        
+        N_perz = int(nmodel//nzbin + 2)                                                                  
+
         zwave = self.wave # [observed-frame, Angstrom]
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
 
         success = np.zeros(nmodel)
         for ii in range(nmodel):
+            log.debug('Simulating {} template {}/{}.'.format(self.objtype, ii+1, nmodel))
+                      
             _, final_flux, redshifts = dqt.desi_qso_templates(
                 no_write=True, rebin_wave=zwave, rstate=rand,
                 N_perz=N_perz, redshift=redshift[ii])

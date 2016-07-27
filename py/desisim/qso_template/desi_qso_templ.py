@@ -311,8 +311,9 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
             # Hack by @moustakas: add a little jitter to get the set of QSOs
             # that are *nearest* in redshift to the desired output redshift.
             idx = np.where( (zQSO >= z0[ii]-0.001) & (zQSO < z1[ii]+0.001) )[0]
-            #idx = np.array([(np.abs(zQSO-zrand[0])).argmin()])
-        #pdb.set_trace()
+            if len(idx) == 0:
+                idx = np.array([(np.abs(zQSO-zrand[0])).argmin()])
+                #pdb.set_trace()
         log.debug('Making z=({:g},{:g}) with {:d} input quasars'.format(z0[ii],z1[ii],len(idx)))
 
         # Get PCA stats and random values
