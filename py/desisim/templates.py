@@ -18,7 +18,7 @@ log = get_logger()
 LIGHT = 2.99792458E5  #- speed of light in km/s
 MAG2NANO = 10.0**(0.4*22.5)
 
-class GaussianMixtureModel():
+class GaussianMixtureModel(object):
     """Read and sample from a pre-defined Gaussian mixture model.
 
     """
@@ -147,7 +147,7 @@ def _metatable(nmodel=1, objtype='ELG', add_SNeIa=None):
 
     return meta
 
-class EMSpectrum():
+class EMSpectrum(object):
     """Construct a complete nebular emission-line spectrum.
 
     """
@@ -366,20 +366,22 @@ class EMSpectrum():
 
         return emspec, 10**self.log10wave, line
 
-class ELG():
-    """Generate Monte Carlo spectra of emission-line galaxies (ELGs).
+class GALAXY(object):
+    """Base class for generating Monte Carlo spectra of the various flavors of
+galaxies (ELG, LRG, BGS).
 
     """
-    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
-                 add_SNeIa=False):
-        """Read the ELG basis continuum templates, filter profiles and initialize the
-           output wavelength array.
+    def __init__(self, objtype='ELG', minwave=3600.0, maxwave=10000.0, cdelt=2.0,
+                 wave=None, add_SNeIa=False):
+        """Read the appropriate basis continuum templates, filter profiles and
+           initialize the output wavelength array.
 
         Only a linearly-spaced output wavelength array is currently supported.
 
         TODO (@moustakas): Incorporate size and morphological priors.
 
         Args:
+          objtype (str): object type (default 'ELG')
           minwave (float, optional): minimum value of the output wavelength
             array [default 3600 Angstrom].
           maxwave (float, optional): minimum value of the output wavelength
@@ -392,16 +394,17 @@ class ELG():
             Ia spectrum in the integrated spectrum [default False]
 
         Attributes:
-          objtype (str): 'ELG'
           wave (numpy.ndarray): Output wavelength array [Angstrom].
           baseflux (numpy.ndarray): Array [nbase,npix] of the base rest-frame
-            ELG continuum spectra [erg/s/cm2/A].
+            continuum spectra [erg/s/cm2/A].
           basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths
             corresponding to BASEFLUX [Angstrom].
           basemeta (astropy.Table): Table of meta-data for each base template [nbase].
           pixbound (numpy.ndarray): Pixel boundaries of BASEWAVE [Angstrom].
           decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence
+          gfilt (speclite.filters instance): DECam2014 g-band FilterSequence
           rfilt (speclite.filters instance): DECam2014 r-band FilterSequence
+          zfilt (speclite.filters instance): DECam2014 z-band FilterSequence
 
         Optional Attributes:
           sne_baseflux (numpy.ndarray): Array [sne_nbase,sne_npix] of the base
@@ -415,7 +418,7 @@ class ELG():
         from desisim import pixelsplines as pxs
         from desispec.interpolation import resample_flux
 
-        self.objtype = 'ELG'
+        self.objtype = objtype
 
         # Initialize the output wavelength array (linear spacing) unless it is
         # already provided.
@@ -443,12 +446,24 @@ class ELG():
         # Pixel boundaries
         self.pixbound = pxs.cen2bound(basewave)
 
-        self.ewoiicoeff = [1.34323087, -5.02866474, 5.43842874]
-
         # Initialize the filter profiles.
+        self.gfilt = filters.load_filters('decam2014-g')
         self.rfilt = filters.load_filters('decam2014-r')
+        self.zfilt = filters.load_filters('decam2014-z')
         self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
 
+class ELG(GALAXY):
+    """Generate Monte Carlo spectra of emission-line galaxies (ELGs).
+
+    """
+    def __init__(self, objtype='ELG', minwave=3600.0, maxwave=10000.0, cdelt=2.0,
+                 wave=None, add_SNeIa=False):
+
+        super(ELG, self).__init__(objtype=objtype, minwave=minwave, maxwave=maxwave,
+                                  cdelt=cdelt, wave=wave, add_SNeIa=add_SNeIa)
+
+        self.ewoiicoeff = [1.34323087, -5.02866474, 5.43842874]
+        
     def make_templates(self, nmodel=100, zrange=(0.6,1.6), rmagrange=(21.0,23.4),
                        oiiihbrange=(-0.5,0.2), oiidoublet_meansig=(0.73,0.05),
                        logvdisp_meansig=(1.9,0.15), minoiiflux=1E-18,
@@ -672,7 +687,7 @@ class ELG():
 
         return outflux, self.wave, meta
 
-class LRG():
+class LRG(GALAXY):
     """Generate Monte Carlo spectra of luminous red galaxies (LRGs).
 
     """
@@ -1100,7 +1115,7 @@ class STAR(object):
         return outflux, self.wave, meta
 
 class FSTD(STAR):
-    """Generate Monte Carlos spectra of DESI metal-poor main sequence turnoff stars (FSTD)
+    """Generate Monte Carlos spectra of DESI metal-poor main sequence turnoff stars (FSTD).
 
     """
 
@@ -1225,7 +1240,7 @@ class FSTD(STAR):
 
 class MWS_STAR(STAR):
 
-    """Generate Monte Carlos spectra of DESI MWS mag-selected targets
+    """Generate Monte Carlos spectra of DESI MWS mag-selected targets.
 
     """
 
@@ -1565,7 +1580,7 @@ class QSO():
 
         return outflux, self.wave, meta
 
-class BGS():
+class BGS(GALAXY):
     """Generate Monte Carlo spectra of bright galaxy survey galaxies (BGSs).
 
     """
