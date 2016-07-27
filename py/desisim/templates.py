@@ -101,50 +101,44 @@ def _lineratios(nobj=1, EM=None, oiiihbrange=(-0.5, 0.2), rand=None):
 
     return oiihbeta, niihbeta, siihbeta, oiiihbeta
 
-def _metatable(nmodel=1, objtype='ELG', add_SNeIa=None):
-    """Initialize the metadata table for each object type."""
-    from astropy.table import Table
+def _metatable(nmodel=1, objtype='ELG', add_SNeIa=None, seed=None):
+    """Initialize the metadata table for each object type.  Add the random seed to
+    the table, but only if it's given.
+
+    """ 
+    from astropy.table import Table, Column
+
+    meta = Table()
+    meta.add_column(Column(name='TEMPLATEID', length=nmodel, dtype='i4'))
+    meta.add_column(Column(name='REDSHIFT', length=nmodel, dtype='f4'))
+    meta.add_column(Column(name='GMAG', length=nmodel, dtype='f4'))
+    meta.add_column(Column(name='RMAG', length=nmodel, dtype='f4'))
+    meta.add_column(Column(name='ZMAG', length=nmodel, dtype='f4'))
+    meta.add_column(Column(name='W1MAG', length=nmodel, dtype='f4'))
+    meta.add_column(Column(name='W2MAG', length=nmodel, dtype='f4'))
+    meta.add_column(Column(name='DECAM_FLUX', shape=(6,), length=nmodel, dtype='f4'))
+    meta.add_column(Column(name='WISE_FLUX', shape=(2,), length=nmodel, dtype='f4'))
 
     if objtype.upper() == 'ELG':
-        metacols = [
-            ('TEMPLATEID', 'i4'),
-            ('REDSHIFT', 'f4'),
-            ('GMAG', 'f4'),
-            ('RMAG', 'f4'),
-            ('ZMAG', 'f4'),
-            ('W1MAG', 'f4'),
-            ('W2MAG', 'f4'),
-            ('OIIFLUX', 'f4'),
-            ('EWOII', 'f4'),
-            ('OIIIHBETA', 'f4'),
-            ('OIIHBETA', 'f4'),
-            ('NIIHBETA', 'f4'),
-            ('SIIHBETA', 'f4'),
-            ('OIIDOUBLET', 'f4'),
-            ('D4000', 'f4'),
-            ('VDISP', 'f4'), 
-            ('DECAM_FLUX', 'f4', (6,)),
-            ('WISE_FLUX', 'f4', (2,))]
-        if add_SNeIa:
-            metacols.extend([
-                ('SNE_TEMPLATEID', 'i4'),
-                ('SNE_RFLUXRATIO', 'f4'),
-                ('SNE_EPOCH', 'f4')])
-    meta = Table(np.zeros(nmodel, dtype=metacols))
+        meta.add_column(Column(name='OIIFLUX', length=nmodel, dtype='f4', unit='erg/(s*cm2)'))
+        meta.add_column(Column(name='EWOII', length=nmodel, dtype='f4', unit='Angstrom'))
+        meta.add_column(Column(name='OIIDOUBLET', length=nmodel, dtype='f4'))
+        meta.add_column(Column(name='OIIIHBETA', length=nmodel, dtype='f4', unit='dex'))
+        meta.add_column(Column(name='OIIHBETA', length=nmodel, dtype='f4', unit='dex'))
+        meta.add_column(Column(name='NIIHBETA', length=nmodel, dtype='f4', unit='dex'))
+        meta.add_column(Column(name='SIIHBETA', length=nmodel, dtype='f4', unit='dex'))
+        meta.add_column(Column(name='D4000', length=nmodel, dtype='f4'))
+        meta.add_column(Column(name='VDISP', length=nmodel, dtype='f4', unit='km/s'))
 
-    # Add units.
-    if objtype.upper() == 'ELG':
-        meta['OIIFLUX'].unit = 'erg/(s*cm2)'
-        meta['EWOII'].unit = 'Angstrom'
-        meta['OIIIHBETA'].unit = 'dex'
-        meta['OIIHBETA'].unit = 'dex'
-        meta['NIIHBETA'].unit = 'dex'
-        meta['SIIHBETA'].unit = 'dex'
-        meta['VDISP'].unit = 'km/s'
-        if add_SNeIa:
-            meta['SNE_EPOCH'].unit = 'days'
+    if objtype.upper() == 'LRG':
+        meta.add_column(Column(name='D4000', length=nmodel, dtype='f4'))
+        meta.add_column(Column(name='VDISP', length=nmodel, dtype='f4', unit='km/s'))
 
-    meta['TEMPLATEID'] = -1 # Initialize
+    if add_SNeIa:
+        meta.add_column(Column(name='SNE_TEMPLATEID', data=[-1], dtype='i4'))
+        meta.add_column(Column(name='SNE_RFLUXRATIO', length=nmodel, dtype='f4'))
+        meta.add_column(Column(name='SNE_EPOCH', length=nmodel, dtype='f4', unit='days'))
+
     return meta
 
 class EMSpectrum():
@@ -523,6 +517,7 @@ class ELG():
                 log.fatal('REDSHIFT must be an NMODEL-length array')
 
         rand = np.random.RandomState(seed)
+        emseed = rand.randint(2**32, size=nmodel)
 
         # Initialize the EMSpectrum object with the same wavelength array as
         # the "base" (continuum) templates so that we don't have to resample.
@@ -560,10 +555,8 @@ class ELG():
           rand.normal(0.0, 0.3, (nmodel, nbase)) # rest-frame, Angstrom
         oiiflux = np.tile(self.basemeta['OII_CONTINUUM'].data, (nmodel, 1)) * ewoii 
 
-        emseed = rand.randint(2**32, size=nmodel)
-
         # Populate some of the metadata table.
-        meta = _metatable(nmodel, self.objtype, self.add_SNeIa)
+        meta = _metatable(nmodel, self.objtype, self.add_SNeIa, seed=seed)
         meta['REDSHIFT'] = redshift
         meta['OIIIHBETA'] = oiiihbeta
         meta['OIIHBETA'] = oiihbeta
@@ -571,7 +564,7 @@ class ELG():
         meta['SIIHBETA'] = siihbeta
         meta['OIIDOUBLET'] = oiidoublet
         meta['VDISP'] = vdisp
-                
+        
         # Get the (optional) distribution of SNe Ia priors.  Eventually we need
         # to make this physically consistent.
         if self.add_SNeIa:
@@ -673,8 +666,7 @@ class ELG():
 
         # Check to see if any spectra could not be computed.
         if ~np.all(success):
-            log.warning('{} spectra could not be computed given the input '+\
-                        'redshifts (or redshift priors)!'.format(np.sum(success == 0)))
+            log.warning('{} spectra could not be computed given the input redshifts (or redshift priors)!'.format(np.sum(success == 0)))
 
         return outflux, self.wave, meta
 
