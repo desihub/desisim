@@ -1102,8 +1102,6 @@ class FSTD(STAR):
         # Initialize the output flux array and metadata Table.
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
 
-        #import pdb ; pdb.set_trace()
-
         metacols = [
             ('TEMPLATEID', 'i4'),
             ('REDSHIFT', 'f4'),
@@ -1392,33 +1390,61 @@ class QSO():
         Raises:
 
         """
-        from astropy.table import Table, MaskedColumn
         from desispec.interpolation import resample_flux
         from desisim.qso_template import desi_qso_templ as dqt
         #from desitarget.cuts import isQSO
-
-        rand = np.random.RandomState(seed)
 
         if redshift is not None:
             if len(redshift) != nmodel:
                 log.fatal('REDSHIFT must be an NMODEL-length array')
             zrange = (np.min(redshift), np.max(redshift))
 
-        # Generate the QSO templates on-the-fly (in the observed frame).
-        nzbin = (zrange[1]-zrange[0])/self.z_wind
-        N_perz = int(nmodel//nzbin + 2)
-                
-        _, all_flux, redshifts = dqt.desi_qso_templates(
-            zmnx=zrange, no_write=True, rebin_wave=self.wave, rstate=rand,
-            N_perz=N_perz, redshift=redshift)
+        # Uniform prior on r-band magnitude.
+        rand = np.random.RandomState(seed)
+        rmag = rand.uniform(rmagrange[0], rmagrange[1], nmodel)
 
-        if redshift is None:
-            # Cut down
-            ridx = rand.choice(xrange(len(redshifts)), nmodel, replace=False)
-            obsflux = all_flux[:, ridx].T
-            redshift = redshifts[ridx]
-        else:
-            obsflux = all_flux.T
+        # Generate the QSO templates on-the-fly in chunks until enough models
+        # pass the color cuts.
+        chunksize = np.min((nmodel, 50))
+        nchunk = long(np.ceil(nmodel / chunksize))
+
+        # Build the spectra.
+        nzbin = (zrange[1]-zrange[0])/self.z_wind
+        N_perz = int(chunksize // nzbin + 2)
+        #N_perz = int(nmodel//nzbin + 2)
+                
+        outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
+
+        success = np.zeros(nmodel)
+        for ii in range(nmodel):
+            _, restflux, redshifts = dqt.desi_qso_templates(
+                zmnx=zrange, no_write=True, rebin_wave=self.wave, rstate=rand,
+                N_perz=N_perz, redshift=redshift[ii])
+
+            import pdb ; pdb.set_trace()
+
+            # Synthesize photometry to determine which models will pass the
+            # color-cuts.
+            maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
+            synthnano = np.zeros((nbasechunk, len(self.decamwise)))
+            for ff, key in enumerate(maggies.columns):
+                synthnano[:, ff] = maggies[key] * 10**(-0.4*(rmag[ii]-22.5)) / maggies['decam2014-r']
+            
+
+            if redshift is None:
+                # Cut down
+                ridx = rand.choice(xrange(len(redshifts)), nmodel, replace=False)
+                restflux = all_flux[:, ridx].T
+                redshift = redshifts[ridx]
+            else:
+                restflux = all_flux.T
+
+            # Normalize 
+
+
+
+
+
 
         # Initialize the output flux array and metadata Table.
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
@@ -1426,9 +1452,6 @@ class QSO():
         meta = _metatable(nmodel, self.objtype, self.add_SNeIa)
         meta['TEMPLATEID'] = np.arange(nmodel)
         meta['REDSHIFT'] = redshift
-
-        
-        
 
         nobj = 0
         if old_way:

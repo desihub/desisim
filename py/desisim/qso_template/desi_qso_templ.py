@@ -217,6 +217,7 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
     """
     # Cosmology
     from astropy import cosmology
+    from desispec.interpolation import resample_flux
     cosmo = cosmology.core.FlatLambdaCDM(70., 0.3)
 
     if old_read:
@@ -270,7 +271,7 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
         z0 = np.arange(zmnx[0],zmnx[1],z_wind)
         z1 = z0 + z_wind
     else:
-        z0 = redshift
+        z0 = np.array([redshift])
         z1 = z0
 
     pca_list = ['PCA0', 'PCA1', 'PCA2', 'PCA3']
@@ -379,8 +380,9 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
 
     for ii in range(totN):
         # Interpolate (in log space)
-        f1d = interp1d(np.log10(final_wave[:,ii]), final_spec[:,ii])
-        rebin_spec[:,ii] = f1d(log_wave)
+        rebin_spec[:, ii] = resample_flux(log_wave, np.log10(final_wave[:, ii]), final_spec[:, ii])
+        #f1d = interp1d(np.log10(final_wave[:,ii]), final_spec[:,ii])
+        #rebin_spec[:,ii] = f1d(log_wave)
 
     if outfil is None:
         return 10.**log_wave, rebin_spec, final_z
