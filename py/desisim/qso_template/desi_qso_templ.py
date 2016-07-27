@@ -180,7 +180,7 @@ def fig_desi_templ_z_i(outfil=None, boss_fil=None, flg=0):
 def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
                        boss_pca_fil=None, wvmnx=(3500., 10000.),
                        rebin_wave=None, rstate=None,
-                       sdss_pca_fil=None, no_write=False,
+                       sdss_pca_fil=None, no_write=False, redshift=None,
                        seed=None, old_read=False, ipad=20):
     """ Generate QSO templates for DESI
 
@@ -202,7 +202,7 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
       Input wavelengths for rebinning
     wvmnx : tuple, optional
       Wavelength limits for rebinning (not used with rebin_wave)
-    redshifts : ndarray, optional
+    redshift : ndarray, optional
       Redshifts desired for the templates
     ipad : int, optional
       Padding for enabling enough models
@@ -265,9 +265,13 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
     lambda_912 = 911.76
     pix912 = np.argmin( np.abs(eigen_wave-lambda_912) )
 
-    # Loop on redshift
-    z0 = np.arange(zmnx[0],zmnx[1],z_wind)
-    z1 = z0 + z_wind
+    # Loop on redshift.  If the
+    if redshift is None:
+        z0 = np.arange(zmnx[0],zmnx[1],z_wind)
+        z1 = z0 + z_wind
+    else:
+        z0 = redshift
+        z1 = z0
 
     pca_list = ['PCA0', 'PCA1', 'PCA2', 'PCA3']
     PCA_mean = np.zeros(4)
@@ -300,7 +304,14 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
         mfp = 37. * ( (1+zrand)/5. )**(-5.4) # Physical Mpc
 
         # Grab PCA mean + sigma
-        idx = np.where( (zQSO >= z0[ii]) & (zQSO < z1[ii]) )[0]
+        if redshift is None:
+            idx = np.where( (zQSO >= z0[ii]) & (zQSO < z1[ii]) )[0]
+        else:
+            # Hack by @moustakas: add a little jitter to get the set of QSOs
+            # that are *nearest* in redshift to the desired output redshift.
+            idx = np.where( (zQSO >= z0[ii]-0.001) & (zQSO < z1[ii]+0.001) )[0]
+            #idx = np.array([(np.abs(zQSO-zrand[0])).argmin()])
+        #pdb.set_trace()
         log.debug('Making z=({:g},{:g}) with {:d} input quasars'.format(z0[ii],z1[ii],len(idx)))
 
         # Get PCA stats and random values

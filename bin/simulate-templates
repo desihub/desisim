@@ -181,13 +181,18 @@ def main():
                                                   seed=args.seed,
                                                   nocolorcuts=args.nocolorcuts)
         elif objtype == 'QSO':
+            import numpy as np
+            rand = np.random.RandomState(args.seed)
+            redshift = rand.uniform(2.5, 3.5, 10)
+            print(redshift)
             from desisim.templates import QSO
             qso = QSO(minwave=args.minwave, maxwave=args.maxwave, cdelt=args.cdelt)
             flux, wave, meta = qso.make_templates(nmodel=args.nmodel,
                                                   zrange=args.zrange_qso,
                                                   rmagrange=args.rmagrange_qso,
                                                   seed=args.seed,
-                                                  nocolorcuts=args.nocolorcuts)
+                                                  nocolorcuts=args.nocolorcuts,
+                                                  redshift=redshift)
         elif objtype == 'STAR':
             from desisim.templates import STAR
             star = STAR(minwave=args.minwave, maxwave=args.maxwave, cdelt=args.cdelt)

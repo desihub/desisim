@@ -1366,7 +1366,7 @@ class QSO():
         self.zfilt = filters.load_filters('decam2014-z')
 
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(21.0, 23.0),
-                       seed=None, nocolorcuts=False, old_way=False):
+                       redshift=None, seed=None, nocolorcuts=False, old_way=False):
         """Build Monte Carlo set of QSO spectra/templates.
 
         This function generates a random set of QSO continua spectra and
@@ -1378,6 +1378,8 @@ class QSO():
             to a uniform distribution between (0.5,4.0).
           rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
             magnitude range.  Defaults to a uniform distribution between (21,23.0).
+          redshift (float, optional): Input/output template redshifts.  Array
+            size must equal NMODEL.  Overwrites ZRANGE input.
           seed (long, optional): input seed for the random numbers.
           nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
             cuts (default False) (not yet supported).
@@ -1396,6 +1398,11 @@ class QSO():
         #from desitarget.cuts import isQSO
 
         rand = np.random.RandomState(seed)
+
+        if redshift is not None:
+            if len(redshift) != nmodel:
+                log.fatal('REDSHIFT must be an NMODEL-length array')
+            zrange = (np.min(redshift), np.max(redshift))
 
         # Backwards compatiblity hack
         if desisim.io._qso_format_version(self.basis_file) == 1:
@@ -1416,18 +1423,20 @@ class QSO():
             # Generate on-the-fly
             nzbin = (zrange[1]-zrange[0])/self.z_wind
             N_perz = int(nmodel//nzbin + 2)
+                
             _, all_flux, redshifts = dqt.desi_qso_templates(
                 zmnx=zrange, no_write=True, rebin_wave=self.wave, rstate=rand,
-                N_perz=N_perz
-            )
+                N_perz=N_perz, redshift=redshift)
 
-            import pdb ; pdb.set_trace()
-            
-            # Cut down
-            ridx = rand.choice(xrange(len(redshifts)), nmodel, replace=False)
-            self.baseflux = all_flux[:,ridx]
             self.basewave = self.wave
-            self.z = redshifts[ridx]
+            if redshift is None:
+                # Cut down
+                ridx = rand.choice(xrange(len(redshifts)), nmodel, replace=False)
+                self.baseflux = all_flux[:,ridx]
+                self.z = redshifts[ridx]
+            else:
+                self.baseflux = all_flux[:,ridx]
+                self.z = redshifts[ridx]
 
         # Initialize the output flux array and metadata Table.
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
