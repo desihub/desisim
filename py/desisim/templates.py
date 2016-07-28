@@ -205,13 +205,13 @@ class EMSpectrum(object):
         forbidmogfile = resource_filename('desisim','data/forbidden_mogs.fits')
 
         if not os.path.isfile(recombfile):
-            log.error('Required data file {} not found!'.format(recombfile))
+            log.fatal('Required data file {} not found!'.format(recombfile))
             raise IOError
         if not os.path.isfile(forbidfile):
-            log.error('Required data file {} not found!'.format(forbidfile))
+            log.fatal('Required data file {} not found!'.format(forbidfile))
             raise IOError
         if not os.path.isfile(forbidmogfile):
-            log.error('Required data file {} not found!'.format(forbidmogfile))
+            log.fatal('Required data file {} not found!'.format(forbidmogfile))
             raise IOError
 
         recombdata = Table.read(recombfile, format='ascii.ecsv', guess=False)
@@ -542,6 +542,7 @@ class ELG(GALAXY):
         if redshift is not None:
             if len(redshift) != nmodel:
                 log.fatal('REDSHIFT must be an NMODEL-length array')
+                raise ValueError
 
         rand = np.random.RandomState(seed)
         emseed = rand.randint(2**32, size=nmodel)
@@ -690,7 +691,8 @@ class ELG(GALAXY):
 
         # Check to see if any spectra could not be computed.
         if ~np.all(success):
-            log.warning('{} spectra could not be computed given the input redshifts (or redshift priors)!'.format(np.sum(success == 0)))
+            log.warning('{} spectra could not be computed given the input redshifts (or redshift priors)!'.\
+                        format(np.sum(success == 0)))
 
         return outflux, self.wave, meta
 
@@ -752,6 +754,7 @@ class LRG(GALAXY):
         if redshift is not None:
             if len(redshift) != nmodel:
                 log.fatal('REDSHIFT must be an NMODEL-length array')
+                raise ValueError
                 
         rand = np.random.RandomState(seed)
 
@@ -855,7 +858,8 @@ class LRG(GALAXY):
 
         # Check to see if any spectra could not be computed.
         if ~np.all(success):
-            log.warning('{} spectra could not be computed given the input redshifts (or redshift priors)!'.format(np.sum(success == 0)))
+            log.warning('{} spectra could not be computed given the input redshifts (or redshift priors)!'.\
+                        format(np.sum(success == 0)))
 
         return outflux, self.wave, meta
 
@@ -1397,6 +1401,7 @@ class QSO():
         if redshift is not None:
             if len(redshift) != nmodel:
                 log.fatal('REDSHIFT must be an NMODEL-length array')
+                raise ValueError
             zrange = (np.min(redshift), np.max(redshift))
 
         log.warning('Color-cuts not yet supported; forcing nocolorcuts=True')
@@ -1470,7 +1475,9 @@ class QSO():
 
         # Check to see if any spectra could not be computed.
         if ~np.all(success):
-            log.warning('{} spectra could not be computed given the input redshifts (or redshift priors)!'.format(np.sum(success == 0)))
+            log.warning('{} spectra could not be computed given the input redshifts (or redshift priors)!'.\
+                        format(np.sum(success == 0)))
+                        
         return outflux, self.wave, meta
 
 class BGS(GALAXY):
@@ -1554,6 +1561,7 @@ class BGS(GALAXY):
         if redshift is not None:
             if len(redshift) != nmodel:
                 log.fatal('REDSHIFT must be an NMODEL-length array')
+                raise ValueError
                 
         rand = np.random.RandomState(seed)
         emseed = rand.randint(2**32, size=nmodel)
@@ -1703,6 +1711,7 @@ class BGS(GALAXY):
 
         # Check to see if any spectra could not be computed.
         if ~np.all(success):
-            log.warning('{} spectra could not be computed given the input redshifts (or redshift priors)!'.format(np.sum(success == 0)))
+            log.warning('{} spectra could not be computed given the input redshifts (or redshift priors)!'.\
+                        format(np.sum(success == 0)))
 
         return outflux, self.wave, meta

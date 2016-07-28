@@ -290,7 +290,7 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
     for ii in range(len(z0)):
 
         # BOSS or SDSS?
-        if z0[ii] > 1.99:
+        if z0[ii] > 2.15:
             zQSO = boss_zQSO
             pca_coeff = boss_pca_coeff
         else:
@@ -310,7 +310,7 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
         else:
             # Hack by @moustakas: add a little jitter to get the set of QSOs
             # that are *nearest* in redshift to the desired output redshift.
-            idx = np.where( (zQSO >= z0[ii]-0.001) & (zQSO < z1[ii]+0.001) )[0]
+            idx = np.where( (zQSO >= z0[ii]-0.01) & (zQSO < z1[ii]+0.01) )[0]
             if len(idx) == 0:
                 idx = np.array([(np.abs(zQSO-zrand[0])).argmin()])
                 #pdb.set_trace()
