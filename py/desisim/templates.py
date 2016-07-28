@@ -942,14 +942,15 @@ class SUPERSTAR(object):
         self.rfilt = filters.load_filters('decam2014-r')
         self.zfilt = filters.load_filters('decam2014-z')
 
-    def make_templates(self, nmodel=100, vrad_meansig=(0.0,200.0), magrange=(18.0, 23.5),
-                       vrad=None, seed=None, nocolorcuts=False):
+    def make_star_templates(self, nmodel=100, vrad_meansig=(0.0,200.0), magrange=(18.0, 23.5),
+                            vrad=None, seed=None, nocolorcuts=False):
 
-        """Build Monte Carlo set of spectra/templates for WDs or generic stars.
+        """Build Monte Carlo set of spectra/templates for stars.
 
-        This function chooses random subsets of the continuum spectra for stars,
-        adds radial velocity "jitter", then normalizes the spectrum to a
-        specified r- or g-band magnitude.
+        This function chooses random subsets of the continuum spectra for the
+        type of star specified by OBJTYPE, adds radial velocity "jitter" (or
+        uses give radial velocities), then normalizes the spectrum to the
+        magnitude in the given filter.
 
         Args:
           nmodel (int, optional): Number of models to generate (default 100).
@@ -1254,22 +1255,21 @@ class STAR(object):
 
         return outflux, self.wave, meta
 
-class FSTD(STAR):
+class FSTD(SUPERSTAR):
     """Generate Monte Carlos spectra of DESI metal-poor main sequence turnoff stars (FSTD).
 
     """
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None):
-        super(FSTD, self).__init__(minwave=minwave, maxwave=maxwave, cdelt=cdelt, wave=wave)
-        self.objtype = 'FSTD'
 
-    def make_templates(self, nmodel=100, vrad_meansig=(0.0,200.0), rmagrange=(16.0,19.0),
-                       seed=None):
+        from desitarget.cuts import isFSTD_colors
+        super(FSTD, self).__init__(objtype='FSTD', minwave=minwave, maxwave=maxwave,
+                                   cdelt=cdelt, wave=wave, colorcuts_function=isFSTD_colors,
+                                   normfilter='decam2014-r')
+
+    def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
+                       rmagrange=(16.0, 19.0), vrad=None, seed=None):
         """Build Monte Carlo set of spectra/templates for FSTD stars.
-
-        This function chooses random subsets of the continuum spectra for stars,
-        adds realistic spread in radial velocity, then normalizes the spectrum to a
-        specified r- or g-band magnitude.
 
         Args:
           nmodel (int, optional): Number of models to generate (default 100).
@@ -1278,10 +1278,10 @@ class FSTD(STAR):
             spectrum.  Defaults to a normal distribution with a mean of zero and
             sigma of 200 km/s.
           rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
-            magnitude range.  Defaults to a uniform distribution between (18,23.4).
-          gmagrange (float, optional): Minimum and maximum DECam g-band (AB)
-            magnitude range.  Defaults to a uniform distribution between (16,19).
-            seed (long, optional): input seed for the random numbers.
+            magnitude range.  Defaults to a uniform distribution between (16, 19).
+          vrad (float, optional): Input/output radial velocities.  Array
+            size must equal NMODEL.  Overwrites VRAD_MEANSIG input.
+          seed (long, optional): input seed for the random numbers.
 
         Returns:
           outflux (numpy.ndarray): Array [nmodel,npix] of observed-frame spectra [erg/s/cm2/A].
@@ -1292,92 +1292,10 @@ class FSTD(STAR):
 
         """
 
-        from astropy.table import Table
-        from desispec.interpolation import resample_flux
-        from desitarget.cuts import isFSTD_colors
-
-        rand = np.random.RandomState(seed)
-
-        # Initialize the output flux array and metadata Table.
-        outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
-
-        metacols = [
-            ('TEMPLATEID', 'i4'),
-            ('REDSHIFT', 'f4'),
-            ('GMAG', 'f4'),
-            ('RMAG', 'f4'),
-            ('ZMAG', 'f4'),
-            ('W1MAG', 'f4'),
-            ('W2MAG', 'f4'),
-            ('LOGG', 'f4'),
-            ('TEFF', 'f4'),
-            ('FEH', 'f4'),
-            ('DECAM_FLUX', 'f4', (6,)),
-            ('WISE_FLUX', 'f4', (2,))]
-        meta = Table(np.zeros(nmodel, dtype=metacols))
-        meta['LOGG'].unit = 'm/(s**2)'
-        meta['TEFF'].unit = 'K'
-
-        # Build the spectra.
-        nobj = 0
-        nbase = len(self.basemeta)
-        nchunk = min(nmodel, 500)
-
-        while nobj<=(nmodel-1):
-            # Choose a random subset of the base templates
-            chunkindx = rand.randint(0, nbase-1, nchunk)
-
-            # Assign uniform redshift and r-magnitude distributions.
-            rmag = rand.uniform(rmagrange[0], rmagrange[1], nchunk)
-            vrad = rand.normal(vrad_meansig[0], vrad_meansig[1], nchunk)
-            redshift = vrad/LIGHT
-
-            # Unfortunately we have to loop here.
-            for ii, iobj in enumerate(chunkindx):
-                zwave = self.basewave.astype(float)*(1.0+redshift[ii])
-                restflux = self.baseflux[iobj,:] # [erg/s/cm2/A @10pc]
-
-                # Normalize to [erg/s/cm2/A, @redshift[ii]]
-                rnorm = self.rfilt.get_ab_maggies(restflux, zwave)
-                norm = 10.0**(-0.4*rmag[ii])/rnorm['decam2014-r'][0]
-                flux = restflux*norm
-
-                # Convert [grzW1W2]flux to nanomaggies.
-                synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
-                synthnano = np.array([ff*MAG2NANO for ff in synthmaggies[0]]) # convert to nanomaggies
-                synthnano[synthnano == 0] = 10**(0.4*(22.5-99)) # if flux==0 then set mag==99 (below)
-
-                # Color cuts on just on the standard stars.
-                colormask = [isFSTD_colors(gflux=synthnano[1],
-                                           rflux=synthnano[2],
-                                           zflux=synthnano[4])]
-                if all(colormask):
-                    if ((nobj+1)%10)==0:
-                        log.debug('Simulating {} template {}/{}'. \
-                                  format(self.objtype, nobj+1, nmodel))
-                    outflux[nobj,:] = resample_flux(self.wave, zwave, flux)
-
-                    meta['TEMPLATEID'][nobj] = chunkindx[ii]
-                    meta['REDSHIFT'][nobj] = redshift[ii]
-                    meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
-                    meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
-                    meta['ZMAG'][nobj] = -2.5*np.log10(synthnano[4])+22.5
-                    meta['W1MAG'][nobj] = -2.5*np.log10(synthnano[6])+22.5
-                    meta['W2MAG'][nobj] = -2.5*np.log10(synthnano[7])+22.5
-                    meta['DECAM_FLUX'][nobj] = synthnano[:6]
-                    meta['WISE_FLUX'][nobj] = synthnano[6:8]
-                    meta['LOGG'][nobj] = self.basemeta['LOGG'][iobj]
-                    meta['TEFF'][nobj] = self.basemeta['TEFF'][iobj]
-                    meta['FEH'][nobj] = self.basemeta['FEH'][iobj]
-
-                    nobj = nobj+1
-
-                # If we have enough models get out!
-                if nobj>=(nmodel-1):
-                    break
-
-        return outflux, self.wave, meta
-
+        outflux, wave, meta = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
+                                                       magrange=rmagrange, vrad=vrad, seed=seed)
+        return outflux, wave, meta
+    
 class MWS_STAR(STAR):
 
     """Generate Monte Carlos spectra of DESI MWS mag-selected targets.
