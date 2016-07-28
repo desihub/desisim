@@ -214,6 +214,13 @@ def main():
                                                    vrad_meansig=args.vrad_fstd,
                                                    rmagrange=args.rmagrange_fstd,
                                                    seed=args.seed)
+        elif objtype == 'MWS_STAR':
+            from desisim.templates import MWS_STAR
+            mws = MWS_STAR(minwave=args.minwave, maxwave=args.maxwave, cdelt=args.cdelt)
+            flux, wave, meta = mws.make_templates(nmodel=args.nmodel,
+                                                  vrad_meansig=args.vrad_fstd,
+                                                  rmagrange=args.rmagrange_fstd,
+                                                  seed=args.seed)
         elif objtype == 'SNE':
             from desisim.templates import SNE
             sne = SNE(minwave=args.minwave, maxwave=args.maxwave, cdelt=args.cdelt)
