@@ -197,12 +197,12 @@ def main():
             from desisim.templates import STAR
             star = STAR(minwave=args.minwave, maxwave=args.maxwave, cdelt=args.cdelt)
             flux, wave, meta = star.make_templates(nmodel=args.nmodel,
-                                                   vrad_meansig=args.vrad_wd,
-                                                   gmagrange=args.gmagrange_wd,
+                                                   vrad_meansig=args.vrad_star,
+                                                   rmagrange=args.rmagrange_star,
                                                    seed=args.seed)
         elif objtype == 'WD':
-            from desisim.templates import STAR
-            wd = STAR(minwave=args.minwave, maxwave=args.maxwave, cdelt=args.cdelt, WD=True)
+            from desisim.templates import WD
+            wd = WD(minwave=args.minwave, maxwave=args.maxwave, cdelt=args.cdelt)
             flux, wave, meta = wd.make_templates(nmodel=args.nmodel,
                                                  vrad_meansig=args.vrad_wd,
                                                  gmagrange=args.gmagrange_wd,

@@ -1071,91 +1071,33 @@ class SUPERSTAR(object):
 
         return outflux, self.wave, meta
 
-class STAR(object):
-    """Base Class for generating Monte Carlo spectra of the various flavors of DESI stellar targets.
+class STAR(SUPERSTAR):
+    """Generate Monte Carlos spectra of (generic) DESI stars.
 
     """
-    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None, WD=False):
-        """Read the stellar basis continuum templates, filter profiles and initialize
-           the output wavelength array.
 
-        Only a linearly-spaced output wavelength array is currently supported.
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None):
 
-        Args:
-          minwave (float, optional): minimum value of the output wavelength
-            array [default 3600 Angstrom].
-          maxwave (float, optional): minimum value of the output wavelength
-            array [default 10000 Angstrom].
-          cdelt (float, optional): spacing of the output wavelength array
-            [default 2 Angstrom/pixel].
-          wave (numpy.ndarray): Input/output observed-frame wavelength array,
-            overriding the minwave, maxwave, and cdelt arguments [Angstrom].
+        super(STAR, self).__init__(objtype='FSTD', minwave=minwave, maxwave=maxwave,
+                                   cdelt=cdelt, wave=wave, colorcuts_function=None,
+                                   normfilter='decam2014-r')
 
-        Attributes:
-          objtype (str): set to STAR or WD here, subclasses can set to specific stellar types
-          wave (numpy.ndarray): Output wavelength array [Angstrom].
-          baseflux (numpy.ndarray): Array [nbase,npix] of the base rest-frame
-            stellar continuum spectra [erg/s/cm2/A].
-          basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths
-            corresponding to BASEFLUX [Angstrom].
-          basemeta (astropy.Table): Table of meta-data for each base template [nbase].
-          decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence
-          gfilt (speclite.filters instance): DECam2014 g-band FilterSequence
-          rfilt (speclite.filters instance): DECam2014 r-band FilterSequence
-          zfilt (speclite.filters instance): DECam2014 z-band FilterSequence
-
-        """
-        from speclite import filters
-        from desisim.io import read_basis_templates
-
-        if WD:
-            self.objtype = 'WD'
-        else:
-            self.objtype = 'STAR'
-
-        # Initialize the output wavelength array (linear spacing) unless it is
-        # already provided.
-        if wave is None:
-            npix = (maxwave-minwave)/cdelt+1
-            wave = np.linspace(minwave,maxwave,npix)
-        self.wave = wave
-
-        # Read the rest-frame continuum basis spectra.
-        baseflux, basewave, basemeta = read_basis_templates(objtype=self.objtype)
-        self.baseflux = baseflux
-        self.basewave = basewave
-        self.basemeta = basemeta
-
-        # Initialize the filter profiles.
-        self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
-        self.gfilt = filters.load_filters('decam2014-g')
-        self.rfilt = filters.load_filters('decam2014-r')
-        self.zfilt = filters.load_filters('decam2014-z')
-
-    def make_templates(self, nmodel=100, vrad_meansig=(0.0,200.0), rmagrange=(18.0,23.5),
-                       gmagrange=(16.0,19.0), vrad=None, seed=None, nocolorcuts=False):
-
-        """Build Monte Carlo set of spectra/templates for WDs or generic stars.
-
-        This function chooses random subsets of the continuum spectra for stars,
-        adds radial velocity "jitter", then normalizes the spectrum to a
-        specified r- or g-band magnitude.
+    def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
+                       rmagrange=(18.0, 23.5), vrad=None, seed=None):
+        """Build Monte Carlo set of spectra/templates for generic stars.
 
         Args:
           nmodel (int, optional): Number of models to generate (default 100).
           vrad_meansig (float, optional): Mean and sigma (standard deviation) of the
-            radial velocity "jitter" (in km/s) that should be added to each
+          radial velocity "jitter" (in km/s) that should be added to each
             spectrum.  Defaults to a normal distribution with a mean of zero and
             sigma of 200 km/s.
           rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
-            magnitude range.  Defaults to a uniform distribution between (18,23.4).
-          gmagrange (float, optional): Minimum and maximum DECam g-band (AB)
-            magnitude range.  Defaults to a uniform distribution between (16,19).
+            magnitude range.  Defaults to a uniform distribution between (18,
+            23.5).
           vrad (float, optional): Input/output radial velocities.  Array
             size must equal NMODEL.  Overwrites VRAD_MEANSIG input.
           seed (long, optional): input seed for the random numbers.
-          nocolorcuts (bool, optional): Do not apply the fiducial color-cuts
-            (default False).
 
         Returns:
           outflux (numpy.ndarray): Array [nmodel,npix] of observed-frame spectra [erg/s/cm2/A].
@@ -1165,98 +1107,14 @@ class STAR(object):
         Raises:
 
         """
-        from desispec.interpolation import resample_flux
 
-        if vrad is not None:
-            if len(vrad) != nmodel:
-                log.fatal('VRAD must be an NMODEL-length array')
-                raise ValueError
-
-        rand = np.random.RandomState(seed)
-
-        # Shuffle the basis templates and then split them into ~equal chunks, so
-        # we can speed up the calculations below.
-        nbase = len(self.basemeta)
-        chunksize = np.min((nbase, 50))
-        nchunk = long(np.ceil(nbase / chunksize))
-
-        alltemplateid = np.tile(np.arange(nbase), (nmodel, 1))
-        for tempid in alltemplateid:
-            rand.shuffle(tempid)
-        alltemplateid_chunk = np.array_split(alltemplateid, nchunk, axis=1)
-
-        # Assign radial velocity and magnitude priors.
-        print('NEED gmag for white dwarfs!')
-        rmag = rand.uniform(rmagrange[0], rmagrange[1], nmodel)
-
-        if vrad is None:
-            if vrad_meansig[1] > 0:
-                vrad = rand.normal(vrad_meansig[0], vrad_meansig[1], nmodel)
-            else:
-                vrad = np.repeat(vrad_meansig[0], nmodel)
-        redshift = np.array(vrad) / LIGHT
-
-        # Populate some of the metadata table.
-        meta = _metatable(nmodel, self.objtype)
-        meta['REDSHIFT'] = redshift
-
-        # Build the spectra.
-        outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
-
-        success = np.zeros(nmodel)
-        for ii in range(nmodel):
-            zwave = self.basewave.astype(float)*(1.0 + redshift[ii])
-
-            for ichunk in range(nchunk):
-                log.debug('Simulating {} template {}/{} in chunk {}/{}'. \
-                          format(self.objtype, ii+1, nmodel, ichunk, nchunk))
-                templateid = alltemplateid_chunk[ichunk][ii, :]
-                nbasechunk = len(templateid)
-                
-                restflux = self.baseflux[templateid, :]
-
-                # Synthesize photometry to determine which models will pass the
-                # color-cuts.
-                maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
-                synthnano = np.zeros((nbasechunk, len(self.decamwise)))
-                for ff, key in enumerate(maggies.columns):
-                    synthnano[:, ff] = maggies[key] * 10**(-0.4*(rmag[ii]-22.5)) / maggies['decam2014-r']
-
-                if nocolorcuts:
-                    colormask = np.repeat(1, nbasechunk)
-                else:
-                    colormask = np.repeat(1, nbasechunk)
-
-                # If the color-cuts pass then populate the output flux vector
-                # (suitably normalized) and metadata table and finish up.
-                if np.any(colormask):
-                    success[ii] = 1
-                        
-                    this = rand.choice(np.where(colormask)[0]) # Pick one randomly.
-                    tempid = templateid[this]
-                    outflux[ii, :] = resample_flux(self.wave, zwave, restflux[this, :] * \
-                                                   10**(-0.4*rmag[ii])/maggies['decam2014-r'][this])
-
-                    meta['TEMPLATEID'][ii] = tempid
-                    meta['TEFF'][ii] = self.basemeta['TEFF'][tempid]
-                    meta['LOGG'][ii] = self.basemeta['LOGG'][tempid]
-                    meta['FEH'][ii] = self.basemeta['FEH'][tempid]
-                    for magkey, magindx in zip(('GMAG','RMAG','ZMAG','W1MAG','W2MAG'), (1, 2, 4, 6, 7)):
-                        meta[magkey][ii] = 22.5-2.5*np.log10(synthnano[this, magindx])
-                    meta['DECAM_FLUX'][ii] = synthnano[this, :6]
-                    meta['WISE_FLUX'][ii] = synthnano[this, 6:8]
-
-                    break
-
-        # Check to see if any spectra could not be computed.
-        if ~np.all(success):
-            log.warning('{} spectra could not be computed given the input radial velocities (or rv priors)!'.\
-                        format(np.sum(success == 0)))
-
-        return outflux, self.wave, meta
-
+        outflux, wave, meta = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
+                                                       magrange=rmagrange, vrad=vrad, seed=seed)
+        return outflux, wave, meta
+    
 class FSTD(SUPERSTAR):
-    """Generate Monte Carlos spectra of DESI metal-poor main sequence turnoff stars (FSTD).
+    """Generate Monte Carlos spectra of DESI (metal-poor) main sequence turnoff
+       stars (FSTD).
 
     """
 
@@ -1297,7 +1155,8 @@ class FSTD(SUPERSTAR):
         return outflux, wave, meta
     
 class MWS_STAR(SUPERSTAR):
-    """Generate Monte Carlos spectra of DESI metal-poor main sequence turnoff stars (FSTD).
+    """Generate Monte Carlos spectra of DESI Milky Way Survey magnitude-limited
+       stars.
 
     """
 
@@ -1309,8 +1168,8 @@ class MWS_STAR(SUPERSTAR):
                                        normfilter='decam2014-r')
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
-                       rmagrange=(16.0, 19.0), vrad=None, seed=None):
-        """Build Monte Carlo set of spectra/templates for FSTD stars.
+                       rmagrange=(16.0, 20.0), vrad=None, seed=None):
+        """Build Monte Carlo set of spectra/templates for MWS stars.
 
         Args:
           nmodel (int, optional): Number of models to generate (default 100).
@@ -1319,7 +1178,7 @@ class MWS_STAR(SUPERSTAR):
             spectrum.  Defaults to a normal distribution with a mean of zero and
             sigma of 200 km/s.
           rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
-            magnitude range.  Defaults to a uniform distribution between (16, 19).
+            magnitude range.  Defaults to a uniform distribution between (16, 20).
           vrad (float, optional): Input/output radial velocities.  Array
             size must equal NMODEL.  Overwrites VRAD_MEANSIG input.
           seed (long, optional): input seed for the random numbers.
@@ -1335,6 +1194,44 @@ class MWS_STAR(SUPERSTAR):
 
         outflux, wave, meta = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
                                                        magrange=rmagrange, vrad=vrad, seed=seed)
+        return outflux, wave, meta
+    
+class WD(SUPERSTAR):
+    """Generate Monte Carlos spectra of DESI white dwarfs."""
+
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None):
+
+        super(WD, self).__init__(objtype='WD', minwave=minwave, maxwave=maxwave,
+                                 cdelt=cdelt, wave=wave, colorcuts_function=None,
+                                 normfilter='decam2014-g')
+
+    def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
+                       gmagrange=(16.0, 19.0), vrad=None, seed=None):
+        """Build Monte Carlo set of spectra/templates for WDs.
+
+        Args:
+          nmodel (int, optional): Number of models to generate (default 100).
+          vrad_meansig (float, optional): Mean and sigma (standard deviation) of the
+          radial velocity "jitter" (in km/s) that should be added to each
+            spectrum.  Defaults to a normal distribution with a mean of zero and
+            sigma of 200 km/s.
+          gmagrange (float, optional): Minimum and maximum DECam g-band (AB)
+            magnitude range.  Defaults to a uniform distribution between (16, 19).
+          vrad (float, optional): Input/output radial velocities.  Array
+            size must equal NMODEL.  Overwrites VRAD_MEANSIG input.
+          seed (long, optional): input seed for the random numbers.
+
+        Returns:
+          outflux (numpy.ndarray): Array [nmodel,npix] of observed-frame spectra [erg/s/cm2/A].
+          wave (numpy.ndarray): Observed-frame [npix] wavelength array [Angstrom].
+          meta (astropy.Table): Table of meta-data for each output spectrum [nmodel].
+
+        Raises:
+
+        """
+
+        outflux, wave, meta = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
+                                                       magrange=gmagrange, vrad=vrad, seed=seed)
         return outflux, wave, meta
     
 class QSO():
