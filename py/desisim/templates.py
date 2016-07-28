@@ -89,7 +89,7 @@ def _lineratios(nobj=1, EM=None, oiiihbrange=(-0.5, 0.2), rand=None):
     siihbeta = np.zeros(nobj)
     oiiihbeta = np.zeros(nobj)-99
     need = np.where(oiiihbeta==-99)[0]
-    while len(need)>0:
+    while len(need) > 0:
         samp = EM.forbidmog.sample(len(need), random_state=rand)
         oiiihbeta[need] = samp[:,0]
         oiihbeta[need] = samp[:,1]
@@ -121,6 +121,7 @@ def _metatable(nmodel=1, objtype='ELG', add_SNeIa=None):
     if uobjtype == 'ELG':
         meta.add_column(Column(name='OIIFLUX', length=nmodel, dtype='f4', unit='erg/(s*cm2)'))
         meta.add_column(Column(name='EWOII', length=nmodel, dtype='f4', unit='Angstrom'))
+        
     if uobjtype == 'BGS':
         meta.add_column(Column(name='HBETAFLUX', length=nmodel, dtype='f4', unit='erg/(s*cm2)'))
         meta.add_column(Column(name='EWHBETA', length=nmodel, dtype='f4', unit='Angstrom'))
@@ -139,6 +140,11 @@ def _metatable(nmodel=1, objtype='ELG', add_SNeIa=None):
         meta.add_column(Column(name='AGE', length=nmodel, dtype='f4', unit='Gyr'))
         meta.add_column(Column(name='D4000', length=nmodel, dtype='f4'))
         meta.add_column(Column(name='VDISP', length=nmodel, dtype='f4', unit='km/s'))
+
+    if uobjtype == 'STAR':
+        meta.add_column(Column(name='TEFF', length=nmodel, dtype='f4', unit='K'))
+        meta.add_column(Column(name='LOGG', length=nmodel, dtype='f4', unit='m/(s**2)'))
+        meta.add_column(Column(name='FEH', length=nmodel, dtype='f4'))
 
     if add_SNeIa:
         meta.add_column(Column(name='SNE_TEMPLATEID', length=nmodel, dtype='i4'))
@@ -567,7 +573,7 @@ class ELG(GALAXY):
             redshift = rand.uniform(zrange[0], zrange[1], nmodel)
 
         rmag = rand.uniform(rmagrange[0], rmagrange[1], nmodel)
-        if logvdisp_meansig[1]>0:
+        if logvdisp_meansig[1] > 0:
             vdisp = 10**rand.normal(logvdisp_meansig[0], logvdisp_meansig[1], nmodel)
         else:
             vdisp = 10**np.repeat(logvdisp_meansig[0], nmodel)
@@ -774,7 +780,7 @@ class LRG(GALAXY):
             redshift = rand.uniform(zrange[0], zrange[1], nmodel)
 
         zmag = rand.uniform(zmagrange[0], zmagrange[1], nmodel)
-        if logvdisp_meansig[1]>0:
+        if logvdisp_meansig[1] > 0:
             vdisp = 10**rand.normal(logvdisp_meansig[0], logvdisp_meansig[1], nmodel)
         else:
             vdisp = 10**np.repeat(logvdisp_meansig[0], nmodel)
@@ -925,7 +931,7 @@ class STAR(object):
         self.zfilt = filters.load_filters('decam2014-z')
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0,200.0), rmagrange=(18.0,23.5),
-                       gmagrange=(16.0,19.0), seed=None):
+                       gmagrange=(16.0,19.0), vrad=None, seed=None, nocolorcuts=False):
 
         """Build Monte Carlo set of spectra/templates for WDs or generic stars.
 
@@ -943,7 +949,11 @@ class STAR(object):
             magnitude range.  Defaults to a uniform distribution between (18,23.4).
           gmagrange (float, optional): Minimum and maximum DECam g-band (AB)
             magnitude range.  Defaults to a uniform distribution between (16,19).
+          vrad (float, optional): Input/output radial velocities.  Array
+            size must equal NMODEL.  Overwrites VRAD_MEANSIG input.
           seed (long, optional): input seed for the random numbers.
+          nocolorcuts (bool, optional): Do not apply the fiducial color-cuts
+            (default False).
 
         Returns:
           outflux (numpy.ndarray): Array [nmodel,npix] of observed-frame spectra [erg/s/cm2/A].
@@ -955,107 +965,91 @@ class STAR(object):
         """
         from desispec.interpolation import resample_flux
 
+        if vrad is not None:
+            if len(vrad) != nmodel:
+                log.fatal('VRAD must be an NMODEL-length array')
+                raise ValueError
+
         rand = np.random.RandomState(seed)
 
-        # Initialize the output flux array and metadata Table.
-        outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
+        # Shuffle the basis templates and then split them into ~equal chunks, so
+        # we can speed up the calculations below.
+        nbase = len(self.basemeta)
+        chunksize = np.min((nbase, 50))
+        nchunk = long(np.ceil(nbase / chunksize))
 
-        if self.objtype == 'WD':
-            metacols = [
-                ('TEMPLATEID', 'i4'),
-                ('REDSHIFT', 'f4'),
-                ('GMAG', 'f4'),
-                ('RMAG', 'f4'),
-                ('ZMAG', 'f4'),
-                ('W1MAG', 'f4'),
-                ('W2MAG', 'f4'),
-                ('LOGG', 'f4'),
-                ('TEFF', 'f4'),
-                ('DECAM_FLUX', 'f4', (6,)),
-                ('WISE_FLUX', 'f4', (2,))]
-        else:
-            metacols = [
-                ('TEMPLATEID', 'i4'),
-                ('REDSHIFT', 'f4'),
-                ('GMAG', 'f4'),
-                ('RMAG', 'f4'),
-                ('ZMAG', 'f4'),
-                ('W1MAG', 'f4'),
-                ('W2MAG', 'f4'),
-                ('LOGG', 'f4'),
-                ('TEFF', 'f4'),
-                ('FEH', 'f4'),
-                ('DECAM_FLUX', 'f4', (6,)),
-                ('WISE_FLUX', 'f4', (2,))]
-        meta = Table(np.zeros(nmodel, dtype=metacols))
+        alltemplateid = np.tile(np.arange(nbase), (nmodel, 1))
+        for tempid in alltemplateid:
+            rand.shuffle(tempid)
+        alltemplateid_chunk = np.array_split(alltemplateid, nchunk, axis=1)
 
-        meta['LOGG'].unit = 'm/(s**2)'
-        meta['TEFF'].unit = 'K'
+        # Assign radial velocity and magnitude priors.
+        print('NEED gmag for white dwarfs!')
+        rmag = rand.uniform(rmagrange[0], rmagrange[1], nmodel)
+
+        if vrad is None:
+            if vrad_meansig[1] > 0:
+                vrad = rand.normal(vrad_meansig[0], vrad_meansig[1], nmodel)
+            else:
+                vrad = np.repeat(vrad_meansig[0], nmodel)
+        redshift = np.array(vrad) / LIGHT
+
+        # Populate some of the metadata table.
+        meta = _metatable(nmodel, self.objtype)
+        meta['REDSHIFT'] = redshift
 
         # Build the spectra.
-        nobj = 0
-        nbase = len(self.basemeta)
-        nchunk = min(nmodel, 500)
+        outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
 
-        while nobj<=(nmodel-1):
-            # Choose a random subset of the base templates
-            chunkindx = rand.randint(0, nbase-1, nchunk)
+        success = np.zeros(nmodel)
+        for ii in range(nmodel):
+            zwave = self.basewave.astype(float)*(1.0 + redshift[ii])
 
-            # Assign uniform redshift and r-magnitude distributions.
-            if self.objtype == 'WD':
-                gmag = rand.uniform(gmagrange[0], gmagrange[1], nchunk)
-            else:
-                rmag = rand.uniform(rmagrange[0], rmagrange[1], nchunk)
+            for ichunk in range(nchunk):
+                log.debug('Simulating {} template {}/{} in chunk {}/{}'. \
+                          format(self.objtype, ii+1, nmodel, ichunk, nchunk))
+                templateid = alltemplateid_chunk[ichunk][ii, :]
+                nbasechunk = len(templateid)
+                
+                restflux = self.baseflux[templateid, :]
 
-            vrad = rand.normal(vrad_meansig[0], vrad_meansig[1], nchunk)
-            redshift = vrad/LIGHT
+                # Synthesize photometry to determine which models will pass the
+                # color-cuts.
+                maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
+                synthnano = np.zeros((nbasechunk, len(self.decamwise)))
+                for ff, key in enumerate(maggies.columns):
+                    synthnano[:, ff] = maggies[key] * 10**(-0.4*(rmag[ii]-22.5)) / maggies['decam2014-r']
 
-            # Unfortunately we have to loop here.
-            for ii, iobj in enumerate(chunkindx):
-                zwave = self.basewave.astype(float)*(1.0+redshift[ii])
-                restflux = self.baseflux[iobj,:] # [erg/s/cm2/A @10pc]
-
-                # Normalize to [erg/s/cm2/A, @redshift[ii]]
-                if self.objtype == 'WD':
-                    gnorm = self.gfilt.get_ab_maggies(restflux, zwave)
-                    norm = 10.0**(-0.4*gmag[ii])/gnorm['decam2014-g'][0]
+                if nocolorcuts:
+                    colormask = np.repeat(1, nbasechunk)
                 else:
-                    rnorm = self.rfilt.get_ab_maggies(restflux, zwave)
-                    norm = 10.0**(-0.4*rmag[ii])/rnorm['decam2014-r'][0]
-                flux = restflux*norm
+                    colormask = np.repeat(1, nbasechunk)
 
-                # Convert [grzW1W2]flux to nanomaggies.
-                synthmaggies = self.decamwise.get_ab_maggies(flux, zwave, mask_invalid=True)
-                if self.objtype=='WD':
-                    synthmaggies['wise2010-W1'] = 0.0
-                    synthmaggies['wise2010-W2'] = 0.0
-                synthnano = np.array([ff*MAG2NANO for ff in synthmaggies[0]]) # convert to nanomaggies
-                synthnano[synthnano == 0] = 10**(0.4*(22.5-99)) # if flux==0 then set mag==99 (below)
+                # If the color-cuts pass then populate the output flux vector
+                # (suitably normalized) and metadata table and finish up.
+                if np.any(colormask):
+                    success[ii] = 1
+                        
+                    this = rand.choice(np.where(colormask)[0]) # Pick one randomly.
+                    tempid = templateid[this]
+                    outflux[ii, :] = resample_flux(self.wave, zwave, restflux[this, :] * \
+                                                   10**(-0.4*rmag[ii])/maggies['decam2014-r'][this])
 
-                if ((nobj+1)%10)==0:
-                    log.debug('Simulating {} template {}/{}'. \
-                                format(self.objtype, nobj+1, nmodel))
-                outflux[nobj,:] = resample_flux(self.wave, zwave, flux)
+                    meta['TEMPLATEID'][ii] = tempid
+                    meta['TEFF'][ii] = self.basemeta['TEFF'][tempid]
+                    meta['LOGG'][ii] = self.basemeta['LOGG'][tempid]
+                    meta['FEH'][ii] = self.basemeta['FEH'][tempid]
+                    for magkey, magindx in zip(('GMAG','RMAG','ZMAG','W1MAG','W2MAG'), (1, 2, 4, 6, 7)):
+                        meta[magkey][ii] = 22.5-2.5*np.log10(synthnano[this, magindx])
+                    meta['DECAM_FLUX'][ii] = synthnano[this, :6]
+                    meta['WISE_FLUX'][ii] = synthnano[this, 6:8]
 
-                meta['TEMPLATEID'][nobj] = chunkindx[ii]
-                meta['REDSHIFT'][nobj] = redshift[ii]
-                meta['GMAG'][nobj] = -2.5*np.log10(synthnano[1])+22.5
-                meta['RMAG'][nobj] = -2.5*np.log10(synthnano[2])+22.5
-                meta['ZMAG'][nobj] = -2.5*np.log10(synthnano[4])+22.5
-                meta['W1MAG'][nobj] = -2.5*np.log10(synthnano[6])+22.5
-                meta['W2MAG'][nobj] = -2.5*np.log10(synthnano[7])+22.5
-                if self.objtype!='WD':
-                    meta['FEH'][nobj] = self.basemeta['FEH'][iobj]
-                meta['DECAM_FLUX'][nobj] = synthnano[:6]
-                meta['WISE_FLUX'][nobj] = synthnano[6:8]
-                meta['LOGG'][nobj] = self.basemeta['LOGG'][iobj]
-                meta['TEFF'][nobj] = self.basemeta['TEFF'][iobj]
-
-                nobj = nobj+1
-
-                # If we have enough models get out!
-                if nobj>=(nmodel-1):
                     break
+
+        # Check to see if any spectra could not be computed.
+        if ~np.all(success):
+            log.warning('{} spectra could not be computed given the input radial velocities (or rv priors)!'.\
+                        format(np.sum(success == 0)))
 
         return outflux, self.wave, meta
 
@@ -1586,7 +1580,7 @@ class BGS(GALAXY):
             redshift = rand.uniform(zrange[0], zrange[1], nmodel)
 
         rmag = rand.uniform(rmagrange[0], rmagrange[1], nmodel)
-        if logvdisp_meansig[1]>0:
+        if logvdisp_meansig[1] > 0:
             vdisp = 10**rand.normal(logvdisp_meansig[0], logvdisp_meansig[1], nmodel)
         else:
             vdisp = 10**np.repeat(logvdisp_meansig[0], nmodel)
