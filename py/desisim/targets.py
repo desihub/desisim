@@ -175,7 +175,8 @@ def get_targets_parallel(nspec, flavor, tileid=None, nproc=None, seed=None):
 
         return fibermap, truth
 
-def simspec_truth(truth, wave=None, seed=None):
+#- Work in progress; don't use yet.
+def _simspec_truth(truth, wave=None, seed=None):
     from astropy import table
     #- Get DESI wavelength coverage
     if wave is None:
@@ -423,7 +424,7 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
 
 #-------------------------------------------------------------------------
 #- Currently unused, but keep around for now
-def _sample_nz(objtype, n):
+def sample_nz(objtype, n):
     """
     Given `objtype` = 'LRG', 'ELG', 'QSO', 'STAR', 'STD'
     return array of `n` redshifts that properly sample n(z)
