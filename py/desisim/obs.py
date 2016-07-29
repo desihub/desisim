@@ -320,9 +320,8 @@ def specter_objtype(desitype):
         return results[0]
     else:
         return results
-        
 
-def get_next_tileid(program='dark'):
+def get_next_tileid(program='DARK'):
     """
     Return tileid of next tile to observe
     
