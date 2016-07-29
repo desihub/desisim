@@ -16,7 +16,6 @@ from desispec.log import get_logger
 log = get_logger()
 
 LIGHT = 2.99792458E5  #- speed of light in km/s
-MAG2NANO = 10.0**(0.4*22.5)
 
 class GaussianMixtureModel(object):
     """Read and sample from a pre-defined Gaussian mixture model.
@@ -462,6 +461,15 @@ galaxies (ELG, LRG, BGS).
         self.zfilt = filters.load_filters('decam2014-z')
         self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
 
+    def vdispblur(self, flux, vdisp=150.0):
+        """Convolve with the velocity dispersion."""
+        from desisim import pixelsplines as pxs
+        
+        sigma = 1.0+self.basewave*vdisp/LIGHT
+        blurflux = pxs.gauss_blur_matrix(self.pixbound, sigma) * flux
+
+        return blurflux
+
 class ELG(GALAXY):
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs).
 
@@ -541,7 +549,6 @@ class ELG(GALAXY):
         """
         from desisim.templates import EMSpectrum
         from desispec.interpolation import resample_flux
-        from desisim import pixelsplines as pxs
         from desitarget.cuts import isELG
 
         if nocontinuum:
@@ -633,6 +640,8 @@ class ELG(GALAXY):
                 oiiflux=1.0,
                 seed=emseed[ii])
 
+            import pdb ; pdb.set_trace()
+
             for ichunk in range(nchunk):
                 log.debug('Simulating {} template {}/{} in chunk {}/{}'. \
                           format(self.objtype, ii+1, nmodel, ichunk, nchunk))
@@ -670,23 +679,24 @@ class ELG(GALAXY):
                                       zflux=synthnano[:, 4])
 
                 # If the color-cuts pass then populate the output flux vector
-                # (suitably normalized) and metadata table and finish up.
+                # (suitably normalized) and metadata table, convolve with the
+                # velocity dispersion, resample, and finish up.
                 if np.any(colormask*(zoiiflux > minoiiflux)):
                     success[ii] = 1
 
+                    this = rand.choice(np.where(colormask*(zoiiflux > minoiiflux))[0]) # Pick one randomly.
+                    tempid = templateid[this]
+                    
                     # (@moustakas) pxs.gauss_blur_matrix is producing lots of
                     # ringing in the emission lines, so deal with it later.
 
-                    # Convolve (just the stellar continuum) and resample.
-                    #if nocontinuum is False:
-                        #sigma = 1.0+self.basewave*vdisp[ii]/LIGHT
-                        #flux = pxs.gauss_blur_matrix(self.pixbound,sigma) * flux
-                        #flux = (flux-emflux)*pxs.gauss_blur_matrix(self.pixbound,sigma) + emflux
-                        
-                    this = rand.choice(np.where(colormask*(zoiiflux > minoiiflux))[0]) # Pick one randomly.
-                    tempid = templateid[this]
-                    outflux[ii, :] = resample_flux(self.wave, zwave, restflux[this, :] * \
-                                                   10**(-0.4*rmag[ii])/maggies['decam2014-r'][this])
+                    #blurflux = restflux[this, :]
+                    blurflux = self.vdispblur(restflux[this, :] - emflux, vdisp[ii]) + emflux
+
+                    import pdb ; pdb.set_trace()
+                    
+                    blurflux *= 10**(-0.4*rmag[ii])/maggies['decam2014-r'][this]
+                    outflux[ii, :] = resample_flux(self.wave, zwave, blurflux)
 
                     meta['TEMPLATEID'][ii] = tempid
                     meta['OIIFLUX'][ii] = zoiiflux[this]
@@ -703,6 +713,8 @@ class ELG(GALAXY):
         if ~np.all(success):
             log.warning('{} spectra could not be computed given the input redshifts (or redshift priors)!'.\
                         format(np.sum(success == 0)))
+
+        import pdb ; pdb.set_trace()
 
         return outflux, self.wave, meta
 
@@ -758,7 +770,6 @@ class LRG(GALAXY):
 
         """
         from desispec.interpolation import resample_flux
-        from desisim import pixelsplines as pxs
         from desitarget.cuts import isLRG
 
         if redshift is not None:
@@ -846,14 +857,18 @@ class LRG(GALAXY):
                                       w1flux=synthnano[:, 6])
 
                 # If the color-cuts pass then populate the output flux vector
-                # (suitably normalized) and metadata table and finish up.
+                # (suitably normalized) and metadata table, convolve with the
+                # velocity dispersion, resample, and finish up.
                 if np.any(colormask):
                     success[ii] = 1
                         
                     this = rand.choice(np.where(colormask)[0]) # Pick one randomly.
                     tempid = templateid[this]
-                    outflux[ii, :] = resample_flux(self.wave, zwave, restflux[this, :] * \
-                                                   10**(-0.4*zmag[ii])/maggies['decam2014-z'][this])
+
+                    blurflux = self.vdispblur(restflux[this, :], vdisp[ii])
+                    blurflux *= 10**(-0.4*zmag[ii])/maggies['decam2014-z'][this]
+
+                    outflux[ii, :] = resample_flux(self.wave, zwave, blurflux)
 
                     meta['TEMPLATEID'][ii] = tempid
                     meta['D4000'][ii] = self.basemeta['D4000'][tempid]
