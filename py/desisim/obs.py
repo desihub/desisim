@@ -332,9 +332,9 @@ def get_next_tileid(program='dark'):
     Note: simultaneous calls will return the same tileid;
           it does *not* reserve the tileid
     """
-    program = program.lower()
-    if program not in ('dark', 'gray', 'grey', 'bright',
-                       'elg', 'lrg', 'qso', 'lya', 'bgs', 'mws'):
+    program = program.upper()
+    if program not in ('DARK', 'GRAY', 'GREY', 'BRIGHT',
+                       'ELG', 'LRG', 'QSO', 'LYA', 'BGS', 'MWS'):
         return -1
     
     #- Read DESI tiling and trim to just tiles in DESI footprint
@@ -342,6 +342,9 @@ def get_next_tileid(program='dark'):
 
     #- HACK: update tilelist to include PROGRAM, etc.
     if 'PROGRAM' not in tiles.colnames:
+        log.error('You are using an out-of-date desi-tiles.fits file from desimodel')        
+        log.error('please update your copy of desimodel/data')        
+        log.warning('proceeding anyway with a workaround for now...')
         tiles['PASS'] -= min(tiles['PASS'])  #- standardize to starting at 0 not 1
     
         brighttiles = tiles[tiles['PASS'] <= 2].copy()
@@ -352,11 +355,9 @@ def get_next_tileid(program='dark'):
 
         program_col = table.Column(name='PROGRAM', length=len(tiles), dtype='S6')
         tiles.add_column(program_col)
-        tiles['PROGRAM'][tiles['PASS'] <= 3] = 'dark'
-        tiles['PROGRAM'][tiles['PASS'] == 4] = 'gray'
-        tiles['PROGRAM'][tiles['PASS'] >= 5] = 'bright'
-    else:
-        log.error('It looks like desimodel has updated the tile format; update this code')        
+        tiles['PROGRAM'][tiles['PASS'] <= 3] = 'DARK'
+        tiles['PROGRAM'][tiles['PASS'] == 4] = 'GRAY'
+        tiles['PROGRAM'][tiles['PASS'] >= 5] = 'BRIGHT'
 
     #- If obslog doesn't exist yet, start at tile 0
     dbfile = io.simdir()+'/etc/obslog.sqlite'
