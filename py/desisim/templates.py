@@ -365,13 +365,13 @@ class EMSpectrum(object):
         log10sigma = linesigma/LIGHT/np.log(10) # line-width [log-10 Angstrom]
         emspec = np.zeros(len(self.log10wave))
         for ii in range(len(line)):
-            amp = line['flux'][ii]/line['wave'][ii]/np.log(10) # line-amplitude [erg/s/cm2/A]
-            thislinewave = np.log10(line['wave'][ii]*(1.0+zshift))
-            line['amp'][ii] = amp/(np.sqrt(2.0*np.pi)*log10sigma)  # [erg/s/A]
+            amp = line['flux'][ii] / line['wave'][ii] / np.log(10) # line-amplitude [erg/s/cm2/A]
+            thislinewave = np.log10(line['wave'][ii] * (1.0+zshift))
+            line['amp'][ii] = amp / (np.sqrt(2.0 * np.pi) * log10sigma)  # [erg/s/A]
 
             # Construct the spectrum [erg/s/cm2/A, rest]
-            emspec += amp*np.exp(-0.5*(self.log10wave-thislinewave)**2/log10sigma**2)\
-                      /(np.sqrt(2.0*np.pi)*log10sigma)
+            emspec += amp * np.exp(-0.5 * (self.log10wave-thislinewave)**2 / log10sigma**2) \
+                      / (np.sqrt(2.0 * np.pi) * log10sigma)
 
         return emspec, 10**self.log10wave, line
 
@@ -595,8 +595,11 @@ class ELG(GALAXY):
         oiihbeta, niihbeta, siihbeta, oiiihbeta = _lineratios(nmodel, EM, oiiihbrange, rand)
 
         d4000 = self.basemeta['D4000']
-        ewoii = np.tile(10.0**(np.polyval(self.ewoiicoeff, d4000)), (nmodel, 1)) + \
-          rand.normal(0.0, 0.3, (nmodel, nbase)) # rest-frame, Angstrom
+        ewoii = np.tile(
+            10.0**(np.polyval(self.ewoiicoeff, d4000) +
+                   rand.normal(0.0, 0.3, nbase)), (nmodel, 1) # rest-frame, Angstrom
+            ) 
+                               
         oiiflux = np.tile(self.basemeta['OII_CONTINUUM'].data, (nmodel, 1)) * ewoii 
 
         # Populate some of the metadata table.
@@ -621,7 +624,7 @@ class ELG(GALAXY):
 
         success = np.zeros(nmodel)
         for ii in range(nmodel):
-            zwave = self.basewave.astype(float)*(1.0 + redshift[ii])
+            zwave = self.basewave.astype(float) * (1.0 + redshift[ii])
 
             # Get the SN spectrum and normalization factor.
             if self.add_SNeIa:
@@ -639,8 +642,6 @@ class ELG(GALAXY):
                 siihbeta=siihbeta[ii],
                 oiiflux=1.0,
                 seed=emseed[ii])
-
-            import pdb ; pdb.set_trace()
 
             for ichunk in range(nchunk):
                 log.debug('Simulating {} template {}/{} in chunk {}/{}'. \
@@ -665,11 +666,17 @@ class ELG(GALAXY):
                 # Synthesize photometry to determine which models will pass the
                 # color-cuts.
                 maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
+                magnorm = 10**(-0.4*(rmag[ii]-22.5)) / np.array(maggies['decam2014-r'])
+                
                 synthnano = np.zeros((nbasechunk, len(self.decamwise)))
                 for ff, key in enumerate(maggies.columns):
-                    synthnano[:, ff] = maggies[key] * 10**(-0.4*(rmag[ii]-22.5)) / maggies['decam2014-r']
+                    synthnano[:, ff] = maggies[key] * magnorm
+                    
+                zoiiflux = oiiflux[ii, templateid] * magnorm / (1 + redshift[ii])
 
-                zoiiflux = oiiflux[ii, templateid] * 10**(-0.4*rmag[ii]) / np.array(maggies['decam2014-r'])
+                import pdb ; pdb.set_trace()
+                #bb = (3722*(1+redshift[ii]) < emwave) & (emwave < 3736*(1+redshift[ii]))
+                #np.sum(emflux[bb]*np.gradient(emwave[bb]))
 
                 if nocolorcuts:
                     colormask = np.repeat(1, nbasechunk)
@@ -690,10 +697,9 @@ class ELG(GALAXY):
                     # (@moustakas) pxs.gauss_blur_matrix is producing lots of
                     # ringing in the emission lines, so deal with it later.
 
-                    #blurflux = restflux[this, :]
-                    blurflux = self.vdispblur(restflux[this, :] - emflux, vdisp[ii]) + emflux
-
-                    import pdb ; pdb.set_trace()
+                    blurflux = restflux[this, :]
+                    #blurflux = self.vdispblur(restflux[this, :] - emflux, vdisp[ii]) + emflux
+                    #import pdb ; pdb.set_trace()
                     
                     blurflux *= 10**(-0.4*rmag[ii])/maggies['decam2014-r'][this]
                     outflux[ii, :] = resample_flux(self.wave, zwave, blurflux)
@@ -714,7 +720,7 @@ class ELG(GALAXY):
             log.warning('{} spectra could not be computed given the input redshifts (or redshift priors)!'.\
                         format(np.sum(success == 0)))
 
-        import pdb ; pdb.set_trace()
+        #import pdb ; pdb.set_trace()
 
         return outflux, self.wave, meta
 
@@ -845,9 +851,11 @@ class LRG(GALAXY):
                 # Synthesize photometry to determine which models will pass the
                 # color-cuts.
                 maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
+                magnorm = 10**(-0.4*(zmag[ii]-22.5)) / np.array(maggies['decam2014-z'])
+
                 synthnano = np.zeros((nbasechunk, len(self.decamwise)))
                 for ff, key in enumerate(maggies.columns):
-                    synthnano[:, ff] = maggies[key] * 10**(-0.4*(zmag[ii]-22.5)) / maggies['decam2014-z']
+                    synthnano[:, ff] = maggies[key] * magnorm
 
                 if nocolorcuts:
                     colormask = np.repeat(1, nbasechunk)
@@ -1043,9 +1051,11 @@ class SUPERSTAR(object):
                 # Synthesize photometry to determine which models will pass the
                 # color-cuts.
                 maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
+                magnorm = 10**(-0.4*(mag[ii]-22.5)) / np.array(maggies[self.normfilter])
+
                 synthnano = np.zeros((nbasechunk, len(self.decamwise)))
                 for ff, key in enumerate(maggies.columns):
-                    synthnano[:, ff] = maggies[key] * 10**(-0.4*(mag[ii]-22.5)) / maggies[self.normfilter]
+                    synthnano[:, ff] = maggies[key] * magnorm
 
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, nbasechunk)
@@ -1385,10 +1395,11 @@ class QSO():
             # go red enough.
             padflux, padzwave = self.rfilt.pad_spectrum(restflux, zwave, method='edge')
             maggies = self.decamwise.get_ab_maggies(padflux, padzwave, mask_invalid=True)
+            magnorm = 10**(-0.4*(rmag[ii]-22.5)) / np.array(maggies['decam2014-r'])
 
             synthnano = np.zeros((nmade, len(self.decamwise)))
             for ff, key in enumerate(maggies.columns):
-                synthnano[:, ff] = maggies[key] * 10**(-0.4*(rmag[ii]-22.5)) / maggies['decam2014-r']
+                synthnano[:, ff] = maggies[key] * magnorm
 
             if nocolorcuts:
                 colormask = np.repeat(1, nmade)
@@ -1540,8 +1551,10 @@ class BGS(GALAXY):
         oiihbeta, niihbeta, siihbeta, oiiihbeta = _lineratios(nmodel, EM, oiiihbrange, rand)
 
         d4000 = self.basemeta['D4000']
-        ewhbeta = np.tile(10.0**(np.polyval(self.ewhbetacoeff, d4000)), (nmodel, 1)) + \
-          rand.normal(0.0, 0.2, (nmodel, nbase)) # rest-frame, Angstrom
+        ewhbeta = np.tile(
+            10.0**(np.polyval(self.ewhbetacoeff, d4000) +
+                   rand.normal(0.0, 0.2, nbase)), (nmodel, 1) # rest-frame, Angstrom
+            ) 
         #ewhbeta = self.ewhbetamog.sample(n_samples=(nmodel, nbase), random_state=rand)
         ewhbeta *= np.tile(self.basemeta['HBETA_LIMIT'], (nmodel, 1))
         hbetaflux = np.tile(self.basemeta['HBETA_CONTINUUM'].data, (nmodel, 1)) * ewhbeta
@@ -1610,11 +1623,13 @@ class BGS(GALAXY):
                 # Synthesize photometry to determine which models will pass the
                 # color-cuts.
                 maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
+                magnorm = 10**(-0.4*(rmag[ii]-22.5)) / np.array(maggies['decam2014-r'])
+
                 synthnano = np.zeros((nbasechunk, len(self.decamwise)))
                 for ff, key in enumerate(maggies.columns):
-                    synthnano[:, ff] = maggies[key] * 10**(-0.4*(rmag[ii]-22.5)) / maggies['decam2014-r']
+                    synthnano[:, ff] = maggies[key] * magnorm
 
-                zhbetaflux = hbetaflux[ii, templateid] * 10**(-0.4*rmag[ii]) / np.array(maggies['decam2014-r'])
+                zhbetaflux = hbetaflux[ii, templateid] * magnorm
 
                 if nocolorcuts:
                     colormask = np.repeat(1, nbasechunk)

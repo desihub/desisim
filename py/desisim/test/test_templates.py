@@ -23,18 +23,18 @@ class TestTemplates(unittest.TestCase):
         self.assertEqual(len(wave), len(self.wave))
         self.assertEqual(flux.shape, (self.nspec, len(self.wave)))
 
-    @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
-    def test_simple(self):
-        '''Confirm that creating templates works at all'''
-        for T in [ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR]:
-            template_factory = T(wave=self.wave)
-            flux, wave, meta = template_factory.make_templates(self.nspec)
-            self._check_output_size(flux, wave, meta)
-
-        #- Can also specify minwave, maxwave, dwave
-        elg = ELG(self.wavemin, self.wavemax, self.dwave)
-        flux, wave, meta = elg.make_templates(self.nspec)
-        self._check_output_size(flux, wave, meta)
+    #@unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
+    #def test_simple(self):
+    #    '''Confirm that creating templates works at all'''
+    #    for T in [ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR]:
+    #        template_factory = T(wave=self.wave)
+    #        flux, wave, meta = template_factory.make_templates(self.nspec)
+    #        self._check_output_size(flux, wave, meta)
+    #
+    #    #- Can also specify minwave, maxwave, dwave
+    #    elg = ELG(self.wavemin, self.wavemax, self.dwave)
+    #    flux, wave, meta = elg.make_templates(self.nspec)
+    #    self._check_output_size(flux, wave, meta)
 
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_OII(self):
@@ -48,7 +48,10 @@ class TestTemplates(unittest.TestCase):
             z = meta['REDSHIFT'][i]
             ii = (3722*(1+z) < wave) & (wave < 3736*(1+z))
             OIIflux = np.sum(flux[i,ii]*np.gradient(wave[ii]))
-            self.assertAlmostEqual(OIIflux, meta['OIIFLUX'][i], 2)
+            print(OIIflux, meta['OIIFLUX'][i])
+            self.assertAlmostEqual(OIIflux, meta['OIIFLUX'][i], 2)    
+
+    import pdb ; pdb.set_trace()
 
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_HBETA(self):
