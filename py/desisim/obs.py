@@ -458,13 +458,13 @@ def get_night(t=None, utc=None):
     
 #- I'm not really sure this is a good idea.
 #- I'm sure I will want to change the schema later...
-def update_obslog(obstype='science', program='dark', expid=None, dateobs=None,
+def update_obslog(obstype='science', program='DARK', expid=None, dateobs=None,
     tileid=-1, ra=None, dec=None):
     """
     Update obslog with a new exposure
     
     obstype : 'arc', 'flat', 'bias', 'test', 'science', ...
-    program : 'dark', 'gray', 'bright', 'calib'
+    program : 'DARK', 'GRAY', 'BRIGHT', 'CALIB'
     expid   : integer exposure ID, default from get_next_expid()
     dateobs : time.struct_time tuple; default time.localtime()
     tileid  : integer TileID, default -1, i.e. not a DESI tile
@@ -487,7 +487,7 @@ def update_obslog(obstype='science', program='dark', expid=None, dateobs=None,
         dateobs DATETIME,                   -- seconds since Unix Epoch (1970)
         night TEXT,                         -- YEARMMDD
         obstype TEXT DEFAULT "science",
-        program TEXT DEFAULT "dark",
+        program TEXT DEFAULT "DARK",
         tileid INTEGER DEFAULT -1,
         ra REAL DEFAULT 0.0,
         dec REAL DEFAULT 0.0
@@ -516,7 +516,7 @@ def update_obslog(obstype='science', program='dark', expid=None, dateobs=None,
     INSERT OR REPLACE INTO obslog(expid,dateobs,night,obstype,program,tileid,ra,dec)
     VALUES (?,?,?,?,?,?,?,?)
     """
-    db.execute(insert, (expid, time.mktime(dateobs), night, obstype.upper(), program, tileid, ra, dec))
+    db.execute(insert, (expid, time.mktime(dateobs), night, obstype.upper(), program.upper(), tileid, ra, dec))
     db.commit()
     
     return expid, dateobs
