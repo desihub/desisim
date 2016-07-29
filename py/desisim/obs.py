@@ -320,9 +320,8 @@ def specter_objtype(desitype):
         return results[0]
     else:
         return results
-        
 
-def get_next_tileid(program='dark'):
+def get_next_tileid(program='DARK'):
     """
     Return tileid of next tile to observe
     
@@ -332,9 +331,9 @@ def get_next_tileid(program='dark'):
     Note: simultaneous calls will return the same tileid;
           it does *not* reserve the tileid
     """
-    program = program.lower()
-    if program not in ('dark', 'gray', 'grey', 'bright',
-                       'elg', 'lrg', 'qso', 'lya', 'bgs', 'mws'):
+    program = program.upper()
+    if program not in ('DARK', 'GRAY', 'GREY', 'BRIGHT',
+                       'ELG', 'LRG', 'QSO', 'LYA', 'BGS', 'MWS'):
         return -1
     
     #- Read DESI tiling and trim to just tiles in DESI footprint
@@ -342,6 +341,9 @@ def get_next_tileid(program='dark'):
 
     #- HACK: update tilelist to include PROGRAM, etc.
     if 'PROGRAM' not in tiles.colnames:
+        log.error('You are using an out-of-date desi-tiles.fits file from desimodel')        
+        log.error('please update your copy of desimodel/data')        
+        log.warning('proceeding anyway with a workaround for now...')
         tiles['PASS'] -= min(tiles['PASS'])  #- standardize to starting at 0 not 1
     
         brighttiles = tiles[tiles['PASS'] <= 2].copy()
@@ -352,11 +354,9 @@ def get_next_tileid(program='dark'):
 
         program_col = table.Column(name='PROGRAM', length=len(tiles), dtype='S6')
         tiles.add_column(program_col)
-        tiles['PROGRAM'][tiles['PASS'] <= 3] = 'dark'
-        tiles['PROGRAM'][tiles['PASS'] == 4] = 'gray'
-        tiles['PROGRAM'][tiles['PASS'] >= 5] = 'bright'
-    else:
-        log.error('It looks like desimodel has updated the tile format; update this code')        
+        tiles['PROGRAM'][tiles['PASS'] <= 3] = 'DARK'
+        tiles['PROGRAM'][tiles['PASS'] == 4] = 'GRAY'
+        tiles['PROGRAM'][tiles['PASS'] >= 5] = 'BRIGHT'
 
     #- If obslog doesn't exist yet, start at tile 0
     dbfile = io.simdir()+'/etc/obslog.sqlite'
@@ -458,13 +458,13 @@ def get_night(t=None, utc=None):
     
 #- I'm not really sure this is a good idea.
 #- I'm sure I will want to change the schema later...
-def update_obslog(obstype='science', program='dark', expid=None, dateobs=None,
+def update_obslog(obstype='science', program='DARK', expid=None, dateobs=None,
     tileid=-1, ra=None, dec=None):
     """
     Update obslog with a new exposure
     
     obstype : 'arc', 'flat', 'bias', 'test', 'science', ...
-    program : 'dark', 'gray', 'bright', 'calib'
+    program : 'DARK', 'GRAY', 'BRIGHT', 'CALIB'
     expid   : integer exposure ID, default from get_next_expid()
     dateobs : time.struct_time tuple; default time.localtime()
     tileid  : integer TileID, default -1, i.e. not a DESI tile
@@ -487,7 +487,7 @@ def update_obslog(obstype='science', program='dark', expid=None, dateobs=None,
         dateobs DATETIME,                   -- seconds since Unix Epoch (1970)
         night TEXT,                         -- YEARMMDD
         obstype TEXT DEFAULT "science",
-        program TEXT DEFAULT "dark",
+        program TEXT DEFAULT "DARK",
         tileid INTEGER DEFAULT -1,
         ra REAL DEFAULT 0.0,
         dec REAL DEFAULT 0.0
@@ -516,7 +516,7 @@ def update_obslog(obstype='science', program='dark', expid=None, dateobs=None,
     INSERT OR REPLACE INTO obslog(expid,dateobs,night,obstype,program,tileid,ra,dec)
     VALUES (?,?,?,?,?,?,?,?)
     """
-    db.execute(insert, (expid, time.mktime(dateobs), night, obstype.upper(), program, tileid, ra, dec))
+    db.execute(insert, (expid, time.mktime(dateobs), night, obstype.upper(), program.upper(), tileid, ra, dec))
     db.commit()
     
     return expid, dateobs
