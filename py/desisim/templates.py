@@ -109,11 +109,11 @@ def _metatable(nmodel=1, objtype='ELG', add_SNeIa=None):
     meta = Table()
     meta.add_column(Column(name='TEMPLATEID', length=nmodel, dtype='i4'))
     meta.add_column(Column(name='REDSHIFT', length=nmodel, dtype='f4'))
-    meta.add_column(Column(name='GMAG', length=nmodel, dtype='f4'))
-    meta.add_column(Column(name='RMAG', length=nmodel, dtype='f4'))
-    meta.add_column(Column(name='ZMAG', length=nmodel, dtype='f4'))
-    meta.add_column(Column(name='W1MAG', length=nmodel, dtype='f4'))
-    meta.add_column(Column(name='W2MAG', length=nmodel, dtype='f4'))
+    #meta.add_column(Column(name='GMAG', length=nmodel, dtype='f4'))
+    #meta.add_column(Column(name='RMAG', length=nmodel, dtype='f4'))
+    #meta.add_column(Column(name='ZMAG', length=nmodel, dtype='f4'))
+    #meta.add_column(Column(name='W1MAG', length=nmodel, dtype='f4'))
+    #meta.add_column(Column(name='W2MAG', length=nmodel, dtype='f4'))
     meta.add_column(Column(name='DECAM_FLUX', shape=(6,), length=nmodel, dtype='f4'))
     meta.add_column(Column(name='WISE_FLUX', shape=(2,), length=nmodel, dtype='f4'))
 
@@ -357,7 +357,7 @@ class EMSpectrum(object):
                 line['flux'][ii] = hbetaflux*line['ratio'][ii]
 
         if (hbetaflux is not None) and (oiiflux is not None):
-            log.warning('Both HBETAFLUX and OIIFLUX were given; using HBETAFLUX.')
+            log.warning('Both hbetaflux and oiiflux were given; using hbetaflux.')
             for ii in range(nline):
                 line['flux'][ii] = hbetaflux*line['ratio'][ii]
 
@@ -432,8 +432,8 @@ galaxies (ELG, LRG, BGS).
         # Initialize the output wavelength array (linear spacing) unless it is
         # already provided.
         if wave is None:
-            npix = (maxwave-minwave)/cdelt+1
-            wave = np.linspace(minwave,maxwave,npix)
+            npix = (maxwave-minwave) / cdelt+1
+            wave = np.linspace(minwave, maxwave, npix)
         self.wave = wave
 
         # Read the rest-frame continuum basis spectra.
@@ -474,8 +474,7 @@ class ELG(GALAXY):
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs).
 
     """
-    def __init__(self, objtype='ELG', minwave=3600.0, maxwave=10000.0, cdelt=2.0,
-                 wave=None, add_SNeIa=False):
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None, add_SNeIa=False):
         """Read the BGS basis continuum templates, filter profiles and initialize the
            output wavelength array.
         
@@ -484,7 +483,7 @@ class ELG(GALAXY):
             D(4000) to EW([OII]).
 
         """
-        super(ELG, self).__init__(objtype=objtype, minwave=minwave, maxwave=maxwave,
+        super(ELG, self).__init__(objtype='ELG', minwave=minwave, maxwave=maxwave,
                                   cdelt=cdelt, wave=wave, add_SNeIa=add_SNeIa)
 
         self.ewoiicoeff = [1.34323087, -5.02866474, 5.43842874]
@@ -552,7 +551,7 @@ class ELG(GALAXY):
         from desitarget.cuts import isELG
 
         if nocontinuum:
-            log.warning('NOCONTINUUM keyword set; forcing NOCOLORCUTS=True and ADD_SNEIA=False')
+            log.warning('Forcing nocolorcuts=True, add_SNeIa=False since nocontinuum=True.')
             nocolorcuts = True
             self.add_SNeIa = False
 
@@ -570,6 +569,7 @@ class ELG(GALAXY):
 
         # Shuffle the basis templates and then split them into ~equal chunks, so
         # we can speed up the calculations below.
+        npix = len(self.basewave)
         nbase = len(self.basemeta)
         chunksize = np.min((nbase, 50))
         nchunk = long(np.ceil(nbase / chunksize))
@@ -611,7 +611,7 @@ class ELG(GALAXY):
         # to make this physically consistent.
         if self.add_SNeIa:
             sne_rfluxratio = rand.uniform(sne_rfluxratiorange[0], sne_rfluxratiorange[1], nmodel)
-            sne_tempid = rand.randint(0, len(self.sne_basemeta)-1, nmodel)
+            sne_tempid = rand.randint(0, len(self.sne_basemeta)-1, nmodel)                
             meta['SNE_TEMPLATEID'] = sne_tempid
             meta['SNE_EPOCH'] = self.sne_basemeta['EPOCH'][sne_tempid]
             meta['SNE_RFLUXRATIO'] = sne_rfluxratio
@@ -629,7 +629,6 @@ class ELG(GALAXY):
                 snenorm = self.rfilt.get_ab_maggies(sne_restflux, zwave)
 
             # Generate the emission-line spectrum for this model.
-            npix = len(self.basewave)
             emflux, emwave, emline = EM.spectrum(
                 linesigma=vdisp[ii],
                 oiidoublet=oiidoublet[ii],
@@ -657,21 +656,23 @@ class ELG(GALAXY):
                 # Add in the SN spectrum.
                 if self.add_SNeIa:
                     galnorm = self.rfilt.get_ab_maggies(restflux, zwave)
-                    snenorm = np.tile(galnorm['decam2014-r'].data, (1, npix)).reshape(nbasechunk, npix) * \
-                      np.tile(sne_rfluxratio[ii]/snenorm['decam2014-r'].data, (nbasechunk, npix))
-                    restflux += np.tile(sne_restflux, (nbasechunk, 1)) * snenorm
-                    import pdb ; pdb.set_trace()
+                    snefactor = galnorm['decam2014-r'].data * sne_rfluxratio[ii]/snenorm['decam2014-r'].data
+                    restflux += np.tile(sne_restflux, (nbasechunk, 1)) * np.tile(snefactor, (npix, 1)).T
 
                 # Synthesize photometry to determine which models will pass the
                 # color-cuts.
                 maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
-                magnorm = 10**(-0.4*rmag[ii]) / np.array(maggies['decam2014-r'])
+                if nocontinuum:
+                    magnorm = np.repeat(10**(-0.4*rmag[ii]), nbasechunk)
+                else:
+                    magnorm = 10**(-0.4*rmag[ii]) / np.array(maggies['decam2014-r'])
                 
                 synthnano = np.zeros((nbasechunk, len(self.decamwise)))
                 for ff, key in enumerate(maggies.columns):
                     synthnano[:, ff] = 1E9 * maggies[key] * magnorm # nanomaggies
 
                 zoiiflux = oiiflux[templateid] * magnorm
+                #import pdb ; pdb.set_trace()
 
                 #bb = (3722*(1+redshift[ii]) < zwave) & (zwave < 3736*(1+redshift[ii]))
                 #ff = np.sum(restflux[0, bb]*magnorm[0]*np.gradient(zwave[bb]))
@@ -697,8 +698,8 @@ class ELG(GALAXY):
                     
                     # (@moustakas) pxs.gauss_blur_matrix is producing lots of
                     # ringing in the emission lines, so deal with it later.
-                    blurflux = restflux[this, :] * magnorm[this]
-                    #blurflux = self.vdispblur(restflux[this, :] * magnorm[this], vdisp[ii])
+                    #blurflux = restflux[this, :] * magnorm[this]
+                    blurflux = self.vdispblur(restflux[this, :] * magnorm[this], vdisp[ii])
 
                     outflux[ii, :] = resample_flux(self.wave, zwave, blurflux)
 
@@ -706,8 +707,8 @@ class ELG(GALAXY):
                     meta['OIIFLUX'][ii] = zoiiflux[this]
                     meta['EWOII'][ii] = ewoii[tempid]
                     meta['D4000'][ii] = d4000[tempid]
-                    for magkey, magindx in zip(('GMAG','RMAG','ZMAG','W1MAG','W2MAG'), (1, 2, 4, 6, 7)):
-                        meta[magkey][ii] = 22.5-2.5*np.log10(synthnano[this, magindx])
+                    #for magkey, magindx in zip(('GMAG','RMAG','ZMAG','W1MAG','W2MAG'), (1, 2, 4, 6, 7)):
+                    #    meta[magkey][ii] = 22.5-2.5*np.log10(synthnano[this, magindx])
                     meta['DECAM_FLUX'][ii] = synthnano[this, :6]
                     meta['WISE_FLUX'][ii] = synthnano[this, 6:8]
 
@@ -728,15 +729,14 @@ class LRG(GALAXY):
     """Generate Monte Carlo spectra of luminous red galaxies (LRGs).
 
     """
-    def __init__(self, objtype='LRG', minwave=3600.0, maxwave=10000.0, cdelt=2.0,
-                 wave=None, add_SNeIa=False):
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None, add_SNeIa=False):
         """Read the LRG basis continuum templates, filter profiles and initialize the
            output wavelength array.
         
         Attributes:
 
         """
-        super(LRG, self).__init__(objtype=objtype, minwave=minwave, maxwave=maxwave,
+        super(LRG, self).__init__(objtype='LRG', minwave=minwave, maxwave=maxwave,
                                   cdelt=cdelt, wave=wave, add_SNeIa=add_SNeIa)
 
     def make_templates(self, nmodel=100, zrange=(0.5,1.1), zmagrange=(19.0,20.5),
@@ -787,6 +787,7 @@ class LRG(GALAXY):
 
         # Shuffle the basis templates and then split them into ~equal chunks, so
         # we can speed up the calculations below.
+        npix = len(self.basewave)
         nbase = len(self.basemeta)
         chunksize = np.min((nbase, 50))
         nchunk = long(np.ceil(nbase / chunksize))
@@ -844,9 +845,8 @@ class LRG(GALAXY):
                 # Add in the SN spectrum.
                 if self.add_SNeIa:
                     galnorm = self.rfilt.get_ab_maggies(restflux, zwave)
-                    snenorm = np.tile(galnorm['decam2014-r'].data, (1, npix)).reshape(nbasechunk, npix) * \
-                      np.tile(sne_rfluxratio[ii]/snenorm['decam2014-r'].data, (nbasechunk, npix))
-                    restflux += np.tile(sne_restflux, (nbasechunk, 1)) * snenorm
+                    snefactor = galnorm['decam2014-r'].data * sne_rfluxratio[ii]/snenorm['decam2014-r'].data
+                    restflux += np.tile(sne_restflux, (nbasechunk, 1)) * np.tile(snefactor, (npix, 1)).T
 
                 # Synthesize photometry to determine which models will pass the
                 # color-cuts.
@@ -880,8 +880,8 @@ class LRG(GALAXY):
                     meta['D4000'][ii] = self.basemeta['D4000'][tempid]
                     meta['AGE'][ii] = self.basemeta['AGE'][tempid]
                     meta['ZMETAL'][ii] = self.basemeta['ZMETAL'][tempid]
-                    for magkey, magindx in zip(('GMAG','RMAG','ZMAG','W1MAG','W2MAG'), (1, 2, 4, 6, 7)):
-                        meta[magkey][ii] = 22.5-2.5*np.log10(synthnano[this, magindx])
+                    #for magkey, magindx in zip(('GMAG','RMAG','ZMAG','W1MAG','W2MAG'), (1, 2, 4, 6, 7)):
+                    #    meta[magkey][ii] = 22.5-2.5*np.log10(synthnano[this, magindx])
                     meta['DECAM_FLUX'][ii] = synthnano[this, :6]
                     meta['WISE_FLUX'][ii] = synthnano[this, 6:8]
 
@@ -947,8 +947,8 @@ class SUPERSTAR(object):
         # Initialize the output wavelength array (linear spacing) unless it is
         # already provided.
         if wave is None:
-            npix = (maxwave-minwave)/cdelt+1
-            wave = np.linspace(minwave,maxwave,npix)
+            npix = (maxwave-minwave) / cdelt+1
+            wave = np.linspace(minwave, maxwave, npix)
         self.wave = wave
 
         # Read the rest-frame continuum basis spectra.
@@ -1080,8 +1080,8 @@ class SUPERSTAR(object):
                     meta['LOGG'][ii] = self.basemeta['LOGG'][tempid]
                     if self.objtype != 'WD':
                         meta['FEH'][ii] = self.basemeta['FEH'][tempid]
-                    for magkey, magindx in zip(('GMAG','RMAG','ZMAG','W1MAG','W2MAG'), (1, 2, 4, 6, 7)):
-                        meta[magkey][ii] = 22.5-2.5*np.log10(synthnano[this, magindx])
+                    #for magkey, magindx in zip(('GMAG','RMAG','ZMAG','W1MAG','W2MAG'), (1, 2, 4, 6, 7)):
+                    #    meta[magkey][ii] = 22.5-2.5*np.log10(synthnano[this, magindx])
                     meta['DECAM_FLUX'][ii] = synthnano[this, :6]
                     meta['WISE_FLUX'][ii] = synthnano[this, 6:8]
 
@@ -1101,7 +1101,7 @@ class STAR(SUPERSTAR):
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None):
 
-        super(STAR, self).__init__(objtype='FSTD', minwave=minwave, maxwave=maxwave,
+        super(STAR, self).__init__(objtype='STAR', minwave=minwave, maxwave=maxwave,
                                    cdelt=cdelt, wave=wave, colorcuts_function=None,
                                    normfilter='decam2014-r')
 
@@ -1354,7 +1354,7 @@ class QSO():
                 raise ValueError
             zrange = (np.min(redshift), np.max(redshift))
 
-        log.warning('QSO color-cuts not yet supported; forcing nocolorcuts=True')
+        log.warning('QSO color-cuts not yet supported; forcing nocolorcuts=True.')
         nocolorcuts = True
 
         rand = np.random.RandomState(seed)
@@ -1372,7 +1372,7 @@ class QSO():
             
         # Build the spectra on-the-fly in chunks until enough models pass the
         # color cuts.
-        nzbin = (zrange[1]-zrange[0])/self.z_wind                                                        
+        nzbin = (zrange[1]-zrange[0]) / self.z_wind                                                        
         N_perz = int(nmodel//nzbin + 2)                                                                  
 
         zwave = self.wave # [observed-frame, Angstrom]
@@ -1417,8 +1417,8 @@ class QSO():
               outflux[ii, :] = restflux[this, :] * magnorm[this]
 
               # Temporary hack until the models go redder.
-              for magkey, magindx in zip(('GMAG','RMAG','ZMAG'), (1, 2, 4)):
-                  meta[magkey][ii] = 22.5-2.5*np.log10(synthnano[this, magindx])
+              #for magkey, magindx in zip(('GMAG','RMAG','ZMAG'), (1, 2, 4)):
+              #    meta[magkey][ii] = 22.5-2.5*np.log10(synthnano[this, magindx])
               #for magkey, magindx in zip(('GMAG','RMAG','ZMAG','W1MAG','W2MAG'), (1, 2, 4, 6, 7)):
               #    meta[magkey][ii] = 22.5-2.5*np.log10(synthnano[this, magindx])
               meta['DECAM_FLUX'][ii] = synthnano[this, :6]
@@ -1435,8 +1435,7 @@ class BGS(GALAXY):
     """Generate Monte Carlo spectra of bright galaxy survey galaxies (BGSs).
 
     """
-    def __init__(self, objtype='BGS', minwave=3600.0, maxwave=10000.0, cdelt=2.0,
-                 wave=None, add_SNeIa=False):
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None, add_SNeIa=False):
         """Read the BGS basis continuum templates, filter profiles and initialize the
            output wavelength array.
         
@@ -1446,7 +1445,7 @@ class BGS(GALAXY):
             D(4000) and EW(Hbeta).
 
         """
-        super(BGS, self).__init__(objtype=objtype, minwave=minwave, maxwave=maxwave,
+        super(BGS, self).__init__(objtype='BGS', minwave=minwave, maxwave=maxwave,
                                   cdelt=cdelt, wave=wave, add_SNeIa=add_SNeIa)
 
         self.ewhbetacoeff = [1.28520974, -4.94408026, 4.9617704]
@@ -1505,7 +1504,7 @@ class BGS(GALAXY):
         from desitarget.cuts import isBGS
 
         if nocontinuum:
-            log.warning('NOCONTINUUM keyword set; forcing NOCOLORCUTS=True and ADD_SNEIA=False')
+            log.warning('Forcing nocolorcuts=True, add_SNeIa=False since nocontinuum=True.')
             nocolorcuts = True
             self.add_SNeIa = False
             
@@ -1523,6 +1522,7 @@ class BGS(GALAXY):
 
         # Shuffle the basis templates and then split them into ~equal chunks, so
         # we can speed up the calculations below.
+        npix = len(self.basewave)
         nbase = len(self.basemeta)
         chunksize = np.min((nbase, 50))
         nchunk = long(np.ceil(nbase / chunksize))
@@ -1586,7 +1586,6 @@ class BGS(GALAXY):
                 snenorm = self.rfilt.get_ab_maggies(sne_restflux, zwave)
 
             # Generate the emission-line spectrum for this model.
-            npix = len(self.basewave)
             emflux, emwave, emline = EM.spectrum(
                 linesigma=vdisp[ii],
                 oiidoublet=oiidoublet[ii],
@@ -1614,14 +1613,16 @@ class BGS(GALAXY):
                 # Add in the SN spectrum.
                 if self.add_SNeIa:
                     galnorm = self.rfilt.get_ab_maggies(restflux, zwave)
-                    snenorm = np.tile(galnorm['decam2014-r'].data, (1, npix)).reshape(nbasechunk, npix) * \
-                      np.tile(sne_rfluxratio[ii]/snenorm['decam2014-r'].data, (nbasechunk, npix))
-                    restflux += np.tile(sne_restflux, (nbasechunk, 1)) * snenorm
+                    snefactor = galnorm['decam2014-r'].data * sne_rfluxratio[ii]/snenorm['decam2014-r'].data
+                    restflux += np.tile(sne_restflux, (nbasechunk, 1)) * np.tile(snefactor, (npix, 1)).T
 
                 # Synthesize photometry to determine which models will pass the
                 # color-cuts.
                 maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
-                magnorm = 10**(-0.4*rmag[ii]) / np.array(maggies['decam2014-r'])
+                if nocontinuum:
+                    magnorm = np.repeat(10**(-0.4*rmag[ii]), nbasechunk)
+                else:
+                    magnorm = 10**(-0.4*rmag[ii]) / np.array(maggies['decam2014-r'])
 
                 synthnano = np.zeros((nbasechunk, len(self.decamwise)))
                 for ff, key in enumerate(maggies.columns):
@@ -1657,8 +1658,8 @@ class BGS(GALAXY):
                     meta['HBETAFLUX'][ii] = zhbetaflux[this]
                     meta['EWHBETA'][ii] = ewhbeta[tempid]
                     meta['D4000'][ii] = d4000[tempid]
-                    for magkey, magindx in zip(('GMAG','RMAG','ZMAG','W1MAG','W2MAG'), (1, 2, 4, 6, 7)):
-                        meta[magkey][ii] = 22.5-2.5*np.log10(synthnano[this, magindx])
+                    #for magkey, magindx in zip(('GMAG','RMAG','ZMAG','W1MAG','W2MAG'), (1, 2, 4, 6, 7)):
+                    #    meta[magkey][ii] = 22.5-2.5*np.log10(synthnano[this, magindx])
                     meta['DECAM_FLUX'][ii] = synthnano[this, :6]
                     meta['WISE_FLUX'][ii] = synthnano[this, 6:8]
 
