@@ -595,12 +595,10 @@ class ELG(GALAXY):
         oiihbeta, niihbeta, siihbeta, oiiihbeta = _lineratios(nmodel, EM, oiiihbrange, rand)
 
         d4000 = self.basemeta['D4000']
-        ewoii = np.tile(
-            10.0**(np.polyval(self.ewoiicoeff, d4000) +
-                   rand.normal(0.0, 0.3, nbase)), (nmodel, 1) # rest-frame, Angstrom
-            ) 
-                               
-        oiiflux = np.tile(self.basemeta['OII_CONTINUUM'].data, (nmodel, 1)) * ewoii 
+        ewoii = 10.0**(np.polyval(self.ewoiicoeff, d4000) + rand.normal(0.0, 0.3, nbase)) # rest-frame, Angstrom
+
+        oiiflux = self.basemeta['OII_CONTINUUM'].data * ewoii
+        #oiiflux = np.tile(self.basemeta['OII_CONTINUUM'].data, (nmodel, 1)) * np.tile(ewoii, (nmodel, 1))
 
         # Populate some of the metadata table.
         meta = _metatable(nmodel, self.objtype, self.add_SNeIa)
@@ -642,6 +640,7 @@ class ELG(GALAXY):
                 siihbeta=siihbeta[ii],
                 oiiflux=1.0,
                 seed=emseed[ii])
+            emflux /= (1+redshift[ii]) # [erg/s/cm2/A, @redshift[ii]]
 
             for ichunk in range(nchunk):
                 log.debug('Simulating {} template {}/{} in chunk {}/{}'. \
@@ -651,10 +650,10 @@ class ELG(GALAXY):
                 
                 if nocontinuum:
                     restflux = np.tile(emflux, (nbasechunk, 1)) * \
-                      np.tile(oiiflux[ii, templateid], (1, npix)).reshape(nbasechunk, npix)
+                      np.tile(oiiflux[templateid], (npix, 1)).T 
                 else:
                     restflux = self.baseflux[templateid, :] + np.tile(emflux, (nbasechunk, 1)) * \
-                      np.tile(oiiflux[ii, templateid], (1, npix)).reshape(nbasechunk, npix)
+                      np.tile(oiiflux[templateid], (npix, 1)).T 
 
                 # Add in the SN spectrum.
                 if self.add_SNeIa:
@@ -662,21 +661,24 @@ class ELG(GALAXY):
                     snenorm = np.tile(galnorm['decam2014-r'].data, (1, npix)).reshape(nbasechunk, npix) * \
                       np.tile(sne_rfluxratio[ii]/snenorm['decam2014-r'].data, (nbasechunk, npix))
                     restflux += np.tile(sne_restflux, (nbasechunk, 1)) * snenorm
+                    import pdb ; pdb.set_trace()
 
                 # Synthesize photometry to determine which models will pass the
                 # color-cuts.
                 maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
-                magnorm = 10**(-0.4*(rmag[ii]-22.5)) / np.array(maggies['decam2014-r'])
+                magnorm = 10**(-0.4*rmag[ii]) / np.array(maggies['decam2014-r'])
                 
                 synthnano = np.zeros((nbasechunk, len(self.decamwise)))
                 for ff, key in enumerate(maggies.columns):
-                    synthnano[:, ff] = maggies[key] * magnorm
-                    
-                zoiiflux = oiiflux[ii, templateid] * magnorm / (1 + redshift[ii])
+                    synthnano[:, ff] = 1E9 * maggies[key] * magnorm # nanomaggies
 
-                import pdb ; pdb.set_trace()
-                #bb = (3722*(1+redshift[ii]) < emwave) & (emwave < 3736*(1+redshift[ii]))
-                #np.sum(emflux[bb]*np.gradient(emwave[bb]))
+                zoiiflux = oiiflux[templateid] * magnorm
+
+                #bb = (3722*(1+redshift[ii]) < zwave) & (zwave < 3736*(1+redshift[ii]))
+                #ff = np.sum(restflux[0, bb]*magnorm[0]*np.gradient(zwave[bb]))
+                #print(ff, zoiiflux[0], ff/zoiiflux[0], redshift[ii])
+                
+                #import pdb ; pdb.set_trace()
 
                 if nocolorcuts:
                     colormask = np.repeat(1, nbasechunk)
@@ -697,16 +699,15 @@ class ELG(GALAXY):
                     # (@moustakas) pxs.gauss_blur_matrix is producing lots of
                     # ringing in the emission lines, so deal with it later.
 
-                    blurflux = restflux[this, :]
+                    blurflux = restflux[this, :] * magnorm[this]
                     #blurflux = self.vdispblur(restflux[this, :] - emflux, vdisp[ii]) + emflux
-                    #import pdb ; pdb.set_trace()
-                    
-                    blurflux *= 10**(-0.4*rmag[ii])/maggies['decam2014-r'][this]
+                    #blurflux = self.vdispblur(restflux[this, :]) * magnorm[this]
+
                     outflux[ii, :] = resample_flux(self.wave, zwave, blurflux)
 
                     meta['TEMPLATEID'][ii] = tempid
                     meta['OIIFLUX'][ii] = zoiiflux[this]
-                    meta['EWOII'][ii] = ewoii[ii, tempid]
+                    meta['EWOII'][ii] = ewoii[tempid]
                     meta['D4000'][ii] = d4000[tempid]
                     for magkey, magindx in zip(('GMAG','RMAG','ZMAG','W1MAG','W2MAG'), (1, 2, 4, 6, 7)):
                         meta[magkey][ii] = 22.5-2.5*np.log10(synthnano[this, magindx])
@@ -721,6 +722,8 @@ class ELG(GALAXY):
                         format(np.sum(success == 0)))
 
         #import pdb ; pdb.set_trace()
+
+        print('TODO!!!!!!!!! TAKE AS INPUT A TEMPLATE ID AND A SEED; ALSO STORE THE SEED IN THE METADATA TABLE.')
 
         return outflux, self.wave, meta
 
@@ -1356,7 +1359,7 @@ class QSO():
                 raise ValueError
             zrange = (np.min(redshift), np.max(redshift))
 
-        log.warning('Color-cuts not yet supported; forcing nocolorcuts=True')
+        log.warning('QSO color-cuts not yet supported; forcing nocolorcuts=True')
         nocolorcuts = True
 
         rand = np.random.RandomState(seed)
@@ -1607,11 +1610,10 @@ class BGS(GALAXY):
                 nbasechunk = len(templateid)
                 
                 if nocontinuum:
-                    restflux = np.tile(emflux, (nbasechunk, 1)) * \
-                      np.tile(hbetaflux[ii, templateid], (1, npix)).reshape(nbasechunk, npix)
+                    restflux = np.tile(emflux, (nbasechunk, 1)) * np.tile(hbetaflux[ii, templateid], (npix, 1)).T
                 else:
                     restflux = self.baseflux[templateid, :] + np.tile(emflux, (nbasechunk, 1)) * \
-                      np.tile(hbetaflux[ii, templateid], (1, npix)).reshape(nbasechunk, npix)
+                      np.tile(hbetaflux[ii, templateid], (npix, 1)).T
 
                 # Add in the SN spectrum.
                 if self.add_SNeIa:
