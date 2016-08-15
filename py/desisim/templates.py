@@ -598,7 +598,6 @@ class ELG(GALAXY):
         ewoii = 10.0**(np.polyval(self.ewoiicoeff, d4000) + rand.normal(0.0, 0.3, nbase)) # rest-frame, Angstrom
 
         oiiflux = self.basemeta['OII_CONTINUUM'].data * ewoii
-        #oiiflux = np.tile(self.basemeta['OII_CONTINUUM'].data, (nmodel, 1)) * np.tile(ewoii, (nmodel, 1))
 
         # Populate some of the metadata table.
         meta = _metatable(nmodel, self.objtype, self.add_SNeIa)
@@ -698,7 +697,6 @@ class ELG(GALAXY):
                     
                     # (@moustakas) pxs.gauss_blur_matrix is producing lots of
                     # ringing in the emission lines, so deal with it later.
-
                     blurflux = restflux[this, :] * magnorm[this]
                     #blurflux = self.vdispblur(restflux[this, :] - emflux, vdisp[ii]) + emflux
                     #blurflux = self.vdispblur(restflux[this, :]) * magnorm[this]
@@ -1554,13 +1552,12 @@ class BGS(GALAXY):
         oiihbeta, niihbeta, siihbeta, oiiihbeta = _lineratios(nmodel, EM, oiiihbrange, rand)
 
         d4000 = self.basemeta['D4000']
-        ewhbeta = np.tile(
-            10.0**(np.polyval(self.ewhbetacoeff, d4000) +
-                   rand.normal(0.0, 0.2, nbase)), (nmodel, 1) # rest-frame, Angstrom
-            ) 
+        ewhbeta = 10.0**(np.polyval(self.ewhbetacoeff, d4000) + \
+                         rand.normal(0.0, 0.2, nbase)) * \
+                         self.basemeta['HBETA_LIMIT'] # rest-frame, Angstrom
         #ewhbeta = self.ewhbetamog.sample(n_samples=(nmodel, nbase), random_state=rand)
-        ewhbeta *= np.tile(self.basemeta['HBETA_LIMIT'], (nmodel, 1))
-        hbetaflux = np.tile(self.basemeta['HBETA_CONTINUUM'].data, (nmodel, 1)) * ewhbeta
+
+        hbetaflux = self.basemeta['HBETA_CONTINUUM'].data * ewhbeta
 
         # Populate some of the metadata table.
         meta = _metatable(nmodel, self.objtype, self.add_SNeIa)
@@ -1602,6 +1599,7 @@ class BGS(GALAXY):
                 siihbeta=siihbeta[ii],
                 hbetaflux=1.0,
                 seed=emseed[ii])
+            emflux /= (1+redshift[ii]) # [erg/s/cm2/A, @redshift[ii]]
 
             for ichunk in range(nchunk):
                 log.debug('Simulating {} template {}/{} in chunk {}/{}'. \
@@ -1610,10 +1608,11 @@ class BGS(GALAXY):
                 nbasechunk = len(templateid)
                 
                 if nocontinuum:
-                    restflux = np.tile(emflux, (nbasechunk, 1)) * np.tile(hbetaflux[ii, templateid], (npix, 1)).T
+                    restflux = np.tile(emflux, (nbasechunk, 1)) * \
+                      np.tile(hbetaflux[templateid], (npix, 1)).T
                 else:
                     restflux = self.baseflux[templateid, :] + np.tile(emflux, (nbasechunk, 1)) * \
-                      np.tile(hbetaflux[ii, templateid], (npix, 1)).T
+                      np.tile(hbetaflux[templateid], (npix, 1)).T
 
                 # Add in the SN spectrum.
                 if self.add_SNeIa:
@@ -1625,13 +1624,13 @@ class BGS(GALAXY):
                 # Synthesize photometry to determine which models will pass the
                 # color-cuts.
                 maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
-                magnorm = 10**(-0.4*(rmag[ii]-22.5)) / np.array(maggies['decam2014-r'])
+                magnorm = 10**(-0.4*(rmag[ii])) / np.array(maggies['decam2014-r'])
 
                 synthnano = np.zeros((nbasechunk, len(self.decamwise)))
                 for ff, key in enumerate(maggies.columns):
                     synthnano[:, ff] = maggies[key] * magnorm
 
-                zhbetaflux = hbetaflux[ii, templateid] * magnorm
+                zhbetaflux = hbetaflux[templateid] * magnorm
 
                 if nocolorcuts:
                     colormask = np.repeat(1, nbasechunk)
@@ -1643,23 +1642,20 @@ class BGS(GALAXY):
                 if np.all(colormask):
                     success[ii] = 1
 
-                    # (@moustakas) pxs.gauss_blur_matrix is producing lots of
-                    # ringing in the emission lines, so deal with it later.
-
-                    # Convolve (just the stellar continuum) and resample.
-                    #if nocontinuum is False:
-                        #sigma = 1.0+self.basewave*vdisp[ii]/LIGHT
-                        #flux = pxs.gauss_blur_matrix(self.pixbound,sigma) * flux
-                        #flux = (flux-emflux)*pxs.gauss_blur_matrix(self.pixbound,sigma) + emflux
-                        
                     this = rand.choice(np.where(colormask)[0]) # Pick one randomly.
                     tempid = templateid[this]
-                    outflux[ii, :] = resample_flux(self.wave, zwave, restflux[this, :] * \
-                                                   10**(-0.4*rmag[ii])/maggies['decam2014-r'][this])
+                    
+                    # (@moustakas) pxs.gauss_blur_matrix is producing lots of
+                    # ringing in the emission lines, so deal with it later.
+                    blurflux = restflux[this, :] * magnorm[this]
+                    #blurflux = self.vdispblur(restflux[this, :] - emflux, vdisp[ii]) + emflux
+                    #blurflux = self.vdispblur(restflux[this, :]) * magnorm[this]
+
+                    outflux[ii, :] = resample_flux(self.wave, zwave, blurflux)
 
                     meta['TEMPLATEID'][ii] = tempid
                     meta['HBETAFLUX'][ii] = zhbetaflux[this]
-                    meta['EWHBETA'][ii] = ewhbeta[ii, tempid]
+                    meta['EWHBETA'][ii] = ewhbeta[tempid]
                     meta['D4000'][ii] = d4000[tempid]
                     for magkey, magindx in zip(('GMAG','RMAG','ZMAG','W1MAG','W2MAG'), (1, 2, 4, 6, 7)):
                         meta[magkey][ii] = 22.5-2.5*np.log10(synthnano[this, magindx])
