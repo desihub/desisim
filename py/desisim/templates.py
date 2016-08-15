@@ -698,8 +698,7 @@ class ELG(GALAXY):
                     # (@moustakas) pxs.gauss_blur_matrix is producing lots of
                     # ringing in the emission lines, so deal with it later.
                     blurflux = restflux[this, :] * magnorm[this]
-                    #blurflux = self.vdispblur(restflux[this, :] - emflux, vdisp[ii]) + emflux
-                    #blurflux = self.vdispblur(restflux[this, :]) * magnorm[this]
+                    #blurflux = self.vdispblur(restflux[this, :] * magnorm[this], vdisp[ii])
 
                     outflux[ii, :] = resample_flux(self.wave, zwave, blurflux)
 
@@ -852,11 +851,11 @@ class LRG(GALAXY):
                 # Synthesize photometry to determine which models will pass the
                 # color-cuts.
                 maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
-                magnorm = 10**(-0.4*(zmag[ii]-22.5)) / np.array(maggies['decam2014-z'])
+                magnorm = 10**(-0.4*zmag[ii]) / np.array(maggies['decam2014-z'])
 
                 synthnano = np.zeros((nbasechunk, len(self.decamwise)))
                 for ff, key in enumerate(maggies.columns):
-                    synthnano[:, ff] = maggies[key] * magnorm
+                    synthnano[:, ff] = 1E9 * maggies[key] * magnorm
 
                 if nocolorcuts:
                     colormask = np.repeat(1, nbasechunk)
@@ -874,9 +873,7 @@ class LRG(GALAXY):
                     this = rand.choice(np.where(colormask)[0]) # Pick one randomly.
                     tempid = templateid[this]
 
-                    blurflux = self.vdispblur(restflux[this, :], vdisp[ii])
-                    blurflux *= 10**(-0.4*zmag[ii])/maggies['decam2014-z'][this]
-
+                    blurflux = self.vdispblur(restflux[this, :] * magnorm[this], vdisp[ii])
                     outflux[ii, :] = resample_flux(self.wave, zwave, blurflux)
 
                     meta['TEMPLATEID'][ii] = tempid
@@ -1052,11 +1049,11 @@ class SUPERSTAR(object):
                 # Synthesize photometry to determine which models will pass the
                 # color-cuts.
                 maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
-                magnorm = 10**(-0.4*(mag[ii]-22.5)) / np.array(maggies[self.normfilter])
+                magnorm = 10**(-0.4*mag[ii]) / np.array(maggies[self.normfilter])
 
                 synthnano = np.zeros((nbasechunk, len(self.decamwise)))
                 for ff, key in enumerate(maggies.columns):
-                    synthnano[:, ff] = maggies[key] * magnorm
+                    synthnano[:, ff] = 1E9 * maggies[key] * magnorm
 
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, nbasechunk)
@@ -1075,8 +1072,8 @@ class SUPERSTAR(object):
                         
                     this = rand.choice(np.where(colormask)[0]) # Pick one randomly.
                     tempid = templateid[this]
-                    outflux[ii, :] = resample_flux(self.wave, zwave, restflux[this, :] * \
-                                                   10**(-0.4*mag[ii])/maggies[self.normfilter][this])
+
+                    outflux[ii, :] = resample_flux(self.wave, zwave, restflux[this, :] * magnorm[this])
 
                     meta['TEMPLATEID'][ii] = tempid
                     meta['TEFF'][ii] = self.basemeta['TEFF'][tempid]
@@ -1396,11 +1393,11 @@ class QSO():
             # go red enough.
             padflux, padzwave = self.rfilt.pad_spectrum(restflux, zwave, method='edge')
             maggies = self.decamwise.get_ab_maggies(padflux, padzwave, mask_invalid=True)
-            magnorm = 10**(-0.4*(rmag[ii]-22.5)) / np.array(maggies['decam2014-r'])
+            magnorm = 10**(-0.4*rmag[ii]) / np.array(maggies['decam2014-r'])
 
             synthnano = np.zeros((nmade, len(self.decamwise)))
             for ff, key in enumerate(maggies.columns):
-                synthnano[:, ff] = maggies[key] * magnorm
+                synthnano[:, ff] = 1E9 * maggies[key] * magnorm
 
             if nocolorcuts:
                 colormask = np.repeat(1, nmade)
@@ -1417,7 +1414,7 @@ class QSO():
               success[ii] = 1
 
               this = rand.choice(np.where(colormask)[0]) # Pick one randomly.
-              outflux[ii, :] = restflux[this, :]*10**(-0.4*rmag[ii])/maggies['decam2014-r'][this]
+              outflux[ii, :] = restflux[this, :] * magnorm[this]
 
               # Temporary hack until the models go redder.
               for magkey, magindx in zip(('GMAG','RMAG','ZMAG'), (1, 2, 4)):
@@ -1554,7 +1551,7 @@ class BGS(GALAXY):
         d4000 = self.basemeta['D4000']
         ewhbeta = 10.0**(np.polyval(self.ewhbetacoeff, d4000) + \
                          rand.normal(0.0, 0.2, nbase)) * \
-                         self.basemeta['HBETA_LIMIT'] # rest-frame, Angstrom
+                         self.basemeta['HBETA_LIMIT'].data # rest-frame, Angstrom
         #ewhbeta = self.ewhbetamog.sample(n_samples=(nmodel, nbase), random_state=rand)
 
         hbetaflux = self.basemeta['HBETA_CONTINUUM'].data * ewhbeta
@@ -1624,11 +1621,11 @@ class BGS(GALAXY):
                 # Synthesize photometry to determine which models will pass the
                 # color-cuts.
                 maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
-                magnorm = 10**(-0.4*(rmag[ii])) / np.array(maggies['decam2014-r'])
+                magnorm = 10**(-0.4*rmag[ii]) / np.array(maggies['decam2014-r'])
 
                 synthnano = np.zeros((nbasechunk, len(self.decamwise)))
                 for ff, key in enumerate(maggies.columns):
-                    synthnano[:, ff] = maggies[key] * magnorm
+                    synthnano[:, ff] = 1E9 * maggies[key] * magnorm
 
                 zhbetaflux = hbetaflux[templateid] * magnorm
 
@@ -1636,6 +1633,9 @@ class BGS(GALAXY):
                     colormask = np.repeat(1, nbasechunk)
                 else:
                     colormask = isBGS(rflux=synthnano[:, 2])
+
+                #print(ii, synthnano[:, 2])
+                #import pdb ; pdb.set_trace()
 
                 # If the color-cuts pass then populate the output flux vector
                 # (suitably normalized) and metadata table and finish up.
