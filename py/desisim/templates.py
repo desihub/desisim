@@ -721,7 +721,7 @@ class ELG(GALAXY):
 
         #import pdb ; pdb.set_trace()
 
-        print('TODO!!!!!!!!! TAKE AS INPUT A TEMPLATE ID AND A SEED; ALSO STORE THE SEED IN THE METADATA TABLE.')
+        print('ELG TODO!!!!!!!!! TAKE AS INPUT A TEMPLATE ID AND A SEED; ALSO STORE THE SEED IN THE METADATA TABLE and subtract out the emission lines before convolving!!')
 
         return outflux, self.wave, meta
 
@@ -739,8 +739,8 @@ class LRG(GALAXY):
         super(LRG, self).__init__(objtype='LRG', minwave=minwave, maxwave=maxwave,
                                   cdelt=cdelt, wave=wave, add_SNeIa=add_SNeIa)
 
-    def make_templates(self, nmodel=100, zrange=(0.5,1.1), zmagrange=(19.0,20.5),
-                       logvdisp_meansig=(2.3,0.1), sne_rfluxratiorange=(0.1,1.0),
+    def make_templates(self, nmodel=100, zrange=(0.5, 1.0), zmagrange=(19.0, 20.5),
+                       logvdisp_meansig=(2.3, 0.1), sne_rfluxratiorange=(0.1, 1.0),
                        redshift=None, seed=None, nocolorcuts=False):
         """Build Monte Carlo set of LRG spectra/templates.
 
@@ -963,8 +963,8 @@ class SUPERSTAR(object):
         self.rfilt = filters.load_filters('decam2014-r')
         self.zfilt = filters.load_filters('decam2014-z')
 
-    def make_star_templates(self, nmodel=100, vrad_meansig=(0.0,200.0), magrange=(18.0, 23.5),
-                            vrad=None, seed=None, nocolorcuts=False):
+    def make_star_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), magrange=(18.0, 23.5),
+                            redshift=None, seed=None, nocolorcuts=False):
 
         """Build Monte Carlo set of spectra/templates for stars.
 
@@ -982,8 +982,9 @@ class SUPERSTAR(object):
           magrange (float, optional): Minimum and maximum magnitude in the
             bandpass specified by self.normfilter.  Defaults to a uniform
             distribution between (18, 23.5) in the r-band.
-          vrad (float, optional): Input/output radial velocities.  Array
-            size must equal NMODEL.  Overwrites VRAD_MEANSIG input.
+          redshift (float, optional): Input/output (dimensionless) radial
+            velocities.  Array size must equal NMODEL.  If set then VRAD_MEANSIG
+            input is ignored.
           seed (long, optional): input seed for the random numbers.
           nocolorcuts (bool, optional): Do not apply the fiducial color-cuts
             (default False).
@@ -999,9 +1000,9 @@ class SUPERSTAR(object):
         """
         from desispec.interpolation import resample_flux
 
-        if vrad is not None:
-            if len(vrad) != nmodel:
-                log.fatal('VRAD must be an NMODEL-length array')
+        if redshift is not None:
+            if len(redshift) != nmodel:
+                log.fatal('REDSHIFT must be an NMODEL-length array')
                 raise ValueError
 
         rand = np.random.RandomState(seed)
@@ -1020,12 +1021,12 @@ class SUPERSTAR(object):
         # Assign radial velocity and magnitude priors.
         mag = rand.uniform(magrange[0], magrange[1], nmodel)
 
-        if vrad is None:
+        if redshift is None:
             if vrad_meansig[1] > 0:
                 vrad = rand.normal(vrad_meansig[0], vrad_meansig[1], nmodel)
             else:
                 vrad = np.repeat(vrad_meansig[0], nmodel)
-        redshift = np.array(vrad) / LIGHT
+            redshift = np.array(vrad) / LIGHT
 
         # Populate some of the metadata table.
         meta = _metatable(nmodel, self.objtype)
@@ -1106,7 +1107,7 @@ class STAR(SUPERSTAR):
                                    normfilter='decam2014-r')
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
-                       rmagrange=(18.0, 23.5), vrad=None, seed=None):
+                       rmagrange=(18.0, 23.5), redshift=None, seed=None):
         """Build Monte Carlo set of spectra/templates for generic stars.
 
         Args:
@@ -1118,8 +1119,9 @@ class STAR(SUPERSTAR):
           rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
             magnitude range.  Defaults to a uniform distribution between (18,
             23.5).
-          vrad (float, optional): Input/output radial velocities.  Array
-            size must equal NMODEL.  Overwrites VRAD_MEANSIG input.
+          redshift (float, optional): Input/output (dimensionless) radial
+            velocities.  Array size must equal NMODEL.  If set then VRAD_MEANSIG
+            input is ignored.
           seed (long, optional): input seed for the random numbers.
 
         Returns:
@@ -1132,7 +1134,8 @@ class STAR(SUPERSTAR):
         """
 
         outflux, wave, meta = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
-                                                       magrange=rmagrange, vrad=vrad, seed=seed)
+                                                       magrange=rmagrange, redshift=redshift,
+                                                       seed=seed)
         return outflux, wave, meta
     
 class FSTD(SUPERSTAR):
@@ -1149,7 +1152,7 @@ class FSTD(SUPERSTAR):
                                    normfilter='decam2014-r')
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
-                       rmagrange=(16.0, 19.0), vrad=None, seed=None):
+                       rmagrange=(16.0, 19.0), redshift=None, seed=None):
         """Build Monte Carlo set of spectra/templates for FSTD stars.
 
         Args:
@@ -1160,8 +1163,9 @@ class FSTD(SUPERSTAR):
             sigma of 200 km/s.
           rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
             magnitude range.  Defaults to a uniform distribution between (16, 19).
-          vrad (float, optional): Input/output radial velocities.  Array
-            size must equal NMODEL.  Overwrites VRAD_MEANSIG input.
+          redshift (float, optional): Input/output (dimensionless) radial
+            velocities.  Array size must equal NMODEL.  If set then VRAD_MEANSIG
+            input is ignored.
           seed (long, optional): input seed for the random numbers.
 
         Returns:
@@ -1174,7 +1178,8 @@ class FSTD(SUPERSTAR):
         """
 
         outflux, wave, meta = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
-                                                       magrange=rmagrange, vrad=vrad, seed=seed)
+                                                       magrange=rmagrange, redshift=redshift,
+                                                       seed=seed)
         return outflux, wave, meta
     
 class MWS_STAR(SUPERSTAR):
@@ -1191,7 +1196,7 @@ class MWS_STAR(SUPERSTAR):
                                        normfilter='decam2014-r')
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
-                       rmagrange=(16.0, 20.0), vrad=None, seed=None):
+                       rmagrange=(16.0, 20.0), redshift=None, seed=None):
         """Build Monte Carlo set of spectra/templates for MWS stars.
 
         Args:
@@ -1202,8 +1207,9 @@ class MWS_STAR(SUPERSTAR):
             sigma of 200 km/s.
           rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
             magnitude range.  Defaults to a uniform distribution between (16, 20).
-          vrad (float, optional): Input/output radial velocities.  Array
-            size must equal NMODEL.  Overwrites VRAD_MEANSIG input.
+          redshift (float, optional): Input/output (dimensionless) radial
+            velocities.  Array size must equal NMODEL.  If set then VRAD_MEANSIG
+            input is ignored.
           seed (long, optional): input seed for the random numbers.
 
         Returns:
@@ -1216,7 +1222,8 @@ class MWS_STAR(SUPERSTAR):
         """
 
         outflux, wave, meta = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
-                                                       magrange=rmagrange, vrad=vrad, seed=seed)
+                                                       magrange=rmagrange, redshift=redshift,
+                                                       seed=seed)
         return outflux, wave, meta
     
 class WD(SUPERSTAR):
@@ -1229,7 +1236,7 @@ class WD(SUPERSTAR):
                                  normfilter='decam2014-g')
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
-                       gmagrange=(16.0, 19.0), vrad=None, seed=None):
+                       gmagrange=(16.0, 19.0), redshift=None, seed=None):
         """Build Monte Carlo set of spectra/templates for WDs.
 
         Args:
@@ -1240,8 +1247,9 @@ class WD(SUPERSTAR):
             sigma of 200 km/s.
           gmagrange (float, optional): Minimum and maximum DECam g-band (AB)
             magnitude range.  Defaults to a uniform distribution between (16, 19).
-          vrad (float, optional): Input/output radial velocities.  Array
-            size must equal NMODEL.  Overwrites VRAD_MEANSIG input.
+          redshift (float, optional): Input/output (dimensionless) radial
+            velocities.  Array size must equal NMODEL.  If set then VRAD_MEANSIG
+            input is ignored.
           seed (long, optional): input seed for the random numbers.
 
         Returns:
@@ -1254,7 +1262,8 @@ class WD(SUPERSTAR):
         """
 
         outflux, wave, meta = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
-                                                       magrange=gmagrange, vrad=vrad, seed=seed)
+                                                       magrange=gmagrange, redshift=redshift,
+                                                       seed=seed)
         return outflux, wave, meta
     
 class QSO():
@@ -1450,9 +1459,9 @@ class BGS(GALAXY):
 
         self.ewhbetacoeff = [1.28520974, -4.94408026, 4.9617704]
 
-    def make_templates(self, nmodel=100, zrange=(0.01,0.4), rmagrange=(15.0,19.5),
-                       oiiihbrange=(-1.3,0.6), oiidoublet_meansig=(0.73,0.05),
-                       logvdisp_meansig=(2.0,0.17), sne_rfluxratiorange=(0.1,1.0),
+    def make_templates(self, nmodel=100, zrange=(0.01, 0.4), rmagrange=(15.0, 19.5),
+                       oiiihbrange=(-1.3, 0.6), oiidoublet_meansig=(0.73, 0.05),
+                       logvdisp_meansig=(2.0, 0.17), sne_rfluxratiorange=(0.1, 1.0),
                        redshift=None, seed=None, nocolorcuts=False, nocontinuum=False):
         """Build Monte Carlo set of BGS spectra/templates.
 

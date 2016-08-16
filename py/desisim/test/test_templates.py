@@ -24,6 +24,26 @@ class TestTemplates(unittest.TestCase):
         self.assertEqual(flux.shape, (self.nspec, len(self.wave)))
 
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
+    def test_input_redshift(self):
+        '''Test that we can input the redshift for each spectral class.'''
+        print('HERE!!!!!!!!!!')
+        zrange = np.array([
+            (0.6, 1.6),
+            (0.5, 1.0),
+            (0.5, 4.0),
+            (0.01, 0.4),
+            (-0.003, 0.003),
+            (-0.003, 0.003),
+            (-0.003, 0.003),
+            (-0.003, 0.003)])
+        for zminmax, T in zip(zrange, [ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR, WD]):
+            redshift = np.random.uniform(zminmax[0], zminmax[1], self.nspec).astype('f4')
+            Tx = T(wave=self.wave)
+            flux, wave, meta = Tx.make_templates(self.nspec, redshift=redshift)
+            self.assertTrue(np.all(redshift == meta['REDSHIFT']))
+        #import pdb ; pdb.set_trace()
+
+    @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_simple(self):
         '''Confirm that creating templates works at all'''
         for T in [ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR, WD]:
@@ -43,7 +63,7 @@ class TestTemplates(unittest.TestCase):
         wave = np.arange(5000, 9800.1, 0.2)
         flux, ww, meta = ELG(wave=wave).make_templates(
             nmodel=20, nocolorcuts=True, nocontinuum=True,
-            logvdisp_meansig=[np.log10(75),0.0])
+            logvdisp_meansig = [np.log10(75), 0.0])
     
         for i in range(len(meta)):
             z = meta['REDSHIFT'][i]
@@ -99,7 +119,7 @@ class TestTemplates(unittest.TestCase):
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_random_seed(self):
         '''Test that random seed works to get the same results back'''
-        for T in [ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR]:
+        for T in [ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR, WD]:
             Tx = T(wave=self.wave)
             flux1, wave1, meta1 = Tx.make_templates(self.nspec, seed=1)
             flux2, wave2, meta2 = Tx.make_templates(self.nspec, seed=1)
@@ -124,20 +144,6 @@ class TestTemplates(unittest.TestCase):
             self.assertTrue('SNE_TEMPLATEID' in meta.dtype.names)
             self.assertTrue('SNE_RFLUXRATIO' in meta.dtype.names)
             self.assertTrue('SNE_EPOCH' in meta.dtype.names)
-
-    # Need to add a test of the input/output photometry.
-
-    #@unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
-    #def test_redshift_in(self):
-    #    '''Test options for passing an input redshift array'''
-    #    for T in [ELG]:
-    #        template_factory = T(wave=self.wave, add_SNeIa=True)
-    #        flux, wave, meta = template_factory.make_templates(self.nspec, nocolorcuts=True, 
-    #                                                           sne_rfluxratiorange=(0.5,0.7))
-    #        self._check_output_size(flux, wave, meta)
-    #        self.assertTrue('SNE_TEMPLATEID' in meta.dtype.names)
-    #        self.assertTrue('SNE_RFLUXRATIO' in meta.dtype.names)
-    #        self.assertTrue('SNE_EPOCH' in meta.dtype.names)
 
     #@unittest.expectedFailure
     #def test_missing_wise_mags(self):
