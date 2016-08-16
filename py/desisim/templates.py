@@ -670,15 +670,7 @@ class ELG(GALAXY):
                 synthnano = np.zeros((nbasechunk, len(self.decamwise)))
                 for ff, key in enumerate(maggies.columns):
                     synthnano[:, ff] = 1E9 * maggies[key] * magnorm # nanomaggies
-
                 zoiiflux = oiiflux[templateid] * magnorm
-                #import pdb ; pdb.set_trace()
-
-                #bb = (3722*(1+redshift[ii]) < zwave) & (zwave < 3736*(1+redshift[ii]))
-                #ff = np.sum(restflux[0, bb]*magnorm[0]*np.gradient(zwave[bb]))
-                #print(ff, zoiiflux[0], ff/zoiiflux[0], redshift[ii])
-                
-                #import pdb ; pdb.set_trace()
 
                 if nocolorcuts:
                     colormask = np.repeat(1, nbasechunk)
@@ -689,18 +681,25 @@ class ELG(GALAXY):
 
                 # If the color-cuts pass then populate the output flux vector
                 # (suitably normalized) and metadata table, convolve with the
-                # velocity dispersion, resample, and finish up.
+                # velocity dispersion, resample, and finish up.  Note that the
+                # emission lines already have the velocity dispersion
+                # line-width.
                 if np.any(colormask*(zoiiflux > minoiiflux)):
                     success[ii] = 1
 
-                    this = rand.choice(np.where(colormask*(zoiiflux > minoiiflux))[0]) # Pick one randomly.
+                    this = rand.choice(np.where(colormask * (zoiiflux > minoiiflux))[0]) # Pick one randomly.
                     tempid = templateid[this]
-                    
-                    # (@moustakas) pxs.gauss_blur_matrix is producing lots of
-                    # ringing in the emission lines, so deal with it later.
-                    #blurflux = restflux[this, :] * magnorm[this]
-                    blurflux = self.vdispblur(restflux[this, :] * magnorm[this], vdisp[ii])
 
+                    thisemflux = emflux * oiiflux[templateid[this]]
+                    blurflux = (self.vdispblur((restflux[this, :] - thisemflux), vdisp[ii]) + \
+                                thisemflux) * magnorm[this]
+
+                    #import pylab as plt
+                    #plt.plot(zwave, restflux[this, :]) ; plt.xlim(5000, 8500)
+                    #plt.ylim(0, 1E-9) ; plt.plot(zwave, blurflux)
+                    #plt.show()
+                    #import pdb ; pdb.set_trace()
+                    
                     outflux[ii, :] = resample_flux(self.wave, zwave, blurflux)
 
                     meta['TEMPLATEID'][ii] = tempid
@@ -873,7 +872,7 @@ class LRG(GALAXY):
                     this = rand.choice(np.where(colormask)[0]) # Pick one randomly.
                     tempid = templateid[this]
 
-                    blurflux = self.vdispblur(restflux[this, :] * magnorm[this], vdisp[ii])
+                    blurflux = self.vdispblur(restflux[this, :], vdisp[ii]) * magnorm[this]
                     outflux[ii, :] = resample_flux(self.wave, zwave, blurflux)
 
                     meta['TEMPLATEID'][ii] = tempid
@@ -1074,7 +1073,7 @@ class SUPERSTAR(object):
                     this = rand.choice(np.where(colormask)[0]) # Pick one randomly.
                     tempid = templateid[this]
 
-                    outflux[ii, :] = resample_flux(self.wave, zwave, restflux[this, :] * magnorm[this])
+                    outflux[ii, :] = resample_flux(self.wave, zwave, restflux[this, :]) * magnorm[this]
 
                     meta['TEMPLATEID'][ii] = tempid
                     meta['TEFF'][ii] = self.basemeta['TEFF'][tempid]
@@ -1648,19 +1647,19 @@ class BGS(GALAXY):
                 #import pdb ; pdb.set_trace()
 
                 # If the color-cuts pass then populate the output flux vector
-                # (suitably normalized) and metadata table and finish up.
+                # (suitably normalized) and metadata table, convolve with the
+                # velocity dispersion, resample, and finish up.  Note that the
+                # emission lines already have the velocity dispersion
+                # line-width.
                 if np.all(colormask):
                     success[ii] = 1
 
                     this = rand.choice(np.where(colormask)[0]) # Pick one randomly.
                     tempid = templateid[this]
                     
-                    # (@moustakas) pxs.gauss_blur_matrix is producing lots of
-                    # ringing in the emission lines, so deal with it later.
-                    blurflux = restflux[this, :] * magnorm[this]
-                    #blurflux = self.vdispblur(restflux[this, :] - emflux, vdisp[ii]) + emflux
-                    #blurflux = self.vdispblur(restflux[this, :]) * magnorm[this]
-
+                    thisemflux = emflux * hbetaflux[templateid[this]]
+                    blurflux = (self.vdispblur((restflux[this, :] - thisemflux), vdisp[ii]) + \
+                                thisemflux) * magnorm[this]
                     outflux[ii, :] = resample_flux(self.wave, zwave, blurflux)
 
                     meta['TEMPLATEID'][ii] = tempid
