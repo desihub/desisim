@@ -851,8 +851,11 @@ class ELG(GALAXY):
             D(4000) to EW([OII]).
 
         """
+        from desitarget.cuts import isELG
         super(ELG, self).__init__(objtype='ELG', minwave=minwave, maxwave=maxwave,
-                                  cdelt=cdelt, wave=wave, add_SNeIa=add_SNeIa)
+                                  cdelt=cdelt, wave=wave, colorcuts_function=isELG,
+                                  normfilter='decam2014-r', normline='OII',
+                                  add_SNeIa=add_SNeIa)
 
         self.ewoiicoeff = [1.34323087, -5.02866474, 5.43842874]
 
@@ -929,8 +932,8 @@ class ELG(GALAXY):
                                                          oiiihbrange=oiiihbrange, logvdisp_meansig=logvdisp_meansig,
                                                          minlineflux=minoiiflux, redshift=redshift, vdisp=vdisp,
                                                          mag=mag, sne_rfluxratiorange=sne_rfluxratiorange,
-                                                         seed=None, input_meta=None, nocolorcuts=False,
-                                                         nocontinuum=False, agnlike=False)
+                                                         seed=seed, input_meta=input_meta, nocolorcuts=nocolorcuts,
+                                                         nocontinuum=nocontinuum, agnlike=agnlike)
 
         return outflux, wave, meta
         
