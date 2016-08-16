@@ -153,6 +153,7 @@ class TestQuickgen(unittest.TestCase):
         self.assertEqual(args.fibermap, fibermap)
 
     @unittest.skipUnless(desi_root_available, '$DESI_ROOT not set')
+    @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
     def test_quickgen(self):
         night = self.night
         expid = self.expid
