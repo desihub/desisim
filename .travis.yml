@@ -42,13 +42,14 @@ env:
         - SCIPY_VERSION=0.16
         - ASTROPY_VERSION=1.1.1
         # - SPHINX_VERSION=1.3
-        - DESIUTIL_VERSION=1.4.0
-        - DESIMODEL_VERSION=0.4.4
-        - DESIMODEL_DATA=branches/test-0.4
+        - DESIUTIL_VERSION=1.6.0
+        - DESIMODEL_VERSION=0.4.5
+        - DESIMODEL_DATA=branches/test-0.4.5
         - DESISIM_TESTDATA_VERSION=0.3.2
         - SPECLITE_VERSION=0.4
+        - SPECSIM_VERSION=v0.4
         - SPECTER_VERSION=0.5.0
-        - DESISPEC_VERSION=0.6.0
+        - DESISPEC_VERSION=0.8.0
         - DESITARGET_VERSION=0.3.3
         # - DESIMODEL_VERSION=trunk
         - DESI_LOGLEVEL=DEBUG
@@ -64,7 +65,7 @@ env:
         # These pip packages need to be installed in a certain order, so we
         # do that separately from the astropy/ci-helpers scripts.
         - DESIHUB_PIP_DEPENDENCIES="desiutil=${DESIUTIL_VERSION}"
-        - DESIHUB_PIP_ALL_DEPENDENCIES="desiutil=${DESIUTIL_VERSION} desimodel=${DESIMODEL_VERSION} specter=${SPECTER_VERSION} desispec=${DESISPEC_VERSION} desitarget=${DESITARGET_VERSION}"
+        - DESIHUB_PIP_ALL_DEPENDENCIES="desiutil=${DESIUTIL_VERSION} desimodel=${DESIMODEL_VERSION} specter=${SPECTER_VERSION} desispec=${DESISPEC_VERSION} desitarget=${DESITARGET_VERSION} specsim=${SPECSIM_VERSION}"
         # Debug the Travis install process.
         - DEBUG=False
     matrix:
@@ -102,11 +103,11 @@ matrix:
                PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
                DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES
 
-        - os: linux
-          env: PYTHON_VERSION=2.7 SETUP_CMD='test'
-               CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
-               PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
-               DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES
+        # - os: linux
+        #   env: PYTHON_VERSION=2.7 SETUP_CMD='test'
+        #        CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
+        #        PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
+        #        DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES
 
         # - os: osx
         #   env: PYTHON_VERSION=2.7 SETUP_CMD='test'
@@ -141,7 +142,7 @@ install:
     # packages are installed, thus desiutil is not installed in that script.
     - for p in $DESIHUB_PIP_DEPENDENCIES; do r=$(echo $p | cut -d= -f1); v=$(echo $p | cut -d= -f2); pip install git+https://github.com/desihub/${r}.git@${v}#egg=${r}; done
     # Install desimodel and desisim test data
-    - if [[ $SETUP_CMD == test* ]]; then source etc/desisim_data.sh; fi
+    - if [[ $SETUP_CMD == test* ]]; then source etc/get_testdata.sh; fi
     - df -h
 
 script:
