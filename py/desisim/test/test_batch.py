@@ -4,14 +4,16 @@ import unittest
 from desisim.batch import calc_nodes
 from desisim.batch.pixsim import batch_newexp, batch_pixsim
 
-class TestBlat(unittest.TestCase):
+class TestBatch(unittest.TestCase):
     
     def setUp(self):
         self.batchfile = 'batch-d4ae52ada252.sh'
         self._PIXPROD = os.getenv('PIXPROD')
         self._DESI_SPECTRO_SIM = os.getenv('DESI_SPECTRO_SIM')
+        self.testdir = 'test-jkhasnqwezzcqhehadzx'
         os.environ['PIXPROD'] = 'test'
-        os.environ['DESI_SPECTRO_SIM'] = '/test/dir'
+        os.environ['DESI_SPECTRO_SIM'] = self.testdir+'/sim'
+        os.environ['DESI_SPECTRO_DATA'] = self.testdir+'/sim/test'
 
     def tearDown(self):
         if os.path.exists(self.batchfile):
@@ -20,6 +22,10 @@ class TestBlat(unittest.TestCase):
             os.environ['PIXPROD'] = self._PIXPROD
         if self._DESI_SPECTRO_SIM is not None:
             os.environ['DESI_SPECTRO_SIM'] = os.getenv('DESI_SPECTRO_SIM')
+        if os.path.isdir(self.testdir):
+            import shutil
+            shutil.rmtree(self.testdir)
+            # os.removedirs(self.testdir)
             
     def test_calc_nodes(self):
         self.assertEqual(calc_nodes(10, 1.5, 10), 4)

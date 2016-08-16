@@ -87,7 +87,10 @@ if opts.exptime is None:
 
 #- Initialize random seeds
 if opts.seed is None:
-    opts.seed = opts.tileid
+    if opts.flavor in ['arc', 'flat'] or opts.tileid < 0:
+        opts.seed = opts.expid
+    else:
+        opts.seed = opts.tileid
 
 #- Set the random seed, even though we further propagate it into the
 #- underlying get_targets and make_templates code

@@ -186,8 +186,8 @@ def main(args=None):
             break
 
     if args.psf is not None:
-        import specter.io
-        psf = specter.io.load_psf(args.psf)
+        from specter.psf import load_psf
+        psf = load_psf(args.psf)
 
     simspec = io.read_simspec(args.simspec)
 
@@ -232,7 +232,7 @@ def main(args=None):
         image, rawpix, truepix = desisim.pixsim.simulate(
             camera, simspec, psf, fibers=fibers,
             nspec=args.nspec, ncpu=args.ncpu, cosmics=cosmics,
-            wavemin=args.wavemin, wavemax=args.wavemax)
+            wavemin=args.wavemin, wavemax=args.wavemax, preproc=False)
 
         #- Synchronize with other MPI threads before continuing with output
         mpicomm.Barrier()
@@ -250,6 +250,10 @@ def main(args=None):
             else:
                 mpicomm.Barrier()
 
+    #- Call preproc separately from pixsim.simulate to ensure that it is
+    #- done identically to real data.
+    #- Note: This does lose the advantage of parallel preprocessing; we could
+    #- change this if that is problematic
     if args.preproc and mpicomm.rank == 0:
         log.info('Preprocessing raw -> pix files')
         from desispec.scripts import preproc
@@ -258,5 +262,5 @@ def main(args=None):
         preproc.main(preproc.parse(preproc_opts))
 
     if mpicomm.rank == 0:
-        log.info('Finished pixsim {}'.format(asctime()))
+        log.info('Finished pixsim {} expid {} at {}'.format(args.night, args.expid, asctime()))
 

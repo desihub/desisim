@@ -201,15 +201,23 @@ def load_z(fibermap_files, zbest_files, outfil=None):
 
         log.info('Reading: {:s}'.format(fibermap_file))
         # Load simspec
-        simspec_fil = fibermap_file.replace('fibermap','simspec')
-        sps_hdu = fits.open(simspec_fil)
+        simspec_file = fibermap_file.replace('fibermap','simspec')
+        sps_hdu = fits.open(simspec_file)
         # Make Tables
         fbm_tabs.append(Table(fbm_hdu['FIBERMAP'].data,masked=True))
         sps_tabs.append(Table(sps_hdu['METADATA'].data,masked=True))
+        sps_hdu.close()
+
     # Stack
     fbm_tab = vstack(fbm_tabs)
     sps_tab = vstack(sps_tabs)
     del fbm_tabs, sps_tabs
+
+    # Add the version number header keywords from fibermap_files[0]
+    hdr = fits.getheader(fibermap_files[0], 'FIBERMAP')
+    for key, value in sorted(hdr.items()):
+        if key.startswith('DEPNAM') or key.startswith('DEPVER'):
+            fbm_tab.meta[key] = value
 
     # Drop to unique
     univ, uni_idx = np.unique(np.array(fbm_tab['TARGETID']),return_index=True)
@@ -221,13 +229,17 @@ def load_z(fibermap_files, zbest_files, outfil=None):
     simz_tab.sort('TARGETID')
     nsim = len(simz_tab)
 
+    # Cleanup some names
+    simz_tab.rename_column('OBJTYPE_1', 'OBJTYPE')
+    simz_tab.rename_column('OBJTYPE_2', 'TRUETYPE')
+
     # Rename QSO
-    qsol = np.where( (simz_tab['OBJTYPE_1'] == 'QSO') & 
+    qsol = np.where( (simz_tab['TRUETYPE'] == 'QSO') & 
         (simz_tab['REDSHIFT'] >= 2.1))[0]
-    simz_tab['OBJTYPE_1'][qsol] = 'QSO_L'
-    qsot = np.where( (simz_tab['OBJTYPE_1'] == 'QSO') & 
+    simz_tab['TRUETYPE'][qsol] = 'QSO_L'
+    qsot = np.where( (simz_tab['TRUETYPE'] == 'QSO') & 
         (simz_tab['REDSHIFT'] < 2.1))[0]
-    simz_tab['OBJTYPE_1'][qsot] = 'QSO_T'
+    simz_tab['TRUETYPE'][qsot] = 'QSO_T'
 
     # Load up zbest files
     zb_tabs = []
@@ -251,8 +263,7 @@ def load_z(fibermap_files, zbest_files, outfil=None):
     assert np.array_equal(sim_id[sim_idx],z_id[z_idx])
 
     # Fill up
-    ztags = ['Z','ZERR','ZWARN','TYPE']
-    #new_tags = ['Z','ZERR','ZWARN','TYPE']
+    ztags = ['Z','ZERR','ZWARN','SPECTYPE']
     new_clms = []
     mask = np.array([True]*nsim)
     mask[sim_idx] = False
@@ -305,17 +316,23 @@ def obj_requirements(zstats, objtype):
             if zstats[key] < req_dict[key]:
                 ipassf = str('FAIL')
                 tst_fail = tst_fail+key+'-'
+                log.warn('{:s} failed requirement {:s}: {} < {}'.format(objtype, key, zstats[key], req_dict[key]))
+            else:
+                log.debug('{:s} passed requirement {:s}: {} >= {}'.format(objtype, key, zstats[key], req_dict[key]))
         else:
             if zstats[key] > req_dict[key]:
                 ipassf = str('FAIL')
                 tst_fail = tst_fail+key+'-'
+                log.warn('{:s} failed requirement {:s}: {} > {}'.format(objtype, key, zstats[key], req_dict[key]))
+            else:
+                log.debug('{:s} passed requirement {:s}: {} <= {}'.format(objtype, key, zstats[key], req_dict[key]))
         # Update
         pf_dict[key] = ipassf
         if ipassf == str('FAIL'):
             passf = str('FAIL')
     if passf == str('FAIL'):
         tst_fail = tst_fail[:-1]
-        log.warn('OBJ={:s} failed tests {:s}'.format(objtype,tst_fail))
+        # log.warn('OBJ={:s} failed tests {:s}'.format(objtype,tst_fail))
     #
     #pf_dict['FINAL'] = passf
     return pf_dict, passf
@@ -339,7 +356,7 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
     if objtype is None:
         objtype_mask = np.array([True]*nrow)
     else:
-        objtype_mask = simz_tab['OBJTYPE_1'] == objtype
+        objtype_mask = simz_tab['TRUETYPE'] == objtype
     # RedMonster analysis
     if redm:
         redm_mask = simz_tab['Z'].mask == False  # Not masked in Table
@@ -349,7 +366,7 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
     if survey:
         survey_mask = (simz_tab['Z'].mask == False)
         # Flux limit
-        elg = np.where((simz_tab['OBJTYPE_1']=='ELG') & survey_mask)[0]
+        elg = np.where((simz_tab['TRUETYPE']=='ELG') & survey_mask)[0]
         elg_mask = elg_flux_lim(simz_tab['REDSHIFT'][elg], 
             simz_tab['OIIFLUX'][elg])
         # Update
@@ -364,7 +381,7 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
             catgd_mask = simz_tab['ZWARN']==0
         for obj in ['ELG','LRG','QSO_L','QSO_T']:
             dv = catastrophic_dv(obj) # km/s
-            omask = np.where((simz_tab['OBJTYPE_1'] == obj)&
+            omask = np.where((simz_tab['TRUETYPE'] == obj)&
                 (simz_tab['ZWARN']==0))[0]
             dz = calc_dz(simz_tab[omask]) # dz/1+z
             cat = np.where(np.abs(dz)*3e5 > dv)[0]
@@ -543,7 +560,7 @@ def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
 
     notype = []
     for otype in otypes: 
-        gd_o = np.where(zobj_tab['OBJTYPE_1']==otype)[0]
+        gd_o = np.where(zobj_tab['TRUETYPE']==otype)[0]
         notype.append(len(gd_o))
         ax.scatter(zobj_tab['REDSHIFT'][gd_o], zobj_tab['Z'][gd_o],
             marker='o', s=1, label=sty_otype[otype]['lbl'], color=sty_otype[otype]['color'])
@@ -563,7 +580,7 @@ def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
 
     for otype in otypes: 
         # Grab
-        gd_o = np.where(zobj_tab['OBJTYPE_1']==otype)[0]
+        gd_o = np.where(zobj_tab['TRUETYPE']==otype)[0]
         # Stat
         dz = calc_dz(zobj_tab[gd_o]) 
         ax.scatter(zobj_tab['REDSHIFT'][gd_o], dz, marker='o', 
@@ -586,10 +603,10 @@ def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
     # Meta
     xlbl = 0.1
     ylbl = 0.85
-    ax.text(xlbl, ylbl, 'PRODNAME: {:s}'.format(meta['PRODNAME']), transform=ax.transAxes, ha='left')
+    ax.text(xlbl, ylbl, 'SPECPROD: {:s}'.format(meta['SPECPROD']), transform=ax.transAxes, ha='left')
     yoff=0.15
     for key in meta.keys():
-        if key == 'PRODNAME':
+        if key == 'SPECPROD':
             continue
         ylbl -= yoff
         ax.text(xlbl+0.1, ylbl, key+': {:s}'.format(meta[key]), 
@@ -604,7 +621,7 @@ def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
     yoff=0.15
     for jj,otype in enumerate(otypes):
         ylbl -= yoff
-        gd_o = simz_tab['OBJTYPE_1']==otype
+        gd_o = simz_tab['TRUETYPE']==otype
         ax.text(xlbl+0.1, ylbl, sty_otype[otype]['lbl']+': {:d} ({:d})'.format(np.sum(gd_o),notype[jj]),
             transform=ax.transAxes, ha='left', fontsize='small')
 
@@ -787,13 +804,13 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
     if pdict is None:
         pdict = dict(ELG={'TRUEZ': { 'n': 15, 'min': 0.6, 'max': 1.6, 'label': 'redshift', 'overlap': 1 },
                           'RMAG': {'n': 12, 'min': 21.0, 'max': 23.4, 'label': 'r-band magnitude', 'overlap': 0},
-                          'OIIFLUX': {'n': 10, 'min': 0.0, 'max': 4.0e-16, 'label': '[OII] flux', 'overlap': 1}},
+                          'OIIFLUX': {'n': 10, 'min': 0.0, 'max': 5.0e-16, 'label': '[OII] flux', 'overlap': 2}},
                      LRG={'TRUEZ': {'n': 12, 'min': 0.5, 'max': 1.0, 'label': 'redshift', 'overlap': 2 },
-                          'ZMAG': {'n': 15, 'min': 17.0, 'max': 20.5, 'label': 'z-band magnitude', 'overlap': 2 }},
-                     QSO_T={'TRUEZ': {'n': 12, 'min': 0.5, 'max': 2.1, 'label': 'redshift', 'overlap': 2 },
-                          'GMAG': {'n': 15, 'min': 21.0, 'max': 23.0, 'label': 'g-band magnitude', 'overlap': 2 }},
-                     QSO_L={'TRUEZ': {'n': 12, 'min': 2.1, 'max': 4.0, 'label': 'redshift', 'overlap': 2 },
-                            'GMAG': {'n': 15, 'min': 21.0, 'max': 23.0, 'label': 'g-band magnitude', 'overlap': 2 }},
+                          'ZMAG': {'n': 15, 'min': 19.0, 'max': 21.0, 'label': 'z-band magnitude', 'overlap': 1 }},
+                     QSO_T={'TRUEZ': {'n': 12, 'min': 0.5, 'max': 2.1, 'label': 'redshift', 'overlap': 1 },
+                          'GMAG': {'n': 15, 'min': 19.0, 'max': 24.0, 'label': 'g-band magnitude', 'overlap': 1 }},
+                     QSO_L={'TRUEZ': {'n': 12, 'min': 2.1, 'max': 4.0, 'label': 'redshift', 'overlap': 1 },
+                            'GMAG': {'n': 15, 'min': 19.0, 'max': 24.0, 'label': 'g-band magnitude', 'overlap': 1 }},
         )
 
     # Initialize a new page of plots.
@@ -812,12 +829,10 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
                 ptype = 'TRUEZ'
             else:
                 ptype = fluxes[i]
-                if ptype == 'OIIFLUX':
-                    mtag = 'OIIFLUX'
-                else:
-                    mtag = 'MAG'
+
             # Grab the set of measurements
             survey = slice_simz(simz_tab, objtype=otype, redm=True, survey=True)
+
             # Simple stats
             ok = survey['ZWARN'] == 0
             dv = calc_dz(survey)*3e5 # dz/1+z
@@ -828,11 +843,19 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
             # Plot the truth distribution for this variable.
             if ptype == 'TRUEZ':
                 x = survey['REDSHIFT']
+            elif ptype == 'OIIFLUX':
+                x = survey['OIIFLUX']
             else:
-                if mtag == 'OIIFLUX':
-                    x = survey[mtag]
+                log.warn('Assuming hardcoded filter order')
+                if ptype == 'GMAG':
+                    x = survey['MAG'][:,0]
+                elif ptype == 'RMAG':
+                    x = survey['MAG'][:,1]
+                elif ptype == 'ZMAG':
+                    x = survey['MAG'][:,2]
                 else:
-                    x = survey[mtag][:,0]  # SHOULD USE PROPER FILTER EVENTUALLY
+                    raise ValueError('unknown ptype {}'.format(ptype))
+
             nslice, x_min, x_max = pdict[otype][ptype]['n'], pdict[otype][ptype]['min'], pdict[otype][ptype]['max']
             rhs = None
             max_dv = 1000.
@@ -853,7 +876,7 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
                     x=x, y=dv, ok=ok, bad=bad, x_lo=x_min, x_hi=x_max,
                     num_slices=nslice, y_cut=max_dv, axis=axis, min_count=min_count)
             # Add a label even if the fitter has no results.
-            xy = (0.5, 1.0)
+            xy = (0.5, 0.98)
             coords = 'axes fraction'
             axis.annotate(
                 otype, xy=xy, xytext=xy, xycoords=coords,
@@ -878,14 +901,15 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
             #    plt.setp([axis.get_xticklabels()], visible=False)
             #else:
             axis.set_xlabel('{0} {1}'.format(otype, ptype))
+            axis.set_xlim(x_min, x_max)
+            
             # Hide overlapping x-axis labels except in the bottom right.
             if overlap and (col < ncols - 1):
-                plt.setp(
-                    [axis.get_xticklabels()[-overlap:]], visible=False)
+                axis.set_xticks(axis.get_xticks()[0:-overlap])
 
         figure.subplots_adjust(
-            left=0.08, bottom=0.07, right=0.92, top=0.95,
-            hspace=0.2, wspace=0.0)
+            left=0.1, bottom=0.07, right=0.9, top=0.95,
+            hspace=0.2, wspace=0.05)
 
     if pp is not None:
         pp.savefig()

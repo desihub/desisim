@@ -251,9 +251,10 @@ class SimSetup(object):
             
         # launch fiberassign
         print("{} Launching fiberassign".format(asctime()))
-        p = subprocess.call([self.fiberassign_exec, os.path.join(self.tmp_output_path, 'fa_features.txt')], stdout=subprocess.PIPE)
+        f = open('fiberassign.log','a')
+        p = subprocess.call([self.fiberassign_exec, os.path.join(self.tmp_output_path, 'fa_features.txt')], stdout=f)# stdout=subprocess.PIPE)
         print("{} Finished fiberassign".format(asctime()))
-
+        f.close()
 
         #create a list of fibermap tiles to read and update zcat
         # find first the set of tiles corresponding to this epoch
@@ -327,7 +328,7 @@ def print_efficiency_stats(truth, mtl_initial, zcat):
     
     for true_type, zcat_type in zip(true_types, zcat_types):
         i_initial = ((tmp_init['DESI_TARGET'] & desi_mask.mask(true_type)) != 0) & (tmp_init['TRUETYPE'] == zcat_type)
-        i_final = ((total['DESI_TARGET'] & desi_mask.mask(true_type)) != 0) & (total['TYPE'] == zcat_type)             
+        i_final = ((total['DESI_TARGET'] & desi_mask.mask(true_type)) != 0) & (total['SPECTYPE'] == zcat_type)             
         n_t = 1.0*len(total['TARGETID'][i_final])
         n_i = 1.0*len(tmp_init['TARGETID'][i_initial])
         print("\t {} fraction : {}".format(true_type, n_t/n_i))
