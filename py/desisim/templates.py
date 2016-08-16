@@ -118,6 +118,7 @@ def _metatable(nmodel=1, objtype='ELG', add_SNeIa=None):
 
     meta = Table()
     meta.add_column(Column(name='TEMPLATEID', length=nmodel, dtype='i4'))
+    meta.add_column(Column(name='SEED', length=nmodel, dtype='int64'))
     meta.add_column(Column(name='REDSHIFT', length=nmodel, dtype='f4'))
     meta.add_column(Column(name='MAG', length=nmodel, dtype='f4'))
     #meta.add_column(Column(name='GMAG', length=nmodel, dtype='f4'))
@@ -495,7 +496,7 @@ galaxies (ELG, LRG, BGS).
 
         return blurflux
 
-    def lineratios(nobj=1, oiiihbrange=(-0.5, 0.2), oiidoublet_meansig=(0.73, 0.05),
+    def lineratios(self, nobj, oiiihbrange=(-0.5, 0.2), oiidoublet_meansig=(0.73, 0.05),
                    agnlike=False, rand=None):
         """Get the correct number and distribution of emission-line ratios.  Also
            optionally specify the mean and sigma values for the (Gaussian) [OII]
@@ -527,13 +528,13 @@ galaxies (ELG, LRG, BGS).
             oiiihbeta[oiiihbeta>oiiihbrange[1]] = -99
             need = np.where(oiiihbeta==-99)[0]
 
-    return oiidoublet, oiihbeta, niihbeta, siihbeta, oiiihbeta
+        return oiidoublet, oiihbeta, niihbeta, siihbeta, oiiihbeta
 
-    def make_templates(self, nmodel=100, zrange=(0.6, 1.6), magrange=(21.0, 23.4),
-                       oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15), minoiiflux=1E-18,
-                       sne_rfluxratiorange=(0.1, 1.0), redshift=None, mag=None,
-                       vdisp=None, seed=None, input_meta=None, nocolorcuts=False,
-                       nocontinuum=False, agnlike=False):
+    def make_galaxy_templates(self, nmodel=100, zrange=(0.6, 1.6), magrange=(21.0, 23.4),
+                              oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15), minlineflux=0.0,
+                              sne_rfluxratiorange=(0.1, 1.0), redshift=None, mag=None,
+                              vdisp=None, seed=None, input_meta=None, nocolorcuts=False,
+                              nocontinuum=False, agnlike=False):
         """Build Monte Carlo set of galaxy spectra/templates.
 
         This function chooses random subsets of the basis continuum spectra (for
@@ -562,8 +563,8 @@ galaxies (ELG, LRG, BGS).
           logvdisp_meansig (float, optional): Logarithmic mean and sigma values
             for the (Gaussian) stellar velocity dispersion distribution.
             Defaults to log10-sigma=1.9+/-0.15 km/s
-          minoiiflux (float, optional): Minimum [OII] 3727 flux [default 1E-18 erg/s/cm2].
-            Set this parameter to zero to not have a minimum flux cut.
+          minlineflux (float, optional): Minimum emission-line flux in the line
+            specified by self.normline (default 0 erg/s/cm2).
 
           sne_rfluxratiorange (float, optional): r-band flux ratio of the SNeIa
             spectrum with respect to the underlying galaxy.
@@ -580,7 +581,8 @@ galaxies (ELG, LRG, BGS).
           input_meta (astropy.Table): *Input* metadata table with the following
             required columns: TEMPLATEID, SEED, REDSHIFT, VDISP, MAG.  In
             addition, if add_SNeIa is True then we also require the
-            SNE_TEMPLATEID, SNE_EPOCH, and SNE_RFLUXRATIO inputs.  If this table
+            SNE_TEMPLATEID, SNE_EPOCH, and SNE_RFLUXRATIO inputs.  See
+            desisim.templates._metatable for the required format.  If this table
             is passed then all other optional inputs are ignored.
         
           nocolorcuts (bool, optional): Do not apply the fiducial grz color-cuts
@@ -600,7 +602,6 @@ galaxies (ELG, LRG, BGS).
         Raises:
 
         """
-        from desisim.templates import EMSpectrum
         from desispec.interpolation import resample_flux
 
         # Basic error checking and some preliminaries.
@@ -631,8 +632,9 @@ galaxies (ELG, LRG, BGS).
 
         # Optionally unpack a metadata table.
         if input_meta is not None:
-            nmodel = len(input_meta)
             templateseed = input_meta['SEED'].data
+            rand = np.random.RandomState(templateseed[0])
+
             redshift = input_meta['REDSHIFT'].data
             mag = input_meta['MAG'].data
             vdisp = input_meta['VDISP'].data
@@ -643,8 +645,8 @@ galaxies (ELG, LRG, BGS).
                 sne_rfluxratio = input_meta['SNE_RFLUXRATIO']
                 
             nchunk = 1
+            nmodel = len(input_meta)
             alltemplateid_chunk = [input_meta['TEMPLATEID'].data.reshape(nmodel, 1)]
-
             
         else:
             # Initialize the random seed.
@@ -683,32 +685,34 @@ galaxies (ELG, LRG, BGS).
                 meta['SNE_RFLUXRATIO'] = sne_rfluxratio
 
         # Populate some of the metadata table.
-        for key, value in zip(('REDSHIFT', 'MAG', 'VDISP'),
-                               (redshift, mag, vdisp)):
+        for key, value in zip(('REDSHIFT', 'MAG', 'VDISP', 'SEED'),
+                               (redshift, mag, vdisp, templateseed)):
             meta[key] = value
 
         # Optionally initialize the emission-line objects and line-ratios.
         if self.normline is not None:
+            from desisim.templates import EMSpectrum
 
             # Initialize the EMSpectrum object with the same wavelength array as
             # the "base" (continuum) templates so that we don't have to resample.
             EM = EMSpectrum(log10wave=np.log10(self.basewave))
 
             oiidoublet, oiihbeta, niihbeta, siihbeta, oiiihbeta = \
-              self.lineratios(nobj=nmodel, oiiihbrange=oiiihbrange, rand=rand, agnlike=agnlike)
+              self.lineratios(nobj=nmodel, oiiihbrange=oiiihbrange,
+                              rand=rand, agnlike=agnlike)
 
             d4000 = self.basemeta['D4000']
             if self.normline == 'OII':
-                ewoii = 10.0**(np.polyval(self.ewoiicoeff, d4000) + # rest-frame, Angstrom
+                ewoii = 10.0**(np.polyval(self.ewoiicoeff, d4000) + # rest-frame EW([OII]), Angstrom
                                rand.normal(0.0, 0.3, nbase)) 
-                oiiflux = self.basemeta['OII_CONTINUUM'].data * ewoii
+                normlineflux = self.basemeta['OII_CONTINUUM'].data * ewoii
             elif self.normline == 'HBETA':
                 ewhbeta = 10.0**(np.polyval(self.ewhbetacoeff, d4000) + \
                                  rand.normal(0.0, 0.2, nbase)) * \
-                                 self.basemeta['HBETA_LIMIT'].data # rest-frame, Angstrom
+                                 self.basemeta['HBETA_LIMIT'].data # rest-frame H-beta, Angstrom
                 #ewhbeta = self.ewhbetamog.sample(n_samples=(nmodel, nbase), random_state=rand)
 
-                hbetaflux = self.basemeta['HBETA_CONTINUUM'].data * ewhbeta
+                normlineflux = self.basemeta['HBETA_CONTINUUM'].data * ewhbeta
             else:
                 log.fatal('Unrecognized NORMLINE {}'.format(self.normline))
                 raise ValueError
@@ -724,37 +728,41 @@ galaxies (ELG, LRG, BGS).
         for ii in range(nmodel):
             zwave = self.basewave.astype(float) * (1.0 + redshift[ii])
 
-            # Get the SN spectrum and normalization factor.
+            # Optionally get the SN spectrum and normalization factor.
             if self.add_SNeIa:
                 sne_restflux = self.sne_baseflux[sne_tempid[ii], :]
                 snenorm = self.rfilt.get_ab_maggies(sne_restflux, zwave)
 
-            # Generate the emission-line spectrum for this model.
-            emflux, emwave, emline = EM.spectrum(
-                linesigma=vdisp[ii],
-                oiidoublet=oiidoublet[ii],
-                oiiihbeta=oiiihbeta[ii],
-                oiihbeta=oiihbeta[ii],
-                niihbeta=niihbeta[ii],
-                siihbeta=siihbeta[ii],
-                oiiflux=1.0,
-                seed=templateseed[ii])
-            emflux /= (1+redshift[ii]) # [erg/s/cm2/A, @redshift[ii]]
+            # Optionally generate the emission-line spectrum for this model.
+            if self.normline is None:
+                emflux = np.zeros(npix)
+            else:
+                if self.normline == 'OII':
+                    emflux, emwave, emline = EM.spectrum(linesigma=vdisp[ii],oiidoublet=oiidoublet[ii],
+                                                         oiiihbeta=oiiihbeta[ii],oiihbeta=oiihbeta[ii],
+                                                         niihbeta=niihbeta[ii],siihbeta=siihbeta[ii],
+                                                         seed=templateseed[ii],oiiflux=1.0)
+                elif self.normline == 'HBETA':
+                    emflux, emwave, emline = EM.spectrum(linesigma=vdisp[ii],oiidoublet=oiidoublet[ii],
+                                                         oiiihbeta=oiiihbeta[ii],oiihbeta=oiihbeta[ii],
+                                                         niihbeta=niihbeta[ii],siihbeta=siihbeta[ii],
+                                                         seed=templateseed[ii],hbetaflux=1.0)
+                emflux /= (1+redshift[ii]) # [erg/s/cm2/A, @redshift[ii]]
 
             for ichunk in range(nchunk):
-                log.debug('Simulating {} template {}/{} in chunk {}/{}'. \
+                log.info('Simulating {} template {}/{} in chunk {}/{}'. \
                           format(self.objtype, ii+1, nmodel, ichunk, nchunk))
                 templateid = alltemplateid_chunk[ichunk][ii, :]
                 nbasechunk = len(templateid)
                 
                 if nocontinuum:
                     restflux = np.tile(emflux, (nbasechunk, 1)) * \
-                      np.tile(oiiflux[templateid], (npix, 1)).T 
+                      np.tile(normlineflux[templateid], (npix, 1)).T 
                 else:
                     restflux = self.baseflux[templateid, :] + np.tile(emflux, (nbasechunk, 1)) * \
-                      np.tile(oiiflux[templateid], (npix, 1)).T 
+                      np.tile(normlineflux[templateid], (npix, 1)).T 
 
-                # Add in the SN spectrum.
+                # Optionally add in the SN spectrum.
                 if self.add_SNeIa:
                     galnorm = self.rfilt.get_ab_maggies(restflux, zwave)
                     snefactor = galnorm['decam2014-r'].data * sne_rfluxratio[ii]/snenorm['decam2014-r'].data
@@ -771,7 +779,7 @@ galaxies (ELG, LRG, BGS).
                 synthnano = np.zeros((nbasechunk, len(self.decamwise)))
                 for ff, key in enumerate(maggies.columns):
                     synthnano[:, ff] = 1E9 * maggies[key] * magnorm # nanomaggies
-                zoiiflux = oiiflux[templateid] * magnorm
+                zlineflux = normlineflux[templateid] * magnorm
 
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, nbasechunk)
@@ -788,13 +796,13 @@ galaxies (ELG, LRG, BGS).
                 # velocity dispersion, resample, and finish up.  Note that the
                 # emission lines already have the velocity dispersion
                 # line-width.
-                if np.any(colormask*(zoiiflux > minoiiflux)):
+                if np.any(colormask*(zlineflux > minlineflux)):
                     success[ii] = 1
 
-                    this = rand.choice(np.where(colormask * (zoiiflux > minoiiflux))[0]) # Pick one randomly.
+                    this = rand.choice(np.where(colormask * (zlineflux > minlineflux))[0]) # Pick one randomly.
                     tempid = templateid[this]
 
-                    thisemflux = emflux * oiiflux[templateid[this]]
+                    thisemflux = emflux * normlineflux[templateid[this]]
                     blurflux = (self.vdispblur((restflux[this, :] - thisemflux), vdisp[ii]) + \
                                 thisemflux) * magnorm[this]
 
@@ -807,24 +815,26 @@ galaxies (ELG, LRG, BGS).
                     outflux[ii, :] = resample_flux(self.wave, zwave, blurflux)
 
                     meta['TEMPLATEID'][ii] = tempid
-                    meta['OIIFLUX'][ii] = zoiiflux[this]
-                    meta['EWOII'][ii] = ewoii[tempid]
                     meta['D4000'][ii] = d4000[tempid]
                     #for magkey, magindx in zip(('GMAG','RMAG','ZMAG','W1MAG','W2MAG'), (1, 2, 4, 6, 7)):
                     #    meta[magkey][ii] = 22.5-2.5*np.log10(synthnano[this, magindx])
                     meta['DECAM_FLUX'][ii] = synthnano[this, :6]
                     meta['WISE_FLUX'][ii] = synthnano[this, 6:8]
 
+                    if self.normline is not None:
+                        if self.normline == 'OII':
+                            meta['OIIFLUX'][ii] = zlineflux[this]
+                            meta['EWOII'][ii] = ewoii[tempid]
+                        elif self.normline == 'HBETA':
+                            meta['HBETAFLUX'][ii] = zlineflux[this]
+                            meta['EWHBETA'][ii] = ewhbeta[tempid]
+                            
                     break
 
         # Check to see if any spectra could not be computed.
         if ~np.all(success):
             log.warning('{} spectra could not be computed given the input redshifts (or redshift priors)!'.\
                         format(np.sum(success == 0)))
-
-        #import pdb ; pdb.set_trace()
-
-        print('ELG TODO!!!!!!!!! TAKE AS INPUT A TEMPLATE ID AND A SEED; ALSO STORE THE SEED IN THE METADATA TABLE and subtract out the emission lines before convolving!!')
 
         return outflux, self.wave, meta
 
@@ -845,11 +855,89 @@ class ELG(GALAXY):
                                   cdelt=cdelt, wave=wave, add_SNeIa=add_SNeIa)
 
         self.ewoiicoeff = [1.34323087, -5.02866474, 5.43842874]
-        
+
     def make_templates(self, nmodel=100, zrange=(0.6, 1.6), rmagrange=(21.0, 23.4),
                        oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
-                       minoiiflux=1E-18, sne_rfluxratiorange=(0.1, 1.0), redshift=None,
-                       seed=None, nocolorcuts=False, nocontinuum=False):
+                       minoiiflux=0.0, sne_rfluxratiorange=(0.1, 1.0), redshift=None,
+                       mag=None, vdisp=None, seed=None, input_meta=None, nocolorcuts=False,
+                       nocontinuum=False, agnlike=False):
+        """Build Monte Carlo set of ELG spectra/templates.
+
+        This function chooses random subsets of the ELG continuum spectra, constructs
+        an emission-line spectrum, redshifts, and then finally normalizes the spectrum
+        to a specific r-band magnitude.
+
+        In detail, each (output) model gets randomly assigned a continuum
+        (basis) template.  However, if that template doesn't pass the color cuts
+        (at the specified redshift), then we iterate through the rest of the
+        templates.  If no template passes the color cuts, then raise an
+        exception.  If we don't care about color cuts, just grab one template
+        for each output model.
+
+        TODO (@moustakas): optionally normalize to a g-band magnitude.
+
+        Args:
+          nmodel (int, optional): Number of models to generate (default 100).
+          zrange (float, optional): Minimum and maximum redshift range.  Defaults
+            to a uniform distribution between (0.6,1.6).
+          rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
+            magnitude range.  Defaults to a uniform distribution between (21,23.4).
+          oiiihbrange (float, optional): Minimum and maximum logarithmic
+            [OIII] 5007/H-beta line-ratio.  Defaults to a uniform distribution
+            between (-0.5,0.2).
+
+          logvdisp_meansig (float, optional): Logarithmic mean and sigma values
+            for the (Gaussian) stellar velocity dispersion distribution.
+            Defaults to log10-sigma=1.9+/-0.15 km/s
+          minoiiflux (float, optional): Minimum [OII] 3727 flux (default 0.0 erg/s/cm2).
+
+          sne_rfluxratiorange (float, optional): r-band flux ratio of the SNeIa
+            spectrum with respect to the underlying galaxy.
+
+          redshift (float, optional): Input/output template redshifts.  Array
+            size must equal nmodel.  Overwrites zrange input.
+          mag (float, optional): Input/output template magnitudes in the band
+            specified by self.normfilter.  Array size must equal nmodel.
+            Overwrites magrange input.
+          vdisp (float, optional): Input/output velocity dispersions.  Array
+            size must equal nmodel.  Overwrites magrange input.
+          seed (long, optional): Input seed for the random numbers.
+        
+          input_meta (astropy.Table): *Input* metadata table with the following
+            required columns: TEMPLATEID, SEED, REDSHIFT, VDISP, MAG.  In
+            addition, if add_SNeIa is True then we also require the
+            SNE_TEMPLATEID, SNE_EPOCH, and SNE_RFLUXRATIO inputs.  See
+            desisim.templates._metatable for the required format.  If this table
+            is passed then all other optional inputs are ignored.
+        
+          nocolorcuts (bool, optional): Do not apply the fiducial grz color-cuts
+            cuts (default False).
+          nocontinuum (bool, optional): Do not include the stellar continuum
+            (useful for testing; default False).  Note that this option
+            automatically sets NOCOLORCUTS to True.
+
+        Returns:
+          outflux (numpy.ndarray): Array [nmodel,npix] of observed-frame spectra [erg/s/cm2/A].
+          wave (numpy.ndarray): Observed-frame [npix] wavelength array [Angstrom].
+          meta (astropy.Table): Table of meta-data for each output spectrum [nmodel].
+
+        Raises:
+
+        """
+
+        outflux, wave, meta = self.make_galaxy_templates(nmodel=nmodel, zrange=zrange, magrange=rmagrange,
+                                                         oiiihbrange=oiiihbrange, logvdisp_meansig=logvdisp_meansig,
+                                                         minlineflux=minoiiflux, redshift=redshift, vdisp=vdisp,
+                                                         mag=mag, sne_rfluxratiorange=sne_rfluxratiorange,
+                                                         seed=None, input_meta=None, nocolorcuts=False,
+                                                         nocontinuum=False, agnlike=False)
+
+        return outflux, wave, meta
+        
+    def old_make_templates(self, nmodel=100, zrange=(0.6, 1.6), rmagrange=(21.0, 23.4),
+                           oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
+                           minoiiflux=1E-18, sne_rfluxratiorange=(0.1, 1.0), redshift=None,
+                           seed=None, nocolorcuts=False, nocontinuum=False):
         """Build Monte Carlo set of ELG spectra/templates.
 
         This function chooses random subsets of the ELG continuum spectra, constructs
