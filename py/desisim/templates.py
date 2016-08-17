@@ -473,7 +473,7 @@ class GALAXY(object):
             sne_baseflux1, sne_basewave, sne_basemeta = read_basis_templates(objtype='SNE')
             sne_baseflux = np.zeros((len(sne_basemeta), len(self.basewave)))
             for ii in range(len(sne_basemeta)):
-                sne_baseflux[ii,:] = resample_flux(self.basewave, sne_basewave, sne_baseflux1[ii,:])
+                sne_baseflux[ii, :] = resample_flux(self.basewave, sne_basewave, sne_baseflux1[ii,:])
             self.sne_baseflux = sne_baseflux
             self.sne_basemeta = sne_basemeta
 
@@ -533,7 +533,7 @@ class GALAXY(object):
                               seed=None, redshift=None, mag=None, vdisp=None, 
                               input_meta=None, nocolorcuts=False, nocontinuum=False,
                               agnlike=False):
-        """Build Monte Carlo set of galaxy spectra/templates.
+        """Build Monte Carlo galaxy spectra/templates.
 
         This function chooses random subsets of the basis continuum spectra (for
         the given galaxy spectral type), constructs an emission-line spectrum
@@ -594,7 +594,7 @@ class GALAXY(object):
             then the table must also contain SNE_TEMPLATEID, SNE_EPOCH, and
             SNE_RFLUXRATIO columns.  See desisim.templates._metatable for the
             required data type for each column.  If this table is passed then
-            all other optional inputs (redshift, vdisp, mag, zrange,
+            all other optional inputs (nmodel, redshift, vdisp, mag, zrange,
             logvdisp_meansig, etc.) are ignored.
         
           nocolorcuts (bool, optional): Do not apply the color-cuts specified by
@@ -840,7 +840,7 @@ class GALAXY(object):
         # Check to see if any spectra could not be computed.
         success = (np.sum(outflux, axis=1) > 0)*1
         if ~np.all(success):
-            log.warning('{} spectra could not be computed given the input redshifts (or redshift priors)!'.\
+            log.warning('{} spectra could not be computed given the input priors!'.\
                         format(np.sum(success == 0)))
 
         return outflux, self.wave, meta
@@ -1125,7 +1125,7 @@ class SUPERSTAR(object):
                             magrange=(18.0, 23.5), seed=None, redshift=None,
                             mag=None, input_meta=None, nocolorcuts=False):
 
-        """Build Monte Carlo set of spectra/templates for stars.
+        """Build Monte Carlo spectra/templates for various flavors of stars.
 
         This function chooses random subsets of the continuum spectra for the
         type of star specified by OBJTYPE, adds radial velocity jitter, applies
@@ -1165,8 +1165,8 @@ class SUPERSTAR(object):
             required columns: TEMPLATEID, SEED, REDSHIFT, and MAG (where mag is
             specified by self.normfilter).  See desisim.templates._metatable for
             the required data type for each column.  If this table is passed
-            then all other optional inputs (redshift, mag, vrad_meansig, etc.)
-            are ignored.
+            then all other optional inputs (nmodel, redshift, mag, vrad_meansig,
+            etc.) are ignored.
         
           nocolorcuts (bool, optional): Do not apply the color-cuts specified by
             the self.colorcuts_function function (default False).
@@ -1296,7 +1296,7 @@ class SUPERSTAR(object):
         # Check to see if any spectra could not be computed.
         success = (np.sum(outflux, axis=1) > 0)*1
         if ~np.all(success):
-            log.warning('{} spectra could not be computed given the input radial velocities (or rv priors)!'.\
+            log.warning('{} spectra could not be computed given the input priors!'.\
                         format(np.sum(success == 0)))
 
         return outflux, self.wave, meta
@@ -1326,7 +1326,7 @@ class STAR(SUPERSTAR):
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                        rmagrange=(18.0, 23.5), seed=None, redshift=None,
                        mag=None, input_meta=None):
-        """Build Monte Carlo set of spectra/templates for generic stars.
+        """Build Monte Carlo spectra/templates for generic stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
         arguments and inherited attributes.  Here we only document the arguments
@@ -1378,7 +1378,7 @@ class FSTD(SUPERSTAR):
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                        rmagrange=(16.0, 19.0), seed=None, redshift=None,
                        mag=None, input_meta=None, nocolorcuts=False):
-        """Build Monte Carlo set of spectra/templates for FSTD stars.
+        """Build Monte Carlo spectra/templates for FSTD stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
         arguments and inherited attributes.  Here we only document the arguments
@@ -1430,7 +1430,7 @@ class MWS_STAR(SUPERSTAR):
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                        rmagrange=(16.0, 20.0), seed=None, redshift=None,
                        mag=None, input_meta=None, nocolorcuts=False):
-        """Build Monte Carlo set of spectra/templates for MWS_STAR stars.
+        """Build Monte Carlo spectra/templates for MWS_STAR stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
         arguments and inherited attributes.  Here we only document the arguments
@@ -1480,7 +1480,7 @@ class WD(SUPERSTAR):
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                        gmagrange=(16.0, 19.0), seed=None, redshift=None,
                        mag=None, input_meta=None, nocolorcuts=False):
-        """Build Monte Carlo set of spectra/templates for WD stars.
+        """Build Monte Carlo spectra/templates for WD stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
         arguments and inherited attributes.  Here we only document the arguments
@@ -1505,17 +1505,17 @@ class WD(SUPERSTAR):
         return outflux, wave, meta
     
 class QSO():
-    """Generate Monte Carlo spectra of quasars (QSOs).
+    """Generate Monte Carlo spectra of quasars (QSOs)."""
 
-    """
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
-                 z_wind=0.2):
+                 colorcuts_function=None, normfilter='decam2014-r', z_wind=0.2):
         """Read the QSO basis continuum templates, filter profiles and initialize the
            output wavelength array.
 
         Note:
-          * Only a linearly-spaced output wavelength array is currently supported.
-          * The basis templates are  only defined in the range 3500-10000 A (observed).
+          Only a linearly-spaced output wavelength array is currently supported
+          and the basis templates are only defined in the range 3500-10000 A
+          (observed).
 
         Args:
           minwave (float, optional): minimum value of the output wavelength
@@ -1526,16 +1526,21 @@ class QSO():
             [default 2 Angstrom/pixel].
           wave (numpy.ndarray): Input/output observed-frame wavelength array,
             overriding the minwave, maxwave, and cdelt arguments [Angstrom].
-          z_wind (float, optional): Redshift window for sampling
+          colorcuts_function (function name): Function to use to select
+            templates that pass the color-cuts.
+          normfilter (str): normalize each spectrum to the magnitude in this
+            filter bandpass (default 'decam2014-r').
+          z_wind (float, optional): Redshift window for sampling (defaults to
+            0.2).
 
         Attributes:
           objtype (str): 'QSO'
           wave (numpy.ndarray): Output wavelength array [Angstrom].
           baseflux (numpy.ndarray): Array [nbase,npix] of the base rest-frame
-            QSO continuum spectra [erg/s/cm2/A].
+            QSO continuum spectra (erg/s/cm2/A).
           basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths
-            corresponding to BASEFLUX [Angstrom].
-          basemeta (astropy.Table): Table of meta-data for each base template [nbase].
+            corresponding to BASEFLUX (Angstrom).
+          basemeta (astropy.Table): Table of meta-data [nbase] for each base template.
           decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence
           gilt (speclite.filters instance): DECam2014 g-band FilterSequence
           rilt (speclite.filters instance): DECam2014 r-band FilterSequence
@@ -1546,12 +1551,21 @@ class QSO():
         from desisim.io import read_basis_templates
 
         self.objtype = 'QSO'
+        
+        if colorcuts_function is None:
+            from desitarget.cuts import isQSO
+            self.colorcuts_function = isQSO
+            
+        log.warning('Color-cuts not yet supported for QSOs!')
+        self.colorcuts_function = None 
 
+        self.normfilter = normfilter
+        
         # Initialize the output wavelength array (linear spacing) unless it is
         # already provided.
         if wave is None:
-            npix = (maxwave-minwave)/cdelt+1
-            wave = np.linspace(minwave,maxwave,npix)
+            npix = (maxwave-minwave) / cdelt+1
+            wave = np.linspace(minwave, maxwave, npix)
         self.wave = wave
 
         # Find the basis files.
@@ -1559,79 +1573,113 @@ class QSO():
         self.z_wind = z_wind
 
         # Initialize the filter profiles.
-        self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
         self.gfilt = filters.load_filters('decam2014-g')
         self.rfilt = filters.load_filters('decam2014-r')
         self.zfilt = filters.load_filters('decam2014-z')
+        self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
 
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(21.0, 23.0),
-                       redshift=None, seed=None, nocolorcuts=False):
-        """Build Monte Carlo set of QSO spectra/templates.
+                       seed=None, redshift=None, mag=None, input_meta=None,
+                       nocolorcuts=False):
+        """Build Monte Carlo QSO spectra/templates.
 
-        This function generates a random set of QSO continua spectra and
-        finally normalizes the spectrum to a specific g-band magnitude.
+        This function generates QSO spectra on-the-fly using PCA decomposition
+        coefficients of SDSS and BOSS QSO spectra.  The default is to generate
+        flat, uncorrelated priors on redshift and apparent magnitude (in the
+        bandpass specified by self.normfilter).
+
+        However, the user also (optionally) has flexibility over the
+        inputs/outputs and can specify any combination of the redshift and
+        output apparent magnitude.  Alternatively, the user can pass a complete
+        metadata table, in order to easily regenerate spectra on-the-fly (see
+        the documentation for the input_meta argument, below).
+
+        Note:
+          The templates are only defined in the range 3500-10000 A (observed)
+          and we do not yet apply proper color-cuts to "select" DESI QSOs.
 
         Args:
           nmodel (int, optional): Number of models to generate (default 100).
           zrange (float, optional): Minimum and maximum redshift range.  Defaults
-            to a uniform distribution between (0.5,4.0).
+            to a uniform distribution between (0.5, 4.0).
           rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
-            magnitude range.  Defaults to a uniform distribution between (21,23.0).
-          redshift (float, optional): Input/output template redshifts.  Array
-            size must equal NMODEL.  Overwrites ZRANGE input.
+            magnitude range.  Defaults to a uniform distribution between (21,
+            23.0).
           seed (long, optional): input seed for the random numbers.
+          redshift (float, optional): Input/output template redshifts.  Array
+            size must equal nmodel.  Ignores zrange input.
+          mag (float, optional): Input/output template magnitudes in the band
+            specified by self.normfilter.  Array size must equal nmodel.
+            Ignores rmagrange input.
+          input_meta (astropy.Table): *Input* metadata table with the following
+            required columns: SEED, REDSHIFT, and MAG (where mag is specified by
+            self.normfilter).  See desisim.templates._metatable for the required
+            data type for each column.  If this table is passed then all other
+            optional inputs (nmodel, redshift, mag, zrange, rmagrange, etc.) are
+            ignored.
           nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
             cuts (default False).
 
         Returns:
-          outflux (numpy.ndarray): Array [nmodel,npix] of observed-frame spectra [erg/s/cm2/A].
-          wave (numpy.ndarray): Observed-frame [npix] wavelength array [Angstrom].
-          meta (astropy.Table): Table of meta-data for each output spectrum [nmodel].
+          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
+          wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
+          meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
         Raises:
+          ValueError
 
         """
         from desispec.interpolation import resample_flux
         from desisim.qso_template import desi_qso_templ as dqt
-        #from desitarget.cuts import isQSO
 
         if redshift is not None:
             if len(redshift) != nmodel:
-                log.fatal('REDSHIFT must be an NMODEL-length array')
+                log.fatal('Redshift must be an nmodel-length array')
                 raise ValueError
             zrange = (np.min(redshift), np.max(redshift))
 
-        log.warning('QSO color-cuts not yet supported; forcing nocolorcuts=True.')
-        nocolorcuts = True
+        if mag is not None:
+            if len(mag) != nmodel:
+                log.fatal('Mag must be an nmodel-length array')
+                raise ValueError
 
-        rand = np.random.RandomState(seed)
+        meta = _metatable(nmodel, self.objtype)
 
-        # Assign redshift and r-magnitude priors.
-        if redshift is None:
-            redshift = rand.uniform(zrange[0], zrange[1], nmodel)
+        # Optionally unpack a metadata table.
+        if input_meta is not None:
+            nmodel = len(input_meta)
+            
+            templateseed = input_meta['SEED'].data
+            redshift = input_meta['REDSHIFT'].data
+            mag = input_meta['MAG'].data
+        else:
+            # Initialize the random seed.
+            rand = np.random.RandomState(seed)
+            templateseed = rand.randint(2**32, size=nmodel)
 
-        rmag = rand.uniform(rmagrange[0], rmagrange[1], nmodel)
+            # Assign redshift and magnitude priors.
+            if redshift is None:
+                redshift = rand.uniform(zrange[0], zrange[1], nmodel)
+
+            if mag is None:
+                mag = rand.uniform(rmagrange[0], rmagrange[1], nmodel)
 
         # Populate some of the metadata table.
-        meta = _metatable(nmodel, self.objtype)
         meta['TEMPLATEID'] = np.arange(nmodel)
-        meta['REDSHIFT'] = redshift
+        for key, value in zip(('REDSHIFT', 'MAG', 'SEED'),
+                               (redshift, mag, templateseed)):
+            meta[key] = value
             
-        # Build the spectra on-the-fly in chunks until enough models pass the
-        # color cuts.
-        nzbin = (zrange[1]-zrange[0]) / self.z_wind                                                        
-        N_perz = int(nmodel//nzbin + 2)                                                                  
-
+        # Build each spectrum in turn.
         zwave = self.wave # [observed-frame, Angstrom]
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
 
-        success = np.zeros(nmodel)
         for ii in range(nmodel):
             log.debug('Simulating {} template {}/{}.'.format(self.objtype, ii+1, nmodel))
                       
             _, final_flux, redshifts = dqt.desi_qso_templates(
-                no_write=True, rebin_wave=zwave, rstate=rand,
-                N_perz=N_perz, redshift=redshift[ii])
+                z_wind=self.z_wind, N_perz=50, seed=templateseed[ii], 
+                redshift=redshift[ii], rebin_wave=zwave, no_write=True)
             restflux = final_flux.T
             nmade = np.shape(restflux)[0]
 
@@ -1640,41 +1688,36 @@ class QSO():
             # go red enough.
             padflux, padzwave = self.rfilt.pad_spectrum(restflux, zwave, method='edge')
             maggies = self.decamwise.get_ab_maggies(padflux, padzwave, mask_invalid=True)
-            magnorm = 10**(-0.4*rmag[ii]) / np.array(maggies['decam2014-r'])
+            magnorm = 10**(-0.4*mag[ii]) / np.array(maggies[self.normfilter])
 
             synthnano = np.zeros((nmade, len(self.decamwise)))
             for ff, key in enumerate(maggies.columns):
                 synthnano[:, ff] = 1E9 * maggies[key] * magnorm
 
-            if nocolorcuts:
+            if nocolorcuts or self.colorcuts_function is None:
                 colormask = np.repeat(1, nmade)
             else:
-                colormask = [isQSO(gflux=synthnano[1], # ToDo!
-                                   rflux=synthnano[2],
-                                   zflux=synthnano[4],
-                                   w1flux=synthnano[6],
-                                   w2flux=synthnano[7])]
+                colormask = self.colorcuts_function(
+                    gflux=synthnano[1],
+                    rflux=synthnano[2],
+                    zflux=synthnano[4],
+                    w1flux=synthnano[6],
+                    w2flux=synthnano[7])
 
             # If the color-cuts pass then populate the output flux vector
             # (suitably normalized) and metadata table and finish up.
             if np.any(colormask):
-              success[ii] = 1
-
               this = rand.choice(np.where(colormask)[0]) # Pick one randomly.
               outflux[ii, :] = restflux[this, :] * magnorm[this]
 
               # Temporary hack until the models go redder.
-              #for magkey, magindx in zip(('GMAG','RMAG','ZMAG'), (1, 2, 4)):
-              #    meta[magkey][ii] = 22.5-2.5*np.log10(synthnano[this, magindx])
-              #for magkey, magindx in zip(('GMAG','RMAG','ZMAG','W1MAG','W2MAG'), (1, 2, 4, 6, 7)):
-              #    meta[magkey][ii] = 22.5-2.5*np.log10(synthnano[this, magindx])
               meta['DECAM_FLUX'][ii] = synthnano[this, :6]
               meta['WISE_FLUX'][ii] = synthnano[this, 6:8]
 
         # Check to see if any spectra could not be computed.
+        success = (np.sum(outflux, axis=1) > 0)*1
         if ~np.all(success):
-            log.warning('{} spectra could not be computed given the input redshifts (or redshift priors)!'.\
+            log.warning('{} spectra could not be computed given the input priors!'.\
                         format(np.sum(success == 0)))
                         
         return outflux, self.wave, meta
-
