@@ -11,7 +11,7 @@ import os
 import sys
 import numpy as np
 
-import desisim.io
+from desisim.io import empty_metatable
 from desispec.log import get_logger
 log = get_logger()
 
@@ -109,61 +109,6 @@ def _lineratios(nobj=1, EM=None, oiiihbrange=(-0.5, 0.2),
         need = np.where(oiiihbeta==-99)[0]
 
     return oiidoublet, oiihbeta, niihbeta, siihbeta, oiiihbeta
-
-def _metatable(nmodel=1, objtype='ELG', add_SNeIa=None):
-    """Initialize the metadata table for each object type.""" 
-    from astropy.table import Table, Column
-
-    uobjtype = objtype.upper()
-
-    meta = Table()
-    meta.add_column(Column(name='TEMPLATEID', length=nmodel, dtype='i4'))
-    meta.add_column(Column(name='SEED', length=nmodel, dtype='int64'))
-    meta.add_column(Column(name='REDSHIFT', length=nmodel, dtype='f4'))
-    meta.add_column(Column(name='MAG', length=nmodel, dtype='f4'))
-    meta.add_column(Column(name='DECAM_FLUX', shape=(6,), length=nmodel, dtype='f4'))
-    meta.add_column(Column(name='WISE_FLUX', shape=(2,), length=nmodel, dtype='f4'))
-
-    meta['TEMPLATEID'] = -1 # initialize
-
-    if uobjtype == 'ELG':
-        meta.add_column(Column(name='OIIFLUX', length=nmodel, dtype='f4', unit='erg/(s*cm2)'))
-        meta.add_column(Column(name='EWOII', length=nmodel, dtype='f4', unit='Angstrom'))
-        
-    if uobjtype == 'BGS':
-        meta.add_column(Column(name='HBETAFLUX', length=nmodel, dtype='f4', unit='erg/(s*cm2)'))
-        meta.add_column(Column(name='EWHBETA', length=nmodel, dtype='f4', unit='Angstrom'))
-        
-    if uobjtype == 'ELG' or uobjtype == 'BGS':
-        meta.add_column(Column(name='OIIDOUBLET', length=nmodel, dtype='f4'))
-        meta.add_column(Column(name='OIIIHBETA', length=nmodel, dtype='f4', unit='dex'))
-        meta.add_column(Column(name='OIIHBETA', length=nmodel, dtype='f4', unit='dex'))
-        meta.add_column(Column(name='NIIHBETA', length=nmodel, dtype='f4', unit='dex'))
-        meta.add_column(Column(name='SIIHBETA', length=nmodel, dtype='f4', unit='dex'))
-        meta.add_column(Column(name='D4000', length=nmodel, dtype='f4'))
-        meta.add_column(Column(name='VDISP', length=nmodel, dtype='f4', unit='km/s'))
-
-    if uobjtype == 'LRG':
-        meta.add_column(Column(name='ZMETAL', length=nmodel, dtype='f4'))
-        meta.add_column(Column(name='AGE', length=nmodel, dtype='f4', unit='Gyr'))
-        meta.add_column(Column(name='D4000', length=nmodel, dtype='f4'))
-        meta.add_column(Column(name='VDISP', length=nmodel, dtype='f4', unit='km/s'))
-
-    if uobjtype == 'STAR' or uobjtype == 'MWS_STAR' or uobjtype == 'FSTD':
-        meta.add_column(Column(name='TEFF', length=nmodel, dtype='f4', unit='K'))
-        meta.add_column(Column(name='LOGG', length=nmodel, dtype='f4', unit='m/(s**2)'))
-        meta.add_column(Column(name='FEH', length=nmodel, dtype='f4'))
-
-    if uobjtype == 'WD':
-        meta.add_column(Column(name='TEFF', length=nmodel, dtype='f4', unit='K'))
-        meta.add_column(Column(name='LOGG', length=nmodel, dtype='f4', unit='m/(s**2)'))
-
-    if add_SNeIa:
-        meta.add_column(Column(name='SNE_TEMPLATEID', length=nmodel, dtype='i4'))
-        meta.add_column(Column(name='SNE_RFLUXRATIO', length=nmodel, dtype='f4'))
-        meta.add_column(Column(name='SNE_EPOCH', length=nmodel, dtype='f4', unit='days'))
-
-    return meta
 
 class EMSpectrum(object):
     """Construct a complete nebular emission-line spectrum.
@@ -592,7 +537,7 @@ class GALAXY(object):
             required columns: TEMPLATEID, SEED, REDSHIFT, VDISP, MAG (where mag
             is specified by self.normfilter).  In addition, if add_SNeIa is True
             then the table must also contain SNE_TEMPLATEID, SNE_EPOCH, and
-            SNE_RFLUXRATIO columns.  See desisim.templates._metatable for the
+            SNE_RFLUXRATIO columns.  See desisim.io.empty_metatable for the
             required data type for each column.  If this table is passed then
             all other optional inputs (nmodel, redshift, vdisp, mag, zrange,
             logvdisp_meansig, etc.) are ignored.
@@ -642,7 +587,7 @@ class GALAXY(object):
         npix = len(self.basewave)
         nbase = len(self.basemeta)
 
-        meta = _metatable(nmodel, self.objtype, self.add_SNeIa)
+        meta = empty_metatable(nmodel, self.objtype, self.add_SNeIa)
 
         # Optionally unpack a metadata table.
         if input_meta is not None:
@@ -1163,7 +1108,7 @@ class SUPERSTAR(object):
 
           input_meta (astropy.Table): *Input* metadata table with the following
             required columns: TEMPLATEID, SEED, REDSHIFT, and MAG (where mag is
-            specified by self.normfilter).  See desisim.templates._metatable for
+            specified by self.normfilter).  See desisim.io.empty_metatable for
             the required data type for each column.  If this table is passed
             then all other optional inputs (nmodel, redshift, mag, vrad_meansig,
             etc.) are ignored.
@@ -1196,7 +1141,7 @@ class SUPERSTAR(object):
         npix = len(self.basewave)
         nbase = len(self.basemeta)
 
-        meta = _metatable(nmodel, self.objtype)
+        meta = empty_metatable(nmodel, self.objtype)
 
         # Optionally unpack a metadata table.
         if input_meta is not None:
@@ -1548,7 +1493,7 @@ class QSO():
 
         """
         from speclite import filters
-        from desisim.io import read_basis_templates
+        from desisim.io import find_basis_template
 
         self.objtype = 'QSO'
         
@@ -1569,7 +1514,7 @@ class QSO():
         self.wave = wave
 
         # Find the basis files.
-        self.basis_file = desisim.io.find_basis_template('qso')
+        self.basis_file = find_basis_template('qso')
         self.z_wind = z_wind
 
         # Initialize the filter profiles.
@@ -1613,7 +1558,7 @@ class QSO():
             Ignores rmagrange input.
           input_meta (astropy.Table): *Input* metadata table with the following
             required columns: SEED, REDSHIFT, and MAG (where mag is specified by
-            self.normfilter).  See desisim.templates._metatable for the required
+            self.normfilter).  See desisim.io.empty_metatable for the required
             data type for each column.  If this table is passed then all other
             optional inputs (nmodel, redshift, mag, zrange, rmagrange, etc.) are
             ignored.
@@ -1643,7 +1588,7 @@ class QSO():
                 log.fatal('Mag must be an nmodel-length array')
                 raise ValueError
 
-        meta = _metatable(nmodel, self.objtype)
+        meta = empty_metatable(nmodel, self.objtype)
 
         # Optionally unpack a metadata table.
         if input_meta is not None:
