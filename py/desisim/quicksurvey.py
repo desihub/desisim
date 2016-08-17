@@ -251,9 +251,10 @@ class SimSetup(object):
             
         # launch fiberassign
         print("{} Launching fiberassign".format(asctime()))
-        p = subprocess.call([self.fiberassign_exec, os.path.join(self.tmp_output_path, 'fa_features.txt')], stdout=subprocess.PIPE)
+        f = open('fiberassign.log','a')
+        p = subprocess.call([self.fiberassign_exec, os.path.join(self.tmp_output_path, 'fa_features.txt')], stdout=f)# stdout=subprocess.PIPE)
         print("{} Finished fiberassign".format(asctime()))
-
+        f.close()
 
         #create a list of fibermap tiles to read and update zcat
         # find first the set of tiles corresponding to this epoch
