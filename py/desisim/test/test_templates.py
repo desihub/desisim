@@ -26,7 +26,6 @@ class TestTemplates(unittest.TestCase):
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_input_redshift(self):
         '''Test that we can input the redshift for each spectral class.'''
-        print('HERE!!!!!!!!!!')
         zrange = np.array([
             (0.6, 1.6),
             (0.5, 1.0),
@@ -41,7 +40,6 @@ class TestTemplates(unittest.TestCase):
             Tx = T(wave=self.wave)
             flux, wave, meta = Tx.make_templates(self.nspec, redshift=redshift)
             self.assertTrue(np.all(redshift == meta['REDSHIFT']))
-        #import pdb ; pdb.set_trace()
 
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_simple(self):
