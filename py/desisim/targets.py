@@ -378,6 +378,7 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
             raise ValueError('Unable to simulate OBJTYPE={}'.format(objtype))
 
         truth['FLUX'][ii] = 1e17 * simflux
+        truth['UNITS'] = '1e-17 erg/s/cm2/A'
         truth['META'][ii] = meta
         
         #for key in meta.columns:
@@ -390,7 +391,6 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
         fibermap['MAG'][ii, :6] = np.vstack(np.hstack([grz, wise])).T
         fibermap['FILTER'][ii, :6] = ['DECAM_G', 'DECAM_R', 'DECAM_Z', 'WISE_W1', 'WISE_W2']
 
-        #truth['UNITS'] = '1e-17 erg/s/cm2/A'
         #truth['TEMPLATEID'][ii] = meta['TEMPLATEID']
         #truth['REDSHIFT'][ii] = meta['REDSHIFT']
 
