@@ -22,6 +22,7 @@ Submitted batch job 233901
 
 from __future__ import absolute_import, division, print_function
 import os
+import numpy as np
 
 import desispec.io
 
@@ -32,14 +33,17 @@ from desispec.log import get_logger
 log = get_logger()
 
 def batch_newexp(batchfile, flavors, nspec=5000, night=None, expids=None,
-    nodes=None, pixprod=None, desi_spectro_sim=None, tileids=None):
+    nodes=None, pixprod=None, desi_spectro_sim=None, tileids=None, seed=None):
     '''
     Write a slurm batch script for run newexp-desi for the list of flavors
     '''
     nexp = len(flavors)
     timestr = '00:30:00'
     logfile = '{}.%j.log'.format(batchfile)
-    
+
+    np.random.seed(seed)
+    seeds = np.random.randint(2**32, size=nexp)
+
     if night is None:
         night = obs.get_night()
         
@@ -80,7 +84,7 @@ def batch_newexp(batchfile, flavors, nspec=5000, night=None, expids=None,
     
     assert len(expids) == len(flavors)
     
-    cmd = "srun -n 1 -N 1 -c $nproc /usr/bin/time newexp-desi --night {night} --nspec {nspec} --flavor {flavor} --expid {expid} --tileid {tileid}"
+    cmd = "srun -n 1 -N 1 -c $nproc /usr/bin/time newexp-desi --night {night} --nspec {nspec} --flavor {flavor} --expid {expid} --tileid {tileid} --seed {seed}"
     with open(batchfile, 'w') as fx:
         fx.write("#!/bin/bash -l\n\n")
         fx.write("#SBATCH --partition=debug\n")
@@ -105,8 +109,9 @@ def batch_newexp(batchfile, flavors, nspec=5000, night=None, expids=None,
         fx.write('mkdir -p $DESI_SPECTRO_SIM/$PIXPROD/{}\n'.format(night))
         fx.write('\n')
         
-        for expid, flavor, tileid in zip(expids, flavors, tileids):
-            fx.write(cmd.format(nspec=nspec, night=night, expid=expid, flavor=flavor, tileid=tileid)+' &\n')
+        for i, expid, flavor, tileid in zip(range(nexp), expids, flavors, tileids):
+            fx.write(cmd.format(nspec=nspec, night=night, expid=expid,
+                flavor=flavor, tileid=tileid, seed=seeds[i])+' &\n')
             
         fx.write('\nwait\n')
         fx.write('\necho Done at `date`\n')
@@ -114,7 +119,7 @@ def batch_newexp(batchfile, flavors, nspec=5000, night=None, expids=None,
     return expids
 
 def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
-    nodes=None, pixprod=None, desi_spectro_sim=None):
+    nodes=None, pixprod=None, desi_spectro_sim=None, seed=None):
     '''
     Write a slurm batch script for run newexp-desi for the list of flavors
     '''
@@ -123,7 +128,10 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
     ntasks = nexp * 3
     timestr = '00:30:00'
     logfile = '{}.%j.log'.format(batchfile)
-    
+
+    np.random.seed(seed)
+    seeds = np.random.randint(2**32, size=nexp)
+
     if night is None:
         night = obs.get_night()
         
@@ -151,7 +159,7 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
         # nodes = calc_nodes(ntasks, tasktime=5, maxtime=20)
         nodes = nexp * nspectrographs
         
-    cmd = "srun -n {nspectrographs} -N {nspectrographs} -c $nproc /usr/bin/time pixsim-desi --mpi --verbose --cosmics --night {night} --expid {expid}"
+    cmd = "srun -n {nspectrographs} -N {nspectrographs} -c $nproc /usr/bin/time pixsim-desi --mpi --verbose --cosmics --night {night} --expid {expid} --seed {seed}"
     with open(batchfile, 'w') as fx:
         fx.write("#!/bin/bash -l\n\n")
         fx.write("#SBATCH --partition=debug\n")
@@ -172,10 +180,10 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
 
         fx.write('\necho Starting at `date`\n')
 
-        for expid, flavor in zip(expids, flavors):
+        for i, expid, flavor in zip(range(nexp), expids, flavors):
             fx.write('\n#- Exposure {} ({})\n'.format(expid, flavor))
                 
-            cx = cmd.format(night=night, expid=expid, nspectrographs=nspectrographs)
+            cx = cmd.format(night=night, expid=expid, nspectrographs=nspectrographs, seed=seeds[i])
             fx.write(cx + ' &\n')
         
         fx.write('\nwait\n')
