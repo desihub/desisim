@@ -138,7 +138,7 @@ class TestTemplates(unittest.TestCase):
         for T in [ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR, WD]:
             Tx = T(wave=self.wave)
             flux1, wave1, meta1 = Tx.make_templates(self.nspec)
-            flux2, wave2, meta2 = elgmaker.make_templates(input_meta=meta1)
+            flux2, wave2, meta2 = Tx.make_templates(input_meta=meta1)
             badkeys = list()
             for key in meta1.colnames:
                 if not np.all(meta1[key] == meta2[key]):
