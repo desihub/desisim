@@ -111,7 +111,7 @@ def batch_newexp(batchfile, flavors, nspec=5000, night=None, expids=None,
         
         for expid, flavor, tileid, seed in zip(expids, flavors, tileids, seeds):
             fx.write(cmd.format(nspec=nspec, night=night, expid=expid,
-                flavor=flavor, tileid=tileid, seed=seeds)+' &\n')
+                flavor=flavor, tileid=tileid, seed=seed)+' &\n')
             
         fx.write('\nwait\n')
         fx.write('\necho Done at `date`\n')
