@@ -287,22 +287,22 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
     nwave = len(wave)
 
     # Build the "truth" (output) table.
-    truth = Table()
-    truth.add_column(Column(name='WAVE', length=nspec, shape=(nwave, ), dtype='f4'))
-    truth.add_column(Column(name='FLUX', length=nspec, shape=(nwave, ), dtype='f4'))
-    truth.add_column(Column(name='OBJTYPE', length=nspec, dtype='S10'))
-    truth.add_column(Column(name='UNITS', length=nspec, dtype='S17'))
-
-    truth['WAVE'] = wave
-    truth['UNITS'] = '1e-17 erg/s/cm2/A'
-
-    truth = hstack((truth.copy(), empty_metatable(nmodel=nspec)))
-
-    #truth = dict()
-    #truth['FLUX'] = np.zeros( (nspec, len(wave)) )
-    #truth['OBJTYPE'] = np.zeros(nspec, dtype='S10')
-    ##- Note: unlike other elements, first index of WAVE isn't spectrum index
+    #truth = Table()
+    #truth.add_column(Column(name='WAVE', length=nspec, shape=(nwave, ), dtype='f4'))
+    #truth.add_column(Column(name='FLUX', length=nspec, shape=(nwave, ), dtype='f4'))
+    #truth.add_column(Column(name='OBJTYPE', length=nspec, dtype='S10'))
+    #truth.add_column(Column(name='UNITS', length=nspec, dtype='S17'))
+    #
     #truth['WAVE'] = wave
+    #truth['UNITS'] = '1e-17 erg/s/cm2/A'
+    #truth = hstack((truth.copy(), empty_metatable(nmodel=nspec)))
+
+    truth = dict()
+    truth['FLUX'] = np.zeros( (nspec, len(wave)) )
+    truth['OBJTYPE'] = np.zeros(nspec, dtype='S10')
+    ##- Note: unlike other elements, first index of WAVE isn't spectrum index
+    truth['WAVE'] = wave
+    truth['META'] = empty_metatable(nmodel=nspec)
 
     #truth['REDSHIFT'] = np.zeros(nspec, dtype='f4')
     #truth['TEMPLATEID'] = np.zeros(nspec, dtype='i4')
@@ -378,14 +378,15 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
             raise ValueError('Unable to simulate OBJTYPE={}'.format(objtype))
 
         truth['FLUX'][ii] = 1e17 * simflux
-        for key in meta.columns:
-            truth[key][ii] = meta[key]
-
+        truth['META'][ii] = meta
+        
+        #for key in meta.columns:
+        #    truth[key][ii] = meta[key]
         #import pdb ; pdb.set_trace()
 
         # Pack in the photometry.  This needs updating!
-        grz = 22.5-2.5*np.log10(truth['DECAM_FLUX'][ii].data.flatten()[[1, 2, 4]])
-        wise = 22.5-2.5*np.log10(truth['WISE_FLUX'][ii].data.flatten()[[0, 1]])
+        grz = 22.5-2.5*np.log10(meta['DECAM_FLUX'].data.flatten()[[1, 2, 4]])
+        wise = 22.5-2.5*np.log10(meta['WISE_FLUX'].data.flatten()[[0, 1]])
         fibermap['MAG'][ii, :6] = np.vstack(np.hstack([grz, wise])).T
         fibermap['FILTER'][ii, :6] = ['DECAM_G', 'DECAM_R', 'DECAM_Z', 'WISE_W1', 'WISE_W2']
 
