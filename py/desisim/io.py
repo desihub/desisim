@@ -726,9 +726,8 @@ def empty_metatable(nmodel=1, objtype='ELG', add_SNeIa=None):
     """Initialize the metadata table for each object type.""" 
     from astropy.table import Table, Column
 
-    uobjtype = objtype.upper()
-
     meta = Table()
+    meta.add_column(Column(name='OBJTYPE', length=nmodel, dtype='S10'))
     meta.add_column(Column(name='TEMPLATEID', length=nmodel, dtype='i4',
                            data=np.zeros(nmodel)-1))
     meta.add_column(Column(name='SEED', length=nmodel, dtype='int64',
@@ -781,6 +780,8 @@ def empty_metatable(nmodel=1, objtype='ELG', add_SNeIa=None):
                                data=np.zeros(nmodel)-1))
         meta.add_column(Column(name='SNE_EPOCH', length=nmodel, dtype='f4',
                                data=np.zeros(nmodel)-1, unit='days'))
+
+    meta['OBJTYPE'] = objtype.upper()
 
     return meta
 
