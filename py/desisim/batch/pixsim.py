@@ -109,9 +109,9 @@ def batch_newexp(batchfile, flavors, nspec=5000, night=None, expids=None,
         fx.write('mkdir -p $DESI_SPECTRO_SIM/$PIXPROD/{}\n'.format(night))
         fx.write('\n')
         
-        for i, expid, flavor, tileid in zip(range(nexp), expids, flavors, tileids):
+        for expid, flavor, tileid, seed in zip(expids, flavors, tileids, seeds):
             fx.write(cmd.format(nspec=nspec, night=night, expid=expid,
-                flavor=flavor, tileid=tileid, seed=seeds[i])+' &\n')
+                flavor=flavor, tileid=tileid, seed=seeds)+' &\n')
             
         fx.write('\nwait\n')
         fx.write('\necho Done at `date`\n')
@@ -180,10 +180,10 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
 
         fx.write('\necho Starting at `date`\n')
 
-        for i, expid, flavor in zip(range(nexp), expids, flavors):
+        for expid, flavor, seed in zip(expids, flavors, seeds):
             fx.write('\n#- Exposure {} ({})\n'.format(expid, flavor))
                 
-            cx = cmd.format(night=night, expid=expid, nspectrographs=nspectrographs, seed=seeds[i])
+            cx = cmd.format(night=night, expid=expid, nspectrographs=nspectrographs, seed=seed)
             fx.write(cx + ' &\n')
         
         fx.write('\nwait\n')
