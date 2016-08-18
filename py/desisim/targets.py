@@ -286,31 +286,13 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
     wave = np.arange(round(wavemin, 1), wavemax, dw)
     nwave = len(wave)
 
-    # Build the "truth" (output) table.
-    #truth = Table()
-    #truth.add_column(Column(name='WAVE', length=nspec, shape=(nwave, ), dtype='f4'))
-    #truth.add_column(Column(name='FLUX', length=nspec, shape=(nwave, ), dtype='f4'))
-    #truth.add_column(Column(name='OBJTYPE', length=nspec, dtype='S10'))
-    #truth.add_column(Column(name='UNITS', length=nspec, dtype='S17'))
-    #
-    #truth['WAVE'] = wave
-    #truth['UNITS'] = '1e-17 erg/s/cm2/A'
-    #truth = hstack((truth.copy(), empty_metatable(nmodel=nspec)))
-
     truth = dict()
     truth['FLUX'] = np.zeros( (nspec, len(wave)) )
     truth['OBJTYPE'] = np.zeros(nspec, dtype='S10')
     ##- Note: unlike other elements, first index of WAVE isn't spectrum index
     truth['WAVE'] = wave
-    truth['META'] = empty_metatable(nmodel=nspec)
 
-    #truth['REDSHIFT'] = np.zeros(nspec, dtype='f4')
-    #truth['TEMPLATEID'] = np.zeros(nspec, dtype='i4')
-    #truth['OIIFLUX'] = np.zeros(nspec, dtype='f4')
-    #truth['D4000'] = np.zeros(nspec, dtype='f4')
-    #truth['VDISP'] = np.zeros(nspec, dtype='f4')
-    #if flavor == 'BGS' or flavor == 'BRIGHT':
-    #    truth['HBETAFLUX'] = np.zeros(nspec, dtype='f4')
+    truth['META'] = empty_metatable(nmodel=nspec, objtype='SKY')
 
     fibermap = empty_fibermap(nspec)
 
@@ -381,39 +363,17 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
         truth['UNITS'] = '1e-17 erg/s/cm2/A'
         truth['META'][ii] = meta
         
-        #for key in meta.columns:
-        #    truth[key][ii] = meta[key]
-        #import pdb ; pdb.set_trace()
-
         # Pack in the photometry.  This needs updating!
         grz = 22.5-2.5*np.log10(meta['DECAM_FLUX'].data.flatten()[[1, 2, 4]])
         wise = 22.5-2.5*np.log10(meta['WISE_FLUX'].data.flatten()[[0, 1]])
         fibermap['MAG'][ii, :6] = np.vstack(np.hstack([grz, wise])).T
         fibermap['FILTER'][ii, :6] = ['DECAM_G', 'DECAM_R', 'DECAM_Z', 'WISE_W1', 'WISE_W2']
 
-        #truth['TEMPLATEID'][ii] = meta['TEMPLATEID']
-        #truth['REDSHIFT'][ii] = meta['REDSHIFT']
+    # Only store the metadata table for non-sky spectra.
+    notsky = np.where(true_objtype != 'SKY')[0]
+    if len(notsky) > 0:
+        truth['META'] = truth['META'][notsky]
 
-        #magg = meta['GMAG']
-        #magr = meta['RMAG']
-        #magz = meta['ZMAG']
-        #fibermap['MAG'][ii, 0:3] = np.vstack( [magg, magr, magz] ).T
-        #fibermap['FILTER'][ii, 0:3] = ['DECAM_G', 'DECAM_R', 'DECAM_Z']
-
-        #if objtype == 'ELG':
-        #    truth['OIIFLUX'][ii] = meta['OIIFLUX']
-        #    truth['D4000'][ii] = meta['D4000']
-        #    truth['VDISP'][ii] = meta['VDISP']
-        #
-        #if objtype == 'LRG':
-        #    truth['D4000'][ii] = meta['D4000']
-        #    truth['VDISP'][ii] = meta['VDISP']
-        #
-        #if objtype == 'BGS':            
-        #    truth['HBETAFLUX'][ii] = meta['HBETAFLUX']
-        #    truth['D4000'][ii] = meta['D4000']
-        #    truth['VDISP'][ii] = meta['VDISP']
-            
     #- Load fiber -> positioner mapping and tile information
     fiberpos = desimodel.io.load_fiberpos()
 
@@ -446,7 +406,6 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
     fibermap['BRICKNAME'] = brick.brickname(ra, dec)
 
     return fibermap, truth
-
 
 #-------------------------------------------------------------------------
 #- Currently unused, but keep around for now
