@@ -600,7 +600,7 @@ class GALAXY(object):
                 redshift = rand.uniform(zrange[0], zrange[1], nmodel)
 
             if mag is None:
-                mag = rand.uniform(magrange[0], magrange[1], nmodel)
+                mag = rand.uniform(magrange[0], magrange[1], nmodel).astype('f4')
 
             if vdisp is None:
                 if logvdisp_meansig[1] > 0:
@@ -668,8 +668,7 @@ class GALAXY(object):
         # Build each spectrum in turn.
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
         for ii in range(nmodel):
-            if input_meta is not None:
-                rand = np.random.RandomState(templateseed[ii])
+            templaterand = np.random.RandomState(templateseed[ii])
                 
             zwave = self.basewave.astype(float) * (1.0 + redshift[ii])
 
@@ -683,7 +682,7 @@ class GALAXY(object):
                 # correlate with D(4000) or something else.
                 oiidoublet, oiihbeta, niihbeta, siihbeta, oiiihbeta = \
                   self.lineratios(nobj=1, oiiihbrange=oiiihbrange,
-                                  rand=rand, agnlike=agnlike)
+                                  rand=templaterand, agnlike=agnlike)
 
                 for key, value in zip(('OIIIHBETA', 'OIIHBETA', 'NIIHBETA', 'SIIHBETA', 'OIIDOUBLET'),
                                       (oiiihbeta, oiihbeta, niihbeta, siihbeta, oiidoublet)):
@@ -691,7 +690,7 @@ class GALAXY(object):
 
                 if self.normline.upper() == 'OII':
                     ewoii = 10.0**(np.polyval(self.ewoiicoeff, d4000) + # rest-frame EW([OII]), Angstrom
-                                   rand.normal(0.0, 0.3, nbase)) 
+                                   templaterand.normal(0.0, 0.3, nbase)) 
                     normlineflux = self.basemeta['OII_CONTINUUM'].data * ewoii
                     
                     emflux, emwave, emline = EM.spectrum(linesigma=vdisp[ii], seed=templateseed[ii],
@@ -701,7 +700,7 @@ class GALAXY(object):
                     
                 elif self.normline.upper() == 'HBETA':
                     ewhbeta = 10.0**(np.polyval(self.ewhbetacoeff, d4000) + \
-                                     rand.normal(0.0, 0.2, nbase)) * \
+                                     templaterand.normal(0.0, 0.2, nbase)) * \
                                      self.basemeta['HBETA_LIMIT'].data # rest-frame H-beta, Angstrom
                     normlineflux = self.basemeta['HBETA_CONTINUUM'].data * ewhbeta
                     
@@ -765,7 +764,7 @@ class GALAXY(object):
                 # emission lines already have the velocity dispersion
                 # line-width.
                 if np.any(colormask*(zlineflux >= minlineflux)):
-                    this = rand.choice(np.where(colormask * (zlineflux >= minlineflux))[0]) # Pick one randomly.
+                    this = templaterand.choice(np.where(colormask * (zlineflux >= minlineflux))[0]) # Pick one randomly.
                     tempid = templateid[this]
 
                     thisemflux = emflux * normlineflux[templateid[this]]
@@ -1185,7 +1184,7 @@ class SUPERSTAR(object):
                 redshift = np.array(vrad) / LIGHT
 
             if mag is None:
-                mag = rand.uniform(magrange[0], magrange[1], nmodel)
+                mag = rand.uniform(magrange[0], magrange[1], nmodel).astype('f4')
 
         # Populate some of the metadata table.
         for key, value in zip(('REDSHIFT', 'MAG', 'SEED'),
@@ -1614,7 +1613,7 @@ class QSO():
                 redshift = rand.uniform(zrange[0], zrange[1], nmodel)
 
             if mag is None:
-                mag = rand.uniform(rmagrange[0], rmagrange[1], nmodel)
+                mag = rand.uniform(rmagrange[0], rmagrange[1], nmodel).astype('f4')
 
         # Populate some of the metadata table.
         meta['TEMPLATEID'] = np.arange(nmodel)

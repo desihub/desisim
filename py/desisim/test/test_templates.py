@@ -132,5 +132,18 @@ class TestTemplates(unittest.TestCase):
             self.assertTrue('SNE_RFLUXRATIO' in meta.dtype.names)
             self.assertTrue('SNE_EPOCH' in meta.dtype.names)
 
+    @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
+    def test_input_meta(self):
+        '''Test that input meta table option works.'''
+        for T in [ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR, WD]:
+            Tx = T(wave=self.wave)
+            flux1, wave1, meta1 = Tx.make_templates(self.nspec)
+            flux2, wave2, meta2 = elgmaker.make_templates(input_meta=meta1)
+            badkeys = list()
+            for key in meta1.colnames:
+                if not np.all(meta1[key] == meta2[key]):
+                    badkeys.append(key)
+            self.assertEqual(len(badkeys), 0, 'mismatch for spectral type {} in keys {}'.format(meta1['OBJTYPE'][0], badkeys))
+
 if __name__ == '__main__':
     unittest.main()
