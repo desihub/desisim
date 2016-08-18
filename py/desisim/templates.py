@@ -1596,8 +1596,6 @@ class QSO():
                 log.fatal('Mag must be an nmodel-length array')
                 raise ValueError
 
-        meta = empty_metatable(nmodel, self.objtype)
-
         # Optionally unpack a metadata table.
         if input_meta is not None:
             nmodel = len(input_meta)
@@ -1633,9 +1631,10 @@ class QSO():
 
         for ii in range(nmodel):
             log.debug('Simulating {} template {}/{}.'.format(self.objtype, ii+1, nmodel))
-                      
+            templaterand = np.random.RandomState(templateseed[ii])
+            
             _, final_flux, redshifts = dqt.desi_qso_templates(
-                z_wind=self.z_wind, N_perz=50, seed=templateseed[ii], 
+                z_wind=self.z_wind, N_perz=50, rstate=templaterand, 
                 redshift=redshift[ii], rebin_wave=zwave, no_write=True)
             restflux = final_flux.T
             nmade = np.shape(restflux)[0]
@@ -1664,7 +1663,7 @@ class QSO():
             # If the color-cuts pass then populate the output flux vector
             # (suitably normalized) and metadata table and finish up.
             if np.any(colormask):
-              this = rand.choice(np.where(colormask)[0]) # Pick one randomly.
+              this = templaterand.choice(np.where(colormask)[0]) # Pick one randomly.
               outflux[ii, :] = restflux[this, :] * magnorm[this]
 
               # Temporary hack until the models go redder.
