@@ -6,6 +6,7 @@ desisim change log
 -------------------
 
 * desi_qa_zfind: fixed --reduxdir option; improved plots
+* desisim.batch.pixsim functions propagate random seeds for reproducibility
 
 0.12.0 (2016-07-14)
 -------------------
