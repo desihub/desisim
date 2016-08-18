@@ -564,6 +564,11 @@ class GALAXY(object):
             mag = input_meta['MAG'].data
             vdisp = input_meta['VDISP'].data
 
+            vzero = np.where(vdisp <= 0)[0]
+            if len(vzero) > 0:
+                log.fatal('Velocity disperion is zero or negative in {} spectra!').format(len(vzero))
+                raise ValueError
+
             if self.add_SNeIa:
                 sne_tempid = input_meta['SNE_TEMPLATEID']
                 sne_epoch = input_meta['SNE_EPOCH']
@@ -651,7 +656,6 @@ class GALAXY(object):
         
         # Build each spectrum in turn.
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
-        
         for ii in range(nmodel):
             zwave = self.basewave.astype(float) * (1.0 + redshift[ii])
 

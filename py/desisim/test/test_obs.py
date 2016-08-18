@@ -78,10 +78,9 @@ class TestObs(unittest.TestCase):
                     maxsky = skyflux[i].max()
                     self.assertTrue(maxsky > 1, 'suspiciously low {} sky flux ({}); wrong units?'.format(objtype, maxsky))
                     self.assertTrue(maxsky < 1e5, 'suspiciously high {} sky flux ({}); wrong units?'.format(objtype, maxsky))
-                    # This test will fail for spectra that do not pass the
-                    # color-cuts (e.g., an ELG at the wrong
-                    # redshift). @moustakas
-                    if objtype != 'SKY' and simspec.metadata['TEMPLATEID'][i] != -1:
+                    if objtype != 'SKY':
+                        if maxflux <= 0.1:
+                            import pdb ; pdb.set_trace()
                         self.assertTrue(maxflux > 0.1, 'suspiciously low {} flux ({}); wrong units?'.format(objtype, maxflux))
                         self.assertTrue(maxflux < 1e5, 'suspiciously high {} flux ({}); wrong units?'.format(objtype, maxflux))
                     else:
