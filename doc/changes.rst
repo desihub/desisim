@@ -2,10 +2,12 @@
 desisim change log
 ==================
 
-0.12.1 (unreleased)
+0.13.0 (unreleased)
 -------------------
 
 * desi_qa_zfind: fixed --reduxdir option; improved plots
+* PR#132: major refactor of template generation, including ability to give
+  input redshifts, magnitudes, or random seeds from metadata table.
 
 0.12.0 (2016-07-14)
 -------------------

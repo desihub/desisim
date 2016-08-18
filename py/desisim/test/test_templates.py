@@ -148,6 +148,8 @@ class TestTemplates(unittest.TestCase):
                     if not np.all(meta1[key] == meta2[key]):
                         badkeys.append(key)
             self.assertEqual(len(badkeys), 0, 'mismatch for spectral type {} in keys {}'.format(meta1['OBJTYPE'][0], badkeys))
+            self.assertTrue(np.allclose(flux1, flux2))
+            self.assertTrue(np.all(wave1 == wave2))
 
 if __name__ == '__main__':
     unittest.main()
