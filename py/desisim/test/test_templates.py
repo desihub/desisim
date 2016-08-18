@@ -27,14 +27,9 @@ class TestTemplates(unittest.TestCase):
     def test_input_redshift(self):
         '''Test that we can input the redshift for each spectral class.'''
         zrange = np.array([
-            (0.6, 1.6),
-            (0.5, 1.0),
-            (0.5, 4.0),
-            (0.01, 0.4),
-            (-0.003, 0.003),
-            (-0.003, 0.003),
-            (-0.003, 0.003),
-            (-0.003, 0.003)])
+            (0.6, 1.6), (0.5, 1.0), (0.5, 4.0), (0.01, 0.4),
+            (-0.003, 0.003), (-0.003, 0.003), (-0.003, 0.003), (-0.003, 0.003)
+            ])
         for zminmax, T in zip(zrange, [ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR, WD]):
             redshift = np.random.uniform(zminmax[0], zminmax[1], self.nspec).astype('f4')
             Tx = T(wave=self.wave)
@@ -45,7 +40,6 @@ class TestTemplates(unittest.TestCase):
     def test_simple(self):
         '''Confirm that creating templates works at all'''
         for T in [ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR, WD]:
-            #import pdb ; pdb.set_trace()
             template_factory = T(wave=self.wave)
             flux, wave, meta = template_factory.make_templates(self.nspec)
             self._check_output_size(flux, wave, meta)
@@ -112,7 +106,7 @@ class TestTemplates(unittest.TestCase):
         self._check_output_size(flux, wave, meta)
         self.assertTrue('LOGG' in meta.dtype.names)
         self.assertTrue('TEFF' in meta.dtype.names)
-        self.assertTrue('FEH' not in meta.dtype.names)  #- note: *no* FEH
+        self.assertTrue('FEH' in meta.dtype.names)
 
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_random_seed(self):
@@ -125,11 +119,6 @@ class TestTemplates(unittest.TestCase):
             self.assertTrue(np.all(flux1==flux2))
             self.assertTrue(np.any(flux1!=flux3))
             self.assertTrue(np.all(wave1==wave2))
-            #for col in meta1.dtype.names:
-            #    #- QSO currently has NaN; catch that
-            #    if ((T != QSO) and (T != STAR)) or ((col != 'W1MAG') and (col != 'W2MAG')):
-            #        self.assertTrue(np.all(meta1[col] == meta2[col]),
-            #            'metadata {} inconsistent for objtype {}'.format(col, Tx.objtype))
 
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_sne(self):
@@ -137,24 +126,11 @@ class TestTemplates(unittest.TestCase):
         for T in [ELG, LRG, BGS]:
             template_factory = T(wave=self.wave, add_SNeIa=True)
             flux, wave, meta = template_factory.make_templates(self.nspec, nocolorcuts=True, 
-                                                               sne_rfluxratiorange=(0.5,0.7))
+                                                               sne_rfluxratiorange=(0.5, 0.7))
             self._check_output_size(flux, wave, meta)
             self.assertTrue('SNE_TEMPLATEID' in meta.dtype.names)
             self.assertTrue('SNE_RFLUXRATIO' in meta.dtype.names)
             self.assertTrue('SNE_EPOCH' in meta.dtype.names)
-
-    #@unittest.expectedFailure
-    #def test_missing_wise_mags(self):
-    #    '''QSO and WD templates don't have WISE mags.  Flag that'''
-    #    qso = QSO(wave=self.wave)
-    #    flux, wave, meta = qso.make_templates(self.nspec)
-    #    self.assertTrue(not np.any(meta['W1MAG']==99))
-    #    self.assertTrue(not np.any(meta['W2MAG']==99))
-    #
-    #    wd = STAR(wave=self.wave, WD=True)
-    #    flux, wave, meta = star.make_templates(self.nspec)
-    #    self.assertTrue(not np.any(meta['W1MAG']==99))
-    #    self.assertTrue(not np.any(meta['W2MAG']==99))
 
 if __name__ == '__main__':
     unittest.main()
