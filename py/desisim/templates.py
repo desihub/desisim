@@ -555,8 +555,6 @@ class GALAXY(object):
         npix = len(self.basewave)
         nbase = len(self.basemeta)
 
-        meta = empty_metatable(nmodel, self.objtype, self.add_SNeIa)
-
         # Optionally unpack a metadata table.
         if input_meta is not None:
             templateseed = input_meta['SEED'].data
@@ -579,8 +577,11 @@ class GALAXY(object):
             nchunk = 1
             nmodel = len(input_meta)
             alltemplateid_chunk = [input_meta['TEMPLATEID'].data.reshape(nmodel, 1)]
-            
+
+            meta = empty_metatable(nmodel, self.objtype, self.add_SNeIa)
         else:
+            meta = empty_metatable(nmodel, self.objtype, self.add_SNeIa)
+
             # Initialize the random seed.
             rand = np.random.RandomState(seed)
             templateseed = rand.randint(2**32, size=nmodel)
@@ -1147,8 +1148,6 @@ class SUPERSTAR(object):
         npix = len(self.basewave)
         nbase = len(self.basemeta)
 
-        meta = empty_metatable(nmodel, self.objtype)
-
         # Optionally unpack a metadata table.
         if input_meta is not None:
             templateseed = input_meta['SEED'].data
@@ -1158,8 +1157,11 @@ class SUPERSTAR(object):
             nchunk = 1
             nmodel = len(input_meta)
             alltemplateid_chunk = [input_meta['TEMPLATEID'].data.reshape(nmodel, 1)]
-            
+
+            meta = empty_metatable(nmodel, self.objtype)
         else:
+            meta = empty_metatable(nmodel, self.objtype)
+            
             # Initialize the random seed.
             rand = np.random.RandomState(seed)
             templateseed = rand.randint(2**32, size=nmodel)
@@ -1603,7 +1605,11 @@ class QSO():
             templateseed = input_meta['SEED'].data
             redshift = input_meta['REDSHIFT'].data
             mag = input_meta['MAG'].data
+
+            meta = empty_metatable(nmodel, self.objtype)
         else:
+            meta = empty_metatable(nmodel, self.objtype)
+            
             # Initialize the random seed.
             rand = np.random.RandomState(seed)
             templateseed = rand.randint(2**32, size=nmodel)
