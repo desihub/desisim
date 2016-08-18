@@ -76,40 +76,6 @@ class GaussianMixtureModel(object):
                     self.means[comp], self.covars[comp], num_comp_in_X)
         return X
 
-def _lineratios(nobj=1, EM=None, oiiihbrange=(-0.5, 0.2),
-                oiidoublet_meansig=(0.73, 0.05), rand=None):
-    """Get the correct number and distribution of emission-line ratios.  Also
-       optionally specify the mean and sigma values for the (Gaussian) [OII]
-       3726/3729 doublet ratio distribution.
-
-    """
-    if EM is None:
-        EM = EMSpectrum()
-    if rand is None:
-        rand = np.random.RandomState()
-
-    if oiidoublet_meansig[1] > 0:
-        oiidoublet = rand.normal(oiidoublet_meansig[0], oiidoublet_meansig[1], nobj)
-    else:
-        oiidoublet = np.repeat(oiidoublet_meansig[0], nobj)
-
-    oiihbeta = np.zeros(nobj)
-    niihbeta = np.zeros(nobj)
-    siihbeta = np.zeros(nobj)
-    oiiihbeta = np.zeros(nobj)-99
-    need = np.where(oiiihbeta==-99)[0]
-    while len(need) > 0:
-        samp = EM.forbidmog.sample(len(need), random_state=rand)
-        oiiihbeta[need] = samp[:,0]
-        oiihbeta[need] = samp[:,1]
-        niihbeta[need] = samp[:,2]
-        siihbeta[need] = samp[:,3]
-        oiiihbeta[oiiihbeta<oiiihbrange[0]] = -99
-        oiiihbeta[oiiihbeta>oiiihbrange[1]] = -99
-        need = np.where(oiiihbeta==-99)[0]
-
-    return oiidoublet, oiihbeta, niihbeta, siihbeta, oiiihbeta
-
 class EMSpectrum(object):
     """Construct a complete nebular emission-line spectrum.
 
