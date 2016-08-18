@@ -238,15 +238,17 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
         #- NOTE: someday skyflux and skyphot may be 2D instead of 1D
         
         #- Extract the metadata part of the truth dictionary into a table
-        columns = (
-            'OBJTYPE',
-            'REDSHIFT',
-            'TEMPLATEID',
-            'D4000',
-            'OIIFLUX',
-            'VDISP'
-        )
-        meta = {key: truth[key] for key in columns}
+        meta = truth['META']
+        
+        #columns = (
+        #    'OBJTYPE',
+        #    'REDSHIFT',
+        #    'TEMPLATEID',
+        #    'D4000',
+        #    'OIIFLUX',
+        #    'VDISP'
+        #)
+        #meta = {key: truth[key] for key in columns}
         
     #- (end indentation for arc/flat/science flavors)
         

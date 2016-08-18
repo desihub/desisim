@@ -721,3 +721,67 @@ def _parse_filename(filename):
         return x[0], None, int(x[1])
     elif len(x) == 3:
         return x[0], x[1].lower(), int(x[2])
+
+def empty_metatable(nmodel=1, objtype='ELG', add_SNeIa=None):
+    """Initialize the metadata table for each object type.""" 
+    from astropy.table import Table, Column
+
+    meta = Table()
+    meta.add_column(Column(name='OBJTYPE', length=nmodel, dtype='S10'))
+    meta.add_column(Column(name='TEMPLATEID', length=nmodel, dtype='i4',
+                           data=np.zeros(nmodel)-1))
+    meta.add_column(Column(name='SEED', length=nmodel, dtype='int64',
+                           data=np.zeros(nmodel)-1))
+    meta.add_column(Column(name='REDSHIFT', length=nmodel, dtype='f4',
+                           data=np.zeros(nmodel)-1))
+    meta.add_column(Column(name='MAG', length=nmodel, dtype='f4',
+                           data=np.zeros(nmodel)-1))
+    meta.add_column(Column(name='DECAM_FLUX', shape=(6,), length=nmodel, dtype='f4'))
+    meta.add_column(Column(name='WISE_FLUX', shape=(2,), length=nmodel, dtype='f4'))
+
+    meta.add_column(Column(name='OIIFLUX', length=nmodel, dtype='f4',
+                           data=np.zeros(nmodel)-1, unit='erg/(s*cm2)'))
+    meta.add_column(Column(name='HBETAFLUX', length=nmodel, dtype='f4',
+                           data=np.zeros(nmodel)-1, unit='erg/(s*cm2)'))
+    meta.add_column(Column(name='EWOII', length=nmodel, dtype='f4',
+                           data=np.zeros(nmodel)-1, unit='Angstrom'))
+    meta.add_column(Column(name='EWHBETA', length=nmodel, dtype='f4',
+                           data=np.zeros(nmodel)-1, unit='Angstrom'))
+        
+    meta.add_column(Column(name='D4000', length=nmodel, dtype='f4', data=np.zeros(nmodel)-1))
+    meta.add_column(Column(name='VDISP', length=nmodel, dtype='f4',
+                           data=np.zeros(nmodel)-1, unit='km/s'))
+    meta.add_column(Column(name='OIIDOUBLET', length=nmodel, dtype='f4', data=np.zeros(nmodel)-1))
+    meta.add_column(Column(name='OIIIHBETA', length=nmodel, dtype='f4',
+                           data=np.zeros(nmodel)-1, unit='dex'))
+    meta.add_column(Column(name='OIIHBETA', length=nmodel, dtype='f4',
+                           data=np.zeros(nmodel)-1, unit='dex'))
+    meta.add_column(Column(name='NIIHBETA', length=nmodel, dtype='f4',
+                           data=np.zeros(nmodel)-1, unit='dex'))
+    meta.add_column(Column(name='SIIHBETA', length=nmodel, dtype='f4',
+                           data=np.zeros(nmodel)-1, unit='dex'))
+
+    meta.add_column(Column(name='ZMETAL', length=nmodel, dtype='f4',
+                           data=np.zeros(nmodel)-1))
+    meta.add_column(Column(name='AGE', length=nmodel, dtype='f4',
+                           data=np.zeros(nmodel)-1, unit='Gyr'))
+
+    meta.add_column(Column(name='TEFF', length=nmodel, dtype='f4',
+                           data=np.zeros(nmodel)-1, unit='K'))
+    meta.add_column(Column(name='LOGG', length=nmodel, dtype='f4',
+                           data=np.zeros(nmodel)-1, unit='m/(s**2)'))
+    meta.add_column(Column(name='FEH', length=nmodel, dtype='f4',
+                           data=np.zeros(nmodel)-1))
+
+    if add_SNeIa:
+        meta.add_column(Column(name='SNE_TEMPLATEID', length=nmodel, dtype='i4',
+                               data=np.zeros(nmodel)-1))
+        meta.add_column(Column(name='SNE_RFLUXRATIO', length=nmodel, dtype='f4',
+                               data=np.zeros(nmodel)-1))
+        meta.add_column(Column(name='SNE_EPOCH', length=nmodel, dtype='f4',
+                               data=np.zeros(nmodel)-1, unit='days'))
+
+    meta['OBJTYPE'] = objtype.upper()
+
+    return meta
+

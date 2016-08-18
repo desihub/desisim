@@ -35,7 +35,7 @@ class TestObs(unittest.TestCase):
             self.assertEqual(n, len(set(fibermap['TARGETID'])))
             self.assertTrue(np.all(fibermap['SPECTROID'] == fibermap['FIBER']//500))
             for key in truth.keys():
-                if key not in ('UNITS', 'WAVE'):
+                if key not in ('UNITS', 'WAVE', 'META'):
                     self.assertEqual(n, truth[key].shape[0])
 
     def test_parallel_radec(self):
@@ -53,15 +53,17 @@ class TestObs(unittest.TestCase):
             fibermap2a, truth2a = desisim.targets.get_targets_parallel(nspec, 'DARK', seed=nspec+2)
             fibermap2b, truth2b = desisim.targets.get_targets_parallel(nspec, 'DARK', seed=nspec+2)
 
+            meta1, meta2a, meta2b = truth1['META'], truth2a['META'], truth2b['META']
+
             #- Check that 1 and 2a do not have the same spectra
             notsky = (fibermap1['OBJTYPE'] != 'SKY') & (fibermap2a['OBJTYPE'] != 'SKY')
-            self.assertTrue(np.all(truth1['REDSHIFT'][notsky] != truth2a['REDSHIFT'][notsky]))
+            self.assertTrue(np.all(meta1['REDSHIFT'][notsky] != meta2a['REDSHIFT'][notsky]))
             self.assertTrue(np.all(fibermap1['TARGETID'] != fibermap2a['TARGETID']))
 
             #- Check 2a and 2b have the same spectra
-            self.assertTrue(np.all(truth2a['REDSHIFT'][notsky] == truth2b['REDSHIFT'][notsky]))
+            self.assertTrue(np.all(meta2a['REDSHIFT'][notsky] == meta2b['REDSHIFT'][notsky]))
             self.assertTrue(np.all(fibermap2a['TARGETID'] == fibermap2b['TARGETID']))
-            self.assertTrue(np.all(truth2a['OIIFLUX'] == truth2b['OIIFLUX']))
+            self.assertTrue(np.all(meta2a['OIIFLUX'] == meta2b['OIIFLUX']))
             self.assertTrue(np.all(truth2a['FLUX'] == truth2b['FLUX']))
 
             #- Check for duplicates

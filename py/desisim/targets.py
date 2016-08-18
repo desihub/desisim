@@ -11,7 +11,10 @@ import string
 import numpy as np
 import yaml
 
+from astropy.table import Table, Column, hstack
+
 from desimodel.focalplane import FocalPlane
+from desisim.io import empty_metatable
 import desimodel.io
 from desispec.log import get_logger
 log = get_logger()
@@ -285,17 +288,11 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
 
     truth = dict()
     truth['FLUX'] = np.zeros( (nspec, len(wave)) )
-    truth['REDSHIFT'] = np.zeros(nspec, dtype='f4')
-    truth['TEMPLATEID'] = np.zeros(nspec, dtype='i4')
-    truth['OIIFLUX'] = np.zeros(nspec, dtype='f4')
-    truth['D4000'] = np.zeros(nspec, dtype='f4')
-    truth['VDISP'] = np.zeros(nspec, dtype='f4')
     truth['OBJTYPE'] = np.zeros(nspec, dtype='S10')
-    #- Note: unlike other elements, first index of WAVE isn't spectrum index
+    ##- Note: unlike other elements, first index of WAVE isn't spectrum index
     truth['WAVE'] = wave
 
-    if flavor == 'BGS' or flavor == 'BRIGHT':
-        truth['HBETAFLUX'] = np.zeros(nspec, dtype='f4')
+    truth['META'] = empty_metatable(nmodel=nspec, objtype='SKY')
 
     fibermap = empty_fibermap(nspec)
 
@@ -316,7 +313,7 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
             elg = ELG(wave=wave)
             simflux, wave1, meta = elg.make_templates(nmodel=nobj, seed=seed)
             fibermap['DESI_TARGET'][ii] = desi_mask.ELG
-
+            
         elif objtype == 'LRG':
             from desisim.templates import LRG
             lrg = LRG(wave=wave)
@@ -361,33 +358,27 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
 
         else:
             raise ValueError('Unable to simulate OBJTYPE={}'.format(objtype))
-            
+
         truth['FLUX'][ii] = 1e17 * simflux
         truth['UNITS'] = '1e-17 erg/s/cm2/A'
-        truth['TEMPLATEID'][ii] = meta['TEMPLATEID']
-        truth['REDSHIFT'][ii] = meta['REDSHIFT']
+        truth['META'][ii] = meta
 
-        # Pack in the photometry.  TODO: Include WISE.
-        magg = meta['GMAG']
-        magr = meta['RMAG']
-        magz = meta['ZMAG']
-        fibermap['MAG'][ii, 0:3] = np.vstack( [magg, magr, magz] ).T
-        fibermap['FILTER'][ii, 0:3] = ['DECAM_G', 'DECAM_R', 'DECAM_Z']
+        #success = (np.sum(truth['FLUX'][ii], axis=1) > 0)*1
+        #fix = np.where(success == 0)[0]
+        #if len(fix) > 0:
+        #    import pdb ; pdb.set_trace()
+        
+        # Pack in the photometry.  This needs updating!
+        grz = 22.5-2.5*np.log10(meta['DECAM_FLUX'].data.flatten()[[1, 2, 4]])
+        wise = 22.5-2.5*np.log10(meta['WISE_FLUX'].data.flatten()[[0, 1]])
+        fibermap['MAG'][ii, :6] = np.vstack(np.hstack([grz, wise])).T
+        fibermap['FILTER'][ii, :6] = ['DECAM_G', 'DECAM_R', 'DECAM_Z', 'WISE_W1', 'WISE_W2']
 
-        if objtype == 'ELG':
-            truth['OIIFLUX'][ii] = meta['OIIFLUX']
-            truth['D4000'][ii] = meta['D4000']
-            truth['VDISP'][ii] = meta['VDISP']
+    ## Only store the metadata table for non-sky spectra.
+    #notsky = np.where(true_objtype != 'SKY')[0]
+    #if len(notsky) > 0:
+    #    truth['META'] = truth['META'][notsky]
 
-        if objtype == 'LRG':
-            truth['D4000'][ii] = meta['D4000']
-            truth['VDISP'][ii] = meta['VDISP']
-
-        if objtype == 'BGS':            
-            truth['HBETAFLUX'][ii] = meta['HBETAFLUX']
-            truth['D4000'][ii] = meta['D4000']
-            truth['VDISP'][ii] = meta['VDISP']
-            
     #- Load fiber -> positioner mapping and tile information
     fiberpos = desimodel.io.load_fiberpos()
 
@@ -420,7 +411,6 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
     fibermap['BRICKNAME'] = brick.brickname(ra, dec)
 
     return fibermap, truth
-
 
 #-------------------------------------------------------------------------
 #- Currently unused, but keep around for now

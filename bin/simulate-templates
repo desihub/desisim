@@ -38,6 +38,9 @@ def main():
     parser.add_argument('--nocolorcuts', action='store_true', 
                         help="""do not apply color cuts to select objects (only used for
                         object types ELG, LRG, and QSO)""")
+    parser.add_argument('--nocontinuum', action='store_true', 
+                        help="""do not generate the continuum spectrum (only used for
+                        object types ELG and LRG)""")
     parser.add_argument('--notemplates', action='store_true', 
                         help="""do not generate templates
                         (but do generate the diagnostic plots if OUTFILE exists)""")
@@ -154,24 +157,24 @@ def main():
                                                   logvdisp_meansig=args.logvdisp_bgs,
                                                   rmagrange=args.rmagrange_bgs,
                                                   sne_rfluxratiorange=args.sne_rfluxratiorange, 
-                                                  seed=args.seed)
-            log.info('Writing {}'.format(outfile))
-            write_templates(outfile, flux, wave, meta, objtype)
-
+                                                  seed=args.seed,
+                                                  nocontinuum=args.nocontinuum)
         elif objtype == 'ELG':
             from desisim.templates import ELG
             elg = ELG(minwave=args.minwave, maxwave=args.maxwave, cdelt=args.cdelt,
                       add_SNeIa=args.add_SNeIa)
+            #import numpy as np
+            #rand = np.random.RandomState(args.seed)
+            #redshift = rand.uniform(0.7, 1.6, 50)
             flux, wave, meta = elg.make_templates(nmodel=args.nmodel,
                                                   zrange=args.zrange_elg,
                                                   logvdisp_meansig=args.logvdisp_elg,
                                                   rmagrange=args.rmagrange_elg,
                                                   minoiiflux=args.minoiiflux,
                                                   seed=args.seed,
-                                                  nocolorcuts=args.nocolorcuts)
-            log.info('Writing {}'.format(outfile))
-            write_templates(outfile, flux, wave, meta, objtype)
-
+                                                  nocolorcuts=args.nocolorcuts,
+                                                  nocontinuum=args.nocontinuum)
+                                                  #redshift=redshift)
         elif objtype == 'LRG':
             from desisim.templates import LRG
             lrg = LRG(minwave=args.minwave, maxwave=args.maxwave, cdelt=args.cdelt,
@@ -182,10 +185,11 @@ def main():
                                                   logvdisp_meansig=args.logvdisp_lrg,
                                                   seed=args.seed,
                                                   nocolorcuts=args.nocolorcuts)
-            log.info('Writing {}'.format(outfile))
-            write_templates(outfile, flux, wave, meta, objtype)
-
         elif objtype == 'QSO':
+            #import numpy as np
+            #rand = np.random.RandomState(args.seed)
+            #redshift = rand.uniform(1.8, 4.5, 50)
+            #print(redshift)
             from desisim.templates import QSO
             qso = QSO(minwave=args.minwave, maxwave=args.maxwave, cdelt=args.cdelt)
             flux, wave, meta = qso.make_templates(nmodel=args.nmodel,
@@ -193,33 +197,35 @@ def main():
                                                   rmagrange=args.rmagrange_qso,
                                                   seed=args.seed,
                                                   nocolorcuts=args.nocolorcuts)
-            log.info('Writing {}'.format(outfile))
-            write_templates(outfile, flux, wave, meta, objtype)
-
-        elif objtype == 'STAR' or objtype == 'FSTD' or objtype == 'WD':
+                                                  #redshift=redshift)
+        elif objtype == 'STAR':
             from desisim.templates import STAR
-            FSTD = objtype=='FSTD'
-            WD = objtype=='WD'
-            star = STAR(minwave=args.minwave, maxwave=args.maxwave,
-                        cdelt=args.cdelt, FSTD=FSTD, WD=WD)
-            if FSTD: # simulate an F-standard
-                flux, wave, meta = star.make_templates(nmodel=args.nmodel,
-                                                       vrad_meansig=args.vrad_fstd,
-                                                       rmagrange=args.rmagrange_fstd,
-                                                       seed=args.seed)
-            elif WD: # simulate a white dwarf
-                flux, wave, meta = star.make_templates(nmodel=args.nmodel,
-                                                       vrad_meansig=args.vrad_wd,
-                                                       gmagrange=args.gmagrange_wd,
-                                                       seed=args.seed)
-            else: # simulate a normal star
-                flux, wave, meta = star.make_templates(nmodel=args.nmodel,
-                                                       vrad_meansig=args.vrad_star,
-                                                       rmagrange=args.rmagrange_star,
-                                                       seed=args.seed)
-            log.info('Writing {}'.format(outfile))
-            write_templates(outfile, flux, wave, meta, objtype)
-
+            star = STAR(minwave=args.minwave, maxwave=args.maxwave, cdelt=args.cdelt)
+            flux, wave, meta = star.make_templates(nmodel=args.nmodel,
+                                                   vrad_meansig=args.vrad_star,
+                                                   rmagrange=args.rmagrange_star,
+                                                   seed=args.seed)
+        elif objtype == 'WD':
+            from desisim.templates import WD
+            wd = WD(minwave=args.minwave, maxwave=args.maxwave, cdelt=args.cdelt)
+            flux, wave, meta = wd.make_templates(nmodel=args.nmodel,
+                                                 vrad_meansig=args.vrad_wd,
+                                                 gmagrange=args.gmagrange_wd,
+                                                 seed=args.seed)
+        elif objtype == 'FSTD':
+            from desisim.templates import FSTD
+            fstd = FSTD(minwave=args.minwave, maxwave=args.maxwave, cdelt=args.cdelt)
+            flux, wave, meta = fstd.make_templates(nmodel=args.nmodel,
+                                                   vrad_meansig=args.vrad_fstd,
+                                                   rmagrange=args.rmagrange_fstd,
+                                                   seed=args.seed)
+        elif objtype == 'MWS_STAR':
+            from desisim.templates import MWS_STAR
+            mws = MWS_STAR(minwave=args.minwave, maxwave=args.maxwave, cdelt=args.cdelt)
+            flux, wave, meta = mws.make_templates(nmodel=args.nmodel,
+                                                  vrad_meansig=args.vrad_fstd,
+                                                  rmagrange=args.rmagrange_fstd,
+                                                  seed=args.seed)
         elif objtype == 'SNE':
             from desisim.templates import SNE
             sne = SNE(minwave=args.minwave, maxwave=args.maxwave, cdelt=args.cdelt)
@@ -228,13 +234,13 @@ def main():
                                                   rfluxratio=args.rfluxratio_sne,
                                                   epoch=args.epoch_sne,
                                                   seed=args.seed)
-            log.info('Writing {}'.format(outfile))
-            write_templates(outfile, flux, wave, meta, objtype)
-
         else:
             log.warning('Object type {} not recognized'.format(objtype))
             sys.exit(1)
-    
+
+    log.info('Writing {}'.format(outfile))
+    write_templates(outfile, flux, wave, meta, objtype)
+            
     # Generate diagnostic QAplots (just a placeholder right now).
     if not args.noplots:
         import matplotlib.pyplot as plt
