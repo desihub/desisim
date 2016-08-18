@@ -2,10 +2,15 @@
 desisim change log
 ==================
 
-0.13.1 (unreleased)
+0.13.2 (unreleased)
 -------------------
 
-* No changes yet
+* no changes yet
+
+0.13.1 (2016-08-18)
+-------------------
+
+* fix batch.pixsim seeds vs. seed typo
 
 0.13.0 (2016-08-18)
 -------------------
