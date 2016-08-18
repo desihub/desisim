@@ -234,7 +234,7 @@ class EMSpectrum(object):
         is3729 = np.where(line['name'] == '[OII]_3729')[0]
 
         # Draw from the MoGs for forbidden lines.
-        if oiiihbeta==None or oiihbeta==None or niihbeta==None or siihbeta==None:
+        if oiiihbeta is None or oiihbeta is None or niihbeta is None or siihbeta is None:
             oiiihbeta, oiihbeta, niihbeta, siihbeta = \
               self.forbidmog.sample(random_state=rand)[0]
 
@@ -360,11 +360,13 @@ class GALAXY(object):
         self.objtype = objtype.upper()
         self.colorcuts_function = colorcuts_function
         self.normfilter = normfilter
-        if normline is None:
-            self.normline = normline
-        else:
-            self.normline = normline.upper()
+        self.normline = normline
 
+        if self.normline is not None:
+            if self.normline.upper() not in ('OII', 'HBETA'):
+                log.warning('Unrecognized normline input {}; setting to None.'.format(self.normline))
+                self.normline = None
+        
         # Initialize the output wavelength array (linear spacing) unless it is
         # already provided.
         if wave is None:
@@ -621,64 +623,99 @@ class GALAXY(object):
 
         # Optionally initialize the emission-line objects and line-ratios.
         d4000 = self.basemeta['D4000']
-        
-        if self.normline is None:
-            normlineflux = np.zeros(nbase)
-        else:
-            from desisim.templates import EMSpectrum
 
+        if self.normline is not None:
             # Initialize the EMSpectrum object with the same wavelength array as
             # the "base" (continuum) templates so that we don't have to resample.
+            from desisim.templates import EMSpectrum
             EM = EMSpectrum(log10wave=np.log10(self.basewave))
-
-            oiidoublet, oiihbeta, niihbeta, siihbeta, oiiihbeta = \
-              self.lineratios(nobj=nmodel, oiiihbrange=oiiihbrange,
-                              rand=rand, agnlike=agnlike)
-
-            if self.normline == 'OII':
-                ewoii = 10.0**(np.polyval(self.ewoiicoeff, d4000) + # rest-frame EW([OII]), Angstrom
-                               rand.normal(0.0, 0.3, nbase)) 
-                normlineflux = self.basemeta['OII_CONTINUUM'].data * ewoii
-            elif self.normline == 'HBETA':
-                ewhbeta = 10.0**(np.polyval(self.ewhbetacoeff, d4000) + \
-                                 rand.normal(0.0, 0.2, nbase)) * \
-                                 self.basemeta['HBETA_LIMIT'].data # rest-frame H-beta, Angstrom
-                #ewhbeta = self.ewhbetamog.sample(n_samples=(nmodel, nbase), random_state=rand)
-
-                normlineflux = self.basemeta['HBETA_CONTINUUM'].data * ewhbeta
-            else:
-                log.fatal('Unrecognized NORMLINE {}'.format(self.normline))
-                raise ValueError
-
-            for key, value in zip(('OIIIHBETA', 'OIIHBETA', 'NIIHBETA', 'SIIHBETA', 'OIIDOUBLET'),
-                                  (oiiihbeta, oiihbeta, niihbeta, siihbeta, oiidoublet)):
-                meta[key] = value
+        
+        #if self.normline is None:
+        #    normlineflux = np.zeros(nbase)
+        #else:
+        #    from desisim.templates import EMSpectrum
+        #
+        #    # Initialize the EMSpectrum object with the same wavelength array as
+        #    # the "base" (continuum) templates so that we don't have to resample.
+        #    EM = EMSpectrum(log10wave=np.log10(self.basewave))
+        #
+        #    #FIX THE RAND BUG HERE BY MOVING THIS STUFF TO INSIDE THE FOR LOOP
+        #    #NEED TO WRITE SOME UNIT TESTS!!
+        #
+        #    oiidoublet, oiihbeta, niihbeta, siihbeta, oiiihbeta = \
+        #      self.lineratios(nobj=nmodel, oiiihbrange=oiiihbrange,
+        #                      rand=rand, agnlike=agnlike)
+        #
+        #    if self.normline == 'OII':
+        #        ewoii = 10.0**(np.polyval(self.ewoiicoeff, d4000) + # rest-frame EW([OII]), Angstrom
+        #                       rand.normal(0.0, 0.3, nbase)) 
+        #        normlineflux = self.basemeta['OII_CONTINUUM'].data * ewoii
+        #    elif self.normline == 'HBETA':
+        #        ewhbeta = 10.0**(np.polyval(self.ewhbetacoeff, d4000) + \
+        #                         rand.normal(0.0, 0.2, nbase)) * \
+        #                         self.basemeta['HBETA_LIMIT'].data # rest-frame H-beta, Angstrom
+        #        #ewhbeta = self.ewhbetamog.sample(n_samples=(nmodel, nbase), random_state=rand)
+        #
+        #        normlineflux = self.basemeta['HBETA_CONTINUUM'].data * ewhbeta
+        #    else:
+        #        log.fatal('Unrecognized NORMLINE {}'.format(self.normline))
+        #        raise ValueError
+        #
+        #    for key, value in zip(('OIIIHBETA', 'OIIHBETA', 'NIIHBETA', 'SIIHBETA', 'OIIDOUBLET'),
+        #                          (oiiihbeta, oiihbeta, niihbeta, siihbeta, oiidoublet)):
+        #        meta[key] = value
         
         # Build each spectrum in turn.
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
         for ii in range(nmodel):
+            if input_meta is not None:
+                rand = np.random.RandomState(templateseed[ii])
+                
             zwave = self.basewave.astype(float) * (1.0 + redshift[ii])
+
+            # Optionally generate the emission-line spectrum for this model.
+            if self.normline is None:
+                emflux = np.zeros(npix)
+                normlineflux = np.zeros(nbase)
+            else:
+                # For speed, build just a single emission-line spectrum for all
+                # continuum templates. In detail the line-ratios should
+                # correlate with D(4000) or something else.
+                oiidoublet, oiihbeta, niihbeta, siihbeta, oiiihbeta = \
+                  self.lineratios(nobj=1, oiiihbrange=oiiihbrange,
+                                  rand=rand, agnlike=agnlike)
+
+                for key, value in zip(('OIIIHBETA', 'OIIHBETA', 'NIIHBETA', 'SIIHBETA', 'OIIDOUBLET'),
+                                      (oiiihbeta, oiihbeta, niihbeta, siihbeta, oiidoublet)):
+                    meta[key][ii] = value
+
+                if self.normline.upper() == 'OII':
+                    ewoii = 10.0**(np.polyval(self.ewoiicoeff, d4000) + # rest-frame EW([OII]), Angstrom
+                                   rand.normal(0.0, 0.3, nbase)) 
+                    normlineflux = self.basemeta['OII_CONTINUUM'].data * ewoii
+                    
+                    emflux, emwave, emline = EM.spectrum(linesigma=vdisp[ii], seed=templateseed[ii],
+                                                         oiidoublet=oiidoublet, oiiihbeta=oiiihbeta,
+                                                         oiihbeta=oiihbeta, niihbeta=niihbeta,
+                                                         siihbeta=siihbeta, oiiflux=1.0)
+                    
+                elif self.normline.upper() == 'HBETA':
+                    ewhbeta = 10.0**(np.polyval(self.ewhbetacoeff, d4000) + \
+                                     rand.normal(0.0, 0.2, nbase)) * \
+                                     self.basemeta['HBETA_LIMIT'].data # rest-frame H-beta, Angstrom
+                    normlineflux = self.basemeta['HBETA_CONTINUUM'].data * ewhbeta
+                    
+                    emflux, emwave, emline = EM.spectrum(linesigma=vdisp[ii], seed=templateseed[ii],
+                                                         oiidoublet=oiidoublet, oiiihbeta=oiiihbeta,
+                                                         oiihbeta=oiihbeta, niihbeta=niihbeta,
+                                                         siihbeta=siihbeta, hbetaflux=1.0)
+
+                emflux /= (1+redshift[ii]) # [erg/s/cm2/A, @redshift[ii]]
 
             # Optionally get the SN spectrum and normalization factor.
             if self.add_SNeIa:
                 sne_restflux = self.sne_baseflux[sne_tempid[ii], :]
                 snenorm = self.rfilt.get_ab_maggies(sne_restflux, zwave)
-
-            # Optionally generate the emission-line spectrum for this model.
-            if self.normline is None:
-                emflux = np.zeros(npix)
-            else:
-                if self.normline == 'OII':
-                    emflux, emwave, emline = EM.spectrum(linesigma=vdisp[ii],oiidoublet=oiidoublet[ii],
-                                                         oiiihbeta=oiiihbeta[ii],oiihbeta=oiihbeta[ii],
-                                                         niihbeta=niihbeta[ii],siihbeta=siihbeta[ii],
-                                                         seed=templateseed[ii],oiiflux=1.0)
-                elif self.normline == 'HBETA':
-                    emflux, emwave, emline = EM.spectrum(linesigma=vdisp[ii],oiidoublet=oiidoublet[ii],
-                                                         oiiihbeta=oiiihbeta[ii],oiihbeta=oiihbeta[ii],
-                                                         niihbeta=niihbeta[ii],siihbeta=siihbeta[ii],
-                                                         seed=templateseed[ii],hbetaflux=1.0)
-                emflux /= (1+redshift[ii]) # [erg/s/cm2/A, @redshift[ii]]
 
             for ichunk in range(nchunk):
                 log.debug('Simulating {} template {}/{} in chunk {}/{}'. \
@@ -1116,8 +1153,6 @@ class SUPERSTAR(object):
         # Optionally unpack a metadata table.
         if input_meta is not None:
             templateseed = input_meta['SEED'].data
-            rand = np.random.RandomState(templateseed[0])
-
             redshift = input_meta['REDSHIFT'].data
             mag = input_meta['MAG'].data
 
@@ -1129,7 +1164,6 @@ class SUPERSTAR(object):
             # Initialize the random seed.
             rand = np.random.RandomState(seed)
             templateseed = rand.randint(2**32, size=nmodel)
-
 
             # Shuffle the basis templates and then split them into ~equal chunks, so
             # we can speed up the calculations below.
@@ -1193,6 +1227,9 @@ class SUPERSTAR(object):
                 # If the color-cuts pass then populate the output flux vector
                 # (suitably normalized) and metadata table and finish up.
                 if np.any(colormask):
+                    if input_meta is not None:
+                        rand = np.random.RandomState(templateseed[ii])
+                        
                     this = rand.choice(np.where(colormask)[0]) # Pick one randomly.
                     tempid = templateid[this]
 
