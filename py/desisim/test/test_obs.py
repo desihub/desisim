@@ -79,6 +79,7 @@ class TestObs(unittest.TestCase):
                     self.assertTrue(maxsky > 1, 'suspiciously low {} sky flux ({}); wrong units?'.format(objtype, maxsky))
                     self.assertTrue(maxsky < 1e5, 'suspiciously high {} sky flux ({}); wrong units?'.format(objtype, maxsky))
                     if objtype != 'SKY':
+                        print('---> {} maxflux {}'.format(objtype, maxflux))
                         self.assertTrue(maxflux > 0.1, 'suspiciously low {} flux ({}); wrong units?'.format(objtype, maxflux))
                         self.assertTrue(maxflux < 1e5, 'suspiciously high {} flux ({}); wrong units?'.format(objtype, maxflux))
                     else:
