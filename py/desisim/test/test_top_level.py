@@ -4,7 +4,7 @@
 test top-level desisim functions
 """
 #
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import absolute_import, division, print_function
 #
 import unittest
 import re
@@ -23,6 +23,9 @@ class TestTopLevel(unittest.TestCase):
     def test_version(self):
         """Ensure the version conforms to PEP386/PEP440.
         """
+        #- python 3.5 has deprecated assertRegexpMatches in favor of
+        #- assertRegexp, but that doesn't exist in python 2.7.  Keep for
+        #- now until we've fully transitioned to python 3.5
         self.assertRegexpMatches(theVersion,self.versionre)
 
 if __name__ == '__main__':

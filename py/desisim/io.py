@@ -61,7 +61,7 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
 
     #- Do we know about this kind of file?
     if filetype not in location:
-        raise ValueError("Unknown filetype {}; known types are {}".format(filetype, location.keys()))
+        raise ValueError("Unknown filetype {}; known types are {}".format(filetype, list(location.keys())))
 
     #- Some but not all filetypes require camera
     if filetype == 'pix' and camera is None:
@@ -333,9 +333,9 @@ def load_simspec_summary(indir, verbose=False):
         if 'OBJTYPE' in simspec.colnames:
             simspec.rename_column('OBJTYPE', 'TRUETYPE')
         for key in ('DATASUM', 'CHECKSUM', 'TELRA', 'TELDEC', 'EXTNAME'):
-            if key in fibermap.meta.keys():
+            if key in fibermap.meta:
                 del fibermap.meta[key]
-            if key in simspec.meta.keys():
+            if key in simspec.meta:
                 del simspec.meta[key]
         
         #- convert some header keywords to new columns

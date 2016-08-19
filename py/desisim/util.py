@@ -87,7 +87,7 @@ def medxbin(x,y,binsize,minpts=20,xmin=None,xmax=None):
         xmax = x.max()
     #print(xmin,xmax)
 
-    nbin = long(ptp(x)/binsize)
+    nbin = int(ptp(x)/binsize)
     bins = np.linspace(xmin,xmax,nbin)
     idx  = np.digitize(x,bins)
     #print(nbin, bins, xmin, xmax)

@@ -10,14 +10,11 @@
 #;-
 #;------------------------------------------------------------------------------
 """
-from __future__ import print_function, absolute_import, division, unicode_literals
+from __future__ import print_function, absolute_import, division
 
 import numpy as np
 import os
 import multiprocessing as mp
-import Queue
-
-#Queue.Queue(30000000)
 
 from astropy.io import fits
 

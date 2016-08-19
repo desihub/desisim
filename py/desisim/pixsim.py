@@ -344,7 +344,7 @@ def _project(args):
         xyrange = psf.xyrange( [specmin, specmin+nspec], wave )
         img = psf.project(wave, phot, specmin=specmin, xyrange=xyrange)
         return (xyrange, img)
-    except Exception, e:
+    except Exception as e:
         if os.getenv('UNITTEST_SILENT') is None:
             import traceback
             print('-'*60)

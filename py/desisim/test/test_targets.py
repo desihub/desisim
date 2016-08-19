@@ -34,7 +34,7 @@ class TestObs(unittest.TestCase):
             self.assertEqual(n, len(set(fibermap['FIBER'])))
             self.assertEqual(n, len(set(fibermap['TARGETID'])))
             self.assertTrue(np.all(fibermap['SPECTROID'] == fibermap['FIBER']//500))
-            for key in truth.keys():
+            for key in truth:
                 if key not in ('UNITS', 'WAVE', 'META'):
                     self.assertEqual(n, truth[key].shape[0])
 
