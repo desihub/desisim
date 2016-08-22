@@ -631,41 +631,6 @@ class GALAXY(object):
             from desisim.templates import EMSpectrum
             EM = EMSpectrum(log10wave=np.log10(self.basewave))
         
-        #if self.normline is None:
-        #    normlineflux = np.zeros(nbase)
-        #else:
-        #    from desisim.templates import EMSpectrum
-        #
-        #    # Initialize the EMSpectrum object with the same wavelength array as
-        #    # the "base" (continuum) templates so that we don't have to resample.
-        #    EM = EMSpectrum(log10wave=np.log10(self.basewave))
-        #
-        #    #FIX THE RAND BUG HERE BY MOVING THIS STUFF TO INSIDE THE FOR LOOP
-        #    #NEED TO WRITE SOME UNIT TESTS!!
-        #
-        #    oiidoublet, oiihbeta, niihbeta, siihbeta, oiiihbeta = \
-        #      self.lineratios(nobj=nmodel, oiiihbrange=oiiihbrange,
-        #                      rand=rand, agnlike=agnlike)
-        #
-        #    if self.normline == 'OII':
-        #        ewoii = 10.0**(np.polyval(self.ewoiicoeff, d4000) + # rest-frame EW([OII]), Angstrom
-        #                       rand.normal(0.0, 0.3, nbase)) 
-        #        normlineflux = self.basemeta['OII_CONTINUUM'].data * ewoii
-        #    elif self.normline == 'HBETA':
-        #        ewhbeta = 10.0**(np.polyval(self.ewhbetacoeff, d4000) + \
-        #                         rand.normal(0.0, 0.2, nbase)) * \
-        #                         self.basemeta['HBETA_LIMIT'].data # rest-frame H-beta, Angstrom
-        #        #ewhbeta = self.ewhbetamog.sample(n_samples=(nmodel, nbase), random_state=rand)
-        #
-        #        normlineflux = self.basemeta['HBETA_CONTINUUM'].data * ewhbeta
-        #    else:
-        #        log.fatal('Unrecognized NORMLINE {}'.format(self.normline))
-        #        raise ValueError
-        #
-        #    for key, value in zip(('OIIIHBETA', 'OIIHBETA', 'NIIHBETA', 'SIIHBETA', 'OIIDOUBLET'),
-        #                          (oiiihbeta, oiihbeta, niihbeta, siihbeta, oiidoublet)):
-        #        meta[key] = value
-        
         # Build each spectrum in turn.
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
         for ii in range(nmodel):
@@ -1234,10 +1199,9 @@ class SUPERSTAR(object):
                 # If the color-cuts pass then populate the output flux vector
                 # (suitably normalized) and metadata table and finish up.
                 if np.any(colormask):
-                    if input_meta is not None:
-                        rand = np.random.RandomState(templateseed[ii])
+                    templaterand = np.random.RandomState(templateseed[ii])
                         
-                    this = rand.choice(np.where(colormask)[0]) # Pick one randomly.
+                    this = templaterand.choice(np.where(colormask)[0]) # Pick one randomly.
                     tempid = templateid[this]
 
                     outflux[ii, :] = resample_flux(self.wave, zwave, restflux[this, :]) * magnorm[this]
