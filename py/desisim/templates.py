@@ -1257,7 +1257,8 @@ class SUPERSTAR(object):
 class STAR(SUPERSTAR):
     """Generate Monte Carlo spectra of generic stars."""
 
-    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None):
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
+                 colorcuts_function=None, normfilter='decam2014-r'):
         """Initialize the STAR class.  See the SUPERSTAR.__init__ method for
         documentation on the arguments plus the inherited attributes.
 
@@ -1273,8 +1274,8 @@ class STAR(SUPERSTAR):
 
         """
         super(STAR, self).__init__(objtype='STAR', minwave=minwave, maxwave=maxwave,
-                                   cdelt=cdelt, wave=wave, colorcuts_function=None,
-                                   normfilter='decam2014-r')
+                                   cdelt=cdelt, wave=wave, colorcuts_function=colorcuts_function,
+                                   normfilter=normfilter)
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                        rmagrange=(18.0, 23.5), seed=None, redshift=None,
