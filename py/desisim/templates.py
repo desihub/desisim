@@ -1332,7 +1332,7 @@ class FSTD(SUPERSTAR):
 
         """
         if colorcuts_function is None:
-            from desitarget.cuts import isFSTD_colors
+            from desitarget.cuts import isFSTD_colors as colorcuts_function
         
         super(FSTD, self).__init__(objtype='FSTD', minwave=minwave, maxwave=maxwave,
                                    cdelt=cdelt, wave=wave, colorcuts_function=colorcuts_function,
@@ -1387,7 +1387,7 @@ class MWS_STAR(SUPERSTAR):
 
         """
         if colorcuts_function is None:
-            from desitarget.cuts import isMWSSTAR_colors
+            from desitarget.cuts import isMWSSTAR_colors as colorcuts_function
         super(MWS_STAR, self).__init__(objtype='MWS_STAR', minwave=minwave, maxwave=maxwave,
                                        cdelt=cdelt, wave=wave, colorcuts_function=colorcuts_function,
                                        normfilter=normfilter)
