@@ -800,7 +800,8 @@ class GALAXY(object):
 class ELG(GALAXY):
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs)."""
     
-    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None, add_SNeIa=False):
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
+                 add_SNeIa=False, normfilter='decam2014-r', colorcuts_function=None):
         """Initialize the ELG class.  See the GALAXY.__init__ method for documentation
          on the arguments plus the inherited attributes.
 
@@ -818,11 +819,12 @@ class ELG(GALAXY):
         Raises:
 
         """
-        from desitarget.cuts import isELG
+        if colorcuts_function is None:
+            from desitarget.cuts import isELG as colorcuts_function
+            
         super(ELG, self).__init__(objtype='ELG', minwave=minwave, maxwave=maxwave,
-                                  cdelt=cdelt, wave=wave, colorcuts_function=isELG,
-                                  normfilter='decam2014-r', normline='OII',
-                                  add_SNeIa=add_SNeIa)
+                                  cdelt=cdelt, wave=wave, colorcuts_function=colorcuts_function,
+                                  normfilter=normfilter, normline='OII', add_SNeIa=add_SNeIa)
 
         self.ewoiicoeff = [1.34323087, -5.02866474, 5.43842874]
 
