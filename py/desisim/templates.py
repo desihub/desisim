@@ -873,7 +873,8 @@ class ELG(GALAXY):
 class BGS(GALAXY):
     """Generate Monte Carlo spectra of bright galaxy survey galaxies (BGSs)."""
     
-    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None, add_SNeIa=False):
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
+                 add_SNeIa=False, normfilter='decam2014-r', colorcuts_function=None):
         """Initialize the BGS class.  See the GALAXY.__init__ method for documentation
          on the arguments plus the inherited attributes.
 
@@ -891,11 +892,12 @@ class BGS(GALAXY):
         Raises:
 
         """
-        from desitarget.cuts import isBGS
+        if colorcuts_function is None:
+            from desitarget.cuts import isBGS as colorcuts_function
+
         super(BGS, self).__init__(objtype='BGS', minwave=minwave, maxwave=maxwave,
-                                  cdelt=cdelt, wave=wave, colorcuts_function=isBGS,
-                                  normfilter='decam2014-r', normline='HBETA',
-                                  add_SNeIa=add_SNeIa)
+                                  cdelt=cdelt, wave=wave, colorcuts_function=colorcuts_function,
+                                  normfilter=normfilter, normline='HBETA', add_SNeIa=add_SNeIa)
 
         self.ewhbetacoeff = [1.28520974, -4.94408026, 4.9617704]
 
@@ -944,7 +946,8 @@ class BGS(GALAXY):
 class LRG(GALAXY):
     """Generate Monte Carlo spectra of luminous red galaxies (LRGs)."""
     
-    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None, add_SNeIa=False):
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
+                 add_SNeIa=False, normfilter='decam2014-z', colorcuts_function=None):
         """Initialize the LRG class.  See the GALAXY.__init__ method for documentation
         on the arguments plus the inherited attributes.
 
@@ -960,11 +963,12 @@ class LRG(GALAXY):
         Raises:
 
         """
-        from desitarget.cuts import isLRG
+        if colorcuts_function is None:
+            from desitarget.cuts import isLRG as colorcuts_function
+
         super(LRG, self).__init__(objtype='LRG', minwave=minwave, maxwave=maxwave,
-                                  cdelt=cdelt, wave=wave, colorcuts_function=isLRG,
-                                  normfilter='decam2014-z', normline=None,
-                                  add_SNeIa=add_SNeIa)
+                                  cdelt=cdelt, wave=wave, colorcuts_function=colorcuts_function,
+                                  normfilter=normfilter, normline=None, add_SNeIa=add_SNeIa)
 
     def make_templates(self, nmodel=100, zrange=(0.5, 1.0), zmagrange=(19.0, 20.5),
                        logvdisp_meansig=(2.3, 0.1), sne_rfluxratiorange=(0.1, 1.0),
@@ -1260,7 +1264,7 @@ class STAR(SUPERSTAR):
     """Generate Monte Carlo spectra of generic stars."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
-                 colorcuts_function=None, normfilter='decam2014-r'):
+                 normfilter='decam2014-r', colorcuts_function=None):
         """Initialize the STAR class.  See the SUPERSTAR.__init__ method for
         documentation on the arguments plus the inherited attributes.
 
@@ -1311,7 +1315,8 @@ class FSTD(SUPERSTAR):
     stars (FSTD).
 
     """
-    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None):
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
+                 normfilter='decam2014-r', colorcuts_function=None):
         """Initialize the FSTD class.  See the SUPERSTAR.__init__ method for
         documentation on the arguments plus the inherited attributes.
 
@@ -1326,10 +1331,12 @@ class FSTD(SUPERSTAR):
         Raises:
 
         """
-        from desitarget.cuts import isFSTD_colors
+        if colorcuts_function is None:
+            from desitarget.cuts import isFSTD_colors
+        
         super(FSTD, self).__init__(objtype='FSTD', minwave=minwave, maxwave=maxwave,
-                                   cdelt=cdelt, wave=wave, colorcuts_function=isFSTD_colors,
-                                   normfilter='decam2014-r')
+                                   cdelt=cdelt, wave=wave, colorcuts_function=colorcuts_function,
+                                   normfilter=normfilter)
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                        rmagrange=(16.0, 19.0), seed=None, redshift=None,
@@ -1363,7 +1370,8 @@ class MWS_STAR(SUPERSTAR):
     stars.
 
     """
-    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None):
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
+                 normfilter='decam2014-r', colorcuts_function=None):                 
         """Initialize the MWS_STAR class.  See the SUPERSTAR.__init__ method for
         documentation on the arguments plus the inherited attributes.
 
@@ -1378,10 +1386,11 @@ class MWS_STAR(SUPERSTAR):
         Raises:
 
         """
-        from desitarget.cuts import isMWSSTAR_colors
+        if colorcuts_function is None:
+            from desitarget.cuts import isMWSSTAR_colors
         super(MWS_STAR, self).__init__(objtype='MWS_STAR', minwave=minwave, maxwave=maxwave,
-                                       cdelt=cdelt, wave=wave, colorcuts_function=isMWSSTAR_colors,
-                                       normfilter='decam2014-r')
+                                       cdelt=cdelt, wave=wave, colorcuts_function=colorcuts_function,
+                                       normfilter=normfilter)
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                        rmagrange=(16.0, 20.0), seed=None, redshift=None,
@@ -1413,7 +1422,8 @@ class MWS_STAR(SUPERSTAR):
 class WD(SUPERSTAR):
     """Generate Monte Carlo spectra of white dwarfs."""
 
-    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None):
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
+                 normfilter='decam2014-g', colorcuts_function=None):                 
         """Initialize the WD class.  See the SUPERSTAR.__init__ method for documentation
         on the arguments plus the inherited attributes.
 
@@ -1430,8 +1440,8 @@ class WD(SUPERSTAR):
         """
 
         super(WD, self).__init__(objtype='WD', minwave=minwave, maxwave=maxwave,
-                                 cdelt=cdelt, wave=wave, colorcuts_function=None,
-                                 normfilter='decam2014-g')
+                                 cdelt=cdelt, wave=wave, colorcuts_function=colorcuts_function,
+                                 normfilter=normfilter)
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                        gmagrange=(16.0, 19.0), seed=None, redshift=None,
@@ -1464,7 +1474,7 @@ class QSO():
     """Generate Monte Carlo spectra of quasars (QSOs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
-                 colorcuts_function=None, normfilter='decam2014-r', z_wind=0.2):
+                 normfilter='decam2014-r', colorcuts_function=None, z_wind=0.2):
         """Read the QSO basis continuum templates, filter profiles and initialize the
            output wavelength array.
 
@@ -1509,8 +1519,8 @@ class QSO():
         self.objtype = 'QSO'
         
         if colorcuts_function is None:
-            from desitarget.cuts import isQSO
-            self.colorcuts_function = isQSO
+            from desitarget.cuts import isQSO as colorcuts_function
+            self.colorcuts_function = colorcuts_function
             
         log.warning('Color-cuts not yet supported for QSOs!')
         self.colorcuts_function = None 
