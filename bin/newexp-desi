@@ -66,7 +66,7 @@ if opts.night is None:
     opts.night = obs.get_night(utc=time.gmtime())
 
 opts.flavor = opts.flavor.lower()
-if opts.flavor not in ['arc','flat','dark','gray','grey','bright','bgs','mws','lrg','elg','qso']:
+if opts.flavor not in ['arc','flat','dark','gray','grey','bright','bgs','mws','lrg','elg','qso','std']:
     log.fatal('ERROR: unknown flavor {}'.format(opts.flavor))
     sys.exit(1)
 
@@ -79,7 +79,7 @@ if opts.exptime is None:
         opts.exptime = 10
     elif opts.flavor in ('bright', 'mws', 'bgs'):
         opts.exptime = 300
-    elif opts.flavor in ('dark', 'elg', 'lrg', 'qso', 'gray', 'grey'):
+    elif opts.flavor in ('dark', 'elg', 'lrg', 'qso', 'gray', 'grey', 'std'):
         opts.exptime = 1000
     else:
         print('Do not know the default exposure time for flavor' + opts.flavor)
