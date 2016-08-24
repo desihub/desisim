@@ -733,7 +733,7 @@ def empty_metatable(nmodel=1, objtype='ELG', add_SNeIa=None):
     meta.add_column(Column(name='SEED', length=nmodel, dtype='int64',
                            data=np.zeros(nmodel)-1))
     meta.add_column(Column(name='REDSHIFT', length=nmodel, dtype='f4',
-                           data=np.zeros(nmodel)-1))
+                           data=np.zeros(nmodel)))
     meta.add_column(Column(name='MAG', length=nmodel, dtype='f4',
                            data=np.zeros(nmodel)-1))
     meta.add_column(Column(name='DECAM_FLUX', shape=(6,), length=nmodel, dtype='f4'))
