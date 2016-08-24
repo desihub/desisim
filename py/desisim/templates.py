@@ -1261,7 +1261,7 @@ class STAR(SUPERSTAR):
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                        rmagrange=(18.0, 23.5), seed=None, redshift=None,
-                       mag=None, input_meta=None):
+                       mag=None, input_meta=None, input_data=None):
         """Build Monte Carlo spectra/templates for generic stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
@@ -1283,7 +1283,7 @@ class STAR(SUPERSTAR):
         """
         outflux, wave, meta = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
                                                        magrange=rmagrange, seed=seed, redshift=redshift,
-                                                       mag=mag, input_meta=input_meta)
+                                                       mag=mag, input_meta=input_meta, input_data=input_data)
         return outflux, wave, meta
     
 class FSTD(SUPERSTAR):
@@ -1316,9 +1316,9 @@ class FSTD(SUPERSTAR):
                                    normfilter=normfilter, baseflux=baseflux, basewave=basewave,
                                    basemeta=basemeta)
 
-    def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
-                       rmagrange=(16.0, 19.0), seed=None, redshift=None,
-                       mag=None, input_meta=None, nocolorcuts=False):
+    def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), rmagrange=(16.0, 19.0),
+                       seed=None, redshift=None, mag=None, input_meta=None, input_data=None,
+                       nocolorcuts=False):
         """Build Monte Carlo spectra/templates for FSTD stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
@@ -1340,7 +1340,8 @@ class FSTD(SUPERSTAR):
         """
         outflux, wave, meta = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
                                                        magrange=rmagrange, seed=seed, redshift=redshift,
-                                                       mag=mag, input_meta=input_meta, nocolorcuts=nocolorcuts)
+                                                       mag=mag, input_meta=input_meta, input_data=input_data,
+                                                       nocolorcuts=nocolorcuts)
         return outflux, wave, meta
     
 class MWS_STAR(SUPERSTAR):
@@ -1372,9 +1373,9 @@ class MWS_STAR(SUPERSTAR):
                                        normfilter=normfilter, baseflux=baseflux, basewave=basewave,
                                        basemeta=basemeta)
 
-    def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
-                       rmagrange=(16.0, 20.0), seed=None, redshift=None,
-                       mag=None, input_meta=None, nocolorcuts=False):
+    def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), rmagrange=(16.0, 20.0),
+                       seed=None, redshift=None, mag=None, input_meta=None, input_data=None,
+                       nocolorcuts=False):
         """Build Monte Carlo spectra/templates for MWS_STAR stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
@@ -1396,7 +1397,8 @@ class MWS_STAR(SUPERSTAR):
         """
         outflux, wave, meta = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
                                                        magrange=rmagrange, seed=seed, redshift=redshift,
-                                                       mag=mag, input_meta=input_meta, nocolorcuts=nocolorcuts)
+                                                       mag=mag, input_meta=input_meta, input_data=input_data,
+                                                       nocolorcuts=nocolorcuts)
         return outflux, wave, meta
     
 class WD(SUPERSTAR):
@@ -1425,9 +1427,9 @@ class WD(SUPERSTAR):
                                  normfilter=normfilter, baseflux=baseflux, basewave=basewave,
                                  basemeta=basemeta)
 
-    def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
-                       gmagrange=(16.0, 19.0), seed=None, redshift=None,
-                       mag=None, input_meta=None, nocolorcuts=False):
+    def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), gmagrange=(16.0, 19.0),
+                       seed=None, redshift=None, mag=None, input_meta=None, input_data=None,
+                       nocolorcuts=False):
         """Build Monte Carlo spectra/templates for WD stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
@@ -1449,7 +1451,8 @@ class WD(SUPERSTAR):
         """
         outflux, wave, meta = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
                                                        magrange=gmagrange, seed=seed, redshift=redshift,
-                                                       mag=mag, input_meta=input_meta, nocolorcuts=nocolorcuts)
+                                                       mag=mag, input_meta=input_meta, input_data=input_data,
+                                                       nocolorcuts=nocolorcuts)
         return outflux, wave, meta
     
 class QSO():
