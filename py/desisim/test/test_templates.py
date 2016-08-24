@@ -141,7 +141,7 @@ class TestTemplates(unittest.TestCase):
             flux2, wave2, meta2 = Tx.make_templates(input_meta=meta1)
             badkeys = list()
             for key in meta1.colnames:
-                if key in ('DECAM_FLUX', 'WISE_FLUX', 'OIIFLUX'):
+                if key in ('DECAM_FLUX', 'WISE_FLUX', 'OIIFLUX', 'HBETAFLUX'):
                     if not np.allclose(meta1[key], meta2[key]):
                         badkeys.append(key)
                 else:

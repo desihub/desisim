@@ -18,7 +18,7 @@ import desisim.io
 import specsim.simulator
 import astropy.units as u
 from desispec.resolution import Resolution
-from desispec.io import write_flux_calibration, write_fiberflat, fibermap
+from desispec.io import write_flux_calibration, write_fiberflat, read_fibermap
 from desispec.interpolation import resample_flux
 from desispec.frame import Frame
 from desispec.fiberflat import FiberFlat
@@ -77,8 +77,8 @@ def main(args=None):
     if args.fibermap:
 
         print "Reading fibermap file %s"%(args.fibermap)
-        tbdata,hdr=fibermap.read_fibermap(args.fibermap, header=True)
-        objtype=tbdata['OBJTYPE'].copy()
+        fibermap,hdr=read_fibermap(args.fibermap, header=True)
+        objtype=fibermap['OBJTYPE'].copy()
         #need to replace STD and MWS_STAR object types with STAR and BGS object types with LRG since quicksim expects star instead of std or mws_star and LRG instead of BGS
         stdindx=np.where(objtype=='STD') # match STD with STAR
         mwsindx=np.where(objtype=='MWS_STAR') # match MWS_STAR with STAR
@@ -188,7 +188,7 @@ def main(args=None):
             meanspec = resample_flux(
                 waves[channel], simspec.wave[channel],
                 np.average(simspec.phot[channel]/dw, axis=0))
-            fiberflat = random_state.normal(
+            fiberflat = random_state.normal(loc=1.0, 
                 scale=1.0 / np.sqrt(meanspec), size=(nspec, num_pixels))
             ivar = np.tile(1.0 / meanspec, [nspec, 1])
             mask = np.zeros((simspec.nspec, num_pixels), dtype=np.uint32)
@@ -204,7 +204,8 @@ def main(args=None):
 
                 ff = FiberFlat(
                     waves[channel], fiberflat[start:end,:],
-                    ivar[start:end,:], mask[start:end,:], meanspec)
+                    ivar[start:end,:], mask[start:end,:], meanspec,
+                    header=dict(CAMERA=camera))
                 write_fiberflat(outfile, ff)
         filePath=os.path.join(prod_Dir,'calib2d',NIGHT)
         print "Wrote files to", filePath
@@ -444,7 +445,9 @@ def main(args=None):
                     resol=resolution_data[channel][-sh1:,:,:]
 
                 # create frame file. first create desispec.Frame object
-                frame=Frame(waves[channel],frame_flux,frame_ivar,resolution_data=resol,spectrograph=ii)
+                frame=Frame(waves[channel], frame_flux, frame_ivar,\
+                    resolution_data=resol, spectrograph=ii, \
+                    fibermap=fibermap[start:end], meta=dict(CAMERA=camera) )
                 desispec.io.write_frame(framefileName, frame)
 
     ############--------------------------------------------------------
@@ -455,7 +458,9 @@ def main(args=None):
                 cframeIvar=cframe_ivar[start:end,armName[channel],:num_pixels]
 
                 # write cframe file
-                cframe = Frame(waves[channel], cframeFlux, cframeIvar, resolution_data=resol,spectrograph=ii)
+                cframe = Frame(waves[channel], cframeFlux, cframeIvar, \
+                    resolution_data=resol, spectrograph=ii,
+                    fibermap=fibermap[start:end], meta=dict(CAMERA=camera) )
                 desispec.io.frame.write_frame(cframeFileName,cframe)
 
     ############-----------------------------------------------------
@@ -468,7 +473,8 @@ def main(args=None):
                 skymask=np.zeros(skyflux.shape, dtype=np.uint32)
 
                 # write sky file
-                skymodel = SkyModel(waves[channel], skyflux, skyivar, skymask)
+                skymodel = SkyModel(waves[channel], skyflux, skyivar, skymask,
+                    header=dict(CAMERA=camera))
                 desispec.io.sky.write_sky(skyfileName, skymodel)
 
     ############----------------------------------------------------------
