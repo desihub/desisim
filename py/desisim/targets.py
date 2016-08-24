@@ -363,17 +363,6 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
         truth['UNITS'] = '1e-17 erg/s/cm2/A'
         truth['META'][ii] = meta
 
-        #success = (np.sum(truth['FLUX'][ii], axis=1) > 0)*1
-        #fix = np.where(success == 0)[0]
-        #if len(fix) > 0:
-        #    import pdb ; pdb.set_trace()
-        
-        # Pack in the photometry.  This needs updating!
-        # grz = 22.5-2.5*np.log10(meta['DECAM_FLUX'].data.flatten()[[1, 2, 4]])
-        # wise = 22.5-2.5*np.log10(meta['WISE_FLUX'].data.flatten()[[0, 1]])
-        # fibermap['MAG'][ii, :6] = np.vstack(np.hstack([grz, wise])).T
-        # fibermap['FILTER'][ii, :6] = ['DECAM_G', 'DECAM_R', 'DECAM_Z', 'WISE_W1', 'WISE_W2']
-
         ugrizy = 22.5-2.5*np.log10(meta['DECAM_FLUX'].data)
         wise = 22.5-2.5*np.log10(meta['WISE_FLUX'].data)
         fibermap['FILTER'][ii, :6] = ['DECAM_G', 'DECAM_R', 'DECAM_Z', 'WISE_W1', 'WISE_W2']
@@ -382,11 +371,6 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
         fibermap['MAG'][ii, 2] = ugrizy[:, 4]
         fibermap['MAG'][ii, 3] = wise[:, 0]
         fibermap['MAG'][ii, 4] = wise[:, 1]
-
-    ## Only store the metadata table for non-sky spectra.
-    #notsky = np.where(true_objtype != 'SKY')[0]
-    #if len(notsky) > 0:
-    #    truth['META'] = truth['META'][notsky]
 
     #- Load fiber -> positioner mapping and tile information
     fiberpos = desimodel.io.load_fiberpos()
