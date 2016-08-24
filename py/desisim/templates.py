@@ -1056,7 +1056,8 @@ class SUPERSTAR(object):
 
     def make_star_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                             magrange=(18.0, 23.5), seed=None, redshift=None,
-                            mag=None, input_meta=None, nocolorcuts=False):
+                            mag=None, input_meta=None, input_data=None,
+                            nocolorcuts=False):
 
         """Build Monte Carlo spectra/templates for various flavors of stars.
 
@@ -1071,11 +1072,16 @@ class SUPERSTAR(object):
         GALAXY.__init__ method) inputs.  Alternatively, the user can pass a
         complete metadata table, in order to easily regenerate spectra
         on-the-fly (see the documentation for the input_meta argument, below).
+        Finally, the user can pass an input_data table in order to interpolate
+        the base templates to non-gridded values of [Fe/H], logg, and Teff.
 
         Note:
-          The default inputs are generally set to values which are appropriate
-          for generic stars, so be sure to alter them when generating templates
-          for other spectral classes.
+          * The default inputs are generally set to values which are appropriate
+            for generic stars, so be sure to alter them when generating
+            templates for other spectral classes.
+
+          * If both input_meta and input_data are passed, then input_data is
+            ignored.
 
         Args:
           nmodel (int, optional): Number of models to generate (default 100).
@@ -1101,6 +1107,13 @@ class SUPERSTAR(object):
             then all other optional inputs (nmodel, redshift, mag, vrad_meansig,
             etc.) are ignored.
         
+          input_data (astropy.Table): *Input* table with the following required
+            columns: TEFF, LOGG, and FEH.  Optionally, SEED can also be included
+            in the table.  When this table is passed, the basis templates are
+            interpolated to the desired physical values provided.  Combined with
+            the REDSHIFT and MAG optional inputs, this capability allows large
+            numbers of mock stellar spectra to be generated.
+
           nocolorcuts (bool, optional): Do not apply the color-cuts specified by
             the self.colorcuts_function function (default False).
 
@@ -1131,33 +1144,55 @@ class SUPERSTAR(object):
 
         # Optionally unpack a metadata table.
         if input_meta is not None:
+            nmodel = len(input_meta)
+            meta = empty_metatable(nmodel, self.objtype)
+
             templateseed = input_meta['SEED'].data
             redshift = input_meta['REDSHIFT'].data
             mag = input_meta['MAG'].data
 
             nchunk = 1
-            nmodel = len(input_meta)
             alltemplateid_chunk = [input_meta['TEMPLATEID'].data.reshape(nmodel, 1)]
-
-            meta = empty_metatable(nmodel, self.objtype)
-        else:
-            meta = empty_metatable(nmodel, self.objtype)
             
-            # Initialize the random seed.
-            rand = np.random.RandomState(seed)
-            templateseed = rand.randint(2**32, size=nmodel)
+        else:
+            if input_data is not None:
+                nmodel = len(input_data)
+                
+                if 'SEED' in input_data.keys():
+                    templateseed = input_data['SEED'].data
+                else:
+                    rand = np.random.RandomState(seed)
+                    templateseed = rand.randint(2**32, size=nmodel)
 
-            # Shuffle the basis templates and then split them into ~equal chunks, so
-            # we can speed up the calculations below.
-            chunksize = np.min((nbase, 50))
-            nchunk = long(np.ceil(nbase / chunksize))
+                if 'FEH' in self.basemeta.columns:
+                    base_properties  = np.array([self.basemeta['LOGG'], self.basemeta['TEFF'],
+                                                 self.basemeta['FEH']]).T.astype('f4')
+                    input_properties = (input_data['LOGG'].data, input_data['TEFF'].data,
+                                        input_data['FEH'].data)
+                else:
+                    base_properties  = np.array([self.basemeta['LOGG'], self.basemeta['TEFF']]).T.astype('f4')
+                    input_properties = (input_data['LOGG'].data, input_data['TEFF'].data)
+                
+                nchunk = 1
+                alltemplateid_chunk = [np.arange(nmodel).reshape(nmodel, 1)]
+            else:
+                # Initialize the random seed.
+                rand = np.random.RandomState(seed)
+                templateseed = rand.randint(2**32, size=nmodel)
 
-            alltemplateid = np.tile(np.arange(nbase), (nmodel, 1))
-            for tempid in alltemplateid:
-                rand.shuffle(tempid)
-            alltemplateid_chunk = np.array_split(alltemplateid, nchunk, axis=1)
+                # Shuffle the basis templates and then split them into ~equal chunks, so
+                # we can speed up the calculations below.
+                chunksize = np.min((nbase, 50))
+                nchunk = long(np.ceil(nbase / chunksize))
 
-            # Assign radial velocity and magnitude priors.
+                alltemplateid = np.tile(np.arange(nbase), (nmodel, 1))
+                for tempid in alltemplateid:
+                    rand.shuffle(tempid)
+                alltemplateid_chunk = np.array_split(alltemplateid, nchunk, axis=1)
+
+            # Initialize the metadata table and then assign radial velocity and
+            # magnitude priors.
+            meta = empty_metatable(nmodel, self.objtype)
             if redshift is None:
                 if vrad_meansig[1] > 0:
                     vrad = rand.normal(vrad_meansig[0], vrad_meansig[1], nmodel)
@@ -1174,6 +1209,14 @@ class SUPERSTAR(object):
                                (redshift, mag, templateseed)):
             meta[key] = value
 
+        # Optionally interpolate onto a non-uniform grid.
+        if input_data is None:
+            baseflux = self.baseflux
+        else:
+            from scipy.interpolate import griddata
+            baseflux = griddata(base_properties, self.baseflux,
+                                input_properties, method='linear')
+
         # Build each spectrum in turn.
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
         for ii in range(nmodel):
@@ -1185,7 +1228,7 @@ class SUPERSTAR(object):
                 templateid = alltemplateid_chunk[ichunk][ii, :]
                 nbasechunk = len(templateid)
                 
-                restflux = self.baseflux[templateid, :]
+                restflux = baseflux[templateid, :]
 
                 # Synthesize photometry to determine which models will pass the
                 # color-cuts.
@@ -1217,14 +1260,23 @@ class SUPERSTAR(object):
                     outflux[ii, :] = resample_flux(self.wave, zwave, restflux[this, :]) * magnorm[this]
 
                     meta['TEMPLATEID'][ii] = tempid
-                    meta['TEFF'][ii] = self.basemeta['TEFF'][tempid]
-                    meta['LOGG'][ii] = self.basemeta['LOGG'][tempid]
-                    if 'FEH' in self.basemeta.columns:
-                        meta['FEH'][ii] = self.basemeta['FEH'][tempid]
                     meta['DECAM_FLUX'][ii] = synthnano[this, :6]
-                    meta['WISE_FLUX'][ii] = synthnano[this, 6:8]
+                    meta['WISE_FLUX'][ii] = synthnano[this, 6:8]                    
 
+                    if input_data is None:
+                        meta['TEFF'][ii] = self.basemeta['TEFF'][tempid]
+                        meta['LOGG'][ii] = self.basemeta['LOGG'][tempid]
+                        if 'FEH' in self.basemeta.columns:
+                            meta['FEH'][ii] = self.basemeta['FEH'][tempid]
+                    else:
+                        meta['TEFF'][ii] = input_properties[1][tempid]
+                        meta['LOGG'][ii] = input_properties[0][tempid]
+                        if 'FEH' in self.basemeta.columns:
+                            meta['FEH'][ii] = input_properties[2][tempid]
+                            
                     break
+
+                    #import pdb ; pdb.set_trace()                    
 
         # Check to see if any spectra could not be computed.
         success = (np.sum(outflux, axis=1) > 0)*1
@@ -1459,7 +1511,7 @@ class QSO():
     """Generate Monte Carlo spectra of quasars (QSOs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
-                 normfilter='decam2014-r', colorcuts_function=None, z_wind=0.2)
+                 normfilter='decam2014-r', colorcuts_function=None, z_wind=0.2):
         """Read the QSO basis continuum templates, filter profiles and initialize the
            output wavelength array.
 
