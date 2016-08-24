@@ -336,8 +336,14 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
         # For a "bad" QSO simulate a normal star without color cuts, which isn't
         # right. We need to apply the QSO color-cuts to the normal stars to pull
         # out the correct population of contaminating stars.
+        
+        # Note by @moustakas: we can now do this using desisim/#150, but we are
+        # going to need 'noisy' photometry (because the QSO color-cuts
+        # explicitly avoid the stellar locus).
         elif objtype == 'QSO_BAD':
             from desisim.templates import STAR
+            #from desitarget.cuts import isQSO
+            #star = STAR(wave=wave, colorcuts_function=isQSO)
             star = STAR(wave=wave)
             simflux, wave1, meta = star.make_templates(nmodel=nobj, seed=seed)
             fibermap['DESI_TARGET'][ii] = desi_mask.QSO
