@@ -1055,7 +1055,7 @@ class SUPERSTAR(object):
 
     def make_star_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                             magrange=(18.0, 23.5), seed=None, redshift=None,
-                            mag=None, input_meta=None, input_data=None,
+                            mag=None, input_meta=None, star_properties=None,
                             nocolorcuts=False):
 
         """Build Monte Carlo spectra/templates for various flavors of stars.
@@ -1071,16 +1071,17 @@ class SUPERSTAR(object):
         GALAXY.__init__ method) inputs.  Alternatively, the user can pass a
         complete metadata table, in order to easily regenerate spectra
         on-the-fly (see the documentation for the input_meta argument, below).
-        Finally, the user can pass an input_data table in order to interpolate
-        the base templates to non-gridded values of [Fe/H], logg, and Teff.
+        Finally, the user can pass a star_properties table in order to
+        interpolate the base templates to non-gridded values of [Fe/H], logg,
+        and Teff.
 
         Note:
           * The default inputs are generally set to values which are appropriate
             for generic stars, so be sure to alter them when generating
             templates for other spectral classes.
 
-          * If both input_meta and input_data are passed, then input_data is
-            ignored.
+          * If both input_meta and star_properties are passed, then
+            star_properties is ignored.
 
         Args:
           nmodel (int, optional): Number of models to generate (default 100).
@@ -1106,10 +1107,10 @@ class SUPERSTAR(object):
             then all other optional inputs (nmodel, redshift, mag, vrad_meansig,
             etc.) are ignored.
         
-          input_data (astropy.Table): *Input* table with the following required
-            columns: REDSHIFT, MAG, TEFF, LOGG, and FEH (except for WDs, which
-            don't need to have an FEH column).  Optionally, SEED can also be
-            included in the table.  When this table is passed, the basis
+          star_properties (astropy.Table): *Input* table with the following
+            required columns: REDSHIFT, MAG, TEFF, LOGG, and FEH (except for
+            WDs, which don't need to have an FEH column).  Optionally, SEED can
+            also be included in the table.  When this table is passed, the basis
             templates are interpolated to the desired physical values provided,
             enabling large numbers of mock stellar spectra to be generated with
             physically consistent properties.
@@ -1144,14 +1145,14 @@ class SUPERSTAR(object):
             alltemplateid_chunk = [input_meta['TEMPLATEID'].data.reshape(nmodel, 1)]
             
         else:
-            if input_data is not None:
-                nmodel = len(input_data)
+            if star_properties is not None:
+                nmodel = len(star_properties)
 
-                redshift = input_data['REDSHIFT'].data
-                mag = input_data['MAG'].data
+                redshift = star_properties['REDSHIFT'].data
+                mag = star_properties['MAG'].data
                 
-                if 'SEED' in input_data.keys():
-                    templateseed = input_data['SEED'].data
+                if 'SEED' in star_properties.keys():
+                    templateseed = star_properties['SEED'].data
                 else:
                     rand = np.random.RandomState(seed)
                     templateseed = rand.randint(2**32, size=nmodel)
@@ -1159,11 +1160,11 @@ class SUPERSTAR(object):
                 if 'FEH' in self.basemeta.columns:
                     base_properties  = np.array([self.basemeta['LOGG'], self.basemeta['TEFF'],
                                                  self.basemeta['FEH']]).T.astype('f4')
-                    input_properties = (input_data['LOGG'].data, input_data['TEFF'].data,
-                                        input_data['FEH'].data)
+                    input_properties = (star_properties['LOGG'].data, star_properties['TEFF'].data,
+                                        star_properties['FEH'].data)
                 else:
                     base_properties  = np.array([self.basemeta['LOGG'], self.basemeta['TEFF']]).T.astype('f4')
-                    input_properties = (input_data['LOGG'].data, input_data['TEFF'].data)
+                    input_properties = (star_properties['LOGG'].data, star_properties['TEFF'].data)
                 
                 nchunk = 1
                 alltemplateid_chunk = [np.arange(nmodel).reshape(nmodel, 1)]
@@ -1214,7 +1215,7 @@ class SUPERSTAR(object):
             meta[key] = value
 
         # Optionally interpolate onto a non-uniform grid.
-        if input_data is None:
+        if star_properties is None:
             baseflux = self.baseflux
         else:
             from scipy.interpolate import griddata
@@ -1272,7 +1273,7 @@ class SUPERSTAR(object):
                     meta['DECAM_FLUX'][ii] = synthnano[this, :6]
                     meta['WISE_FLUX'][ii] = synthnano[this, 6:8]                    
 
-                    if input_data is None:
+                    if star_properties is None:
                         meta['TEFF'][ii] = self.basemeta['TEFF'][tempid]
                         meta['LOGG'][ii] = self.basemeta['LOGG'][tempid]
                         if 'FEH' in self.basemeta.columns:
@@ -1320,7 +1321,7 @@ class STAR(SUPERSTAR):
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                        rmagrange=(18.0, 23.5), seed=None, redshift=None,
-                       mag=None, input_meta=None, input_data=None):
+                       mag=None, input_meta=None, star_properties=None):
         """Build Monte Carlo spectra/templates for generic stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
@@ -1342,7 +1343,8 @@ class STAR(SUPERSTAR):
         """
         outflux, wave, meta = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
                                                        magrange=rmagrange, seed=seed, redshift=redshift,
-                                                       mag=mag, input_meta=input_meta, input_data=input_data)
+                                                       mag=mag, input_meta=input_meta,
+                                                       star_properties=star_properties)
         return outflux, wave, meta
     
 class FSTD(SUPERSTAR):
@@ -1376,7 +1378,7 @@ class FSTD(SUPERSTAR):
                                    basemeta=basemeta)
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), rmagrange=(16.0, 19.0),
-                       seed=None, redshift=None, mag=None, input_meta=None, input_data=None,
+                       seed=None, redshift=None, mag=None, input_meta=None, star_properties=None,
                        nocolorcuts=False):
         """Build Monte Carlo spectra/templates for FSTD stars.
 
@@ -1399,7 +1401,8 @@ class FSTD(SUPERSTAR):
         """
         outflux, wave, meta = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
                                                        magrange=rmagrange, seed=seed, redshift=redshift,
-                                                       mag=mag, input_meta=input_meta, input_data=input_data,
+                                                       mag=mag, input_meta=input_meta,
+                                                       star_properties=star_properties,
                                                        nocolorcuts=nocolorcuts)
         return outflux, wave, meta
     
@@ -1433,7 +1436,7 @@ class MWS_STAR(SUPERSTAR):
                                        basemeta=basemeta)
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), rmagrange=(16.0, 20.0),
-                       seed=None, redshift=None, mag=None, input_meta=None, input_data=None,
+                       seed=None, redshift=None, mag=None, input_meta=None, star_properties=None,
                        nocolorcuts=False):
         """Build Monte Carlo spectra/templates for MWS_STAR stars.
 
@@ -1456,7 +1459,8 @@ class MWS_STAR(SUPERSTAR):
         """
         outflux, wave, meta = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
                                                        magrange=rmagrange, seed=seed, redshift=redshift,
-                                                       mag=mag, input_meta=input_meta, input_data=input_data,
+                                                       mag=mag, input_meta=input_meta,
+                                                       star_properties=star_properties,
                                                        nocolorcuts=nocolorcuts)
         return outflux, wave, meta
     
@@ -1487,7 +1491,7 @@ class WD(SUPERSTAR):
                                  basemeta=basemeta)
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), gmagrange=(16.0, 19.0),
-                       seed=None, redshift=None, mag=None, input_meta=None, input_data=None,
+                       seed=None, redshift=None, mag=None, input_meta=None, star_properties=None,
                        nocolorcuts=False):
         """Build Monte Carlo spectra/templates for WD stars.
 
@@ -1510,7 +1514,8 @@ class WD(SUPERSTAR):
         """
         outflux, wave, meta = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
                                                        magrange=gmagrange, seed=seed, redshift=redshift,
-                                                       mag=mag, input_meta=input_meta, input_data=input_data,
+                                                       mag=mag, input_meta=input_meta,
+                                                       star_properties=star_properties,
                                                        nocolorcuts=nocolorcuts)
         return outflux, wave, meta
     
