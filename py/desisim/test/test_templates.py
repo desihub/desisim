@@ -81,37 +81,6 @@ class TestTemplates(unittest.TestCase):
             self.assertTrue(np.allclose(redshift == meta['REDSHIFT']))
     
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
-    def test_stars(self):
-        '''Test options specific to star templates'''
-        star = STAR(wave=self.wave)
-        flux, wave, meta = star.make_templates(self.nspec)
-        self._check_output_size(flux, wave, meta)
-        self.assertTrue('LOGG' in meta.dtype.names)
-        self.assertTrue('TEFF' in meta.dtype.names)
-        self.assertTrue('FEH' in meta.dtype.names)
-    
-        fstd = FSTD(wave=self.wave)
-        flux, wave, meta = fstd.make_templates(self.nspec)
-        self._check_output_size(flux, wave, meta)
-        self.assertTrue('LOGG' in meta.dtype.names)
-        self.assertTrue('TEFF' in meta.dtype.names)
-        self.assertTrue('FEH' in meta.dtype.names)
-    
-        mwsstar = MWS_STAR(wave=self.wave)
-        flux, wave, meta = mwsstar.make_templates(self.nspec)
-        self._check_output_size(flux, wave, meta)
-        self.assertTrue('LOGG' in meta.dtype.names)
-        self.assertTrue('TEFF' in meta.dtype.names)
-        self.assertTrue('FEH' in meta.dtype.names)
-        
-        wd = WD(wave=self.wave)
-        flux, wave, meta = wd.make_templates(self.nspec)
-        self._check_output_size(flux, wave, meta)
-        self.assertTrue('LOGG' in meta.dtype.names)
-        self.assertTrue('TEFF' in meta.dtype.names)
-        self.assertTrue('FEH' in meta.dtype.names)
-    
-    @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_random_seed(self):
         '''Test that random seed works to get the same results back'''
         for T in [ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR, WD]:
