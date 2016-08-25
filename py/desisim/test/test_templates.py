@@ -3,6 +3,7 @@ from __future__ import division
 import os
 import unittest
 import numpy as np
+from astropy.table import Table, Column
 from desisim.templates import ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR, WD
 
 desimodel_data_available = 'DESIMODEL' in os.environ
@@ -131,7 +132,7 @@ class TestTemplates(unittest.TestCase):
             self.assertTrue('SNE_TEMPLATEID' in meta.dtype.names)
             self.assertTrue('SNE_RFLUXRATIO' in meta.dtype.names)
             self.assertTrue('SNE_EPOCH' in meta.dtype.names)
-
+    
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_input_meta(self):
         '''Test that input meta table option works.'''
@@ -150,6 +151,30 @@ class TestTemplates(unittest.TestCase):
             self.assertEqual(len(badkeys), 0, 'mismatch for spectral type {} in keys {}'.format(meta1['OBJTYPE'][0], badkeys))
             self.assertTrue(np.allclose(flux1, flux2))
             self.assertTrue(np.all(wave1 == wave2))
+
+    @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
+    def test_input_data(self):
+        '''Test that input data table option works.'''
+        input_data = Table()
+        input_data.add_column(Column(name='REDSHIFT', length=self.nspec, dtype='f4'))
+        input_data.add_column(Column(name='MAG', length=self.nspec, dtype='f4'))
+        input_data.add_column(Column(name='TEFF', length=self.nspec, dtype='f4'))
+        input_data.add_column(Column(name='LOGG', length=self.nspec, dtype='f4'))
+        input_data.add_column(Column(name='FEH', length=self.nspec, dtype='f4'))
+        input_data['REDSHIFT'] = np.random.uniform(-5E-4, 5E-4, self.nspec)
+        input_data['MAG'] = np.random.uniform(16, 19, self.nspec)
+        input_data['TEFF'] = np.random.uniform(3500, 15000, self.nspec)
+        input_data['LOGG'] = np.random.uniform(0.2, 5.3, self.nspec)
+        input_data['FEH'] = np.random.uniform(-2.2, 0.2, self.nspec)
+        for T in [STAR]:
+            Tx = T(wave=self.wave)
+            flux, wave, meta = Tx.make_templates(input_data=input_data)
+            badkeys = list()
+            for key in meta.colnames:
+                if key in input_data.colnames:
+                    if not np.all(meta[key] == input_data[key]):
+                        badkeys.append(key)
+            self.assertEqual(len(badkeys), 0, 'mismatch for spectral type {} in keys {}'.format(meta['OBJTYPE'][0], badkeys))
 
 if __name__ == '__main__':
     unittest.main()
