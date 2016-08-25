@@ -142,7 +142,7 @@ class TestTemplates(unittest.TestCase):
             badkeys = list()
             for key in meta1.colnames:
                 if key in ('DECAM_FLUX', 'WISE_FLUX', 'OIIFLUX', 'HBETAFLUX'):
-                    if not np.allclose(meta1[key], meta2[key]):
+                    if not np.allclose(meta1[key], meta2[key], 1E-5):
                         badkeys.append(key)
                 else:
                     if not np.all(meta1[key] == meta2[key]):
