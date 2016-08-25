@@ -1180,7 +1180,6 @@ class SUPERSTAR(object):
 
             # Initialize the metadata table and then assign radial velocity and
             # magnitude priors.
-            meta = empty_metatable(nmodel, self.objtype)
             if redshift is None:
                 if vrad_meansig[1] > 0:
                     vrad = rand.normal(vrad_meansig[0], vrad_meansig[1], nmodel)
@@ -1192,6 +1191,9 @@ class SUPERSTAR(object):
             if mag is None:
                 mag = rand.uniform(magrange[0], magrange[1], nmodel).astype('f4')
 
+            # Initialize the metadata table.
+            meta = empty_metatable(nmodel, self.objtype)
+            
         # Basic error checking and some preliminaries.
         if redshift is not None:
             if len(redshift) != nmodel:
