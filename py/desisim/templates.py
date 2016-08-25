@@ -341,8 +341,9 @@ class GALAXY(object):
             corresponding to BASEFLUX (Angstrom).
           basemeta (astropy.Table): Table of meta-data [nbase] for each base template.
           pixbound (numpy.ndarray): Pixel boundaries of BASEWAVE (Angstrom).
-          decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence
           rfilt (speclite.filters instance): DECam2014 r-band FilterSequence
+          normfilt (speclite.filters instance): FilterSequence of self.normfilter
+          decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence
 
         Optional Attributes:
           sne_baseflux (numpy.ndarray): Array [sne_nbase,sne_npix] of the base
@@ -395,6 +396,7 @@ class GALAXY(object):
 
         # Initialize the filter profiles.
         self.rfilt = filters.load_filters('decam2014-r')
+        self.normfilt = filters.load_filters(self.normfilter)
         self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
 
     def vdispblur(self, flux, vdisp=150.0):
@@ -705,7 +707,12 @@ class GALAXY(object):
                 if nocontinuum:
                     magnorm = np.repeat(10**(-0.4*mag[ii]), nbasechunk)
                 else:
-                    magnorm = 10**(-0.4*mag[ii]) / np.array(maggies[self.normfilter])
+                    if self.normfilter in self.decamwise.names:
+                        normmaggies = np.array(maggies[self.normfilter])
+                    else:
+                        normmaggies = np.array(self.normfilt.get_ab_maggies(
+                            restflux, zwave, mask_invalid=True)[self.normfilter])
+                    magnorm = 10**(-0.4*mag[ii]) / normmaggies
                 
                 synthnano = np.zeros((nbasechunk, len(self.decamwise)))
                 for ff, key in enumerate(maggies.columns):
@@ -1017,6 +1024,7 @@ class SUPERSTAR(object):
           basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths
             corresponding to BASEFLUX (Angstrom).
           basemeta (astropy.Table): Table of meta-data [nbase] for each base template.
+          normfilt (speclite.filters instance): FilterSequence of self.normfilter
           decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence
 
         """
@@ -1042,6 +1050,7 @@ class SUPERSTAR(object):
         self.basemeta = basemeta
 
         # Initialize the filter profiles.
+        self.normfilt = filters.load_filters(self.normfilter)
         self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
 
     def make_star_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
@@ -1223,7 +1232,12 @@ class SUPERSTAR(object):
                 # Synthesize photometry to determine which models will pass the
                 # color-cuts.
                 maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
-                magnorm = 10**(-0.4*mag[ii]) / np.array(maggies[self.normfilter])
+                if self.normfilter in self.decamwise.names:
+                    normmaggies = np.array(maggies[self.normfilter])
+                else:
+                    normmaggies = np.array(self.normfilt.get_ab_maggies(
+                        restflux, zwave, mask_invalid=True)[self.normfilter])
+                magnorm = 10**(-0.4*mag[ii]) / normmaggies
 
                 synthnano = np.zeros((nbasechunk, len(self.decamwise)))
                 for ff, key in enumerate(maggies.columns):
@@ -1534,10 +1548,8 @@ class QSO():
           basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths
             corresponding to BASEFLUX (Angstrom).
           basemeta (astropy.Table): Table of meta-data [nbase] for each base template.
+          normfilt (speclite.filters instance): FilterSequence of self.normfilter
           decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence
-          gilt (speclite.filters instance): DECam2014 g-band FilterSequence
-          rilt (speclite.filters instance): DECam2014 r-band FilterSequence
-          zilt (speclite.filters instance): DECam2014 z-band FilterSequence
 
         """
         from speclite import filters
@@ -1566,9 +1578,7 @@ class QSO():
         self.z_wind = z_wind
 
         # Initialize the filter profiles.
-        self.gfilt = filters.load_filters('decam2014-g')
-        self.rfilt = filters.load_filters('decam2014-r')
-        self.zfilt = filters.load_filters('decam2014-z')
+        self.normfilt = filters.load_filters(self.normfilter)
         self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
 
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(21.0, 23.0),
@@ -1684,7 +1694,13 @@ class QSO():
             # go red enough.
             padflux, padzwave = self.decamwise.pad_spectrum(restflux, zwave, method='edge')
             maggies = self.decamwise.get_ab_maggies(padflux, padzwave, mask_invalid=True)
-            magnorm = 10**(-0.4*mag[ii]) / np.array(maggies[self.normfilter])
+
+            if self.normfilter in self.decamwise.names:
+                normmaggies = np.array(maggies[self.normfilter])
+            else:
+                normmaggies = np.array(self.normfilt.get_ab_maggies(
+                    padflux, padzwave, mask_invalid=True)[self.normfilter])
+            magnorm = 10**(-0.4*mag[ii]) / normmaggies
 
             synthnano = np.zeros((nmade, len(self.decamwise)))
             for ff, key in enumerate(maggies.columns):
