@@ -164,11 +164,11 @@ def get_targets_parallel(nspec, flavor, tileid=None, nproc=None, seed=None):
 
         pool = mp.Pool(nproc)
         results = pool.map(_wrap_get_targets, args)
-        fibermaps, truthtables = zip(*results)
+        fibermaps, truthtables = list(zip(*results))
         fibermap = np.concatenate(fibermaps)
 
         truth = truthtables[0]
-        for key in truth.keys():
+        for key in truth:
             if key not in ('UNITS', 'WAVE'):
                 truth[key] = np.concatenate([t[key] for t in truthtables])
 
@@ -394,7 +394,7 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
     fibermap['FIBER'] = np.arange(nspec, dtype='i4')
     fibermap['POSITIONER'] = fiberpos['POSITIONER'][specmin:specmin+nspec]
     fibermap['SPECTROID'] = fiberpos['SPECTROGRAPH'][specmin:specmin+nspec]
-    fibermap['TARGETID'] = np.random.randint(sys.maxint, size=nspec)
+    fibermap['TARGETID'] = np.random.randint(sys.maxsize, size=nspec)
     fibermap['TARGETCAT'] = np.zeros(nspec, dtype='|S20')
     fibermap['LAMBDAREF'] = np.ones(nspec, dtype=np.float32)*5400
     fibermap['RA_TARGET'] = ra

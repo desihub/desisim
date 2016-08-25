@@ -12,6 +12,8 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import sys
 import os
 import os.path
@@ -60,8 +62,8 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'desisim'
-copyright = u'2014-2015, DESI Collaboration'
+project = 'desisim'
+copyright = '2014-2015, DESI Collaboration'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -219,8 +221,8 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  ('index', 'desisim.tex', u'desisim Documentation',
-   u'DESI', 'manual'),
+  ('index', 'desisim.tex', 'desisim Documentation',
+   'DESI', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -249,8 +251,8 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'desisim', u'desisim Documentation',
-     [u'DESI'], 1)
+    ('index', 'desisim', 'desisim Documentation',
+     ['DESI'], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -263,8 +265,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', 'desisim', u'desisim Documentation',
-   u'DESI', 'desisim', 'One line description of project.',
+  ('index', 'desisim', 'desisim Documentation',
+   'DESI', 'desisim', 'One line description of project.',
    'Miscellaneous'),
 ]
 

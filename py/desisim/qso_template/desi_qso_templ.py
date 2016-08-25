@@ -10,7 +10,7 @@
 #;-
 #;------------------------------------------------------------------------------
 """
-from __future__ import print_function, absolute_import, division, unicode_literals
+from __future__ import print_function, absolute_import, division
 
 import numpy as np
 import os
@@ -406,7 +406,7 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
     hdu.header.set('WAVEUNIT', 'Angstrom', ' wavelength units')
     hdu.header.set('BUNIT', '1e-17 erg/s/cm2/A', ' flux unit')
 
-    idval = range(totN)
+    idval = list(range(totN))
     col0 = fits.Column(name=str('TEMPLATEID'),format=str('J'), array=idval)
     col1 = fits.Column(name=str('Z'),format=str('E'),array=final_z)
     cols = fits.ColDefs([col0, col1])

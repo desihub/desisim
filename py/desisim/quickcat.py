@@ -58,7 +58,7 @@ def get_observed_redshifts(truetype, truez):
     zout = truez.copy()
     zerr = np.zeros(len(truez), dtype=np.float32)
     zwarn = np.zeros(len(truez), dtype=np.int32)
-    for objtype in _sigma_v.keys():
+    for objtype in _sigma_v:
         ii = (truetype == objtype)
         n = np.count_nonzero(ii)
         zerr[ii] = _sigma_v[objtype] * (1+truez[ii]) / c
@@ -111,7 +111,7 @@ def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
 
     #- Trim truth down to just ones that have already been observed
     ### print('Trimming truth to just observed targets')
-    obs_targetids = np.array(nobs.keys())
+    obs_targetids = np.array(list(nobs.keys()))
     iiobs = np.in1d(truth['TARGETID'], obs_targetids)
     truth = truth[iiobs]
     targets = targets[iiobs]
