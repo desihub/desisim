@@ -1107,11 +1107,12 @@ class SUPERSTAR(object):
             etc.) are ignored.
         
           input_data (astropy.Table): *Input* table with the following required
-            columns: TEFF, LOGG, and FEH.  Optionally, SEED can also be included
-            in the table.  When this table is passed, the basis templates are
-            interpolated to the desired physical values provided.  Combined with
-            the REDSHIFT and MAG optional inputs, this capability allows large
-            numbers of mock stellar spectra to be generated.
+            columns: REDSHIFT, MAG, TEFF, LOGG, and FEH (except for WDs, which
+            don't need to have an FEH column).  Optionally, SEED can also be
+            included in the table.  When this table is passed, the basis
+            templates are interpolated to the desired physical values provided,
+            enabling large numbers of mock stellar spectra to be generated with
+            physically consistent properties.
 
           nocolorcuts (bool, optional): Do not apply the color-cuts specified by
             the self.colorcuts_function function (default False).
@@ -1145,6 +1146,9 @@ class SUPERSTAR(object):
         else:
             if input_data is not None:
                 nmodel = len(input_data)
+
+                redshift = input_data['REDSHIFT'].data
+                mag = input_data['MAG'].data
                 
                 if 'SEED' in input_data.keys():
                     templateseed = input_data['SEED'].data
@@ -1178,18 +1182,17 @@ class SUPERSTAR(object):
                     rand.shuffle(tempid)
                 alltemplateid_chunk = np.array_split(alltemplateid, nchunk, axis=1)
 
-            # Initialize the metadata table and then assign radial velocity and
-            # magnitude priors.
-            if redshift is None:
-                if vrad_meansig[1] > 0:
-                    vrad = rand.normal(vrad_meansig[0], vrad_meansig[1], nmodel)
-                else:
-                    vrad = np.repeat(vrad_meansig[0], nmodel)
+                # Assign radial velocity and magnitude priors.
+                if redshift is None:
+                    if vrad_meansig[1] > 0:
+                        vrad = rand.normal(vrad_meansig[0], vrad_meansig[1], nmodel)
+                    else:
+                        vrad = np.repeat(vrad_meansig[0], nmodel)
                     
-                redshift = np.array(vrad) / LIGHT
+                    redshift = np.array(vrad) / LIGHT
 
-            if mag is None:
-                mag = rand.uniform(magrange[0], magrange[1], nmodel).astype('f4')
+                if mag is None:
+                    mag = rand.uniform(magrange[0], magrange[1], nmodel).astype('f4')
 
             # Initialize the metadata table.
             meta = empty_metatable(nmodel, self.objtype)
@@ -1280,9 +1283,7 @@ class SUPERSTAR(object):
                         if 'FEH' in self.basemeta.columns:
                             meta['FEH'][ii] = input_properties[2][tempid]
                             
-                    break
-
-                    #import pdb ; pdb.set_trace()                    
+                    break                    
 
         # Check to see if any spectra could not be computed.
         success = (np.sum(outflux, axis=1) > 0)*1
