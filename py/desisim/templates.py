@@ -342,9 +342,7 @@ class GALAXY(object):
           basemeta (astropy.Table): Table of meta-data [nbase] for each base template.
           pixbound (numpy.ndarray): Pixel boundaries of BASEWAVE (Angstrom).
           decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence
-          gfilt (speclite.filters instance): DECam2014 g-band FilterSequence
           rfilt (speclite.filters instance): DECam2014 r-band FilterSequence
-          zfilt (speclite.filters instance): DECam2014 z-band FilterSequence
 
         Optional Attributes:
           sne_baseflux (numpy.ndarray): Array [sne_nbase,sne_npix] of the base
@@ -396,9 +394,7 @@ class GALAXY(object):
         self.pixbound = pxs.cen2bound(basewave)
 
         # Initialize the filter profiles.
-        self.gfilt = filters.load_filters('decam2014-g')
         self.rfilt = filters.load_filters('decam2014-r')
-        self.zfilt = filters.load_filters('decam2014-z')
         self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
 
     def vdispblur(self, flux, vdisp=150.0):
@@ -539,21 +535,6 @@ class GALAXY(object):
             nocolorcuts = True
             self.add_SNeIa = False
 
-        if redshift is not None:
-            if len(redshift) != nmodel:
-                log.fatal('Redshift must be an nmodel-length array')
-                raise ValueError
-
-        if mag is not None:
-            if len(mag) != nmodel:
-                log.fatal('Mag must be an nmodel-length array')
-                raise ValueError
-
-        if vdisp is not None:
-            if len(vdisp) != nmodel:
-                log.fatal('Vdisp must be an nmodel-length array')
-                raise ValueError
-
         npix = len(self.basewave)
         nbase = len(self.basemeta)
 
@@ -618,6 +599,21 @@ class GALAXY(object):
                 meta['SNE_TEMPLATEID'] = sne_tempid
                 meta['SNE_EPOCH'] = self.sne_basemeta['EPOCH'][sne_tempid]
                 meta['SNE_RFLUXRATIO'] = sne_rfluxratio
+
+        if redshift is not None:
+            if len(redshift) != nmodel:
+                log.fatal('Redshift must be an nmodel-length array')
+                raise ValueError
+
+        if mag is not None:
+            if len(mag) != nmodel:
+                log.fatal('Mag must be an nmodel-length array')
+                raise ValueError
+
+        if vdisp is not None:
+            if len(vdisp) != nmodel:
+                log.fatal('Vdisp must be an nmodel-length array')
+                raise ValueError
 
         # Populate some of the metadata table.
         for key, value in zip(('REDSHIFT', 'MAG', 'VDISP', 'SEED'),
@@ -1022,9 +1018,6 @@ class SUPERSTAR(object):
             corresponding to BASEFLUX (Angstrom).
           basemeta (astropy.Table): Table of meta-data [nbase] for each base template.
           decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence
-          gfilt (speclite.filters instance): DECam2014 g-band FilterSequence
-          rfilt (speclite.filters instance): DECam2014 r-band FilterSequence
-          zfilt (speclite.filters instance): DECam2014 z-band FilterSequence
 
         """
         from speclite import filters
@@ -1049,9 +1042,6 @@ class SUPERSTAR(object):
         self.basemeta = basemeta
 
         # Initialize the filter profiles.
-        self.gfilt = filters.load_filters('decam2014-g')
-        self.rfilt = filters.load_filters('decam2014-r')
-        self.zfilt = filters.load_filters('decam2014-z')
         self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
 
     def make_star_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
@@ -1128,17 +1118,6 @@ class SUPERSTAR(object):
         """
         from desispec.interpolation import resample_flux
 
-        # Basic error checking and some preliminaries.
-        if redshift is not None:
-            if len(redshift) != nmodel:
-                log.fatal('Redshift must be an nmodel-length array')
-                raise ValueError
-
-        if mag is not None:
-            if len(mag) != nmodel:
-                log.fatal('Mag must be an nmodel-length array')
-                raise ValueError
-
         npix = len(self.basewave)
         nbase = len(self.basemeta)
 
@@ -1203,6 +1182,17 @@ class SUPERSTAR(object):
 
             if mag is None:
                 mag = rand.uniform(magrange[0], magrange[1], nmodel).astype('f4')
+
+        # Basic error checking and some preliminaries.
+        if redshift is not None:
+            if len(redshift) != nmodel:
+                log.fatal('Redshift must be an nmodel-length array')
+                raise ValueError
+
+        if mag is not None:
+            if len(mag) != nmodel:
+                log.fatal('Mag must be an nmodel-length array')
+                raise ValueError
 
         # Populate some of the metadata table.
         for key, value in zip(('REDSHIFT', 'MAG', 'SEED'),
@@ -1692,7 +1682,7 @@ class QSO():
             # Synthesize photometry to determine which models will pass the
             # color-cuts.  We have to temporarily pad because the spectra don't
             # go red enough.
-            padflux, padzwave = self.rfilt.pad_spectrum(restflux, zwave, method='edge')
+            padflux, padzwave = self.decamwise.pad_spectrum(restflux, zwave, method='edge')
             maggies = self.decamwise.get_ab_maggies(padflux, padzwave, mask_invalid=True)
             magnorm = 10**(-0.4*mag[ii]) / np.array(maggies[self.normfilter])
 
