@@ -3,6 +3,7 @@ from __future__ import division
 import os
 import unittest
 import numpy as np
+from astropy.table import Table, Column
 from desisim.templates import ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR, WD
 
 desimodel_data_available = 'DESIMODEL' in os.environ
@@ -17,6 +18,8 @@ class TestTemplates(unittest.TestCase):
         self.dwave = 2.0
         self.wave = np.arange(self.wavemin, self.wavemax+self.dwave/2, self.dwave)
         self.nspec = 5
+        self.seed = np.random.randint(2**32)
+        self.rand = np.random.RandomState(self.seed)
 
     def _check_output_size(self, flux, wave, meta):
         self.assertEqual(len(meta), self.nspec)
@@ -24,94 +27,26 @@ class TestTemplates(unittest.TestCase):
         self.assertEqual(flux.shape, (self.nspec, len(self.wave)))
 
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
-    def test_input_redshift(self):
-        '''Test that we can input the redshift for each spectral class.'''
-        zrange = np.array([
-            (0.6, 1.6), (0.5, 1.0), (0.5, 4.0), (0.01, 0.4),
-            (-0.003, 0.003), (-0.003, 0.003), (-0.003, 0.003), (-0.003, 0.003)
-            ])
-        for zminmax, T in zip(zrange, [ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR, WD]):
-            redshift = np.random.uniform(zminmax[0], zminmax[1], self.nspec).astype('f4')
-            Tx = T(wave=self.wave)
-            flux, wave, meta = Tx.make_templates(self.nspec, redshift=redshift)
-            self.assertTrue(np.all(redshift == meta['REDSHIFT']))
-    
-    @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_simple(self):
         '''Confirm that creating templates works at all'''
+        print('In function test_simple, seed = {}'.format(self.seed))
         for T in [ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR, WD]:
             template_factory = T(wave=self.wave)
-            flux, wave, meta = template_factory.make_templates(self.nspec)
+            flux, wave, meta = template_factory.make_templates(self.nspec, seed=self.seed)
             self._check_output_size(flux, wave, meta)
-    
-        #- Can also specify minwave, maxwave, dwave
-        elg = ELG(minwave=self.wavemin, maxwave=self.wavemax, cdelt=self.dwave)
-        flux, wave, meta = elg.make_templates(self.nspec)
+
+    def test_input_wave(self):
+        '''Confirm that we can specify the wavelength array.'''
+        print('In function test_input_wave, seed = {}'.format(self.seed))
+        lrg = LRG(minwave=self.wavemin, maxwave=self.wavemax, cdelt=self.dwave)
+        flux, wave, meta = lrg.make_templates(self.nspec, seed=self.seed)
         self._check_output_size(flux, wave, meta)
-    
-    @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
-    def test_OII(self):
-        '''Confirm that ELG [OII] flux matches meta table description'''
-        wave = np.arange(5000, 9800.1, 0.2)
-        flux, ww, meta = ELG(wave=wave).make_templates(
-            nmodel=20, nocolorcuts=True, nocontinuum=True,
-            logvdisp_meansig = [np.log10(75), 0.0])
-    
-        for i in range(len(meta)):
-            z = meta['REDSHIFT'][i]
-            ii = (3722*(1+z) < wave) & (wave < 3736*(1+z))
-            OIIflux = np.sum(flux[i,ii]*np.gradient(wave[ii]))
-            self.assertAlmostEqual(OIIflux, meta['OIIFLUX'][i], 2)    
-    
-    @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
-    def test_HBETA(self):
-        '''Confirm that BGS H-beta flux matches meta table description'''
-        wave = np.arange(5000, 7000.1, 0.2)
-        flux, ww, meta = BGS(wave=wave).make_templates(zrange=[0.1,0.4],
-            nmodel=20, nocolorcuts=True, nocontinuum=True,
-            logvdisp_meansig=[np.log10(75),0.0])
-    
-        for i in range(len(meta)):
-            z = meta['REDSHIFT'][i]
-            ii = (4854*(1+z) < wave) & (wave < 4868*(1+z))
-            hbetaflux = np.sum(flux[i,ii]*np.gradient(wave[ii]))
-            self.assertAlmostEqual(hbetaflux, meta['HBETAFLUX'][i], 2)
-    
-    @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
-    def test_stars(self):
-        '''Test options specific to star templates'''
-        star = STAR(wave=self.wave)
-        flux, wave, meta = star.make_templates(self.nspec)
-        self._check_output_size(flux, wave, meta)
-        self.assertTrue('LOGG' in meta.dtype.names)
-        self.assertTrue('TEFF' in meta.dtype.names)
-        self.assertTrue('FEH' in meta.dtype.names)
-    
-        fstd = FSTD(wave=self.wave)
-        flux, wave, meta = fstd.make_templates(self.nspec)
-        self._check_output_size(flux, wave, meta)
-        self.assertTrue('LOGG' in meta.dtype.names)
-        self.assertTrue('TEFF' in meta.dtype.names)
-        self.assertTrue('FEH' in meta.dtype.names)
-    
-        mwsstar = MWS_STAR(wave=self.wave)
-        flux, wave, meta = mwsstar.make_templates(self.nspec)
-        self._check_output_size(flux, wave, meta)
-        self.assertTrue('LOGG' in meta.dtype.names)
-        self.assertTrue('TEFF' in meta.dtype.names)
-        self.assertTrue('FEH' in meta.dtype.names)
-        
-        wd = WD(wave=self.wave)
-        flux, wave, meta = wd.make_templates(self.nspec)
-        self._check_output_size(flux, wave, meta)
-        self.assertTrue('LOGG' in meta.dtype.names)
-        self.assertTrue('TEFF' in meta.dtype.names)
-        self.assertTrue('FEH' in meta.dtype.names)
     
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_random_seed(self):
         '''Test that random seed works to get the same results back'''
-        for T in [ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR, WD]:
+        print('In function test_input_random_seed, seed = {}'.format(self.seed))
+        for T in [ELG, QSO, MWS_STAR]:
             Tx = T(wave=self.wave)
             flux1, wave1, meta1 = Tx.make_templates(self.nspec, seed=1)
             flux2, wave2, meta2 = Tx.make_templates(self.nspec, seed=1)
@@ -121,28 +56,81 @@ class TestTemplates(unittest.TestCase):
             self.assertTrue(np.all(wave1==wave2))
     
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
+    def test_OII(self):
+        '''Confirm that ELG [OII] flux matches meta table description'''
+        print('In function test_OII, seed = {}'.format(self.seed))
+        wave = np.arange(5000, 9800.1, 0.2)
+        flux, ww, meta = ELG(wave=wave).make_templates(seed=self.seed,
+            nmodel=10, zrange=(0.6, 1.6),
+            logvdisp_meansig = [np.log10(75), 0.0],
+            nocolorcuts=True, nocontinuum=True)
+    
+        for i in range(len(meta)):
+            z = meta['REDSHIFT'][i]
+            ii = (3722*(1+z) < wave) & (wave < 3736*(1+z))
+            OIIflux = np.sum(flux[i,ii]*np.gradient(wave[ii]))
+            self.assertAlmostEqual(OIIflux, meta['OIIFLUX'][i], 2)
+    
+    @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
+    def test_HBETA(self):
+        '''Confirm that BGS H-beta flux matches meta table description'''
+        print('In function test_HBETA, seed = {}'.format(self.seed))
+        wave = np.arange(5000, 7000.1, 0.2)
+        # Need to choose just the star-forming galaxies.
+        from desisim.io import read_basis_templates
+        baseflux, basewave, basemeta = read_basis_templates(objtype='BGS')
+        keep = np.where(basemeta['HBETA_LIMIT'] == 0)[0]
+        bgs = BGS(wave=wave, basewave=basewave, baseflux=baseflux[keep, :],
+                  basemeta=basemeta[keep])
+        flux, ww, meta = bgs.make_templates(seed=self.seed,
+            nmodel=10, zrange=(0.05, 0.4),
+            logvdisp_meansig=[np.log10(75),0.0], 
+            nocolorcuts=True, nocontinuum=True)
+    
+        for i in range(len(meta)):
+            z = meta['REDSHIFT'][i]
+            ii = (4854*(1+z) < wave) & (wave < 4868*(1+z))
+            hbetaflux = np.sum(flux[i,ii]*np.gradient(wave[ii]))
+            self.assertAlmostEqual(hbetaflux, meta['HBETAFLUX'][i], 2)
+    
+    @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
+    def test_input_redshift(self):
+        '''Test that we can input the redshift for a representative galaxy and star class.'''
+        print('In function test_input_redshift, seed = {}'.format(self.seed))
+        zrange = np.array([(0.5, 1.0), (0.5, 4.0), (-0.003, 0.003)])
+        for zminmax, T in zip(zrange, [LRG, QSO, STAR]):
+            redshift = np.random.uniform(zminmax[0], zminmax[1], self.nspec)
+            Tx = T(wave=self.wave)
+            flux, wave, meta = Tx.make_templates(self.nspec, redshift=redshift, seed=self.seed)
+            self.assertTrue(np.allclose(redshift, meta['REDSHIFT']))
+    
+    @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_sne(self):
         '''Test options for adding in SNeIa spectra'''
-        for T in [ELG, LRG, BGS]:
+        print('In function test_sne, seed = {}'.format(self.seed))
+        for T in [BGS]:
             template_factory = T(wave=self.wave, add_SNeIa=True)
-            flux, wave, meta = template_factory.make_templates(self.nspec, nocolorcuts=True, 
+            flux, wave, meta = template_factory.make_templates(self.nspec, seed=self.seed,
+                                                               nocolorcuts=True, 
                                                                sne_rfluxratiorange=(0.5, 0.7))
             self._check_output_size(flux, wave, meta)
             self.assertTrue('SNE_TEMPLATEID' in meta.dtype.names)
             self.assertTrue('SNE_RFLUXRATIO' in meta.dtype.names)
             self.assertTrue('SNE_EPOCH' in meta.dtype.names)
-
+    
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_input_meta(self):
         '''Test that input meta table option works.'''
-        for T in [ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR, WD]:
+        print('In function test_input_meta, seed = {}'.format(self.seed))
+        for T in [LRG, QSO, BGS, STAR, WD]:
             Tx = T(wave=self.wave)
-            flux1, wave1, meta1 = Tx.make_templates(self.nspec)
+            flux1, wave1, meta1 = Tx.make_templates(self.nspec, seed=self.seed)
             flux2, wave2, meta2 = Tx.make_templates(input_meta=meta1)
             badkeys = list()
             for key in meta1.colnames:
                 if key in ('DECAM_FLUX', 'WISE_FLUX', 'OIIFLUX', 'HBETAFLUX'):
                     if not np.allclose(meta1[key], meta2[key]):
+                        print(meta1['OBJTYPE'][0], key, meta1[key], meta2[key])
                         badkeys.append(key)
                 else:
                     if not np.all(meta1[key] == meta2[key]):
@@ -150,6 +138,31 @@ class TestTemplates(unittest.TestCase):
             self.assertEqual(len(badkeys), 0, 'mismatch for spectral type {} in keys {}'.format(meta1['OBJTYPE'][0], badkeys))
             self.assertTrue(np.allclose(flux1, flux2))
             self.assertTrue(np.all(wave1 == wave2))
+
+    @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
+    def test_star_properties(self):
+        '''Test that input data table option works.'''
+        print('In function test_star_properties, seed = {}'.format(self.seed))
+        star_properties = Table()
+        star_properties.add_column(Column(name='REDSHIFT', length=self.nspec, dtype='f4'))
+        star_properties.add_column(Column(name='MAG', length=self.nspec, dtype='f4'))
+        star_properties.add_column(Column(name='TEFF', length=self.nspec, dtype='f4'))
+        star_properties.add_column(Column(name='LOGG', length=self.nspec, dtype='f4'))
+        star_properties.add_column(Column(name='FEH', length=self.nspec, dtype='f4'))
+        star_properties['REDSHIFT'] = self.rand.uniform(-5E-4, 5E-4, self.nspec)
+        star_properties['MAG'] = self.rand.uniform(16, 19, self.nspec)
+        star_properties['TEFF'] = self.rand.uniform(4000, 10000, self.nspec)
+        star_properties['LOGG'] = self.rand.uniform(0.5, 5.0, self.nspec)
+        star_properties['FEH'] = self.rand.uniform(-2.0, 0.0, self.nspec)
+        for T in [STAR]:
+            Tx = T(wave=self.wave)
+            flux, wave, meta = Tx.make_templates(star_properties=star_properties, seed=self.seed)
+            badkeys = list()
+            for key in meta.colnames:
+                if key in star_properties.colnames:
+                    if not np.all(meta[key] == star_properties[key]):
+                        badkeys.append(key)
+            self.assertEqual(len(badkeys), 0, 'mismatch for spectral type {} in keys {}'.format(meta['OBJTYPE'][0], badkeys))
 
 if __name__ == '__main__':
     unittest.main()
