@@ -667,7 +667,7 @@ class GALAXY(object):
                 elif self.normline.upper() == 'HBETA':
                     ewhbeta = 10.0**(np.polyval(self.ewhbetacoeff, d4000) + \
                                      templaterand.normal(0.0, 0.2, nbase)) * \
-                                     self.basemeta['HBETA_LIMIT'].data # rest-frame H-beta, Angstrom
+                                     (self.basemeta['HBETA_LIMIT'].data == 0) # rest-frame H-beta, Angstrom
                     normlineflux = self.basemeta['HBETA_CONTINUUM'].data * ewhbeta
                     
                     emflux, emwave, emline = EM.spectrum(linesigma=vdisp[ii], seed=templateseed[ii],
@@ -739,11 +739,14 @@ class GALAXY(object):
                     tempid = templateid[this]
 
                     thisemflux = emflux * normlineflux[templateid[this]]
-                    blurflux = (self.vdispblur((restflux[this, :] - thisemflux), vdisp[ii]) + \
-                                thisemflux) * magnorm[this]
+                    if nocontinuum:
+                        blurflux = restflux[this, :] * magnorm[this]
+                    else:
+                        blurflux = (self.vdispblur((restflux[this, :] - thisemflux), vdisp[ii]) + \
+                                    thisemflux) * magnorm[this]
 
                     outflux[ii, :] = resample_flux(self.wave, zwave, blurflux)
-
+                    
                     meta['TEMPLATEID'][ii] = tempid
                     meta['D4000'][ii] = d4000[tempid]
                     meta['DECAM_FLUX'][ii] = synthnano[this, :6]

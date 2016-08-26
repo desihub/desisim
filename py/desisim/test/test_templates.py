@@ -18,7 +18,7 @@ class TestTemplates(unittest.TestCase):
         self.dwave = 2.0
         self.wave = np.arange(self.wavemin, self.wavemax+self.dwave/2, self.dwave)
         self.nspec = 5
-        self.seed = np.random.randint(2**32, size=1)[0]
+        self.seed = np.random.randint(2**32)
         self.rand = np.random.RandomState(self.seed)
 
     def _check_output_size(self, flux, wave, meta):
@@ -76,7 +76,13 @@ class TestTemplates(unittest.TestCase):
         '''Confirm that BGS H-beta flux matches meta table description'''
         print('In function test_HBETA, seed = {}'.format(self.seed))
         wave = np.arange(5000, 7000.1, 0.2)
-        flux, ww, meta = BGS(wave=wave).make_templates(seed=self.seed,
+        # Need to choose just the star-forming galaxies.
+        from desisim.io import read_basis_templates
+        baseflux, basewave, basemeta = read_basis_templates(objtype='BGS')
+        keep = np.where(basemeta['HBETA_LIMIT'] == 0)[0]
+        bgs = BGS(wave=wave, basewave=basewave, baseflux=baseflux[keep, :],
+                  basemeta=basemeta[keep])
+        flux, ww, meta = bgs.make_templates(seed=self.seed,
             nmodel=10, zrange=(0.05, 0.4),
             logvdisp_meansig=[np.log10(75),0.0], 
             nocolorcuts=True, nocontinuum=True)
@@ -96,7 +102,7 @@ class TestTemplates(unittest.TestCase):
             redshift = np.random.uniform(zminmax[0], zminmax[1], self.nspec)
             Tx = T(wave=self.wave)
             flux, wave, meta = Tx.make_templates(self.nspec, redshift=redshift, seed=self.seed)
-            self.assertTrue(np.allclose(redshift == meta['REDSHIFT']))
+            self.assertTrue(np.allclose(redshift, meta['REDSHIFT']))
     
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_sne(self):
