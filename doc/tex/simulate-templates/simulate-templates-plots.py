@@ -52,10 +52,10 @@ def main():
         hii = fits.getdata(os.path.join(os.getenv('IM_PROJECTS_DIR'),'desi','data',
                                         'hii-emlines.fits.gz'),1)
 
-        oiiihb = np.array(zip(sdss['OIIIHB'],atlas['OIIIHB'])).flatten()
-        oiihb  = np.array(zip(sdss['OIIHB'], atlas['OIIHB'])).flatten()
-        niihb  = np.array(zip(sdss['NIIHB'], atlas['NIIHB'])).flatten()
-        siihb  = np.array(zip(sdss['SIIHB'], atlas['SIIHB'])).flatten()
+        oiiihb = np.array(list(zip(sdss['OIIIHB'],atlas['OIIIHB']))).flatten()
+        oiihb  = np.array(list(zip(sdss['OIIHB'], atlas['OIIHB']))).flatten()
+        niihb  = np.array(list(zip(sdss['NIIHB'], atlas['NIIHB']))).flatten()
+        siihb  = np.array(list(zip(sdss['SIIHB'], atlas['SIIHB']))).flatten()
         #oiiihb = np.array(zip(sdss['OIIIHB'][0,:],hii['OIIIHB'][0,:])).flatten()
         #oiihb  = np.array(zip(sdss['OIIHB'][0,:], hii['OIIHB'][0,:])).flatten()
         #niihb  = np.array(zip(sdss['NIIHB'][0,:], hii['NIIHB'][0,:])).flatten()
@@ -127,7 +127,7 @@ def main():
         sigma = cmeta['SIGMA_KMS']
         sigminmax = np.log10([8.0,500.0])
         binsz = 0.05
-        nbin = long((sigminmax[1]-sigminmax[0])/binsz)
+        nbin = int((sigminmax[1]-sigminmax[0])/binsz)
         ngal, bins = np.histogram(np.log10(sigma), bins=nbin, range=sigminmax)
         cbins = (bins[:-1] + bins[1:]) / 2.0
         #ngal, bins, patches = plt.hist(sigma, bins=30)

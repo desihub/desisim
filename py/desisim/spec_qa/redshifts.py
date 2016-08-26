@@ -5,7 +5,7 @@ desisim.spec_qa.high_level
 Module to run high_level QA on a given DESI run
  Written by JXP on 3 Sep 2015
 """
-from __future__ import print_function, absolute_import, division, unicode_literals
+from __future__ import print_function, absolute_import, division
 
 import matplotlib
 # matplotlib.use('Agg')
@@ -310,7 +310,7 @@ def obj_requirements(zstats, objtype):
 
     tst_fail = ''
     passf = str('PASS')
-    for key in req_dict.keys():
+    for key in req_dict:
         ipassf = str('PASS')
         if key in ['EFF']: # Greater than requirement
             if zstats[key] < req_dict[key]:
@@ -605,7 +605,7 @@ def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
     ylbl = 0.85
     ax.text(xlbl, ylbl, 'SPECPROD: {:s}'.format(meta['SPECPROD']), transform=ax.transAxes, ha='left')
     yoff=0.15
-    for key in meta.keys():
+    for key in meta:
         if key == 'SPECPROD':
             continue
         ylbl -= yoff
@@ -715,7 +715,7 @@ def plot_slices(x, y, ok, bad, x_lo, x_hi, y_cut, num_slices=5, min_count=100,
     x_i = np.digitize(x, x_bins) - 1
     limits = []
     counts = []
-    for s in xrange(num_slices):
+    for s in range(num_slices):
         # Calculate percentile statistics for ok fits.
         y_slice = y[ok & (x_i == s)]
         counts.append(len(y_slice))
@@ -738,7 +738,7 @@ def plot_slices(x, y, ok, bad, x_lo, x_hi, y_cut, num_slices=5, min_count=100,
     y_p1 = stepify(limits[:, 3])
     y_p2 = stepify(limits[:, 4])
     xstack = stepify(x_bins)[1:-1]
-    for i in xrange(num_slices):
+    for i in range(num_slices):
         s = slice(2 * i, 2 * i + 2)
         if counts[i] >= min_count:
             axis.fill_between(

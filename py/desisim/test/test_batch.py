@@ -37,7 +37,7 @@ class TestBatch(unittest.TestCase):
     
     def test_batch_newexp(self):
         flavors = ['arc', 'flat', 'bright', 'gray', 'dark']
-        expids = range(len(flavors))
+        expids = list(range(len(flavors)))
         night = '20101020'
         if os.path.exists(self.batchfile):
             os.remove(self.batchfile)
@@ -52,7 +52,7 @@ class TestBatch(unittest.TestCase):
 
     def test_batch_pixsim(self):
         flavors = ['arc', 'flat', 'bright', 'gray', 'dark']
-        expids = range(len(flavors))
+        expids = list(range(len(flavors)))
         night = '20101020'
         if os.path.exists(self.batchfile):
             os.remove(self.batchfile)
