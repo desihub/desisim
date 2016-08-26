@@ -46,7 +46,7 @@ def expand_args(args):
         hdr = fits.getheader(args.simspec, 'PHOT_B')
         nspec = hdr['NAXIS2']
         nspectrographs = (nspec-1) // 500 + 1
-        args.spectrographs = range(nspectrographs)
+        args.spectrographs = list(range(nspectrographs))
 
     if (args.night is None) or (args.expid is None):
         from astropy.io import fits

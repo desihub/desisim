@@ -2,6 +2,8 @@
 # Pixel-integrated sline utilities.
 # Written by A. Bolton, U. of Utah, 2010-2013.
 
+from __future__ import absolute_import, division, print_function
+
 import numpy as n
 from scipy import linalg as la
 from scipy import sparse as sp
@@ -28,13 +30,13 @@ def compute_duck_slopes(pixbound, flux):
     npix = len(flux)
     # Test for correct argument dimensions:
     if (len(pixbound) - npix) != 1:
-        print 'Need one more element in pixbound than in flux!'
+        print('Need one more element in pixbound than in flux!')
         return 0
     # The array of "delta-x" values:
     dxpix = pixbound[1:] - pixbound[:-1]
     # Test for monotonif increase:
     if dxpix.min() <= 0.:
-        print 'Pixel boundaries not monotonically increasing!'
+        print('Pixel boundaries not monotonically increasing!')
         return 0
     # Encode the tridiagonal matrix that needs to be solved:
     maindiag = (dxpix[:-1] + dxpix[1:]) / 3.
@@ -106,12 +108,12 @@ def gauss_blur_matrix(pixbound, sig_conv):
     # Compute total number of non-zero elements in the broadening matrix:
     n_each = bin_hi - bin_lo + 1
     n_entries = n_each.sum()
-    ij = n.zeros((2, n_entries), dtype=long)
+    ij = n.zeros((2, n_entries), dtype=int)
     v_vec = n.zeros(n_entries, dtype=float)
     # Loop over pixels in the "old" spectrum:
-    pcount = 0L
+    pcount = 0
     roottwo = n.sqrt(2.)
-    bin_vec = n.arange(npix, dtype=long)
+    bin_vec = n.arange(npix, dtype=int)
     for k in range(npix):
         xbound = pixbound[bin_lo[k]:bin_hi[k]+2]
         # Gaussian integral in terms of error function:
@@ -311,18 +313,18 @@ class WeightedRebinCoadder:
         # Compute pixel widths:
         dpixes = [this_bound[1:] - this_bound[:-1] for this_bound in pixbounds]
         # Compute "specific inverse variances":
-        sp_invvars = [invvars[i] / dpixes[i] for i in xrange(self._n_input)]
+        sp_invvars = [invvars[i] / dpixes[i] for i in range(self._n_input)]
         # Compute pixelspline objects for fluxes:
         self._PXS_fluxes = [PixelSpline(pixbounds[i], fluxes[i]) for i in \
-                            xrange(self._n_input)]
+                            range(self._n_input)]
         # Compute pixelspline objects for specific inverse variances:
         self._PXS_sp_invvars = [PixelSpline(pixbounds[i], sp_invvars[i]) for \
-                                i in xrange(self._n_input)]
+                                i in range(self._n_input)]
     def coadd(self, pixbound_out):
         # Compute coverage masks:
         masks = [(pixbound_out[:-1] > self.min_indep[i]) *
                  (pixbound_out[1:] < self.max_indep[i]) for i in \
-                 xrange(self._n_input)]
+                 range(self._n_input)]
         # Compute output pixel widths:
         dpix_out = pixbound_out[1:] - pixbound_out[:-1]
         # Compute interpolated fluxes:
@@ -335,7 +337,7 @@ class WeightedRebinCoadder:
         # Compute coadded flux and inverse variance and return:
         flux_coadd = 0.
         invvar_coadd = 0.
-        for i in xrange(self._n_input):
+        for i in range(self._n_input):
             flux_coadd += new_fluxes[i] * new_invvars[i] * masks[i]
             invvar_coadd += new_invvars[i] * masks[i]
         is_good = n.where(invvar_coadd > 0.)

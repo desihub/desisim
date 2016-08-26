@@ -207,7 +207,7 @@ class EMSpectrum(object):
             integrated [OII] emission-line flux (default None).
           hbetaflux (float, optional): Normalize the emission-line spectrum to this
             integrated H-beta emission-line flux (default None).
-          seed (long, optional): input seed for the random numbers.
+          seed (int, optional): input seed for the random numbers.
 
         Returns:
           emspec (numpy.ndarray): Array [npix] of flux values [erg/s/cm2/A].
@@ -492,7 +492,7 @@ class GALAXY(object):
             spectrum with respect to the underlying galaxy.  Defaults to a
             uniform distribution between (0.01, 0.1).
 
-          seed (long, optional): Input seed for the random numbers.
+          seed (int, optional): Input seed for the random numbers.
           redshift (float, optional): Input/output template redshifts.  Array
             size must equal nmodel.  Ignores zrange input.
           mag (float, optional): Input/output template magnitudes in the band
@@ -574,7 +574,7 @@ class GALAXY(object):
             # Shuffle the basis templates and then split them into ~equal
             # chunks, so we can speed up the calculations below.
             chunksize = np.min((nbase, 50))
-            nchunk = long(np.ceil(nbase / chunksize))
+            nchunk = int(np.ceil(nbase / chunksize))
 
             alltemplateid = np.tile(np.arange(nbase), (nmodel, 1))
             for tempid in alltemplateid:
@@ -1095,7 +1095,7 @@ class SUPERSTAR(object):
           magrange (float, optional): Minimum and maximum magnitude in the
             bandpass specified by self.normfilter.  Defaults to a uniform
             distribution between (18, 23.5) in the r-band.
-          seed (long, optional): input seed for the random numbers.        
+          seed (int, optional): input seed for the random numbers.        
           redshift (float, optional): Input/output (dimensionless) radial
             velocity.  Array size must equal nmodel.  Ignores vrad_meansig
             input.
@@ -1619,7 +1619,7 @@ class QSO():
           rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
             magnitude range.  Defaults to a uniform distribution between (21,
             23.0).
-          seed (long, optional): input seed for the random numbers.
+          seed (int, optional): input seed for the random numbers.
           redshift (float, optional): Input/output template redshifts.  Array
             size must equal nmodel.  Ignores zrange input.
           mag (float, optional): Input/output template magnitudes in the band

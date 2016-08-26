@@ -52,32 +52,32 @@ class SimSetup(object):
             n_epochs (int): number of epochs to be simulated.
 
         """
-        if 'output_path' in kwargs.keys() :
+        if 'output_path' in kwargs:
             self.output_path = kwargs['output_path']        
         else:
             raise NameError('output_path was not set')
 
-        if 'targets_path' in kwargs.keys() :
+        if 'targets_path' in kwargs:
             self.targets_path = kwargs['targets_path']        
         else:
             raise NameError('targets_path was not set')
 
-        if 'epochs_path' in kwargs.keys() :
+        if 'epochs_path' in kwargs:
             self.epochs_path = kwargs['epochs_path']        
         else:
             raise NameError('epochs_path was not set')
 
-        if 'fiberassign_exec' in kwargs.keys() :
+        if 'fiberassign_exec' in kwargs:
             self.fiberassign_exec = kwargs['fiberassign_exec']        
         else:
             raise NameError('fiberassign was not set')
 
-        if 'template_fiberassign' in kwargs.keys() :
+        if 'template_fiberassign' in kwargs:
             self.template_fiberassign = kwargs['template_fiberassign']        
         else:
             raise NameError('template_fiberassign was not set')
 
-        if 'n_epochs' in kwargs.keys() :
+        if 'n_epochs' in kwargs:
             self.n_epochs = kwargs['n_epochs']
         else:
             raise NameError('n_epochs was not set')
@@ -94,7 +94,7 @@ class SimSetup(object):
         self.tilefiles = []
         self.mtl_epochs = []
         self.fiber_epochs = []
-        self.epochs_list = range(self.n_epochs)
+        self.epochs_list = list(range(self.n_epochs))
 
     def reset_lists(self):
         """Resets counters
@@ -349,8 +349,8 @@ def print_numobs_stats(truth, targets, zcat):
         ii = (xcat['NUMOBS']==times_observed)
         c = Counter(xcat['DESI_TARGET'][ii])
 
-        total = np.sum(c.values())
-        for k in c.keys():
+        total = np.sum(list(c.values()))
+        for k in c:
             print("\t\t {}: {} ({} total)".format(desi_mask.names(k), c[k]/total, c[k]))
     return
 

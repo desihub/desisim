@@ -318,7 +318,7 @@ def specter_objtype(desitype):
         
     assert np.count_nonzero(results == '') == 0
     
-    if isinstance(desitype, (str, unicode)):
+    if isinstance(desitype, str):
         return results[0]
     else:
         return results
@@ -430,7 +430,7 @@ def get_next_expid(n=None):
     if n is None:
         return expid
     else:
-        return range(expid, expid+n)
+        return list(range(expid, expid+n))
     
 def get_night(t=None, utc=None):
     """
