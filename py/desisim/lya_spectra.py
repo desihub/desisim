@@ -42,8 +42,8 @@ def get_spectra(infile,first=1,last=-1):
 
     input_meta = empty_metatable(objtype='QSO', nmodel=nqso)
 
-    qso = QSO()
-    qso.normfilter="decam2014-g"
+    qso = QSO(normfilter="decam2014-g")
+
     input_meta["REDSHIFT"]=zqso
     input_meta["RA"]=ra
     input_meta["DEC"]=dec
