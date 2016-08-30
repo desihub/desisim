@@ -300,7 +300,7 @@ class GALAXY(object):
        galaxies (ELG, BGS, and LRG).
 
     """
-    def __init__(self, objtype='ELG', minwave=3600.0, maxwave=10000.0, cdelt=2.0,
+    def __init__(self, objtype='ELG', minwave=3600.0, maxwave=10000.0, cdelt=0.2,
                  wave=None, colorcuts_function=None, normfilter='decam2014-r',
                  normline='OII', baseflux=None, basewave=None, basemeta=None,
                  add_SNeIa=False):
@@ -773,7 +773,7 @@ class GALAXY(object):
 class ELG(GALAXY):
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs)."""
     
-    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
                  add_SNeIa=False, normfilter='decam2014-r', colorcuts_function=None,
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the ELG class.  See the GALAXY.__init__ method for documentation
@@ -848,7 +848,7 @@ class ELG(GALAXY):
 class BGS(GALAXY):
     """Generate Monte Carlo spectra of bright galaxy survey galaxies (BGSs)."""
     
-    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
                  add_SNeIa=False, normfilter='decam2014-r', colorcuts_function=None,
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the BGS class.  See the GALAXY.__init__ method for documentation
@@ -923,7 +923,7 @@ class BGS(GALAXY):
 class LRG(GALAXY):
     """Generate Monte Carlo spectra of luminous red galaxies (LRGs)."""
     
-    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
                  add_SNeIa=False, normfilter='decam2014-z', colorcuts_function=None,
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the LRG class.  See the GALAXY.__init__ method for documentation
@@ -995,7 +995,7 @@ class LRG(GALAXY):
 class SUPERSTAR(object):
     """Base class for generating Monte Carlo spectra of the various flavors of stars.""" 
 
-    def __init__(self, objtype='STAR', minwave=3600.0, maxwave=10000.0, cdelt=2.0,
+    def __init__(self, objtype='STAR', minwave=3600.0, maxwave=10000.0, cdelt=0.2,
                  wave=None, colorcuts_function=None, normfilter='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Read the appropriate basis continuum templates, filter profiles and
@@ -1300,7 +1300,7 @@ class SUPERSTAR(object):
 class STAR(SUPERSTAR):
     """Generate Monte Carlo spectra of generic stars."""
 
-    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
                  normfilter='decam2014-r', colorcuts_function=None,
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the STAR class.  See the SUPERSTAR.__init__ method for
@@ -1355,7 +1355,7 @@ class FSTD(SUPERSTAR):
     stars (FSTD).
 
     """
-    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
                  normfilter='decam2014-r', colorcuts_function=None,
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the FSTD class.  See the SUPERSTAR.__init__ method for
@@ -1414,7 +1414,7 @@ class MWS_STAR(SUPERSTAR):
     stars.
 
     """
-    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
                  normfilter='decam2014-r', colorcuts_function=None,
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the MWS_STAR class.  See the SUPERSTAR.__init__ method for
@@ -1470,7 +1470,7 @@ class MWS_STAR(SUPERSTAR):
 class WD(SUPERSTAR):
     """Generate Monte Carlo spectra of white dwarfs."""
 
-    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
                  normfilter='decam2014-g', colorcuts_function=None,
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the WD class.  See the SUPERSTAR.__init__ method for documentation
@@ -1525,7 +1525,7 @@ class WD(SUPERSTAR):
 class QSO():
     """Generate Monte Carlo spectra of quasars (QSOs)."""
 
-    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=2.0, wave=None,
+    def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
                  normfilter='decam2014-r', colorcuts_function=None, z_wind=0.2):
         """Read the QSO basis continuum templates, filter profiles and initialize the
            output wavelength array.
