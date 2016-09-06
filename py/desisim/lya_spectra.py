@@ -3,6 +3,7 @@ from desisim.io import empty_metatable
 import fitsio
 import scipy as sp
 from scipy import interpolate
+from speclite import filters
 
 def get_spectra(infile,first=1,last=-1):
  
@@ -42,7 +43,10 @@ def get_spectra(infile,first=1,last=-1):
 
     input_meta = empty_metatable(objtype='QSO', nmodel=nqso)
 
-    qso = QSO(normfilter="decam2014-g")
+    filter_name = 'sdss2010-g'
+
+    normfilt = filters.load_filters(filter_name)
+    qso = QSO(normfilter=filter_name)
 
     input_meta["REDSHIFT"]=zqso
     input_meta["RA"]=ra
@@ -63,6 +67,10 @@ def get_spectra(infile,first=1,last=-1):
 	## if outside the forest, the transmission is 1
 	itr=interpolate.interp1d(la,tr,bounds_error=False,fill_value=1)
 	flux[i,:]*=itr(wave)
+	padflux, padwave = normfilt.pad_spectrum(flux[i, :], wave, method='edge')
+	normmaggies = sp.array(normfilt.get_ab_maggies(padflux, padwave, 
+	      mask_invalid=True)[filter_name])
+	flux[i, :] *= 10**(-0.4*input_meta['MAG'][i]) / normmaggies
 
     h.close()
     return flux,wave,meta
