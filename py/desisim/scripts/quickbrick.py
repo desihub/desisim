@@ -141,7 +141,7 @@ def main(args):
     # Initialize the output truth table.
     truth = dict()
     meta = Table()
-    truth['OBJTYPE'] = np.zeros(args.nspec, dtype='S10')
+    truth['OBJTYPE'] = np.zeros(args.nspec, dtype=(str, 10))
     truth['FLUX'] = np.zeros((args.nspec, npix))
     truth['WAVE'] = wave
     jj = list()
@@ -225,11 +225,11 @@ def main(args):
     meta = meta_new
 
     # Add TARGETID and the true OBJTYPE to the metadata table.
-    meta.add_column(Column(true_objtype, dtype='S10', name='TRUE_OBJTYPE'))
+    meta.add_column(Column(true_objtype, dtype=(str, 10), name='TRUE_OBJTYPE'))
     meta.add_column(Column(targetids, name='TARGETID'))
 
     # Now add fixed-up OBJTYPE to the template meta table
-    meta.add_column(Column(true_objtype, dtype='S10', name='OBJTYPE'))
+    meta.add_column(Column(true_objtype, dtype=(str, 10), name='OBJTYPE'))
 
     # Rename REDSHIFT -> TRUEZ anticipating later table joins with zbest.Z
     meta.rename_column('REDSHIFT', 'TRUEZ')
