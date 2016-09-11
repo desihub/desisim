@@ -515,7 +515,8 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
     iixy = np.s_[ny:2*ny, nx:2*nx]
     mean, median, std = sigma_clipped_stats(pix[iixy], sigma=3, iters=5)
     meta['RDNOISE4'] = std
-
+    fx.close()
+    
     return Image(pix, ivar, mask, meta=meta)
 
 #-------------------------------------------------------------------------
