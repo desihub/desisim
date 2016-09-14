@@ -1179,7 +1179,7 @@ class SUPERSTAR(object):
                 # Shuffle the basis templates and then split them into ~equal chunks, so
                 # we can speed up the calculations below.
                 chunksize = np.min((nbase, 50))
-                nchunk = long(np.ceil(nbase / chunksize))
+                nchunk = int(np.ceil(nbase / chunksize))
 
                 alltemplateid = np.tile(np.arange(nbase), (nmodel, 1))
                 for tempid in alltemplateid:

@@ -288,7 +288,7 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
 
     truth = dict()
     truth['FLUX'] = np.zeros( (nspec, len(wave)) )
-    truth['OBJTYPE'] = np.zeros(nspec, dtype='S10')
+    truth['OBJTYPE'] = np.zeros(nspec, dtype=(str, 10))
     ##- Note: unlike other elements, first index of WAVE isn't spectrum index
     truth['WAVE'] = wave
 
@@ -395,7 +395,7 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
     fibermap['POSITIONER'] = fiberpos['POSITIONER'][specmin:specmin+nspec]
     fibermap['SPECTROID'] = fiberpos['SPECTROGRAPH'][specmin:specmin+nspec]
     fibermap['TARGETID'] = np.random.randint(sys.maxsize, size=nspec)
-    fibermap['TARGETCAT'] = np.zeros(nspec, dtype='|S20')
+    fibermap['TARGETCAT'] = np.zeros(nspec, dtype=(str, 20))
     fibermap['LAMBDAREF'] = np.ones(nspec, dtype=np.float32)*5400
     fibermap['RA_TARGET'] = ra
     fibermap['DEC_TARGET'] = dec

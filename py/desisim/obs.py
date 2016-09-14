@@ -311,7 +311,7 @@ def specter_objtype(desitype):
     if len(unknown_types) > 0:
         raise ValueError('Unknown input objtypes {}'.format(unknown_types))
     
-    results = np.zeros(len(intype), dtype='S8')
+    results = np.zeros(len(intype), dtype=(str, 8))
     for objtype in desi2specter:
         ii = (intype == objtype)
         results[ii] = desi2specter[objtype]
@@ -354,7 +354,7 @@ def get_next_tileid(program='DARK'):
     
         tiles = table.vstack([tiles, brighttiles])
 
-        program_col = table.Column(name='PROGRAM', length=len(tiles), dtype='S6')
+        program_col = table.Column(name='PROGRAM', length=len(tiles), dtype=(str, 6))
         tiles.add_column(program_col)
         tiles['PROGRAM'][tiles['PASS'] <= 3] = 'DARK'
         tiles['PROGRAM'][tiles['PASS'] == 4] = 'GRAY'

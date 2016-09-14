@@ -19,7 +19,7 @@ class TestQuickCat(unittest.TestCase):
         truth = Table()
         truth['TARGETID'] = np.random.randint(0,2**60, size=n)
         truth['TRUEZ'] = np.random.uniform(0, 1.5, size=n)
-        truth['TRUETYPE'] = np.zeros(n, dtype='S10')
+        truth['TRUETYPE'] = np.zeros(n, dtype=(str, 10))
         ii = (targets['DESI_TARGET'] == 1); truth['TRUETYPE'][ii] = 'GALAXY'
         ii = (targets['DESI_TARGET'] == 2); truth['TRUETYPE'][ii] = 'GALAXY'
         ii = (targets['DESI_TARGET'] == 4); truth['TRUETYPE'][ii] = 'QSO'

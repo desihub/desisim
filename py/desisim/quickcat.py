@@ -122,7 +122,7 @@ def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
     if 'BRICKNAME' in truth.dtype.names:
         newzcat['BRICKNAME'] = truth['BRICKNAME']
     else:
-        newzcat['BRICKNAME'] = np.zeros(len(truth), dtype='S8')
+        newzcat['BRICKNAME'] = np.zeros(len(truth), dtype=(str, 8))
 
     #- Copy TRUEZ -> Z so that we can add errors without altering original
     newzcat['Z'] = truth['TRUEZ'].copy()

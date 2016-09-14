@@ -2,10 +2,10 @@
 desisim change log
 ==================
 
-0.13.2 (unreleased)
+0.14.0 (unreleased)
 -------------------
 
-* no changes yet
+* updates for python 3.5
 
 0.13.1 (2016-08-18)
 -------------------

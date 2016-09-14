@@ -515,7 +515,8 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
     iixy = np.s_[ny:2*ny, nx:2*nx]
     mean, median, std = sigma_clipped_stats(pix[iixy], sigma=3, iters=5)
     meta['RDNOISE4'] = std
-
+    fx.close()
+    
     return Image(pix, ivar, mask, meta=meta)
 
 #-------------------------------------------------------------------------
@@ -727,7 +728,7 @@ def empty_metatable(nmodel=1, objtype='ELG', add_SNeIa=None):
     from astropy.table import Table, Column
 
     meta = Table()
-    meta.add_column(Column(name='OBJTYPE', length=nmodel, dtype='S10'))
+    meta.add_column(Column(name='OBJTYPE', length=nmodel, dtype=(str, 10)))
     meta.add_column(Column(name='TEMPLATEID', length=nmodel, dtype='i4',
                            data=np.zeros(nmodel)-1))
     meta.add_column(Column(name='SEED', length=nmodel, dtype='int64',

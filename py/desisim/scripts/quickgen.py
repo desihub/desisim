@@ -79,7 +79,7 @@ def main(args=None):
     if args.fibermap:
 
         print("Reading fibermap file %s"%(args.fibermap))
-        fibermap,hdr=read_fibermap(args.fibermap, header=True)
+        fibermap=read_fibermap(args.fibermap)
         objtype=fibermap['OBJTYPE'].copy()
         #need to replace STD and MWS_STAR object types with STAR and BGS object types with LRG since quicksim expects star instead of std or mws_star and LRG instead of BGS
         stdindx=np.where(objtype=='STD') # match STD with STAR
@@ -88,8 +88,8 @@ def main(args=None):
         objtype[stdindx]='STAR'
         objtype[mwsindx]='STAR'
         objtype[bgsindx]='LRG'
-        NIGHT=hdr['NIGHT']
-        EXPID=hdr['EXPID']
+        NIGHT=fibermap.meta['NIGHT']
+        EXPID=fibermap.meta['EXPID']
 
 
     else:
