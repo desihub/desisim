@@ -28,21 +28,18 @@ from desisim.util import spline_medfilt2d
 
 #-------------------------------------------------------------------------
 def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
-    """
-    Return canonical location of where a file should be on disk
+    """Return canonical location of where a file should be on disk
 
     Args:
-        filetype : file type, e.g. 'pix' or 'pixsim'
-        night : YEARMMDD string
-        expid : exposure id integer
-        camera : e.g. 'b0', 'r1', 'z9'
-
-    Optional:
-        outdir : output directory; defaults to $DESI_SPECTRO_SIM/$PIXPROD
-        mkdir : create output directory if needed; default True
+        filetype (str): file type, e.g. 'pix' or 'pixsim'
+        night (str): YEARMMDD string
+        expid (int): exposure id integer
+        camera (str): e.g. 'b0', 'r1', 'z9'
+        outdir (Optional[str]): output directory; defaults to $DESI_SPECTRO_SIM/$PIXPROD
+        mkdir (Optional[bool]): create output directory if needed; default True
 
     Returns:
-        full file path to output file
+        str: full file path to output file
 
     Also see desispec.io.findfile() which has equivalent functionality for
     real data files; this function is only be for simulation files.
@@ -84,26 +81,24 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
 #- simspec
 
 def write_simspec(meta, truth, expid, night, header=None, outfile=None):
-    """
-    Write $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
+    """Write ``$DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits``.
 
     Args:
         meta : metadata table to write to "METADATA" HDU
         truth : dictionary with keys:
-            FLUX - 2D array [nspec, nwave] in erg/s/cm2/A
-            WAVE - 1D array of vacuum wavelengths [Angstroms]
-            SKYFLUX - array of sky flux [erg/s/cm2/A/arcsec],
-                      either 1D [nwave] or 2D [nspec, nwave]
-            PHOT_{B,R,Z} - 2D array [nspec, nwave] of object photons/bin
-            SKYPHOT_{B,R,Z} - 1D or 2D array of sky photons/bin
+            FLUX: 2D array [nspec, nwave] in erg/s/cm2/A;
+            WAVE: 1D array of vacuum wavelengths [Angstroms];
+            SKYFLUX: array of sky flux [erg/s/cm2/A/arcsec],
+            either 1D [nwave] or 2D [nspec, nwave];
+            PHOT_{B,R,Z}: 2D array [nspec, nwave] of object photons/bin;
+            SKYPHOT_{B,R,Z}: 1D or 2D array of sky photons/bin
         expid : integer exposure ID
         night : string YEARMMDD
         header : optional dictionary of header items to add to output
         outfile : optional filename to write (otherwise auto-derived)
 
     Returns:
-        full file path of output file written
-
+        str: full file path of output file written
     """
     #- Where should this go?
     if outfile is None:
@@ -175,30 +170,30 @@ def write_simspec(meta, truth, expid, night, header=None, outfile=None):
     return outfile
 
 class SimSpec(object):
-    """Lightweight wrapper object for simspec data"""
+    """Lightweight wrapper object for simspec data.
+
+    Args:
+        flavor (str): e.g. 'arc', 'flat', 'dark', 'mws', ...
+        wave : dictionary with per-channel wavelength grids, keyed by
+            'b', 'r', 'z'.  Optionally also has 'brz' key for channel
+            independent wavelength grid
+        phot : dictinoary with per-channel photon counts per bin
+
+    Optional:
+        flux : channel-independent flux [erg/s/cm^2/A]
+        skyflux : channel-indepenent sky flux [erg/s/cm^2/A/arcsec^2]
+        skyphot : dictionary with per-channel sky photon counts per bin
+        metadata : table of metadata information about these spectra
+        header : FITS header from HDU0
+
+    Notes:
+      * input arguments become attributes
+      * wave[channel] is the wavelength grid for phot[channel] and
+            skyphot[channel] where channel = 'b', 'r', or 'z'
+      * wave['brz'] is the wavelength grid for flux and skyflux
+    """
     def __init__(self, flavor, wave, phot, flux=None, skyflux=None,
                  skyphot=None, metadata=None, header=None):
-        """
-        Args:
-            flavor : e.g. 'arc', 'flat', 'dark', 'mws', ...
-            wave : dictionary with per-channel wavelength grids, keyed by
-                'b', 'r', 'z'.  Optionally also has 'brz' key for channel
-                independent wavelength grid
-            phot : dictinoary with per-channel photon counts per bin
-
-        Optional:
-            flux : channel-independent flux [erg/s/cm^2/A]
-            skyflux : channel-indepenent sky flux [erg/s/cm^2/A/arcsec^2]
-            skyphot : dictionary with per-channel sky photon counts per bin
-            metadata : table of metadata information about these spectra
-            header : FITS header from HDU0
-
-        notes:
-          * input arguments become attributes
-          * wave[channel] is the wavelength grid for phot[channel] and
-                skyphot[channel] where channel = 'b', 'r', or 'z'
-          * wave['brz'] is the wavelength grid for flux and skyflux
-        """
         for channel in ('b', 'r', 'z'):
             assert wave[channel].ndim == 1
             assert phot[channel].ndim == 2
@@ -219,8 +214,7 @@ class SimSpec(object):
         self.header = header
 
 def read_simspec(filename):
-    """
-    Read simspec data from filename and return SimSpec object
+    """Read simspec data from filename and return SimSpec object.
     """
 
     fx = fits.open(filename)
@@ -266,8 +260,7 @@ def read_simspec(filename):
 
 
 def write_simpix(outfile, image, camera, meta):
-    """
-    Write simpix data to outfile
+    """Write simpix data to outfile.
 
     Args:
         outfile : output file name, e.g. from io.findfile('simpix', ...)
@@ -289,10 +282,10 @@ def write_simpix(outfile, image, camera, meta):
             pass
 
         fits.PrimaryHDU(None, header=header).writeto(outfile)
-    
-    #- Add the new HDU    
+
+    #- Add the new HDU
     hdu = fits.ImageHDU(image.astype(np.float32), header=meta, name=camera.upper())
-    hdus = fits.open(outfile, mode='append', memmap=False)    
+    hdus = fits.open(outfile, mode='append', memmap=False)
     hdus.append(hdu)
     hdus.flush()
     hdus.close()
@@ -300,10 +293,10 @@ def write_simpix(outfile, image, camera, meta):
 def load_simspec_summary(indir, verbose=False):
     '''
     Combine fibermap and simspec files under indir into single truth catalog
-    
+
     Args:
         indir: path to input directory; search this and all subdirectories
-        
+
     Returns:
         astropy.table.Table with true Z catalog
     '''
@@ -320,13 +313,13 @@ def load_simspec_summary(indir, verbose=False):
         elif 'OBSTYPE' in fibermap.meta:
             if fibermap.meta['OBSTYPE'].lower() in ('arc', 'flat', 'bias', 'dark'):
                 continue
-        
+
         simspecfile = fibermapfile.replace('fibermap-', 'simspec-')
         if not os.path.exists(simspecfile):
             raise IOError('fibermap without matching simspec: {}'.format(fibermapfile))
-        
+
         simspec = astropy.table.Table.read(simspecfile, 'METADATA')
-        
+
         #- cleanup prior to merging
         if 'REDSHIFT' in simspec.colnames:
             simspec.rename_column('REDSHIFT', 'TRUEZ')
@@ -337,14 +330,14 @@ def load_simspec_summary(indir, verbose=False):
                 del fibermap.meta[key]
             if key in simspec.meta:
                 del simspec.meta[key]
-        
+
         #- convert some header keywords to new columns
         for key in ('TILEID', 'EXPID', 'FLAVOR', 'NIGHT'):
             fibermap[key] = fibermap.meta[key]
             del fibermap.meta[key]
-        
+
         truth.append(astropy.table.hstack([fibermap, simspec]))
-    
+
     truth = astropy.table.vstack(truth)
     return truth
 
@@ -357,22 +350,22 @@ def load_simspec_summary(indir, verbose=False):
 def _resize(image, shape):
     """
     Resize input image to have new shape, preserving its 2D arrangement
-    
+
     Args:
         image : 2D ndarray
         shape : tuple (ny,nx) for desired output shape
-        
+
     Returns:
         new image with image.shape == shape
     """
-    
+
     #- Tile larger in odd integer steps so that sub-/super-selection can
     #- be centered on the input image
     fx = shape[1] / image.shape[1]
     fy = shape[0] / image.shape[0]
     nx = int(2*np.ceil( (fx-1) / 2) + 1)
     ny = int(2*np.ceil( (fy-1) / 2) + 1)
-    
+
     newpix = np.tile(image, (ny, nx))
     ix = newpix.shape[1] // 2 - shape[1] // 2
     iy = newpix.shape[0] // 2 - shape[0] // 2
@@ -381,16 +374,14 @@ def _resize(image, shape):
 def find_cosmics(camera, exptime=1000, cosmics_dir=None):
     '''
     Return full path to cosmics template file to use
-    
+
     Args:
         camera (str): e.g. 'b0', 'r1', 'z9'
-    
-    Options:
-        exptime (int): exposure time in seconds
-        cosmics_dir: directory to look for cosmics templates; defaults to
+        exptime (int, optional): exposure time in seconds
+        cosmics_dir (str, optional): directory to look for cosmics templates; defaults to
             $DESI_COSMICS_TEMPLATES if set or otherwise
             $DESI_ROOT/spectro/templates/cosmics/v0.2  (note HARDCODED version)
-            
+
     Exposure times <120 sec will use the bias templates; otherwise they will
     use the dark cosmics templates
     '''
@@ -399,15 +390,15 @@ def find_cosmics(camera, exptime=1000, cosmics_dir=None):
             cosmics_dir = os.environ['DESI_COSMICS_TEMPLATES']
         else:
             cosmics_dir = os.environ['DESI_ROOT']+'/spectro/templates/cosmics/v0.2/'
-    
+
     if exptime < 120:
         exptype = 'bias'
     else:
         exptype = 'dark'
-        
+
     channel = camera[0].lower()
     assert channel in 'brz', 'Unknown camera {}'.format(camera)
-    
+
     cosmicsfile = '{}/cosmics-{}-{}.fits'.format(cosmics_dir, exptype, channel)
     return os.path.normpath(cosmicsfile)
 
@@ -421,10 +412,8 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
     Args:
         filename : FITS filename with EXTNAME=IMAGE-*, IVAR-*, MASK-* HDUs
         expid : integer, use `expid % n` image where `n` is number of images
-
-    Optional:
-        shape : (ny, nx) tuple for output image shape
-        jitter : If True (default), apply random flips and rolls so you
+        shape : (ny, nx, optional) tuple for output image shape
+        jitter (bool, optional): If True (default), apply random flips and rolls so you
             don't get the exact same cosmics every time
 
     Returns:
@@ -448,7 +437,7 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
     nx = pix.shape[1] // 2
     ny = pix.shape[0] // 2
     kernel_size = min(201, ny//3, nx//3)
-    
+
     pix[0:ny, 0:nx] -= spline_medfilt2d(pix[0:ny, 0:nx], kernel_size)
     pix[0:ny, nx:2*nx] -= spline_medfilt2d(pix[0:ny, nx:2*nx], kernel_size)
     pix[ny:2*ny, 0:nx] -= spline_medfilt2d(pix[ny:2*ny, 0:nx], kernel_size)
@@ -497,7 +486,7 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
     ny = pix.shape[0] // 2
     iixy = np.s_[0:ny, 0:nx]
     cx = pix[iixy][mask[iixy] == 0]
-    mean, median, std = sigma_clipped_stats(cx, sigma=3, iters=5)       
+    mean, median, std = sigma_clipped_stats(cx, sigma=3, iters=5)
     meta['RDNOISE1'] = std
 
     #- Amp 2 lower right
@@ -516,7 +505,7 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
     mean, median, std = sigma_clipped_stats(pix[iixy], sigma=3, iters=5)
     meta['RDNOISE4'] = std
     fx.close()
-    
+
     return Image(pix, ivar, mask, meta=meta)
 
 #-------------------------------------------------------------------------
@@ -552,7 +541,7 @@ def find_basis_template(objtype, indir=None):
     """
     if indir is None:
         indir = os.environ['DESI_BASIS_TEMPLATES']
-        
+
     objfile_wild = os.path.join(indir, objtype.lower()+'_templates_*.fits')
     objfiles = glob(objfile_wild)
     if len(objfiles) > 0:
@@ -572,29 +561,29 @@ def _qso_format_version(filename):
 
 def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
     """Return the basis (continuum) templates for a given object type.  Optionally
-       returns a randomly selected subset of nspec spectra sampled at
-       wavelengths outwave.
+    returns a randomly selected subset of nspec spectra sampled at
+    wavelengths outwave.
 
     Args:
-      objtype (str): object type to read (e.g., ELG, LRG, QSO, STAR, FSTD, WD, MWS_STAR, BGS).
-      outwave (numpy.array, optional): array of wavelength at which to sample
-        the spectra.
-      nspec (int, optional): number of templates to return
-      infile (str, optional): full path to input template file to read,
-        over-riding the contents of the $DESI_BASIS_TEMPLATES environment
-        variable.
+        objtype (str): object type to read (e.g., ELG, LRG, QSO, STAR, FSTD, WD, MWS_STAR, BGS).
+        outwave (numpy.array, optional): array of wavelength at which to sample
+            the spectra.
+        nspec (int, optional): number of templates to return
+        infile (str, optional): full path to input template file to read,
+            over-riding the contents of the $DESI_BASIS_TEMPLATES environment
+            variable.
 
     Returns:
-      outflux (numpy.ndarray): Array [ntemplate,npix] of flux values [erg/s/cm2/A].
-      outwave (numpy.ndarray): Array [npix] of wavelengths for FLUX [Angstrom].
-      meta (astropy.Table): Meta-data table for each object.  The contents of this
+        Tuple of (outflux, outwave, meta) where
+        outflux is an Array [ntemplate,npix] of flux values [erg/s/cm2/A];
+        outwave is an Array [npix] of wavelengths for FLUX [Angstrom];
+        meta is a Meta-data table for each object.  The contents of this
         table varies depending on what OBJTYPE has been read.
 
     Raises:
-      EnvironmentError: If the required $DESI_BASIS_TEMPLATES environment
-        variable is not set.
-      IOError: If the basis template file is not found.
-
+        EnvironmentError: If the required $DESI_BASIS_TEMPLATES environment
+            variable is not set.
+        IOError: If the basis template file is not found.
     """
     from glob import glob
     from astropy.io import fits
@@ -662,13 +651,8 @@ def write_templates(outfile, flux, wave, meta, objtype=None,
                     comments=None, units=None):
     """Write out simulated galaxy templates.  (Incomplete documentation...)
 
-        Args:
-          outfile (str): Output file name.
-
-        Returns:
-
-        Raises
-
+    Args:
+        outfile (str): Output file name.
     """
     from astropy.io import fits
     from desispec.io.util import fitsheader, write_bintable, makepath
@@ -724,7 +708,7 @@ def _parse_filename(filename):
         return x[0], x[1].lower(), int(x[2])
 
 def empty_metatable(nmodel=1, objtype='ELG', add_SNeIa=None):
-    """Initialize the metadata table for each object type.""" 
+    """Initialize the metadata table for each object type."""
     from astropy.table import Table, Column
 
     meta = Table()
@@ -748,7 +732,7 @@ def empty_metatable(nmodel=1, objtype='ELG', add_SNeIa=None):
                            data=np.zeros(nmodel)-1, unit='Angstrom'))
     meta.add_column(Column(name='EWHBETA', length=nmodel, dtype='f4',
                            data=np.zeros(nmodel)-1, unit='Angstrom'))
-        
+
     meta.add_column(Column(name='D4000', length=nmodel, dtype='f4', data=np.zeros(nmodel)-1))
     meta.add_column(Column(name='VDISP', length=nmodel, dtype='f4',
                            data=np.zeros(nmodel)-1, unit='km/s'))
@@ -785,4 +769,3 @@ def empty_metatable(nmodel=1, objtype='ELG', add_SNeIa=None):
     meta['OBJTYPE'] = objtype.upper()
 
     return meta
-

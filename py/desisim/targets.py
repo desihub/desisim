@@ -33,16 +33,14 @@ def sample_objtype(nobj, flavor):
         nobj : number of objects to generate
 
     Returns:
-        (true_objtype, target_objtype)
-
-    where
-        true_objtype   : array of what type the objects actually are
-        target_objtype : array of type they were targeted as
+        (true_objtype, target_objtype) where true_objtype is the array of
+            what type the objects actually are and target_objtype is the
+            array of type they were targeted as
 
     Notes:
-    - Actual fiber assignment will result in higher relative fractions of
-      LRGs and QSOs in early passes and more ELGs in later passes.
-    - Also ensures at least 2 sky and 1 stdstar, even if nobj is small
+        - Actual fiber assignment will result in higher relative fractions of
+          LRGs and QSOs in early passes and more ELGs in later passes.
+        - Also ensures at least 2 sky and 1 stdstar, even if nobj is small
     """
     flavor = flavor.upper()
 
@@ -69,13 +67,13 @@ def sample_objtype(nobj, flavor):
     #- Number of science fibers available
     nsci = nobj - (nsky+nstd)
     true_objtype  = ['SKY']*nsky + ['STD']*nstd
-        
+
     if (flavor == 'MWS'):
         true_objtype  +=  ['MWS_STAR']*nsci
     elif (flavor == 'QSO'):
         true_objtype  +=  ['QSO']*nsci
     elif (flavor == 'ELG'):
-        true_objtype  +=  ['ELG']*nsci    
+        true_objtype  +=  ['ELG']*nsci
     elif (flavor == 'LRG'):
         true_objtype  +=  ['LRG']*nsci
     elif (flavor == 'STD'):
@@ -89,10 +87,10 @@ def sample_objtype(nobj, flavor):
         ntgt = float(tgt['nobs_BG'] + tgt['nobs_MWS'])
         prob_bgs = tgt['nobs_BG'] / ntgt
         prob_mws = 1 - prob_bgs
-        
+
         p = [prob_bgs, prob_mws]
         nbgs, nmws = np.random.multinomial(nsci, p)
-        
+
         true_objtype += ['BGS']*nbgs
         true_objtype += ['MWS_STAR']*nmws
     elif (flavor == 'DARK'):
@@ -102,7 +100,7 @@ def sample_objtype(nobj, flavor):
         prob_elg = tgt['nobs_elg'] / ntgt
         prob_qso = (tgt['nobs_qso'] + tgt['nobs_lya']) / ntgt
         prob_badqso = tgt['ntarget_badqso'] / ntgt
-        
+
         p = [prob_lrg, prob_elg, prob_qso, prob_badqso]
         nlrg, nelg, nqso, nbadqso = np.random.multinomial(nsci, p)
 
@@ -116,7 +114,7 @@ def sample_objtype(nobj, flavor):
         true_objtype = ['SKY',] * nobj
     else:
         raise ValueError("Do not know the objtype mix for flavor "+ flavor)
-        
+
     assert len(true_objtype) == nobj, \
         'len(true_objtype) mismatch for flavor {} : {} != {}'.format(\
         flavor, len(true_objtype), nobj)
@@ -138,7 +136,7 @@ def sample_objtype(nobj, flavor):
 def _wrap_get_targets(args):
     nspec, flavor, tileid, seed, specmin = args
     return get_targets(nspec, flavor, tileid, seed=seed, specmin=specmin)
-    
+
 def get_targets_parallel(nspec, flavor, tileid=None, nproc=None, seed=None):
     import multiprocessing as mp
     if nproc is None:
@@ -149,7 +147,7 @@ def get_targets_parallel(nspec, flavor, tileid=None, nproc=None, seed=None):
         log.debug('Not Parallelizing get_targets for only {} targets'.format(nspec))
         return get_targets(nspec, flavor, tileid, seed=seed)
     else:
-        nproc = min(nproc, nspec//10)        
+        nproc = min(nproc, nspec//10)
         log.debug('Parallelizing get_targets using {} cores'.format(nproc))
         args = list()
         n = nspec // nproc
@@ -252,8 +250,8 @@ def _simspec_truth(truth, wave=None, seed=None):
     #- Sort to match order of input truth
     #- Is there a way to do this without 3 argsort calls?
     ii = np.argsort(np.asarray(truth['TARGETID']))
-    jj = np.argsort(np.asarray(simmeta['TARGETID'])) 
-    kk = np.argsort(ii)   
+    jj = np.argsort(np.asarray(simmeta['TARGETID']))
+    kk = np.argsort(ii)
     simmeta = simmeta[jj[kk]]
     simflux = simflux[jj[kk]]
 
@@ -278,7 +276,7 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
 
     #- Get distribution of target types
     true_objtype, target_objtype = sample_objtype(nspec, flavor)
-    
+
     #- Get DESI wavelength coverage
     wavemin = desimodel.io.load_throughput('b').wavemin
     wavemax = desimodel.io.load_throughput('z').wavemax
@@ -313,7 +311,7 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
             elg = ELG(wave=wave)
             simflux, wave1, meta = elg.make_templates(nmodel=nobj, seed=seed)
             fibermap['DESI_TARGET'][ii] = desi_mask.ELG
-            
+
         elif objtype == 'LRG':
             from desisim.templates import LRG
             lrg = LRG(wave=wave)
@@ -336,7 +334,7 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
         # For a "bad" QSO simulate a normal star without color cuts, which isn't
         # right. We need to apply the QSO color-cuts to the normal stars to pull
         # out the correct population of contaminating stars.
-        
+
         # Note by @moustakas: we can now do this using desisim/#150, but we are
         # going to need 'noisy' photometry (because the QSO color-cuts
         # explicitly avoid the stellar locus).
@@ -448,4 +446,3 @@ def sample_nz(objtype, n):
     #- Sample that distribution
     x = np.random.uniform(0.0, 1.0, size=n)
     return np.interp(x, cdf, zhi)
-
