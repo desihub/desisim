@@ -133,7 +133,12 @@ napoleon_include_private_with_doc = True
 # This value contains a list of modules to be mocked up. This is useful when
 # some external dependencies are not met at build time and break the
 # building process.
-autodoc_mock_imports = ['desimodel', 'desimodel.io',]
+autodoc_mock_imports = ['desimodel.focalplane', 'desimodel.io',
+                        'desispec.cosmics', 'desispec.image',
+                        'desispec.io', 'desispec.io.fibermap', 'desispec.io.util',
+                        'desispec.interpolation', 'desispec.log',
+                        'desitarget.mtl', 'desitarget.targets',
+                        'desitarget.targetmask']
 
 # -- Options for HTML output ----------------------------------------------
 
