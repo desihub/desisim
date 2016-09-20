@@ -5,7 +5,8 @@ desisim change log
 0.14.1 (unreleased)
 -------------------
 
-* no changes yet
+* Fix some ``build_sphinx`` errors.
+* Run coverage tests under Python 2.7 for now.
 
 0.14.0 (2016-09-14)
 -------------------
