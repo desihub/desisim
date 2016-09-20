@@ -37,7 +37,7 @@ _sigma_v = {
 _zwarn_fraction = {
     'ELG': 0.14,       # 1 - 4303/5000
     'LRG': 0.015,      # 1 - 4921/5000
-    'QSO': 0.18,       # 1 - 4094/5000 
+    'QSO': 0.18,       # 1 - 4094/5000
     'STAR': 0.238,     # 1 - 3811/5000
     'SKY': 1.0,
     'UNKNOWN': 1.0,
@@ -46,14 +46,14 @@ _zwarn_fraction = {
 def get_observed_redshifts(truetype, truez):
     """
     Returns observed z, zerr, zwarn arrays given true object types and redshifts
-    
+
     Args:
         truetype : array of ELG, LRG, QSO, STAR, SKY, or UNKNOWN
         truez: array of true redshifts
-        
+
     Returns tuple of (zout, zerr, zwarn)
 
-    TODO: Add BGS, MWS support     
+    TODO: Add BGS, MWS support
     """
     zout = truez.copy()
     zerr = np.zeros(len(truez), dtype=np.float32)
@@ -68,32 +68,30 @@ def get_observed_redshifts(truetype, truez):
         if num_zwarn > 0:
             jj = np.random.choice(np.where(ii)[0], size=num_zwarn, replace=False)
             zwarn[jj] = 4
-        
-    return zout, zerr, zwarn    
+
+    return zout, zerr, zwarn
 
 def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
     """
     Generates quick output zcatalog
-    
+
     Args:
         tilefiles : list of fiberassign tile files that were observed
         targets : astropy Table of targets
         truth : astropy Table of input truth with columns TARGETID, TRUEZ, and TRUETYPE
-        
-    Options:
-        zcat : input zcatalog Table from previous observations
-        perfect : if True, treat spectro pipeline as perfect with input=output,
+        zcat (Optional): input zcatalog Table from previous observations
+        perfect (Optional): if True, treat spectro pipeline as perfect with input=output,
             otherwise add noise and zwarn!=0 flags
         
     Returns:
         zcatalog astropy Table based upon input truth, plus ZERR, ZWARN,
-        NUMOBS, and TYPE columns   
-        
-    TODO: Add BGS, MWS support     
+        NUMOBS, and TYPE columns
+
+    TODO: Add BGS, MWS support
     """
     #- convert to Table for easier manipulation
     truth = Table(truth)
-    
+
     #- Count how many times each target was observed for this set of tiles
     ### print('Reading {} tiles'.format(len(obstiles)))
     nobs = Counter()
@@ -144,7 +142,7 @@ def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
         isELG = (objtype == 'GALAXY') & ((targets['DESI_TARGET'] & desi_mask.ELG) != 0)
         objtype[isLRG] = 'LRG'
         objtype[isELG] = 'ELG'
-        
+
         z, zerr, zwarn = get_observed_redshifts(objtype, newzcat['Z'])
         newzcat['Z'] = z  #- update with noisy redshift
     else:
@@ -158,4 +156,3 @@ def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
     newzcat.meta['EXTNAME'] = 'ZCATALOG'
 
     return newzcat
-

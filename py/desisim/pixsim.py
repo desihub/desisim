@@ -18,35 +18,35 @@ import desispec.io
 from desispec.image import Image
 import desispec.cosmics
 
-from desisim import obs, io
+from . import obs, io
 from desispec.log import get_logger
 log = get_logger()
 
 def simulate_frame(night, expid, camera, **kwargs):
     """
     Simulate a single frame, including I/O
-    
+
     Args:
         night: YEARMMDD string
         expid: integer exposure ID
         camera: b0, r1, .. z9
 
     Additional keyword args are passed to pixsim.simulate()
-    
+
     Reads:
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
-        
+
     Writes:
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/simpix-{camera}-{expid}.fits
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/desi-{expid}.fits
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/pix-{camera}-{expid}.fits
-        
+
     For a lower-level pixel simulation interface that doesn't perform I/O,
     see pixsim.simulate()
     """
     #- night, expid, camera -> input file names
     simspecfile = io.findfile('simspec', night=night, expid=expid)
-    
+
     #- Read inputs
     psf = desimodel.io.load_psf(camera[0])
     simspec = io.read_simspec(simspecfile)
@@ -72,27 +72,24 @@ def simulate_frame(night, expid, camera, **kwargs):
 
 def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
     cosmics=None, wavemin=None, wavemax=None, preproc=True):
-    """
-    Run pixel-level simulation of input spectra
-    
+    """Run pixel-level simulation of input spectra
+
     Args:
         camera (string) : b0, r1, .. z9
         simspec : desispec.io.SimSpec object e.g. from desispec.io.read_simspec()
         psf : subclass of specter.psf.psf.PSF, e.g. from desimodel.io.load_psf()
+        fibers (array_like, optional):  fibers included in this simspec
+        nspec (int, optional) : number of spectra to simulate
+        ncpu (int, optional) : number of CPU cores to use in parallel
+        cosmics (optional): desispec.image.Image object from desisim.io.read_cosmics()
+        wavemin, wavemax (float, optional) : min/max wavelength range to simulate
+        preproc (boolean, optional) : also preprocess raw data (default True)
 
-    Optional:
-        fibers (array_like):  fibers included in this simspec
-        nspec (int) : number of spectra to simulate
-        ncpu (int) : number of CPU cores to use in parallel
-        cosmics : desispec.image.Image object from desisim.io.read_cosmics()
-        wavemin, wavemax (float) : min/max wavelength range to simulate
-        preproc (boolean) : also preprocess raw data (default True)
-
-    Returns (image, rawpix, truepix) tuple, where
-        image : preprocessed Image object
-            (only header is meaningful if preproc=False)
-        rawpix : 2D ndarray of unprocessed raw pixel data
-        truepix : 2D ndarray of truth for image.pix    
+    Returns:
+        (image, rawpix, truepix) tuple, where image is the preprocessed Image object
+            (only header is meaningful if preproc=False), rawpix is a 2D
+            ndarray of unprocessed raw pixel data, and truepix is a 2D ndarray
+            of truth for image.pix
     """
 
     log.info('Starting pixsim.simulate {}'.format(asctime()))
@@ -105,21 +102,21 @@ def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
 
     #- Load DESI parameters
     params = desimodel.io.load_desiparams()
-    
+
     #- this is not necessarily true, the truth in is the fibermap
     nfibers = params['spectro']['nfibers']
 
     if fibers is not None:
         fibers = np.asarray(fibers)
         allphot = simspec.phot[channel] + simspec.skyphot[channel]
-        
+
         #- Trim to just fibers on this spectrograph
         ii = np.where(fibers//500 == ispec)[0]
         fibers = fibers[ii]
 
         phot = np.zeros((nfibers, allphot.shape[1]))
         phot[fibers%500] = allphot[ii]
-        
+
         log.debug('Simulating fibers {}'.format(fibers))
 
     else:
@@ -155,7 +152,7 @@ def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
         nspec = phot.shape[0]
 
     #- Project to image and append that to file
-    log.info("Projecting photons onto {} CCD".format(camera))        
+    log.info("Projecting photons onto {} CCD".format(camera))
     truepix = parallel_project(psf, wave, phot, ncpu=ncpu)
 
     #- Start metadata header
@@ -198,7 +195,7 @@ def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
         noverscan = params['ccd'][channel]['overscanpixels']
     else:
         noverscan = 50
-    
+
     nyraw = ny
     nxraw = nx + nprescan + noverscan
     rawpix = np.empty( (nyraw*2, nxraw*2), dtype=np.int32 )
@@ -226,13 +223,13 @@ def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
     def xyslice2header(xyslice):
         '''
         convert 2D slice into IRAF style [a:b,c:d] header value
-        
+
         e.g. xyslice2header(np.s_[0:10, 5:20]) -> '[6:20,1:10]'
         '''
         yy, xx = xyslice
         value = '[{}:{},{}:{}]'.format(xx.start+1, xx.stop, yy.start+1, yy.stop)
         return value
-      
+
     #- Amp order from DESI-1964
     #-   3 4
     #-   1 2
@@ -275,17 +272,15 @@ def photpix2raw(phot, gain=1.0, readnoise=3.0, offset=None,
 
     Args:
         phot: 2D float array of mean input photons per pixel
-        
-    Options:
-        gain (float): electrons/ADU
-        readnoise (float): CCD readnoise in electrons
-        offset (float): bias offset to add
-        nprescan (int): number of prescan pixels to add
-        noverscan (int): number of overscan pixels to add
-        readorder : 'lr' or 'rl' to indicate readout order
+        gain (float, optional): electrons/ADU
+        readnoise (float, optional): CCD readnoise in electrons
+        offset (float, optional): bias offset to add
+        nprescan (int, optional): number of prescan pixels to add
+        noverscan (int, optional): number of overscan pixels to add
+        readorder (str, optional): 'lr' or 'rl' to indicate readout order
             'lr' : add prescan on left and overscan on right of image
             'rl' : add prescan on right and overscan on left of image
-        noisydata (boolean) : if True, don't add noise to the signal region,
+        noisydata (boolean, optional) : if True, don't add noise to the signal region,
             e.g. because input signal already had noise from a cosmics image
 
     Returns 2D integer ndarray:
@@ -306,10 +301,10 @@ def photpix2raw(phot, gain=1.0, readnoise=3.0, offset=None,
 
     img = np.zeros((ny, nx), dtype=float)
     img[:, nprescan:nprescan+phot.shape[1]] = phot
-    
+
     if offset is None:
         offset = np.random.uniform(100, 200)
-    
+
     if noisydata:
         #- Data already has noise; just add offset and noise to pre/overscan
         img += offset
@@ -317,7 +312,7 @@ def photpix2raw(phot, gain=1.0, readnoise=3.0, offset=None,
         ix = phot.shape[1] + nprescan
         img[0:ny, ix:ix+noverscan] += np.random.normal(scale=readnoise, size=(ny, noverscan))
         img /= gain
-        
+
     else:
         #- Add offset and noise to everything
         noise = np.random.normal(loc=offset, scale=readnoise, size=img.shape)
@@ -330,10 +325,10 @@ def photpix2raw(phot, gain=1.0, readnoise=3.0, offset=None,
 def _project(args):
     """
     Helper function to project photons onto a subimage
-    
+
     Args:
         tuple/array of [psf, wave, phot, specmin]
-    
+
     Returns (xyrange, subimage) such that
         xmin, xmax, ymin, ymax = xyrange
         image[ymin:ymax, xmin:xmax] += subimage
@@ -357,7 +352,7 @@ def _project(args):
 def parallel_project(psf, wave, phot, ncpu=None):
     """
     Using psf, project phot[nspec, nw] vs. wave[nw] onto image
-    
+
     Return 2D image
     """
     import multiprocessing as mp
@@ -388,10 +383,9 @@ def parallel_project(psf, wave, phot, ncpu=None):
         for xyrange, subimg in xy_subimg:
             xmin, xmax, ymin, ymax = xyrange
             img[ymin:ymax, xmin:xmax] += subimg
-        
+
         #- Prevents hangs of Travis tests
         pool.close()
         pool.join()
-            
+
     return img
-    

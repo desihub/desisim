@@ -43,11 +43,23 @@ except ImportError:
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx.ext.intersphinx',
     'sphinx.ext.todo',
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
     napoleon_extension
 ]
+
+# Configuration for intersphinx, copied from astropy.
+intersphinx_mapping = {
+    'python': ('http://docs.python.org/', None),
+    # 'python3': ('http://docs.python.org/3/', path.abspath(path.join(path.dirname(__file__), 'local/python3links.inv'))),
+    'numpy': ('http://docs.scipy.org/doc/numpy/', None),
+    'scipy': ('http://docs.scipy.org/doc/scipy/reference/', None),
+    'matplotlib': ('http://matplotlib.org/', None),
+    'astropy': ('http://docs.astropy.org/en/stable/', None),
+    'h5py': ('http://docs.h5py.org/en/latest/', None)
+    }
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -62,8 +74,8 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = 'desisim'
-copyright = '2014-2015, DESI Collaboration'
+project = u'desisim'
+copyright = u'2014-2016, DESI Collaboration'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -118,12 +130,28 @@ keep_warnings = True
 # Include functions that begin with an underscore, e.g. _private().
 napoleon_include_private_with_doc = True
 
+# This value contains a list of modules to be mocked up. This is useful when
+# some external dependencies are not met at build time and break the
+# building process.
+autodoc_mock_imports = ['desimodel.focalplane', 'desimodel.io',
+                        'desispec.cosmics', 'desispec.image',
+                        'desispec.io', 'desispec.io.fibermap', 'desispec.io.util',
+                        'desispec.interpolation', 'desispec.log',
+                        'desitarget.mtl', 'desitarget.targets',
+                        'desitarget.targetmask']
+
 # -- Options for HTML output ----------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #html_theme = 'default'
 #html_theme = 'haiku'
+try:
+    import sphinx_rtd_theme
+    html_theme = 'sphinx_rtd_theme'
+    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
+except ImportError:
+    pass
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -152,7 +180,7 @@ napoleon_include_private_with_doc = True
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+#html_static_path = ['_static']
 
 # Add any extra paths that contain custom files (such as robots.txt or
 # .htaccess) here, relative to this directory. These files are copied
@@ -221,8 +249,8 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  ('index', 'desisim.tex', 'desisim Documentation',
-   'DESI', 'manual'),
+  ('index', 'desisim.tex', u'desisim Documentation',
+   u'DESI', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -251,8 +279,8 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'desisim', 'desisim Documentation',
-     ['DESI'], 1)
+    ('index', 'desisim', u'desisim Documentation',
+     [u'DESI'], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -265,8 +293,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', 'desisim', 'desisim Documentation',
-   'DESI', 'desisim', 'One line description of project.',
+  ('index', 'desisim', u'desisim Documentation',
+   u'DESI', 'desisim', 'One line description of project.',
    'Miscellaneous'),
 ]
 

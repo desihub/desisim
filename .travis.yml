@@ -57,7 +57,7 @@ env:
         # These packages will always be installed.
         - CONDA_DEPENDENCIES="scipy pyyaml"
         # These packages will only be installed if we really need them.
-        - CONDA_ALL_DEPENDENCIES="scipy matplotlib coverage==3.7.1 pyyaml"
+        - CONDA_ALL_DEPENDENCIES="scipy matplotlib coverage==3.7.1 pyyaml qt=4"
         # These packages will always be installed.
         - PIP_DEPENDENCIES=""
         # These packages will only be installed if we really need them.
@@ -87,8 +87,7 @@ matrix:
         - os: linux
           env: PYTHON_VERSION=2.7 SETUP_CMD='build_sphinx'
                CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
-               PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
-               DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES
+
           # OPTIONAL_DEPS needed because the plot_directive in sphinx needs them
           # -w is an astropy extension
 
@@ -99,13 +98,13 @@ matrix:
 
         # Try multiple python versions with the latest numpy
         - os: linux
-          env: PYTHON_VERSION=2.7 SETUP_CMD='test'
+          env: PYTHON_VERSION=2.7 SETUP_CMD='test --coverage'
                CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
                PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
                DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES
 
         - os: linux
-          env: PYTHON_VERSION=3.5 SETUP_CMD='test --coverage'
+          env: PYTHON_VERSION=3.5 SETUP_CMD='test'
                CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
                PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
                DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES

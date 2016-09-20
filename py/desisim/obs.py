@@ -33,22 +33,22 @@ def testslit_fibermap() :
     fibermap['SPECTROID'] = np.zeros((testslit_nspec)).astype(int)
     for spectro in range(nspectro) :
         fiber_index=testslit_nspec_per_spectro*spectro
-        first_fiber_id=500*spectro 
+        first_fiber_id=500*spectro
         for b in range(20) :
             # Fibers at Top of top block or Bottom of bottom block
             if b <= 10:
                 fibermap['FIBER'][fiber_index]  = 25*b + first_fiber_id
             else:
                 fibermap['FIBER'][fiber_index]  = 25*b + 24 + first_fiber_id
-                
+
             fibermap['SPECTROID'][fiber_index] = spectro
-            fiber_index+=1                    
+            fiber_index+=1
     return fibermap
 
 def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
                  airmass=1.0, exptime=None, seed=None, testslit=False,
                  arc_lines_filename=None, flat_spectrum_filename=None):
-    
+
     """
     Create a new exposure and output input simulation files.
     Does not generate pixel-level simulations or noisy spectra.
@@ -83,7 +83,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
     """
     if expid is None:
         expid = get_next_expid()
-    
+
     if tileid is None:
         tileid = get_next_tileid()
 
@@ -95,7 +95,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
         #- 10pm on night YEARMMDD
         night = str(night)  #- just in case we got an integer instead of string
         dateobs = time.strptime(night+':22', '%Y%m%d:%H')
-    
+
     params = desimodel.io.load_desiparams()
     flavor = flavor.lower()
     if flavor == 'arc':
@@ -104,13 +104,13 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
         else :
             infile = arc_lines_filename
         d = fits.getdata(infile, 1)
-        
+
         keys = d.columns.names
-                
+
         wave=None
         phot=None
         elec=None
-        
+
         if ( 'VACUUM_WAVE' in keys ) :
             wave = d['VACUUM_WAVE']
         elif ( 'WAVE' in keys ) :
@@ -119,11 +119,11 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
             elec = d['ELECTRONS']
         elif ("PHOTONS" in keys) :
             phot= d['PHOTONS']
-            
+
         if ( ( phot is None ) and (elec is None) ) or wave is None :
             log.error("cannot read arc line fits file '%s' (don't know the format)"%infile)
             raise KeyError("cannot read arc line fits file")
-        
+
 
         truth = dict(WAVE=wave)
         meta = None
@@ -132,22 +132,22 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
             if nspec != fibermap.size :
                 log.warning("forcing nspec %d -> %d (testslit sim.)"%(nspec,fibermap.size))
                 nspec=fibermap.size
-        else : 
+        else :
             fibermap = desispec.io.fibermap.empty_fibermap(nspec)
-        
+
         fibermap['OBJTYPE'] = 'ARC'
         for channel in ('B', 'R', 'Z'):
-            thru = desimodel.io.load_throughput(channel)        
+            thru = desimodel.io.load_throughput(channel)
             ii = np.where( (thru.wavemin <= wave) & (wave <= thru.wavemax) )[0]
             truth['WAVE_'+channel] = wave[ii]
             if phot is not None :
                 elec = phot*np.interp(wave,thru._wave,thru._thru,left=0,right=0)
             truth['PHOT_'+channel] = np.tile(elec[ii], nspec).reshape(nspec, len(ii))
-            
-                
+
+
 
     elif flavor == 'flat':
-        
+
         if flat_spectrum_filename is None :
             infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.3/flat-3100K-quartz-iodine.fits'
         else :
@@ -170,10 +170,10 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
             if nspec != fibermap.size :
                 log.warning("forcing nspec %d -> %d (testslit sim.)"%(nspec,fibermap.size))
                 nspec=fibermap.size
-        else : 
+        else :
             fibermap = desispec.io.fibermap.empty_fibermap(nspec)
-        
-        #- Convert to 2D for projection        
+
+        #- Convert to 2D for projection
         flux = np.tile(flux, nspec).reshape(nspec, len(wave))
 
         fibermap['OBJTYPE'] = 'FLAT'
@@ -182,10 +182,10 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
             ii = (thru.wavemin <= wave) & (wave <= thru.wavemax)
             phot = thru.photons(wave[ii], flux[:,ii], units=hdr['BUNIT'],
                             objtype='CALIB', exptime=10)
-        
+
             truth['WAVE_'+channel] = wave[ii]
             truth['PHOT_'+channel] = phot
-        
+
     else: # checked that flavor is valid in newexp-desi
         log.debug('Generating {} targets'.format(nspec))
         fibermap, truth = get_targets_parallel(nspec, flavor, tileid=tileid, seed=seed)
@@ -193,10 +193,10 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
         flux = truth['FLUX']
         wave = truth['WAVE']
         nwave = len(wave)
-    
+
         if exptime is None:
             exptime = params['exptime']
-    
+
         #- Load sky [Magic knowledge of units 1e-17 erg/s/cm2/A/arcsec2]
         if flavor in ('bright', 'bgs', 'mws'):
             skyfile = os.getenv('DESIMODEL')+'/data/spectra/spec-sky-bright.dat'
@@ -214,32 +214,32 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
         log.debug('Calculating flux -> photons')
         for channel in ('B', 'R', 'Z'):
             thru = desimodel.io.load_throughput(channel)
-        
+
             ii = np.where( (thru.wavemin <= wave) & (wave <= thru.wavemax) )[0]
-        
+
             #- Project flux to photons
             phot = thru.photons(wave[ii], flux[:,ii], units=truth['UNITS'],
                     objtype=specter_objtype(truth['OBJTYPE']),
                     exptime=exptime, airmass=airmass)
-                
+
             truth['PHOT_'+channel] = phot
             truth['WAVE_'+channel] = wave[ii]
-    
+
             #- Project sky flux to photons
             skyphot = thru.photons(wave[ii], skyflux[ii]*airmass,
                 units='1e-17 erg/s/cm2/A/arcsec2',
                 objtype='SKY', exptime=exptime, airmass=airmass)
-    
+
             #- 2D version
             ### truth['SKYPHOT_'+channel] = np.tile(skyphot, nspec).reshape((nspec, len(ii)))
             #- 1D version
             truth['SKYPHOT_'+channel] = skyphot.astype(np.float32)
-        
+
         #- NOTE: someday skyflux and skyphot may be 2D instead of 1D
-        
+
         #- Extract the metadata part of the truth dictionary into a table
         meta = truth['META']
-        
+
         #columns = (
         #    'OBJTYPE',
         #    'REDSHIFT',
@@ -249,9 +249,9 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
         #    'VDISP'
         #)
         #meta = {key: truth[key] for key in columns}
-        
+
     #- (end indentation for arc/flat/science flavors)
-        
+
     #- Override $DESI_SPECTRO_DATA in order to write to simulation area
     datadir_orig = os.getenv('DESI_SPECTRO_DATA')
     simbase = os.path.join(os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'))
@@ -271,7 +271,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
     fiberfile = desispec.io.findfile('fibermap', night, expid)
     desispec.io.write_fibermap(fiberfile, fibermap, header=hdr)
     log.info('Wrote '+fiberfile)
-    
+
     #- Write simspec; expand fibermap header
     hdr['AIRMASS'] = (airmass, 'Airmass at middle of exposure')
     hdr['EXPTIME'] = (exptime, 'Exposure time [sec]')
@@ -285,13 +285,13 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
         update_obslog(obstype=flavor, program='calib', expid=expid, dateobs=dateobs, tileid=tileid)
     else:
         update_obslog(obstype='science', program=flavor, expid=expid, dateobs=dateobs, tileid=tileid)
-    
+
     #- Restore $DESI_SPECTRO_DATA
     if datadir_orig is not None:
         os.environ['DESI_SPECTRO_DATA'] = datadir_orig
     else:
         del os.environ['DESI_SPECTRO_DATA']
-    
+
     return fibermap, truth
 
 #- Mapping of DESI objtype to things specter knows about
@@ -306,18 +306,18 @@ def specter_objtype(desitype):
         BGS='LRG', # !!!
         SKY='SKY'
     )
-    
+
     unknown_types = set(intype) - set(desi2specter.keys())
     if len(unknown_types) > 0:
         raise ValueError('Unknown input objtypes {}'.format(unknown_types))
-    
+
     results = np.zeros(len(intype), dtype=(str, 8))
     for objtype in desi2specter:
         ii = (intype == objtype)
         results[ii] = desi2specter[objtype]
-        
+
     assert np.count_nonzero(results == '') == 0
-    
+
     if isinstance(desitype, str):
         return results[0]
     else:
@@ -326,32 +326,33 @@ def specter_objtype(desitype):
 def get_next_tileid(program='DARK'):
     """
     Return tileid of next tile to observe
-    
-    Options:
-        program: dark, gray, or bright
-    
-    Note: simultaneous calls will return the same tileid;
-          it does *not* reserve the tileid
+
+    Args:
+        program (optional): dark, gray, or bright
+
+    Note:
+        Simultaneous calls will return the same tileid;
+        it does *not* reserve the tileid.
     """
     program = program.upper()
     if program not in ('DARK', 'GRAY', 'GREY', 'BRIGHT',
                        'ELG', 'LRG', 'QSO', 'LYA', 'BGS', 'MWS'):
         return -1
-    
+
     #- Read DESI tiling and trim to just tiles in DESI footprint
     tiles = table.Table(desimodel.io.load_tiles())
 
     #- HACK: update tilelist to include PROGRAM, etc.
     if 'PROGRAM' not in tiles.colnames:
-        log.error('You are using an out-of-date desi-tiles.fits file from desimodel')        
-        log.error('please update your copy of desimodel/data')        
+        log.error('You are using an out-of-date desi-tiles.fits file from desimodel')
+        log.error('please update your copy of desimodel/data')
         log.warning('proceeding anyway with a workaround for now...')
         tiles['PASS'] -= min(tiles['PASS'])  #- standardize to starting at 0 not 1
-    
+
         brighttiles = tiles[tiles['PASS'] <= 2].copy()
         brighttiles['TILEID'] += 50000
         brighttiles['PASS'] += 5
-    
+
         tiles = table.vstack([tiles, brighttiles])
 
         program_col = table.Column(name='PROGRAM', length=len(tiles), dtype=(str, 6))
@@ -370,28 +371,28 @@ def get_next_tileid(program='DARK'):
         result = db.execute('SELECT tileid FROM obslog WHERE program="{}"'.format(program))
         obstiles = set( [row[0] for row in result] )
         db.close()
-    
+
     #- Just pick the next tile in sequential order
     program_tiles = tiles['TILEID'][tiles['PROGRAM'] == program]
     nexttile = int(min(set(program_tiles) - obstiles))
-    
+
     log.debug('{} tiles in program {}'.format(len(program_tiles), program))
     log.debug('{} observed tiles'.format(len(obstiles)))
-    
+
     return nexttile
-    
+
 def get_next_expid(n=None):
     """
     Return the next exposure ID to use from {proddir}/etc/next_expid.txt
     and update the exposure ID in that file.
-    
+
     Use file locking to prevent multiple readers from getting the same
     ID or accidentally clobbering each other while writing.
-    
-    Optional Input:
-    n : integer, number of contiguous expids to return as a list.
-        If None, return a scalar. Note that n=1 returns a list of length 1.
-    
+
+    Args:
+        n (int, optional): number of contiguous expids to return as a list.
+            If None, return a scalar. Note that n=1 returns a list of length 1.
+
     BUGS:
       * if etc/next_expid.txt doesn't exist, initial file creation is
         probably not threadsafe.
@@ -400,7 +401,7 @@ def get_next_expid(n=None):
     """
     #- Full path to next_expid.txt file
     filename = io.simdir()+'/etc/next_expid.txt'
-    
+
     if not os.path.exists(io.simdir()+'/etc/'):
         os.makedirs(io.simdir()+'/etc/')
 
@@ -409,78 +410,79 @@ def get_next_expid(n=None):
         fw = open(filename, 'w')
         fw.write("0\n")
         fw.close()
-    
+
     #- Open the file, but get exclusive lock before reading
     f0 = open(filename)
     ### fcntl.flock(f0, fcntl.LOCK_EX)
     expid = int(f0.readline())
-    
+
     #- Write update expid to the file
     fw = open(filename, 'w')
     if n is None:
         fw.write(str(expid+1)+'\n')
     else:
-        fw.write(str(expid+n)+'\n')        
+        fw.write(str(expid+n)+'\n')
     fw.close()
-    
+
     #- Release the file lock
     ### fcntl.flock(f0, fcntl.LOCK_UN)
     f0.close()
-    
+
     if n is None:
         return expid
     else:
         return list(range(expid, expid+n))
-    
+
 def get_night(t=None, utc=None):
     """
     Return YEARMMDD for tonight.  The night roles over at local noon.
     i.e. 1am and 11am is the previous date; 1pm is the current date.
-    
-    Optional inputs:
-    t : local time.struct_time tuple of integers
-        (year, month, day, hour, min, sec, weekday, dayofyear, DSTflag)
-        default is time.localtime(), i.e. now
-    utc : time.struct_time tuple for UTC instead of localtime
-    
-    Note: this only has one second accuracy; good enough for sims but *not*
-          to be used for actual DESI ops.
+
+    Args:
+        t : local time.struct_time tuple of integers
+            (year, month, day, hour, min, sec, weekday, dayofyear, DSTflag)
+            default is time.localtime(), i.e. now
+        utc : time.struct_time tuple for UTC instead of localtime
+
+    Note:
+        this only has one second accuracy; good enough for sims but *not*
+        to be used for actual DESI ops.
     """
     #- convert t to localtime or fetch localtime if needed
     if utc is not None:
         t = time.localtime(time.mktime(utc) - time.timezone)
     elif t is None:
         t = time.localtime()
-        
+
     #- what date/time was it 12 hours ago? "Night" rolls over at noon local
     night = time.localtime(time.mktime(t) - 12*3600)
-    
+
     #- format that as YEARMMDD
     return time.strftime('%Y%m%d', night)
-    
+
 #- I'm not really sure this is a good idea.
 #- I'm sure I will want to change the schema later...
 def update_obslog(obstype='science', program='DARK', expid=None, dateobs=None,
     tileid=-1, ra=None, dec=None):
     """
     Update obslog with a new exposure
-    
+
     obstype : 'arc', 'flat', 'bias', 'test', 'science', ...
     program : 'DARK', 'GRAY', 'BRIGHT', 'CALIB'
     expid   : integer exposure ID, default from get_next_expid()
     dateobs : time.struct_time tuple; default time.localtime()
     tileid  : integer TileID, default -1, i.e. not a DESI tile
     ra, dec : float (ra, dec) coordinates, default tile ra,dec or (0,0)
-    
+
     returns tuple (expid, dateobs)
-    
+
     TODO: normalize obstype vs. program; see desisim issue #97
     """
     #- Connect to sqlite database file and create DB if needed
     dbdir = io.simdir() + '/etc'
     if not os.path.exists(dbdir):
         os.makedirs(dbdir)
-        
+
     dbfile = dbdir+'/obslog.sqlite'
     db = sqlite3.connect(dbfile)
     db.execute("""\
@@ -495,11 +497,11 @@ def update_obslog(obstype='science', program='DARK', expid=None, dateobs=None,
         dec REAL DEFAULT 0.0
     )
     """)
-    
+
     #- Fill in defaults
     if expid is None:
         expid = get_next_expid()
-    
+
     if dateobs is None:
         dateobs = time.localtime()
 
@@ -511,16 +513,16 @@ def update_obslog(obstype='science', program='DARK', expid=None, dateobs=None,
             #- TODO: mod 50k is to convert bright tileids to locations of
             #- dark tileids; update this when new tiling file exists
             ra, dec = io.get_tile_radec(tileid % 50000)
-            
+
     night = get_night(utc=dateobs)
-        
+
     insert = """\
     INSERT OR REPLACE INTO obslog(expid,dateobs,night,obstype,program,tileid,ra,dec)
     VALUES (?,?,?,?,?,?,?,?)
     """
     db.execute(insert, (expid, time.mktime(dateobs), night, obstype.upper(), program.upper(), tileid, ra, dec))
     db.commit()
-    
+
     return expid, dateobs
 
 #- for the future
@@ -529,12 +531,9 @@ def update_obslog(obstype='science', program='DARK', expid=None, dateobs=None,
 #     dtype = list()
 #     for name, col in zip(keys, columns):
 #         dtype.append( (name, col.dtype) )
-#     
+#
 #     result = np.zeros(nrow, dtype=dtype)
 #     for name, col in zip(keys, columns):
 #         result[name] = col
-# 
+#
 #     return result
-
-
-

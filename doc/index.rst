@@ -15,21 +15,11 @@ directory and even display their sections.  See `the toctree documentation`_.
 
 .. _`the toctree documentation`: http://sphinx-doc.org/markup/toctree.html
 
-.. .. toctree::
-..   :maxdepth: 2
-..
-..   hello.rst
+.. toctree::
+    :maxdepth: 1
 
-The desisim package
-===================
-
-This is used to include docstrings from modules. See `the autodoc documentation`_.
-
-.. _`the autodoc documentation`: http://sphinx-doc.org/ext/autodoc.html?highlight=automodule#directive-automodule
-
-.. automodule:: desisim
-   :members:
-   :imported-members:
+    changes
+    api
 
 Indices and tables
 ==================

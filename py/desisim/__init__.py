@@ -9,8 +9,8 @@ Tools for DESI instrument simulations, including input templates.
 It does not cover cosmology simulations.
 """
 from __future__ import absolute_import
-from . import pixsim
-from . import obs
-from . import io
-from . import targets
+# from . import pixsim
+# from . import obs
+# from . import io
+# from . import targets
 from ._version import __version__
