@@ -1,6 +1,2 @@
 setuptools
-numpy
-scipy
-astropy
-pyyaml
 git+https://github.com/desihub/desiutil.git@1.8.0#egg=desiutil
