@@ -21,6 +21,7 @@ class TestQuickBrick(unittest.TestCase):
         if os.path.exists(self.testdir):
             rmtree(self.testdir)
             
+    #- Run basic test of quickbrick and check its outputs
     @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
     def test_quickbrick(self):
         brickname = 'test1'
@@ -67,24 +68,32 @@ class TestQuickBrick(unittest.TestCase):
         z = truth['TRUEZ']
         self.assertTrue(np.all((0.1 <= z) & (z <= 0.2)))
 
+    #- Ensure that using --seed results in reproducible spectra
     @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
     def test_quickbrick_seed(self):
         nspec = 2
-        cmd = "quickbrick --seed 1 -b test1 --objtype BRIGHT_MIX -n {} --outdir {}".format(nspec, self.testdir)
+        cmd = "quickbrick --seed 1 -b test1a --objtype BRIGHT_MIX -n {} --outdir {}".format(nspec, self.testdir)
         quickbrick.main(quickbrick.parse(cmd.split()[1:]))
-        cmd = "quickbrick --seed 1 -b test2 --objtype BRIGHT_MIX -n {} --outdir {}".format(nspec, self.testdir)
+        cmd = "quickbrick --seed 1 -b test1b --objtype BRIGHT_MIX -n {} --outdir {}".format(nspec, self.testdir)
+        quickbrick.main(quickbrick.parse(cmd.split()[1:]))
+        cmd = "quickbrick --seed 2 -b test2 --objtype BRIGHT_MIX -n {} --outdir {}".format(nspec, self.testdir)
         quickbrick.main(quickbrick.parse(cmd.split()[1:]))
         
-        f1 = desispec.io.read_frame('{}/brick-b-test1.fits'.format(self.testdir))
+        f1a = desispec.io.read_frame('{}/brick-b-test1a.fits'.format(self.testdir))
+        f1b = desispec.io.read_frame('{}/brick-b-test1b.fits'.format(self.testdir))
         f2 = desispec.io.read_frame('{}/brick-b-test2.fits'.format(self.testdir))
-        self.assertTrue(np.all(f1.flux == f2.flux))
-        self.assertTrue(np.all(f1.ivar == f2.ivar))
+        self.assertTrue(np.all(f1a.flux == f1b.flux))  #- same seed
+        self.assertTrue(np.all(f1a.ivar == f1b.ivar))
+        self.assertTrue(np.any(f1a.flux != f2.flux))   #- different seed
 
-        t1 = fits.getdata('{}/brick-b-test1.fits'.format(self.testdir), '_TRUTH')
+        t1a = fits.getdata('{}/brick-b-test1a.fits'.format(self.testdir), '_TRUTH')
+        t1b = fits.getdata('{}/brick-b-test1b.fits'.format(self.testdir), '_TRUTH')
         t2 = fits.getdata('{}/brick-b-test2.fits'.format(self.testdir), '_TRUTH')
-        self.assertTrue(np.all(t1['TRUE_OBJTYPE'] == t2['TRUE_OBJTYPE']))
-        self.assertTrue(np.all(t1['TRUEZ'] == t2['TRUEZ']))
+        self.assertTrue(np.all(t1a['TRUE_OBJTYPE'] == t1b['TRUE_OBJTYPE']))
+        self.assertTrue(np.all(t1b['TRUEZ'] == t1b['TRUEZ']))
+        self.assertTrue(np.any(t1a['TRUEZ'] != t2['TRUEZ']))
 
+    #- Test that brighter moon makes noisier spectra
     @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
     def test_quickbrick_moon(self):
         nspec = 2
@@ -100,6 +109,7 @@ class TestQuickBrick(unittest.TestCase):
         #- brick1 has more moonlight thus larger errors thus smaller ivar
         self.assertLess(np.median(brick1.ivar), np.median(brick2.ivar))
 
+    #- Test that shorter exposures make noisier spectra
     @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
     def test_quickbrick_exptime(self):
         nspec = 2
