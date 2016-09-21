@@ -26,6 +26,7 @@ from desispec.log import get_logger, DEBUG
 from desisim.targets import sample_objtype
 from desisim.obs import get_night
 import desisim.templates
+import desiutil.io
 
 def _add_truth(hdus, header, meta, trueflux, sflux, wave, channel):
     """Utility function for adding truth to an output FITS file."""
@@ -35,8 +36,11 @@ def _add_truth(hdus, header, meta, trueflux, sflux, wave, channel):
         swave = wave.astype(np.float32)
         hdus.append(fits.ImageHDU(swave, name='_SOURCEWAVE', header=header))
         hdus.append(fits.ImageHDU(sflux, name='_SOURCEFLUX', header=header))
-    hdus.append(fits.BinTableHDU(meta.as_array(), name='_TRUTH'))
-    
+        metatable = desiutil.io.encode_table(meta, encoding='ascii')
+        metahdu = fits.convenience.table_to_hdu(meta)
+        metahdu.header['EXTNAME'] = '_TRUTH'
+        hdus.append(metahdu)
+
 def parse(options=None):
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -104,6 +108,7 @@ def main(args):
         log.critical('Unknown OBJTYPE {}'.format(args.objtype))
         return -1
         
+    np.random.seed(args.seed)
     random_state = np.random.RandomState(args.seed)
 
     # Initialize the quick simulator object and its optional parameters.
@@ -114,15 +119,15 @@ def main(args):
     objtype = args.objtype.upper()
     log.debug('Using OBJTYPE {}'.format(objtype))
     if objtype == 'BGS' or objtype == 'MWS' or objtype == 'BRIGHT_MIX':
-        qsim.instrument.exposure_time = desiparams['exptime_bright'] * u.s
+        qsim.observation.exposure_time = desiparams['exptime_bright'] * u.s
         qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
         qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
         qsim.atmosphere.moon.moon_phase = args.moon_phase
     else:
-        qsim.instrument.exposure_time = desiparams['exptime_dark'] * u.s
+        qsim.observation.exposure_time = desiparams['exptime_dark'] * u.s
 
     if args.exptime is not None:
-        qsim.instrument.exposure_time = args.exptime * u.s
+        qsim.observation.exposure_time = args.exptime * u.s
 
     qsim.atmosphere.airmass = args.airmass
 
@@ -228,8 +233,9 @@ def main(args):
     meta.add_column(Column(true_objtype, dtype=(str, 10), name='TRUE_OBJTYPE'))
     meta.add_column(Column(targetids, name='TARGETID'))
 
+    # @sbailey asks: What was this supposed to do for OBJTYPE vs. TRUE_OBJTYPE?
     # Now add fixed-up OBJTYPE to the template meta table
-    meta.add_column(Column(true_objtype, dtype=(str, 10), name='OBJTYPE'))
+    # meta.add_column(Column(true_objtype, dtype=(str, 10), name='OBJTYPE'))
 
     # Rename REDSHIFT -> TRUEZ anticipating later table joins with zbest.Z
     meta.rename_column('REDSHIFT', 'TRUEZ')
