@@ -12,6 +12,7 @@ import desimodel.io
 import desispec.io
 
 import desisim
+import desisim.pixsim
 from desisim import obs, io
 from desispec.log import get_logger
 log = get_logger()
