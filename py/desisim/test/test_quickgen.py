@@ -218,6 +218,54 @@ class TestQuickgen(unittest.TestCase):
                 os.remove(skyfile)
                 os.remove(fluxcalibfile)
 
+    @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
+    # test to see if increased airmass yields smaller ivar
+    def test_quickgen_airmass(self):
+
+        # generate exposures of varying airmass
+        night=self.night
+        obs.new_exposure('dark', night=night, expid=100, nspec=1, airmass=1.5)
+        simspec0 = io.findfile('simspec', self.night, 100)
+        fibermap0 = desispec.io.findfile('fibermap', self.night, 100)
+        opts0 = ['--simspec', simspec0, '--fibermap', fibermap0]
+
+        obs.new_exposure('dark', night=night, expid=101, nspec=1, airmass=1.0)
+        simspec1 = io.findfile('simspec', self.night, 101)
+        fibermap1 = desispec.io.findfile('fibermap', self.night, 101)
+        opts1 = ['--simspec', simspec1, '--fibermap', fibermap1]
+
+        # generate quickgen output for each airmass
+        desisim.scripts.quickgen.main(opts0)
+        desisim.scripts.quickgen.main(opts1)
+
+        cf0=desispec.io.readframe('cframe-r0-00000100.fits')
+        cf1=desispec.io.readframe('cframe-r0-00000101.fits')
+        self.assertLess(np.median(cf0.ivar), np.median(cf1.ivar))
+
+    @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
+    # test to see if decreased exposure time yields smaller ivar
+    def test_quickgen_exptime(self):
+
+        # generate exposures of varying exposure times
+        night=self.night
+        obs.new_exposure('dark', exptime=100, night=night, expid=100, nspec=1)
+        simspec0 = io.findfile('simspec', self.night, 100)
+        fibermap0 = desispec.io.findfile('fibermap', self.night, 100)
+        opts0 = ['--simspec', simspec0, '--fibermap', fibermap0]
+
+        obs.new_exposure('dark', exptime=1000, night=night, expid=101, nspec=1)
+        simspec1 = io.findfile('simspec', self.night, 101)
+        fibermap1 = desispec.io.findfile('fibermap', self.night, 101)
+        opts1 = ['--simspec', simspec1, '--fibermap', fibermap1]
+
+        # generate quickgen output for each exposure time
+        desisim.scripts.quickgen.main(opts0)
+        desisim.scripts.quickgen.main(opts1)
+
+        cf0=desispec.io.readframe('cframe-r0-00000100.fits')
+        cf1=desispec.io.readframe('cframe-r0-00000101.fits')
+        self.assertLess(np.median(cf0.ivar), np.median(cf1.ivar))
+
 #- This runs all test* functions in any TestCase class in this file
 if __name__ == '__main__':
     unittest.main()

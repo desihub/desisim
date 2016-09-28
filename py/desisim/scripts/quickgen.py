@@ -167,7 +167,7 @@ def main(args=None):
 
     # Set simulation parameters from the simspec header.
     qsim.atmosphere.airmass = simspec.header['AIRMASS']
-    qsim.instrument.exposure_time = simspec.header['EXPTIME'] * u.s
+    qsim.observation.exposure_time = simspec.header['EXPTIME'] * u.s
 
     # Get the camera output pixels from the specsim instrument model.
     maxbin = 0
