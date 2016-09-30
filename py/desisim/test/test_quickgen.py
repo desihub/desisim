@@ -5,6 +5,7 @@ import unittest, os
 from uuid import uuid1
 from shutil import rmtree
 
+import numpy as np
 import desispec.io
 from desisim import io
 from desisim import obs
@@ -222,49 +223,55 @@ class TestQuickgen(unittest.TestCase):
     # test to see if increased airmass yields smaller ivar
     def test_quickgen_airmass(self):
 
+        CFRAME100_PATH = os.path.join(os.environ['HOME'],'desi_test_io','spectro','sim','test-quickgen','test-quickgen','exposures','20150105','00000100','cframe-r0-00000100.fits')
+        CFRAME101_PATH = os.path.join(os.environ['HOME'],'desi_test_io','spectro','sim','test-quickgen','test-quickgen','exposures','20150105','00000101','cframe-r0-00000101.fits')
+
         # generate exposures of varying airmass
         night=self.night
         obs.new_exposure('dark', night=night, expid=100, nspec=1, airmass=1.5)
-        simspec0 = io.findfile('simspec', self.night, 100)
-        fibermap0 = desispec.io.findfile('fibermap', self.night, 100)
+        simspec0 = io.findfile('simspec', night, 100)
+        fibermap0 = desispec.io.findfile('fibermap', night, 100)
         opts0 = ['--simspec', simspec0, '--fibermap', fibermap0]
 
         obs.new_exposure('dark', night=night, expid=101, nspec=1, airmass=1.0)
-        simspec1 = io.findfile('simspec', self.night, 101)
-        fibermap1 = desispec.io.findfile('fibermap', self.night, 101)
+        simspec1 = io.findfile('simspec', night, 101)
+        fibermap1 = desispec.io.findfile('fibermap', night, 101)
         opts1 = ['--simspec', simspec1, '--fibermap', fibermap1]
 
         # generate quickgen output for each airmass
         desisim.scripts.quickgen.main(opts0)
         desisim.scripts.quickgen.main(opts1)
 
-        cf0=desispec.io.readframe('cframe-r0-00000100.fits')
-        cf1=desispec.io.readframe('cframe-r0-00000101.fits')
-        self.assertLess(np.median(cf0.ivar), np.median(cf1.ivar))
+        cf0=desispec.io.read_frame(CFRAME100_PATH)
+        cf1=desispec.io.read_frame(CFRAME101_PATH)
+        self.assertLess(np.median(cf0.ivar),np.median(cf1.ivar))
 
     @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
     # test to see if decreased exposure time yields smaller ivar
     def test_quickgen_exptime(self):
 
+        CFRAME100_PATH = os.path.join(os.environ['HOME'],'desi_test_io','spectro','sim','test-quickgen','test-quickgen','exposures','20150105','00000100','cframe-r0-00000100.fits')
+        CFRAME101_PATH = os.path.join(os.environ['HOME'],'desi_test_io','spectro','sim','test-quickgen','test-quickgen','exposures','20150105','00000101','cframe-r0-00000101.fits')
+
         # generate exposures of varying exposure times
         night=self.night
         obs.new_exposure('dark', exptime=100, night=night, expid=100, nspec=1)
-        simspec0 = io.findfile('simspec', self.night, 100)
-        fibermap0 = desispec.io.findfile('fibermap', self.night, 100)
+        simspec0 = io.findfile('simspec', night, 100)
+        fibermap0 = desispec.io.findfile('fibermap', night, 100)
         opts0 = ['--simspec', simspec0, '--fibermap', fibermap0]
 
         obs.new_exposure('dark', exptime=1000, night=night, expid=101, nspec=1)
-        simspec1 = io.findfile('simspec', self.night, 101)
-        fibermap1 = desispec.io.findfile('fibermap', self.night, 101)
+        simspec1 = io.findfile('simspec', night, 101)
+        fibermap1 = desispec.io.findfile('fibermap', night, 101)
         opts1 = ['--simspec', simspec1, '--fibermap', fibermap1]
 
         # generate quickgen output for each exposure time
         desisim.scripts.quickgen.main(opts0)
         desisim.scripts.quickgen.main(opts1)
 
-        cf0=desispec.io.readframe('cframe-r0-00000100.fits')
-        cf1=desispec.io.readframe('cframe-r0-00000101.fits')
-        self.assertLess(np.median(cf0.ivar), np.median(cf1.ivar))
+        cf0=desispec.io.read_frame(CFRAME100_PATH)
+        cf1=desispec.io.read_frame(CFRAME101_PATH)
+        self.assertLess(np.median(cf0.ivar),np.median(cf1.ivar))
 
 #- This runs all test* functions in any TestCase class in this file
 if __name__ == '__main__':
