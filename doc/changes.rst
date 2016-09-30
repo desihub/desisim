@@ -7,6 +7,7 @@ desisim change log
 
 * Fix some ``build_sphinx`` errors.
 * Run coverage tests under Python 2.7 for now.
+* Update template Module file to new DESI+Anaconda infrastructure.
 
 0.14.0 (2016-09-14)
 -------------------
