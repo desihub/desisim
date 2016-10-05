@@ -5,6 +5,7 @@ import unittest, os
 from uuid import uuid1
 from shutil import rmtree
 
+from astropy.io import fits
 import numpy as np
 import desispec.io
 from desisim import io
@@ -220,6 +221,52 @@ class TestQuickgen(unittest.TestCase):
                 os.remove(fluxcalibfile)
 
     @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
+    # test to see if same seed yields same spectrum
+    def test_quickgen_seed(self):
+
+        CFRAME100_PATH = os.path.join(os.environ['HOME'],'desi_test_io','spectro','sim','test-quickgen','test-quickgen','exposures','20150105','00000100','cframe-r0-00000100.fits')
+        CFRAME101_PATH = os.path.join(os.environ['HOME'],'desi_test_io','spectro','sim','test-quickgen','test-quickgen','exposures','20150105','00000101','cframe-r0-00000101.fits')
+        CFRAME102_PATH = os.path.join(os.environ['HOME'],'desi_test_io','spectro','sim','test-quickgen','test-quickgen','exposures','20150105','00000102','cframe-r0-00000102.fits')
+
+        # generate exposures seed 1 & 2
+        night=self.night
+        obs.new_exposure('dark',night=night,expid=100,nspec=1,seed=1)
+        simspec0 = io.findfile('simspec', night, 100)
+        fibermap0 = desispec.io.findfile('fibermap', night, 100)
+        opts0 = ['--simspec', simspec0, '--fibermap', fibermap0]
+
+        obs.new_exposure('dark',night=night,expid=101,nspec=1,seed=1)
+        simspec1 = io.findfile('simspec', night, 101)
+        fibermap1 = desispec.io.findfile('fibermap', night, 101)
+        opts1 = ['--simspec', simspec1, '--fibermap', fibermap1]
+
+        obs.new_exposure('dark',night=night,expid=102,nspec=1,seed=2)
+        simspec2 = io.findfile('simspec', night, 102)
+        fibermap2 = desispec.io.findfile('fibermap', night, 102)
+        opts2 = ['--simspec', simspec2, '--fibermap', fibermap2]
+
+        # generate quickgen output for each airmass
+        desisim.scripts.quickgen.main(opts0)
+        desisim.scripts.quickgen.main(opts1)
+        desisim.scripts.quickgen.main(opts2)
+
+        cf0=desispec.io.read_frame(CFRAME100_PATH)
+        cf1=desispec.io.read_frame(CFRAME101_PATH)
+        cf2=desispec.io.read_frame(CFRAME102_PATH)
+
+        self.assertTrue(np.all(cf0.flux == cf1.flux))   #- same seed
+        self.assertTrue(np.all(cf0.ivar == cf1.ivar))
+        self.assertTrue(np.any(cf0.flux != cf2.flux))   #- different seed
+
+        s0=fits.open(simspec0)
+        s1=fits.open(simspec1)
+        s2=fits.open(simspec2)
+
+        self.assertTrue(s0[13].data['OBJTYPE'][0] == s1[13].data['OBJTYPE'][0])
+        self.assertTrue(s0[13].data['REDSHIFT'][0] == s1[13].data['REDSHIFT'][0])
+        self.assertTrue(s0[13].data['REDSHIFT'][0] != s2[13].data['REDSHIFT'][0])
+
+    @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
     # test to see if increased airmass yields smaller ivar
     def test_quickgen_airmass(self):
 
@@ -228,12 +275,12 @@ class TestQuickgen(unittest.TestCase):
 
         # generate exposures of varying airmass
         night=self.night
-        obs.new_exposure('dark', night=night, expid=100, nspec=1, airmass=1.5)
+        obs.new_exposure('dark',night=night,expid=100,nspec=1,airmass=1.5,seed=1)
         simspec0 = io.findfile('simspec', night, 100)
         fibermap0 = desispec.io.findfile('fibermap', night, 100)
         opts0 = ['--simspec', simspec0, '--fibermap', fibermap0]
 
-        obs.new_exposure('dark', night=night, expid=101, nspec=1, airmass=1.0)
+        obs.new_exposure('dark',night=night,expid=101,nspec=1,airmass=1.0,seed=1)
         simspec1 = io.findfile('simspec', night, 101)
         fibermap1 = desispec.io.findfile('fibermap', night, 101)
         opts1 = ['--simspec', simspec1, '--fibermap', fibermap1]
@@ -255,12 +302,12 @@ class TestQuickgen(unittest.TestCase):
 
         # generate exposures of varying exposure times
         night=self.night
-        obs.new_exposure('dark', exptime=100, night=night, expid=100, nspec=1)
+        obs.new_exposure('dark',exptime=100,night=night,expid=100,nspec=1,seed=1)
         simspec0 = io.findfile('simspec', night, 100)
         fibermap0 = desispec.io.findfile('fibermap', night, 100)
         opts0 = ['--simspec', simspec0, '--fibermap', fibermap0]
 
-        obs.new_exposure('dark', exptime=1000, night=night, expid=101, nspec=1)
+        obs.new_exposure('dark',exptime=1000,night=night,expid=101,nspec=1,seed=1)
         simspec1 = io.findfile('simspec', night, 101)
         fibermap1 = desispec.io.findfile('fibermap', night, 101)
         opts1 = ['--simspec', simspec1, '--fibermap', fibermap1]
