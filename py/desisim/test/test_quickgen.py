@@ -245,7 +245,7 @@ class TestQuickgen(unittest.TestCase):
         fibermap2 = desispec.io.findfile('fibermap', night, 102)
         opts2 = ['--simspec', simspec2, '--fibermap', fibermap2]
 
-        # generate quickgen output for each airmass
+        # generate quickgen output for each exposure
         desisim.scripts.quickgen.main(opts0)
         desisim.scripts.quickgen.main(opts1)
         desisim.scripts.quickgen.main(opts2)
