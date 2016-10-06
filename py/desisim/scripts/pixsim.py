@@ -265,3 +265,4 @@ def main(args=None):
     if mpicomm.rank == 0:
         log.info('Finished pixsim {} expid {} at {}'.format(args.night, args.expid, asctime()))
 
+
