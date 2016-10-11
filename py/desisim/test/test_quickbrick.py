@@ -57,7 +57,7 @@ class TestQuickBrick(unittest.TestCase):
     @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
     def test_quickbrick_options(self):
         brickname = 'test2'
-        nspec = 3
+        nspec = 5
         cmd = "quickbrick -b {} --objtype BGS -n {} --outdir {}".format(brickname, nspec, self.testdir)
         cmd = cmd + " --airmass 1.5 --verbose --zrange-bgs 0.1 0.2"
         cmd = cmd + " --moon-phase 0.1 --moon-angle 30 --moon-zenith 20"
@@ -67,6 +67,23 @@ class TestQuickBrick(unittest.TestCase):
         truth = fits.getdata(brickfile, '_TRUTH')        
         z = truth['TRUEZ']
         self.assertTrue(np.all((0.1 <= z) & (z <= 0.2)))
+
+        #- Basic empirical sanity check of median(error) vs. median(flux)
+        #- These coefficients are taken from 50 quickbrick BGS targets
+        #- The main point is to trigger if something significantly changed
+        #- in a new version, not to validate that this is actually the right
+        #- error vs. flux model.
+        coeff = dict()
+        coeff['b'] = [-2.211e-07, 4.490e-05, 1.525e-02, 7.282e+00]
+        coeff['r'] = [1.128e-07, -6.250e-05, 2.423e-02, 3.454e+00]
+        coeff['z'] = [1.394e-07, -7.618e-05, 2.476e-02, 1.953e+00]
+        for channel in ['b', 'r', 'z']:
+            brickfile = '{}/brick-{}-{}.fits'.format(self.testdir, channel, brickname)
+            brick = desispec.io.read_frame(brickfile)
+            medflux = np.median(brick.flux, axis=1)
+            mederr = np.median(1/np.sqrt(brick.ivar), axis=1)
+            std = np.std(mederr - np.polyval(coeff[channel], medflux))
+            self.assertLess(std, 0.2)                        
 
     #- Ensure that using --seed results in reproducible spectra
     @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
