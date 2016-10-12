@@ -165,6 +165,11 @@ def main(args=None):
     print("Initializing SpecSim with config '{0}'".format(args.config))
     qsim = specsim.simulator.Simulator(args.config)
 
+    # explicitly set location on focal plane if needed to support airmass
+    # variations when using specsim v0.5
+    if qsim.source.focal_xy is None:
+        qsim.source.focal_xy = (u.Quantity(0, 'mm'), u.Quantity(100, 'mm'))
+
     # Set simulation parameters from the simspec header.
     qsim.atmosphere.airmass = simspec.header['AIRMASS']
     qsim.observation.exposure_time = simspec.header['EXPTIME'] * u.s
