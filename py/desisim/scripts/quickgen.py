@@ -49,6 +49,7 @@ def parse(options=None):
     parser.add_argument("--spectrograph",type=int, default=None,help='Spectrograph no. 0-9')
     parser.add_argument("--config", type=str, default='desi', help='specsim configuration')
     parser.add_argument("--seed", type=int, default=0,  help="random seed")
+    parser.add_argument("--frameonly", action="store_true", help="only output frame files")
 
     if options is None:
         args = parser.parse_args()
@@ -457,6 +458,9 @@ def main(args=None):
                     fibermap=fibermap[start:end], meta=dict(CAMERA=camera) )
                 desispec.io.write_frame(framefileName, frame)
 
+                if args.frameonly:
+                    continue
+
     ############--------------------------------------------------------
         #cframe file
 
@@ -508,17 +512,5 @@ def main(args=None):
     print("Wrote files to", filePath)
 
     #spectrograph=spectrograph+1
-
-
-
-
-
-
-
-
-
-
-
-
 
 
