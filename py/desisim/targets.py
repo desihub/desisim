@@ -358,7 +358,9 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
             # todo: mag ranges for different flavors of STAR targets should be in desimodel
             simflux, wave1, meta = mwsstar.make_templates(nmodel=nobj,rmagrange=(15.0,20.0), seed=seed)
             fibermap['DESI_TARGET'][ii] = desi_mask.MWS_ANY
-            fibermap['MWS_TARGET'][ii] = mws_mask.MWS_PLX  #- ???
+            #- MWS bit names changed after desitarget 0.6.0 so use number
+            #- instead of name for now (bit 0 = mask 1 = MWS_MAIN currently)
+            fibermap['MWS_TARGET'][ii] = 1
 
         else:
             raise ValueError('Unable to simulate OBJTYPE={}'.format(objtype))

@@ -165,9 +165,14 @@ def main(args=None):
     print("Initializing SpecSim with config '{0}'".format(args.config))
     qsim = specsim.simulator.Simulator(args.config)
 
+    # explicitly set location on focal plane if needed to support airmass
+    # variations when using specsim v0.5
+    if qsim.source.focal_xy is None:
+        qsim.source.focal_xy = (u.Quantity(0, 'mm'), u.Quantity(100, 'mm'))
+
     # Set simulation parameters from the simspec header.
     qsim.atmosphere.airmass = simspec.header['AIRMASS']
-    qsim.instrument.exposure_time = simspec.header['EXPTIME'] * u.s
+    qsim.observation.exposure_time = simspec.header['EXPTIME'] * u.s
 
     # Get the camera output pixels from the specsim instrument model.
     maxbin = 0
@@ -369,13 +374,13 @@ def main(args=None):
 
             # Get results for our flux-calibrated output file.
             assert output['observed_flux'].unit == u.erg / (u.cm**2 * u.s * u.Angstrom)
-            cframe_observedflux[j, i, :num_pixels] = output['observed_flux']
-            cframe_ivar[j, i, :num_pixels] = output['flux_inverse_variance']
+            cframe_observedflux[j, i, :num_pixels] = 1e17 * output['observed_flux']
+            cframe_ivar[j, i, :num_pixels] = 1e-34 * output['flux_inverse_variance']
 
             # Use the same noise realization in the cframe and frame, without any
             # additional noise from sky subtraction for now.
             frame_rand_noise[j, i, :num_pixels] = output['random_noise_electrons']
-            cframe_rand_noise[j, i, :num_pixels] = (
+            cframe_rand_noise[j, i, :num_pixels] = 1e17 * (
                 output['flux_calibration'] * output['random_noise_electrons'])
 
             # The sky output file represents a model fit to ~40 sky fibers.
