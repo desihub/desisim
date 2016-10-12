@@ -402,54 +402,6 @@ def main(args=None):
     #3. flux calibration vector file (x3)
     #4. cframe file
 
-    # only output frame files if desired
-    if args.frameonly:
-        for channel in 'brz':
-            num_pixels = len(waves[channel])
-            dwave=np.gradient(waves[channel])
-            nobj[:,armName[channel],:num_pixels]/=dwave
-            frame_rand_noise[:,armName[channel],:num_pixels]/=dwave
-            nivar[:,armName[channel],:num_pixels]*=dwave**2
-
-            nsky[:,armName[channel],:num_pixels]/=dwave
-            sky_rand_noise[:,armName[channel],:num_pixels]/=dwave
-            sky_ivar[:,armName[channel],:num_pixels]/=dwave**2
-
-            for ii in range((args.nspec+args.nstart-1)//500+1):
-
-                start=max(500*ii,args.nstart) # first spectrum for a given spectrograph
-                end=min(500*(ii+1),nmax) # last spectrum for the spectrograph
-
-                if (args.spectrograph <= ii):
-                    camera = "{}{}".format(channel, ii)
-                    print("writing files for channel:",channel,", spectrograph:",ii, ", spectra:", start,'to',end)
-                    num_pixels = len(waves[channel])
-
-                    framefileName=desispec.io.findfile("frame",NIGHT,EXPID,camera)
-
-                    frame_flux=nobj[start:end,armName[channel],:num_pixels]+ \
-                    nsky[start:end,armName[channel],:num_pixels] + \
-                    frame_rand_noise[start:end,armName[channel],:num_pixels]
-                    frame_ivar=nivar[start:end,armName[channel],:num_pixels]
-
-                    sh1=frame_flux.shape[0]
-
-                    if (args.nstart==start):
-                        resol=resolution_data[channel][:sh1,:,:]
-                    else:
-                        resol=resolution_data[channel][-sh1:,:,:]
-
-                    # create frame file. first create desispec.Frame object
-                    frame=Frame(waves[channel], frame_flux, frame_ivar,\
-                        resolution_data=resol, spectrograph=ii, \
-                        fibermap=fibermap[start:end], meta=dict(CAMERA=camera) )
-                    desispec.io.write_frame(framefileName, frame)
-
-        filePath=os.path.join(prod_Dir,'exposures',NIGHT,"%08d"%EXPID)
-        print("Wrote files to", filePath)
-        sys.exit(0)
-
-
     for channel in 'brz':
 
         #Before writing, convert from counts/bin to counts/A (as in Pixsim output)
@@ -506,6 +458,9 @@ def main(args=None):
                     fibermap=fibermap[start:end], meta=dict(CAMERA=camera) )
                 desispec.io.write_frame(framefileName, frame)
 
+                if args.frameonly:
+                    continue
+
     ############--------------------------------------------------------
         #cframe file
 
@@ -557,17 +512,5 @@ def main(args=None):
     print("Wrote files to", filePath)
 
     #spectrograph=spectrograph+1
-
-
-
-
-
-
-
-
-
-
-
-
 
 
