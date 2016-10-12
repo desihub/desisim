@@ -12,6 +12,7 @@ import desimodel.io
 import desispec.io
 
 import desisim
+import desisim.pixsim
 from desisim import obs, io
 from desispec.log import get_logger
 log = get_logger()
@@ -263,4 +264,5 @@ def main(args=None):
 
     if mpicomm.rank == 0:
         log.info('Finished pixsim {} expid {} at {}'.format(args.night, args.expid, asctime()))
+
 
