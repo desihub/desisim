@@ -233,10 +233,6 @@ def main(args):
     meta.add_column(Column(true_objtype, dtype=(str, 10), name='TRUE_OBJTYPE'))
     meta.add_column(Column(targetids, name='TARGETID'))
 
-    # @sbailey asks: What was this supposed to do for OBJTYPE vs. TRUE_OBJTYPE?
-    # Now add fixed-up OBJTYPE to the template meta table
-    # meta.add_column(Column(true_objtype, dtype=(str, 10), name='OBJTYPE'))
-
     # Rename REDSHIFT -> TRUEZ anticipating later table joins with zbest.Z
     meta.rename_column('REDSHIFT', 'TRUEZ')
 
