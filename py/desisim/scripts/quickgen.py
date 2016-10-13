@@ -51,6 +51,9 @@ def parse(options=None):
     parser.add_argument("--config", type=str, default='desi', help='specsim configuration')
     parser.add_argument("--seed", type=int, default=0,  help="random seed")
     parser.add_argument("--frameonly", action="store_true", help="only output frame files")
+    parser.add_argument('--moonphase', type=float,  help='moon phase (0=full, 1=new)', default=0.7, metavar='')
+    parser.add_argument('--moonangle', type=float,  help='separation angle to the moon (0-180 deg)', default=50, metavar='')
+    parser.add_argument('--moonzenith', type=float,  help='zenith angle of the moon (0-90 deg)', default=30, metavar='')
 
     if options is None:
         args = parser.parse_args()
@@ -175,6 +178,12 @@ def main(args=None):
     # Set simulation parameters from the simspec header.
     qsim.atmosphere.airmass = simspec.header['AIRMASS']
     qsim.observation.exposure_time = simspec.header['EXPTIME'] * u.s
+
+    # If bright time, allow for moon parameters
+    if simspec.flavor == 'bgs' or simspec.flavor == 'mws':
+        qsim.atmosphere.moon.moon_zenith = args.moonzenith * u.deg
+        qsim.atmosphere.moon.separation_angle = args.moonangle * u.deg
+        qsim.atmosphere.moon.moon_phase = args.moonphase
 
     # Get the camera output pixels from the specsim instrument model.
     maxbin = 0

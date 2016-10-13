@@ -320,6 +320,87 @@ class TestQuickgen(unittest.TestCase):
         cf1=desispec.io.read_frame(CFRAME101_PATH)
         self.assertLess(np.median(cf0.ivar),np.median(cf1.ivar))
 
+    @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
+    # test to see if full moon yields smaller ivar than new moon
+    def test_quickgen_moonphase(self):
+
+        CFRAME100_PATH = os.path.join(os.environ['HOME'],'desi_test_io','spectro','sim','test-quickgen','test-quickgen','exposures','20150105','00000100','cframe-r0-00000100.fits')
+        CFRAME101_PATH = os.path.join(os.environ['HOME'],'desi_test_io','spectro','sim','test-quickgen','test-quickgen','exposures','20150105','00000101','cframe-r0-00000101.fits')
+
+        # generate exposures
+        night=self.night
+        obs.new_exposure('bgs',night=night,expid=100,nspec=1,seed=1)
+        simspec0 = io.findfile('simspec', night, 100)
+        fibermap0 = desispec.io.findfile('fibermap', night, 100)
+        opts0 = ['--simspec', simspec0, '--fibermap', fibermap0, '--moonphase', 0]
+
+        obs.new_exposure('bgs',night=night,expid=101,nspec=1,seed=1)
+        simspec1 = io.findfile('simspec', night, 101)
+        fibermap1 = desispec.io.findfile('fibermap', night, 101)
+        opts1 = ['--simspec', simspec1, '--fibermap', fibermap1, '--moonphase', 1]
+
+        # generate quickgen output for each moon phase
+        desisim.scripts.quickgen.main(opts0)
+        desisim.scripts.quickgen.main(opts1)
+
+        cf0=desispec.io.read_frame(CFRAME100_PATH)
+        cf1=desispec.io.read_frame(CFRAME101_PATH)
+        self.assertLess(np.median(cf0.ivar),np.median(cf1.ivar))
+
+    @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
+    # test to see if moon angle of 0 yeilds smaller ivar than a moon angle of 180
+    def test_quickgen_moonangle(self):
+
+        CFRAME100_PATH = os.path.join(os.environ['HOME'],'desi_test_io','spectro','sim','test-quickgen','test-quickgen','exposures','20150105','00000100','cframe-r0-00000100.fits')
+        CFRAME101_PATH = os.path.join(os.environ['HOME'],'desi_test_io','spectro','sim','test-quickgen','test-quickgen','exposures','20150105','00000101','cframe-r0-00000101.fits')
+
+        # generate exposures
+        night=self.night
+        obs.new_exposure('bgs',night=night,expid=100,nspec=1,seed=1)
+        simspec0 = io.findfile('simspec', night, 100)
+        fibermap0 = desispec.io.findfile('fibermap', night, 100)
+        opts0 = ['--simspec', simspec0, '--fibermap', fibermap0, '--moonangle', 0]
+
+        obs.new_exposure('bgs',night=night,expid=101,nspec=1,seed=1)
+        simspec1 = io.findfile('simspec', night, 101)
+        fibermap1 = desispec.io.findfile('fibermap', night, 101)
+        opts1 = ['--simspec', simspec1, '--fibermap', fibermap1, '--moonangle', 180]
+
+        # generate quickgen output for each moon angle
+        desisim.scripts.quickgen.main(opts0)
+        desisim.scripts.quickgen.main(opts1)
+
+        cf0=desispec.io.read_frame(CFRAME100_PATH)
+        cf1=desispec.io.read_frame(CFRAME101_PATH)
+        self.assertLess(np.median(cf0.ivar),np.median(cf1.ivar))
+
+    @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
+    # test to see if moon zenith angle of 0 yeilds smaller ivar than moon zenith angle of 90
+    def test_quickgen_moonzenith(self):
+
+        CFRAME100_PATH = os.path.join(os.environ['HOME'],'desi_test_io','spectro','sim','test-quickgen','test-quickgen','exposures','20150105','00000100','cframe-r0-00000100.fits')
+        CFRAME101_PATH = os.path.join(os.environ['HOME'],'desi_test_io','spectro','sim','test-quickgen','test-quickgen','exposures','20150105','00000101','cframe-r0-00000101.fits')
+
+        # generate exposures
+        night=self.night
+        obs.new_exposure('bgs',night=night,expid=100,nspec=1,seed=1)
+        simspec0 = io.findfile('simspec', night, 100)
+        fibermap0 = desispec.io.findfile('fibermap', night, 100)
+        opts0 = ['--simspec', simspec0, '--fibermap', fibermap0, '--moonzenith', 0]
+
+        obs.new_exposure('bgs',night=night,expid=101,nspec=1,seed=1)
+        simspec1 = io.findfile('simspec', night, 101)
+        fibermap1 = desispec.io.findfile('fibermap', night, 101)
+        opts1 = ['--simspec', simspec1, '--fibermap', fibermap1, '--moonzenith', 90]
+
+        # generate quickgen output for each moon angle
+        desisim.scripts.quickgen.main(opts0)
+        desisim.scripts.quickgen.main(opts1)
+
+        cf0=desispec.io.read_frame(CFRAME100_PATH)
+        cf1=desispec.io.read_frame(CFRAME101_PATH)
+        self.assertLess(np.median(cf0.ivar),np.median(cf1.ivar))
+
 #- This runs all test* functions in any TestCase class in this file
 if __name__ == '__main__':
     unittest.main()
