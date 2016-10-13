@@ -5,6 +5,26 @@ desisim change log
 0.14.1 (unreleased)
 -------------------
 
+* change $PRODNAME to $SPECPROD in quickgen
+* change print statement to log.info() in quickgen
+* change os.path.join to desispec.io.findfile in quickgen
+
+0.14.0 (2016-10-13)
+-------------------
+
+* add keyword frameonly to quickgen
+* allow for only uncalibrated frame files to be output by quickgen
+
+0.14.0 (2016-10-12)
+-------------------
+
+* add airmass unit test for quickgen
+* add exposure time unit test for quickgen
+* update how exposure time is set in quickgen with specsim v0.5
+
+0.14.0 (2016-09-28)
+-------------------
+
 * Fix some ``build_sphinx`` errors.
 * Run coverage tests under Python 2.7 for now.
 * Update template Module file to new DESI+Anaconda infrastructure.
