@@ -20,12 +20,13 @@ import desisim.io
 import specsim.simulator
 import astropy.units as u
 from desispec.resolution import Resolution
-from desispec.io import write_flux_calibration, write_fiberflat, read_fibermap
+from desispec.io import write_flux_calibration, write_fiberflat, read_fibermap, specprod_root
 from desispec.interpolation import resample_flux
 from desispec.frame import Frame
 from desispec.fiberflat import FiberFlat
 from desispec.sky import SkyModel
 from desispec.fluxcalibration import FluxCalib
+from desispec.log import INFO
 
 def expand_args(args):
     hdr = fits.getheader(args.simspec)
@@ -79,7 +80,7 @@ def main(args=None):
     # read fibermapfile to get objecttype,NIGHT and EXPID....
     if args.fibermap:
 
-        print("Reading fibermap file %s"%(args.fibermap))
+        log.info("Reading fibermap file {}".format(args.fibermap))
         fibermap=read_fibermap(args.fibermap)
         objtype=fibermap['OBJTYPE'].copy()
         #need to replace STD and MWS_STAR object types with STAR and BGS object types with LRG since quicksim expects star instead of std or mws_star and LRG instead of BGS
@@ -94,7 +95,7 @@ def main(args=None):
 
 
     else:
-        print("Need Fibermap file")
+        log.info("Need Fibermap file")
         sys.exit(1)
 
 
@@ -103,7 +104,7 @@ def main(args=None):
 
     if 'DESI_SPECTRO_REDUX' not in os.environ:
 
-        print('DESI_SPECTRO_REDUX environment is not set.')
+        log.info('DESI_SPECTRO_REDUX environment is not set.')
 
     else:
         DESI_SPECTRO_REDUX_DIR=os.environ['DESI_SPECTRO_REDUX']
@@ -118,14 +119,14 @@ def main(args=None):
         except:
             raise
 
-    #---------PRODNAME-----------------
+    #---------SPECPROD-----------------
 
-    PRODNAME_DIR='prodname'
-    if 'PRODNAME' not in os.environ:
-        print('PRODNAME environment is not set.')
+    SPECPROD_DIR='specprod'
+    if 'SPECPROD' not in os.environ:
+        log.info('SPECPROD environment is not set.')
     else:
-        PRODNAME_DIR=os.environ['PRODNAME']
-    prod_Dir=os.path.join(DESI_SPECTRO_REDUX_DIR,PRODNAME_DIR)
+        SPECPROD_DIR=os.environ['SPECPROD']
+    prod_Dir=specprod_root()
 
     if os.path.exists(prod_Dir):
 
@@ -139,7 +140,7 @@ def main(args=None):
 
     # read the input file (simspec file)
 
-    print('Now Reading the input file',args.simspec)
+    log.info('Now Reading the input file {}'.format(args.simspec))
     simspec = desisim.io.read_simspec(args.simspec)
     if simspec.flavor == 'arc':
         pass
@@ -149,21 +150,21 @@ def main(args=None):
 
     # Note spectra=data/1.0e-17# flux in units of 1.0e-17 ergs/cm^2/s/A
 
-        print("Wavelength range:", wavelengths[0], "to", wavelengths[-1])
+        log.info("Wavelength range: {} to {}".format(wavelengths[0],wavelengths[-1]))
         nwave = len(wavelengths)
 
     nspec = simspec.nspec
     if nspec < args.nspec:
-        print("Only {} spectra in input file".format(nspec))
+        log.info("Only {} spectra in input file".format(nspec))
         args.nspec = nspec
 
     # Here default run for nmax spectra. Fewer spectra can be run using 'nspec' and 'nstart' options
     nmax= min(args.nspec+args.nstart,objtype.shape[0])
-    print("Simulating spectra",args.nstart, "to", nmax)
+    log.info("Simulating spectra {} to {}".format(args.nstart,nmax))
 
-    print("************************************************")
+    log.info("************************************************")
 
-    print("Initializing SpecSim with config '{0}'".format(args.config))
+    log.info("Initializing SpecSim with config {}".format(args.config))
     qsim = specsim.simulator.Simulator(args.config)
 
     # explicitly set location on focal plane if needed to support airmass
@@ -187,7 +188,7 @@ def main(args=None):
     #- Check if input simspec is for a continuum flat lamp instead of science
     #- This does not convolve to per-fiber resolution
     if simspec.flavor == 'flat':
-        print("Simulating flat lamp exposure")
+        log.info("Simulating flat lamp exposure")
         for i,camera in enumerate(qsim.instrument.cameras):
             channel = camera.name
             assert camera.output_wavelength.unit == u.Angstrom
@@ -208,22 +209,22 @@ def main(args=None):
                 end=min(500*(kk+1),nmax)
 
                 if (args.spectrograph <= kk):
-                    print("writing files for channel:",channel,", spectrograph:",kk, ", spectra:", start,'to',end)
+                    log.info("writing files for channel:{}, spectrograph:{}, spectra:{} to {}".format(channel,kk,start,end))
 
                 ff = FiberFlat(
                     waves[channel], fiberflat[start:end,:],
                     ivar[start:end,:], mask[start:end,:], meanspec,
                     header=dict(CAMERA=camera))
                 write_fiberflat(outfile, ff)
-        filePath=os.path.join(prod_Dir,'calib2d',NIGHT)
-        print("Wrote files to", filePath)
+                filePath=desispec.io.findfile("fiberflat",NIGHT,EXPID,camera)
+                log.info("Wrote file {}".format(filePath))
 
         sys.exit(0)
 
     elif simspec.flavor =='arc':
         # note: treating fiberloss as perfect and electrons/s as photons/s
         import scipy.constants as const
-        print("Simulating arc line exposure")
+        log.info("Simulating arc line exposure")
 
         #- create full wavelength and flux arrays for arc exposure
         wave_b = np.array(simspec.wave['b'])
@@ -255,10 +256,10 @@ def main(args=None):
         nspec=args.nspec
         resolution_data = dict()
         for i, channel in enumerate('brz'):
-            print('Getting resolution matrix for channel '+channel)
+            log.info('Getting resolution matrix for channel {}'.format(channel))
             resolution_matrix = Resolution(
                 qsim.instrument.cameras[i].get_output_resolution_matrix())
-            print('...got it')
+            log.info('...got it')
             resolution_data[channel] = np.tile(
                 resolution_matrix.to_fits_array(), [nspec, 1, 1])
 
@@ -303,7 +304,7 @@ def main(args=None):
 
                 if (args.spectrograph <= ii):
                     camera = "{}{}".format(channel, ii)
-                    print("writing files for channel:",channel,", spectrograph:",ii, ", spectra:", start,'to',end)
+                    log.info("writing files for channel:{}, spectrograph:{}, spectra:{} to {}".format(channel,ii,start,end))
                     num_pixels = len(waves[channel])
 
                     framefileName=desispec.io.findfile("frame",NIGHT,EXPID,camera)
@@ -322,8 +323,8 @@ def main(args=None):
                     frame=Frame(waves[channel],frame_flux,frame_ivar,resolution_data=resol,spectrograph=ii)
                     desispec.io.write_frame(framefileName, frame)
 
-        filePath=os.path.join(prod_Dir,'exposures',NIGHT,"%08d"%EXPID)
-        print("Wrote files to", filePath)
+                    filePath=desispec.io.findfile("frame",NIGHT,EXPID,camera)
+                    log.info("Wrote file {}".format(filePath))
 
         sys.exit(0)
 
@@ -355,7 +356,7 @@ def main(args=None):
     # Now repeat the simulation for all spectra
     fluxunits = 1e-17 * u.erg / (u.s * u.cm ** 2 * u.Angstrom)
     for j in range(args.nstart,nmax): # Exclusive
-        print("\rSimulating spectrum %d,  object type=%s"%(j,objtype[j]), end='')
+        log.info("\rSimulating spectrum {},  object type= {}".format(j,objtype[j]))
         sys.stdout.flush()
         qsim.source.update_in(
             'Quickgen source {0}'.format(j), objtype[j].lower(),
@@ -393,7 +394,6 @@ def main(args=None):
                 scale=1.0 / np.sqrt(sky_ivar[j,i,:num_pixels]),size=num_pixels)
 
 
-    print()
     armName={"b":0,"r":1,"z":2}
 
     #Need Four Files to write:
@@ -432,7 +432,7 @@ def main(args=None):
 
             if (args.spectrograph <= ii):
                 camera = "{}{}".format(channel, ii)
-                print("writing files for channel:",channel,", spectrograph:",ii, ", spectra:", start,'to',end)
+                log.info("writing files for channel:{}, spectrograph:{}, spectra:{} to {}".format(channel,ii,start,end))
                 num_pixels = len(waves[channel])
 
     ######----------------frame file-----------------------------------
@@ -458,6 +458,9 @@ def main(args=None):
                     fibermap=fibermap[start:end], meta=dict(CAMERA=camera) )
                 desispec.io.write_frame(framefileName, frame)
 
+                framefilePath=desispec.io.findfile("frame",NIGHT,EXPID,camera)
+                log.info("Wrote file {}".format(framefilePath))
+
                 if args.frameonly:
                     continue
 
@@ -474,6 +477,9 @@ def main(args=None):
                     fibermap=fibermap[start:end], meta=dict(CAMERA=camera) )
                 desispec.io.frame.write_frame(cframeFileName,cframe)
 
+                cframefilePath=desispec.io.findfile("cframe",NIGHT,EXPID,camera)
+                log.info("Wrote file {}".format(cframefilePath))
+
     ############-----------------------------------------------------
                 #sky file
 
@@ -487,6 +493,9 @@ def main(args=None):
                 skymodel = SkyModel(waves[channel], skyflux, skyivar, skymask,
                     header=dict(CAMERA=camera))
                 desispec.io.sky.write_sky(skyfileName, skymodel)
+
+                skyfilePath=desispec.io.findfile("sky",NIGHT,EXPID,camera)
+                log.info("Wrote file {}".format(skyfilePath))
 
     ############----------------------------------------------------------
                  # calibration vector file
@@ -508,8 +517,8 @@ def main(args=None):
                 fluxcalib = FluxCalib(waves[channel], calibration, calibivar, mask)
                 write_flux_calibration(calibVectorFile, fluxcalib)
 
-    filePath=os.path.join(prod_Dir,'exposures',NIGHT,"%08d"%EXPID)
-    print("Wrote files to", filePath)
+                calibfilePath=desispec.io.findfile("calib",NIGHT,EXPID,camera)
+                log.info("Wrote file {}".format(calibfilePath))
 
     #spectrograph=spectrograph+1
 
