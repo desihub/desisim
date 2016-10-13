@@ -26,7 +26,7 @@ from desispec.frame import Frame
 from desispec.fiberflat import FiberFlat
 from desispec.sky import SkyModel
 from desispec.fluxcalibration import FluxCalib
-from desispec.log import get_logger, INFO
+from desispec.log import INFO
 
 def expand_args(args):
     hdr = fits.getheader(args.simspec)
