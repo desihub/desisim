@@ -5,11 +5,17 @@ desisim change log
 0.14.1 (unreleased)
 -------------------
 
+* add moon phase, moon angle, and zenith angle to quickgen
+* add a unit test for each moon property
+
+0.14.0 (2016-10-13)
+-------------------
+
 * change $PRODNAME to $SPECPROD in quickgen
 * change print statement to log.info() in quickgen
 * change os.path.join to desispec.io.findfile in quickgen
 
-0.14.0 (2016-10-13)
+0.14.0 (2016-10-12)
 -------------------
 
 * add keyword frameonly to quickgen
