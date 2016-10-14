@@ -79,9 +79,9 @@ def parse(options=None):
   
     # Options corresponding to the bright-time survey only.
     bts_parser = parser.add_argument_group('options for Bright Time Surveys (BGS and MWS)')
-    bts_parser.add_argument('--moon-phase', type=float,  help='moon phase (0=full, 1=new)', default=0.7, metavar='')
-    bts_parser.add_argument('--moon-angle', type=float,  help='separation angle to the moon (0-180 deg)', default=50, metavar='')
-    bts_parser.add_argument('--moon-zenith', type=float,  help='zenith angle of the moon (0-90 deg)', default=30, metavar='')
+    bts_parser.add_argument('--moon-phase', type=float,  help='moon phase (0=full, 1=new)', default=None, metavar='')
+    bts_parser.add_argument('--moon-angle', type=float,  help='separation angle to the moon (0-180 deg)', default=None, metavar='')
+    bts_parser.add_argument('--moon-zenith', type=float,  help='zenith angle of the moon (0-90 deg)', default=None, metavar='')
 
     args = None
     if options is None:
@@ -120,9 +120,18 @@ def main(args):
     log.debug('Using OBJTYPE {}'.format(objtype))
     if objtype == 'BGS' or objtype == 'MWS' or objtype == 'BRIGHT_MIX':
         qsim.observation.exposure_time = desiparams['exptime_bright'] * u.s
-        qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
-        qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
-        qsim.atmosphere.moon.moon_phase = args.moon_phase
+        if args.moon-phase is None:
+            qsim.atmosphere.moon.moon_phase = 0.7
+        else:
+            qsim.atmosphere.moon.moon_phase = args.moon-phase
+        if args.moon-angle is None:
+            qsim.atmosphere.moon.separation_angle = 50 * u.deg
+        else:
+            qsim.atmosphere.moon.separation_angle = args.moon-angle * u.deg
+        if args.moon-zenith is None:
+            qsim.atmosphere.moon.moon_zenith = 30 * u.deg
+        else:
+            qsim.atmosphere.moon.moon_zenith = args.moon-zenith * u.deg
     else:
         qsim.observation.exposure_time = desiparams['exptime_dark'] * u.s
 
