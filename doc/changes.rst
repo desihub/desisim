@@ -2,12 +2,24 @@
 desisim change log
 ==================
 
-0.14.1 (unreleased)
+0.15.1 (unreleased)
+-------------------
+
+* No changes yet
+
+0.15.0 (2016-10-14)
 -------------------
 
 * Fix some ``build_sphinx`` errors.
 * Run coverage tests under Python 2.7 for now.
 * Update template Module file to new DESI+Anaconda infrastructure.
+* quickbrick unit tests and bug fixes (#166)
+* new quickgen features (PR #173 and #175)
+
+  * fix exptime and airmass for specsim v0.5
+  * new --frameonly option
+  * moon phase, angle, and zenith options
+  * misc cleanup and unit tests
 
 0.14.0 (2016-09-14)
 -------------------
