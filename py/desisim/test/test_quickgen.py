@@ -332,12 +332,12 @@ class TestQuickgen(unittest.TestCase):
         obs.new_exposure('bgs',night=night,expid=100,nspec=1,seed=1)
         simspec0 = io.findfile('simspec', night, 100)
         fibermap0 = desispec.io.findfile('fibermap', night, 100)
-        opts0 = ['--simspec', simspec0, '--fibermap', fibermap0, '--moonphase', 0]
+        opts0 = ['--simspec', simspec0, '--fibermap', fibermap0, '--moon_phase', 0]
 
         obs.new_exposure('bgs',night=night,expid=101,nspec=1,seed=1)
         simspec1 = io.findfile('simspec', night, 101)
         fibermap1 = desispec.io.findfile('fibermap', night, 101)
-        opts1 = ['--simspec', simspec1, '--fibermap', fibermap1, '--moonphase', 1]
+        opts1 = ['--simspec', simspec1, '--fibermap', fibermap1, '--moon_phase', 1]
 
         # generate quickgen output for each moon phase
         desisim.scripts.quickgen.main(opts0)
@@ -359,12 +359,12 @@ class TestQuickgen(unittest.TestCase):
         obs.new_exposure('bgs',night=night,expid=100,nspec=1,seed=1)
         simspec0 = io.findfile('simspec', night, 100)
         fibermap0 = desispec.io.findfile('fibermap', night, 100)
-        opts0 = ['--simspec', simspec0, '--fibermap', fibermap0, '--moonangle', 0]
+        opts0 = ['--simspec', simspec0, '--fibermap', fibermap0, '--moon_angle', 0]
 
         obs.new_exposure('bgs',night=night,expid=101,nspec=1,seed=1)
         simspec1 = io.findfile('simspec', night, 101)
         fibermap1 = desispec.io.findfile('fibermap', night, 101)
-        opts1 = ['--simspec', simspec1, '--fibermap', fibermap1, '--moonangle', 180]
+        opts1 = ['--simspec', simspec1, '--fibermap', fibermap1, '--moon_angle', 180]
 
         # generate quickgen output for each moon angle
         desisim.scripts.quickgen.main(opts0)
@@ -386,12 +386,12 @@ class TestQuickgen(unittest.TestCase):
         obs.new_exposure('bgs',night=night,expid=100,nspec=1,seed=1)
         simspec0 = io.findfile('simspec', night, 100)
         fibermap0 = desispec.io.findfile('fibermap', night, 100)
-        opts0 = ['--simspec', simspec0, '--fibermap', fibermap0, '--moonzenith', 0]
+        opts0 = ['--simspec', simspec0, '--fibermap', fibermap0, '--moon_zenith', 0]
 
         obs.new_exposure('bgs',night=night,expid=101,nspec=1,seed=1)
         simspec1 = io.findfile('simspec', night, 101)
         fibermap1 = desispec.io.findfile('fibermap', night, 101)
-        opts1 = ['--simspec', simspec1, '--fibermap', fibermap1, '--moonzenith', 90]
+        opts1 = ['--simspec', simspec1, '--fibermap', fibermap1, '--moon_zenith', 90]
 
         # generate quickgen output for each moon angle
         desisim.scripts.quickgen.main(opts0)
