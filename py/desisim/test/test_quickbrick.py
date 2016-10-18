@@ -60,7 +60,7 @@ class TestQuickBrick(unittest.TestCase):
         nspec = 5
         cmd = "quickbrick -b {} --objtype BGS -n {} --outdir {}".format(brickname, nspec, self.testdir)
         cmd = cmd + " --airmass 1.5 --verbose --zrange-bgs 0.1 0.2"
-        cmd = cmd + " --moon-phase 0.1 --moon-angle 30 --moon-zenith 20"
+        cmd = cmd + " --moon_phase 0.1 --moon_angle 30 --moon_zenith 20"
         args = quickbrick.parse(cmd.split()[1:])
         results = quickbrick.main(args)
         brickfile = '{}/brick-b-{}.fits'.format(self.testdir, brickname)
@@ -114,9 +114,9 @@ class TestQuickBrick(unittest.TestCase):
     @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
     def test_quickbrick_moon(self):
         nspec = 2
-        cmd = "quickbrick --seed 1 -b brightmoon --objtype BRIGHT_MIX -n {} --outdir {} --moon-phase 0.1".format(nspec, self.testdir)
+        cmd = "quickbrick --seed 1 -b brightmoon --objtype BRIGHT_MIX -n {} --outdir {} --moon_phase 0.1".format(nspec, self.testdir)
         quickbrick.main(quickbrick.parse(cmd.split()[1:]))
-        cmd = "quickbrick --seed 1 -b crescentmoon --objtype BRIGHT_MIX -n {} --outdir {} --moon-phase 0.9".format(nspec, self.testdir)
+        cmd = "quickbrick --seed 1 -b crescentmoon --objtype BRIGHT_MIX -n {} --outdir {} --moon_phase 0.9".format(nspec, self.testdir)
         quickbrick.main(quickbrick.parse(cmd.split()[1:]))
         
         brickfile = '{}/brick-b-brightmoon.fits'.format(self.testdir)
