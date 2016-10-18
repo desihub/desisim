@@ -51,6 +51,9 @@ def parse(options=None):
     parser.add_argument("--config", type=str, default='desi', help='specsim configuration')
     parser.add_argument("--seed", type=int, default=0,  help="random seed")
     parser.add_argument("--frameonly", action="store_true", help="only output frame files")
+    parser.add_argument('--moon_phase', type=float,  help='moon phase (0=full, 1=new)', default=None, metavar='')
+    parser.add_argument('--moon_angle', type=float,  help='separation angle to the moon (0-180 deg)', default=None, metavar='')
+    parser.add_argument('--moon_zenith', type=float,  help='zenith angle of the moon (0-90 deg)', default=None, metavar='')
 
     if options is None:
         args = parser.parse_args()
@@ -175,6 +178,38 @@ def main(args=None):
     # Set simulation parameters from the simspec header.
     qsim.atmosphere.airmass = simspec.header['AIRMASS']
     qsim.observation.exposure_time = simspec.header['EXPTIME'] * u.s
+
+    # Set moon parameters
+    if simspec.flavor == 'bgs' or simspec.flavor == 'mws' or simspec.flavor == 'bright':
+        if args.moon_phase is None:
+            qsim.atmosphere.moon.moon_phase = 0.7
+        else:
+            qsim.atmosphere.moon.moon_phase = args.moon_phase
+        if args.moon_angle is None:
+            qsim.atmosphere.moon.separation_angle = 50 * u.deg
+        else:
+            qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
+        if args.moon_zenith is None:
+            qsim.atmosphere.moon.moon_zenith = 30 * u.deg
+        else:
+            qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
+    elif simspec.flavor == 'gray' or simspec.flavor == 'grey':
+        if args.moon_phase is None:
+            qsim.atmosphere.moon.moon_phase = 0.1
+        else:
+            qsim.atmosphere.moon.moon_phase = args.moon_phase
+        if args.moon_angle is None:
+            qsim.atmosphere.moon.separation_angle = 60 * u.deg
+        else:
+            qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
+        if args.moon_zenith is None:
+            qsim.atmosphere.moon.moon_zenith = 80 * u.deg
+        else:
+            qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
+    else:
+        qsim.atmosphere.moon.moon_phase = 0.5
+        qsim.atmosphere.moon.separation_angle = 60 * u.deg
+        qsim.atmosphere.moon.moon_zenith = 100 * u.deg
 
     # Get the camera output pixels from the specsim instrument model.
     maxbin = 0
