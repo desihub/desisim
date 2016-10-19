@@ -51,9 +51,9 @@ def parse(options=None):
     parser.add_argument("--config", type=str, default='desi', help='specsim configuration')
     parser.add_argument("--seed", type=int, default=0,  help="random seed")
     parser.add_argument("--frameonly", action="store_true", help="only output frame files")
-    parser.add_argument('--moon_phase', type=float,  help='moon phase (0=full, 1=new)', default=None, metavar='')
-    parser.add_argument('--moon_angle', type=float,  help='separation angle to the moon (0-180 deg)', default=None, metavar='')
-    parser.add_argument('--moon_zenith', type=float,  help='zenith angle of the moon (0-90 deg)', default=None, metavar='')
+    parser.add_argument('--moon-phase', type=float,  help='moon phase (0=full, 1=new)', default=None, metavar='')
+    parser.add_argument('--moon-angle', type=float,  help='separation angle to the moon (0-180 deg)', default=None, metavar='')
+    parser.add_argument('--moon-zenith', type=float,  help='zenith angle of the moon (0-90 deg)', default=None, metavar='')
 
     if options is None:
         args = parser.parse_args()

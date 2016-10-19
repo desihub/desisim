@@ -79,9 +79,9 @@ def parse(options=None):
   
     # Options corresponding to the bright-time survey only.
     bts_parser = parser.add_argument_group('options for Bright Time Surveys (BGS and MWS)')
-    bts_parser.add_argument('--moon_phase', type=float,  help='moon phase (0=full, 1=new)', default=None, metavar='')
-    bts_parser.add_argument('--moon_angle', type=float,  help='separation angle to the moon (0-180 deg)', default=None, metavar='')
-    bts_parser.add_argument('--moon_zenith', type=float,  help='zenith angle of the moon (0-90 deg)', default=None, metavar='')
+    bts_parser.add_argument('--moon-phase', type=float,  help='moon phase (0=full, 1=new)', default=None, metavar='')
+    bts_parser.add_argument('--moon-angle', type=float,  help='separation angle to the moon (0-180 deg)', default=None, metavar='')
+    bts_parser.add_argument('--moon-zenith', type=float,  help='zenith angle of the moon (0-90 deg)', default=None, metavar='')
 
     args = None
     if options is None:
