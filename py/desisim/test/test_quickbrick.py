@@ -22,7 +22,7 @@ class TestQuickBrick(unittest.TestCase):
             rmtree(self.testdir)
             
     #- Run basic test of quickbrick and check its outputs
-    @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
+    ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
     def test_quickbrick(self):
         brickname = 'test1'
         nspec = 3
@@ -54,7 +54,7 @@ class TestQuickBrick(unittest.TestCase):
         brick.close()
 
     #- Test quickbrick with a bunch of options
-    @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
+    ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
     def test_quickbrick_options(self):
         brickname = 'test2'
         nspec = 5
@@ -86,7 +86,7 @@ class TestQuickBrick(unittest.TestCase):
             self.assertLess(std, 0.2)                        
 
     #- Ensure that using --seed results in reproducible spectra
-    @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
+    ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
     def test_quickbrick_seed(self):
         nspec = 2
         cmd = "quickbrick --seed 1 -b test1a --objtype BRIGHT_MIX -n {} --outdir {}".format(nspec, self.testdir)
@@ -111,7 +111,7 @@ class TestQuickBrick(unittest.TestCase):
         self.assertTrue(np.any(t1a['TRUEZ'] != t2['TRUEZ']))
 
     #- Test that brighter moon makes noisier spectra
-    @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
+    ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
     def test_quickbrick_moon(self):
         nspec = 2
         cmd = "quickbrick --seed 1 -b brightmoon --objtype BRIGHT_MIX -n {} --outdir {} --moon-phase 0.1".format(nspec, self.testdir)
@@ -127,7 +127,7 @@ class TestQuickBrick(unittest.TestCase):
         self.assertLess(np.median(brick1.ivar), np.median(brick2.ivar))
 
     #- Test that shorter exposures make noisier spectra
-    @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
+    ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
     def test_quickbrick_exptime(self):
         nspec = 2
         cmd = "quickbrick --seed 1 -b test1 --exptime 100 --objtype DARK_MIX -n {} --outdir {}".format(nspec, self.testdir)

@@ -155,7 +155,7 @@ class TestQuickgen(unittest.TestCase):
         self.assertEqual(args.fibermap, fibermap)
 
     @unittest.skipUnless(desi_root_available, '$DESI_ROOT not set')
-    @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
+    ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
     def test_quickgen(self):
         night = self.night
         expid = self.expid
@@ -220,7 +220,7 @@ class TestQuickgen(unittest.TestCase):
                 os.remove(skyfile)
                 os.remove(fluxcalibfile)
 
-    @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
+    ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
     # test to see if same seed yields same spectrum
     def test_quickgen_seed(self):
 
@@ -266,7 +266,7 @@ class TestQuickgen(unittest.TestCase):
         self.assertTrue(s0[13].data['REDSHIFT'][0] == s1[13].data['REDSHIFT'][0])
         self.assertTrue(s0[13].data['REDSHIFT'][0] != s2[13].data['REDSHIFT'][0])
 
-    @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
+    ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
     # test to see if increased airmass yields smaller ivar
     def test_quickgen_airmass(self):
 
@@ -293,7 +293,7 @@ class TestQuickgen(unittest.TestCase):
         cf1=desispec.io.read_frame(CFRAME101_PATH)
         self.assertLess(np.median(cf0.ivar),np.median(cf1.ivar))
 
-    @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
+    ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
     # test to see if decreased exposure time yields smaller ivar
     def test_quickgen_exptime(self):
 
@@ -320,7 +320,7 @@ class TestQuickgen(unittest.TestCase):
         cf1=desispec.io.read_frame(CFRAME101_PATH)
         self.assertLess(np.median(cf0.ivar),np.median(cf1.ivar))
 
-    @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
+    ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
     # test to see if full moon yields smaller ivar than new moon
     def test_quickgen_moonphase(self):
 
@@ -347,7 +347,7 @@ class TestQuickgen(unittest.TestCase):
         cf1=desispec.io.read_frame(CFRAME101_PATH)
         self.assertLess(np.median(cf0.ivar),np.median(cf1.ivar))
 
-    @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
+    ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
     # test to see if moon angle of 0 yeilds smaller ivar than a moon angle of 180
     def test_quickgen_moonangle(self):
 
@@ -374,7 +374,7 @@ class TestQuickgen(unittest.TestCase):
         cf1=desispec.io.read_frame(CFRAME101_PATH)
         self.assertLess(np.median(cf0.ivar),np.median(cf1.ivar))
 
-    @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
+    ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
     # test to see if moon zenith angle of 0 yeilds smaller ivar than moon zenith angle of 90
     def test_quickgen_moonzenith(self):
 
