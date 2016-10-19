@@ -49,7 +49,7 @@ env:
         - SPECLITE_VERSION=0.5
         - SPECSIM_VERSION=master
         - SPECTER_VERSION=0.6.0
-        - DESISPEC_VERSION=0.11.0
+        - DESISPEC_VERSION=master
         - DESITARGET_VERSION=0.7.0
         # - DESIMODEL_VERSION=trunk
         - DESI_LOGLEVEL=DEBUG
