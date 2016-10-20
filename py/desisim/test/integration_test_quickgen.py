@@ -111,7 +111,7 @@ def integration_test(night="20160726", nspec=25, clobber=False):
         skytestfile = desispec.io.findfile('sky', night, expid, camera) + 'test'
         calibfile = desispec.io.findfile('calib', night, expid, camera)
         calibtestfile = desispec.io.findfile('calib', night, expid, camera) + 'test'
-        stdstarsfile = desispec.io.findfile('stdstars', night, expid, camera, spectrograph=0)
+        stdstarsfile = desispec.io.findfile('stdstars', night, expid, spectrograph=0)
         cframetestfile = desispec.io.findfile('cframe', night, expid, camera) + 'test'
 
         # verify that quickgen output works for full pipeline
@@ -119,9 +119,11 @@ def integration_test(night="20160726", nspec=25, clobber=False):
         if pipe.runcmd(com, clobber=clobber) != 0:
             raise RuntimeError('desi_compute_sky failed for camera {}'.format(camera))
 
-        com = "desi_fit_stdstars --frames {} --skymodels {} --fiberflats {} --starmodels $DESI_BASIS_TEMPLATES/star_templates_v2.1.fits --outfile {}".format(framefile, skyfile, fiberflatfile, stdstarsfile)
-        if pipe.runcmd(com, clobber=clobber) != 0:
-            raise RuntimeError('desi_fit_stdstars failed for camera {}'.format(camera))
+        # only fit stdstars once
+        if camera == 'b0':
+            com = "desi_fit_stdstars --frames {} --skymodels {} --fiberflats {} --starmodels $DESI_BASIS_TEMPLATES/star_templates_v2.1.fits --outfile {}".format(framefile, skyfile, fiberflatfile, stdstarsfile)
+            if pipe.runcmd(com, clobber=clobber) != 0:
+                raise RuntimeError('desi_fit_stdstars failed for camera {}'.format(camera))
 
         com = "desi_compute_fluxcalibration --infile {} --fiberflat {} --sky {} --models {} --outfile {}".format(framefile, fiberflatfile, skyfile, stdstarsfile, calibtestfile)
         if pipe.runcmd(com, clobber=clobber) != 0:
