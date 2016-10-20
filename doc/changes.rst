@@ -5,9 +5,9 @@ desisim change log
 0.15.1 (unreleased)
 -------------------
 
-* No changes yet
+* add integration test for quickgen
 
-0.15.0 (2016-10-14)
+0.15.0 (2016-10-20)
 -------------------
 
 * add moon phase, moon angle, and zenith angle to quickgen
