@@ -95,8 +95,8 @@ def integration_test(night="20160726", nspec=25, clobber=False):
     log = logging.get_logger()
     log.setLevel(logging.DEBUG)
 
-    flat_expid = 00000000
-    expid = 00000002
+    flat_expid = 0
+    expid = 2
 
     # check for required environment variables and simulate inputs
     check_env()
