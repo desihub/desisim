@@ -4,6 +4,7 @@ Run integration test using quickgen output for full pipeline
 python -m desisim.test.integration_test_quickgen
 """
 import os
+import sys
 from desisim import io
 import desispec.pipeline as pipe
 import desispec.log as logging
