@@ -47,10 +47,10 @@ env:
         - DESIMODEL_DATA=branches/test-0.4.5
         - DESISIM_TESTDATA_VERSION=0.3.2
         - SPECLITE_VERSION=0.5
-        - SPECSIM_VERSION=v0.5
+        - SPECSIM_VERSION=master
         - SPECTER_VERSION=0.6.0
-        - DESISPEC_VERSION=0.10.0
-        - DESITARGET_VERSION=0.6.1
+        - DESISPEC_VERSION=master
+        - DESITARGET_VERSION=0.7.0
         # - DESIMODEL_VERSION=trunk
         - DESI_LOGLEVEL=DEBUG
         - MAIN_CMD='python setup.py'

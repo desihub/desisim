@@ -27,6 +27,7 @@ from desispec.fiberflat import FiberFlat
 from desispec.sky import SkyModel
 from desispec.fluxcalibration import FluxCalib
 from desispec.log import INFO
+from ..specsim import get_simulator
 
 def expand_args(args):
     hdr = fits.getheader(args.simspec)
@@ -168,7 +169,8 @@ def main(args=None):
     log.info("************************************************")
 
     log.info("Initializing SpecSim with config {}".format(args.config))
-    qsim = specsim.simulator.Simulator(args.config)
+    ### qsim = specsim.simulator.Simulator(args.config)
+    qsim = get_simulator(args.config)
 
     # explicitly set location on focal plane if needed to support airmass
     # variations when using specsim v0.5
