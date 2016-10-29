@@ -22,11 +22,11 @@ def get_spectra(infile,first=1,last=-1):
 
     h = fitsio.FITS(infile)
     if last<0:
-	last = len(h)
+        last = len(h)
 
     if first<=0:
-	print "first must be >= 1"
-	return
+        print("first must be >= 1")
+        return
 
     heads = [head.read_header() for head in h[first:last]]
 
@@ -58,19 +58,19 @@ def get_spectra(infile,first=1,last=-1):
 
     for i,head in enumerate(h[first:last]):
 	## read lambda and forest transmission
-	la = head["LAMBDA"][:]
-	tr = head["FLUX"][:]
-	if len(tr)==0:
-	    continue
+        la = head["LAMBDA"][:]
+        tr = head["FLUX"][:]
+        if len(tr)==0:
+            continue
 
         ## will interpolate the transmission at the spectral wavelengths, 
 	## if outside the forest, the transmission is 1
-	itr=interpolate.interp1d(la,tr,bounds_error=False,fill_value=1)
-	flux[i,:]*=itr(wave)
-	padflux, padwave = normfilt.pad_spectrum(flux[i, :], wave, method='edge')
-	normmaggies = sp.array(normfilt.get_ab_maggies(padflux, padwave, 
+        itr=interpolate.interp1d(la,tr,bounds_error=False,fill_value=1)
+        flux[i,:]*=itr(wave)
+        padflux, padwave = normfilt.pad_spectrum(flux[i, :], wave, method='edge')
+        normmaggies = sp.array(normfilt.get_ab_maggies(padflux, padwave, 
 	      mask_invalid=True)[filter_name])
-	flux[i, :] *= 10**(-0.4*input_meta['MAG'][i]) / normmaggies
+        flux[i, :] *= 10**(-0.4*input_meta['MAG'][i]) / normmaggies
 
     h.close()
     return flux,wave,meta
