@@ -129,6 +129,7 @@ class TestTemplates(unittest.TestCase):
             badkeys = list()
             for key in meta1.colnames:
                 if key in ('DECAM_FLUX', 'WISE_FLUX', 'OIIFLUX', 'HBETAFLUX'):
+                    #- not sure why the tolerances aren't closer
                     if not np.allclose(meta1[key], meta2[key], atol=5e-5):
                         print(meta1['OBJTYPE'][0], key, meta1[key], meta2[key])
                         badkeys.append(key)
