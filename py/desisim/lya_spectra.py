@@ -54,8 +54,6 @@ def get_spectra(infile, first=0, nqso=None, seed=None):
     qso = QSO(normfilter=filter_name)
 
     input_meta["REDSHIFT"]=zqso
-    # input_meta["RA"]=ra
-    # input_meta["DEC"]=dec
     input_meta["MAG"]=mag_g
     input_meta["SEED"]=seed
 
