@@ -250,15 +250,14 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
         eigen, eigen_wave = fbq.read_qso_eigen()
     else:
         infile = desisim.io.find_basis_template('qso')
-        hdus = fits.open(infile)
-
-        hdu_names = [hdus[ii].name for ii in range(len(hdus))]
-        boss_pca_coeff = hdus[hdu_names.index('BOSS_PCA')].data
-        sdss_pca_coeff = hdus[hdu_names.index('SDSS_PCA')].data
-        boss_zQSO = hdus[hdu_names.index('BOSS_Z')].data
-        sdss_zQSO = hdus[hdu_names.index('SDSS_Z')].data
-        eigen = hdus[hdu_names.index('SDSS_EIGEN')].data
-        eigen_wave = hdus[hdu_names.index('SDSS_EIGEN_WAVE')].data
+        with fits.open(infile) as hdus:
+            hdu_names = [hdus[ii].name for ii in range(len(hdus))]
+            boss_pca_coeff = hdus[hdu_names.index('BOSS_PCA')].data
+            sdss_pca_coeff = hdus[hdu_names.index('SDSS_PCA')].data
+            boss_zQSO = hdus[hdu_names.index('BOSS_Z')].data
+            sdss_zQSO = hdus[hdu_names.index('SDSS_Z')].data
+            eigen = hdus[hdu_names.index('SDSS_EIGEN')].data
+            eigen_wave = hdus[hdu_names.index('SDSS_EIGEN_WAVE')].data
 
     # Fiddle with the eigen-vectors
     npix = len(eigen_wave)
