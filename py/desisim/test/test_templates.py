@@ -129,12 +129,13 @@ class TestTemplates(unittest.TestCase):
             badkeys = list()
             for key in meta1.colnames:
                 if key in ('DECAM_FLUX', 'WISE_FLUX', 'OIIFLUX', 'HBETAFLUX'):
-                    if not np.allclose(meta1[key], meta2[key]):
+                    if not np.allclose(meta1[key], meta2[key], atol=5e-5):
                         print(meta1['OBJTYPE'][0], key, meta1[key], meta2[key])
                         badkeys.append(key)
                 else:
                     if not np.all(meta1[key] == meta2[key]):
                         badkeys.append(key)
+
             self.assertEqual(len(badkeys), 0, 'mismatch for spectral type {} in keys {}'.format(meta1['OBJTYPE'][0], badkeys))
             self.assertTrue(np.allclose(flux1, flux2))
             self.assertTrue(np.all(wave1 == wave2))
