@@ -1,6 +1,5 @@
 from desisim.templates import QSO
 from desisim.io import empty_metatable
-import fitsio
 import scipy as sp
 from scipy import interpolate
 from speclite import filters
@@ -27,6 +26,7 @@ def get_spectra(infile, first=0, nqso=None, seed=None):
         plus RA and DEC columns
     '''
 
+    import fitsio
     h = fitsio.FITS(infile)
     if nqso is None:
         nqso = len(h)-1
