@@ -59,7 +59,7 @@ class TestTemplates(unittest.TestCase):
     def test_OII(self):
         '''Confirm that ELG [OII] flux matches meta table description'''
         print('In function test_OII, seed = {}'.format(self.seed))
-        wave = np.arange(5000, 9800.1, 0.2)
+        wave = np.arange(5000, 9800.1, 0.5)
         flux, ww, meta = ELG(wave=wave).make_templates(seed=self.seed,
             nmodel=10, zrange=(0.6, 1.6),
             logvdisp_meansig = [np.log10(75), 0.0],
@@ -75,7 +75,7 @@ class TestTemplates(unittest.TestCase):
     def test_HBETA(self):
         '''Confirm that BGS H-beta flux matches meta table description'''
         print('In function test_HBETA, seed = {}'.format(self.seed))
-        wave = np.arange(5000, 7000.1, 0.2)
+        wave = np.arange(5000, 7000.1, 0.5)
         # Need to choose just the star-forming galaxies.
         from desisim.io import read_basis_templates
         baseflux, basewave, basemeta = read_basis_templates(objtype='BGS')
