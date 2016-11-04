@@ -89,7 +89,7 @@ class TestPixsim(unittest.TestCase):
 
 
     @unittest.skipUnless(desi_root_available, '$DESI_ROOT not set')
-    def _test_pixsim(self):
+    def test_pixsim(self):
         night = self.night
         expid = self.expid
         camera = 'r0'
@@ -103,7 +103,7 @@ class TestPixsim(unittest.TestCase):
         self.assertTrue(os.path.exists(io.findfile('pix', night, expid, camera)))
 
     @unittest.skipUnless(desi_templates_available, 'The DESI templates directory ($DESI_ROOT/spectro/templates) was not detected.')
-    def _test_pixsim_cosmics(self):
+    def test_pixsim_cosmics(self):
         night = self.night
         expid = self.expid
         camera = 'r0'
@@ -115,7 +115,7 @@ class TestPixsim(unittest.TestCase):
         self.assertTrue(os.path.exists(io.findfile('simpix', night, expid, camera)))
         self.assertTrue(os.path.exists(io.findfile('pix', night, expid, camera)))
 
-    def _test_simulate(self):
+    def test_simulate(self):
         import desispec.image
         night = self.night
         expid = self.expid
@@ -139,7 +139,7 @@ class TestPixsim(unittest.TestCase):
     #- called, though the tests work on other systems.
     #- Disabling multiprocessing also "fixed" this for unknown reasons.
     @unittest.skipIf(False, 'Skip test that is causing coverage tests to hang.')
-    def _test_main_defaults(self):
+    def test_main_defaults(self):
         night = self.night
         expid = self.expid
         camera = 'r0'
@@ -172,7 +172,7 @@ class TestPixsim(unittest.TestCase):
         os.remove(rawfile)
 
     @unittest.skipIf(False, 'Skip test that is causing coverage tests to hang.')
-    def _test_main_override(self):
+    def test_main_override(self):
         night = self.night
         expid = self.expid
         camera = 'r0'
@@ -210,7 +210,7 @@ class TestPixsim(unittest.TestCase):
         os.remove(simpixfile)
         os.remove(altrawfile)
 
-    def _test_project(self):
+    def test_project(self):
         psf = desimodel.io.load_psf('z')
         wave = np.arange(8000, 8010)
         phot = np.ones((2, len(wave)))
