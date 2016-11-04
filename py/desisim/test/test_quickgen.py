@@ -124,7 +124,7 @@ class TestQuickgen(unittest.TestCase):
             if os.path.exists(fluxcalibfile):
                 os.remove(fluxcalibfile)
 
-    def _test_parse(self):
+    def test_parse(self):
         night = self.night
         expid = self.expid
         obs.new_exposure('dark', night=night, expid=expid, nspec=4)
@@ -142,7 +142,7 @@ class TestQuickgen(unittest.TestCase):
         with self.assertRaises(ValueError):
             desisim.scripts.quickgen.parse([])
 
-    def _test_expand_args(self):
+    def test_expand_args(self):
         night = self.night
         expid = self.expid
         obs.new_exposure('arc', night=night, expid=expid, nspec=4)
@@ -156,7 +156,7 @@ class TestQuickgen(unittest.TestCase):
 
     @unittest.skipUnless(desi_root_available, '$DESI_ROOT not set')
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
-    def _test_quickgen(self):
+    def test_quickgen(self):
         night = self.night
         expid = self.expid
         camera = 'r0'
@@ -222,7 +222,7 @@ class TestQuickgen(unittest.TestCase):
 
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
     # test to see if same seed yields same spectrum
-    def _test_quickgen_seed(self):
+    def test_quickgen_seed(self):
 
         CFRAME100_PATH = os.path.join(os.environ['HOME'],'desi_test_io','spectro','sim','test-quickgen','test-quickgen','exposures','20150105','00000100','cframe-r0-00000100.fits')
         CFRAME101_PATH = os.path.join(os.environ['HOME'],'desi_test_io','spectro','sim','test-quickgen','test-quickgen','exposures','20150105','00000101','cframe-r0-00000101.fits')
@@ -268,7 +268,7 @@ class TestQuickgen(unittest.TestCase):
 
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
     # test to see if increased airmass yields smaller ivar
-    def _test_quickgen_airmass(self):
+    def test_quickgen_airmass(self):
 
         CFRAME100_PATH = os.path.join(os.environ['HOME'],'desi_test_io','spectro','sim','test-quickgen','test-quickgen','exposures','20150105','00000100','cframe-r0-00000100.fits')
         CFRAME101_PATH = os.path.join(os.environ['HOME'],'desi_test_io','spectro','sim','test-quickgen','test-quickgen','exposures','20150105','00000101','cframe-r0-00000101.fits')
@@ -295,7 +295,7 @@ class TestQuickgen(unittest.TestCase):
 
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
     # test to see if decreased exposure time yields smaller ivar
-    def _test_quickgen_exptime(self):
+    def test_quickgen_exptime(self):
 
         CFRAME100_PATH = os.path.join(os.environ['HOME'],'desi_test_io','spectro','sim','test-quickgen','test-quickgen','exposures','20150105','00000100','cframe-r0-00000100.fits')
         CFRAME101_PATH = os.path.join(os.environ['HOME'],'desi_test_io','spectro','sim','test-quickgen','test-quickgen','exposures','20150105','00000101','cframe-r0-00000101.fits')
@@ -322,7 +322,7 @@ class TestQuickgen(unittest.TestCase):
 
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
     # test to see if full moon yields smaller ivar than new moon
-    def _test_quickgen_moonphase(self):
+    def test_quickgen_moonphase(self):
 
         CFRAME100_PATH = os.path.join(os.environ['HOME'],'desi_test_io','spectro','sim','test-quickgen','test-quickgen','exposures','20150105','00000100','cframe-r0-00000100.fits')
         CFRAME101_PATH = os.path.join(os.environ['HOME'],'desi_test_io','spectro','sim','test-quickgen','test-quickgen','exposures','20150105','00000101','cframe-r0-00000101.fits')
@@ -349,7 +349,7 @@ class TestQuickgen(unittest.TestCase):
 
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
     # test to see if moon angle of 0 yeilds smaller ivar than a moon angle of 180
-    def _test_quickgen_moonangle(self):
+    def test_quickgen_moonangle(self):
 
         CFRAME100_PATH = os.path.join(os.environ['HOME'],'desi_test_io','spectro','sim','test-quickgen','test-quickgen','exposures','20150105','00000100','cframe-r0-00000100.fits')
         CFRAME101_PATH = os.path.join(os.environ['HOME'],'desi_test_io','spectro','sim','test-quickgen','test-quickgen','exposures','20150105','00000101','cframe-r0-00000101.fits')
@@ -376,7 +376,7 @@ class TestQuickgen(unittest.TestCase):
 
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
     # test to see if moon zenith angle of 0 yeilds smaller ivar than moon zenith angle of 90
-    def _test_quickgen_moonzenith(self):
+    def test_quickgen_moonzenith(self):
 
         CFRAME100_PATH = os.path.join(os.environ['HOME'],'desi_test_io','spectro','sim','test-quickgen','test-quickgen','exposures','20150105','00000100','cframe-r0-00000100.fits')
         CFRAME101_PATH = os.path.join(os.environ['HOME'],'desi_test_io','spectro','sim','test-quickgen','test-quickgen','exposures','20150105','00000101','cframe-r0-00000101.fits')
