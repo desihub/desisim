@@ -68,7 +68,7 @@ def parse(options=None):
     parser.add_argument('-b','--brickname', type=str, help='unique output brickname suffix', metavar='')
     parser.add_argument('--objtype', type=str,  help='ELG, LRG, QSO, BGS, MWS, WD, DARK_MIX, or BRIGHT_MIX', default='DARK_MIX', metavar='')
     parser.add_argument('-a','--airmass', type=float,  help='airmass', default=1.25, metavar='') # Science Req. Doc L3.3.2
-    parser.add_argument('-e','--exptime', type=float,  help='exposure time (s) (default based on config)', metavar='')
+    parser.add_argument('-e','--exptime', type=float,  help='exposure time (s', default=None,metavar='')
     parser.add_argument('-o','--outdir', type=str,  help='output directory', default='.', metavar='')
     parser.add_argument('-v','--verbose', action='store_true', help='toggle on verbose output')
     parser.add_argument('--outdir-truth', type=str,  help='optional alternative output directory for truth files', metavar='')
@@ -159,13 +159,14 @@ def main(args):
             raise
 
     # Initialize random number generator to use.
+    np.random.seed(args.seed)
     random_state = np.random.RandomState(args.seed)
 
     # Derive spectrograph number from nstart if needed
     if args.spectrograph is None:
         args.spectrograph = args.nstart / 500
 
-    # read fibermapfile to get objecttype, NIGHT and EXPID....
+    # Read fibermapfile to get object type, night and expid
     if args.fibermap:
         log.info("Reading fibermap file {}".format(args.fibermap))
         fibermap=read_fibermap(args.fibermap)
@@ -206,7 +207,7 @@ def main(args):
 
     if args.simspec:
         # Read the input file
-        log.info('Now reading input file {}'.format(args.simspec))
+        log.info('Reading input file {}'.format(args.simspec))
         simspec = desisim.io.read_simspec(args.simspec)
         nspec = simspec.nspec
         if simspec.flavor == 'arc':
@@ -330,57 +331,90 @@ def main(args):
         qsim.source.focal_xy = (u.Quantity(0, 'mm'), u.Quantity(100, 'mm'))
 
     # Set simulation parameters from the simspec header or desiparams
-    simspec_bright_objects = ['bgs','mws','bright']
-    brick_bright_objects = ['BGS','MWS','BRIGHT_MIX']
+    bright_objects = ['bgs','mws','bright','BGS','MWS','BRIGHT_MIX']
     gray_objects = ['gray','grey']
     if args.simspec:
         qsim.atmosphere.airmass = simspec.header['AIRMASS']
         qsim.observation.exposure_time = simspec.header['EXPTIME'] * u.s
     elif args.brickname:
         qsim.atmosphere.airmass = args.airmass
-        if objtype == any(brick_bright_objects):
-            qsim.observation.exposure_time = desiparams['exptime_bright'] * u.s
+        if args.exptime is None:
+            if objtype in bright_objects:
+                qsim.observation.exposure_time = desiparams['exptime_bright'] * u.s
+            else:
+                qsim.observation.exposure_time = desiparams['exptime_dark'] * u.s
         else:
-            qsim.observation.exposure_time = desiparams['exptime_dark'] * u.s
+            qsim.observation.exposure_time = args.exptime * u.s
 
     # Set moon parameters
-    if objtype == any(simspec_bright_objects) or objtype == any(brick_bright_objects):
-        if args.moon_phase is None:
-            qsim.atmosphere.moon.moon_phase = 0.7
+    if args.simspec:
+        if simspec.flavor in bright_objects:
+            if args.moon_phase is None:
+                qsim.atmosphere.moon.moon_phase = 0.7
+            else:
+                qsim.atmosphere.moon.moon_phase = args.moon_phase
+            if args.moon_angle is None:
+                qsim.atmosphere.moon.separation_angle = 50 * u.deg
+            else:
+                qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
+            if args.moon_zenith is None:
+                qsim.atmosphere.moon.moon_zenith = 30 * u.deg
+            else:
+                qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
+        elif simspec.flavor in gray_objects:
+            if simspec.flavor in bright_objects:
+                if args.moon_phase is None:
+                    qsim.atmosphere.moon.moon_phase = 0.1
+                else:
+                    qsim.atmosphere.moon.moon_phase = args.moon_phase
+                if args.moon_angle is None:
+                    qsim.atmosphere.moon.separation_angle = 60 * u.deg
+                else:
+                    qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
+                if args.moon_zenith is None:
+                    qsim.atmosphere.moon.moon_zenith = 80 * u.deg
+                else:
+                    qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
         else:
-            qsim.atmosphere.moon.moon_phase = args.moon_phase
-        if args.moon_angle is None:
-            qsim.atmosphere.moon.separation_angle = 50 * u.deg
+            if args.moon_phase is None:
+                qsim.atmosphere.moon.moon_phase = 0.5
+            else:
+                qsim.atmosphere.moon.moon_phase = args.moon_phase
+            if args.moon_angle is None:
+                qsim.atmosphere.moon.separation_angle = 60 * u.deg
+            else:
+                qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
+            if args.moon_zenith is None:
+                qsim.atmosphere.moon.moon_zenith = 100 * u.deg
+            else:
+                qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
+    elif args.brickname:
+        if objtype in bright_objects:
+            if args.moon_phase is None:
+                qsim.atmosphere.moon.moon_phase = 0.7
+            else:
+                qsim.atmosphere.moon.moon_phase = args.moon_phase
+            if args.moon_angle is None:
+                qsim.atmosphere.moon.separation_angle = 50 * u.deg
+            else:
+                qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
+            if args.moon_zenith is None:
+                qsim.atmosphere.moon.moon_zenith = 30 * u.deg
+            else:
+                qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
         else:
-            qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
-        if args.moon_zenith is None:
-            qsim.atmosphere.moon.moon_zenith = 30 * u.deg
-        else:
-            qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
-    elif objtype == any(gray_objects):
-        if args.moon_phase is None:
-            qsim.atmosphere.moon.moon_phase = 0.1
-        else:
-            qsim.atmosphere.moon.moon_phase = args.moon_phase
-        if args.moon_angle is None:
-            qsim.atmosphere.moon.separation_angle = 60 * u.deg
-        else:
-            qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
-        if args.moon_zenith is None:
-            qsim.atmosphere.moon.moon_zenith = 80 * u.deg
-        else:
-            qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
-    else:
-        qsim.atmosphere.moon.moon_phase = 0.5
-        qsim.atmosphere.moon.separation_angle = 60 * u.deg
-        qsim.atmosphere.moon.moon_zenith = 100 * u.deg
-
-    if args.moon_phase is not None:
-        qsim.atmosphere.moon.moon_phase = args.moon_phase
-    if args.moon_angle is not None:
-        qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
-    if args.moon_zenith is not None:
-        qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
+            if args.moon_phase is None:
+                qsim.atmosphere.moon.moon_phase = 0.5
+            else:
+                qsim.atmosphere.moon.moon_phase = args.moon_phase 
+            if args.moon_angle is None:
+                qsim.atmosphere.moon.separation_angle = 60 * u.deg
+            else:
+                qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
+            if args.moon_zenith is None:
+                qsim.atmosphere.moon.moon_zenith = 100 * u.deg
+            else:
+                qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
 
     # Initialize per-camera output arrays that will be saved to the brick files.
     cwave, trueflux, noisyflux, obsivar, resolution, sflux = {}, {}, {}, {}, {}, {}
