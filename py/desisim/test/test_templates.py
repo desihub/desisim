@@ -27,7 +27,7 @@ class TestTemplates(unittest.TestCase):
         self.assertEqual(flux.shape, (self.nspec, len(self.wave)))
 
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
-    def test_simple(self):
+    def _test_simple(self):
         '''Confirm that creating templates works at all'''
         print('In function test_simple, seed = {}'.format(self.seed))
         for T in [ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR, WD]:
@@ -35,7 +35,7 @@ class TestTemplates(unittest.TestCase):
             flux, wave, meta = template_factory.make_templates(self.nspec, seed=self.seed)
             self._check_output_size(flux, wave, meta)
 
-    def test_input_wave(self):
+    def _test_input_wave(self):
         '''Confirm that we can specify the wavelength array.'''
         print('In function test_input_wave, seed = {}'.format(self.seed))
         lrg = LRG(minwave=self.wavemin, maxwave=self.wavemax, cdelt=self.dwave)
@@ -43,7 +43,7 @@ class TestTemplates(unittest.TestCase):
         self._check_output_size(flux, wave, meta)
     
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
-    def test_random_seed(self):
+    def _test_random_seed(self):
         '''Test that random seed works to get the same results back'''
         print('In function test_input_random_seed, seed = {}'.format(self.seed))
         for T in [ELG, QSO, MWS_STAR]:
@@ -56,7 +56,7 @@ class TestTemplates(unittest.TestCase):
             self.assertTrue(np.all(wave1==wave2))
     
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
-    def test_OII(self):
+    def _test_OII(self):
         '''Confirm that ELG [OII] flux matches meta table description'''
         print('In function test_OII, seed = {}'.format(self.seed))
         wave = np.arange(5000, 9800.1, 0.5)
@@ -72,7 +72,7 @@ class TestTemplates(unittest.TestCase):
             self.assertAlmostEqual(OIIflux, meta['OIIFLUX'][i], 2)
     
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
-    def test_HBETA(self):
+    def _test_HBETA(self):
         '''Confirm that BGS H-beta flux matches meta table description'''
         print('In function test_HBETA, seed = {}'.format(self.seed))
         wave = np.arange(5000, 7000.1, 0.5)
@@ -94,7 +94,7 @@ class TestTemplates(unittest.TestCase):
             self.assertAlmostEqual(hbetaflux, meta['HBETAFLUX'][i], 2)
     
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
-    def test_input_redshift(self):
+    def _test_input_redshift(self):
         '''Test that we can input the redshift for a representative galaxy and star class.'''
         print('In function test_input_redshift, seed = {}'.format(self.seed))
         zrange = np.array([(0.5, 1.0), (0.5, 4.0), (-0.003, 0.003)])
@@ -105,7 +105,7 @@ class TestTemplates(unittest.TestCase):
             self.assertTrue(np.allclose(redshift, meta['REDSHIFT']))
     
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
-    def test_sne(self):
+    def _test_sne(self):
         '''Test options for adding in SNeIa spectra'''
         print('In function test_sne, seed = {}'.format(self.seed))
         for T in [BGS]:
@@ -119,7 +119,7 @@ class TestTemplates(unittest.TestCase):
             self.assertTrue('SNE_EPOCH' in meta.dtype.names)
     
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
-    def test_input_meta(self):
+    def _test_input_meta(self):
         '''Test that input meta table option works.'''
         print('In function test_input_meta, seed = {}'.format(self.seed))
         for T in [LRG, QSO, BGS, STAR, WD]:
@@ -142,7 +142,7 @@ class TestTemplates(unittest.TestCase):
             self.assertTrue(np.all(wave1 == wave2))
 
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
-    def test_star_properties(self):
+    def _test_star_properties(self):
         '''Test that input data table option works.'''
         print('In function test_star_properties, seed = {}'.format(self.seed))
         star_properties = Table()
