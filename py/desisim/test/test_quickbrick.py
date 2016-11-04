@@ -23,7 +23,7 @@ class TestQuickBrick(unittest.TestCase):
             
     #- Run basic test of quickbrick and check its outputs
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
-    def test_quickbrick(self):
+    def _test_quickbrick(self):
         brickname = 'test1'
         nspec = 3
         cmd = "quickbrick -b {} --objtype ELG -n {} --outdir {}".format(brickname, nspec, self.testdir)
@@ -55,7 +55,7 @@ class TestQuickBrick(unittest.TestCase):
 
     #- Test quickbrick with a bunch of options
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
-    def test_quickbrick_options(self):
+    def _test_quickbrick_options(self):
         brickname = 'test2'
         nspec = 5
         cmd = "quickbrick -b {} --objtype BGS -n {} --outdir {}".format(brickname, nspec, self.testdir)
@@ -87,7 +87,7 @@ class TestQuickBrick(unittest.TestCase):
 
     #- Ensure that using --seed results in reproducible spectra
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
-    def test_quickbrick_seed(self):
+    def _test_quickbrick_seed(self):
         nspec = 2
         cmd = "quickbrick --seed 1 -b test1a --objtype BRIGHT_MIX -n {} --outdir {}".format(nspec, self.testdir)
         quickbrick.main(quickbrick.parse(cmd.split()[1:]))
@@ -112,7 +112,7 @@ class TestQuickBrick(unittest.TestCase):
 
     #- Test that brighter moon makes noisier spectra
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
-    def test_quickbrick_moon(self):
+    def _test_quickbrick_moon(self):
         nspec = 2
         cmd = "quickbrick --seed 1 -b brightmoon --objtype BRIGHT_MIX -n {} --outdir {} --moon-phase 0.1".format(nspec, self.testdir)
         quickbrick.main(quickbrick.parse(cmd.split()[1:]))
@@ -128,7 +128,7 @@ class TestQuickBrick(unittest.TestCase):
 
     #- Test that shorter exposures make noisier spectra
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
-    def test_quickbrick_exptime(self):
+    def _test_quickbrick_exptime(self):
         nspec = 2
         cmd = "quickbrick --seed 1 -b test1 --exptime 100 --objtype DARK_MIX -n {} --outdir {}".format(nspec, self.testdir)
         quickbrick.main(quickbrick.parse(cmd.split()[1:]))
