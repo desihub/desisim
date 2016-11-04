@@ -6,6 +6,7 @@ desisim change log
 -------------------
 
 * Add integration test for quickgen
+* Tuning memory for Travis tests
 
 0.15.0 (2016-10-14)
 -------------------
