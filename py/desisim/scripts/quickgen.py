@@ -68,7 +68,7 @@ def parse(options=None):
     parser.add_argument('-b','--brickname', type=str, help='unique output brickname suffix', metavar='')
     parser.add_argument('--objtype', type=str,  help='ELG, LRG, QSO, BGS, MWS, WD, DARK_MIX, or BRIGHT_MIX', default='DARK_MIX', metavar='')
     parser.add_argument('-a','--airmass', type=float,  help='airmass', default=1.25, metavar='') # Science Req. Doc L3.3.2
-    parser.add_argument('-e','--exptime', type=float,  help='exposure time (s', default=None,metavar='')
+    parser.add_argument('-e','--exptime', type=float,  help='exposure time (s)', default=None,metavar='')
     parser.add_argument('-o','--outdir', type=str,  help='output directory', default='.', metavar='')
     parser.add_argument('-v','--verbose', action='store_true', help='toggle on verbose output')
     parser.add_argument('--outdir-truth', type=str,  help='optional alternative output directory for truth files', metavar='')
