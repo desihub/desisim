@@ -6,25 +6,25 @@ import desisim.targets
 
 class TestObs(unittest.TestCase):
 
-    def _test_sample_nz(self):
+    def test_sample_nz(self):
         n = 5
         for objtype in ['LRG', 'ELG', 'QSO', 'STAR', 'STD']:
             z = desisim.targets.sample_nz(objtype, n)
             self.assertEqual(len(z), n)
     
-    def _test_get_targets(self):
+    def test_get_targets(self):
         n = 5
         for flavor in ['DARK', 'BRIGHT', 'LRG', 'ELG', 'QSO', 'BGS', 'MWS']:
             fibermap, truth = desisim.targets.get_targets(n, flavor)
             fibermap, truth = desisim.targets.get_targets(n, flavor.lower())
             
-    def _test_sample_objtype(self):
+    def test_sample_objtype(self):
         for flavor in ['DARK', 'GRAY', 'BRIGHT', 'LRG', 'ELG', 'QSO', 'BGS', 'MWS']:
             for n in [5,10,50]:
                 for i in range(10):
                     truetype, targettype = desisim.targets.sample_objtype(n, flavor)
 
-    def _test_parallel(self):
+    def test_parallel(self):
         import multiprocessing as mp
         nproc = mp.cpu_count() // 2
         for n in [5, 23, 15*nproc+7]:
@@ -38,7 +38,7 @@ class TestObs(unittest.TestCase):
                 if key not in ('UNITS', 'WAVE', 'META'):
                     self.assertEqual(n, truth[key].shape[0])
 
-    def _test_parallel_radec(self):
+    def test_parallel_radec(self):
         '''Ensure that parallel generated ra,dec are unique'''
         nspec = 60
         fibermap, truth = desisim.targets.get_targets_parallel(nspec, 'SKY')
@@ -47,7 +47,7 @@ class TestObs(unittest.TestCase):
         self.assertEqual(nra, nspec)
         self.assertEqual(ndec, nspec)
 
-    def _test_random(self):
+    def test_random(self):
         for nspec in (15, 30):
             fibermap1, truth1 = desisim.targets.get_targets_parallel(nspec, 'DARK', seed=nspec+1)
             fibermap2a, truth2a = desisim.targets.get_targets_parallel(nspec, 'DARK', seed=nspec+2)
