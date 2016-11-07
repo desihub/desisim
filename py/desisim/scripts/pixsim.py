@@ -114,6 +114,9 @@ def parse(options=None):
     parser.add_argument("--spectrographs", type=str, help="spectrograph numbers, e.g. 0,1,9")
     parser.add_argument("--arms", type=str, help="spectrograph arms, e.g. b,r,z", default='b,r,z')
 
+    parser.add_argument("--ccd_npix_x", type=int, help="for testing; number of x (columns) to include in output", default=None)
+    parser.add_argument("--ccd_npix_y", type=int, help="for testing; number of y (rows) to include in output", default=None)
+
     # parser.add_argument("--trimxy", action="store_true", help="Trim image to fit spectra")
     parser.add_argument("--verbose", action="store_true", help="Include debug log info")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing raw and simpix files")
@@ -215,6 +218,10 @@ def main(args=None):
         #- Read inputs for this camera
         if args.psf is None:
             psf = desimodel.io.load_psf(channel)
+            if args.ccd_npix_x is not None:
+                psf.npix_x = args.ccd_npix_x
+            if args.ccd_npix_y is not None:
+                psf.npix_y = args.ccd_npix_y
             
         if args.cosmics:
             if args.cosmics_file is None:

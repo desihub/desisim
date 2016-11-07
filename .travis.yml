@@ -16,8 +16,8 @@ os:
     - linux
     # - osx
 
-# Setting sudo to false opts in to Travis-CI container-based builds.
-sudo: false
+# sudo option affects which type of container is available
+sudo: required
 
 # The apt packages below are needed for sphinx builds, which can no longer
 # be installed with sudo apt-get.

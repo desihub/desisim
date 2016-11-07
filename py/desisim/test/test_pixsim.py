@@ -46,6 +46,9 @@ class TestPixsim(unittest.TestCase):
         else:
             cls.cosmics = None
 
+        #- to save memory while testing
+        cls.ccdshape = (2000,2000)
+
     #- Cleanup test files if they exist
     @classmethod
     def tearDownClass(cls):
@@ -92,7 +95,7 @@ class TestPixsim(unittest.TestCase):
         camera = 'r0'
         obs.new_exposure('arc', night=night, expid=expid, nspec=3)
         pixsim.simulate_frame(night, expid, camera, nspec=3,
-            wavemin=6000, wavemax=6100)
+            wavemin=6000, wavemax=6100, ccdshape=self.ccdshape)
 
         self.assertTrue(os.path.exists(io.findfile('simspec', night, expid)))
         simspec = io.read_simspec(io.findfile('simspec', night, expid))
@@ -105,7 +108,7 @@ class TestPixsim(unittest.TestCase):
         expid = self.expid
         camera = 'r0'
         obs.new_exposure('arc', night=night, expid=expid, nspec=3)
-        pixsim.simulate_frame(night, expid, camera, nspec=3, cosmics=self.cosmics)
+        pixsim.simulate_frame(night, expid, camera, nspec=3, cosmics=self.cosmics, ccdshape=self.ccdshape)
 
         self.assertTrue(os.path.exists(io.findfile('simspec', night, expid)))
         simspec = io.read_simspec(io.findfile('simspec', night, expid))
@@ -121,6 +124,7 @@ class TestPixsim(unittest.TestCase):
         obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
         simspec = io.read_simspec(io.findfile('simspec', night, expid))
         psf = desimodel.io.load_psf(camera[0])
+        psf.npix_y, psf.npix_x = self.ccdshape
 
         image, rawpix, truepix = pixsim.simulate(camera, simspec, psf, nspec=nspec)
 
@@ -186,6 +190,7 @@ class TestPixsim(unittest.TestCase):
             '--cameras', 'b0,r0',
             '--preproc',
             '--wavemin', 5000, '--wavemax', 7000.0,
+            '--ccd_npix_x', 2000,
             ]
         if ncpu is not None:
             opts.extend( ['--ncpu', ncpu] )
