@@ -22,7 +22,7 @@ from . import obs, io
 from desispec.log import get_logger
 log = get_logger()
 
-def simulate_frame(night, expid, camera, **kwargs):
+def simulate_frame(night, expid, camera, ccdshape=None, **kwargs):
     """
     Simulate a single frame, including I/O
 
@@ -30,6 +30,9 @@ def simulate_frame(night, expid, camera, **kwargs):
         night: YEARMMDD string
         expid: integer exposure ID
         camera: b0, r1, .. z9
+
+    Options:
+        ccdshape = (npix_y, npix_x) primarily used to limit memory while testing
 
     Additional keyword args are passed to pixsim.simulate()
 
@@ -50,6 +53,10 @@ def simulate_frame(night, expid, camera, **kwargs):
     #- Read inputs
     psf = desimodel.io.load_psf(camera[0])
     simspec = io.read_simspec(simspecfile)
+
+    #- Trim effective CCD size; mainly to limit memory for testing
+    if ccdshape is not None:
+        psf.npix_y, psf.npix_x = ccdshape
 
     if 'cosmics' in kwargs:
         shape = (psf.npix_y, psf.npix_x)
