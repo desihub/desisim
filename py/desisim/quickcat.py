@@ -49,8 +49,8 @@ def get_redshift_efficiency_from_z_mag(truetypes, truez, truemags):
     return p
 
 def get_redshift_efficiency_from_obsconditions(truetypes, tiles_for_target, obsconditions):
-    n = len(truetypes):
-    p = np.ones(n):
+    n = len(truetypes)
+    p = np.ones(n)
     
     for i in range(n):
         truetype = truetypes[i]
@@ -120,7 +120,7 @@ def get_redshift_efficiency_from_obsconditions(truetypes, tiles_for_target, obsc
         
     return p
 
-def get_observed_redshifts_per_tile(truetype, truez, tiles_for_target, tile_id, obsconditions)
+def get_observed_redshifts_per_tile(truetype, truez, tiles_for_target, tile_id, obsconditions):
     """
     Returns observed z, zerr, zwarn arrays given true object types and redshifts
 
