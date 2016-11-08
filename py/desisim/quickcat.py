@@ -87,39 +87,37 @@ def get_redshift_efficiency_from_obsconditions(truetypes, tiles_for_target, obsc
             p_total = 0.95
 
             
-    p_final_init = 0.0 # just in case a target is found in multiple tiles
+        p_final = 0.0 # just in case a target is found in multiple tiles
 
-    for target_tile in tiles_for_target: #loop over all tiles where thetarget was found
-        ii = (obsconditions['TILEID'] == target_tile)
+        for target_tile in tiles_for_target: #loop over all tiles where thetarget was found
+            ii = (obsconditions['TILEID'] == target_tile)
+            
+            v = obsconditions['AIRMASS'][ii] - np.mean(obsconditions['AIRMASS'])
+            pv  = p_v[0] + p_v[1] * v + p_v[2] * (v**2 - np.mean(obsconditions['AIRMASS']**2))
+            
+            w = obsconditions['EBMV'][ii] - np.mean(obsconditions['EBMV'])
+            pw = p_w[0] + p_w[1] * w + p_w[2] * (w**2 - np.mean(obsconditions['EBMV']**2))
+            
+            x = obsconditions['SEEING'][ii] - np.mean(obsconditions['SEEING'])
+            px = p_x[0] + p_x[1]*x + p_x[2] * (x**2 - np.mean(obsconditions['SEEING']**2))
+            
+            y = obsconditions['LINTRANS'][ii] - np.mean(obsconditions['LINTRANS'])
+            py = p_y[0] + p_y[1]*y + p_y[2] * (y**2 - np.mean(obsconditions['LINTRANS']**2))
+            
+            z = obsconditions['MOONFRAC'][ii] - np.mean(obsconditions['MOONFRAC'])
+            pz = p_z[0] + p_z[1]*m + p_z[2] * (z**2 - np.mean(obsconditions['MOONFRAC']**2))
+            
+            pr = 1.0 + sigma_r * np.random.normal()
+            
+            p[i] = p_total * pv * pw * px * py * pz * pr 
+            
+            if(p[i]>1.0):
+                p[i] = 1.0
 
-        v = obsconditions['AIRMASS'][ii] - np.mean(obsconditions['AIRMASS'])
-        pv  = p_v[0] + p_v[1] * v + p_v[2] * (v**2 - np.mean(obsconditions['AIRMASS']**2))
+            if(p_final > p[i]): #select the best condition of all tiles
+                p[i] = p_final
+                p_final = p[i]
         
-        w = obsconditions['EBMV'][ii] - np.mean(obsconditions['EBMV'])
-        pw = p_w[0] + p_w[1] * w + p_w[2] * (w**2 - np.mean(obsconditions['EBMV']**2))
-        
-        x = obsconditions['SEEING'][ii] - np.mean(obsconditions['SEEING'])
-        px = p_x[0] + p_x[1]*x + p_x[2] * (x**2 - np.mean(obsconditions['SEEING']**2))
-        
-        y = obsconditions['LINTRANS'][ii] - np.mean(obsconditions['LINTRANS'])
-        py = p_y[0] + p_y[1]*y + p_y[2] * (y**2 - np.mean(obsconditions['LINTRANS']**2))
-        
-        z = obsconditions['MOONFRAC'][ii] - np.mean(obsconditions['MOONFRAC'])
-        pz = p_z[0] + p_z[1]*m + p_z[2] * (z**2 - np.mean(obsconditions['MOONFRAC']**2))
-
-        pr = 1.0 + sigma_r * np.random.normal()
-
-        p_final = p_total * pv * pw * px * py * pz * pr 
-
-        if(p_final>1.0):
-            p_final = 1.0
-        if(p_final > p_final_init): #select the best condition of all tiles
-            p_final_init = p_final
-        
-        p_final = p_final_init
-    
-    p[i] = p_final
-
     return p
 
 def get_observed_redshifts_per_tile(truetype, truez, tiles_for_target, tile_id, obsconditions)
