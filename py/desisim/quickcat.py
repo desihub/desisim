@@ -17,6 +17,7 @@ from collections import Counter
 import numpy as np
 from astropy.io import fits
 from astropy.table import Table, Column
+import sys
 
 import astropy.constants
 c = astropy.constants.c.to('km/s').value
@@ -43,84 +44,109 @@ _zwarn_fraction = {
     'UNKNOWN': 1.0,
 }
 
-def get_redshift_efficiency_from_z_mag(truetypes, truez, truemags):
-    n = len(truetypes)
+def get_redshift_efficiency_zmag(truetype, targetid, truez, gmag):
+    n = len(targetid)
     p = np.ones(n)
     return p
 
-def get_redshift_efficiency_from_obsconditions(truetypes, tiles_for_target, obsconditions):
-    n = len(truetypes)
+def get_redshift_efficiency_obsconditions(truetype, targetid, tiles_for_target, obsconditions):
+    n = len(targetid)
     p = np.ones(n)
+    we_have_a_model = True    
     
-    for i in range(n):
-        truetype = truetypes[i]
-        p_v = [1.0, 0.0, 0.0]
-        p_w = [1.0, 0.0, 0.0]
-        p_x = [1.0, 0.0, 0.0]
-        p_y = [1.0, 0.0, 0.0]
+    p_v = [1.0, 0.0, 0.0]
+    p_w = [1.0, 0.0, 0.0]
+    p_x = [1.0, 0.0, 0.0]
+    p_y = [1.0, 0.0, 0.0]
+    p_z = [1.0, 0.0, 0.0]
+    sigma_r = 0.0
+    p_total = 1.0
+    if(truetype=='LRG'):
+        p_v = [1.0, 0.15, 0.5]
+        p_w = [1.0, 0.4, 0.0]
+        p_x = [1.0, 0.06, 0.05]
+        p_y = [1.0, 0.0, 0.08]
         p_z = [1.0, 0.0, 0.0]
-        sigma_r = 0.0
-        p_total = 1.0
-        if(truetype=='LRG'):
-            p_v = [1.0, 0.15, 0.5]
-            p_w = [1.0, 0.4, 0.0]
-            p_x = [1.0, 0.06, 0.05]
-            p_y = [1.0, 0.0, 0.08]
-            p_z = [1.0, 0.0, 0.0]
-            sigma_r = 0.02
-            p_total = 0.95
-        elif(truetype=='QSO'):
-            p_v = [1.0, -0.2, 0.3]
-            p_w = [1.0, -0.5, 0.6]
-            p_x = [1.0, -0.1, -0.075]
-            p_y = [1.0, -0.08, -0.04]
-            p_z = [1.0, 0.0, 0.0]
-            sigma_r = 0.05
-            p_total = 0.90
-        elif(truetype=='ELG'):
-            p_v = [1.0, -0.1, -0.2]
-            p_w = [1.0, 0.25, -0.75]
-            p_x = [1.0, 0.0, 0.05]
-            p_y = [1.0, 0.2, 0.1]
-            p_z = [1.0, -10.0, 300.0]
-            sigma_r = 0.02
-            p_total = 0.95
+        sigma_r = 0.02
+        p_total = 0.95
+    elif(truetype=='QSO'):
+        p_v = [1.0, -0.2, 0.3]
+        p_w = [1.0, -0.5, 0.6]
+        p_x = [1.0, -0.1, -0.075]
+        p_y = [1.0, -0.08, -0.04]
+        p_z = [1.0, 0.0, 0.0]
+        sigma_r = 0.05
+        p_total = 0.90
+    elif(truetype=='ELG'):
+        p_v = [1.0, -0.1, -0.2]
+        p_w = [1.0, 0.25, -0.75]
+        p_x = [1.0, 0.0, 0.05]
+        p_y = [1.0, 0.2, 0.1]
+        p_z = [1.0, -10.0, 300.0]
+        sigma_r = 0.02
+        p_total = 0.95
+    else:
+        print('WARNING. We are not modelling yet the z efficiency for type: {}. Set to 1.0'.format(truetype))
+        we_have_a_model = False
 
-            
-        p_final = 0.0 # just in case a target is found in multiple tiles
 
-        for target_tile in tiles_for_target: #loop over all tiles where thetarget was found
-            ii = (obsconditions['TILEID'] == target_tile)
+    if we_have_a_model:
+        for i in range(n):
+            t_id = targetid[i]
+            if t_id not in tiles_for_target.keys():
+                p[i] = 0.0
+            else:
+                tiles = tiles_for_target[t_id]
+                p_final = 0.0 # just in case a target is found in multiple tiles
+                for tileid in tiles:            
+                    ii = (obsconditions['TILEID'] == tileid)
             
-            v = obsconditions['AIRMASS'][ii] - np.mean(obsconditions['AIRMASS'])
-            pv  = p_v[0] + p_v[1] * v + p_v[2] * (v**2 - np.mean(obsconditions['AIRMASS']**2))
-            
-            w = obsconditions['EBMV'][ii] - np.mean(obsconditions['EBMV'])
-            pw = p_w[0] + p_w[1] * w + p_w[2] * (w**2 - np.mean(obsconditions['EBMV']**2))
-            
-            x = obsconditions['SEEING'][ii] - np.mean(obsconditions['SEEING'])
-            px = p_x[0] + p_x[1]*x + p_x[2] * (x**2 - np.mean(obsconditions['SEEING']**2))
-            
-            y = obsconditions['LINTRANS'][ii] - np.mean(obsconditions['LINTRANS'])
-            py = p_y[0] + p_y[1]*y + p_y[2] * (y**2 - np.mean(obsconditions['LINTRANS']**2))
-            
-            z = obsconditions['MOONFRAC'][ii] - np.mean(obsconditions['MOONFRAC'])
-            pz = p_z[0] + p_z[1]*m + p_z[2] * (z**2 - np.mean(obsconditions['MOONFRAC']**2))
-            
-            pr = 1.0 + sigma_r * np.random.normal()
-            
-            p[i] = p_total * pv * pw * px * py * pz * pr 
-            
-            if(p[i]>1.0):
-                p[i] = 1.0
-
-            if(p_final > p[i]): #select the best condition of all tiles
-                p[i] = p_final
-                p_final = p[i]
-        
+                    v = obsconditions['AIRMASS'][ii] - np.mean(obsconditions['AIRMASS'])
+                    pv  = p_v[0] + p_v[1] * v + p_v[2] * (v**2 - np.mean(obsconditions['AIRMASS']**2))
+                    
+                    w = obsconditions['EBMV'][ii] - np.mean(obsconditions['EBMV'])
+                    pw = p_w[0] + p_w[1] * w + p_w[2] * (w**2 - np.mean(obsconditions['EBMV']**2))
+                    
+                    x = obsconditions['SEEING'][ii] - np.mean(obsconditions['SEEING'])
+                    px = p_x[0] + p_x[1]*x + p_x[2] * (x**2 - np.mean(obsconditions['SEEING']**2))
+                    
+                    y = obsconditions['LINTRANS'][ii] - np.mean(obsconditions['LINTRANS'])
+                    py = p_y[0] + p_y[1]*y + p_y[2] * (y**2 - np.mean(obsconditions['LINTRANS']**2))
+                    
+                    z = obsconditions['MOONFRAC'][ii] - np.mean(obsconditions['MOONFRAC'])
+                    pz = p_z[0] + p_z[1]*z + p_z[2] * (z**2 - np.mean(obsconditions['MOONFRAC']**2))
+                    
+                    pr = 1.0 + sigma_r * np.random.normal()
+                    
+                    p[i] = p_total * pv * pw * px * py * pz * pr 
+                
+                    if(p[i]>1.0):
+                        p[i] = 1.0
+                        
+                    if(p_final > p[i]): #select the best condition of all tiles
+                        p[i] = p_final
+                        p_final = p[i]        
     return p
 
-def get_observed_redshifts_per_tile(truetype, truez, truemag, targets_in_tile, obsconditions):
+
+def reverse_dictionary(a):
+    b = {}
+    for i in a.items():
+        try:
+            for k in i[1]:
+                if k not in b.keys():
+                    b[k] = [i[0]]
+                else:
+                    b[k].append(i[0])            
+        except:
+            k = i[1]
+            if k not in b.keys():
+                b[k] = [i[0]]
+            else:
+                b[k].append(i[0])            
+    return b
+
+def get_observed_redshifts_obsconditions(truetype, truez, targetid, targets_in_tile, obsconditions=None, gmag=None):
     """
     Returns observed z, zerr, zwarn arrays given true object types and redshifts
 
@@ -146,31 +172,35 @@ def get_observed_redshifts_per_tile(truetype, truez, truemag, targets_in_tile, o
 
 
     objtypes = list(set(truetype))
-    n_tiles = len(obsconditions)
+    n_tiles = len(obsconditions['TILEID'])
     
-    if(len(obsconditions)!=len(targets_in_tile)):
-        print('Number of obsconditions different from targets_in_tile')
+    if(n_tiles!=len(targets_in_tile.keys())):
+        print('Number of obsconditions different from targets_in_tile.')
         sys.exit()
 
+    # reverse the dictionary targets in tile
+    tiles_for_targets = reverse_dictionary(targets_in_tile)
 
-    for i_tile in range(n_tiles):
-        for objtype in objtypes:
-            ii = (truetype == objtype)
-            p_obs = get_redshift_efficiency_from_obsconditions(truetype[ii], targets_in_tile, obsconditions)
-            p_eff = get_redshift_efficiency_from_z_mag(truetype[ii], truez, truemag)
+    for objtype in objtypes:
+        ii = (truetype == objtype)
+        p_obs = get_redshift_efficiency_obsconditions(objtype, targetid[ii], tiles_for_targets, obsconditions)            
+        z_eff = p_obs.copy()
+        
+        if gmag is not None:
+            p_eff = get_redshift_efficiency_zmag(truetype[ii], targetid[ii], truez[ii], gmag[ii])
+            z_eff *= p_eff
+            
+        n = np.count_nonzero(ii)
+        
+        r = np.random.random(n)
+        jj = r > z_eff
+        zwarn_type = np.zeros(n, dtype=np.int32)
+        zwarn_type[jj] = 4
 
-            z_eff = p_obs * p_eff
-            n = np.count_nonzero(ii)
-
-            zerr[ii] = _sigma_v[objtype] * (1+truez[ii]) / c
-            zout[ii] += np.random.normal(scale=zerr[ii])
-
-            #- randomly select some objects to set zwarn according to the efficiency
-            num_zwarn = int(p_obs * p_eff * n)
-            if num_zwarn > 0:
-                jj = np.random.choice(np.where(ii)[0], size=num_zwarn, replace=False)
-                zwarn[jj] = 4
-
+        zerr[ii] = _sigma_v[objtype] * (1+truez[ii]) / c
+        zout[ii] += np.random.normal(scale=zerr[ii])
+        zwarn[ii] = zwarn_type
+            
     return zout, zerr, zwarn
 
 
@@ -201,6 +231,26 @@ def get_observed_redshifts(truetype, truez):
             zwarn[jj] = 4
 
     return zout, zerr, zwarn
+
+def get_obsconditions(tilefiles):
+    n = len(tilefiles)
+
+    obsconditions = {}
+    
+    obsconditions['TILEID'] =np.zeros(n, dtype='int')
+    obsconditions['AIRMASS'] = np.ones(n)
+    obsconditions['EBMV'] = np.ones(n)
+    obsconditions['LINTRANS'] = np.ones(n)
+    obsconditions['MOONFRAC'] = np.zeros(n)
+    obsconditions['SEEING'] = np.ones(n)
+        
+    for i in range(n):
+        infile = tilefiles[i]
+        data = fits.open(infile)
+        tile_id = data[1].header['TILEID']
+        data.close()
+        obsconditions['TILEID'][i] = tile_id
+    return obsconditions
 
 
 def quickcat(tilefiles, targets, truth, obsconditions=None, zcat=None, perfect=False):
@@ -238,6 +288,7 @@ def quickcat(tilefiles, targets, truth, obsconditions=None, zcat=None, perfect=F
         ii = (fibassign['TARGETID'] != -1)  #- targets with assignments
         nobs.update(fibassign['TARGETID'][ii])
         targets_in_tile[tile_id] = fibassign['TARGETID'][ii]
+
 
     #- Count how many times each target was observed in previous zcatalog
     #- NOTE: assumes that no tiles have been repeated
@@ -282,10 +333,8 @@ def quickcat(tilefiles, targets, truth, obsconditions=None, zcat=None, perfect=F
         objtype[isLRG] = 'LRG'
         objtype[isELG] = 'ELG'
 
-        if obsconditions is None:
-            z, zerr, zwarn = get_observed_redshifts(objtype, newzcat['Z'])
-        else:
-            z, zerr, zwarn = get_observed_redshifts_per_tile(objtype, newzcat['Z'], truth['GMAG'], obsconditions, targets_in_tile)
+        obsconditions = get_obsconditions(tilefiles)
+        z, zerr, zwarn = get_observed_redshifts_obsconditions(objtype, newzcat['Z'], newzcat['TARGETID'], targets_in_tile, obsconditions=obsconditions)
 
         newzcat['Z'] = z  #- update with noisy redshift
     else:
