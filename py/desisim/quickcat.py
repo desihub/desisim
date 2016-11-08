@@ -120,13 +120,14 @@ def get_redshift_efficiency_from_obsconditions(truetypes, tiles_for_target, obsc
         
     return p
 
-def get_observed_redshifts_per_tile(truetype, truez, tiles_for_target, tile_id, obsconditions):
+def get_observed_redshifts_per_tile(truetype, truez, truemag, targets_in_tile, obsconditions):
     """
     Returns observed z, zerr, zwarn arrays given true object types and redshifts
 
     Args:       
         truetype : array of ELG, LRG, QSO, STAR, SKY, or UNKNOWN
         truez: array of true redshifts
+        targets_in_tile: Dictionary with the array of target_id
         obsconditions: Dictionary with the observational conditions for every tile.
             It inclues at least the following keys>
             'TILEID': array of tile IDs
@@ -142,16 +143,33 @@ def get_observed_redshifts_per_tile(truetype, truez, tiles_for_target, tile_id, 
     zout = truez.copy()
     zerr = np.zeros(len(truez), dtype=np.float32)
     zwarn = np.zeros(len(truez), dtype=np.int32)
-    for objtype in _sigma_v:
-        ii = (truetype == objtype)
-        n = np.count_nonzero(ii)
-        zerr[ii] = _sigma_v[objtype] * (1+truez[ii]) / c
-        zout[ii] += np.random.normal(scale=zerr[ii])
-        #- randomly select some objects to set zwarn
-        num_zwarn = int(_zwarn_fraction[objtype] * n)
-        if num_zwarn > 0:
-            jj = np.random.choice(np.where(ii)[0], size=num_zwarn, replace=False)
-            zwarn[jj] = 4
+
+
+    objtypes = list(set(truetype))
+    n_tiles = len(obsconditions)
+    
+    if(len(obsconditions)!=len(targets_in_tile)):
+        print('Number of obsconditions different from targets_in_tile')
+        sys.exit()
+
+
+    for i_tile in range(n_tiles):
+        for objtype in objtypes:
+            ii = (truetype == objtype)
+            p_obs = get_redshift_efficiency_from_obsconditions(truetype[ii], targets_in_tile, obsconditions)
+            p_eff = get_redshift_efficiency_from_z_mag(truetype[ii], truez, truemag)
+
+            z_eff = p_obs * p_eff
+            n = np.count_nonzero(ii)
+
+            zerr[ii] = _sigma_v[objtype] * (1+truez[ii]) / c
+            zout[ii] += np.random.normal(scale=zerr[ii])
+
+            #- randomly select some objects to set zwarn according to the efficiency
+            num_zwarn = int(p_obs * p_eff * n)
+            if num_zwarn > 0:
+                jj = np.random.choice(np.where(ii)[0], size=num_zwarn, replace=False)
+                zwarn[jj] = 4
 
     return zout, zerr, zwarn
 
@@ -185,7 +203,7 @@ def get_observed_redshifts(truetype, truez):
     return zout, zerr, zwarn
 
 
-def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
+def quickcat(tilefiles, targets, truth, obsconditions=None, zcat=None, perfect=False):
     """
     Generates quick output zcatalog
 
@@ -209,10 +227,17 @@ def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
     #- Count how many times each target was observed for this set of tiles
     ### print('Reading {} tiles'.format(len(obstiles)))
     nobs = Counter()
+    targets_in_tile = {}
     for infile in tilefiles:
         fibassign = fits.getdata(infile, 'FIBER_ASSIGNMENTS')
+
+        data = fits.open(infile)
+        tile_id = data[1].header['TILEID']
+        data.close()
+
         ii = (fibassign['TARGETID'] != -1)  #- targets with assignments
         nobs.update(fibassign['TARGETID'][ii])
+        targets_in_tile[tile_id] = fibassign['TARGETID'][ii]
 
     #- Count how many times each target was observed in previous zcatalog
     #- NOTE: assumes that no tiles have been repeated
@@ -257,7 +282,11 @@ def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
         objtype[isLRG] = 'LRG'
         objtype[isELG] = 'ELG'
 
-        z, zerr, zwarn = get_observed_redshifts(objtype, newzcat['Z'])
+        if obsconditions is None:
+            z, zerr, zwarn = get_observed_redshifts(objtype, newzcat['Z'])
+        else:
+            z, zerr, zwarn = get_observed_redshifts_per_tile(objtype, newzcat['Z'], truth['GMAG'], obsconditions, targets_in_tile)
+
         newzcat['Z'] = z  #- update with noisy redshift
     else:
         zerr = np.zeros(nz, dtype=np.float32)

@@ -2,7 +2,7 @@ import os
 import numpy as np
 import unittest
 from astropy.table import Table, Column
-
+from astropy.io import fits
 from desisim.quickcat import quickcat
 
 class TestQuickCat(unittest.TestCase):
@@ -20,6 +20,7 @@ class TestQuickCat(unittest.TestCase):
         truth['TARGETID'] = np.random.randint(0,2**60, size=n)
         truth['TRUEZ'] = np.random.uniform(0, 1.5, size=n)
         truth['TRUETYPE'] = np.zeros(n, dtype=(str, 10))
+        truth['GMAG'] = np.random.uniform(18.0, 24.0, size=n)
         ii = (targets['DESI_TARGET'] == 1); truth['TRUETYPE'][ii] = 'GALAXY'
         ii = (targets['DESI_TARGET'] == 2); truth['TRUETYPE'][ii] = 'GALAXY'
         ii = (targets['DESI_TARGET'] == 4); truth['TRUETYPE'][ii] = 'QSO'
@@ -31,7 +32,11 @@ class TestQuickCat(unittest.TestCase):
         fiberassign.meta['EXTNAME'] = 'FIBER_ASSIGNMENTS'
         for i, filename in enumerate(cls.tilefiles):
             fiberassign[i*5:(i+1)*5].write(filename)
-    
+            hdulist = fits.open(filename, mode='update')
+            hdr = hdulist[1].header
+            hdr.set('TILEID', i)
+            hdulist.close()
+
     #- Cleanup test files if they exist
     @classmethod
     def tearDownClass(cls):
