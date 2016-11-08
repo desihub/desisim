@@ -43,11 +43,126 @@ _zwarn_fraction = {
     'UNKNOWN': 1.0,
 }
 
+def get_redshift_efficiency_from_z_mag(truetypes, truez, truemags):
+    n = len(truetypes)
+    p = np.ones(n)
+    return p
+
+def get_redshift_efficiency_from_obsconditions(truetypes, tiles_for_target, obsconditions):
+    n = len(truetypes):
+    p = np.ones(n):
+    
+    for i in range(n):
+        truetype = truetypes[i]
+        p_v = [1.0, 0.0, 0.0]
+        p_w = [1.0, 0.0, 0.0]
+        p_x = [1.0, 0.0, 0.0]
+        p_y = [1.0, 0.0, 0.0]
+        p_z = [1.0, 0.0, 0.0]
+        sigma_r = 0.0
+        p_total = 1.0
+        if(truetype=='LRG'):
+            p_v = [1.0, 0.15, 0.5]
+            p_w = [1.0, 0.4, 0.0]
+            p_x = [1.0, 0.06, 0.05]
+            p_y = [1.0, 0.0, 0.08]
+            p_z = [1.0, 0.0, 0.0]
+            sigma_r = 0.02
+            p_total = 0.95
+        elif(truetype=='QSO'):
+            p_v = [1.0, -0.2, 0.3]
+            p_w = [1.0, -0.5, 0.6]
+            p_x = [1.0, -0.1, -0.075]
+            p_y = [1.0, -0.08, -0.04]
+            p_z = [1.0, 0.0, 0.0]
+            sigma_r = 0.05
+            p_total = 0.90
+        elif(truetype=='ELG'):
+            p_v = [1.0, -0.1, -0.2]
+            p_w = [1.0, 0.25, -0.75]
+            p_x = [1.0, 0.0, 0.05]
+            p_y = [1.0, 0.2, 0.1]
+            p_z = [1.0, -10.0, 300.0]
+            sigma_r = 0.02
+            p_total = 0.95
+
+            
+    p_final_init = 0.0 # just in case a target is found in multiple tiles
+
+    for target_tile in tiles_for_target: #loop over all tiles where thetarget was found
+        ii = (obsconditions['TILEID'] == target_tile)
+
+        v = obsconditions['AIRMASS'][ii] - np.mean(obsconditions['AIRMASS'])
+        pv  = p_v[0] + p_v[1] * v + p_v[2] * (v**2 - np.mean(obsconditions['AIRMASS']**2))
+        
+        w = obsconditions['EBMV'][ii] - np.mean(obsconditions['EBMV'])
+        pw = p_w[0] + p_w[1] * w + p_w[2] * (w**2 - np.mean(obsconditions['EBMV']**2))
+        
+        x = obsconditions['SEEING'][ii] - np.mean(obsconditions['SEEING'])
+        px = p_x[0] + p_x[1]*x + p_x[2] * (x**2 - np.mean(obsconditions['SEEING']**2))
+        
+        y = obsconditions['LINTRANS'][ii] - np.mean(obsconditions['LINTRANS'])
+        py = p_y[0] + p_y[1]*y + p_y[2] * (y**2 - np.mean(obsconditions['LINTRANS']**2))
+        
+        z = obsconditions['MOONFRAC'][ii] - np.mean(obsconditions['MOONFRAC'])
+        pz = p_z[0] + p_z[1]*m + p_z[2] * (z**2 - np.mean(obsconditions['MOONFRAC']**2))
+
+        pr = 1.0 + sigma_r * np.random.normal()
+
+        p_final = p_total * pv * pw * px * py * pz * pr 
+
+        if(p_final>1.0):
+            p_final = 1.0
+        if(p_final > p_final_init): #select the best condition of all tiles
+            p_final_init = p_final
+        
+        p_final = p_final_init
+    
+    p[i] = p_final
+
+    return p
+
+def get_observed_redshifts_per_tile(truetype, truez, tiles_for_target, tile_id, obsconditions)
+    """
+    Returns observed z, zerr, zwarn arrays given true object types and redshifts
+
+    Args:       
+        truetype : array of ELG, LRG, QSO, STAR, SKY, or UNKNOWN
+        truez: array of true redshifts
+        obsconditions: Dictionary with the observational conditions for every tile.
+            It inclues at least the following keys>
+            'TILEID': array of tile IDs
+            'AIRMASS': array of airmass values on a tile
+            'EBMV': array of E(B-V) values on a tile
+            'LINTRANS': array of transmission values on a tile
+            'MOONFRAC': array of moonfraction values on a tile 
+            'SEEING': array of seeing values on a tile
+        
+    Returns tuple of (zout, zerr, zwarn)
+
+    """
+    zout = truez.copy()
+    zerr = np.zeros(len(truez), dtype=np.float32)
+    zwarn = np.zeros(len(truez), dtype=np.int32)
+    for objtype in _sigma_v:
+        ii = (truetype == objtype)
+        n = np.count_nonzero(ii)
+        zerr[ii] = _sigma_v[objtype] * (1+truez[ii]) / c
+        zout[ii] += np.random.normal(scale=zerr[ii])
+        #- randomly select some objects to set zwarn
+        num_zwarn = int(_zwarn_fraction[objtype] * n)
+        if num_zwarn > 0:
+            jj = np.random.choice(np.where(ii)[0], size=num_zwarn, replace=False)
+            zwarn[jj] = 4
+
+    return zout, zerr, zwarn
+
+
 def get_observed_redshifts(truetype, truez):
     """
     Returns observed z, zerr, zwarn arrays given true object types and redshifts
 
-    Args:
+    Args:       
         truetype : array of ELG, LRG, QSO, STAR, SKY, or UNKNOWN
         truez: array of true redshifts
 
@@ -70,6 +185,7 @@ def get_observed_redshifts(truetype, truez):
             zwarn[jj] = 4
 
     return zout, zerr, zwarn
+
 
 def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
     """
