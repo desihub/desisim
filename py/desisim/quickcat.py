@@ -44,12 +44,44 @@ _zwarn_fraction = {
     'UNKNOWN': 1.0,
 }
 
-def get_redshift_efficiency_zmag(truetype, targetid, truez, gmag):
+def get_redshift_efficiency_zmag(truetype, targetid, truez, gmag, targets_in_tile):
+    """
+    Simple model to get the redshift effiency from the true redshift and observed g magnidutes.
+    Args:
+        truetype : string, could be 'ELG', 'LRG', 'QSO', 'STAR', 'SKY', or 'UNKNOWN'
+        targetid : array of targetids.
+        truez: array of true redshift values.
+        gmag: array of g magnitudes.
+        targets_in_tile: dictionary. Keys correspond to tileids, its values are the 
+            arrays of targetids observed in that tile.
+    Outputs:
+       p: array marking the probability to get this redshift right. This must have the size of targetid.
+    """
     n = len(targetid)
     p = np.ones(n)
     return p
 
 def get_redshift_efficiency_obsconditions(truetype, targetid, tiles_for_target, obsconditions):
+    """
+    Simple model to get the redshift effiency from the observational conditions.
+    Args:
+       truetype: string, could be 'ELG', 'LRG', 'QSO', 'STAR', 'SKY', or 'UNKNOWN'
+       tilefiles: list of fiberassign tile files that were observed.
+       tiles_for_targets: dictionary. Keys correspond to targetids observed, its values are the tileid where it was observed.
+       obsconditions: Dictionary with the observational conditions for every tile.
+           It inclues at least the following keys
+           'TILEID': array of tile IDs
+           'AIRMASS': array of airmass values on a tile
+           'EBMV': array of E(B-V) values on a tile
+           'LINTRANS': array of transmission values on a tile
+           'MOONFRAC': array of moonfraction values on a tile 
+           'SEEING': array of seeing values on a tile
+           
+    Outputs:
+    p: array marking the probability to get this redshift right. This must have the size of targetid.
+     """
+
+
     n = len(targetid)
     p = np.ones(n)
     we_have_a_model = True    
@@ -91,6 +123,7 @@ def get_redshift_efficiency_obsconditions(truetype, targetid, tiles_for_target, 
 
 
     if we_have_a_model:
+        normal_values = np.random.normal(size=len(obsconditions['TILEID'])) # set of normal values across tiles
         for i in range(n):
             t_id = targetid[i]
             if t_id not in tiles_for_target.keys():
@@ -116,7 +149,7 @@ def get_redshift_efficiency_obsconditions(truetype, targetid, tiles_for_target, 
                     z = obsconditions['MOONFRAC'][ii] - np.mean(obsconditions['MOONFRAC'])
                     pz = p_z[0] + p_z[1]*z + p_z[2] * (z**2 - np.mean(obsconditions['MOONFRAC']**2))
                     
-                    pr = 1.0 + sigma_r * np.random.normal()
+                    pr = 1.0 + sigma_r * normal_values[ii]
                     
                     p[i] = p_total * pv * pw * px * py * pz * pr 
                 
@@ -130,6 +163,13 @@ def get_redshift_efficiency_obsconditions(truetype, targetid, tiles_for_target, 
 
 
 def reverse_dictionary(a):
+    """
+    Inverts a dictionary mapping.
+    Input.
+        a: input dictionary.
+    Output:
+        b: output reversed dictionary.
+    """
     b = {}
     for i in a.items():
         try:
@@ -146,14 +186,15 @@ def reverse_dictionary(a):
                 b[k].append(i[0])            
     return b
 
-def get_observed_redshifts_obsconditions(truetype, truez, targetid, targets_in_tile, obsconditions=None, gmag=None):
+def get_observed_redshifts_obsconditions(truetype, truez, targetid, targets_in_tile, obsconditions, gmag=None):
     """
     Returns observed z, zerr, zwarn arrays given true object types and redshifts
 
     Args:       
         truetype : array of ELG, LRG, QSO, STAR, SKY, or UNKNOWN
         truez: array of true redshifts
-        targets_in_tile: Dictionary with the array of target_id
+        targets_in_tile: Dictionary having as keys the tileid and the corresponding values the
+            array of targetids observed in that tile.
         obsconditions: Dictionary with the observational conditions for every tile.
             It inclues at least the following keys>
             'TILEID': array of tile IDs
@@ -162,7 +203,8 @@ def get_observed_redshifts_obsconditions(truetype, truez, targetid, targets_in_t
             'LINTRANS': array of transmission values on a tile
             'MOONFRAC': array of moonfraction values on a tile 
             'SEEING': array of seeing values on a tile
-        
+        gmag: array of g magnitudes 
+           
     Returns tuple of (zout, zerr, zwarn)
 
     """
@@ -187,7 +229,7 @@ def get_observed_redshifts_obsconditions(truetype, truez, targetid, targets_in_t
         z_eff = p_obs.copy()
         
         if gmag is not None:
-            p_eff = get_redshift_efficiency_zmag(truetype[ii], targetid[ii], truez[ii], gmag[ii])
+            p_eff = get_redshift_efficiency_zmag(truetype[ii], targetid[ii], truez[ii], gmag[ii], targets_in_tile)
             z_eff *= p_eff
             
         n = np.count_nonzero(ii)
@@ -233,6 +275,20 @@ def get_observed_redshifts(truetype, truez):
     return zout, zerr, zwarn
 
 def get_obsconditions(tilefiles):
+    """
+    Gets the observational conditions for a set of tiles.
+    Args:
+       tilefiles : list of fiberassign tile files that were observed.
+    Outputs:
+        obsconditions: Dictionary with the observational conditions for every tile.
+            It inclues at least the following keys
+            'TILEID': array of tile IDs
+            'AIRMASS': array of airmass values on a tile
+            'EBMV': array of E(B-V) values on a tile
+            'LINTRANS': array of transmission values on a tile
+            'MOONFRAC': array of moonfraction values on a tile 
+            'SEEING': array of seeing values on a tile
+     """
     n = len(tilefiles)
 
     obsconditions = {}
@@ -253,7 +309,7 @@ def get_obsconditions(tilefiles):
     return obsconditions
 
 
-def quickcat(tilefiles, targets, truth, obsconditions=None, zcat=None, perfect=False):
+def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
     """
     Generates quick output zcatalog
 
@@ -334,7 +390,7 @@ def quickcat(tilefiles, targets, truth, obsconditions=None, zcat=None, perfect=F
         objtype[isELG] = 'ELG'
 
         obsconditions = get_obsconditions(tilefiles)
-        z, zerr, zwarn = get_observed_redshifts_obsconditions(objtype, newzcat['Z'], newzcat['TARGETID'], targets_in_tile, obsconditions=obsconditions)
+        z, zerr, zwarn = get_observed_redshifts_obsconditions(objtype, newzcat['Z'], newzcat['TARGETID'], targets_in_tile, obsconditions)
 
         newzcat['Z'] = z  #- update with noisy redshift
     else:
