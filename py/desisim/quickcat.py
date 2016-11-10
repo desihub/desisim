@@ -80,7 +80,7 @@ def get_redshift_efficiency(truetype, truez, targetid, targets_in_tile, obscondi
         if t_id not in tiles_for_target.keys():
             p[i] = 0.0
 
-    if (obsconditions is not None) and (flux is None): # use this if we only have obsconditions        
+    if obsconditions is not None: # use this if we have obsconditions  information
         we_have_a_model = True    
         
         p_v = [1.0, 0.0, 0.0]
@@ -120,51 +120,53 @@ def get_redshift_efficiency(truetype, truez, targetid, targets_in_tile, obscondi
             we_have_a_model = False
 
 
-            if we_have_a_model:
-                normal_values = np.random.normal(size=len(obsconditions['TILEID'])) # set of normal values across tiles
-                for i in range(n):
-                    t_id = targetid[i]
-                    if t_id in tiles_for_target.keys():
-                        tiles = tiles_for_target[t_id]
-                        p_final = 0.0 # just in case a target is found in multiple tiles
-                        for tileid in tiles:            
-                            ii = (obsconditions['TILEID'] == tileid)
-            
-                            v = obsconditions['AIRMASS'][ii] - np.mean(obsconditions['AIRMASS'])
-                            pv  = p_v[0] + p_v[1] * v + p_v[2] * (v**2 - np.mean(obsconditions['AIRMASS']**2))
-                            
-                            w = obsconditions['EBMV'][ii] - np.mean(obsconditions['EBMV'])
-                            pw = p_w[0] + p_w[1] * w + p_w[2] * (w**2 - np.mean(obsconditions['EBMV']**2))
-                            
-                            x = obsconditions['SEEING'][ii] - np.mean(obsconditions['SEEING'])
-                            px = p_x[0] + p_x[1]*x + p_x[2] * (x**2 - np.mean(obsconditions['SEEING']**2))
-    
-                            y = obsconditions['LINTRANS'][ii] - np.mean(obsconditions['LINTRANS'])
-                            py = p_y[0] + p_y[1]*y + p_y[2] * (y**2 - np.mean(obsconditions['LINTRANS']**2))
-                            
-                            z = obsconditions['MOONFRAC'][ii] - np.mean(obsconditions['MOONFRAC'])
-                            pz = p_z[0] + p_z[1]*z + p_z[2] * (z**2 - np.mean(obsconditions['MOONFRAC']**2))
-                            
-                            pr = 1.0 + sigma_r * normal_values[ii]
-
-                            p[i] = p_total * pv * pw * px * py * pz * pr 
-                            
-                            if(p[i]>1.0):
-                                p[i] = 1.0
+        if we_have_a_model:
+            normal_values = np.random.normal(size=len(obsconditions['TILEID'])) # set of normal values across tiles
+            for i in range(n):
+                t_id = targetid[i]
+                if t_id in tiles_for_target.keys():
+                    tiles = tiles_for_target[t_id]
+                    p_final = 0.0 # just in case a target is found in multiple tiles
+                    for tileid in tiles:            
+                        ii = (obsconditions['TILEID'] == tileid)
                         
-                            if(p_final > p[i]): #select the best condition of all tiles
-                                p[i] = p_final
-                                p_final = p[i]        
-        
-    elif (obsconditions is None) and (flux is not None): # use this if we only have flux
-        we_have_a_model = True    
+                        v = obsconditions['AIRMASS'][ii] - np.mean(obsconditions['AIRMASS'])
+                        pv  = p_v[0] + p_v[1] * v + p_v[2] * (v**2 - np.mean(obsconditions['AIRMASS']**2))
+                        
+                        w = obsconditions['EBMV'][ii] - np.mean(obsconditions['EBMV'])
+                        pw = p_w[0] + p_w[1] * w + p_w[2] * (w**2 - np.mean(obsconditions['EBMV']**2))
+                        
+                        x = obsconditions['SEEING'][ii] - np.mean(obsconditions['SEEING'])
+                        px = p_x[0] + p_x[1]*x + p_x[2] * (x**2 - np.mean(obsconditions['SEEING']**2))
+                        
+                        y = obsconditions['LINTRANS'][ii] - np.mean(obsconditions['LINTRANS'])
+                        py = p_y[0] + p_y[1]*y + p_y[2] * (y**2 - np.mean(obsconditions['LINTRANS']**2))
+                        
+                        z = obsconditions['MOONFRAC'][ii] - np.mean(obsconditions['MOONFRAC'])
+                        pz = p_z[0] + p_z[1]*z + p_z[2] * (z**2 - np.mean(obsconditions['MOONFRAC']**2))
+                        
+                        pr = 1.0 + sigma_r * normal_values[ii]
+                        
+                        p[i] = p_total * pv * pw * px * py * pz * pr 
+                        
+                        if(p_final > p[i]): #select the best condition of all tiles
+                            p[i] = p_final
+                            p_final = p[i]
 
-    elif (obsconditions is None) and (flux is None): # use this if we don't have any input
-        we_have_a_model = True    
-    else:
-        print('ERROR in desisim.quickcat.get_redshift_efficiency()')
-        print('\t Contradictory inputs.')
-        sys.exit()
+        
+    if flux is not None : # use this if we have flux information
+        # TODO. Christophe: this is the place to include your model, the goal is computing p_from_fluxes.
+        # 'flux' is a dictionary. Add there all the things you need and we will figure it out upstream how
+        # to get the information down here.
+        for i in range(n):
+            t_id = targetid[i]
+            if t_id in tiles_for_target.keys():
+                tiles = tiles_for_target[t_id]
+                p_from_fluxes = 1.0
+                p[i] *= p_from_fluxes
+                    
+    if (obsconditions is None) and (flux is None): 
+        raise Exception('Missing obsconditions and flux information to estimate redshift efficiency')
 
     return p
 
@@ -235,6 +237,7 @@ def get_observed_redshifts(truetype, truez, targetid, targets_in_tile, obscondit
             zerr[ii] = _sigma_v[objtype] * (1+truez[ii]) / c
             zout[ii] += np.random.normal(scale=zerr[ii])
 
+            # the redshift efficiency only sets warning, but does not impact the redshift value and its error.
             if (obsconditions is not None) or (flux is not None):
                 p_obs = get_redshift_efficiency(objtype, truez[ii], targetid[ii], targets_in_tile, obsconditions=obsconditions, flux=flux)            
                 z_eff = p_obs.copy()            
@@ -250,10 +253,6 @@ def get_observed_redshifts(truetype, truez, targetid, targets_in_tile, obscondit
                 if num_zwarn > 0:
                     jj = np.random.choice(np.where(ii)[0], size=num_zwarn, replace=False)
                     zwarn[jj] = 4
-            else:
-                print('ERROR desisim.quickcat.get_observed_redshifts()')
-                print('\t Contradicting inputs')
-                sys.exit()
         else:
             print('WARNING desisim.quickcat.get_observed_redshifts()')
             print('\t We dont have a model for objtype {}. Simply assigning a redshift from the truth table.'.format(objtype))
@@ -347,6 +346,8 @@ def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
     truth = truth[iiobs]
     targets = targets[iiobs]
 
+    # TODO: add some logic to not reassign a redshift to something that already has one
+
     #- Construct initial new z catalog
     newzcat = Table()
     newzcat['TARGETID'] = truth['TARGETID']
@@ -395,5 +396,7 @@ def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
 
     #- Metadata for header
     newzcat.meta['EXTNAME'] = 'ZCATALOG'
+
+    # TODO: add some logic to check that we don't have duplicates in newzcat
 
     return newzcat
