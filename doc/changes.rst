@@ -2,7 +2,12 @@
 desisim change log
 ==================
 
-0.16.0 (unreleased)
+0.17.0 (unreleased)
+-------------------
+
+* No changes yet
+
+0.16.0 (2016-11-10)
 -------------------
 
 * Requires specsim >= v0.6
