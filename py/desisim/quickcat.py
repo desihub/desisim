@@ -60,12 +60,13 @@ def get_redshift_efficiency(truetype, truez, targetid, targets_in_tile, obscondi
            'TILEID': array of tile IDs
            'AIRMASS': array of airmass values on a tile
            'EBMV': array of E(B-V) values on a tile
-           'LINTRANS': array of transmission values on a tile
-           'MOONFRAC': array of moonfraction values on a tile 
-           'SEEING': array of seeing values on a tile
-           
+           'LINTRANS': array of atmospheric transparency during spectro obs; floats [0-1]
+           'MOONFRAC': array of moonfraction values on a tile.
+           'SEEING': array of FWHM seeing during spectroscopic observation on a tile.
        flux: Dictionary including the relevant flux values (TBD) to diagnose redshift efficiency.
+           
     Outputs:
+    
         p: array marking the probability to get this redshift right. This must have the size of targetid.
     """
 
@@ -202,12 +203,12 @@ def get_observed_redshifts(truetype, truez, targetid, targets_in_tile, obscondit
             array of targetids observed in that tile.
         obsconditions: Dictionary with the observational conditions for every tile.
             It inclues at least the following keys>
-            'TILEID': array of tile IDs
-            'AIRMASS': array of airmass values on a tile
-            'EBMV': array of E(B-V) values on a tile
-            'LINTRANS': array of transmission values on a tile
-            'MOONFRAC': array of moonfraction values on a tile 
-            'SEEING': array of seeing values on a tile
+           'TILEID': array of tile IDs
+           'AIRMASS': array of airmass values on a tile
+           'EBMV': array of E(B-V) values on a tile
+           'LINTRANS': array of atmospheric transparency during spectro obs; floats [0-1]
+           'MOONFRAC': array of moonfraction values on a tile.
+           'SEEING': array of FWHM seeing during spectroscopic observation on a tile.
        flux: Dictionary including the relevant flux values (TBD) to diagnose redshift efficiency.
            
     Returns tuple of (zout, zerr, zwarn)
@@ -269,12 +270,12 @@ def get_obsconditions(tilefiles):
     Outputs:
         obsconditions: Dictionary with the observational conditions for every tile.
             It inclues at least the following keys
-            'TILEID': array of tile IDs
-            'AIRMASS': array of airmass values on a tile
-            'EBMV': array of E(B-V) values on a tile
-            'LINTRANS': array of transmission values on a tile
-            'MOONFRAC': array of moonfraction values on a tile 
-            'SEEING': array of seeing values on a tile
+           'TILEID': array of tile IDs
+           'AIRMASS': array of airmass values on a tile
+           'EBMV': array of E(B-V) values on a tile
+           'LINTRANS': array of atmospheric transparency during spectro obs; floats [0-1]
+           'MOONFRAC': array of moonfraction values on a tile.
+           'SEEING': array of FWHM seeing during spectroscopic observation on a tile.
      """
     n = len(tilefiles)
 
