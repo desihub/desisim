@@ -46,7 +46,7 @@ _zwarn_fraction = {
     'UNKNOWN': 1.0,
 }
 
-def get_redshift_efficiency(truetype, truez, targetid, targets_in_tile, obsconditions=None, gmag=None):
+def get_redshift_efficiency(truetype, truez, targetid, targets_in_tile, obsconditions=None, flux=None):
     """
     Simple model to get the redshift effiency from the observational conditions or observed magnitudes+redshuft
     Args:
@@ -64,9 +64,9 @@ def get_redshift_efficiency(truetype, truez, targetid, targets_in_tile, obscondi
            'MOONFRAC': array of moonfraction values on a tile 
            'SEEING': array of seeing values on a tile
            
-       gmag: array of observed magnitudes to diagnose redshift efficiency.
+       flux: Dictionary including the relevant flux values (TBD) to diagnose redshift efficiency.
     Outputs:
-    p: array marking the probability to get this redshift right. This must have the size of targetid.
+        p: array marking the probability to get this redshift right. This must have the size of targetid.
     """
 
     n = len(targetid)
@@ -79,7 +79,7 @@ def get_redshift_efficiency(truetype, truez, targetid, targets_in_tile, obscondi
         if t_id not in tiles_for_target.keys():
             p[i] = 0.0
 
-    if (obsconditions is not None) and (gmag is None): # use this if we only have obsconditions        
+    if (obsconditions is not None) and (flux is None): # use this if we only have obsconditions        
         we_have_a_model = True    
         
         p_v = [1.0, 0.0, 0.0]
@@ -155,10 +155,10 @@ def get_redshift_efficiency(truetype, truez, targetid, targets_in_tile, obscondi
                                 p[i] = p_final
                                 p_final = p[i]        
         
-    elif (obsconditions is None) and (gmag is not None): # use this if we only have gmag
+    elif (obsconditions is None) and (flux is not None): # use this if we only have flux
         we_have_a_model = True    
 
-    elif (obsconditions is None) and (gmag is None): # use this if we don't have any input
+    elif (obsconditions is None) and (flux is None): # use this if we don't have any input
         we_have_a_model = True    
     else:
         print('ERROR in desisim.quickcat.get_redshift_efficiency()')
@@ -191,7 +191,7 @@ def reverse_dictionary(a):
                 b[k].append(i[0])            
     return b
 
-def get_observed_redshifts(truetype, truez, targetid, targets_in_tile, obsconditions=None, gmag=None):
+def get_observed_redshifts(truetype, truez, targetid, targets_in_tile, obsconditions=None, flux=None):
     """
     Returns observed z, zerr, zwarn arrays given true object types and redshifts
 
@@ -208,7 +208,7 @@ def get_observed_redshifts(truetype, truez, targetid, targets_in_tile, obscondit
             'LINTRANS': array of transmission values on a tile
             'MOONFRAC': array of moonfraction values on a tile 
             'SEEING': array of seeing values on a tile
-       gmag: array of observed magnitudes to diagnose redshift efficiency.
+       flux: Dictionary including the relevant flux values (TBD) to diagnose redshift efficiency.
            
     Returns tuple of (zout, zerr, zwarn)
 
@@ -234,8 +234,8 @@ def get_observed_redshifts(truetype, truez, targetid, targets_in_tile, obscondit
             zerr[ii] = _sigma_v[objtype] * (1+truez[ii]) / c
             zout[ii] += np.random.normal(scale=zerr[ii])
 
-            if (obsconditions is not None) or (gmag is not None):
-                p_obs = get_redshift_efficiency(objtype, truez[ii], targetid[ii], targets_in_tile, obsconditions=obsconditions, gmag=gmag)            
+            if (obsconditions is not None) or (flux is not None):
+                p_obs = get_redshift_efficiency(objtype, truez[ii], targetid[ii], targets_in_tile, obsconditions=obsconditions, flux=flux)            
                 z_eff = p_obs.copy()            
                 r = np.random.random(n)
                 jj = r > z_eff
@@ -243,7 +243,7 @@ def get_observed_redshifts(truetype, truez, targetid, targets_in_tile, obscondit
                 zwarn_type[jj] = 4
                 zwarn[ii] = zwarn_type
 
-            elif(obsconditions is None) and (gmag is None):
+            elif(obsconditions is None) and (flux is None):
                 #- randomly select some objects to set zwarn
                 num_zwarn = int(_zwarn_fraction[objtype] * n)
                 if num_zwarn > 0:
