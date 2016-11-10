@@ -373,7 +373,7 @@ def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
         isLRG = (objtype == 'GALAXY') & ((targets['DESI_TARGET'] & desi_mask.LRG) != 0)
         isELG = (objtype == 'GALAXY') & ((targets['DESI_TARGET'] & desi_mask.ELG) != 0)
         isBGS = (objtype == 'GALAXY') & ((targets['DESI_TARGET'] & bgs_mask.BGS_BRIGHT) != 0)
-        isBGS &= (objtype == 'GALAXY') & ((targets['DESI_TARGET'] & bgs_mask.BGS_FAINT) != 0)
+        isBGS |= (objtype == 'GALAXY') & ((targets['DESI_TARGET'] & bgs_mask.BGS_FAINT) != 0)
         objtype[isLRG] = 'LRG'
         objtype[isELG] = 'ELG'
         objtype[isBGS] = 'BGS'
