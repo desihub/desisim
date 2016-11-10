@@ -2,10 +2,14 @@
 desisim change log
 ==================
 
-0.15.1 (unreleased)
+0.16.0 (unreleased)
 -------------------
 
-* Add integration test for quickgen
+* Requires specsim >= v0.6
+* Add integration test for quickgen (PR #179)
+* Cache specsim Simulator for faster testing (PR #178)
+* Add lya_spectra.get_spectra (PR #156)
+* Add quickgen and quickbrick unit tests and bug fixes (PR #176, #177)
 
 0.15.0 (2016-10-14)
 -------------------
