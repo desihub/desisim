@@ -231,24 +231,24 @@ def main(args):
             exptime = 5. # typical BOSS exposure time in s
             fibarea = const.pi*(1.07e-2/2)**2 # cross-sectional fiber area in cm^2
             hc = 1.e17*const.h*const.c # convert to erg A
-            spectra = (hc*exptime*fibarea*dw*phot)/wavelengths
+            flux = (hc*exptime*fibarea*dw*phot)/wavelengths
         else:
             wavelengths = simspec.wave['brz']
-            spectra = simspec.flux
+            flux = simspec.flux
         if nspec < args.nspec:
             log.info("Only {} spectra in input file".format(nspec))
             args.nspec = nspec
         nwave = len(wavelengths)
 
-    elif args.brickname:
+    else:
         # Initialize the output truth table.
-        wave = qsim.source.wavelength_out.to(u.Angstrom).value
-        npix = len(wave)
+        wavelengths = qsim.source.wavelength_out.to(u.Angstrom).value
+        npix = len(wavelengths)
         truth = dict()
         meta = Table()
         truth['OBJTYPE'] = np.zeros(args.nspec, dtype=(str, 10))
         truth['FLUX'] = np.zeros((args.nspec, npix))
-        truth['WAVE'] = wave
+        truth['WAVE'] = wavelengths
         jj = list()
 
         for thisobj in set(true_objtype):
@@ -259,25 +259,25 @@ def main(args):
 
             # Generate the templates
             if thisobj == 'ELG':
-                elg = desisim.templates.ELG(wave=wave, add_SNeIa=args.add_SNeIa)
+                elg = desisim.templates.ELG(wave=wavelengths, add_SNeIa=args.add_SNeIa)
                 flux, tmpwave, meta1 = elg.make_templates(nmodel=nobj, seed=args.seed, zrange=args.zrange_elg,sne_rfluxratiorange=args.sne_rfluxratiorange)
             elif thisobj == 'LRG':
-                lrg = desisim.templates.LRG(wave=wave, add_SNeIa=args.add_SNeIa)
+                lrg = desisim.templates.LRG(wave=wavelengths, add_SNeIa=args.add_SNeIa)
                 flux, tmpwave, meta1 = lrg.make_templates(nmodel=nobj, seed=args.seed, zrange=args.zrange_lrg,sne_rfluxratiorange=args.sne_rfluxratiorange)
             elif thisobj == 'QSO':
-                qso = desisim.templates.QSO(wave=wave)
+                qso = desisim.templates.QSO(wave=wavelengths)
                 flux, tmpwave, meta1 = qso.make_templates(nmodel=nobj, seed=args.seed, zrange=args.zrange_qso)
             elif thisobj == 'BGS':
-                bgs = desisim.templates.BGS(wave=wave, add_SNeIa=args.add_SNeIa)
+                bgs = desisim.templates.BGS(wave=wavelengths, add_SNeIa=args.add_SNeIa)
                 flux, tmpwave, meta1 = bgs.make_templates(nmodel=nobj, seed=args.seed, zrange=args.zrange_bgs,rmagrange=args.rmagrange_bgs,sne_rfluxratiorange=args.sne_rfluxratiorange)
             elif thisobj =='STD':
-                fstd = desisim.templates.FSTD(wave=wave)
+                fstd = desisim.templates.FSTD(wave=wavelengths)
                 flux, tmpwave, meta1 = fstd.make_templates(nmodel=nobj, seed=args.seed)
             elif thisobj == 'QSO_BAD': # use STAR template no color cuts
-                star = desisim.templates.STAR(wave=wave)
+                star = desisim.templates.STAR(wave=wavelengths)
                 flux, tmpwave, meta1 = star.make_templates(nmodel=nobj, seed=args.seed)
             elif thisobj == 'MWS_STAR' or thisobj == 'MWS':
-                mwsstar = desisim.templates.MWS_STAR(wave=wave)
+                mwsstar = desisim.templates.MWS_STAR(wave=wavelengths)
                 flux, tmpwave, meta1 = mwsstar.make_templates(nmodel=nobj, seed=args.seed)
             elif thisobj == 'SKY':
                 flux = np.zeros((nobj, npix))
@@ -291,7 +291,7 @@ def main(args):
                 continuum   = (np.arange(args.nspec)%2 == 1).astype(np.float32)
 
                 for spec in range(args.nspec) :
-                    flux[spec,indx] = single_line[spec]*ref_integrated_flux/np.gradient(wave)[indx] # single line
+                    flux[spec,indx] = single_line[spec]*ref_integrated_flux/np.gradient(wavelengths)[indx] # single line
                     flux[spec] += continuum[spec]*ref_cst_flux_density # flat continuum
 
                 meta1 = Table(dict(REDSHIFT=np.zeros(args.nspec, dtype=np.float32),
@@ -333,10 +333,16 @@ def main(args):
     # Set simulation parameters from the simspec header or desiparams
     bright_objects = ['bgs','mws','bright','BGS','MWS','BRIGHT_MIX']
     gray_objects = ['gray','grey']
+    object_type = []
+    if args.simspec is None:
+        objtype = object_type
+        flavor = None
+    else:
+        flavor = simspec.flavor
     if args.simspec:
         qsim.atmosphere.airmass = simspec.header['AIRMASS']
         qsim.observation.exposure_time = simspec.header['EXPTIME'] * u.s
-    elif args.brickname:
+    else:
         qsim.atmosphere.airmass = args.airmass
         if args.exptime is None:
             if objtype in bright_objects:
@@ -347,107 +353,74 @@ def main(args):
             qsim.observation.exposure_time = args.exptime * u.s
 
     # Set moon parameters
-    if args.simspec:
-        if simspec.flavor in bright_objects:
-            if args.moon_phase is None:
-                qsim.atmosphere.moon.moon_phase = 0.7
-            else:
-                qsim.atmosphere.moon.moon_phase = args.moon_phase
-            if args.moon_angle is None:
-                qsim.atmosphere.moon.separation_angle = 50 * u.deg
-            else:
-                qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
-            if args.moon_zenith is None:
-                qsim.atmosphere.moon.moon_zenith = 30 * u.deg
-            else:
-                qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
-        elif simspec.flavor in gray_objects:
-            if simspec.flavor in bright_objects:
-                if args.moon_phase is None:
-                    qsim.atmosphere.moon.moon_phase = 0.1
-                else:
-                    qsim.atmosphere.moon.moon_phase = args.moon_phase
-                if args.moon_angle is None:
-                    qsim.atmosphere.moon.separation_angle = 60 * u.deg
-                else:
-                    qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
-                if args.moon_zenith is None:
-                    qsim.atmosphere.moon.moon_zenith = 80 * u.deg
-                else:
-                    qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
+    if flavor in bright_objects or object_type in bright_objects:
+        if args.moon_phase is None:
+            qsim.atmosphere.moon.moon_phase = 0.7
         else:
-            if args.moon_phase is None:
-                qsim.atmosphere.moon.moon_phase = 0.5
-            else:
-                qsim.atmosphere.moon.moon_phase = args.moon_phase
-            if args.moon_angle is None:
-                qsim.atmosphere.moon.separation_angle = 60 * u.deg
-            else:
-                qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
-            if args.moon_zenith is None:
-                qsim.atmosphere.moon.moon_zenith = 100 * u.deg
-            else:
-                qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
-    elif args.brickname:
-        if objtype in bright_objects:
-            if args.moon_phase is None:
-                qsim.atmosphere.moon.moon_phase = 0.7
-            else:
-                qsim.atmosphere.moon.moon_phase = args.moon_phase
-            if args.moon_angle is None:
-                qsim.atmosphere.moon.separation_angle = 50 * u.deg
-            else:
-                qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
-            if args.moon_zenith is None:
-                qsim.atmosphere.moon.moon_zenith = 30 * u.deg
-            else:
-                qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
+            qsim.atmosphere.moon.moon_phase = args.moon_phase
+        if args.moon_angle is None:
+            qsim.atmosphere.moon.separation_angle = 50 * u.deg
         else:
-            if args.moon_phase is None:
-                qsim.atmosphere.moon.moon_phase = 0.5
-            else:
-                qsim.atmosphere.moon.moon_phase = args.moon_phase 
-            if args.moon_angle is None:
-                qsim.atmosphere.moon.separation_angle = 60 * u.deg
-            else:
-                qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
-            if args.moon_zenith is None:
-                qsim.atmosphere.moon.moon_zenith = 100 * u.deg
-            else:
-                qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
-
+            qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
+        if args.moon_zenith is None:
+            qsim.atmosphere.moon.moon_zenith = 30 * u.deg
+        else:
+            qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
+    elif flavor in gray_objects:
+        if args.moon_phase is None:
+            qsim.atmosphere.moon.moon_phase = 0.1
+        else:
+            qsim.atmosphere.moon.moon_phase = args.moon_phase
+        if args.moon_angle is None:
+            qsim.atmosphere.moon.separation_angle = 60 * u.deg
+        else:
+            qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
+        if args.moon_zenith is None:
+            qsim.atmosphere.moon.moon_zenith = 80 * u.deg
+        else:
+            qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
+    else:
+        if args.moon_phase is None:
+            qsim.atmosphere.moon.moon_phase = 0.5
+        else:
+            qsim.atmosphere.moon.moon_phase = args.moon_phase
+        if args.moon_angle is None:
+            qsim.atmosphere.moon.separation_angle = 60 * u.deg
+        else:
+            qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
+        if args.moon_zenith is None:
+            qsim.atmosphere.moon.moon_zenith = 100 * u.deg
+        else:
+            qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
+    print(qsim.atmosphere.moon.moon_phase)
     # Initialize per-camera output arrays that will be saved to the brick files.
-    cwave, trueflux, noisyflux, obsivar, resolution, sflux = {}, {}, {}, {}, {}, {}
+    waves, trueflux, noisyflux, obsivar, resolution, sflux = {}, {}, {}, {}, {}, {}
 
     maxbin = 0
-    waves=dict()
     nmax= args.nspec
-    for i,camera in enumerate(qsim.instrument.cameras):
+    for camera in qsim.instrument.cameras:
         # Lookup this camera's resolution matrix and convert to the sparse
         # format used in desispec.
         R = Resolution(camera.get_output_resolution_matrix())
         resolution[camera.name] = np.tile(R.to_fits_array(), [args.nspec, 1, 1])
         waves[camera.name] = (camera.output_wavelength.to(u.Angstrom).value.astype(np.float32))
-
+        nwave = len(waves[camera.name])
+        maxbin = max(maxbin, len(waves[camera.name]))
+        nobj = np.zeros((nmax,3,maxbin)) # Object Photons
+        nsky = np.zeros((nmax,3,maxbin)) # sky photons
+        nivar = np.zeros((nmax,3,maxbin)) # inverse variance (object+sky)
+        cframe_observedflux = np.zeros((nmax,3,maxbin))  # calibrated object flux
+        cframe_ivar = np.zeros((nmax,3,maxbin)) # inverse variance of calibrated object flux
+        cframe_rand_noise = np.zeros((nmax,3,maxbin)) # random Gaussian noise to calibrated flux
+        sky_ivar = np.zeros((nmax,3,maxbin)) # inverse variance of sky
+        sky_rand_noise = np.zeros((nmax,3,maxbin)) # random Gaussian noise to sky only
+        frame_rand_noise = np.zeros((nmax,3,maxbin)) # random Gaussian noise to nobj+nsky
+        trueflux[camera.name] = np.empty((args.nspec, nwave), dtype=np.float32) # calibrated brick flux
+        noisyflux[camera.name] = np.empty((args.nspec, nwave), dtype=np.float32) # calibrated brick flux with noise
+        obsivar[camera.name] = np.empty((args.nspec, nwave), dtype=np.float32) # inverse variance of brick flux
         if args.simspec:
             dw = np.gradient(simspec.wave[camera.name])
-            maxbin = max(maxbin, len(waves[camera.name]))
-            nobj=np.zeros((nmax,3,maxbin)) # Object Photons
-            nsky=np.zeros((nmax,3,maxbin)) # sky photons
-            nivar=np.zeros((nmax,3,maxbin)) # inverse variance (object+sky)
-            sky_ivar=np.zeros((nmax,3,maxbin)) # inverse variance of sky
-            cframe_observedflux=np.zeros((nmax,3,maxbin))  # calibrated object flux
-            cframe_ivar=np.zeros((nmax,3,maxbin)) # inverse variance of calibrated object flux
-            frame_rand_noise=np.zeros((nmax,3,maxbin)) # random Gaussian noise to nobj+nsky
-            sky_rand_noise=np.zeros((nmax,3,maxbin)) # random Gaussian noise to sky only
-            cframe_rand_noise=np.zeros((nmax,3,maxbin)) # random Gaussian noise to calibrated flux
-
-        elif args.brickname:
-            cwave[camera.name] = (camera.output_wavelength.to(u.Angstrom).value.astype(np.float32))
-            nwave = len(waves[camera.name])
-            trueflux[camera.name] = np.empty((args.nspec, nwave), dtype=np.float32)
-            noisyflux[camera.name] = np.empty_like(trueflux[camera.name])
-            obsivar[camera.name] = np.empty_like(trueflux[camera.name])
+        else:
             sflux = np.empty((args.nspec, npix), dtype=np.float32)
 
     #- Check if input simspec is for a continuum flat lamp instead of science
@@ -501,21 +474,18 @@ def main(args):
                 thisobjtype = 'ELG' # TODO (@moustakas): Fix this!
             else:
                 thisobjtype = truth['OBJTYPE'][j]
+        else:
+            thisobjtype = objtype[j]
 
         sys.stdout.flush()
-        if args.simspec:
-            if simspec.flavor =='arc':
-                qsim.source.update_in(
-                    'Quickgen source {0}'.format, 'perfect',
-                    wavelengths * u.Angstrom, spectra * fluxunits)
-            else:
-                qsim.source.update_in(
-                    'Quickgen source {0}'.format(j), objtype[j].lower(),
-                    wavelengths * u.Angstrom, spectra[j, :] * fluxunits)
-        elif args.brickname:
+        if flavor == 'arc':
+            qsim.source.update_in(
+                'Quickgen source {0}'.format, 'perfect',
+                wavelengths * u.Angstrom, flux * fluxunits)
+        else:
             qsim.source.update_in(
                 'Quickgen source {0}'.format(j), thisobjtype.lower(),
-                truth['WAVE'] * u.Angstrom, truth['FLUX'][j] * fluxunits)
+                wavelengths * u.Angstrom, flux[j, :] * fluxunits)
         qsim.source.update_out()
 
         qsim.simulate()
@@ -523,51 +493,66 @@ def main(args):
 
         if args.brickname:
             sflux[j][:] = 1e17 * qsim.source.flux_out.to(fluxunits).value
-            for camera, output in zip(qsim.instrument.cameras, qsim.camera_output):
-                assert output['observed_flux'].unit == 1e17 * fluxunits
-                trueflux[camera.name][j][:] = 1e17 * output['observed_flux']
-                noisyflux[camera.name][j][:] = 1e17 * (
-                    output['observed_flux'] +
-                    output['flux_calibration'] * output['random_noise_electrons'])
-                obsivar[camera.name][j][:] = 1e-34 * output['flux_inverse_variance']
+        for i, output in enumerate(qsim.camera_output):
+            # Extract the simulation results needed to create our uncalibrated
+            # frame output file.
+            num_pixels = len(output)
+            nobj[j, i, :num_pixels] = output['num_source_electrons']
+            nsky[j, i, :num_pixels] = output['num_sky_electrons']
+            nivar[j, i, :num_pixels] = 1.0 / output['variance_electrons']
 
-        elif args.simspec:
-            for i, output in enumerate(qsim.camera_output):
-                # Extract the simulation results needed to create our uncalibrated
-                # frame output file.
-                num_pixels = len(output)
-                nobj[j, i, :num_pixels] = output['num_source_electrons']
-                nsky[j, i, :num_pixels] = output['num_sky_electrons']
-                nivar[j, i, :num_pixels] = 1.0 / output['variance_electrons']
+            # Get results for our flux-calibrated output file.
+            cframe_observedflux[j, i, :num_pixels] = 1e17 * output['observed_flux']
+            cframe_ivar[j, i, :num_pixels] = 1e-34 * output['flux_inverse_variance']
 
-                # Get results for our flux-calibrated output file.
-                assert output['observed_flux'].unit == u.erg / (u.cm**2 * u.s * u.Angstrom)
-                cframe_observedflux[j, i, :num_pixels] = 1e17 * output['observed_flux']
-                cframe_ivar[j, i, :num_pixels] = 1e-34 * output['flux_inverse_variance']
+            # Fill brick arrays from the results.
+            if i==0:
+                camera = 'b'
+            elif i==1:
+                camera = 'r'
+            else:
+                camera = 'z'
+            trueflux[camera][j][:num_pixels] = 1e17 * output['observed_flux']
+            noisyflux[camera][j][:num_pixels] = 1e17 * (
+                output['observed_flux'] +
+                output['flux_calibration'] * output['random_noise_electrons'])
+            obsivar[camera][j][:num_pixels] = 1e-34 * output['flux_inverse_variance']
 
-                # Use the same noise realization in the cframe and frame, without any
-                # additional noise from sky subtraction for now.
-                frame_rand_noise[j, i, :num_pixels] = output['random_noise_electrons']
-                cframe_rand_noise[j, i, :num_pixels] = 1e17 * (
-                    output['flux_calibration'] * output['random_noise_electrons'])
+            # Use the same noise realization in the cframe and frame, without any
+            # additional noise from sky subtraction for now.
+            frame_rand_noise[j, i, :num_pixels] = output['random_noise_electrons']
+            cframe_rand_noise[j, i, :num_pixels] = 1e17 * (
+                output['flux_calibration'] * output['random_noise_electrons'])
 
-                # The sky output file represents a model fit to ~40 sky fibers.
-                # We reduce the variance by a factor of 25 to account for this and
-                # give the sky an independent (Gaussian) noise realization.
-                sky_ivar[j, i, :num_pixels] = 25.0 / (
-                    output['variance_electrons'] - output['num_source_electrons'])
-                sky_rand_noise[j, i, :num_pixels] = random_state.normal(
-                    scale=1.0 / np.sqrt(sky_ivar[j,i,:num_pixels]),size=num_pixels)
-
-    # Output is either 1, 2, or all 4 (if flavor is flat, output is fiberflat):
-    #1. frame file: (x3)
-    #2. cframe file (x3)
-    #3. skymodel file:(x3)
-    #4. flux calibration vector file (x3)
+            # The sky output file represents a model fit to ~40 sky fibers.
+            # We reduce the variance by a factor of 25 to account for this and
+            # give the sky an independent (Gaussian) noise realization.
+            sky_ivar[j, i, :num_pixels] = 25.0 / (
+                output['variance_electrons'] - output['num_source_electrons'])
+            sky_rand_noise[j, i, :num_pixels] = random_state.normal(
+                scale=1.0 / np.sqrt(sky_ivar[j,i,:num_pixels]),size=num_pixels)
 
     armName={"b":0,"r":1,"z":2}
     for channel in 'brz':
 
+        #Before writing, convert from counts/bin to counts/A (as in Pixsim output)
+        #Quicksim Default:
+        #FLUX - input spectrum resampled to this binning; no noise added [1e-17 erg/s/cm2/s/Ang]
+        #COUNTS_OBJ - object counts in 0.5 Ang bin
+        #COUNTS_SKY - sky counts in 0.5 Ang bin
+
+        num_pixels = len(waves[channel])
+        dwave=np.gradient(waves[channel])
+        nobj[:,armName[channel],:num_pixels]/=dwave
+        frame_rand_noise[:,armName[channel],:num_pixels]/=dwave
+        nivar[:,armName[channel],:num_pixels]*=dwave**2
+        nsky[:,armName[channel],:num_pixels]/=dwave
+        sky_rand_noise[:,armName[channel],:num_pixels]/=dwave
+        sky_ivar[:,armName[channel],:num_pixels]/=dwave**2
+
+        # Now write the outputs in DESI standard file system. None of the output file can have more than 500 spectra
+
+        # Output brick files
         if args.brickname:
             filename = 'brick-{}-{}.fits'.format(channel, args.brickname)
             filepath = os.path.join(args.outdir, filename)
@@ -577,9 +562,8 @@ def main(args):
 
             header = dict(BRICKNAM=args.brickname, CHANNEL=channel)
             brick = Brick(filepath, mode='update', header=header)
-            brick.add_objects(
-                noisyflux[channel], obsivar[channel],
-                cwave[channel], resolution[channel], fibermap, night, expid)
+            brick.add_objects(noisyflux[channel], obsivar[channel],
+                waves[channel], resolution[channel], fibermap, night, expid)
             brick.close()
 
             # Append truth to the file. Note: we add the resolution-convolved true
@@ -588,58 +572,43 @@ def main(args):
             header = fitsheader(header)
             if args.outdir_truth is None : # add truth in same file
                 fx = fits.open(filepath, mode='append')
-                _add_truth(fx, header, meta, trueflux, sflux, wave, channel)
+                _add_truth(fx, header, meta, trueflux, sflux, wavelengths, channel)
                 fx.flush()
                 fx.close()
             else:
                 filename = 'truth-brick-{}-{}.fits'.format(channel, args.brickname)
                 filepath = os.path.join(args.outdir_truth, filename)
                 hdulist = fits.HDUList([fits.PrimaryHDU(header=header)])
-                _add_truth(hdulist, header, meta, trueflux, sflux, wave, channel)
+                _add_truth(hdulist, header, meta, trueflux, sflux, wavelengths, channel)
                 hdulist.writeto(filepath, clobber=True)
+            log.info("Wrote file {}".format(filepath))
 
-
-        elif args.simspec:
-            #Before writing, convert from counts/bin to counts/A (as in Pixsim output)
-            #Quicksim Default:
-            #FLUX - input spectrum resampled to this binning; no noise added [1e-17 erg/s/cm2/s/Ang]
-            #COUNTS_OBJ - object counts in 0.5 Ang bin
-            #COUNTS_SKY - sky counts in 0.5 Ang bin
-
-            num_pixels = len(waves[channel])
-            dwave=np.gradient(waves[channel])
-            nobj[:,armName[channel],:num_pixels]/=dwave
-            frame_rand_noise[:,armName[channel],:num_pixels]/=dwave
-            nivar[:,armName[channel],:num_pixels]*=dwave**2
-
-            nsky[:,armName[channel],:num_pixels]/=dwave
-            sky_rand_noise[:,armName[channel],:num_pixels]/=dwave
-            sky_ivar[:,armName[channel],:num_pixels]/=dwave**2
-
-
-        #### Now write the outputs in DESI standard file system.    None of the output file can have more than 500 spectra
-
-        # Looping over spectrograph
-
-
+        else:
+            # Looping over spectrograph
             for ii in range((args.nspec+args.nstart-1)//500+1):
-
+    
                 start=max(500*ii,args.nstart) # first spectrum for a given spectrograph
                 end=min(500*(ii+1),nmax) # last spectrum for the spectrograph
+
+                # Output is either 1 only or all 4:
+                #1. frame file: (x3)
+                #2. cframe file (x3)
+                #3. skymodel file:(x3)
+                #4. flux calibration vector file (x3)
 
                 if (args.spectrograph <= ii):
                     camera = "{}{}".format(channel, ii)
                     log.info("Writing files for channel:{}, spectrograph:{}, spectra:{} to {}".format(channel,ii,start,end))
                     num_pixels = len(waves[channel])
-
+    
                     # Write frame file
                     framefileName=desispec.io.findfile("frame",NIGHT,EXPID,camera)
-
+    
                     frame_flux=nobj[start:end,armName[channel],:num_pixels]+ \
                     nsky[start:end,armName[channel],:num_pixels] + \
                     frame_rand_noise[start:end,armName[channel],:num_pixels]
                     frame_ivar=nivar[start:end,armName[channel],:num_pixels]
-
+    
                     sh1=frame_flux.shape[0]  # required for slicing the resolution metric, resolusion matrix has (nspec,ndiag,wave)
                                               # for example if nstart =400, nspec=150: two spectrographs:
                                               # 400-499=> 0 spectrograph, 500-549 => 1
@@ -647,48 +616,48 @@ def main(args):
                         resol=resolution[channel][:sh1,:,:]
                     else:
                         resol=resolution[channel][-sh1:,:,:]
-
+    
                     # must create desispec.Frame object
                     frame=Frame(waves[channel], frame_flux, frame_ivar,\
                         resolution_data=resol, spectrograph=ii, \
                         fibermap=fibermap[start:end], meta=dict(CAMERA=camera) )
                     desispec.io.write_frame(framefileName, frame)
-
+    
                     framefilePath=desispec.io.findfile("frame",NIGHT,EXPID,camera)
                     log.info("Wrote file {}".format(framefilePath))
-
+    
                     if args.frameonly or simspec.flavor == 'arc':
                         continue
-
+    
                     # Write cframe file
                     cframeFileName=desispec.io.findfile("cframe",NIGHT,EXPID,camera)
                     cframeFlux=cframe_observedflux[start:end,armName[channel],:num_pixels]+cframe_rand_noise[start:end,armName[channel],:num_pixels]
                     cframeIvar=cframe_ivar[start:end,armName[channel],:num_pixels]
-
+    
                     # must create desispec.Frame object
                     cframe = Frame(waves[channel], cframeFlux, cframeIvar, \
                         resolution_data=resol, spectrograph=ii,
                         fibermap=fibermap[start:end], meta=dict(CAMERA=camera) )
                     desispec.io.frame.write_frame(cframeFileName,cframe)
-
+    
                     cframefilePath=desispec.io.findfile("cframe",NIGHT,EXPID,camera)
                     log.info("Wrote file {}".format(cframefilePath))
-
+    
                     # Write sky file
                     skyfileName=desispec.io.findfile("sky",NIGHT,EXPID,camera)
                     skyflux=nsky[start:end,armName[channel],:num_pixels] + \
                     sky_rand_noise[start:end,armName[channel],:num_pixels]
                     skyivar=sky_ivar[start:end,armName[channel],:num_pixels]
                     skymask=np.zeros(skyflux.shape, dtype=np.uint32)
-
+    
                     # must create desispec.Sky object
                     skymodel = SkyModel(waves[channel], skyflux, skyivar, skymask,
                         header=dict(CAMERA=camera))
                     desispec.io.sky.write_sky(skyfileName, skymodel)
-
+    
                     skyfilePath=desispec.io.findfile("sky",NIGHT,EXPID,camera)
                     log.info("Wrote file {}".format(skyfilePath))
-
+    
                     # Write calib file
                     calibVectorFile=desispec.io.findfile("calib",NIGHT,EXPID,camera)
                     flux = cframe_observedflux[start:end,armName[channel],:num_pixels]
@@ -696,17 +665,17 @@ def main(args):
                     calibration = np.zeros_like(phot)
                     jj = (flux>0)
                     calibration[jj] = phot[jj] / flux[jj]
-
+    
                     #- TODO: what should calibivar be?
                     #- For now, model it as the noise of combining ~10 spectra
                     calibivar=10/cframe_ivar[start:end,armName[channel],:num_pixels]
                     #mask=(1/calibivar>0).astype(int)??
                     mask=np.zeros(calibration.shape, dtype=np.uint32)
-
-                   # write flux calibration
+    
+                    # write flux calibration
                     fluxcalib = FluxCalib(waves[channel], calibration, calibivar, mask)
                     write_flux_calibration(calibVectorFile, fluxcalib)
-
+    
                     calibfilePath=desispec.io.findfile("calib",NIGHT,EXPID,camera)
                     log.info("Wrote file {}".format(calibfilePath))
 

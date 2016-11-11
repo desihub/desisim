@@ -325,12 +325,11 @@ class TestQuickgen(unittest.TestCase):
     #- Ensure that using --seed results in reproducible spectra for bricks
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
     def test_quickgen_seed_brick(self):
-        nspec = 2
-        cmd = "quickgen --seed 1 --brickname test1a --objtype BRIGHT_MIX -n {} --outdir {}".format(nspec, self.testDir)
+        cmd = "quickgen --seed 1 --brickname test1a --objtype BRIGHT_MIX -n 1 --outdir {}".format(self.testDir)
         quickgen.main(quickgen.parse(cmd.split()[1:]))
-        cmd = "quickgen --seed 1 --brickname test1b --objtype BRIGHT_MIX -n {} --outdir {}".format(nspec, self.testDir)
+        cmd = "quickgen --seed 1 --brickname test1b --objtype BRIGHT_MIX -n 1 --outdir {}".format(self.testDir)
         quickgen.main(quickgen.parse(cmd.split()[1:]))
-        cmd = "quickgen --seed 2 -b test2 --objtype BRIGHT_MIX -n {} --outdir {}".format(nspec, self.testDir)
+        cmd = "quickgen --seed 2 -b test2 --objtype BRIGHT_MIX -n 1 --outdir {}".format(self.testDir)
         quickgen.main(quickgen.parse(cmd.split()[1:]))
 
         f1a = desispec.io.read_frame('{}/brick-b-test1a.fits'.format(self.testDir))
@@ -461,10 +460,9 @@ class TestQuickgen(unittest.TestCase):
     #- Test that brighter moon makes noisier spectra for bricks
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
     def test_quickgen_moon_brick(self):
-        nspec = 2
-        cmd = "quickgen --seed 1 --brickname brightmoon --objtype BRIGHT_MIX -n {} --outdir {} --moon-phase 0.1".format(nspec, self.testDir)
+        cmd = "quickgen --seed 1 --brickname brightmoon --objtype BRIGHT_MIX -n 1 --outdir {} --moon-phase 0.1".format(self.testDir)
         quickgen.main(quickgen.parse(cmd.split()[1:]))
-        cmd = "quickgen --seed 1 --brickname crescentmoon --objtype BRIGHT_MIX -n {} --outdir {} --moon-phase 0.9".format(nspec, self.testDir)
+        cmd = "quickgen --seed 1 --brickname crescentmoon --objtype BRIGHT_MIX -n 1 --outdir {} --moon-phase 0.9".format(self.testDir)
         quickgen.main(quickgen.parse(cmd.split()[1:]))
 
         brickfile = '{}/brick-b-brightmoon.fits'.format(self.testDir)
