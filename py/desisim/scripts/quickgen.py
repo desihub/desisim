@@ -392,7 +392,7 @@ def main(args):
             qsim.atmosphere.moon.moon_zenith = 100 * u.deg
         else:
             qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
-    print(qsim.atmosphere.moon.moon_phase)
+
     # Initialize per-camera output arrays that will be saved to the brick files.
     waves, trueflux, noisyflux, obsivar, resolution, sflux = {}, {}, {}, {}, {}, {}
 
@@ -415,9 +415,9 @@ def main(args):
         sky_ivar = np.zeros((nmax,3,maxbin)) # inverse variance of sky
         sky_rand_noise = np.zeros((nmax,3,maxbin)) # random Gaussian noise to sky only
         frame_rand_noise = np.zeros((nmax,3,maxbin)) # random Gaussian noise to nobj+nsky
-        trueflux[camera.name] = np.empty((args.nspec, nwave), dtype=np.float32) # calibrated brick flux
-        noisyflux[camera.name] = np.empty((args.nspec, nwave), dtype=np.float32) # calibrated brick flux with noise
-        obsivar[camera.name] = np.empty((args.nspec, nwave), dtype=np.float32) # inverse variance of brick flux
+        trueflux[camera.name] = np.empty((args.nspec, nwave)) # calibrated brick flux
+        noisyflux[camera.name] = np.empty((args.nspec, nwave)) # calibrated brick flux with noise
+        obsivar[camera.name] = np.empty((args.nspec, nwave)) # inverse variance of brick flux
         if args.simspec:
             dw = np.gradient(simspec.wave[camera.name])
         else:
@@ -633,7 +633,6 @@ def main(args):
                     cframeFileName=desispec.io.findfile("cframe",NIGHT,EXPID,camera)
                     cframeFlux=cframe_observedflux[start:end,armName[channel],:num_pixels]+cframe_rand_noise[start:end,armName[channel],:num_pixels]
                     cframeIvar=cframe_ivar[start:end,armName[channel],:num_pixels]
-    
                     # must create desispec.Frame object
                     cframe = Frame(waves[channel], cframeFlux, cframeIvar, \
                         resolution_data=resol, spectrograph=ii,

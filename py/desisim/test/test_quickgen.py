@@ -247,8 +247,7 @@ class TestQuickgen(unittest.TestCase):
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
     def test_quickgen_options_brick(self):
         brickname = 'test2'
-        nspec = 5
-        cmd = "quickgen --brickname {} --objtype BGS -n {} --outdir {}".format(brickname, nspec, self.testDir)
+        cmd = "quickgen --brickname {} --objtype BGS -n 5 --outdir {}".format(brickname, self.testDir)
         cmd = cmd + " --airmass 1.5 --verbose --zrange-bgs 0.1 0.2"
         cmd = cmd + " --moon-phase 0.1 --moon-angle 30 --moon-zenith 20"
         args = quickgen.parse(cmd.split()[1:])
@@ -363,9 +362,9 @@ class TestQuickgen(unittest.TestCase):
         fibermap1 = desispec.io.findfile('fibermap', night, expid1)
 
         # generate quickgen output for each airmass
-        cmd = "quickgen --seed 1 --simspec {} --fibermap {}".format(simspec0,fibermap0)
+        cmd = "quickgen --simspec {} --fibermap {}".format(simspec0,fibermap0)
         quickgen.main(quickgen.parse(cmd.split()[1:]))
-        cmd = "quickgen --seed 1 --simspec {} --fibermap {}".format(simspec1,fibermap1)
+        cmd = "quickgen --simspec {} --fibermap {}".format(simspec1,fibermap1)
         quickgen.main(quickgen.parse(cmd.split()[1:]))
 
         cframe0=desispec.io.findfile("cframe",night,expid0,camera)
@@ -378,9 +377,9 @@ class TestQuickgen(unittest.TestCase):
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
     def test_quickgen_airmass_brick(self):
         nspec = 2
-        cmd = "quickgen --seed 1 --brickname test1 --airmass 1.5 --objtype DARK_MIX -n {} --outdir {}".format(nspec, self.testDir)
+        cmd = "quickgen --brickname test1 --airmass 1.5 --objtype DARK_MIX -n {} --outdir {}".format(nspec, self.testDir)
         quickgen.main(quickgen.parse(cmd.split()[1:]))
-        cmd = "quickgen --seed 1 --brickname test2 --airmass 1.0 --objtype DARK_MIX -n {} --outdir {}".format(nspec, self.testDir)
+        cmd = "quickgen --brickname test2 --airmass 1.0 --objtype DARK_MIX -n {} --outdir {}".format(nspec, self.testDir)
         quickgen.main(quickgen.parse(cmd.split()[1:]))
 
         f1 = desispec.io.read_frame('{}/brick-b-test1.fits'.format(self.testDir))
@@ -405,9 +404,9 @@ class TestQuickgen(unittest.TestCase):
         fibermap1 = desispec.io.findfile('fibermap', night, expid1)
 
         # generate quickgen output for each exposure time
-        cmd = "quickgen --seed 1 --simspec {} --fibermap {}".format(simspec0,fibermap0)
+        cmd = "quickgen --simspec {} --fibermap {}".format(simspec0,fibermap0)
         quickgen.main(quickgen.parse(cmd.split()[1:]))
-        cmd = "quickgen --seed 1 --simspec {} --fibermap {}".format(simspec1,fibermap1)
+        cmd = "quickgen --simspec {} --fibermap {}".format(simspec1,fibermap1)
         quickgen.main(quickgen.parse(cmd.split()[1:]))
 
         cframe0=desispec.io.findfile("cframe",night,expid0,camera)
@@ -419,9 +418,9 @@ class TestQuickgen(unittest.TestCase):
     #- Test that shorter exposures make noisier spectra for bricks
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
     def test_quickgen_exptime_brick(self):
-        cmd = "quickgen --seed 1 --brickname test1 --exptime 100 --objtype DARK_MIX -n 1 --outdir {}".format(self.testDir)
+        cmd = "quickgen --brickname test1 --exptime 100 --objtype DARK_MIX -n 1 --outdir {}".format(self.testDir)
         quickgen.main(quickgen.parse(cmd.split()[1:]))
-        cmd = "quickgen --seed 1 --brickname test2 --exptime 1000 --objtype DARK_MIX -n 1 --outdir {}".format(self.testDir)
+        cmd = "quickgen --brickname test2 --exptime 1000 --objtype DARK_MIX -n 1 --outdir {}".format(self.testDir)
         quickgen.main(quickgen.parse(cmd.split()[1:]))
 
         f1 = desispec.io.read_frame('{}/brick-b-test1.fits'.format(self.testDir))
@@ -446,9 +445,9 @@ class TestQuickgen(unittest.TestCase):
         fibermap1 = desispec.io.findfile('fibermap', night, expid1)
 
         # generate quickgen output for each moon phase
-        cmd = "quickgen --seed 1 --simspec {} --fibermap {} --moon-phase 0.1".format(simspec0,fibermap0)
+        cmd = "quickgen --simspec {} --fibermap {} --moon-phase 0.1".format(simspec0,fibermap0)
         quickgen.main(quickgen.parse(cmd.split()[1:]))
-        cmd = "quickgen --seed 1 --simspec {} --fibermap {} --moon-phase 0.9".format(simspec1,fibermap1)
+        cmd = "quickgen --simspec {} --fibermap {} --moon-phase 0.9".format(simspec1,fibermap1)
         quickgen.main(quickgen.parse(cmd.split()[1:]))
 
         cframe0=desispec.io.findfile("cframe",night,expid0,camera)
@@ -460,15 +459,13 @@ class TestQuickgen(unittest.TestCase):
     #- Test that brighter moon makes noisier spectra for bricks
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
     def test_quickgen_moon_brick(self):
-        cmd = "quickgen --seed 1 --brickname brightmoon --objtype BRIGHT_MIX -n 1 --outdir {} --moon-phase 0.1".format(self.testDir)
+        cmd = "quickgen --brickname brightmoon --objtype BRIGHT_MIX -n 1 --outdir {} --moon-phase 0.1".format(self.testDir)
         quickgen.main(quickgen.parse(cmd.split()[1:]))
-        cmd = "quickgen --seed 1 --brickname crescentmoon --objtype BRIGHT_MIX -n 1 --outdir {} --moon-phase 0.9".format(self.testDir)
+        cmd = "quickgen --brickname crescentmoon --objtype BRIGHT_MIX -n 1 --outdir {} --moon-phase 0.9".format(self.testDir)
         quickgen.main(quickgen.parse(cmd.split()[1:]))
 
-        brickfile = '{}/brick-b-brightmoon.fits'.format(self.testDir)
-        brick1 = desispec.io.read_frame(brickfile)
-        brickfile = '{}/brick-b-crescentmoon.fits'.format(self.testDir)
-        brick2 = desispec.io.read_frame(brickfile)
+        brick1 = desispec.io.read_frame('{}/brick-b-brightmoon.fits'.format(self.testDir))
+        brick2 = desispec.io.read_frame('{}/brick-b-crescentmoon.fits'.format(self.testDir))
         #- brick1 has more moonlight thus larger errors thus smaller ivar
         self.assertLess(np.median(brick1.ivar), np.median(brick2.ivar))
 
