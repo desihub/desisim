@@ -162,7 +162,7 @@ class TestQuickgen(unittest.TestCase):
         expid = self.expid
         camera = 'r0'
         # flavors = ['flat','dark','gray','bright','bgs','mws','elg','lrg','qso','arc']
-        flavors = ['arc', 'flat', 'dark','bright']
+        flavors = ['arc', 'flat', 'dark', 'bright']
         for i in range(len(flavors)):
             flavor = flavors[i]
             obs.new_exposure(flavor, night=night, expid=expid, nspec=2)
@@ -430,7 +430,7 @@ class TestQuickgen(unittest.TestCase):
 
     #- Test that brighter moon makes noisier spectra using simspec as input
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
-    def test_quickgen_moon_simspec(self):
+    def test_quickgen_moonphase_simspec(self):
         night = self.night
         camera = 'r0'
         expid0 = 100
@@ -445,9 +445,9 @@ class TestQuickgen(unittest.TestCase):
         fibermap1 = desispec.io.findfile('fibermap', night, expid1)
 
         # generate quickgen output for each moon phase
-        cmd = "quickgen --simspec {} --fibermap {} --moon-phase 0.1".format(simspec0,fibermap0)
+        cmd = "quickgen --simspec {} --fibermap {} --moon-phase 0.0".format(simspec0,fibermap0)
         quickgen.main(quickgen.parse(cmd.split()[1:]))
-        cmd = "quickgen --simspec {} --fibermap {} --moon-phase 0.9".format(simspec1,fibermap1)
+        cmd = "quickgen --simspec {} --fibermap {} --moon-phase 1.0".format(simspec1,fibermap1)
         quickgen.main(quickgen.parse(cmd.split()[1:]))
 
         cframe0=desispec.io.findfile("cframe",night,expid0,camera)
@@ -458,14 +458,96 @@ class TestQuickgen(unittest.TestCase):
 
     #- Test that brighter moon makes noisier spectra for bricks
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
-    def test_quickgen_moon_brick(self):
-        cmd = "quickgen --brickname brightmoon --objtype BRIGHT_MIX -n 1 --outdir {} --moon-phase 0.1".format(self.testDir)
+    def test_quickgen_moonphase_brick(self):
+        cmd = "quickgen --brickname brightmoon --objtype BRIGHT_MIX -n 1 --outdir {} --moon-phase 0.0".format(self.testDir)
         quickgen.main(quickgen.parse(cmd.split()[1:]))
-        cmd = "quickgen --brickname crescentmoon --objtype BRIGHT_MIX -n 1 --outdir {} --moon-phase 0.9".format(self.testDir)
+        cmd = "quickgen --brickname crescentmoon --objtype BRIGHT_MIX -n 1 --outdir {} --moon-phase 1.0".format(self.testDir)
         quickgen.main(quickgen.parse(cmd.split()[1:]))
 
         brick1 = desispec.io.read_frame('{}/brick-b-brightmoon.fits'.format(self.testDir))
         brick2 = desispec.io.read_frame('{}/brick-b-crescentmoon.fits'.format(self.testDir))
+        #- brick1 has more moonlight thus larger errors thus smaller ivar
+        self.assertLess(np.median(brick1.ivar), np.median(brick2.ivar))
+
+    #- Test that smaller moon angle makes noisier spectra using simspec as input
+    ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
+    def test_quickgen_moonangle_simspec(self):
+        night = self.night
+        camera = 'r0'
+        expid0 = 100
+        expid1 = 101
+
+        # generate exposures
+        obs.new_exposure('bgs',night=night,expid=expid0,nspec=1,seed=1)
+        simspec0 = io.findfile('simspec', night, expid0)
+        fibermap0 = desispec.io.findfile('fibermap', night, expid0)
+        obs.new_exposure('bgs',night=night,expid=expid1,nspec=1,seed=1)
+        simspec1 = io.findfile('simspec', night, expid1)
+        fibermap1 = desispec.io.findfile('fibermap', night, expid1)
+
+        # generate quickgen output for each moon phase
+        cmd = "quickgen --simspec {} --fibermap {} --moon-angle 0".format(simspec0,fibermap0)
+        quickgen.main(quickgen.parse(cmd.split()[1:]))
+        cmd = "quickgen --simspec {} --fibermap {} --moon-angle 180".format(simspec1,fibermap1)
+        quickgen.main(quickgen.parse(cmd.split()[1:]))
+
+        cframe0=desispec.io.findfile("cframe",night,expid0,camera)
+        cframe1=desispec.io.findfile("cframe",night,expid1,camera)
+        cf0=desispec.io.read_frame(cframe0)
+        cf1=desispec.io.read_frame(cframe1)
+        self.assertLess(np.median(cf0.ivar),np.median(cf1.ivar))
+
+    #- Test that smaller moon angle makes noisier spectra for bricks
+    ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
+    def test_quickgen_moonangle_brick(self):
+        cmd = "quickgen --brickname angle0 --objtype BRIGHT_MIX -n 1 --outdir {} --moon-angle 0".format(self.testDir)
+        quickgen.main(quickgen.parse(cmd.split()[1:]))
+        cmd = "quickgen --brickname angle180 --objtype BRIGHT_MIX -n 1 --outdir {} --moon-angle 180".format(self.testDir)
+        quickgen.main(quickgen.parse(cmd.split()[1:]))
+
+        brick1 = desispec.io.read_frame('{}/brick-b-angle0.fits'.format(self.testDir))
+        brick2 = desispec.io.read_frame('{}/brick-b-angle180.fits'.format(self.testDir))
+        #- brick1 has more moonlight thus larger errors thus smaller ivar
+        self.assertLess(np.median(brick1.ivar), np.median(brick2.ivar))
+
+    #- Test that smaller moon zenith makes noisier spectra using simspec as input
+    ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
+    def test_quickgen_moonzenith_simspec(self):
+        night = self.night
+        camera = 'r0'
+        expid0 = 100
+        expid1 = 101
+
+        # generate exposures
+        obs.new_exposure('bgs',night=night,expid=expid0,nspec=1,seed=1)
+        simspec0 = io.findfile('simspec', night, expid0)
+        fibermap0 = desispec.io.findfile('fibermap', night, expid0)
+        obs.new_exposure('bgs',night=night,expid=expid1,nspec=1,seed=1)
+        simspec1 = io.findfile('simspec', night, expid1)
+        fibermap1 = desispec.io.findfile('fibermap', night, expid1)
+
+        # generate quickgen output for each moon phase
+        cmd = "quickgen --simspec {} --fibermap {} --moon-zenith 0".format(simspec0,fibermap0)
+        quickgen.main(quickgen.parse(cmd.split()[1:]))
+        cmd = "quickgen --simspec {} --fibermap {} --moon-zenith 90".format(simspec1,fibermap1)
+        quickgen.main(quickgen.parse(cmd.split()[1:]))
+
+        cframe0=desispec.io.findfile("cframe",night,expid0,camera)
+        cframe1=desispec.io.findfile("cframe",night,expid1,camera)
+        cf0=desispec.io.read_frame(cframe0)
+        cf1=desispec.io.read_frame(cframe1)
+        self.assertLess(np.median(cf0.ivar),np.median(cf1.ivar))
+
+    #- Test that smaller moon zenith makes noisier spectra for bricks
+    ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
+    def test_quickgen_moonzenith_brick(self):
+        cmd = "quickgen --brickname zenith0 --objtype BRIGHT_MIX -n 1 --outdir {} --moon-zenith 0".format(self.testDir)
+        quickgen.main(quickgen.parse(cmd.split()[1:]))
+        cmd = "quickgen --brickname zenith90 --objtype BRIGHT_MIX -n 1 --outdir {} --moon-zenith 90".format(self.testDir)
+        quickgen.main(quickgen.parse(cmd.split()[1:]))
+
+        brick1 = desispec.io.read_frame('{}/brick-b-zenith0.fits'.format(self.testDir))
+        brick2 = desispec.io.read_frame('{}/brick-b-zenith90.fits'.format(self.testDir))
         #- brick1 has more moonlight thus larger errors thus smaller ivar
         self.assertLess(np.median(brick1.ivar), np.median(brick2.ivar))
 

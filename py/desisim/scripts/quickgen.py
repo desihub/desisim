@@ -333,12 +333,14 @@ def main(args):
     # Set simulation parameters from the simspec header or desiparams
     bright_objects = ['bgs','mws','bright','BGS','MWS','BRIGHT_MIX']
     gray_objects = ['gray','grey']
-    object_type = []
     if args.simspec is None:
-        objtype = object_type
+        object_type = objtype
         flavor = None
     else:
+        object_type = None
         flavor = simspec.flavor
+
+    # Set airmass and exptime
     if args.simspec:
         qsim.atmosphere.airmass = simspec.header['AIRMASS']
         qsim.observation.exposure_time = simspec.header['EXPTIME'] * u.s
@@ -406,7 +408,7 @@ def main(args):
         waves[camera.name] = (camera.output_wavelength.to(u.Angstrom).value.astype(np.float32))
         nwave = len(waves[camera.name])
         maxbin = max(maxbin, len(waves[camera.name]))
-        nobj = np.zeros((nmax,3,maxbin)) # Object Photons
+        nobj = np.zeros((nmax,3,maxbin)) # object photons
         nsky = np.zeros((nmax,3,maxbin)) # sky photons
         nivar = np.zeros((nmax,3,maxbin)) # inverse variance (object+sky)
         cframe_observedflux = np.zeros((nmax,3,maxbin))  # calibrated object flux
@@ -416,12 +418,12 @@ def main(args):
         sky_rand_noise = np.zeros((nmax,3,maxbin)) # random Gaussian noise to sky only
         frame_rand_noise = np.zeros((nmax,3,maxbin)) # random Gaussian noise to nobj+nsky
         trueflux[camera.name] = np.empty((args.nspec, nwave)) # calibrated brick flux
-        noisyflux[camera.name] = np.empty((args.nspec, nwave)) # calibrated brick flux with noise
+        noisyflux[camera.name] = np.empty((args.nspec, nwave)) # brick flux with noise
         obsivar[camera.name] = np.empty((args.nspec, nwave)) # inverse variance of brick flux
         if args.simspec:
             dw = np.gradient(simspec.wave[camera.name])
         else:
-            sflux = np.empty((args.nspec, npix), dtype=np.float32)
+            sflux = np.empty((args.nspec, npix))
 
     #- Check if input simspec is for a continuum flat lamp instead of science
     #- This does not convolve to per-fiber resolution
@@ -474,17 +476,19 @@ def main(args):
                 thisobjtype = 'ELG' # TODO (@moustakas): Fix this!
             else:
                 thisobjtype = truth['OBJTYPE'][j]
-        else:
-            thisobjtype = objtype[j]
 
         sys.stdout.flush()
         if flavor == 'arc':
             qsim.source.update_in(
                 'Quickgen source {0}'.format, 'perfect',
                 wavelengths * u.Angstrom, flux * fluxunits)
+        elif args.brickname:
+            qsim.source.update_in(
+                'Quickbrick source {0}'.format(j), thisobjtype.lower(),
+                truth['WAVE'] * u.Angstrom, truth['FLUX'][j] * fluxunits)
         else:
             qsim.source.update_in(
-                'Quickgen source {0}'.format(j), thisobjtype.lower(),
+                'Quickgen source {0}'.format(j), objtype[j].lower(),
                 wavelengths * u.Angstrom, flux[j, :] * fluxunits)
         qsim.source.update_out()
 
@@ -493,7 +497,9 @@ def main(args):
 
         if args.brickname:
             sflux[j][:] = 1e17 * qsim.source.flux_out.to(fluxunits).value
+
         for i, output in enumerate(qsim.camera_output):
+            assert output['observed_flux'].unit == 1e17 * fluxunits
             # Extract the simulation results needed to create our uncalibrated
             # frame output file.
             num_pixels = len(output)
@@ -512,11 +518,10 @@ def main(args):
                 camera = 'r'
             else:
                 camera = 'z'
-            trueflux[camera][j][:num_pixels] = 1e17 * output['observed_flux']
-            noisyflux[camera][j][:num_pixels] = 1e17 * (
-                output['observed_flux'] +
+            trueflux[camera][j][:] = 1e17 * output['observed_flux']
+            noisyflux[camera][j][:] = 1e17 * (output['observed_flux'] +
                 output['flux_calibration'] * output['random_noise_electrons'])
-            obsivar[camera][j][:num_pixels] = 1e-34 * output['flux_inverse_variance']
+            obsivar[camera][j][:] = 1e-34 * output['flux_inverse_variance']
 
             # Use the same noise realization in the cframe and frame, without any
             # additional noise from sky subtraction for now.
@@ -633,6 +638,7 @@ def main(args):
                     cframeFileName=desispec.io.findfile("cframe",NIGHT,EXPID,camera)
                     cframeFlux=cframe_observedflux[start:end,armName[channel],:num_pixels]+cframe_rand_noise[start:end,armName[channel],:num_pixels]
                     cframeIvar=cframe_ivar[start:end,armName[channel],:num_pixels]
+
                     # must create desispec.Frame object
                     cframe = Frame(waves[channel], cframeFlux, cframeIvar, \
                         resolution_data=resol, spectrograph=ii,
