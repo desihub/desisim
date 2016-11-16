@@ -91,33 +91,13 @@ class SimSetup(object):
         self.mtl_file = None
 
         self.tilefiles = []
-        self.mtl_epochs = []
         self.epochs_list = list(range(self.n_epochs))
         
         # load tile list per epoch
         self.epoch_tiles = []
-        for i in range(self.n_epochs):
+        for i in self.epochs_list:
             epochfile = os.path.join(self.epochs_path, "epoch{}.txt".format(i))        
             self.epoch_tiles.append(np.loadtxt(epochfile, dtype=int))
-
-    def reset_lists(self):
-        """Resets counters
-
-        """
-        self.tilefiles = []
-        self.mtl_epochs = []
-
-    def set_mtl_epochs(self, epochs_list = [0]):
-        """Sets the mtl_epochs list 
-
-        Args:
-            epochs_list (int, int list): optional variable listing integers IDs for the epochs.
-
-        """
-        if hasattr(epochs_list, '__iter__'):
-            self.mtl_epochs = list(epochs_list)
-        else:
-            self.mtl_epochs = list([epochs_list])
 
     def create_directories(self):
         """Creates output directories to store simulation results.
@@ -210,7 +190,7 @@ class SimSetup(object):
             * Fiber allocation 
             * Redshift catalogue construction
         """
-        #load truth / targets / zcat
+        # load truth / targets / zcat
         if truth is None:
             truth = Table.read(os.path.join(self.targets_path,'truth.fits'))
         if targets is None:
@@ -262,8 +242,6 @@ class SimSetup(object):
         for epoch in self.epochs_list:
             print('--- Epoch {} ---'.format(epoch))
 
-            self.set_mtl_epochs(epochs_list = self.epochs_list[epoch:])
-
             self.create_surveyfile(epoch)
 
             self.create_fiberassign_input()
@@ -272,8 +250,6 @@ class SimSetup(object):
                                                             truth=truth, targets=targets, mtl=mtl, zcat=zcat)
 
             self.backup_epoch_data(epoch_id=epoch)
-
-            self.reset_lists()
 
         self.cleanup_directories()
 
