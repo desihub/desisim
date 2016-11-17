@@ -1566,7 +1566,12 @@ class QSO():
         self.objtype = 'QSO'
 
         if colorcuts_function is None:
-            from desitarget.cuts import isQSO as colorcuts_function
+            try:
+                from desitarget.cuts import isQSO_colors as colorcuts_function
+            except ImportError:
+                log.error('please upgrade desitarget to get the latest isQSO_colors function')
+                from desitarget.cuts import isQSO as colorcuts_function
+
             self.colorcuts_function = colorcuts_function
 
         log.warning('Color-cuts not yet supported for QSOs!')
