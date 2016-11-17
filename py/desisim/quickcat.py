@@ -126,6 +126,7 @@ def get_zeff_obs(simtype, obsconditions):
 def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditions=None):
     """
     Simple model to get the redshift effiency from the observational conditions or observed magnitudes+redshuft
+
     Args:
         simtype: ELG, LRG, QSO, MWS, BGS
         targets: target catalog table; currently used only for TARGETID
@@ -459,43 +460,71 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions=None):
 
     return zout, zerr, zwarn
 
-
-def get_obsconditions(tilefiles):
+def get_median_obsconditions(tileids):
     """
     Gets the observational conditions for a set of tiles.
     Args:
-       tilefiles : list of fiberassign tile files that were observed.
+       tileids : list of tileids that were observed
+    
     Outputs:
-        obsconditions: Dictionary with the observational conditions for every tile.
-            It inclues at least the following keys
+        obsconditions: Table with the observational conditions for every tile.
+            It inclues at least the following columns
            'TILEID': array of tile IDs
            'AIRMASS': array of airmass values on a tile
            'EBMV': array of E(B-V) values on a tile
            'LINTRANS': array of atmospheric transparency during spectro obs; floats [0-1]
            'MOONFRAC': array of moonfraction values on a tile.
            'SEEING': array of FWHM seeing during spectroscopic observation on a tile.
-     """
-    n = len(tilefiles)
-
-    obsconditions = {}
+    """
+    #- Load standard DESI tiles and trim to this list of tileids
+    import desimodel.io
+    tiles = desimodel.io.load_tiles()
+    tileids = np.asarray(tileids)
+    ii = np.in1d(tiles['TILEID'], tileids)
+    tiles = tiles[ii]
+    assert len(tiles) == len(tileids)
     
-    obsconditions['TILEID'] =np.zeros(n, dtype='int')
-    obsconditions['AIRMASS'] = np.ones(n)
-    obsconditions['EBMV'] = np.ones(n)
+    #- Sort tiles to match order of tileids
+    i = np.argsort(tileids)
+    j = np.argsort(tiles['TILEID'])
+    k = np.argsort(i)
+    
+    tiles = tiles[j[k]]
+    assert np.all(tiles['TILEID'] == tileids)
+
+    #- fix type bug in desi-tiles.fits
+    if tiles['OBSCONDITIONS'].dtype == np.float64:
+        tiles = Table(tiles)
+        tiles.replace_column('OBSCONDITIONS', tiles['OBSCONDITIONS'].astype(int))
+
+    n = len(tileids)
+
+    obsconditions = Table()
+    obsconditions['TILEID'] = tileids
+    obsconditions['AIRMASS'] = tiles['AIRMASS']
+    obsconditions['EBMV'] = tiles['EBV_MED']
     obsconditions['LINTRANS'] = np.ones(n)
+    obsconditions['SEEING'] = np.ones(n) * 1.1
+    
+    #- Add lunar conditions, defaulting to dark time
+    from desitarget import obsconditions as obsbits
     obsconditions['MOONFRAC'] = np.zeros(n)
-    obsconditions['SEEING'] = np.ones(n)
+    obsconditions['MOONALT'] = -20.0 * np.ones(n)
+    obsconditions['MOONDIST'] = 180.0 * np.ones(n)
+
+    ii = (tiles['OBSCONDITIONS'] & obsbits.GRAY) != 0
+    obsconditions['MOONFRAC'][ii] = 0.1
+    obsconditions['MOONALT'][ii] = 10.0
+    obsconditions['MOONDIST'][ii] = 60.0
+
+    ii = (tiles['OBSCONDITIONS'] & obsbits.BRIGHT) != 0
+    obsconditions['MOONFRAC'][ii] = 0.7
+    obsconditions['MOONALT'][ii] = 60.0
+    obsconditions['MOONDIST'][ii] = 50.0
         
-    for i in range(n):
-        infile = tilefiles[i]
-        data = fits.open(infile)
-        tile_id = data[1].header['TILEID']
-        data.close()
-        obsconditions['TILEID'][i] = tile_id
     return obsconditions
 
-
-def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
+def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=False):
     """
     Generates quick output zcatalog
 
@@ -503,8 +532,11 @@ def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
         tilefiles : list of fiberassign tile files that were observed
         targets : astropy Table of targets
         truth : astropy Table of input truth with columns TARGETID, TRUEZ, and TRUETYPE
-        zcat (Optional): input zcatalog Table from previous observations
-        perfect (Optional): if True, treat spectro pipeline as perfect with input=output,
+    
+    Optional:
+        zcat: input zcatalog Table from previous observations
+        obsconditions: Table or ndarray with observing conditions from surveysim
+        perfect: if True, treat spectro pipeline as perfect with input=output,
             otherwise add noise and zwarn!=0 flags
         
     Returns:
@@ -518,18 +550,29 @@ def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
     ### print('Reading {} tiles'.format(len(obstiles)))
     nobs = Counter()
     targets_in_tile = {}
+    tileids = list()
     for infile in tilefiles:
-        fibassign = fits.getdata(infile, 'FIBER_ASSIGNMENTS')
-
-        data = fits.open(infile)
-        tile_id = data[1].header['TILEID']
-        data.close()
+        fibassign, header = fits.getdata(infile, 'FIBER_ASSIGNMENTS', header=True)
+        tile_id = header['TILEID']
+        tileids.append(tile_id)
 
         ii = (fibassign['TARGETID'] != -1)  #- targets with assignments
         nobs.update(fibassign['TARGETID'][ii])
         targets_in_tile[tile_id] = fibassign['TARGETID'][ii]
         
 #        print (targets_in_tile)
+
+    #- Sort obsconditions to match order of tiles
+    #- This might not be needed, but is fast for O(20k) tiles and may
+    #- prevent future surprises if code expects them to be row aligned
+    tileids = np.array(tileids)
+    if (obsconditions is not None) and \
+       (np.any(tileids != obsconditions['TILEID'])):
+        i = np.argsort(tileids)
+        j = np.argsort(obsconditions['TILEID'])
+        k = np.argsort(i)
+        obsconditions = obsconditions[j[k]]
+        assert np.all(tileids == obsconditions['TILEID'])
 
     #- Count how many times each target was observed in previous zcatalog
     #- NOTE: assumes that no tiles have been repeated
@@ -573,7 +616,8 @@ def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
         newzcat['ZWARN'] = np.zeros(nz, dtype=np.int32)
     else:
         # get the observational conditions for the current tilefiles
-        obsconditions = get_obsconditions(tilefiles)
+        if obsconditions is None:
+            obsconditions = get_median_obsconditions(tileids)
 
         # get the redshifts
         z, zerr, zwarn = get_observed_redshifts(targets, truth, targets_in_tile, obsconditions)

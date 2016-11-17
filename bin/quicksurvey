@@ -14,6 +14,8 @@ parser.add_argument("--fiberassign_exec", "-f", help="Executable file for fibera
 parser.add_argument("--epochs_dir","-E",help="Path to the directory with the epochs files ", type=str, required=True)
 parser.add_argument("--template_fiberassign","-t",help="File containing template for fiberassign", type=str, required=True)
 parser.add_argument("--n_epochs","-N",help="Number of epochs to run", type=int, default=1)
+parser.add_argument("--obsconditions",help="obslist_all.fits file from surveysim", type=str, required=False)
+
 args = parser.parse_args()
 
 setup = qs.SimSetup(output_path = args.output_dir, 
@@ -21,7 +23,8 @@ setup = qs.SimSetup(output_path = args.output_dir,
                     fiberassign_exec = args.fiberassign_exec, 
                     epochs_path = args.epochs_dir, 
                     template_fiberassign = args.template_fiberassign, 
-                    n_epochs = args.n_epochs)
+                    n_epochs = args.n_epochs,
+                    obsconditions = args.obsconditions)
 
 setup.simulate()
 
