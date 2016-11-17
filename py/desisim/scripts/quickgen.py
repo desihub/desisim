@@ -555,11 +555,11 @@ def main(args):
             cframe_ivar[j, i, :num_pixels] = 1e-34 * output['flux_inverse_variance']
 
             # Fill brick arrays from the results.
-            if i==0:
+            if np.mean(output['wavelength']) < 5600.:
                 camera = 'b'
-            elif i==1:
+            elif np.mean(output['wavelength']) > 5600. and np.mean(output['wavelength']) < 7700.:
                 camera = 'r'
-            else:
+            elif np.mean(output['wavelength']) > 7700.:
                 camera = 'z'
             trueflux[camera][j][:] = 1e17 * output['observed_flux']
             noisyflux[camera][j][:] = 1e17 * (output['observed_flux'] +
