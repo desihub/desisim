@@ -51,6 +51,10 @@ class SimSetup(object):
             template_fiberassign (str): Filename of the template input for fiberassign
             n_epochs (int): number of epochs to be simulated.
 
+        Optional:
+            obsconditions: file with observation conditions list from surveysim,
+                or Table read from that file
+
         """
         if 'output_path' in kwargs:
             self.output_path = kwargs['output_path']        
@@ -81,7 +85,14 @@ class SimSetup(object):
             self.n_epochs = kwargs['n_epochs']
         else:
             raise NameError('n_epochs was not set')
-                
+
+        self.obsconditions = None
+        if 'obsconditions' in kwargs and kwargs['obsconditions'] is not None:
+            if isinstance(kwargs['obsconditions'], (Table, np.ndarray)):
+                self.obsconditions = Table(kwargs['obsconditions'])
+            else:
+                self.obsconditions = Table.read(kwargs['obsconditions'])
+
         self.tmp_output_path = os.path.join(self.output_path, 'tmp/')
         self.tmp_fiber_path = os.path.join(self.tmp_output_path, 'fiberassign/')
         self.surveyfile = os.path.join(self.tmp_output_path, 'survey_list.txt')
@@ -224,10 +235,18 @@ class SimSetup(object):
             else:
                 print('Suggested but does not exist {}'.format(tilename))
         print("{} {} tiles to gather in zcat".format(asctime(), len(self.tilefiles)))
-    
+
+        # If applicable, select observations for these tiles
+        if self.obsconditions is not None:
+            ii = np.in1d(self.obsconditions['TILEID'], self.epoch_tiles[epoch])
+            obsconditions = self.obsconditions[ii]
+        else:
+            obsconditions = None
+
         # write the zcat, it uses the tilesfiles constructed in the last step
         self.zcat_file = os.path.join(self.tmp_output_path, 'zcat.fits')
-        newzcat = quickcat(self.tilefiles, targets, truth, zcat=zcat, perfect=perfect)
+        newzcat = quickcat(self.tilefiles, targets, truth, zcat=zcat, 
+                           obsconditions=obsconditions, perfect=perfect)
         newzcat.write(self.zcat_file, format='fits', overwrite=True)
         print("{} Finished zcat".format(asctime()))
         return truth, targets, mtl, newzcat
@@ -246,7 +265,7 @@ class SimSetup(object):
 
             self.create_fiberassign_input()
 
-            truth, targets, mtl, zcat = self.simulate_epoch(epoch, perfect=False, 
+            truth, targets, mtl, zcat = self.simulate_epoch(epoch, perfect=False,
                                                             truth=truth, targets=targets, mtl=mtl, zcat=zcat)
 
             self.backup_epoch_data(epoch_id=epoch)
