@@ -1,3 +1,46 @@
+"""
+Quickgen quickly simulates pipeline outputs if given input files or bricks:
+
+    quickgen mode (must provide simspec and fibermap files via newexp-desi):
+
+        Collect a set of templates to simulate as a new exposure:
+        'newexp-desi --nspec 500 --night 20150915 --expid 0 --flavor dark'
+
+        Actually do the simulation:
+        'simdir=$DESI_SPECTRO_SIM/$PIXPROD/20150915'
+        'quickgen --simspec $simdir/simspec-00000000.fits --fibermap $simdir/fibermap-00000000.fits'
+
+        quickgen output (can also provide frame file only as keyword):
+        1. frame-{camera}-{expid}.fits : raw extracted photons with no calibration at all 
+        2. sky-{camera}-{expid}.fits : the sky model in photons
+        3. fluxcalib-{camera}-{expid}.fits] : the flux calibration vectors
+        4. cframe-{camera}-{expid}.fits : flux calibrated spectra
+
+        These files are written to $simdir/{expid}
+
+    quickbrick mode (must provide brickname):
+
+        Simulate bricks (can provide anything as brick name):
+        'quickgen --brickname brick'
+
+        quickbrick output:
+        1. {brickname}-{camera}-{expid}.fits : flux calibrated spectra in bricks
+
+        These files are written to the current working directory by default
+
+    keyword arguments (descriptions below):
+
+        common to both modes:
+            nspec, config, seed, moon-phase, moon-angle, moon-zenith
+
+        quickgen only:
+            simspec, fibermap, nstart, spectrograph, frameonly
+
+        quickbrick only:
+            brickname, objtype, airmass, exptime, outdir, verbose, outdir-truth,
+            zrange-qso, zrange-elg, zrange-lrg, zrange-bgs, sne-rfluxratiorange,
+            add-SNeIa
+"""
 from __future__ import absolute_import, division, print_function
 
 import argparse
