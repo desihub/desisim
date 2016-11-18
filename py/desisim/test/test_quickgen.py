@@ -242,14 +242,13 @@ class TestQuickgen(unittest.TestCase):
         self.assertEqual(brick.get_num_spectra(), nspec)
         brick.close()
 
-
     #- Test quickgen with a bunch of options for bricks
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
     def test_quickgen_options_brick(self):
         brickname = 'test2'
         nspec = 7
         seed = np.random.randint(2**30)
-        cmd = "quickbrick --brickname {} --objtype BGS -n {} --outdir {} --seed {}".format(brickname, nspec, self.testdir, seed)
+        cmd = "quickbrick --brickname {} --objtype BGS -n {} --outdir {} --seed {}".format(brickname, nspec, self.testDir, seed)
         cmd = cmd + " --airmass 1.5 --verbose --zrange-bgs 0.1 0.2"
         cmd = cmd + " --moon-phase 0.1 --moon-angle 30 --moon-zenith 20"
         args = quickgen.parse(cmd.split()[1:])
