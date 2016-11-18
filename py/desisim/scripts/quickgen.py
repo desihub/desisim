@@ -24,7 +24,7 @@ Quickgen quickly simulates pipeline outputs if given input files or bricks:
         'quickgen --brickname brick'
 
         quickbrick output:
-        1. {brickname}-{camera}-{expid}.fits : flux calibrated spectra in bricks
+        1. brick-{arm}-{brickname}.fits : flux calibrated spectra in bricks
 
         These files are written to the current working directory by default
 
@@ -274,10 +274,10 @@ def main(args):
             exptime = 5. # typical BOSS exposure time in s
             fibarea = const.pi*(1.07e-2/2)**2 # cross-sectional fiber area in cm^2
             hc = 1.e17*const.h*const.c # convert to erg A
-            flux = (hc*exptime*fibarea*dw*phot)/wavelengths
+            spectra = (hc*exptime*fibarea*dw*phot)/wavelengths
         else:
             wavelengths = simspec.wave['brz']
-            flux = simspec.flux
+            spectra = simspec.flux
         if nspec < args.nspec:
             log.info("Only {} spectra in input file".format(nspec))
             args.nspec = nspec
@@ -285,6 +285,7 @@ def main(args):
 
     else:
         # Initialize the output truth table.
+        spectra = []
         wavelengths = qsim.source.wavelength_out.to(u.Angstrom).value
         npix = len(wavelengths)
         truth = dict()
@@ -510,6 +511,7 @@ def main(args):
     for j in range(args.nspec):
 
         if args.brickname:
+            spectra = truth['FLUX']
             # If objtype is QSO_BAD or TEST then simulate a star
             if (truth['OBJTYPE'][j] == 'MWS' or truth['OBJTYPE'][j] == 'MWS_STAR' or \
                 truth['OBJTYPE'][j] == 'STD' or truth['OBJTYPE'][j] == 'QSO_BAD' or \
@@ -519,20 +521,18 @@ def main(args):
                 thisobjtype = 'ELG' # TODO (@moustakas): Fix this!
             else:
                 thisobjtype = truth['OBJTYPE'][j]
+        else:
+            thisobjtype = objtype[j]
 
         sys.stdout.flush()
         if flavor == 'arc':
             qsim.source.update_in(
                 'Quickgen source {0}'.format, 'perfect',
-                wavelengths * u.Angstrom, flux * fluxunits)
-        elif args.brickname:
-            qsim.source.update_in(
-                'Quickbrick source {0}'.format(j), thisobjtype.lower(),
-                truth['WAVE'] * u.Angstrom, truth['FLUX'][j] * fluxunits)
+                wavelengths * u.Angstrom, spectra * fluxunits)
         else:
             qsim.source.update_in(
-                'Quickgen source {0}'.format(j), objtype[j].lower(),
-                wavelengths * u.Angstrom, flux[j, :] * fluxunits)
+                'Quickgen source {0}'.format(j), thisobjtype.lower(),
+                wavelengths * u.Angstrom, spectra[j, :] * fluxunits)
         qsim.source.update_out()
 
         qsim.simulate()
