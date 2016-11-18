@@ -637,12 +637,6 @@ def main(args):
                 start=max(500*ii,args.nstart) # first spectrum for a given spectrograph
                 end=min(500*(ii+1),nmax) # last spectrum for the spectrograph
 
-                # Output is either 1 only or all 4:
-                #1. frame file: (x3)
-                #2. cframe file (x3)
-                #3. skymodel file:(x3)
-                #4. flux calibration vector file (x3)
-
                 if (args.spectrograph <= ii):
                     camera = "{}{}".format(channel, ii)
                     log.info("Writing files for channel:{}, spectrograph:{}, spectra:{} to {}".format(channel,ii,start,end))
