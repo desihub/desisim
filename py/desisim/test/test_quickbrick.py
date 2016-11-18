@@ -58,7 +58,8 @@ class TestQuickBrick(unittest.TestCase):
     def test_quickbrick_options(self):
         brickname = 'test2'
         nspec = 5
-        cmd = "quickbrick -b {} --objtype BGS -n {} --outdir {}".format(brickname, nspec, self.testdir)
+        seed = np.random.randint(2**30)
+        cmd = "quickbrick -b {} --objtype BGS -n {} --outdir {} --seed {}".format(brickname, nspec, self.testdir, seed)
         cmd = cmd + " --airmass 1.5 --verbose --zrange-bgs 0.1 0.2"
         cmd = cmd + " --moon-phase 0.1 --moon-angle 30 --moon-zenith 20"
         args = quickbrick.parse(cmd.split()[1:])
@@ -83,7 +84,9 @@ class TestQuickBrick(unittest.TestCase):
             medflux = np.median(brick.flux, axis=1)
             mederr = np.median(1/np.sqrt(brick.ivar), axis=1)
             std = np.std(mederr - np.polyval(coeff[channel], medflux))
-            self.assertLess(std, 0.2)                        
+            if std > 0.2:
+                print(cmd)
+            self.assertLess(std, 0.2, 'noise model failed for channel {} seed {}'.format(channel, seed))
 
     #- Ensure that using --seed results in reproducible spectra
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
