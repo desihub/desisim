@@ -1,10 +1,32 @@
 """
-Quickgen quickly simulates pipeline outputs if given input files or bricks:
+Quickgen quickly simulates pipeline outputs if given input files or brickname
+This can be run in two distinct modes:
 
+  OPTION 1:
     quickgen mode (must provide simspec and fibermap files via newexp-desi):
+
+        Notes:
+        -Number of spectra to be simulated can be given as an argument for quickgen,
+         but the number of spectra in the simspec file is taken by default
+        -For this option, airmass and exposure time are keywords given to newexp-desi
+        -The keywords provided in the examples are all required, additional keywords
+         are provided below
 
         Collect a set of templates to simulate as a new exposure:
         'newexp-desi --nspec 500 --night 20150915 --expid 0 --flavor dark'
+
+            newexp-desi keyword arguments:
+            --flavor : arc/flat/dark/gray/bright/bgs/mws/elg/lrg/qso, type=str, default='dark'
+            --tileid : tile id, type=int
+            --expid : exposure id, type=int
+            --exptime : exposure time in seconds, default for arc = 5s, flat = 10s, dark/elg/lrg/qso=1000s, bright/bgs/mws=300s, type=int
+            --night : YEARMMDD, type=str
+            --nspec : Number of spectra to simulate, type=int, default=5000
+            --airmass : type=float, default=1.0
+            --seed : random number seed, type=int
+            --testslit : test slit simulation with fewer fibers, action="store_true"
+            --arc-lines : alternate arc lines filename, type=str, default=None
+            --flat-spectrum : alternate flat spectrum filename, type=str
 
         Actually do the simulation:
         'simdir=$DESI_SPECTRO_SIM/$PIXPROD/20150915'
@@ -18,7 +40,13 @@ Quickgen quickly simulates pipeline outputs if given input files or bricks:
 
         These files are written to $simdir/{expid}
 
-    quickbrick mode (must provide brickname):
+  OPTION 2:
+    "quickbrick" mode (must provide brickname):
+
+        Notes:
+        -Simulates 100 spectra by default, unless nspec keyword is provided
+        -For this option, airmass and exposure time are given directly to quickgen
+        -Brickname is the only required keyword
 
         Simulate bricks (can provide anything as brick name):
         'quickgen --brickname brick'
@@ -28,7 +56,7 @@ Quickgen quickly simulates pipeline outputs if given input files or bricks:
 
         These files are written to the current working directory by default
 
-    keyword arguments (descriptions below):
+  additional keyword arguments (descriptions below):
 
         common to both modes:
             nspec, config, seed, moon-phase, moon-angle, moon-zenith
