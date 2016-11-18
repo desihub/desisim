@@ -49,9 +49,10 @@ class TestObs(unittest.TestCase):
     @unittest.skipUnless(desi_root_available, '$DESI_ROOT not set')
     def test_newexp(self):
         night = '20150101'
+        seed = np.random.randint(2**30)
         #- flavors 'bgs' and 'bright' not yet implemented
         for expid, flavor in enumerate(['arc', 'flat', 'dark', 'mws']):
-            fibermap, true = obs.new_exposure(flavor, nspec=10, night=night, expid=expid)
+            fibermap, true = obs.new_exposure(flavor, nspec=10, night=night, expid=expid, seed=seed)
             simspecfile = io.findfile('simspec', night, expid=expid)
             self.assertTrue(os.path.exists(simspecfile))
             simspec = io.read_simspec(simspecfile)
@@ -80,8 +81,8 @@ class TestObs(unittest.TestCase):
                     self.assertTrue(maxsky < 1e5, 'suspiciously high {} sky flux ({}); wrong units?'.format(objtype, maxsky))
                     if objtype != 'SKY':
                         ### print('---> {} maxflux {}'.format(objtype, maxflux))
-                        self.assertTrue(maxflux > 0.01, 'suspiciously low {} flux ({}); wrong units?'.format(objtype, maxflux))
-                        self.assertTrue(maxflux < 1e5, 'suspiciously high {} flux ({}); wrong units?'.format(objtype, maxflux))
+                        self.assertTrue(maxflux > 0.01, 'suspiciously low {} flux ({}) using seed {}; wrong units?'.format(objtype, maxflux, seed))
+                        self.assertTrue(maxflux < 1e5, 'suspiciously high {} flux ({}) using seed {}; wrong units?'.format(objtype, maxflux, seed))
                     else:
                         self.assertTrue(np.all(flux[i] == 0.0))
 

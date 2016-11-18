@@ -2,10 +2,12 @@
 desisim change log
 ==================
 
-0.16.1 (unreleased)
+0.17.0 (unreleased)
 -------------------
 
 * fixes tests for use with latest desitarget master
+* Refactor quickgen and quickbrick to reduce duplicated code (PR #184)
+* Refactor quickcat
 
 0.16.0 (2016-11-10)
 -------------------

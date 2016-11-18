@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 
 """
-Simulate DESI spectrograph CCD images given input spectra using quickgen
+Simulate DESI spectra or bricks using quickgen
 """
 
 import sys
 from desisim.scripts import quickgen
-sys.exit(quickgen.main())
+if __name__ == '__main__':
+    args = quickgen.parse()
+    sys.exit(quickgen.main(args))
