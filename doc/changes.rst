@@ -2,10 +2,10 @@
 desisim change log
 ==================
 
-0.17.0 (unreleased)
+0.16.1 (unreleased)
 -------------------
 
-* No changes yet
+* fixes tests for use with latest desitarget master
 
 0.16.0 (2016-11-10)
 -------------------

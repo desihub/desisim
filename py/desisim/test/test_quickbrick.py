@@ -57,8 +57,9 @@ class TestQuickBrick(unittest.TestCase):
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
     def test_quickbrick_options(self):
         brickname = 'test2'
-        nspec = 5
-        cmd = "quickbrick -b {} --objtype BGS -n {} --outdir {}".format(brickname, nspec, self.testdir)
+        nspec = 7
+        seed = np.random.randint(2**30)
+        cmd = "quickbrick -b {} --objtype BGS -n {} --outdir {} --seed {}".format(brickname, nspec, self.testdir, seed)
         cmd = cmd + " --airmass 1.5 --verbose --zrange-bgs 0.1 0.2"
         cmd = cmd + " --moon-phase 0.1 --moon-angle 30 --moon-zenith 20"
         args = quickbrick.parse(cmd.split()[1:])
@@ -74,16 +75,23 @@ class TestQuickBrick(unittest.TestCase):
         #- in a new version, not to validate that this is actually the right
         #- error vs. flux model.
         coeff = dict()
-        coeff['b'] = [-2.211e-07, 4.490e-05, 1.525e-02, 7.282e+00]
-        coeff['r'] = [1.128e-07, -6.250e-05, 2.423e-02, 3.454e+00]
-        coeff['z'] = [1.394e-07, -7.618e-05, 2.476e-02, 1.953e+00]
+        coeff['b'] = [6.379e-08, -2.824e-05, 1.952e-02, 8.051e+00]
+        coeff['r'] = [6.683e-08, -4.537e-05, 2.230e-02, 3.767e+00]
+        coeff['z'] = [1.358e-07, -7.210e-05, 2.392e-02, 2.090e+00]
         for channel in ['b', 'r', 'z']:
             brickfile = '{}/brick-{}-{}.fits'.format(self.testdir, channel, brickname)
             brick = desispec.io.read_frame(brickfile)
             medflux = np.median(brick.flux, axis=1)
             mederr = np.median(1/np.sqrt(brick.ivar), axis=1)
-            std = np.std(mederr - np.polyval(coeff[channel], medflux))
-            self.assertLess(std, 0.2)                        
+            ii = (medflux<250)
+            if np.count_nonzero(ii) < 3:
+                print(cmd)
+                print('Too few points for stddev; skipping comparison')
+            else:
+                std = np.std(mederr[ii] - np.polyval(coeff[channel], medflux[ii]))
+                if std > 0.15:
+                    print(cmd)
+                    self.assertLess(std, 0.2, 'noise model failed for channel {} seed {}'.format(channel, seed))
 
     #- Ensure that using --seed results in reproducible spectra
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
