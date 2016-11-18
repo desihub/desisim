@@ -5,7 +5,8 @@ desisim change log
 0.17.0 (unreleased)
 -------------------
 
-* No changes yet
+* Refactor quickgen and quickbrick to reduce duplicated code (PR #184)
+* Refactor quickcat
 
 0.16.0 (2016-11-10)
 -------------------
