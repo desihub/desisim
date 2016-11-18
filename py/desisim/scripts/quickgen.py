@@ -281,7 +281,6 @@ def main(args):
         if nspec < args.nspec:
             log.info("Only {} spectra in input file".format(nspec))
             args.nspec = nspec
-        nwave = len(wavelengths)
 
     else:
         # Initialize the output truth table.
