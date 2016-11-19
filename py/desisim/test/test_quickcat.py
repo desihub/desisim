@@ -9,7 +9,8 @@ class TestQuickCat(unittest.TestCase):
     
     @classmethod
     def setUpClass(cls):
-        cls.tilefiles = ['tile-{:05d}.fits'.format(i) for i in range(4)]
+        mintile = 4
+        cls.tilefiles = ['tile-{:05d}.fits'.format(i+mintile) for i in range(4)]
         
         n = 20
         targets = Table()
@@ -34,7 +35,7 @@ class TestQuickCat(unittest.TestCase):
             fiberassign[i*5:(i+1)*5].write(filename)
             hdulist = fits.open(filename, mode='update')
             hdr = hdulist[1].header
-            hdr.set('TILEID', i)
+            hdr.set('TILEID', i+mintile)
             hdulist.close()
 
     #- Cleanup test files if they exist

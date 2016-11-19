@@ -281,6 +281,7 @@ def get_median_obsconditions(tileids):
     tiles = desimodel.io.load_tiles()
     tileids = np.asarray(tileids)
     ii = np.in1d(tiles['TILEID'], tileids)
+    
     tiles = tiles[ii]
     assert len(tiles) == len(tileids)
     
