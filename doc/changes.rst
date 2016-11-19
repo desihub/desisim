@@ -7,7 +7,8 @@ desisim change log
 
 * fixes tests for use with latest desitarget master
 * Refactor quickgen and quickbrick to reduce duplicated code (PR #184)
-* Refactor quickcat
+* Refactor quickcat to include dependency on observing conditions
+* Update quicksurvey to use observing conditions from surveysim
 
 0.16.0 (2016-11-10)
 -------------------
