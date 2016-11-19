@@ -360,6 +360,8 @@ def get_next_tileid(program='DARK'):
         tiles['PROGRAM'][tiles['PASS'] <= 3] = 'DARK'
         tiles['PROGRAM'][tiles['PASS'] == 4] = 'GRAY'
         tiles['PROGRAM'][tiles['PASS'] >= 5] = 'BRIGHT'
+    else:
+        tiles['PROGRAM'] = np.char.strip(tiles['PROGRAM'])    
 
     #- If obslog doesn't exist yet, start at tile 0
     dbfile = io.simdir()+'/etc/obslog.sqlite'
