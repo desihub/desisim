@@ -19,6 +19,9 @@ class TestQuickCat(unittest.TestCase):
         targets['DESI_TARGET'] = 2**np.random.randint(0,3,size=n)
         targets['BGS_TARGET'] = np.zeros(n, dtype=int)
         targets['MWS_TARGET'] = np.zeros(n, dtype=int)
+        isLRG = (targets['DESI_TARGET'] & desi_mask.LRG) != 0
+        isELG = (targets['DESI_TARGET'] & desi_mask.ELG) != 0
+        isQSO = (targets['DESI_TARGET'] & desi_mask.QSO) != 0
         cls.targets = targets
 
         #- Make a few of them BGS and MWS
@@ -28,6 +31,25 @@ class TestQuickCat(unittest.TestCase):
         targets['BGS_TARGET'][isBGS] = bgs_mask.BGS_BRIGHT
         targets['DESI_TARGET'][isMWS] = desi_mask.MWS_ANY
         targets['MWS_TARGET'][isMWS] = mws_mask.MWS_MAIN
+
+        #- Add some fake photometry; no attempt to get colors right
+        flux = np.zeros((n, 6))  #- ugrizY; DESI has grz
+        flux[isLRG, 1] = np.random.uniform(0, 1.0, np.count_nonzero(isLRG))
+        flux[isLRG, 2] = np.random.uniform(0, 5.0, np.count_nonzero(isLRG))
+        flux[isLRG, 4] = np.random.uniform(0, 5.0, np.count_nonzero(isLRG))
+        flux[isELG, 1] = np.random.uniform(0, 4.0, np.count_nonzero(isELG))
+        flux[isELG, 2] = np.random.uniform(0, 4.0, np.count_nonzero(isELG))
+        flux[isELG, 4] = np.random.uniform(0, 10.0, np.count_nonzero(isELG))
+        flux[isQSO, 1] = np.random.uniform(0, 4.0, np.count_nonzero(isQSO))
+        flux[isQSO, 2] = np.random.uniform(0, 4.0, np.count_nonzero(isQSO))
+        flux[isQSO, 4] = np.random.uniform(0, 6.0, np.count_nonzero(isQSO))
+        flux[isBGS, 1] = np.random.uniform(10, 600, np.count_nonzero(isBGS))
+        flux[isBGS, 2] = np.random.uniform(15, 1000, np.count_nonzero(isBGS))
+        flux[isBGS, 4] = np.random.uniform(10, 1400, np.count_nonzero(isBGS))
+        flux[isMWS, 1] = np.random.uniform(10, 150, np.count_nonzero(isMWS))
+        flux[isMWS, 2] = np.random.uniform(15, 350, np.count_nonzero(isMWS))
+        flux[isMWS, 4] = np.random.uniform(10, 1500, np.count_nonzero(isMWS))
+        targets['DECAM_FLUX'] = flux
 
         truth = Table()
         truth['TARGETID'] = targets['TARGETID']
@@ -41,7 +63,6 @@ class TestQuickCat(unittest.TestCase):
         starmask = desi_mask.mask('MWS_ANY|STD_FSTAR|STD_WD|STD_BRIGHT')
         ii = (targets['DESI_TARGET'] & starmask) != 0
         truth['TRUETYPE'][ii] = 'STAR'
-
 
         #- Add some fake [OII] fluxes for the ELGS
         isELG = (targets['DESI_TARGET'] & desi_mask.ELG) != 0

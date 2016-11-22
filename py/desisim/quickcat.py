@@ -182,6 +182,12 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
                 p_from_fluxes = simulated_eff[i]
                 p[i] *= p_from_fluxes
 
+    # CHRISTOPHE:
+    # The fluxes will be in targets['DECAM_FLUX'] as a 2D columns of ugrizY
+    # like the DR3 tractor/sweep files.  e.g.
+    #   g_flux = truth['DECAM_FLUX'][:,1]
+    #   g_mag = 22.5 - 2.5*np.log10(g_flux)
+
     if (obsconditions is None) and (flux is None): 
         raise Exception('Missing obsconditions and flux information to estimate redshift efficiency')
 
