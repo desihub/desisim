@@ -92,7 +92,7 @@ class TestQuickCat(unittest.TestCase):
             fiberassign[0:(i+1)*nx].write(filename)
             hdulist = fits.open(filename, mode='update')
             hdr = hdulist[1].header
-            hdr.set('TILEID', i+mintile)
+            hdr.set('TILEID', cls.tileids[i])
             hdulist.close()
 
     #- Cleanup test files if they exist

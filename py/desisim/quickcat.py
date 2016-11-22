@@ -493,7 +493,7 @@ def get_median_obsconditions(tileids):
     tiles = tiles[j[k]]
     assert np.all(tiles['TILEID'] == tileids)
 
-    #- fix type bug in desi-tiles.fits
+    #- fix type bug after reading desi-tiles.fits
     if tiles['OBSCONDITIONS'].dtype == np.float64:
         tiles = Table(tiles)
         tiles.replace_column('OBSCONDITIONS', tiles['OBSCONDITIONS'].astype(int))
