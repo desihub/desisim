@@ -18,6 +18,8 @@ import numpy as np
 from astropy.io import fits
 from astropy.table import Table, Column
 import sys
+import scipy.special as sp
+import desisim
 
 import astropy.constants
 c = astropy.constants.c.to('km/s').value
@@ -158,17 +160,81 @@ def get_redshift_efficiency(truetype, truez, targetid, targets_in_tile, obscondi
         # TODO. Christophe: this is the place to include your model, the goal is computing p_from_fluxes.
         # 'flux' is a dictionary. Add there all the things you need and we will figure it out upstream how
         # to get the information down here.
+
+        if (truetype == 'ELG'):
+            # Read the model OII flux threshold (FDR fig 7.12 modified to fit redmonster efficiency on OAK)
+            filename = "{:s}/data/quickcat_oII_flux_threshold.txt".format(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(desisim.__file__)))))
+            cols = read_text_file(filename)
+            fdr_z = np.array(cols[0]).astype(float)
+            modified_fdr_oii_flux_threshold = np.array(cols[1]).astype(float)
+            # Get OIIflux from dictionnary flux
+            if (flux.has_key('OIIFLUX')):
+                true_oii_flux = flux['OIIFLUX']
+                
+            # Computes OII flux thresholds for truez    
+            oii_flux_threshold = np.interp(truez,fdr_z,modified_fdr_oii_flux_threshold)
+            assert (oii_flux_threshold.size == true_oii_flux.size),"oii_flux_threshold and true_oii_flux should have the same size"
+            
+            # efficiency is modeled as a function of flux_OII/f_OII_threshold(z) and an arbitrary sigma_fudge
+            sigma_fudge = 1.0
+            simulated_eff = eff_model_elg(true_oii_flux/oii_flux_threshold,sigma_fudge)
+
         for i in range(n):
             t_id = targetid[i]
             if t_id in tiles_for_target.keys():
                 tiles = tiles_for_target[t_id]
-                p_from_fluxes = 1.0
+                p_from_fluxes = simulated_eff[i]
                 p[i] *= p_from_fluxes
-                    
+
     if (obsconditions is None) and (flux is None): 
         raise Exception('Missing obsconditions and flux information to estimate redshift efficiency')
 
     return p
+
+# Model for ELG efficiency
+def eff_model_elg(x,sigma):
+    return sp.erf(x/(np.sqrt(2.)*sigma))
+
+# Useful io routines (to be placed elsewhere)
+def read_text_file(filename):
+    file = open(filename,'r')
+
+    ndim = get_number_fields(file)
+    file.seek(0)
+    col = [[] for x in xrange(ndim)]
+
+    nline = get_number_lines(file)
+    file.seek(0)
+
+    il = 0
+    while (il < nline):
+        a = (file.readline()).split(" ")
+        for i in range(len(a)):
+            if (i == len(a)-1):
+                col[i].append(a[i][:-1])
+            else:
+                col[i].append(a[i])
+        il+=1
+
+    file.close()
+    return col
+
+def get_number_lines(file):
+    file.seek(0)
+    ic = 0
+    for line in file:
+        ic+=1
+    return ic
+
+def get_number_fields(file):
+    file.seek(0)
+    li = file.readline()
+    fields = li.split(" ")
+    return len(fields)
+
+
+
+
 
 def reverse_dictionary(a):
     """
@@ -234,8 +300,28 @@ def get_observed_redshifts(truetype, truez, targetid, targets_in_tile, obscondit
         if objtype in _sigma_v.keys():
             ii = (truetype == objtype)
             n = np.count_nonzero(ii)        
-            zerr[ii] = _sigma_v[objtype] * (1+truez[ii]) / c
-            zout[ii] += np.random.normal(scale=zerr[ii])
+#            zerr[ii] = _sigma_v[objtype] * (1+truez[ii]) / c
+#            zout[ii] += np.random.normal(scale=zerr[ii])
+            
+
+            # Error model for ELGs
+            if (objtype =='ELG'):
+                filename = "{:s}/data/quickcat_elg_oii_errz.txt".format(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(desisim.__file__)))))
+                cols = read_text_file(filename)
+                oii = np.array(cols[0]).astype(float) # in 1e16 erg/s/cm2 units
+                errz_oii = np.array(cols[1]).astype(float)
+
+                if (flux.has_key('OIIFLUX')):
+                    true_oii_flux = flux['OIIFLUX'].copy()
+                    true_oii_flux*=1.e16
+
+                mean_err_oii = np.interp(true_oii_flux,oii,errz_oii)
+
+                sign = np.random.choice([-1,1],size=truez[ii].size)
+
+                fudge=0.05
+                zerr[ii] = mean_err_oii*(1.+fudge*np.random.normal(size=mean_err_oii.size))
+                zout[ii] += sign*zerr[ii]*(1.+truez[ii])
 
             # the redshift efficiency only sets warning, but does not impact the redshift value and its error.
             if (obsconditions is not None) or (flux is not None):
@@ -331,6 +417,8 @@ def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
         ii = (fibassign['TARGETID'] != -1)  #- targets with assignments
         nobs.update(fibassign['TARGETID'][ii])
         targets_in_tile[tile_id] = fibassign['TARGETID'][ii]
+        
+#        print (targets_in_tile)
 
     #- Count how many times each target was observed in previous zcatalog
     #- NOTE: assumes that no tiles have been repeated
