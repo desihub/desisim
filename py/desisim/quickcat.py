@@ -14,6 +14,8 @@ from __future__ import absolute_import, division, print_function
 
 import os
 from collections import Counter
+from pkg_resources import resource_filename
+
 import numpy as np
 from astropy.io import fits
 from astropy.table import Table, Column
@@ -158,10 +160,9 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         
     if (simtype == 'ELG'):
         # Read the model OII flux threshold (FDR fig 7.12 modified to fit redmonster efficiency on OAK)
-        filename = "{:s}/data/quickcat_oII_flux_threshold.txt".format(os.path.dirname(os.path.abspath(desisim.__file__)))
-        cols = read_text_file(filename)
-        fdr_z = np.array(cols[0]).astype(float)
-        modified_fdr_oii_flux_threshold = np.array(cols[1]).astype(float)
+        filename = resource_filename('desisim', 'data/quickcat_elg_oii_flux_threshold.txt')
+        fdr_z, modified_fdr_oii_flux_threshold = np.loadtxt(filename, unpack=True)
+
         # Get OIIflux from dictionnary flux
         true_oii_flux = truth['OIIFLUX']
 
@@ -189,44 +190,6 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
 # Model for ELG efficiency
 def eff_model_elg(x,sigma):
     return sp.erf(x/(np.sqrt(2.)*sigma))
-
-# Useful io routines (to be placed elsewhere)
-def read_text_file(filename):
-    file = open(filename,'r')
-
-    ndim = get_number_fields(file)
-    file.seek(0)
-    col = [[] for x in range(ndim)]
-
-    nline = get_number_lines(file)
-    file.seek(0)
-
-    il = 0
-    while (il < nline):
-        a = (file.readline()).split(" ")
-        for i in range(len(a)):
-            if (i == len(a)-1):
-                col[i].append(a[i][:-1])
-            else:
-                col[i].append(a[i])
-        il+=1
-
-    file.close()
-    return col
-
-def get_number_lines(file):
-    file.seek(0)
-    ic = 0
-    for line in file:
-        ic+=1
-    return ic
-
-def get_number_fields(file):
-    file.seek(0)
-    li = file.readline()
-    fields = li.split(" ")
-    return len(fields)
-
 
 def reverse_dictionary(a):
     """
@@ -293,13 +256,9 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions=None):
 
             # Error model for ELGs
             if (objtype =='ELG'):
-                filename = "{:s}/data/quickcat_elg_oii_errz.txt".format(os.path.dirname(os.path.abspath(desisim.__file__)))
-                cols = read_text_file(filename)
-                oii = np.array(cols[0]).astype(float) # in 1e16 erg/s/cm2 units
-                errz_oii = np.array(cols[1]).astype(float)
-
-                #- TODO: standardize on 1e17 vs. 1e16
-                true_oii_flux = truth['OIIFLUX'][ii] * 1e16
+                filename = resource_filename('desisim', 'data/quickcat_elg_oii_errz.txt')
+                oii, errz_oii = np.loadtxt(filename, unpack=True)
+                true_oii_flux = truth['OIIFLUX'][ii]
                 mean_err_oii = np.interp(true_oii_flux,oii,errz_oii)
 
                 sign = np.random.choice([-1,1],size=np.count_nonzero(ii))

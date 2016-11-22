@@ -1,3 +1,7 @@
+# [OII] flux limit in erg/s/cm2 vs. redshift from FDR fig 7.12 modified
+# to fit redmonster efficiency on OAK
+#
+# redshift OIIFluxLimit
 0.000000 5.99608e-17
 0.001000 5.91074e-17
 0.002000 5.99879e-17
