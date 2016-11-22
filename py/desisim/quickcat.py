@@ -163,7 +163,7 @@ def get_redshift_efficiency(truetype, truez, targetid, targets_in_tile, obscondi
 
         if (truetype == 'ELG'):
             # Read the model OII flux threshold (FDR fig 7.12 modified to fit redmonster efficiency on OAK)
-            filename = "{:s}/data/quickcat_oII_flux_threshold.txt".format(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(desisim.__file__)))))
+            filename = "{:s}/data/quickcat_oII_flux_threshold.txt".format(os.path.dirname(os.path.abspath(desisim.__file__)))
             cols = read_text_file(filename)
             fdr_z = np.array(cols[0]).astype(float)
             modified_fdr_oii_flux_threshold = np.array(cols[1]).astype(float)
@@ -306,7 +306,7 @@ def get_observed_redshifts(truetype, truez, targetid, targets_in_tile, obscondit
 
             # Error model for ELGs
             if (objtype =='ELG'):
-                filename = "{:s}/data/quickcat_elg_oii_errz.txt".format(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(desisim.__file__)))))
+                filename = "{:s}/data/quickcat_elg_oii_errz.txt".format(os.path.dirname(os.path.abspath(desisim.__file__)))
                 cols = read_text_file(filename)
                 oii = np.array(cols[0]).astype(float) # in 1e16 erg/s/cm2 units
                 errz_oii = np.array(cols[1]).astype(float)
