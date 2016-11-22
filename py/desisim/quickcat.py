@@ -20,6 +20,7 @@ from astropy.table import Table, Column
 import sys
 import scipy.special as sp
 import desisim
+from desisim.targets import get_simtype
 
 import astropy.constants
 c = astropy.constants.c.to('km/s').value
@@ -33,6 +34,7 @@ from desitarget.targets import mws_mask
 _sigma_v = {
     'ELG': 19.,
     'LRG': 40.,
+    'BGS': 13.,
     'QSO': 423.,
     'STAR': 18.,
     'SKY': 9999,      #- meaningless
@@ -43,35 +45,33 @@ _zwarn_fraction = {
     'ELG': 0.14,       # 1 - 4303/5000
     'LRG': 0.015,      # 1 - 4921/5000
     'QSO': 0.18,       # 1 - 4094/5000
-    'STAR': 0.238,     # 1 - 3811/5000
+    'BGS': 0.01,
+    'STAR': 0.05,
     'SKY': 1.0,
     'UNKNOWN': 1.0,
 }
 
-def get_redshift_efficiency(truetype, truez, targetid, targets_in_tile, obsconditions=None, flux=None):
+def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditions=None):
     """
     Simple model to get the redshift effiency from the observational conditions or observed magnitudes+redshuft
     Args:
-       truetype: string, could be 'ELG', 'LRG', 'QSO', 'STAR', 'SKY', or 'UNKNOWN'
-       truez: array of true redshift values.
-       targets_in_tile: dictionary. Keys correspond to tileids, its values are the 
+        simtype: ELG, LRG, QSO, STAR, BGS
+        targets: target catalog table; currently used only for TARGETID
+        truth: truth table with OIIFLUX, TRUEZ
+        targets_in_tile: dictionary. Keys correspond to tileids, its values are the 
             arrays of targetids observed in that tile.
-
-       obsconditions: Dictionary with the observational conditions for every tile.
-           It inclues at least the following keys
+        obsconditions: table observing conditions with columns
            'TILEID': array of tile IDs
            'AIRMASS': array of airmass values on a tile
            'EBMV': array of E(B-V) values on a tile
            'LINTRANS': array of atmospheric transparency during spectro obs; floats [0-1]
            'MOONFRAC': array of moonfraction values on a tile.
            'SEEING': array of FWHM seeing during spectroscopic observation on a tile.
-       flux: Dictionary including the relevant flux values (TBD) to diagnose redshift efficiency.
            
     Outputs:
-    
         p: array marking the probability to get this redshift right. This must have the size of targetid.
     """
-
+    targetid = targets['TARGETID']
     n = len(targetid)
     p = np.ones(n)
 
@@ -82,7 +82,7 @@ def get_redshift_efficiency(truetype, truez, targetid, targets_in_tile, obscondi
         if t_id not in tiles_for_target.keys():
             p[i] = 0.0
 
-    if obsconditions is not None: # use this if we have obsconditions  information
+    if obsconditions is not None: # use this if we have obsconditions information
         we_have_a_model = True    
         
         p_v = [1.0, 0.0, 0.0]
@@ -91,8 +91,8 @@ def get_redshift_efficiency(truetype, truez, targetid, targets_in_tile, obscondi
         p_y = [1.0, 0.0, 0.0]
         p_z = [1.0, 0.0, 0.0]
         sigma_r = 0.0
-        p_total = 1.0
-        if(truetype=='LRG'):
+        p_total = 0.98
+        if(simtype=='LRG'):
             p_v = [1.0, 0.15, 0.5]
             p_w = [1.0, 0.4, 0.0]
             p_x = [1.0, 0.06, 0.05]
@@ -100,7 +100,7 @@ def get_redshift_efficiency(truetype, truez, targetid, targets_in_tile, obscondi
             p_z = [1.0, 0.0, 0.0]
             sigma_r = 0.02
             p_total = 0.95
-        elif(truetype=='QSO'):
+        elif(simtype=='QSO'):
             p_v = [1.0, -0.2, 0.3]
             p_w = [1.0, -0.5, 0.6]
             p_x = [1.0, -0.1, -0.075]
@@ -108,7 +108,7 @@ def get_redshift_efficiency(truetype, truez, targetid, targets_in_tile, obscondi
             p_z = [1.0, 0.0, 0.0]
             sigma_r = 0.05
             p_total = 0.90
-        elif(truetype=='ELG'):
+        elif(simtype=='ELG'):
             p_v = [1.0, -0.1, -0.2]
             p_w = [1.0, 0.25, -0.75]
             p_x = [1.0, 0.0, 0.05]
@@ -118,7 +118,7 @@ def get_redshift_efficiency(truetype, truez, targetid, targets_in_tile, obscondi
             p_total = 0.95
         else:
             print('WARNING in desisim.quickcat.get_redshift_efficiency()')
-            print('\t We are not modelling yet the redshift efficiency for type: {}. Set to 1.0'.format(truetype))
+            print('\t We are not modelling yet the redshift efficiency for type: {}. Set to {}'.format(simtype, p_total))
             we_have_a_model = False
 
 
@@ -156,29 +156,24 @@ def get_redshift_efficiency(truetype, truez, targetid, targets_in_tile, obscondi
                             p_final = p[i]
 
         
-    if flux is not None : # use this if we have flux information
-        # TODO. Christophe: this is the place to include your model, the goal is computing p_from_fluxes.
-        # 'flux' is a dictionary. Add there all the things you need and we will figure it out upstream how
-        # to get the information down here.
+    if (simtype == 'ELG'):
+        # Read the model OII flux threshold (FDR fig 7.12 modified to fit redmonster efficiency on OAK)
+        filename = "{:s}/data/quickcat_oII_flux_threshold.txt".format(os.path.dirname(os.path.abspath(desisim.__file__)))
+        cols = read_text_file(filename)
+        fdr_z = np.array(cols[0]).astype(float)
+        modified_fdr_oii_flux_threshold = np.array(cols[1]).astype(float)
+        # Get OIIflux from dictionnary flux
+        true_oii_flux = truth['OIIFLUX']
 
-        if (truetype == 'ELG'):
-            # Read the model OII flux threshold (FDR fig 7.12 modified to fit redmonster efficiency on OAK)
-            filename = "{:s}/data/quickcat_oII_flux_threshold.txt".format(os.path.dirname(os.path.abspath(desisim.__file__)))
-            cols = read_text_file(filename)
-            fdr_z = np.array(cols[0]).astype(float)
-            modified_fdr_oii_flux_threshold = np.array(cols[1]).astype(float)
-            # Get OIIflux from dictionnary flux
-            if (flux.has_key('OIIFLUX')):
-                true_oii_flux = flux['OIIFLUX']
-                
-            # Computes OII flux thresholds for truez    
-            oii_flux_threshold = np.interp(truez,fdr_z,modified_fdr_oii_flux_threshold)
-            assert (oii_flux_threshold.size == true_oii_flux.size),"oii_flux_threshold and true_oii_flux should have the same size"
-            
-            # efficiency is modeled as a function of flux_OII/f_OII_threshold(z) and an arbitrary sigma_fudge
-            sigma_fudge = 1.0
-            simulated_eff = eff_model_elg(true_oii_flux/oii_flux_threshold,sigma_fudge)
+        # Computes OII flux thresholds for truez
+        oii_flux_threshold = np.interp(truth['TRUEZ'],fdr_z,modified_fdr_oii_flux_threshold)
+        assert (oii_flux_threshold.size == true_oii_flux.size),"oii_flux_threshold and true_oii_flux should have the same size"
+        
+        # efficiency is modeled as a function of flux_OII/f_OII_threshold(z) and an arbitrary sigma_fudge
+        sigma_fudge = 1.0
+        simulated_eff = eff_model_elg(true_oii_flux/oii_flux_threshold,sigma_fudge)
 
+        #- this could be quite slow
         for i in range(n):
             t_id = targetid[i]
             if t_id in tiles_for_target.keys():
@@ -201,7 +196,7 @@ def read_text_file(filename):
 
     ndim = get_number_fields(file)
     file.seek(0)
-    col = [[] for x in xrange(ndim)]
+    col = [[] for x in range(ndim)]
 
     nline = get_number_lines(file)
     file.seek(0)
@@ -233,9 +228,6 @@ def get_number_fields(file):
     return len(fields)
 
 
-
-
-
 def reverse_dictionary(a):
     """
     Inverts a dictionary mapping.
@@ -260,49 +252,44 @@ def reverse_dictionary(a):
                 b[k].append(i[0])            
     return b
 
-def get_observed_redshifts(truetype, truez, targetid, targets_in_tile, obsconditions=None, flux=None):
+def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions=None):
     """
     Returns observed z, zerr, zwarn arrays given true object types and redshifts
 
     Args:       
-        truetype : array of ELG, LRG, QSO, STAR, SKY, or UNKNOWN
-        truez: array of true redshifts
-        targets_in_tile: Dictionary having as keys the tileid and the corresponding values the
-            array of targetids observed in that tile.
-        obsconditions: Dictionary with the observational conditions for every tile.
-            It inclues at least the following keys>
+        targets: target catalog table; currently used only for TARGETID
+        truth: truth table with OIIFLUX, TRUEZ
+        targets_in_tile: dictionary. Keys correspond to tileids, its values are the 
+            arrays of targetids observed in that tile.
+        obsconditions: table observing conditions with columns
            'TILEID': array of tile IDs
            'AIRMASS': array of airmass values on a tile
            'EBMV': array of E(B-V) values on a tile
            'LINTRANS': array of atmospheric transparency during spectro obs; floats [0-1]
            'MOONFRAC': array of moonfraction values on a tile.
            'SEEING': array of FWHM seeing during spectroscopic observation on a tile.
-       flux: Dictionary including the relevant flux values (TBD) to diagnose redshift efficiency.
            
     Returns tuple of (zout, zerr, zwarn)
 
     """
+    simtype = get_simtype(truth['TRUETYPE'], targets['DESI_TARGET'], targets['BGS_TARGET'], targets['MWS_TARGET'])
+    truez = truth['TRUEZ']
+    targetid = truth['TARGETID']
+
     zout = truez.copy()
     zerr = np.zeros(len(truez), dtype=np.float32)
     zwarn = np.zeros(len(truez), dtype=np.int32)
 
-
-    objtypes = list(set(truetype))
+    objtypes = list(set(simtype))
     n_tiles = len(obsconditions['TILEID'])
     
-    if(n_tiles!=len(targets_in_tile.keys())):
-        print('ERROR desisim.quickcat.get_observed_redshifts()')
-        print('\t Number of obsconditions different from targets_in_tile.')
-        sys.exit()
-
+    if(n_tiles!=len(targets_in_tile)):
+        raise ValueError('Number of obsconditions {} != len(targets_in_tile) {}'.format(n_tiles, len(targets_in_tile)))
 
     for objtype in objtypes:
         if objtype in _sigma_v.keys():
-            ii = (truetype == objtype)
+            ii = (simtype == objtype)
             n = np.count_nonzero(ii)        
-#            zerr[ii] = _sigma_v[objtype] * (1+truez[ii]) / c
-#            zout[ii] += np.random.normal(scale=zerr[ii])
-            
 
             # Error model for ELGs
             if (objtype =='ELG'):
@@ -311,21 +298,22 @@ def get_observed_redshifts(truetype, truez, targetid, targets_in_tile, obscondit
                 oii = np.array(cols[0]).astype(float) # in 1e16 erg/s/cm2 units
                 errz_oii = np.array(cols[1]).astype(float)
 
-                if (flux.has_key('OIIFLUX')):
-                    true_oii_flux = flux['OIIFLUX'].copy()
-                    true_oii_flux*=1.e16
-
+                #- TODO: standardize on 1e17 vs. 1e16
+                true_oii_flux = truth['OIIFLUX'][ii] * 1e16
                 mean_err_oii = np.interp(true_oii_flux,oii,errz_oii)
 
-                sign = np.random.choice([-1,1],size=truez[ii].size)
+                sign = np.random.choice([-1,1],size=np.count_nonzero(ii))
 
                 fudge=0.05
                 zerr[ii] = mean_err_oii*(1.+fudge*np.random.normal(size=mean_err_oii.size))
                 zout[ii] += sign*zerr[ii]*(1.+truez[ii])
+            else:
+                zerr[ii] = _sigma_v[objtype] * (1+truez[ii]) / c
+                zout[ii] += np.random.normal(scale=zerr[ii])    
 
             # the redshift efficiency only sets warning, but does not impact the redshift value and its error.
-            if (obsconditions is not None) or (flux is not None):
-                p_obs = get_redshift_efficiency(objtype, truez[ii], targetid[ii], targets_in_tile, obsconditions=obsconditions, flux=flux)            
+            if (obsconditions is not None):
+                p_obs = get_redshift_efficiency(objtype, targets[ii], truth[ii], targets_in_tile, obsconditions=obsconditions)
                 z_eff = p_obs.copy()            
                 r = np.random.random(n)
                 jj = r > z_eff
@@ -333,7 +321,7 @@ def get_observed_redshifts(truetype, truez, targetid, targets_in_tile, obscondit
                 zwarn_type[jj] = 4
                 zwarn[ii] = zwarn_type
 
-            elif(obsconditions is None) and (flux is None):
+            elif (obsconditions is None):
                 #- randomly select some objects to set zwarn
                 num_zwarn = int(_zwarn_fraction[objtype] * n)
                 if num_zwarn > 0:
@@ -341,9 +329,9 @@ def get_observed_redshifts(truetype, truez, targetid, targets_in_tile, obscondit
                     zwarn[jj] = 4
         else:
             print('WARNING desisim.quickcat.get_observed_redshifts()')
-            print('\t We dont have a model for objtype {}. Simply assigning a redshift from the truth table.'.format(objtype))
-            
-            
+            print('\tWe dont have a model for objtype {}. Simply assigning a redshift from the truth table.'.format(objtype))
+            print('\tKnown types {}'.format(list(_sigma_v.keys())))
+
     return zout, zerr, zwarn
 
 
@@ -397,8 +385,6 @@ def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
     Returns:
         zcatalog astropy Table based upon input truth, plus ZERR, ZWARN,
         NUMOBS, and TYPE columns
-
-    TODO: Add BGS, MWS support
     """
     #- convert to Table for easier manipulation
     truth = Table(truth)
@@ -445,7 +431,6 @@ def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
         newzcat['BRICKNAME'] = np.zeros(len(truth), dtype=(str, 8))
 
     #- Copy TRUEZ -> Z so that we can add errors without altering original
-    newzcat['Z'] = truth['TRUEZ'].copy()
     newzcat['SPECTYPE'] = truth['TRUETYPE'].copy()
 
     #- Add numobs column
@@ -457,30 +442,19 @@ def quickcat(tilefiles, targets, truth, zcat=None, perfect=False):
 
     #- Add ZERR and ZWARN
     ### print('Adding ZERR and ZWARN')
-    if not perfect:
-        #- GALAXY -> ELG, LRG, BGS
-        objtype = newzcat['SPECTYPE'].copy()
-        isLRG = (objtype == 'GALAXY') & ((targets['DESI_TARGET'] & desi_mask.LRG) != 0)
-        isELG = (objtype == 'GALAXY') & ((targets['DESI_TARGET'] & desi_mask.ELG) != 0)
-        isBGS = (objtype == 'GALAXY') & ((targets['DESI_TARGET'] & bgs_mask.BGS_BRIGHT) != 0)
-        isBGS |= (objtype == 'GALAXY') & ((targets['DESI_TARGET'] & bgs_mask.BGS_FAINT) != 0)
-        objtype[isLRG] = 'LRG'
-        objtype[isELG] = 'ELG'
-        objtype[isBGS] = 'BGS'
-
-        #get the observational conditions for the current tilefiles
+    if perfect:
+        newzcat['Z'] = truth['TRUEZ'].copy()
+        newzcat['ZERR'] = np.zeros(nz, dtype=np.float32)
+        newzcat['ZWARN'] = np.zeros(nz, dtype=np.int32)
+    else:
+        # get the observational conditions for the current tilefiles
         obsconditions = get_obsconditions(tilefiles)
 
-        #get the redshifts
-        z, zerr, zwarn = get_observed_redshifts(objtype, newzcat['Z'], newzcat['TARGETID'], targets_in_tile, obsconditions)
-
+        # get the redshifts
+        z, zerr, zwarn = get_observed_redshifts(targets, truth, targets_in_tile, obsconditions)
         newzcat['Z'] = z  #- update with noisy redshift
-    else:
-        zerr = np.zeros(nz, dtype=np.float32)
-        zwarn = np.zeros(nz, dtype=np.int32)
-
-    newzcat['ZERR'] = zerr
-    newzcat['ZWARN'] = zwarn
+        newzcat['ZERR'] = zerr
+        newzcat['ZWARN'] = zwarn
 
     #- Metadata for header
     newzcat.meta['EXTNAME'] = 'ZCATALOG'
