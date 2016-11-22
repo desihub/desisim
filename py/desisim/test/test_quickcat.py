@@ -4,21 +4,24 @@ import unittest
 from astropy.table import Table, Column
 from astropy.io import fits
 from desisim.quickcat import quickcat
+import desimodel.io
 
 class TestQuickCat(unittest.TestCase):
     
     @classmethod
     def setUpClass(cls):
-        mintile = 4
-        cls.tilefiles = ['tile-{:05d}.fits'.format(i+mintile) for i in range(4)]
-        
-        n = 20
+        cls.ntiles = 4
+        cls.tileids = desimodel.io.load_tiles()['TILEID'][0:cls.ntiles]
+        cls.tilefiles = ['tile-{:05d}.fits'.format(i) for i in cls.tileids]
+
+        n = 5*cls.ntiles
         targets = Table()
         targets['DESI_TARGET'] = 2**np.random.randint(0,3,size=n)
+        targets['TARGETID'] = np.random.randint(0,2**60, size=n)
         cls.targets = targets
         
         truth = Table()
-        truth['TARGETID'] = np.random.randint(0,2**60, size=n)
+        truth['TARGETID'] = targets['TARGETID']
         truth['TRUEZ'] = np.random.uniform(0, 1.5, size=n)
         truth['TRUETYPE'] = np.zeros(n, dtype=(str, 10))
         truth['GMAG'] = np.random.uniform(18.0, 24.0, size=n)
@@ -31,11 +34,12 @@ class TestQuickCat(unittest.TestCase):
         fiberassign['RA'] = np.random.uniform(0,5, size=n)
         fiberassign['DEC'] = np.random.uniform(0,5, size=n)
         fiberassign.meta['EXTNAME'] = 'FIBER_ASSIGNMENTS'
-        for i, filename in enumerate(cls.tilefiles):
+        for i in range(cls.ntiles):
+            filename = cls.tilefiles[i]
             fiberassign[i*5:(i+1)*5].write(filename)
             hdulist = fits.open(filename, mode='update')
             hdr = hdulist[1].header
-            hdr.set('TILEID', i+mintile)
+            hdr.set('TILEID', cls.tileids[i])
             hdulist.close()
 
     #- Cleanup test files if they exist
@@ -48,6 +52,7 @@ class TestQuickCat(unittest.TestCase):
     def test_quickcat(self):
         #- First round of obs: perfect input z -> output z
         zcat1 = quickcat(self.tilefiles[0:2], self.targets, truth=self.truth, perfect=True)
+
         self.assertTrue(np.all(zcat1['TARGETID'] == self.truth['TARGETID'][0:10]))
         self.assertTrue(np.all(zcat1['Z'] == self.truth['TRUEZ'][0:10]))
         self.assertTrue(np.all(zcat1['ZWARN'] == 0))
