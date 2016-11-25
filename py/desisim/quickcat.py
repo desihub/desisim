@@ -163,8 +163,11 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         filename = resource_filename('desisim', 'data/quickcat_elg_oii_flux_threshold.txt')
         fdr_z, modified_fdr_oii_flux_threshold = np.loadtxt(filename, unpack=True)
 
-        # Get OIIflux from dictionnary flux
-        true_oii_flux = truth['OIIFLUX']
+        # Get OIIflux from truth
+        try:
+            true_oii_flux = truth['OIIFLUX']
+        except:
+            raise Exception('Missing OII flux information to estimate redshift efficiency for ELGs')
 
         # Computes OII flux thresholds for truez
         oii_flux_threshold = np.interp(truth['TRUEZ'],fdr_z,modified_fdr_oii_flux_threshold)
@@ -172,7 +175,69 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         
         # efficiency is modeled as a function of flux_OII/f_OII_threshold(z) and an arbitrary sigma_fudge
         sigma_fudge = 1.0
-        simulated_eff = eff_model_elg(true_oii_flux/oii_flux_threshold,sigma_fudge)
+        max_efficiency = 1.0
+        simulated_eff = eff_model(true_oii_flux/oii_flux_threshold,sigma_fudge,max_efficiency)
+
+        #- this could be quite slow
+        for i in range(n):
+            t_id = targetid[i]
+            if t_id in tiles_for_target.keys():
+                tiles = tiles_for_target[t_id]
+                p_from_fluxes = simulated_eff[i]
+                p[i] *= p_from_fluxes
+                
+
+    if(simtype == 'LRG'):
+        # Read the model rmag efficiency
+        filename = resource_filename('desisim', 'data/quickcat_lrg_rmag_eff.txt')
+        magr, magr_eff = np.loadtxt(filename, unpack=True)
+
+        # Get Rflux from truth
+        try:
+            true_rflux = targets['DECAM_FLUX'][:,2]
+        except:
+            raise Exception('Missing Rmag information to estimate redshift efficiency for LRGs')
+
+        r_mag = 22.5 - 2.5*np.log10(true_rflux) 
+
+        mean_eff_mag=np.interp(r_mag,magr,magr_eff)
+        fudge=0.002
+        max_efficiency = 0.98
+        simulated_eff = max_efficiency*mean_eff_mag*(1.+fudge*np.random.normal(size=mean_eff_mag.size))
+        simulated_eff[np.where(simulated_eff>max_efficiency)]=max_efficiency
+        print ("simulated_eff",simulated_eff)
+
+        #- this could be quite slow                                                                                                                                                                     
+        for i in range(n):
+            t_id = targetid[i]
+            if t_id in tiles_for_target.keys():
+                tiles = tiles_for_target[t_id]
+                p_from_fluxes = simulated_eff[i]
+                p[i] *= p_from_fluxes
+
+    if(simtype == 'QSO'):
+        # Read the model gmag threshold
+        filename = resource_filename('desisim', 'data/quickcat_qso_gmag_threshold.txt')
+        zc, qso_gmag_threshold_vs_z = np.loadtxt(filename, unpack=True)
+        
+        # Get Gflux from truth
+        try:
+            true_gmag = targets['DECAM_FLUX'][:,1]
+        except:
+            raise Exception('Missing Gmag information to estimate redshift efficiency for QSOs')
+
+        # Computes QSO mag thresholds for truez
+        qso_gmag_threshold=np.interp(truth['TRUEZ'],zc,qso_gmag_threshold_vs_z)
+        assert (qso_gmag_threshold.size == true_gmag.size),"qso_gmagthreshold and true_gmag should have the same size"
+
+        # Computes G flux
+        qso_true_normed_flux = 10**(-0.4*(true_gmag-qso_gmag_threshold))
+
+        #model effificieny for QSO:
+        sigma_fudge = 0.5
+        max_efficiency = 0.95
+        simulated_eff = eff_model(qso_true_normed_flux/qso_gmag_threshold,sigma_fudge,max_efficiency)
+        
 
         #- this could be quite slow
         for i in range(n):
@@ -188,14 +253,14 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
     #   g_flux = truth['DECAM_FLUX'][:,1]
     #   g_mag = 22.5 - 2.5*np.log10(g_flux)
 
-    if (obsconditions is None) and (flux is None): 
+    if (obsconditions is None) and (truth['OIIFLUX'] is None) and (targets['DECAM_FLUX'] is None): 
         raise Exception('Missing obsconditions and flux information to estimate redshift efficiency')
 
     return p
 
-# Model for ELG efficiency
-def eff_model_elg(x,sigma):
-    return sp.erf(x/(np.sqrt(2.)*sigma))
+# Efficiency model
+def eff_model(x, sigma, max_efficiency):
+    return 0.5*max_efficiency*(1.+sp.erf((x-1)/(np.sqrt(2.)*sigma)))
 
 def reverse_dictionary(a):
     """
@@ -241,6 +306,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions=None):
     Returns tuple of (zout, zerr, zwarn)
 
     """
+    
     simtype = get_simtype(truth['TRUETYPE'], targets['DESI_TARGET'], targets['BGS_TARGET'], targets['MWS_TARGET'])
     truez = truth['TRUEZ']
     targetid = truth['TARGETID']
@@ -270,11 +336,96 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions=None):
                 sign = np.random.choice([-1,1],size=np.count_nonzero(ii))
 
                 fudge=0.05
-                zerr[ii] = mean_err_oii*(1.+fudge*np.random.normal(size=mean_err_oii.size))
-                zout[ii] += sign*zerr[ii]*(1.+truez[ii])
+                zerr[ii] = mean_err_oii*(1.+fudge*np.random.normal(size=mean_err_oii.size))*(1.+truez[ii])
+                zout[ii] += sign*zerr[ii]
+
+            # Error model for LRGs
+            elif (objtype == 'LRG'):
+                redbins=np.linspace(0.55,1.1,5)
+                mag = np.linspace(20.5,23.,50)
+                true_magr=targets['DECAM_FLUX'][ii,2]
+                coefs = [[9.46882282e-05,-1.87022383e-03],[6.14601021e-05,-1.17406643e-03],\
+                             [8.85342362e-05,-1.76079966e-03],[6.96202042e-05,-1.38632104e-03]]
+
+                '''
+                Coefs of linear fit of LRG zdc1 redmonster error as a function of Rmag in 4 bins of redshift: (z_low,coef0,coef1)
+                0.55 9.4688228224e-05 -0.00187022382514
+                0.6875 6.14601021052e-05 -0.00117406643273
+                0.825 8.85342361594e-05 -0.00176079966322
+                0.9625 6.96202042482e-05 -0.00138632103551
+                '''
+                
+                fudge=0.02 
+                # for each redshift bin, select the corresponding coefs
+                for i in range(redbins.size-1):
+                    index0, = np.where((truez[ii]>redbins[i]) & (truez[ii]<redbins[i+1]))
+                    if (i==0):
+                        index1, = np.where(truez[ii]<redbins[0])
+                        index = np.concatenate((index0,index1))
+                    elif (i==(redbins.size-2)):
+                        index1, = np.where(truez[ii]>redbins[-1])
+                        index = np.concatenate((index0,index1))
+                    else:
+                        index=index0
+
+                    # Find mean error at true mag 
+                    pol = np.poly1d(coefs[i])
+                    mean_err_mag=np.interp(true_magr[index],mag,pol(mag))
+                    
+                    # Computes output error and redshift
+                    sign = np.random.choice([-1,1],size=len(truez[ii]))
+                    zerr_tmp = np.zeros(len(truez[ii]))
+                    zerr_tmp[index] = mean_err_mag*(1.+fudge*np.random.normal(size=mean_err_mag.size))*(1.+truez[ii][index])
+
+                    zerr[ii]=zerr_tmp
+                    zout[ii] += sign*zerr_tmp
+
+
+            # Error model for QSOs
+            elif (objtype == 'QSO'):
+                redbins = np.linspace(0.5,3.5,7)
+                mag = np.linspace(21.,23.,50)
+                true_magg=targets['DECAM_FLUX'][ii,1]
+                coefs = [[0.000156950059747,-0.00320719603886],[0.000461779391179,-0.00924485142818],\
+                             [0.000458672517009,-0.0091254038977],[0.000461427968475,-0.00923812594293],\
+                             [0.000312919487343,-0.00618137905849],[0.000219438845624,-0.00423782927109]]
+                '''
+                Coefs of linear fit of QSO zdc1 redmonster error as a function of Gmag in 6 bins of redshift: (z_low,coef0,coef1)
+                0.5 0.000156950059747 -0.00320719603886
+                1.0 0.000461779391179 -0.00924485142818
+                1.5 0.000458672517009 -0.0091254038977
+                2.0 0.000461427968475 -0.00923812594293
+                2.5 0.000312919487343 -0.00618137905849
+                3.0 0.000219438845624 -0.00423782927109
+                '''
+                
+                fudge=0.02
+                # for each redshift bin, select the corresponding coefs
+                for i in range(redbins.size-1):
+                    index0, = np.where((truez[ii]>redbins[i]) & (truez[ii]<redbins[i+1]))
+                    if (i==0): 
+                        index1, = np.where(truez[ii]<redbins[0])
+                        index = np.concatenate((index0,index1))
+                    elif (i==(redbins.size-2)):
+                        index1, = np.where(truez[ii]>redbins[-1])
+                        index = np.concatenate((index0,index1))
+                    else:
+                        index=index0
+                    # Find mean error at true mag    
+                    pol = np.poly1d(coefs[i])
+                    mean_err_mag=np.interp(true_magg[index],mag,pol(mag))
+                    
+                    # Computes output error and redshift 
+                    sign = np.random.choice([-1,1],size=len(truez[ii]))
+                    zerr_tmp = np.zeros(len(truez[ii]))
+                    zerr_tmp[index] = mean_err_mag*(1.+fudge*np.random.normal(size=mean_err_mag.size))*(1.+truez[ii][index])
+                    zerr[ii]=zerr_tmp
+                    zout[ii] += sign*zerr_tmp
+            
             else:
                 zerr[ii] = _sigma_v[objtype] * (1+truez[ii]) / c
-                zout[ii] += np.random.normal(scale=zerr[ii])    
+                zout[ii] += np.random.normal(scale=zerr[ii])
+
 
             # the redshift efficiency only sets warning, but does not impact the redshift value and its error.
             if (obsconditions is not None):
@@ -285,6 +436,10 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions=None):
                 zwarn_type = np.zeros(n, dtype=np.int32)
                 zwarn_type[jj] = 4
                 zwarn[ii] = zwarn_type
+
+                # Add fraction of catastrophic failures
+                
+
 
             elif (obsconditions is None):
                 #- randomly select some objects to set zwarn
