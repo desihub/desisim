@@ -228,7 +228,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
 
         # Computes QSO mag thresholds for truez
         qso_gmag_threshold=np.interp(truth['TRUEZ'],zc,qso_gmag_threshold_vs_z)
-        assert (qso_gmag_threshold.size == true_gmag.size),"qso_gmagthreshold and true_gmag should have the same size"
+        assert (qso_gmag_threshold.size == true_gmag.size),"qso_gmag_threshold and true_gmag should have the same size"
 
         # Computes G flux
         qso_true_normed_flux = 10**(-0.4*(true_gmag-qso_gmag_threshold))
