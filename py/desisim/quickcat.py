@@ -444,7 +444,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions=None):
             # the redshift efficiency only sets warning, but does not impact the redshift value and its error.
             if (obsconditions is not None):
                 p_obs = get_redshift_efficiency(objtype, targets[ii], truth[ii], targets_in_tile, obsconditions=None)
-                z_eff = p_obs.copy()            
+                z_eff = p_obs.copy()
                 r = np.random.random(n)
                 jj = r > z_eff
                 zwarn_type = np.zeros(n, dtype=np.int32)
