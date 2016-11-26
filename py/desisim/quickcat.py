@@ -53,6 +53,19 @@ _zwarn_fraction = {
     'UNKNOWN': 1.0,
 }
 
+
+_cata_fail_fraction = {
+   # Catastrophic error fractions from redmonster on oak (ELG, LRG, QSO)
+    'ELG': 0.08,       
+    'LRG': 0.013,      
+    'QSO': 0.20,
+    'BGS': 0., 
+    'STAR': 0.,
+    'SKY': 0.,
+    'UNKNOWN': 0.,
+}
+
+
 def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditions=None):
     """
     Simple model to get the redshift effiency from the observational conditions or observed magnitudes+redshuft
@@ -205,7 +218,6 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         max_efficiency = 0.98
         simulated_eff = max_efficiency*mean_eff_mag*(1.+fudge*np.random.normal(size=mean_eff_mag.size))
         simulated_eff[np.where(simulated_eff>max_efficiency)]=max_efficiency
-        print ("simulated_eff",simulated_eff)
 
         #- this could be quite slow                                                                                                                                                                     
         for i in range(n):
@@ -236,8 +248,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         #model effificieny for QSO:
         sigma_fudge = 0.5
         max_efficiency = 0.95
-        simulated_eff = eff_model(qso_true_normed_flux/qso_gmag_threshold,sigma_fudge,max_efficiency)
-        
+        simulated_eff = eff_model(qso_true_normed_flux,sigma_fudge,max_efficiency)
 
         #- this could be quite slow
         for i in range(n):
@@ -421,6 +432,9 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions=None):
                     zerr_tmp[index] = mean_err_mag*(1.+fudge*np.random.normal(size=mean_err_mag.size))*(1.+truez[ii][index])
                     zerr[ii]=zerr_tmp
                     zout[ii] += sign*zerr_tmp
+
+
+
             
             else:
                 zerr[ii] = _sigma_v[objtype] * (1+truez[ii]) / c
@@ -429,7 +443,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions=None):
 
             # the redshift efficiency only sets warning, but does not impact the redshift value and its error.
             if (obsconditions is not None):
-                p_obs = get_redshift_efficiency(objtype, targets[ii], truth[ii], targets_in_tile, obsconditions=obsconditions)
+                p_obs = get_redshift_efficiency(objtype, targets[ii], truth[ii], targets_in_tile, obsconditions=None)
                 z_eff = p_obs.copy()            
                 r = np.random.random(n)
                 jj = r > z_eff
@@ -438,8 +452,15 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions=None):
                 zwarn[ii] = zwarn_type
 
                 # Add fraction of catastrophic failures
+                num_cata = int(_cata_fail_fraction[objtype] * n)
+                if (objtype == 'ELG'): zlim=[0.6,1.7]
+                elif (objtype == 'LRG'): zlim=[0.5,1.1]
+                elif (objtype == 'QSO'): zlim=[0.5,3.5]
+                if num_cata > 0:
+                    jj, = np.where(zwarn[ii]==0)
+                    index = np.random.choice(jj, size=num_cata, replace=False)
+                    zout[index] = np.random.uniform(zlim[0],zlim[1],len(index)) 
                 
-
 
             elif (obsconditions is None):
                 #- randomly select some objects to set zwarn
