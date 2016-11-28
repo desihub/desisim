@@ -191,15 +191,6 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         max_efficiency = 1.0
         simulated_eff = eff_model(true_oii_flux/oii_flux_threshold,sigma_fudge,max_efficiency)
 
-        #- this could be quite slow
-        for i in range(n):
-            t_id = targetid[i]
-            if t_id in tiles_for_target.keys():
-                tiles = tiles_for_target[t_id]
-                p_from_fluxes = simulated_eff[i]
-                p[i] *= p_from_fluxes
-                
-
     if(simtype == 'LRG'):
         # Read the model rmag efficiency
         filename = resource_filename('desisim', 'data/quickcat_lrg_rmag_eff.txt')
@@ -218,14 +209,6 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         max_efficiency = 0.98
         simulated_eff = max_efficiency*mean_eff_mag*(1.+fudge*np.random.normal(size=mean_eff_mag.size))
         simulated_eff[np.where(simulated_eff>max_efficiency)]=max_efficiency
-
-        #- this could be quite slow                                                                                                                                                                     
-        for i in range(n):
-            t_id = targetid[i]
-            if t_id in tiles_for_target.keys():
-                tiles = tiles_for_target[t_id]
-                p_from_fluxes = simulated_eff[i]
-                p[i] *= p_from_fluxes
 
     if(simtype == 'QSO'):
         # Read the model gmag threshold
@@ -250,19 +233,13 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         max_efficiency = 0.95
         simulated_eff = eff_model(qso_true_normed_flux,sigma_fudge,max_efficiency)
 
-        #- this could be quite slow
-        for i in range(n):
-            t_id = targetid[i]
-            if t_id in tiles_for_target.keys():
-                tiles = tiles_for_target[t_id]
-                p_from_fluxes = simulated_eff[i]
-                p[i] *= p_from_fluxes
-
-    # CHRISTOPHE:
-    # The fluxes will be in targets['DECAM_FLUX'] as a 2D columns of ugrizY
-    # like the DR3 tractor/sweep files.  e.g.
-    #   g_flux = truth['DECAM_FLUX'][:,1]
-    #   g_mag = 22.5 - 2.5*np.log10(g_flux)
+    #- this could be quite slow    
+    for i in range(n):
+        t_id = targetid[i]
+        if t_id in tiles_for_target.keys():
+            tiles = tiles_for_target[t_id]
+            p_from_fluxes = simulated_eff[i]
+            p[i] *= p_from_fluxes
 
     if (obsconditions is None) and (truth['OIIFLUX'] is None) and (targets['DECAM_FLUX'] is None): 
         raise Exception('Missing obsconditions and flux information to estimate redshift efficiency')
