@@ -105,10 +105,17 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         p_x = [1.0, 0.0, 0.0]
         p_y = [1.0, 0.0, 0.0]
         p_z = [1.0, 0.0, 0.0]
+        p_v_1 = [1.0, 0.0, 0.0]
+        p_w_1 = [1.0, 0.0, 0.0]
+        p_x_1 = [1.0, 0.0, 0.0]
+        p_y_1 = [1.0, 0.0, 0.0]
+        p_z_1 = [1.0, 0.0, 0.0]
         sigma_r = 0.0
         p_total = 0.98
+        sigma_r_1 = 0.0
+        p_total_1 = 1.0
         if(simtype=='LRG'):
-            p_v = [1.0, 0.15, 0.5]
+            p_v = [1.0, 0.15, -0.5]
             p_w = [1.0, 0.4, 0.0]
             p_x = [1.0, 0.06, 0.05]
             p_y = [1.0, 0.0, 0.08]
@@ -116,7 +123,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
             sigma_r = 0.02
             p_total = 0.95
         elif(simtype=='QSO'):
-            p_v = [1.0, -0.2, 0.3]
+            p_v = [1.0, -0.1, 0.2]
             p_w = [1.0, -0.5, 0.6]
             p_x = [1.0, -0.1, -0.075]
             p_y = [1.0, -0.08, -0.04]
@@ -129,8 +136,18 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
             p_x = [1.0, 0.0, 0.05]
             p_y = [1.0, 0.2, 0.1]
             p_z = [1.0, -10.0, 300.0]
-            sigma_r = 0.02
-            p_total = 0.95
+            sigma_r = 0.075
+            p_total = 0.8
+
+            p_v_1 = [1.0, 0.45, 0.45]
+            p_w_1 = [1.0, 1., -1.5]
+            p_x_1 = [1.0, 0.1, 0.3]
+            p_y_1 = [1.0, -0.2, -0.1]
+            p_z_1 = [1.0, 40.0, -1200.0]
+            sigma_r_1 = 0.1
+            p_total_1 = 1.0
+
+
         else:
             print('WARNING in desisim.quickcat.get_redshift_efficiency()')
             print('\t We are not modelling yet the redshift efficiency for type: {}. Set to {}'.format(simtype, p_total))
@@ -139,38 +156,89 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
 
         if we_have_a_model:
             normal_values = np.random.normal(size=len(obsconditions['TILEID'])) # set of normal values across tiles
+            print ("normal_values",normal_values)
+
+            for key in obsconditions.keys():
+                print (key,obsconditions[key])
+
+            # Computes means of obsconditions
+            airmass_mean = np.mean(obsconditions['AIRMASS'])
+            airmass_mean2 = np.mean(obsconditions['AIRMASS']**2)
+            print ("A, A2",airmass_mean,airmass_mean2)
+            ebmv_mean = np.mean(obsconditions['EBMV'])
+            ebmv_mean2 = np.mean(obsconditions['EBMV']**2)
+            seeing_mean = np.mean(obsconditions['SEEING'])
+            seeing_mean2 = np.mean(obsconditions['SEEING']**2)
+            lintrans_mean = np.mean(obsconditions['LINTRANS'])
+            lintrans_mean2 = np.mean(obsconditions['LINTRANS']**2)
+            moonfrac_mean = np.mean(obsconditions['MOONFRAC'])
+            moonfrac_mean2 = np.mean(obsconditions['MOONFRAC']**2)
+
             for i in range(n):
                 t_id = targetid[i]
                 if t_id in tiles_for_target.keys():
                     tiles = tiles_for_target[t_id]
                     p_final = 0.0 # just in case a target is found in multiple tiles
+
                     for tileid in tiles:            
                         ii = (obsconditions['TILEID'] == tileid)
+                        '''
+                        v = obsconditions['AIRMASS'][ii] - airmass_mean
+                        pv  = p_v[0] + p_v[1] * v + p_v[2] * (v**2 - airmass_mean2) 
                         
-                        v = obsconditions['AIRMASS'][ii] - np.mean(obsconditions['AIRMASS'])
-                        pv  = p_v[0] + p_v[1] * v + p_v[2] * (v**2 - np.mean(obsconditions['AIRMASS']**2))
+                        w = obsconditions['EBMV'][ii] - ebmv_mean
+                        pw = p_w[0] + p_w[1] * w + p_w[2] * (w**2 - ebmv_mean2)
                         
-                        w = obsconditions['EBMV'][ii] - np.mean(obsconditions['EBMV'])
-                        pw = p_w[0] + p_w[1] * w + p_w[2] * (w**2 - np.mean(obsconditions['EBMV']**2))
+                        x = obsconditions['SEEING'][ii] - seeing_mean
+                        px = p_x[0] + p_x[1]*x + p_x[2] * (x**2 - seeing_mean2)
                         
-                        x = obsconditions['SEEING'][ii] - np.mean(obsconditions['SEEING'])
-                        px = p_x[0] + p_x[1]*x + p_x[2] * (x**2 - np.mean(obsconditions['SEEING']**2))
+                        y = obsconditions['LINTRANS'][ii] - lintrans_mean
+                        py = p_y[0] + p_y[1]*y + p_y[2] * (y**2 - lintrans_mean2)
                         
-                        y = obsconditions['LINTRANS'][ii] - np.mean(obsconditions['LINTRANS'])
-                        py = p_y[0] + p_y[1]*y + p_y[2] * (y**2 - np.mean(obsconditions['LINTRANS']**2))
-                        
-                        z = obsconditions['MOONFRAC'][ii] - np.mean(obsconditions['MOONFRAC'])
-                        pz = p_z[0] + p_z[1]*z + p_z[2] * (z**2 - np.mean(obsconditions['MOONFRAC']**2))
+                        z = obsconditions['MOONFRAC'][ii] - moonfrac_mean
+                        pz = p_z[0] + p_z[1]*z + p_z[2] * (z**2 - moonfrac_mean2)
                         
                         pr = 1.0 + sigma_r * normal_values[ii]
                         
                         p[i] = p_total * pv * pw * px * py * pz * pr 
+                        '''
+
+                        # airmass pivot chi = 1.1
+                        airm_piv = 1.1
+                        v = (obsconditions['AIRMASS'][ii] - airm_piv)
+                        pv  = p_v_1[0] + p_v_1[1] * v + p_v_1[2] * (v**2.) 
+                        
+
+                        # ebmv pivot E(B-V) = 0.05 
+                        ebmv_piv = 0.05
+                        w = obsconditions['EBMV'][ii] - ebmv_piv                                                                                                                                          
+                        pw = p_w_1[0] + p_w_1[1] * w + p_w_1[2] * (w**2)
+
+                        # seeing pivot s = 1.1
+                        s_piv = 1.1
+                        x = obsconditions['SEEING'][ii] - s_piv
+                        px = p_x_1[0] + p_x_1[1]*x + p_x_1[2] * (x**2)
+
+                        # lintrans pivot = 0.
+                        lintrans_piv = 0.0
+                        y = obsconditions['LINTRANS'][ii] - lintrans_piv
+                        py = p_y_1[0] + p_y_1[1]*y + p_y_1[2] * (y**2)
+
+                        # moon frac piv = 0.
+                        moonfrac_piv = 0.0
+                        z = obsconditions['MOONFRAC'][ii] - moonfrac_piv
+                        pz = p_z_1[0] + p_z_1[1]*z + p_z_1[2] * (z**2)
+
+                        pr = 1.0 + sigma_r_1 * normal_values[ii]
+
+                        p[i] = p_total_1 * pv * pw * px * py * pz * pr
                         
                         if(p_final > p[i]): #select the best condition of all tiles
                             p[i] = p_final
                             p_final = p[i]
 
-        
+    print ("p",p)
+
     if (simtype == 'ELG'):
         # Read the model OII flux threshold (FDR fig 7.12 modified to fit redmonster efficiency on OAK)
         filename = resource_filename('desisim', 'data/quickcat_elg_oii_flux_threshold.txt')
@@ -182,14 +250,18 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         except:
             raise Exception('Missing OII flux information to estimate redshift efficiency for ELGs')
 
-        # Computes OII flux thresholds for truez
+        # Compute OII flux thresholds for truez
         oii_flux_threshold = np.interp(truth['TRUEZ'],fdr_z,modified_fdr_oii_flux_threshold)
         assert (oii_flux_threshold.size == true_oii_flux.size),"oii_flux_threshold and true_oii_flux should have the same size"
         
+        # Take obsconditions into account                                                                                                                                                                 
+        oii_flux_threshold*=p
+
         # efficiency is modeled as a function of flux_OII/f_OII_threshold(z) and an arbitrary sigma_fudge
         sigma_fudge = 1.0
         max_efficiency = 1.0
         simulated_eff = eff_model(true_oii_flux/oii_flux_threshold,sigma_fudge,max_efficiency)
+        print ("simulated_eff",simulated_eff)
 
     if(simtype == 'LRG'):
         # Read the model rmag efficiency
@@ -239,7 +311,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         if t_id in tiles_for_target.keys():
             tiles = tiles_for_target[t_id]
             p_from_fluxes = simulated_eff[i]
-            p[i] *= p_from_fluxes
+            p[i] = p_from_fluxes
 
     if (obsconditions is None) and (truth['OIIFLUX'] is None) and (targets['DECAM_FLUX'] is None): 
         raise Exception('Missing obsconditions and flux information to estimate redshift efficiency')
@@ -420,6 +492,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions=None):
 
             # the redshift efficiency only sets warning, but does not impact the redshift value and its error.
             if (obsconditions is not None):
+#                p_obs = get_redshift_efficiency(objtype, targets[ii], truth[ii], targets_in_tile, obsconditions=obsconditions)
                 p_obs = get_redshift_efficiency(objtype, targets[ii], truth[ii], targets_in_tile, obsconditions=None)
                 z_eff = p_obs.copy()
                 r = np.random.random(n)
