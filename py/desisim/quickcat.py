@@ -144,7 +144,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
             p_x_1 = [1.0, 0.1, 0.3]
             p_y_1 = [1.0, -0.2, -0.1]
             p_z_1 = [1.0, 40.0, -1200.0]
-            sigma_r_1 = 0.
+            sigma_r_1 = 0.02
             p_total_1 = 1.0
 
 
@@ -258,7 +258,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         max_efficiency = 1.0
         simulated_eff = eff_model(true_oii_flux/oii_flux_threshold,sigma_fudge,max_efficiency)
 
-    if(simtype == 'LRG'):
+    elif(simtype == 'LRG'):
         # Read the model rmag efficiency
         filename = resource_filename('desisim', 'data/quickcat_lrg_rmag_eff.txt')
         magr, magr_eff = np.loadtxt(filename, unpack=True)
@@ -277,7 +277,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         simulated_eff = max_efficiency*mean_eff_mag*(1.+fudge*np.random.normal(size=mean_eff_mag.size))
         simulated_eff[np.where(simulated_eff>max_efficiency)]=max_efficiency
 
-    if(simtype == 'QSO'):
+    elif(simtype == 'QSO'):
         # Read the model gmag threshold
         filename = resource_filename('desisim', 'data/quickcat_qso_gmag_threshold.txt')
         zc, qso_gmag_threshold_vs_z = np.loadtxt(filename, unpack=True)
@@ -300,9 +300,12 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         max_efficiency = 0.95
         simulated_eff = eff_model(qso_true_normed_flux,sigma_fudge,max_efficiency)
 
+    else:
+        simulated_eff = np.ones(n)*p_total
+
     if (obsconditions is None) and (truth['OIIFLUX'] is None) and (targets['DECAM_FLUX'] is None): 
         raise Exception('Missing obsconditions and flux information to estimate redshift efficiency')
-
+    
     return simulated_eff
 
 # Efficiency model
@@ -377,7 +380,11 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions=None):
             if (objtype =='ELG'):
                 filename = resource_filename('desisim', 'data/quickcat_elg_oii_errz.txt')
                 oii, errz_oii = np.loadtxt(filename, unpack=True)
-                true_oii_flux = truth['OIIFLUX'][ii]
+                try:
+                    true_oii_flux = truth['OIIFLUX'][ii]
+                except:
+                    raise Exception('Missing OII flux information to estimate redshift error for ELGs')
+        
                 mean_err_oii = np.interp(true_oii_flux,oii,errz_oii)
 
                 sign = np.random.choice([-1,1],size=np.count_nonzero(ii))
@@ -390,7 +397,11 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions=None):
             elif (objtype == 'LRG'):
                 redbins=np.linspace(0.55,1.1,5)
                 mag = np.linspace(20.5,23.,50)
-                true_magr=targets['DECAM_FLUX'][ii,2]
+                try:
+                    true_magr=targets['DECAM_FLUX'][ii,2]
+                except:
+                    raise Exception('Missing DECAM r flux information to estimate redshift error for LRGs')
+
                 coefs = [[9.46882282e-05,-1.87022383e-03],[6.14601021e-05,-1.17406643e-03],\
                              [8.85342362e-05,-1.76079966e-03],[6.96202042e-05,-1.38632104e-03]]
 
@@ -432,7 +443,12 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions=None):
             elif (objtype == 'QSO'):
                 redbins = np.linspace(0.5,3.5,7)
                 mag = np.linspace(21.,23.,50)
-                true_magg=targets['DECAM_FLUX'][ii,1]
+
+                try:
+                    true_magg=targets['DECAM_FLUX'][ii,1]
+                except:
+                    raise Exception('Missing DECAM g flux information to estimate redshift error for QSOs')
+                
                 coefs = [[0.000156950059747,-0.00320719603886],[0.000461779391179,-0.00924485142818],\
                              [0.000458672517009,-0.0091254038977],[0.000461427968475,-0.00923812594293],\
                              [0.000312919487343,-0.00618137905849],[0.000219438845624,-0.00423782927109]]
