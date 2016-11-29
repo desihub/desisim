@@ -868,7 +868,7 @@ class BGS(GALAXY):
         if colorcuts_function is None:
             try:
                 from desitarget.cuts import isBGS_bright as colorcuts_function
-            else:
+            except:
                 from desitarget.cuts import isBGS as colorcuts_function
                 log.warn('You are using on old version of desitarget')
 
