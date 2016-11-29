@@ -156,7 +156,6 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
 
         if we_have_a_model:
             normal_values = np.random.normal(size=len(obsconditions['TILEID'])) # set of normal values across tiles
-            print ("normal_values",normal_values)
 
             for key in obsconditions.keys():
                 print (key,obsconditions[key])
@@ -164,7 +163,6 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
             # Computes means of obsconditions
             airmass_mean = np.mean(obsconditions['AIRMASS'])
             airmass_mean2 = np.mean(obsconditions['AIRMASS']**2)
-            print ("A, A2",airmass_mean,airmass_mean2)
             ebmv_mean = np.mean(obsconditions['EBMV'])
             ebmv_mean2 = np.mean(obsconditions['EBMV']**2)
             seeing_mean = np.mean(obsconditions['SEEING'])
@@ -237,8 +235,6 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
                             p[i] = p_final
                             p_final = p[i]
 
-    print ("p",p)
-
     if (simtype == 'ELG'):
         # Read the model OII flux threshold (FDR fig 7.12 modified to fit redmonster efficiency on OAK)
         filename = resource_filename('desisim', 'data/quickcat_elg_oii_flux_threshold.txt')
@@ -261,7 +257,6 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         sigma_fudge = 1.0
         max_efficiency = 1.0
         simulated_eff = eff_model(true_oii_flux/oii_flux_threshold,sigma_fudge,max_efficiency)
-        print ("simulated_eff",simulated_eff)
 
     if(simtype == 'LRG'):
         # Read the model rmag efficiency
