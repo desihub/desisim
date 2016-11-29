@@ -866,7 +866,11 @@ class BGS(GALAXY):
 
         """
         if colorcuts_function is None:
-            from desitarget.cuts import isBGS as colorcuts_function
+            try:
+                from desitarget.cuts import isBGS_bright as colorcuts_function
+            except:
+                from desitarget.cuts import isBGS as colorcuts_function
+                log.warn('You are using on old version of desitarget')
 
         super(BGS, self).__init__(objtype='BGS', minwave=minwave, maxwave=maxwave,
                                   cdelt=cdelt, wave=wave, colorcuts_function=colorcuts_function,
