@@ -144,7 +144,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
             p_x_1 = [1.0, 0.1, 0.3]
             p_y_1 = [1.0, -0.2, -0.1]
             p_z_1 = [1.0, 40.0, -1200.0]
-            sigma_r_1 = 0.1
+            sigma_r_1 = 0.
             p_total_1 = 1.0
 
 
@@ -156,9 +156,6 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
 
         if we_have_a_model:
             normal_values = np.random.normal(size=len(obsconditions['TILEID'])) # set of normal values across tiles
-
-            for key in obsconditions.keys():
-                print (key,obsconditions[key])
 
             # Computes means of obsconditions
             airmass_mean = np.mean(obsconditions['AIRMASS'])
@@ -178,8 +175,10 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
                     tiles = tiles_for_target[t_id]
                     p_final = 0.0 # just in case a target is found in multiple tiles
 
-                    for tileid in tiles:            
-                        ii = (obsconditions['TILEID'] == tileid)
+                    for tileid in tiles:
+
+                        ii = (obsconditions['TILEID'] == int(tileid))
+
                         '''
                         v = obsconditions['AIRMASS'][ii] - airmass_mean
                         pv  = p_v[0] + p_v[1] * v + p_v[2] * (v**2 - airmass_mean2) 
@@ -231,6 +230,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
 
                         p[i] = p_total_1 * pv * pw * px * py * pz * pr
                         
+                        # useless !?
                         if(p_final > p[i]): #select the best condition of all tiles
                             p[i] = p_final
                             p_final = p[i]
@@ -250,7 +250,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         oii_flux_threshold = np.interp(truth['TRUEZ'],fdr_z,modified_fdr_oii_flux_threshold)
         assert (oii_flux_threshold.size == true_oii_flux.size),"oii_flux_threshold and true_oii_flux should have the same size"
         
-        # Take obsconditions into account                                                                                                                                                                 
+        # Take obsconditions into account
         oii_flux_threshold*=p
 
         # efficiency is modeled as a function of flux_OII/f_OII_threshold(z) and an arbitrary sigma_fudge
@@ -300,18 +300,10 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         max_efficiency = 0.95
         simulated_eff = eff_model(qso_true_normed_flux,sigma_fudge,max_efficiency)
 
-    #- this could be quite slow    
-    for i in range(n):
-        t_id = targetid[i]
-        if t_id in tiles_for_target.keys():
-            tiles = tiles_for_target[t_id]
-            p_from_fluxes = simulated_eff[i]
-            p[i] = p_from_fluxes
-
     if (obsconditions is None) and (truth['OIIFLUX'] is None) and (targets['DECAM_FLUX'] is None): 
         raise Exception('Missing obsconditions and flux information to estimate redshift efficiency')
 
-    return p
+    return simulated_eff
 
 # Efficiency model
 def eff_model(x, sigma, max_efficiency):
@@ -487,7 +479,6 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions=None):
 
             # the redshift efficiency only sets warning, but does not impact the redshift value and its error.
             if (obsconditions is not None):
-#                p_obs = get_redshift_efficiency(objtype, targets[ii], truth[ii], targets_in_tile, obsconditions=obsconditions)
                 p_obs = get_redshift_efficiency(objtype, targets[ii], truth[ii], targets_in_tile, obsconditions=obsconditions)
                 z_eff = p_obs.copy()
                 r = np.random.random(n)
