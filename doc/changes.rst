@@ -8,6 +8,8 @@ desisim change log
 * fixes tests for use with latest desitarget master
 * Refactor quickgen and quickbrick to reduce duplicated code (PR #184)
 * Refactor quickcat
+* Makes BGS compatible with desitarget master after
+  isBGS -> isBGS_faint vs. isBGS_bright
 
 0.16.0 (2016-11-10)
 -------------------
