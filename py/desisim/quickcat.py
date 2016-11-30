@@ -200,29 +200,28 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
                         p[i] = p_total * pv * pw * px * py * pz * pr 
                         '''
 
-                        # airmass pivot chi = 1.1
-                        airm_piv = 1.1
+                        # airmass
+                        airm_piv = np.mean(obsconditions['AIRMASS'][ii])
                         v = (obsconditions['AIRMASS'][ii] - airm_piv)
                         pv  = p_v_1[0] + p_v_1[1] * v + p_v_1[2] * (v**2.) 
                         
-
-                        # ebmv pivot E(B-V) = 0.05 
-                        ebmv_piv = 0.05
+                        # ebmv
+                        ebmv_piv = np.mean(obsconditions['EBMV'][ii])
                         w = obsconditions['EBMV'][ii] - ebmv_piv                                                                                                                                          
                         pw = p_w_1[0] + p_w_1[1] * w + p_w_1[2] * (w**2)
 
-                        # seeing pivot s = 1.1
-                        s_piv = 1.1
+                        # seeing
+                        s_piv = np.mean(obsconditions['SEEING'][ii])
                         x = obsconditions['SEEING'][ii] - s_piv
                         px = p_x_1[0] + p_x_1[1]*x + p_x_1[2] * (x**2)
 
-                        # lintrans pivot = 0.
-                        lintrans_piv = 0.0
+                        # transparency
+                        lintrans_piv = np.mean(obsconditions['LINTRANS'][ii])
                         y = obsconditions['LINTRANS'][ii] - lintrans_piv
                         py = p_y_1[0] + p_y_1[1]*y + p_y_1[2] * (y**2)
 
-                        # moon frac piv = 0.
-                        moonfrac_piv = 0.0
+                        # moon illumination fraction
+                        moonfrac_piv = np.mean(obsconditions['MOONFRAC'][ii])
                         z = obsconditions['MOONFRAC'][ii] - moonfrac_piv
                         pz = p_z_1[0] + p_z_1[1]*z + p_z_1[2] * (z**2)
 
@@ -230,8 +229,10 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
 
                         p[i] = p_total_1 * pv * pw * px * py * pz * pr
                         
-                        # useless !?
-                        if(p_final > p[i]): #select the best condition of all tiles
+                        # If observed on more than one tile, use highest prob
+                        # NOTE: this is statistically incorrect, but may be
+                        # a reasonable approximation for the level of quickcat
+                        if(p_final > p[i]):
                             p[i] = p_final
                             p_final = p[i]
 
@@ -249,14 +250,12 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         # Compute OII flux thresholds for truez
         oii_flux_threshold = np.interp(truth['TRUEZ'],fdr_z,modified_fdr_oii_flux_threshold)
         assert (oii_flux_threshold.size == true_oii_flux.size),"oii_flux_threshold and true_oii_flux should have the same size"
-        
-        # Take obsconditions into account
-        oii_flux_threshold*=p
 
         # efficiency is modeled as a function of flux_OII/f_OII_threshold(z) and an arbitrary sigma_fudge
         sigma_fudge = 1.0
         max_efficiency = 1.0
         simulated_eff = eff_model(true_oii_flux/oii_flux_threshold,sigma_fudge,max_efficiency)
+        simulated_eff *= p
 
     elif(simtype == 'LRG'):
         # Read the model rmag efficiency
@@ -276,6 +275,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         max_efficiency = 0.98
         simulated_eff = max_efficiency*mean_eff_mag*(1.+fudge*np.random.normal(size=mean_eff_mag.size))
         simulated_eff[np.where(simulated_eff>max_efficiency)]=max_efficiency
+        simulated_eff *= p
 
     elif(simtype == 'QSO'):
         # Read the model gmag threshold
@@ -299,13 +299,14 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         sigma_fudge = 0.5
         max_efficiency = 0.95
         simulated_eff = eff_model(qso_true_normed_flux,sigma_fudge,max_efficiency)
+        simulated_eff *= p
 
     else:
         simulated_eff = np.ones(n)*p_total
 
     if (obsconditions is None) and (truth['OIIFLUX'] is None) and (targets['DECAM_FLUX'] is None): 
         raise Exception('Missing obsconditions and flux information to estimate redshift efficiency')
-    
+
     return simulated_eff
 
 # Efficiency model
@@ -503,8 +504,9 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions=None):
                 zwarn_type[jj] = 4
                 zwarn[ii] = zwarn_type
 
-                # Add fraction of catastrophic failures
-                num_cata = int(_cata_fail_fraction[objtype] * n)
+                # Add fraction of catastrophic failures (zwarn=0 but wrong z)
+                nzwarnzero = np.count_nonzero(zwarn[ii] == 0)
+                num_cata = np.random.poisson(_cata_fail_fraction[objtype] * nzwarnzero)
                 if (objtype == 'ELG'): zlim=[0.6,1.7]
                 elif (objtype == 'LRG'): zlim=[0.5,1.1]
                 elif (objtype == 'QSO'): zlim=[0.5,3.5]
@@ -512,7 +514,6 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions=None):
                     jj, = np.where(zwarn[ii]==0)
                     index = np.random.choice(jj, size=num_cata, replace=False)
                     zout[index] = np.random.uniform(zlim[0],zlim[1],len(index)) 
-                
 
             elif (obsconditions is None):
                 #- randomly select some objects to set zwarn

@@ -25,8 +25,9 @@ class TestQuickCat(unittest.TestCase):
         cls.targets = targets
 
         #- Make a few of them BGS and MWS
-        isBGS = np.random.randint(n, size=3)
-        isMWS = np.random.randint(n, size=3)
+        iibright = np.random.choice(np.arange(n), size=6, replace=False)
+        isBGS = iibright[0:3]
+        isMWS = iibright[3:6]
         targets['DESI_TARGET'][isBGS] = desi_mask.BGS_ANY
         targets['BGS_TARGET'][isBGS] = bgs_mask.BGS_BRIGHT
         targets['DESI_TARGET'][isMWS] = desi_mask.MWS_ANY
@@ -64,11 +65,11 @@ class TestQuickCat(unittest.TestCase):
         ii = (targets['DESI_TARGET'] & starmask) != 0
         truth['TRUETYPE'][ii] = 'STAR'
 
-        #- Add some fake [OII] fluxes for the ELGS
+        #- Add some fake [OII] fluxes for the ELGs; include some that will fail
         isELG = (targets['DESI_TARGET'] & desi_mask.ELG) != 0
         nELG = np.count_nonzero(isELG)
         truth['OIIFLUX'] = np.zeros(n, dtype=float)
-        truth['OIIFLUX'][isELG] = np.random.normal(8e-17, 2e-17, size=nELG).clip(0)
+        truth['OIIFLUX'][isELG] = np.random.normal(2e-17, 2e-17, size=nELG).clip(0)
 
         cls.truth = truth
 
