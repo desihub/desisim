@@ -25,6 +25,41 @@ from desitarget.targetmask import desi_mask, bgs_mask, mws_mask
 
 from desisim import io
 
+def get_simtype(spectype, desi_target, bgs_target, mws_target):
+    '''
+    Derive the simulation type from the redshift spectype and target bits
+
+    Args:
+        spectype : array of 'GALAXY', 'QSO', 'STAR'
+        *_target : target mask bits
+
+    Returns array of simulation types: ELG, LRG, QSO, BGS, ...
+
+    TODO: add subtypes of STAR
+    '''
+    simtype = np.zeros(len(spectype), dtype=(str,6))
+    simtype[:] = '???'
+
+    isGalaxy = (spectype == 'GALAXY')
+    isQSO = (spectype == 'QSO')
+    isStar = (spectype == 'STAR')
+    isSky = (spectype == 'SKY')
+
+    isLRG = isGalaxy & ((desi_target & desi_mask.LRG) != 0)
+    isELG = isGalaxy & ((desi_target & desi_mask.ELG) != 0)
+    isBGS = isGalaxy & ((bgs_target & bgs_mask.BGS_BRIGHT) != 0)
+    isBGS |= isGalaxy & ((bgs_target & bgs_mask.BGS_FAINT) != 0)
+
+    simtype[isLRG] = 'LRG'
+    simtype[isELG] = 'ELG'
+    simtype[isBGS] = 'BGS'
+    simtype[isQSO] = 'QSO'
+    simtype[isStar] = 'STAR'
+    simtype[isSky] = 'SKY'
+
+    assert np.all(simtype != '???')
+    return simtype
+
 def sample_objtype(nobj, flavor):
     """
     Return a random sampling of object types (dark, bright, MWS, BGS, ELG, LRG, QSO, STD, BAD_QSO)
