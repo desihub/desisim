@@ -575,6 +575,18 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
         obsconditions = obsconditions[j[k]]
         assert np.all(tileids == obsconditions['TILEID'])
 
+    #- Sort obsconditions to match order of tiles
+    #- This might not be needed, but is fast for O(20k) tiles and may
+    #- prevent future surprises if code expects them to be row aligned
+    tileids = np.array(tileids)
+    if (obsconditions is not None) and \
+       (np.any(tileids != obsconditions['TILEID'])):
+        i = np.argsort(tileids)
+        j = np.argsort(obsconditions['TILEID'])
+        k = np.argsort(i)
+        obsconditions = obsconditions[j[k]]
+        assert np.all(tileids == obsconditions['TILEID'])
+
     #- Count how many times each target was observed in previous zcatalog
     #- NOTE: assumes that no tiles have been repeated
     if zcat is not None:
