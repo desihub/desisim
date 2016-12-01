@@ -31,6 +31,9 @@ from desitarget.targets import desi_mask
 from desitarget.targets import bgs_mask
 from desitarget.targets import mws_mask
 
+from desispec.log import get_logger
+log = get_logger()
+
 #- redshift errors and zwarn fractions from DESI-1657
 #- sigmav = c sigmaz / (1+z)
 _sigma_v = {
@@ -65,12 +68,66 @@ _cata_fail_fraction = {
     'UNKNOWN': 0.,
 }
 
+def get_zeff_obs(simtype, obsconditions):
+    '''
+    '''
+    if(simtype=='LRG'):
+        p_v = [1.0, 0.15, -0.5]
+        p_w = [1.0, 0.4, 0.0]
+        p_x = [1.0, 0.06, 0.05]
+        p_y = [1.0, 0.0, 0.08]
+        p_z = [1.0, 0.0, 0.0]
+        sigma_r = 0.02
+    elif(simtype=='QSO'):
+        p_v = [1.0, -0.2, 0.3]
+        p_w = [1.0, -0.5, 0.6]
+        p_x = [1.0, -0.1, -0.075]
+        p_y = [1.0, -0.08, -0.04]
+        p_z = [1.0, 0.0, 0.0]
+        sigma_r = 0.05
+    elif(simtype=='ELG'):
+        p_v = [1.0, -0.1, -0.2]
+        p_w = [1.0, 0.25, -0.75]
+        p_x = [1.0, 0.0, 0.05]
+        p_y = [1.0, 0.2, 0.1]
+        p_z = [1.0, -10.0, 300.0]
+        sigma_r = 0.075
+    else:
+        log.warning('No model for how observing conditions impact {} redshift efficiency'.format(simtype))
+        return np.ones(len(obsconditions))
+
+    # airmass
+    v = obsconditions['AIRMASS'] - np.mean(obsconditions['AIRMASS'])
+    pv  = p_v[0] + p_v[1] * v + p_v[2] * (v**2. - np.mean(v**2))
+    
+    # ebmv
+    w = obsconditions['EBMV'] - np.mean(obsconditions['EBMV'])
+    pw = p_w[0] + p_w[1] * w + p_w[2] * (w**2 - np.mean(w**2))
+
+    # seeing
+    x = obsconditions['SEEING'] - np.mean(obsconditions['SEEING'])
+    px = p_x[0] + p_x[1]*x + p_x[2] * (x**2 - np.mean(x**2))
+
+    # transparency
+    y = obsconditions['LINTRANS'] - np.mean(obsconditions['LINTRANS'])
+    py = p_y[0] + p_y[1]*y + p_y[2] * (y**2 - np.mean(y**2))
+
+    # moon illumination fraction
+    z = obsconditions['MOONFRAC'] - np.mean(obsconditions['MOONFRAC'])
+    pz = p_z[0] + p_z[1]*z + p_z[2] * (z**2 - np.mean(z**2))
+
+    pr = 1.0 + np.random.normal(size=len(z), scale=sigma_r)
+
+    #- this correction factor can be greater than 1, but not less than 0
+    pobs = (pv * pw * px * py * pz * pr).clip(min=0.0)
+    return pobs
+
 
 def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditions=None):
     """
     Simple model to get the redshift effiency from the observational conditions or observed magnitudes+redshuft
     Args:
-        simtype: ELG, LRG, QSO, STAR, BGS
+        simtype: ELG, LRG, QSO, MWS, BGS
         targets: target catalog table; currently used only for TARGETID
         truth: truth table with OIIFLUX, TRUEZ
         targets_in_tile: dictionary. Keys correspond to tileids, its values are the 
@@ -88,153 +145,6 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
     """
     targetid = targets['TARGETID']
     n = len(targetid)
-    p = np.ones(n)
-
-    # reverse the dictionary targets in tile
-    tiles_for_target = reverse_dictionary(targets_in_tile)
-    for i in range(n):
-        t_id = targetid[i]
-        if t_id not in tiles_for_target.keys():
-            p[i] = 0.0
-
-    if obsconditions is not None: # use this if we have obsconditions information
-        we_have_a_model = True    
-        
-        p_v = [1.0, 0.0, 0.0]
-        p_w = [1.0, 0.0, 0.0]
-        p_x = [1.0, 0.0, 0.0]
-        p_y = [1.0, 0.0, 0.0]
-        p_z = [1.0, 0.0, 0.0]
-        p_v_1 = [1.0, 0.0, 0.0]
-        p_w_1 = [1.0, 0.0, 0.0]
-        p_x_1 = [1.0, 0.0, 0.0]
-        p_y_1 = [1.0, 0.0, 0.0]
-        p_z_1 = [1.0, 0.0, 0.0]
-        sigma_r = 0.0
-        p_total = 0.98
-        sigma_r_1 = 0.0
-        p_total_1 = 1.0
-        if(simtype=='LRG'):
-            p_v = [1.0, 0.15, -0.5]
-            p_w = [1.0, 0.4, 0.0]
-            p_x = [1.0, 0.06, 0.05]
-            p_y = [1.0, 0.0, 0.08]
-            p_z = [1.0, 0.0, 0.0]
-            sigma_r = 0.02
-            p_total = 0.95
-        elif(simtype=='QSO'):
-            p_v = [1.0, -0.1, 0.2]
-            p_w = [1.0, -0.5, 0.6]
-            p_x = [1.0, -0.1, -0.075]
-            p_y = [1.0, -0.08, -0.04]
-            p_z = [1.0, 0.0, 0.0]
-            sigma_r = 0.05
-            p_total = 0.90
-        elif(simtype=='ELG'):
-            p_v = [1.0, -0.1, -0.2]
-            p_w = [1.0, 0.25, -0.75]
-            p_x = [1.0, 0.0, 0.05]
-            p_y = [1.0, 0.2, 0.1]
-            p_z = [1.0, -10.0, 300.0]
-            sigma_r = 0.075
-            p_total = 0.8
-
-            p_v_1 = [1.0, 0.45, 0.45]
-            p_w_1 = [1.0, 1., -1.5]
-            p_x_1 = [1.0, 0.1, 0.3]
-            p_y_1 = [1.0, -0.2, -0.1]
-            p_z_1 = [1.0, 40.0, -1200.0]
-            sigma_r_1 = 0.02
-            p_total_1 = 1.0
-
-
-        else:
-            print('WARNING in desisim.quickcat.get_redshift_efficiency()')
-            print('\t We are not modelling yet the redshift efficiency for type: {}. Set to {}'.format(simtype, p_total))
-            we_have_a_model = False
-
-
-        if we_have_a_model:
-            normal_values = np.random.normal(size=len(obsconditions['TILEID'])) # set of normal values across tiles
-
-            # Computes means of obsconditions
-            airmass_mean = np.mean(obsconditions['AIRMASS'])
-            airmass_mean2 = np.mean(obsconditions['AIRMASS']**2)
-            ebmv_mean = np.mean(obsconditions['EBMV'])
-            ebmv_mean2 = np.mean(obsconditions['EBMV']**2)
-            seeing_mean = np.mean(obsconditions['SEEING'])
-            seeing_mean2 = np.mean(obsconditions['SEEING']**2)
-            lintrans_mean = np.mean(obsconditions['LINTRANS'])
-            lintrans_mean2 = np.mean(obsconditions['LINTRANS']**2)
-            moonfrac_mean = np.mean(obsconditions['MOONFRAC'])
-            moonfrac_mean2 = np.mean(obsconditions['MOONFRAC']**2)
-
-            for i in range(n):
-                t_id = targetid[i]
-                if t_id in tiles_for_target.keys():
-                    tiles = tiles_for_target[t_id]
-                    p_final = 0.0 # just in case a target is found in multiple tiles
-
-                    for tileid in tiles:
-
-                        ii = (obsconditions['TILEID'] == int(tileid))
-
-                        '''
-                        v = obsconditions['AIRMASS'][ii] - airmass_mean
-                        pv  = p_v[0] + p_v[1] * v + p_v[2] * (v**2 - airmass_mean2) 
-                        
-                        w = obsconditions['EBMV'][ii] - ebmv_mean
-                        pw = p_w[0] + p_w[1] * w + p_w[2] * (w**2 - ebmv_mean2)
-                        
-                        x = obsconditions['SEEING'][ii] - seeing_mean
-                        px = p_x[0] + p_x[1]*x + p_x[2] * (x**2 - seeing_mean2)
-                        
-                        y = obsconditions['LINTRANS'][ii] - lintrans_mean
-                        py = p_y[0] + p_y[1]*y + p_y[2] * (y**2 - lintrans_mean2)
-                        
-                        z = obsconditions['MOONFRAC'][ii] - moonfrac_mean
-                        pz = p_z[0] + p_z[1]*z + p_z[2] * (z**2 - moonfrac_mean2)
-                        
-                        pr = 1.0 + sigma_r * normal_values[ii]
-                        
-                        p[i] = p_total * pv * pw * px * py * pz * pr 
-                        '''
-
-                        # airmass
-                        airm_piv = np.mean(obsconditions['AIRMASS'][ii])
-                        v = (obsconditions['AIRMASS'][ii] - airm_piv)
-                        pv  = p_v_1[0] + p_v_1[1] * v + p_v_1[2] * (v**2.) 
-                        
-                        # ebmv
-                        ebmv_piv = np.mean(obsconditions['EBMV'][ii])
-                        w = obsconditions['EBMV'][ii] - ebmv_piv                                                                                                                                          
-                        pw = p_w_1[0] + p_w_1[1] * w + p_w_1[2] * (w**2)
-
-                        # seeing
-                        s_piv = np.mean(obsconditions['SEEING'][ii])
-                        x = obsconditions['SEEING'][ii] - s_piv
-                        px = p_x_1[0] + p_x_1[1]*x + p_x_1[2] * (x**2)
-
-                        # transparency
-                        lintrans_piv = np.mean(obsconditions['LINTRANS'][ii])
-                        y = obsconditions['LINTRANS'][ii] - lintrans_piv
-                        py = p_y_1[0] + p_y_1[1]*y + p_y_1[2] * (y**2)
-
-                        # moon illumination fraction
-                        moonfrac_piv = np.mean(obsconditions['MOONFRAC'][ii])
-                        z = obsconditions['MOONFRAC'][ii] - moonfrac_piv
-                        pz = p_z_1[0] + p_z_1[1]*z + p_z_1[2] * (z**2)
-
-                        pr = 1.0 + sigma_r_1 * normal_values[ii]
-
-                        p[i] = p_total_1 * pv * pw * px * py * pz * pr
-                        
-                        # If observed on more than one tile, use highest prob
-                        # NOTE: this is statistically incorrect, but may be
-                        # a reasonable approximation for the level of quickcat
-                        if(p_final > p[i]):
-                            p[i] = p_final
-                            p_final = p[i]
 
     if (simtype == 'ELG'):
         # Read the model OII flux threshold (FDR fig 7.12 modified to fit redmonster efficiency on OAK)
@@ -255,7 +165,6 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         sigma_fudge = 1.0
         max_efficiency = 1.0
         simulated_eff = eff_model(true_oii_flux/oii_flux_threshold,sigma_fudge,max_efficiency)
-        simulated_eff *= p
 
     elif(simtype == 'LRG'):
         # Read the model rmag efficiency
@@ -275,7 +184,6 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         max_efficiency = 0.98
         simulated_eff = max_efficiency*mean_eff_mag*(1.+fudge*np.random.normal(size=mean_eff_mag.size))
         simulated_eff[np.where(simulated_eff>max_efficiency)]=max_efficiency
-        simulated_eff *= p
 
     elif(simtype == 'QSO'):
         # Read the model gmag threshold
@@ -299,13 +207,36 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         sigma_fudge = 0.5
         max_efficiency = 0.95
         simulated_eff = eff_model(qso_true_normed_flux,sigma_fudge,max_efficiency)
-        simulated_eff *= p
 
+    elif simtype == 'BGS':
+        simulated_eff = 0.98 * np.ones(n)
+
+    elif simtype == 'MWS':
+        simulated_eff = 0.98 * np.ones(n)
+    
     else:
-        simulated_eff = np.ones(n)*p_total
+        default_zeff = 0.98
+        log.warning('using default redshift efficiency of {} for {}'.format(default_zeff, simtype))
+        simulated_eff = default_zeff * np.ones(n)
 
     if (obsconditions is None) and (truth['OIIFLUX'] is None) and (targets['DECAM_FLUX'] is None): 
         raise Exception('Missing obsconditions and flux information to estimate redshift efficiency')
+
+    #- Get the corrections for observing conditions per tile, then
+    #- correct targets on those tiles.  Parameterize in terms of failure
+    #- rate instead of success rate to handle bookkeeping of targets that
+    #- are observed on more than one tile.
+    #- NOTE: this still isn't quite right since multiple observations will
+    #- be simultaneously fit instead of just taking whichever individual one
+    #- succeeds.
+    
+    zeff_obs = get_zeff_obs(simtype, obsconditions)
+    pfail = np.ones(n)    
+    for i, tileid in enumerate(obsconditions['TILEID']):
+        ii = np.in1d(targets['TARGETID'], targets_in_tile[tileid])
+        pfail[ii] *= (1-simulated_eff[ii]*zeff_obs[i])
+        
+    simulated_eff = (1-pfail)
 
     return simulated_eff
 
@@ -522,9 +453,9 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions=None):
                     jj = np.random.choice(np.where(ii)[0], size=num_zwarn, replace=False)
                     zwarn[jj] = 4
         else:
-            print('WARNING desisim.quickcat.get_observed_redshifts()')
-            print('\tWe dont have a model for objtype {}. Simply assigning a redshift from the truth table.'.format(objtype))
-            print('\tKnown types {}'.format(list(_sigma_v.keys())))
+            msg = 'No redshift efficiency model for {}; using true z\n'.format(objtype) + \
+                  'Known types are {}'.format(list(_sigma_v.keys()))
+            log.warning(msg)
 
     return zout, zerr, zwarn
 

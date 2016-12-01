@@ -12,8 +12,9 @@ class TestQuickCat(unittest.TestCase):
     def setUpClass(cls):
         cls.ntiles = 4
         cls.tilefiles = ['tile-{:05d}.fits'.format(i) for i in range(cls.ntiles)]
+        cls.tilefiles_multiobs = ['multitile-{:05d}.fits'.format(i) for i in range(cls.ntiles)]
 
-        cls.nspec = n = 100
+        cls.nspec = n = 1000
         targets = Table()
         targets['TARGETID'] = np.random.randint(0,2**60, size=n)
         targets['DESI_TARGET'] = 2**np.random.randint(0,3,size=n)
@@ -85,10 +86,19 @@ class TestQuickCat(unittest.TestCase):
             hdr.set('TILEID', i)
             hdulist.close()
 
+        #- Also create a test of tile files that have multiple observations
+        nx = cls.nspec // cls.ntiles
+        for i, filename in enumerate(cls.tilefiles_multiobs):
+            fiberassign[0:(i+1)*nx].write(filename)
+            hdulist = fits.open(filename, mode='update')
+            hdr = hdulist[1].header
+            hdr.set('TILEID', i)
+            hdulist.close()
+
     #- Cleanup test files if they exist
     @classmethod
     def tearDownClass(cls):
-        for filename in cls.tilefiles:
+        for filename in cls.tilefiles + cls.tilefiles_multiobs:
             if os.path.exists(filename):
                 os.remove(filename)
             
@@ -112,6 +122,14 @@ class TestQuickCat(unittest.TestCase):
         self.assertTrue(np.all(zcat3['TARGETID'] == self.truth['TARGETID']))
         self.assertTrue(np.all(zcat3['Z'] != self.truth['TRUEZ']))
 
+    def test_multiobs(self):
+        # Earlier targets got more observations so should have higher efficiency
+        nx = self.nspec // self.ntiles
+        zcat = quickcat(self.tilefiles_multiobs, self.targets, truth=self.truth, perfect=False)
+        n1 = np.count_nonzero(zcat['ZWARN'][0:nx] == 0)
+        n2 = np.count_nonzero(zcat['ZWARN'][-nx:] == 0)
+        self.assertGreater(n1, n2)
+        
                 
 if __name__ == '__main__':
     unittest.main()
