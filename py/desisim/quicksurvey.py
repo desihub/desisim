@@ -51,6 +51,17 @@ class SimSetup(object):
             template_fiberassign (str): Filename of the template input for fiberassign
             n_epochs (int): number of epochs to be simulated.
 
+        Optional:
+            obsconditions: file with observation conditions list from surveysim,
+                (obslist_all.fits) or Table read from that file
+            fiberassign_dates: file with list of dates to run fiberassign;
+                one YEARMMDD or YEAR-MM-DD per line
+        
+        Notes:
+            must provide epochs_path or (obsconditions and fiberassign_dates)
+            obsconditions and epochs_path is also allowed, but there are no
+                checks that the order of the tiles in epochs_path/epochs*.txt
+                make any sense given the DATE-OBS in the obsconditions
         """
         if 'output_path' in kwargs:
             self.output_path = kwargs['output_path']        
@@ -62,10 +73,17 @@ class SimSetup(object):
         else:
             raise NameError('targets_path was not set')
 
-        if 'epochs_path' in kwargs:
+        if 'epochs_path' in kwargs and kwargs['epochs_path'] is not None:
+            if 'fiberassign_dates' in kwargs and \
+               kwargs['fiberassign_dates'] is not None:
+                raise ArgumentError('epochs_path and fiberassign_dates are mutually exclusive')
+
             self.epochs_path = kwargs['epochs_path']        
-        else:
-            raise NameError('epochs_path was not set')
+            # load tile list per epoch
+            self.epoch_tiles = []
+            for i in self.epochs_list:
+                epochfile = os.path.join(self.epochs_path, "epoch{}.txt".format(i))        
+                self.epoch_tiles.append(np.loadtxt(epochfile, dtype=int))
 
         if 'fiberassign_exec' in kwargs:
             self.fiberassign_exec = kwargs['fiberassign_exec']        
@@ -81,7 +99,44 @@ class SimSetup(object):
             self.n_epochs = kwargs['n_epochs']
         else:
             raise NameError('n_epochs was not set')
-                
+
+        self.obsconditions = None
+        if 'obsconditions' in kwargs and kwargs['obsconditions'] is not None:
+            if isinstance(kwargs['obsconditions'], (Table, np.ndarray)):
+                self.obsconditions = Table(kwargs['obsconditions'])
+            else:
+                self.obsconditions = Table.read(kwargs['obsconditions'])
+
+        #- Add dates when fiberassign should be run; use YEAR-MM-DD strings
+        #- to be able to compare to DATE-OBS YEAR-MM-DDThh:mm:ss.sss .
+        if 'fiberassign_dates' in kwargs and kwargs['fiberassign_dates'] is not None:
+            if 'epochs_path' in kwargs and \
+               kwargs['epochs_path'] is not None:
+                raise ArgumentError('epochs_path and fiberassign_dates are mutually exclusive')
+
+            fiberassign_dates = list()
+            with open(kwargs['fiberassign_dates']) as fx:
+                for line in fx:
+                    line = line.strip()
+                    if line.startswith('#') or len(line) < 2:
+                        continue
+                    yearmmdd = line.replace('-', '')
+                    year_mm_dd = yearmmdd[0:4]+'-'+yearmmdd[4:6]+'-'+yearmmdd[6:8]
+                    fiberassign_dates.append(year_mm_dd)
+            
+            #- add pre- and post- dates for date range bookkeeping
+            if fiberassign_dates[0] > min(self.obsconditions['DATE-OBS']):
+                fiberassign_dates.insert(0, self.obsconditions['DATE-OBS'][0][0:10])
+
+            fiberassign_dates.append('9999-99-99')
+            
+            self.epoch_tiles = []
+            dateobs = self.obsconditions['DATE-OBS']            
+            for i in range(len(fiberassign_dates)-1):
+                ii = (fiberassign_dates[i]<dateobs) & \
+                     (dateobs<fiberassign_dates[i+1])
+                self.epoch_tiles.append(self.obsconditions['TILEID'][ii])
+
         self.tmp_output_path = os.path.join(self.output_path, 'tmp/')
         self.tmp_fiber_path = os.path.join(self.tmp_output_path, 'fiberassign/')
         self.surveyfile = os.path.join(self.tmp_output_path, 'survey_list.txt')
@@ -90,45 +145,9 @@ class SimSetup(object):
         self.zcat_file = None
         self.mtl_file = None
 
-        self.tile_ids = []
         self.tilefiles = []
-        self.mtl_epochs = []
-        self.fiber_epochs = []
         self.epochs_list = list(range(self.n_epochs))
-
-    def reset_lists(self):
-        """Resets counters
-
-        """
-        self.tile_ids = []
-        self.tilefiles = []
-        self.mtl_epochs = []
-        self.fiber_epochs = []    
-
-    def set_mtl_epochs(self, epochs_list = [0]):
-        """Sets the mtl_epochs list 
-
-        Args:
-            epochs_list (int, int list): optional variable listing integers IDs for the epochs.
-
-        """
-        if hasattr(epochs_list, '__iter__'):
-            self.mtl_epochs = list(epochs_list)
-        else:
-            self.mtl_epochs = list([epochs_list])
-
-    def set_fiber_epochs(self, epochs_list = [0]):
-        """Sets the fiber_epochs list 
-
-        Args:            
-            epochs_list (int, int list): optional variable listing integers IDs for the epochs.
-
-        """
-        if hasattr(epochs_list, '__iter__'):
-            self.fiber_epochs = list(epochs_list)
-        else:
-            self.fiber_epochs = list([epochs_list])
-
+        
 
     def create_directories(self):
         """Creates output directories to store simulation results.
@@ -176,8 +195,11 @@ class SimSetup(object):
             shutil.copy(tilefile, fiber_backup_path)
 
 
-    def create_surveyfile(self):
-        """Creates text file survey_list.txt to be used by fiberassign
+    def create_surveyfile(self, epoch):
+        """Creates text file of tiles survey_list.txt to be used by fiberassign
+
+        Args:
+            epoch (int) : epoch of tiles to write
 
         Notes: 
             The file is written to the temporary directory in self.tmp_output_path
@@ -185,17 +207,9 @@ class SimSetup(object):
 
         # create survey list from mtl_epochs IDS
         surveyfile = os.path.join(self.tmp_output_path, "survey_list.txt")
-        self.tile_ids = []
-        for i in self.mtl_epochs:
-            epochfile = os.path.join(self.epochs_path, "epoch{}.txt".format(i))        
-            if os.path.exists(epochfile):
-                self.tile_ids = np.append(self.tile_ids, np.loadtxt(epochfile))
-            else:
-                raise NameError('epochfile {} was not found'.format(epochfile))
-
-        self.tile_ids = np.int_(self.tile_ids)
-        np.savetxt(surveyfile, self.tile_ids, fmt='%d')
-        print("{} tiles to be included in fiberassign".format(len(self.tile_ids)))
+        tiles = np.concatenate(self.epoch_tiles[epoch:])
+        np.savetxt(surveyfile, tiles, fmt='%d')
+        print("{} tiles to be included in fiberassign".format(len(tiles)))
 
     def create_fiberassign_input(self):
         """Creates input files for fiberassign from the provided template 
@@ -208,11 +222,11 @@ class SimSetup(object):
         fx.write(params.format(inputdir = self.tmp_output_path, targetdir = self.targets_path))
         fx.close()
         
-    def simulate_epoch(self, perfect=False, epoch_id=0, truth=None, targets=None, mtl=None, zcat=None):
+    def simulate_epoch(self, epoch, perfect=False, truth=None, targets=None, mtl=None, zcat=None):
         """Core routine simulating a DESI epoch, 
 
         Args:
-            epoch_id (int): Integer ID of the epoch to be simulated
+            epoch (int): epoch to simulate
             perfect (boolean): Default: False. Selects whether how redshifts are taken from the truth file.
                 True: redshifts are taken without any error from the truth file.
                 False: redshifts include uncertainties.
@@ -226,21 +240,16 @@ class SimSetup(object):
             * Fiber allocation 
             * Redshift catalogue construction
         """
-        #load truth / targets / zcat
+        # load truth / targets / zcat
         if truth is None:
             truth = Table.read(os.path.join(self.targets_path,'truth.fits'))
         if targets is None:
             targets = Table.read(os.path.join(self.targets_path,'targets.fits'))
             
-        self.mtl_file = os.path.join(self.tmp_output_path, 'mtl.fits')    
         print("{} Starting MTL".format(asctime()))
-        if self.zcat_file is None:            
-            mtl = desitarget.mtl.make_mtl(targets)
-            mtl.write(self.mtl_file, overwrite=True)
-        else:
-            #zcat = Table.read(self.zcat_file, format='fits')
-            mtl = desitarget.mtl.make_mtl(targets, zcat)
-            mtl.write(self.mtl_file, overwrite=True)
+        self.mtl_file = os.path.join(self.tmp_output_path, 'mtl.fits')    
+        mtl = desitarget.mtl.make_mtl(targets, zcat)
+        mtl.write(self.mtl_file, overwrite=True)
         print("{} Finished MTL".format(asctime()))
 
         # clean all fibermap fits files before running fiberassing
@@ -256,62 +265,49 @@ class SimSetup(object):
         print("{} Finished fiberassign".format(asctime()))
         f.close()
 
-        #create a list of fibermap tiles to read and update zcat
-        # find first the set of tiles corresponding to this epoch
-        self.tile_ids = []
-        for i in self.fiber_epochs:
-            epochfile = os.path.join(self.epochs_path, "epoch{}.txt".format(i))        
-            self.tile_ids = np.append(self.tile_ids, np.loadtxt(epochfile))
-
-        self.tile_ids = np.int_(self.tile_ids)
-
-        # finally add the corresponding tiles to the list of fibermap files to read
+        # create a list of fiberassign tiles to read and update zcat
         self.tilefiles = []
-        for i in self.tile_ids:
+        for i in self.epoch_tiles[epoch]:
             tilename = os.path.join(self.tmp_fiber_path, 'tile_%05d.fits'%(i))
             if os.path.isfile(tilename):
                 self.tilefiles.append(tilename)
             else:
                 print('Suggested but does not exist {}'.format(tilename))
         print("{} {} tiles to gather in zcat".format(asctime(), len(self.tilefiles)))
-    
-        # write the zcat, it uses the tilesfiles constructed in the last step
-        if self.zcat_file is None:
-            self.zcat_file = os.path.join(self.tmp_output_path, 'zcat.fits')
-            newzcat = quickcat(self.tilefiles, targets, truth, zcat=None, perfect=perfect)
-            newzcat.write(self.zcat_file, overwrite=True)
+
+        # If applicable, select observations for these tiles
+        if self.obsconditions is not None:
+            ii = np.in1d(self.obsconditions['TILEID'], self.epoch_tiles[epoch])
+            obsconditions = self.obsconditions[ii]
         else:
-            self.zcat_file = os.path.join(self.tmp_output_path, 'zcat.fits')
-            #zcat = Table.read(self.zcat_file, format='fits')
-            newzcat = quickcat(self.tilefiles, targets, truth, zcat=zcat, perfect=perfect)
-            newzcat.write(self.zcat_file, format='fits', overwrite=True)
+            obsconditions = None
+
+        # write the zcat, it uses the tilesfiles constructed in the last step
+        self.zcat_file = os.path.join(self.tmp_output_path, 'zcat.fits')
+        newzcat = quickcat(self.tilefiles, targets, truth, zcat=zcat, 
+                           obsconditions=obsconditions, perfect=perfect)
+        newzcat.write(self.zcat_file, format='fits', overwrite=True)
         print("{} Finished zcat".format(asctime()))
         return truth, targets, mtl, newzcat
 
 
     def simulate(self):
-        """Simulate the DESI setup described by a SimSteup object.
+        """Simulate the DESI setup described by a SimSetup object.
         """
         self.create_directories()
 
         truth=targets=mtl=zcat=None
         for epoch in self.epochs_list:
-            print('Epoch {}'.format(epoch))
+            print('--- Epoch {} ---'.format(epoch))
 
-            self.set_mtl_epochs(epochs_list = self.epochs_list[epoch:])
-
-            self.set_fiber_epochs(epochs_list = self.epochs_list[epoch])
-
-            self.create_surveyfile()
+            self.create_surveyfile(epoch)
 
             self.create_fiberassign_input()
 
-            truth, targets, mtl, zcat = self.simulate_epoch(perfect=False, epoch_id = self.epochs_list[epoch], 
+            truth, targets, mtl, zcat = self.simulate_epoch(epoch, perfect=False,
                                                             truth=truth, targets=targets, mtl=mtl, zcat=zcat)
 
-            self.backup_epoch_data(epoch_id = self.epochs_list[epoch])
-
-            self.reset_lists()
+            self.backup_epoch_data(epoch_id=epoch)
 
         self.cleanup_directories()
 

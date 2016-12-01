@@ -5,14 +5,17 @@ from astropy.table import Table, Column
 from astropy.io import fits
 from desisim.quickcat import quickcat
 from desitarget import desi_mask, bgs_mask, mws_mask
+import desimodel.io
 
 class TestQuickCat(unittest.TestCase):
     
     @classmethod
     def setUpClass(cls):
         cls.ntiles = 4
-        cls.tilefiles = ['tile-{:05d}.fits'.format(i) for i in range(cls.ntiles)]
-        cls.tilefiles_multiobs = ['multitile-{:05d}.fits'.format(i) for i in range(cls.ntiles)]
+        tiles = desimodel.io.load_tiles()
+        cls.tileids = tiles['TILEID'][0:cls.ntiles]
+        cls.tilefiles = ['tile-{:05d}.fits'.format(i) for i in cls.tileids]
+        cls.tilefiles_multiobs = ['multitile-{:05d}.fits'.format(i) for i in cls.tileids]
 
         cls.nspec = n = 1000
         targets = Table()
@@ -83,7 +86,7 @@ class TestQuickCat(unittest.TestCase):
             fiberassign[i*nx:(i+1)*nx].write(filename)
             hdulist = fits.open(filename, mode='update')
             hdr = hdulist[1].header
-            hdr.set('TILEID', i)
+            hdr.set('TILEID', cls.tileids[i])
             hdulist.close()
 
         #- Also create a test of tile files that have multiple observations
@@ -92,7 +95,7 @@ class TestQuickCat(unittest.TestCase):
             fiberassign[0:(i+1)*nx].write(filename)
             hdulist = fits.open(filename, mode='update')
             hdr = hdulist[1].header
-            hdr.set('TILEID', i)
+            hdr.set('TILEID', cls.tileids[i])
             hdulist.close()
 
     #- Cleanup test files if they exist
