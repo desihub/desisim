@@ -95,11 +95,6 @@ class SimSetup(object):
         else:
             raise NameError('template_fiberassign was not set')
 
-        if 'n_epochs' in kwargs:
-            self.n_epochs = kwargs['n_epochs']
-        else:
-            raise NameError('n_epochs was not set')
-
         self.obsconditions = None
         if 'obsconditions' in kwargs and kwargs['obsconditions'] is not None:
             if isinstance(kwargs['obsconditions'], (Table, np.ndarray)):
@@ -123,19 +118,27 @@ class SimSetup(object):
                     yearmmdd = line.replace('-', '')
                     year_mm_dd = yearmmdd[0:4]+'-'+yearmmdd[4:6]+'-'+yearmmdd[6:8]
                     fiberassign_dates.append(year_mm_dd)
-            
+
             #- add pre- and post- dates for date range bookkeeping
             if fiberassign_dates[0] > min(self.obsconditions['DATE-OBS']):
                 fiberassign_dates.insert(0, self.obsconditions['DATE-OBS'][0][0:10])
 
             fiberassign_dates.append('9999-99-99')
             
+            if 'n_epochs' not in kwargs or kwargs['n_epochs'] is None:
+                kwargs['n_epochs'] = len(fiberassign_dates) - 1
+          
             self.epoch_tiles = []
             dateobs = self.obsconditions['DATE-OBS']            
             for i in range(len(fiberassign_dates)-1):
                 ii = (fiberassign_dates[i]<dateobs) & \
                      (dateobs<fiberassign_dates[i+1])
                 self.epoch_tiles.append(self.obsconditions['TILEID'][ii])
+
+        if 'n_epochs' in kwargs and kwargs['n_epochs'] is not None:
+            self.n_epochs = kwargs['n_epochs']
+        else:
+            raise NameError('n_epochs was not set')
 
         self.tmp_output_path = os.path.join(self.output_path, 'tmp/')
         self.tmp_fiber_path = os.path.join(self.tmp_output_path, 'fiberassign/')
