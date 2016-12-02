@@ -533,7 +533,7 @@ def get_median_obsconditions(tileids):
         
     return obsconditions
 
-def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=False, debug=False):
+def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=False):
     """
     Generates quick output zcatalog
 
@@ -568,15 +568,6 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
         ii = (fibassign['TARGETID'] != -1)  #- targets with assignments
         nobs.update(fibassign['TARGETID'][ii])
         targets_in_tile[tile_id] = fibassign['TARGETID'][ii]
-        
-#        print (targets_in_tile)
-
-    #- Count how many times each target was observed in previous zcatalog
-    #- NOTE: assumes that no tiles have been repeated
-    # if zcat is not None:
-    #     ### print('Counting targets from previous zobs')
-    #     for targetid, n in zip(zcat['TARGETID'], zcat['NUMOBS']):
-    #         nobs[targetid] += n
 
     #- Sort obsconditions to match order of tiles
     #- This might not be needed, but is fast for O(20k) tiles and may
