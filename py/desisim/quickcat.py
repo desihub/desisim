@@ -116,10 +116,14 @@ def get_zeff_obs(simtype, obsconditions):
     z = obsconditions['MOONFRAC'] - np.mean(obsconditions['MOONFRAC'])
     pz = p_z[0] + p_z[1]*z + p_z[2] * (z**2 - np.mean(z**2))
 
+    #- if moon is down phase doesn't matter
+    pz[obsconditions['MOONALT'] < 0] = 1.0
+
     pr = 1.0 + np.random.normal(size=len(z), scale=sigma_r)
 
     #- this correction factor can be greater than 1, but not less than 0
     pobs = (pv * pw * px * py * pz * pr).clip(min=0.0)
+
     return pobs
 
 
@@ -231,13 +235,13 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
     #- be simultaneously fit instead of just taking whichever individual one
     #- succeeds.
     
-    zeff_obs = get_zeff_obs(simtype, obsconditions)
-    pfail = np.ones(n)    
-    for i, tileid in enumerate(obsconditions['TILEID']):
-        ii = np.in1d(targets['TARGETID'], targets_in_tile[tileid])
-        pfail[ii] *= (1-simulated_eff[ii]*zeff_obs[i])
-        
-    simulated_eff = (1-pfail)
+    # zeff_obs = get_zeff_obs(simtype, obsconditions)
+    # pfail = np.ones(n)
+    # for i, tileid in enumerate(obsconditions['TILEID']):
+    #     ii = np.in1d(targets['TARGETID'], targets_in_tile[tileid])
+    #     pfail[ii] *= (1-simulated_eff[ii]*zeff_obs[i])
+    #
+    # simulated_eff = (1-pfail)
 
     return simulated_eff
 
@@ -418,9 +422,6 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions=None):
                     zerr[ii]=zerr_tmp
                     zout[ii] += sign*zerr_tmp
 
-
-
-            
             else:
                 zerr[ii] = _sigma_v[objtype] * (1+truez[ii]) / c
                 zout[ii] += np.random.normal(scale=zerr[ii])
@@ -435,6 +436,8 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions=None):
                 zwarn_type = np.zeros(n, dtype=np.int32)
                 zwarn_type[jj] = 4
                 zwarn[ii] = zwarn_type
+                
+                ### print('--- OBJTYPE', objtype, np.count_nonzero(jj), len(jj))                    
 
                 # Add fraction of catastrophic failures (zwarn=0 but wrong z)
                 nzwarnzero = np.count_nonzero(zwarn[ii] == 0)
