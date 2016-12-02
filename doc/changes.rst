@@ -11,6 +11,7 @@ desisim change log
   isBGS -> isBGS_faint vs. isBGS_bright
 * Refactor quickcat to include dependency on observing conditions
 * Update quicksurvey to use observing conditions from surveysim
+* Fixes use of previous zcatalog when updating catalog with new observations
 
 0.16.0 (2016-11-10)
 -------------------
