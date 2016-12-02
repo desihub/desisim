@@ -136,7 +136,7 @@ class TestQuickCat(unittest.TestCase):
         
         #- Observe the last tile again
         zcat3copy = zcat3.copy()
-        zcat4 = quickcat(self.tilefiles[3:4], self.targets, truth=self.truth, zcat=zcat3, debug=True)        
+        zcat4 = quickcat(self.tilefiles[3:4], self.targets, truth=self.truth, zcat=zcat3)
         self.assertTrue(np.all(zcat3copy == zcat3))  #- original unmodified
         self.assertTrue(np.all(zcat4['TARGETID'] == self.truth['TARGETID']))  #- order preserved
         self.assertTrue(np.all(zcat4['Z'] != self.truth['TRUEZ']))
