@@ -73,18 +73,6 @@ class SimSetup(object):
         else:
             raise NameError('targets_path was not set')
 
-        if 'epochs_path' in kwargs and kwargs['epochs_path'] is not None:
-            if 'fiberassign_dates' in kwargs and \
-               kwargs['fiberassign_dates'] is not None:
-                raise ArgumentError('epochs_path and fiberassign_dates are mutually exclusive')
-
-            self.epochs_path = kwargs['epochs_path']        
-            # load tile list per epoch
-            self.epoch_tiles = []
-            for i in self.epochs_list:
-                epochfile = os.path.join(self.epochs_path, "epoch{}.txt".format(i))        
-                self.epoch_tiles.append(np.loadtxt(epochfile, dtype=int))
-
         if 'fiberassign_exec' in kwargs:
             self.fiberassign_exec = kwargs['fiberassign_exec']        
         else:
@@ -139,6 +127,18 @@ class SimSetup(object):
             self.n_epochs = kwargs['n_epochs']
         else:
             raise NameError('n_epochs was not set')
+
+        if 'epochs_path' in kwargs and kwargs['epochs_path'] is not None:
+            if 'fiberassign_dates' in kwargs and \
+               kwargs['fiberassign_dates'] is not None:
+                raise ArgumentError('epochs_path and fiberassign_dates are mutually exclusive')
+
+            self.epochs_path = kwargs['epochs_path']        
+            # load tile list per epoch
+            self.epoch_tiles = []
+            for i in range(self.n_epochs):
+                epochfile = os.path.join(self.epochs_path, "epoch{}.txt".format(i))        
+                self.epoch_tiles.append(np.loadtxt(epochfile, dtype=int))
 
         self.tmp_output_path = os.path.join(self.output_path, 'tmp/')
         self.tmp_fiber_path = os.path.join(self.tmp_output_path, 'fiberassign/')
