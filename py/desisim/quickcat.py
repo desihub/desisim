@@ -18,7 +18,7 @@ from pkg_resources import resource_filename
 
 import numpy as np
 from astropy.io import fits
-from astropy.table import Table, Column
+from astropy.table import Table, Column, vstack
 import sys
 import scipy.special as sp
 import desisim
@@ -283,7 +283,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
     Returns observed z, zerr, zwarn arrays given true object types and redshifts
 
     Args:       
-        targets: target catalog table; currently used only for TARGETID
+        targets: target catalog table; currently used only for target mask bits
         truth: truth table with OIIFLUX, TRUEZ
         targets_in_tile: dictionary. Keys correspond to tileids, its values are the 
             arrays of targetids observed in that tile.
@@ -437,13 +437,11 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
             was_observed, goodz_prob = get_redshift_efficiency(
                 objtype, targets[ii], truth[ii], targets_in_tile,
                 obsconditions=obsconditions)
-        
+
             assert len(was_observed) == n
             assert len(goodz_prob) == n
             r = np.random.random(len(was_observed))
             zwarn[ii] = 4 * (r > goodz_prob) * was_observed
-
-            print('--- OBJTYPE', objtype, np.count_nonzero(zwarn[ii]), np.count_nonzero(was_observed))
 
             # Add fraction of catastrophic failures (zwarn=0 but wrong z)
             nzwarnzero = np.count_nonzero(zwarn[ii][was_observed] == 0)
@@ -535,7 +533,7 @@ def get_median_obsconditions(tileids):
         
     return obsconditions
 
-def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=False):
+def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=False, debug=False):
     """
     Generates quick output zcatalog
 
@@ -573,36 +571,24 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
         
 #        print (targets_in_tile)
 
-    #- Sort obsconditions to match order of tiles
-    #- This might not be needed, but is fast for O(20k) tiles and may
-    #- prevent future surprises if code expects them to be row aligned
-    tileids = np.array(tileids)
-    if (obsconditions is not None) and \
-       (np.any(tileids != obsconditions['TILEID'])):
-        i = np.argsort(tileids)
-        j = np.argsort(obsconditions['TILEID'])
-        k = np.argsort(i)
-        obsconditions = obsconditions[j[k]]
-        assert np.all(tileids == obsconditions['TILEID'])
-
-    #- Sort obsconditions to match order of tiles
-    #- This might not be needed, but is fast for O(20k) tiles and may
-    #- prevent future surprises if code expects them to be row aligned
-    tileids = np.array(tileids)
-    if (obsconditions is not None) and \
-       (np.any(tileids != obsconditions['TILEID'])):
-        i = np.argsort(tileids)
-        j = np.argsort(obsconditions['TILEID'])
-        k = np.argsort(i)
-        obsconditions = obsconditions[j[k]]
-        assert np.all(tileids == obsconditions['TILEID'])
-
     #- Count how many times each target was observed in previous zcatalog
     #- NOTE: assumes that no tiles have been repeated
-    if zcat is not None:
-        ### print('Counting targets from previous zobs')
-        for targetid, n in zip(zcat['TARGETID'], zcat['NUMOBS']):
-            nobs[targetid] += n
+    # if zcat is not None:
+    #     ### print('Counting targets from previous zobs')
+    #     for targetid, n in zip(zcat['TARGETID'], zcat['NUMOBS']):
+    #         nobs[targetid] += n
+
+    #- Sort obsconditions to match order of tiles
+    #- This might not be needed, but is fast for O(20k) tiles and may
+    #- prevent future surprises if code expects them to be row aligned
+    tileids = np.array(tileids)
+    if (obsconditions is not None) and \
+       (np.any(tileids != obsconditions['TILEID'])):
+        i = np.argsort(tileids)
+        j = np.argsort(obsconditions['TILEID'])
+        k = np.argsort(i)
+        obsconditions = obsconditions[j[k]]
+        assert np.all(tileids == obsconditions['TILEID'])
 
     #- Trim truth down to just ones that have already been observed
     ### print('Trimming truth to just observed targets')
@@ -621,18 +607,12 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
     else:
         newzcat['BRICKNAME'] = np.zeros(len(truth), dtype=(str, 8))
 
-    #- Copy TRUEZ -> Z so that we can add errors without altering original
+    #- Copy TRUETYPE -> SPECTYPE so that we can change without altering original
     newzcat['SPECTYPE'] = truth['TRUETYPE'].copy()
-
-    #- Add numobs column
-    ### print('Adding NUMOBS column')
-    nz = len(newzcat)
-    newzcat.add_column(Column(name='NUMOBS', length=nz, dtype=np.int32))
-    for i in range(nz):
-        newzcat['NUMOBS'][i] = nobs[newzcat['TARGETID'][i]]
 
     #- Add ZERR and ZWARN
     ### print('Adding ZERR and ZWARN')
+    nz = len(newzcat)
     if perfect:
         newzcat['Z'] = truth['TRUEZ'].copy()
         newzcat['ZERR'] = np.zeros(nz, dtype=np.float32)
@@ -648,9 +628,50 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
         newzcat['ZERR'] = zerr
         newzcat['ZWARN'] = zwarn
 
+    #- Add numobs column
+    ### print('Adding NUMOBS column')
+    newzcat.add_column(Column(name='NUMOBS', length=nz, dtype=np.int32))
+    for i in range(nz):
+        newzcat['NUMOBS'][i] = nobs[newzcat['TARGETID'][i]]
+        
+    #- Merge previous zcat with newzcat
+    if zcat is not None:
+        #- don't modify original
+        #- Note: this uses copy on write for the columns to be memory
+        #- efficient while still letting us modify a column if needed
+        zcat = zcat.copy()
+        
+        #- targets that are in both zcat and newzcat
+        repeats = np.in1d(zcat['TARGETID'], newzcat['TARGETID'])
+
+        #- update numobs in both zcat and newzcat
+        ii = np.in1d(newzcat['TARGETID'], zcat['TARGETID'][repeats])
+        orig_numobs = zcat['NUMOBS'][repeats].copy()
+        new_numobs = newzcat['NUMOBS'][ii].copy()
+        zcat['NUMOBS'][repeats] += new_numobs
+        newzcat['NUMOBS'][ii] += orig_numobs
+
+        #- replace only repeats that had ZWARN flags in original zcat
+        #- replace in new
+        replace = repeats & (zcat['ZWARN'] != 0)
+        jj = np.in1d(newzcat['TARGETID'], zcat['TARGETID'][replace])
+        zcat[replace] = newzcat[jj]
+
+        #- trim newzcat to ones that shouldn't override original zcat
+        discard = np.in1d(newzcat['TARGETID'], zcat['TARGETID'])
+        newzcat = newzcat[~discard]
+        
+        #- Should be non-overlapping now
+        assert np.all(np.in1d(zcat['TARGETID'], newzcat['TARGETID']) == False)
+        
+        #- merge them
+        newzcat = vstack([zcat, newzcat])
+
+    #- check for duplicates
+    targetids = newzcat['TARGETID']
+    assert len(np.unique(targetids)) == len(targetids)
+
     #- Metadata for header
     newzcat.meta['EXTNAME'] = 'ZCATALOG'
-
-    # TODO: add some logic to check that we don't have duplicates in newzcat
 
     return newzcat
