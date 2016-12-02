@@ -145,8 +145,9 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
            'MOONFRAC': array of moonfraction values on a tile.
            'SEEING': array of FWHM seeing during spectroscopic observation on a tile.
            
-    Outputs:
-        p: array marking the probability to get this redshift right. This must have the size of targetid.
+    Outputs: tuple of arrays (observed, p) both with same length as targets
+        observed: boolean array of whether the target was observed in these tiles
+        p: probability to get this redshift right
     """
     targetid = targets['TARGETID']
     n = len(targetid)
@@ -234,16 +235,20 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
     #- NOTE: this still isn't quite right since multiple observations will
     #- be simultaneously fit instead of just taking whichever individual one
     #- succeeds.
-    
-    # zeff_obs = get_zeff_obs(simtype, obsconditions)
-    # pfail = np.ones(n)
-    # for i, tileid in enumerate(obsconditions['TILEID']):
-    #     ii = np.in1d(targets['TARGETID'], targets_in_tile[tileid])
-    #     pfail[ii] *= (1-simulated_eff[ii]*zeff_obs[i])
-    #
-    # simulated_eff = (1-pfail)
+        
+    zeff_obs = get_zeff_obs(simtype, obsconditions)
+    pfail = np.ones(n)
+    observed = np.zeros(n, dtype=bool)
+    for i, tileid in enumerate(obsconditions['TILEID']):
+        ii = np.in1d(targets['TARGETID'], targets_in_tile[tileid])
+        if np.count_nonzero(ii) > 0:
+            tmp = (simulated_eff[ii]*zeff_obs[i]).clip(0, 1)
+            pfail[ii] *= (1-tmp)
+            observed[ii] = True
 
-    return simulated_eff
+    simulated_eff = (1-pfail)
+
+    return observed, simulated_eff
 
 # Efficiency model
 def eff_model(x, sigma, max_efficiency):
@@ -273,7 +278,7 @@ def reverse_dictionary(a):
                 b[k].append(i[0])            
     return b
 
-def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions=None):
+def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
     """
     Returns observed z, zerr, zwarn arrays given true object types and redshifts
 
@@ -303,7 +308,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions=None):
     zwarn = np.zeros(len(truez), dtype=np.int32)
 
     objtypes = list(set(simtype))
-    n_tiles = len(obsconditions['TILEID'])
+    n_tiles = len(np.unique(obsconditions['TILEID']))
     
     if(n_tiles!=len(targets_in_tile)):
         raise ValueError('Number of obsconditions {} != len(targets_in_tile) {}'.format(n_tiles, len(targets_in_tile)))
@@ -426,36 +431,38 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions=None):
                 zerr[ii] = _sigma_v[objtype] * (1+truez[ii]) / c
                 zout[ii] += np.random.normal(scale=zerr[ii])
 
+            # Set ZWARN flags for some targets
+            # the redshift efficiency only sets warning, but does not impact
+            # the redshift value and its error.
+            was_observed, goodz_prob = get_redshift_efficiency(
+                objtype, targets[ii], truth[ii], targets_in_tile,
+                obsconditions=obsconditions)
+        
+            assert len(was_observed) == n
+            assert len(goodz_prob) == n
+            r = np.random.random(len(was_observed))
+            zwarn[ii] = 4 * (r > goodz_prob) * was_observed
 
-            # the redshift efficiency only sets warning, but does not impact the redshift value and its error.
-            if (obsconditions is not None):
-                p_obs = get_redshift_efficiency(objtype, targets[ii], truth[ii], targets_in_tile, obsconditions=obsconditions)
-                z_eff = p_obs.copy()
-                r = np.random.random(n)
-                jj = r > z_eff
-                zwarn_type = np.zeros(n, dtype=np.int32)
-                zwarn_type[jj] = 4
-                zwarn[ii] = zwarn_type
-                
-                ### print('--- OBJTYPE', objtype, np.count_nonzero(jj), len(jj))                    
+            print('--- OBJTYPE', objtype, np.count_nonzero(zwarn[ii]), np.count_nonzero(was_observed))
 
-                # Add fraction of catastrophic failures (zwarn=0 but wrong z)
-                nzwarnzero = np.count_nonzero(zwarn[ii] == 0)
-                num_cata = np.random.poisson(_cata_fail_fraction[objtype] * nzwarnzero)
-                if (objtype == 'ELG'): zlim=[0.6,1.7]
-                elif (objtype == 'LRG'): zlim=[0.5,1.1]
-                elif (objtype == 'QSO'): zlim=[0.5,3.5]
-                if num_cata > 0:
-                    jj, = np.where(zwarn[ii]==0)
-                    index = np.random.choice(jj, size=num_cata, replace=False)
-                    zout[index] = np.random.uniform(zlim[0],zlim[1],len(index)) 
+            # Add fraction of catastrophic failures (zwarn=0 but wrong z)
+            nzwarnzero = np.count_nonzero(zwarn[ii][was_observed] == 0)
+            num_cata = np.random.poisson(_cata_fail_fraction[objtype] * nzwarnzero)
+            if (objtype == 'ELG'): zlim=[0.6,1.7]
+            elif (objtype == 'LRG'): zlim=[0.5,1.1]
+            elif (objtype == 'QSO'): zlim=[0.5,3.5]
+            if num_cata > 0:
+                #- tmp = boolean array for all targets, flagging only those
+                #- that are of this simtype and were observed this epoch
+                tmp = np.zeros(len(ii), dtype=bool)
+                tmp[ii] = was_observed
+                kk, = np.where((zwarn==0) & tmp)
+                index = np.random.choice(kk, size=num_cata, replace=False)
+                assert np.all(np.in1d(index, np.where(ii)[0]))
+                assert np.all(zwarn[index] == 0)
+                        
+                zout[index] = np.random.uniform(zlim[0],zlim[1],len(index))
 
-            elif (obsconditions is None):
-                #- randomly select some objects to set zwarn
-                num_zwarn = int(_zwarn_fraction[objtype] * n)
-                if num_zwarn > 0:
-                    jj = np.random.choice(np.where(ii)[0], size=num_zwarn, replace=False)
-                    zwarn[jj] = 4
         else:
             msg = 'No redshift efficiency model for {}; using true z\n'.format(objtype) + \
                   'Known types are {}'.format(list(_sigma_v.keys()))
