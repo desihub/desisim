@@ -82,8 +82,11 @@ class TestQuickCat(unittest.TestCase):
         fiberassign['DEC'] = np.random.uniform(0,5, size=n)
         fiberassign.meta['EXTNAME'] = 'FIBER_ASSIGNMENTS'
         nx = cls.nspec // cls.ntiles
+        cls.targets_in_tile = dict()
         for i, filename in enumerate(cls.tilefiles):
-            fiberassign[i*nx:(i+1)*nx].write(filename)
+            subset = fiberassign[i*nx:(i+1)*nx]
+            subset.write(filename)
+            cls.targets_in_tile[cls.tileids[i]] = subset['TARGETID']
             hdulist = fits.open(filename, mode='update')
             hdr = hdulist[1].header
             hdr.set('TILEID', cls.tileids[i])
@@ -92,7 +95,8 @@ class TestQuickCat(unittest.TestCase):
         #- Also create a test of tile files that have multiple observations
         nx = cls.nspec // cls.ntiles
         for i, filename in enumerate(cls.tilefiles_multiobs):
-            fiberassign[0:(i+1)*nx].write(filename)
+            subset = fiberassign[0:(i+1)*nx]
+            subset.write(filename)
             hdulist = fits.open(filename, mode='update')
             hdr = hdulist[1].header
             hdr.set('TILEID', cls.tileids[i])
@@ -121,9 +125,34 @@ class TestQuickCat(unittest.TestCase):
         self.assertTrue(np.any(zcat2['ZWARN'] != 0))
 
         #- And add a second round of observations
-        zcat3 = quickcat(self.tilefiles[2:4], self.targets, truth=self.truth, zcat=zcat1)
+        zcat3 = quickcat(self.tilefiles[2:4], self.targets, truth=self.truth, zcat=zcat2)
         self.assertTrue(np.all(zcat3['TARGETID'] == self.truth['TARGETID']))
         self.assertTrue(np.all(zcat3['Z'] != self.truth['TRUEZ']))
+        
+        #- successful targets in the first round of observations shouldn't be updated
+        ii2 = np.in1d(zcat2['TARGETID'], zcat3['TARGETID']) & (zcat2['ZWARN'] == 0)
+        ii3 = np.in1d(zcat3['TARGETID'], zcat2['TARGETID'][ii2])
+        self.assertTrue(np.all(zcat2['Z'][ii2] == zcat3['Z'][ii3]))
+        
+        #- Observe the last tile again
+        zcat3copy = zcat3.copy()
+        zcat4 = quickcat(self.tilefiles[3:4], self.targets, truth=self.truth, zcat=zcat3)
+        self.assertTrue(np.all(zcat3copy == zcat3))  #- original unmodified
+        self.assertTrue(np.all(zcat4['TARGETID'] == self.truth['TARGETID']))  #- order preserved
+        self.assertTrue(np.all(zcat4['Z'] != self.truth['TRUEZ']))
+
+        #- Check that NUMOBS was incremented
+        i3 = np.in1d(zcat3['TARGETID'], self.targets_in_tile[self.tileids[3]])
+        i4 = np.in1d(zcat4['TARGETID'], self.targets_in_tile[self.tileids[3]])
+        self.assertTrue(np.all(zcat4['NUMOBS'][i4] == zcat3['NUMOBS'][i3]+1))
+
+        #- ZWARN==0 targets should be preserved, while ZWARN!=0 updated
+        nx = self.nspec // self.ntiles
+        z3 = zcat3[-nx:]
+        z4 = zcat4[-nx:]
+        ii = (z3['ZWARN'] != 0)
+        self.assertTrue(np.all(z3['Z'][ii] != z4['Z'][ii]))
+        self.assertTrue(np.all(z3['Z'][~ii] == z4['Z'][~ii]))
 
     def test_multiobs(self):
         # Earlier targets got more observations so should have higher efficiency
