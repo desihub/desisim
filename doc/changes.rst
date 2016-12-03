@@ -2,7 +2,12 @@
 desisim change log
 ==================
 
-0.17.0 (unreleased)
+0.17.1 (unreleased)
+-------------------
+
+* No changes yet
+
+0.17.0 (2012-12-02)
 -------------------
 
 * fixes tests for use with latest desitarget master
