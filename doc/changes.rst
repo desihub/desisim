@@ -2,12 +2,18 @@
 desisim change log
 ==================
 
-0.17.1 (unreleased)
+0.17.2 (unreleased)
 -------------------
 
 * No changes yet
 
-0.17.0 (2012-12-02)
+0.17.1 (2016-12-05)
+-------------------
+
+* Fix bug when obsconditions contain tiles that don't overlap catalog
+* Add surveysim --start_epoch option
+
+0.17.0 (2016-12-02)
 -------------------
 
 * fixes tests for use with latest desitarget master
