@@ -15,6 +15,7 @@ from __future__ import absolute_import, division, print_function
 import os
 from collections import Counter
 from pkg_resources import resource_filename
+from time import asctime
 
 import numpy as np
 from astropy.io import fits
@@ -553,10 +554,11 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
         NUMOBS, and TYPE columns
     """
     #- convert to Table for easier manipulation
-    truth = Table(truth)
+    if not isinstance(truth, Table):
+        truth = Table(truth)
 
     #- Count how many times each target was observed for this set of tiles
-    ### print('Reading {} tiles'.format(len(obstiles)))
+    print('{} QC Reading {} tiles'.format(asctime(), len(tilefiles)))
     nobs = Counter()
     targets_in_tile = {}
     tileids = list()
@@ -568,6 +570,13 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
         ii = (fibassign['TARGETID'] != -1)  #- targets with assignments
         nobs.update(fibassign['TARGETID'][ii])
         targets_in_tile[tile_id] = fibassign['TARGETID'][ii]
+
+    #- Trim obsconditions to just the tiles that were observed
+    if obsconditions is not None:
+        ii = np.in1d(obsconditions['TILEID'], tileids)
+        if np.any(ii == False):
+            obsconditions = obsconditions[ii]
+        assert len(obsconditions) > 0
 
     #- Sort obsconditions to match order of tiles
     #- This might not be needed, but is fast for O(20k) tiles and may
@@ -582,15 +591,14 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
         assert np.all(tileids == obsconditions['TILEID'])
 
     #- Trim truth down to just ones that have already been observed
-    ### print('Trimming truth to just observed targets')
+    print('{} QC Trimming truth to just observed targets'.format(asctime()))
     obs_targetids = np.array(list(nobs.keys()))
     iiobs = np.in1d(truth['TARGETID'], obs_targetids)
     truth = truth[iiobs]
     targets = targets[iiobs]
 
-    # TODO: add some logic to not reassign a redshift to something that already has one
-
     #- Construct initial new z catalog
+    print('{} QC Constructing new redshift catalog'.format(asctime()))
     newzcat = Table()
     newzcat['TARGETID'] = truth['TARGETID']
     if 'BRICKNAME' in truth.dtype.names:
@@ -602,7 +610,7 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
     newzcat['SPECTYPE'] = truth['TRUETYPE'].copy()
 
     #- Add ZERR and ZWARN
-    ### print('Adding ZERR and ZWARN')
+    print('{} QC Adding ZERR and ZWARN'.format(asctime()))
     nz = len(newzcat)
     if perfect:
         newzcat['Z'] = truth['TRUEZ'].copy()
@@ -620,12 +628,13 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
         newzcat['ZWARN'] = zwarn
 
     #- Add numobs column
-    ### print('Adding NUMOBS column')
+    print('{} QC Adding NUMOBS column'.format(asctime()))
     newzcat.add_column(Column(name='NUMOBS', length=nz, dtype=np.int32))
     for i in range(nz):
         newzcat['NUMOBS'][i] = nobs[newzcat['TARGETID'][i]]
         
     #- Merge previous zcat with newzcat
+    print('{} QC Merging previous zcat'.format(asctime()))
     if zcat is not None:
         #- don't modify original
         #- Note: this uses copy on write for the columns to be memory
@@ -665,4 +674,5 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
     #- Metadata for header
     newzcat.meta['EXTNAME'] = 'ZCATALOG'
 
+    print('{} QC done'.format(asctime()))
     return newzcat

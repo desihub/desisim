@@ -37,21 +37,22 @@ class SimSetup(object):
         n_epochs (int): number of epochs to be simulated.
                 
     """
-    def __init__(self, **kwargs):
+    def __init__(self, output_path, targets_path,
+        fiberassign_exec, template_fiberassign,
+        start_epoch=0, n_epochs=None, epochs_path=None,
+        obsconditions=None, fiberassign_dates=None):
         """Initializes all the paths, filenames and numbers describing DESI survey.
        
-        Note:
-           All parameters are required
-
         Args: 
             output_path (str): Path to write the outputs.x
             targets_path (str): Path where the files targets.fits can be found
-            epochs_path (str): Path where the epoch files can be found.
             fiberassign_exec (str): Name of the fiberassign executable
             template_fiberassign (str): Filename of the template input for fiberassign
             n_epochs (int): number of epochs to be simulated.
 
-        Optional:
+        Options:
+            epochs_path (str): Path where the epoch files can be found.
+                Required if obsconditions and fiberassign_dates is not given.
             obsconditions: file with observation conditions list from surveysim,
                 (obslist_all.fits) or Table read from that file
             fiberassign_dates: file with list of dates to run fiberassign;
@@ -63,77 +64,64 @@ class SimSetup(object):
                 checks that the order of the tiles in epochs_path/epochs*.txt
                 make any sense given the DATE-OBS in the obsconditions
         """
-        if 'output_path' in kwargs:
-            self.output_path = kwargs['output_path']        
-        else:
-            raise NameError('output_path was not set')
+        self.output_path = output_path
+        self.targets_path = targets_path
+        self.fiberassign_exec = fiberassign_exec
+        self.template_fiberassign = template_fiberassign
 
-        if 'targets_path' in kwargs:
-            self.targets_path = kwargs['targets_path']        
-        else:
-            raise NameError('targets_path was not set')
-
-        if 'fiberassign_exec' in kwargs:
-            self.fiberassign_exec = kwargs['fiberassign_exec']        
-        else:
-            raise NameError('fiberassign was not set')
-
-        if 'template_fiberassign' in kwargs:
-            self.template_fiberassign = kwargs['template_fiberassign']        
-        else:
-            raise NameError('template_fiberassign was not set')
-
-        self.obsconditions = None
-        if 'obsconditions' in kwargs and kwargs['obsconditions'] is not None:
-            if isinstance(kwargs['obsconditions'], (Table, np.ndarray)):
-                self.obsconditions = Table(kwargs['obsconditions'])
+        if obsconditions is not None:
+            if isinstance(obsconditions, (Table, np.ndarray)):
+                self.obsconditions = Table(obsconditions)
             else:
-                self.obsconditions = Table.read(kwargs['obsconditions'])
+                self.obsconditions = Table.read(obsconditions)
+        else:
+            self.obsconditions = obsconditions
 
         #- Add dates when fiberassign should be run; use YEAR-MM-DD strings
         #- to be able to compare to DATE-OBS YEAR-MM-DDThh:mm:ss.sss .
-        if 'fiberassign_dates' in kwargs and kwargs['fiberassign_dates'] is not None:
-            if 'epochs_path' in kwargs and \
-               kwargs['epochs_path'] is not None:
+        if fiberassign_dates is not None:
+            if obsconditions is None:
+                raise ArgumentError('fiberassign_dates requires obsconditions')
+                
+            if epochs_path is not None:
                 raise ArgumentError('epochs_path and fiberassign_dates are mutually exclusive')
 
-            fiberassign_dates = list()
-            with open(kwargs['fiberassign_dates']) as fx:
+            dates = list()
+            with open(fiberassign_dates) as fx:
                 for line in fx:
                     line = line.strip()
                     if line.startswith('#') or len(line) < 2:
                         continue
                     yearmmdd = line.replace('-', '')
                     year_mm_dd = yearmmdd[0:4]+'-'+yearmmdd[4:6]+'-'+yearmmdd[6:8]
-                    fiberassign_dates.append(year_mm_dd)
+                    dates.append(year_mm_dd)
 
             #- add pre- and post- dates for date range bookkeeping
-            if fiberassign_dates[0] > min(self.obsconditions['DATE-OBS']):
-                fiberassign_dates.insert(0, self.obsconditions['DATE-OBS'][0][0:10])
+            if dates[0] > min(self.obsconditions['DATE-OBS']):
+                dates.insert(0, self.obsconditions['DATE-OBS'][0][0:10])
 
-            fiberassign_dates.append('9999-99-99')
+            dates.append('9999-99-99')
             
-            if 'n_epochs' not in kwargs or kwargs['n_epochs'] is None:
-                kwargs['n_epochs'] = len(fiberassign_dates) - 1
+            if n_epochs is None:
+                n_epochs = len(dates) - 1
           
             self.epoch_tiles = []
             dateobs = self.obsconditions['DATE-OBS']            
-            for i in range(len(fiberassign_dates)-1):
-                ii = (fiberassign_dates[i]<dateobs) & \
-                     (dateobs<fiberassign_dates[i+1])
+            for i in range(len(dates)-1):
+                ii = (dates[i] < dateobs) & (dateobs < dates[i+1])
                 self.epoch_tiles.append(self.obsconditions['TILEID'][ii])
 
-        if 'n_epochs' in kwargs and kwargs['n_epochs'] is not None:
-            self.n_epochs = kwargs['n_epochs']
+        self.start_epoch = start_epoch
+        if n_epochs is not None:
+            self.n_epochs = n_epochs
         else:
             raise NameError('n_epochs was not set')
 
-        if 'epochs_path' in kwargs and kwargs['epochs_path'] is not None:
-            if 'fiberassign_dates' in kwargs and \
-               kwargs['fiberassign_dates'] is not None:
+        if epochs_path is not None:
+            if fiberassign_dates is not None:
                 raise ArgumentError('epochs_path and fiberassign_dates are mutually exclusive')
 
-            self.epochs_path = kwargs['epochs_path']        
+            self.epochs_path = epochs_path
             # load tile list per epoch
             self.epoch_tiles = []
             for i in range(self.n_epochs):
@@ -287,8 +275,10 @@ class SimSetup(object):
 
         # write the zcat, it uses the tilesfiles constructed in the last step
         self.zcat_file = os.path.join(self.tmp_output_path, 'zcat.fits')
+        print("{} starting quickcat".format(asctime()))
         newzcat = quickcat(self.tilefiles, targets, truth, zcat=zcat, 
                            obsconditions=obsconditions, perfect=perfect)
+        print("{} writing zcat".format(asctime()))
         newzcat.write(self.zcat_file, format='fits', overwrite=True)
         print("{} Finished zcat".format(asctime()))
         return truth, targets, mtl, newzcat
@@ -300,7 +290,7 @@ class SimSetup(object):
         self.create_directories()
 
         truth=targets=mtl=zcat=None
-        for epoch in self.epochs_list:
+        for epoch in self.epochs_list[self.start_epoch:]:
             print('--- Epoch {} ---'.format(epoch))
 
             self.create_surveyfile(epoch)
