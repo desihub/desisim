@@ -241,7 +241,6 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
     pfail = np.ones(n)
     observed = np.zeros(n, dtype=bool)
     for i, tileid in enumerate(obsconditions['TILEID']):
-        print (tileid)
         ii = np.in1d(targets['TARGETID'], targets_in_tile[tileid])
         if np.count_nonzero(ii) > 0:
             tmp = (simulated_eff[ii]*zeff_obs[i]).clip(0, 1)
