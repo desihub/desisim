@@ -329,7 +329,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
                     raise Exception('Missing OII flux information to estimate redshift error for ELGs')
         
                 mean_err_oii = np.interp(true_oii_flux,oii,errz_oii)
-                zerr[ii] = mean_err_oii
+                zerr[ii] = mean_err_oii*(1.+truez[ii])
                 zout[ii] += np.random.normal(scale=zerr[ii])
 
             # Error model for LRGs
@@ -371,7 +371,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
                     
                     # Computes output error and redshift
                     zerr_tmp[index] = mean_err_mag
-                zerr[ii]=zerr_tmp
+                zerr[ii]=zerr_tmp*(1.+truez[ii])
                 zout[ii] += np.random.normal(scale=zerr[ii])
 
 
@@ -416,7 +416,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
                     
                     # Computes output error and redshift 
                     zerr_tmp[index] = mean_err_mag
-                zerr[ii]=zerr_tmp
+                zerr[ii]=zerr_tmp*(1.+truez[ii])
                 zout[ii] += np.random.normal(scale=zerr[ii])
 
             else:
