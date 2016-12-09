@@ -329,12 +329,8 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
                     raise Exception('Missing OII flux information to estimate redshift error for ELGs')
         
                 mean_err_oii = np.interp(true_oii_flux,oii,errz_oii)
-
-                sign = np.random.choice([-1,1],size=np.count_nonzero(ii))
-
-                fudge=0.05
-                zerr[ii] = mean_err_oii*(1.+fudge*np.random.normal(size=mean_err_oii.size))*(1.+truez[ii])
-                zout[ii] += sign*zerr[ii]
+                zerr[ii] = mean_err_oii*(1.+truez[ii])
+                zout[ii] += np.random.normal(scale=zerr[ii])
 
             # Error model for LRGs
             elif (objtype == 'LRG'):
@@ -356,15 +352,15 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
                 0.9625 6.96202042482e-05 -0.00138632103551
                 '''
                 
-                fudge=0.02 
                 # for each redshift bin, select the corresponding coefs
+                zerr_tmp = np.zeros(len(truez[ii]))
                 for i in range(redbins.size-1):
-                    index0, = np.where((truez[ii]>redbins[i]) & (truez[ii]<redbins[i+1]))
+                    index0, = np.where((truez[ii]>=redbins[i]) & (truez[ii]<redbins[i+1]))
                     if (i==0):
                         index1, = np.where(truez[ii]<redbins[0])
                         index = np.concatenate((index0,index1))
                     elif (i==(redbins.size-2)):
-                        index1, = np.where(truez[ii]>redbins[-1])
+                        index1, = np.where(truez[ii]>=redbins[-1])
                         index = np.concatenate((index0,index1))
                     else:
                         index=index0
@@ -374,12 +370,9 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
                     mean_err_mag=np.interp(true_magr[index],mag,pol(mag))
                     
                     # Computes output error and redshift
-                    sign = np.random.choice([-1,1],size=len(truez[ii]))
-                    zerr_tmp = np.zeros(len(truez[ii]))
-                    zerr_tmp[index] = mean_err_mag*(1.+fudge*np.random.normal(size=mean_err_mag.size))*(1.+truez[ii][index])
-
-                    zerr[ii]=zerr_tmp
-                    zout[ii] += sign*zerr_tmp
+                    zerr_tmp[index] = mean_err_mag
+                zerr[ii]=zerr_tmp*(1.+truez[ii])
+                zout[ii] += np.random.normal(scale=zerr[ii])
 
 
             # Error model for QSOs
@@ -405,15 +398,15 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
                 3.0 0.000219438845624 -0.00423782927109
                 '''
                 
-                fudge=0.02
                 # for each redshift bin, select the corresponding coefs
+                zerr_tmp = np.zeros(len(truez[ii]))
                 for i in range(redbins.size-1):
-                    index0, = np.where((truez[ii]>redbins[i]) & (truez[ii]<redbins[i+1]))
+                    index0, = np.where((truez[ii]>=redbins[i]) & (truez[ii]<redbins[i+1]))
                     if (i==0): 
                         index1, = np.where(truez[ii]<redbins[0])
                         index = np.concatenate((index0,index1))
                     elif (i==(redbins.size-2)):
-                        index1, = np.where(truez[ii]>redbins[-1])
+                        index1, = np.where(truez[ii]>=redbins[-1])
                         index = np.concatenate((index0,index1))
                     else:
                         index=index0
@@ -422,11 +415,9 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
                     mean_err_mag=np.interp(true_magg[index],mag,pol(mag))
                     
                     # Computes output error and redshift 
-                    sign = np.random.choice([-1,1],size=len(truez[ii]))
-                    zerr_tmp = np.zeros(len(truez[ii]))
-                    zerr_tmp[index] = mean_err_mag*(1.+fudge*np.random.normal(size=mean_err_mag.size))*(1.+truez[ii][index])
-                    zerr[ii]=zerr_tmp
-                    zout[ii] += sign*zerr_tmp
+                    zerr_tmp[index] = mean_err_mag
+                zerr[ii]=zerr_tmp*(1.+truez[ii])
+                zout[ii] += np.random.normal(scale=zerr[ii])
 
             else:
                 zerr[ii] = _sigma_v[objtype] * (1+truez[ii]) / c
