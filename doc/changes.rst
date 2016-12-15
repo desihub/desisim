@@ -5,7 +5,7 @@ desisim change log
 0.17.2 (unreleased)
 -------------------
 
-* No changes yet
+* drops unused truth,targets columns to save memory in quicksurvey loop
 
 0.17.1 (2016-12-05)
 -------------------
