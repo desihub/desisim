@@ -201,6 +201,7 @@ class SimSetup(object):
         tiles = np.concatenate(self.epoch_tiles[epoch:])
         np.savetxt(surveyfile, tiles, fmt='%d')
         print("{} tiles to be included in fiberassign".format(len(tiles)))
+        return len(tiles)
 
     def create_fiberassign_input(self):
         """Creates input files for fiberassign from the provided template 
@@ -292,9 +293,22 @@ class SimSetup(object):
         if 'MOCKID' in truth.colnames:
             truth.remove_column('MOCKID')
 
-        mtl=zcat=None
+        if self.start_epoch == 0:
+            mtl = zcat = None
+        else:
+            print('INFO: starting at epoch {}'.format(self.start_epoch))
+            print('INFO: reading mtl and zcat from previous epoch')
+            epochdir = os.path.join(self.output_path, str(self.start_epoch-1))
+            mtl = Table.read(os.path.join(epochdir, 'mtl.fits'))
+            zcat = Table.read(os.path.join(epochdir, 'zcat.fits'))
+            
         for epoch in self.epochs_list[self.start_epoch:]:
             print('--- Epoch {} ---'.format(epoch))
+            
+            ntiles = sum([len(x) for x in self.epoch_tiles[epoch:]])
+            if ntiles == 0:
+                print('INFO: no remaining tiles; ending simulation')
+                break
 
             self.create_surveyfile(epoch)
 
