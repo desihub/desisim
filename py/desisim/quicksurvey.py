@@ -201,6 +201,7 @@ class SimSetup(object):
         tiles = np.concatenate(self.epoch_tiles[epoch:])
         np.savetxt(surveyfile, tiles, fmt='%d')
         print("{} tiles to be included in fiberassign".format(len(tiles)))
+        return len(tiles)
 
     def create_fiberassign_input(self):
         """Creates input files for fiberassign from the provided template 
@@ -213,7 +214,7 @@ class SimSetup(object):
         fx.write(params.format(inputdir = self.tmp_output_path, targetdir = self.targets_path))
         fx.close()
         
-    def simulate_epoch(self, epoch, perfect=False, truth=None, targets=None, mtl=None, zcat=None):
+    def simulate_epoch(self, epoch, truth, targets, perfect=False, mtl=None, zcat=None):
         """Core routine simulating a DESI epoch, 
 
         Args:
@@ -231,12 +232,6 @@ class SimSetup(object):
             * Fiber allocation 
             * Redshift catalogue construction
         """
-        # load truth / targets / zcat
-        if truth is None:
-            truth = Table.read(os.path.join(self.targets_path,'truth.fits'))
-        if targets is None:
-            targets = Table.read(os.path.join(self.targets_path,'targets.fits'))
-            
         print("{} Starting MTL".format(asctime()))
         self.mtl_file = os.path.join(self.tmp_output_path, 'mtl.fits')    
         mtl = desitarget.mtl.make_mtl(targets, zcat)
@@ -281,7 +276,7 @@ class SimSetup(object):
         print("{} writing zcat".format(asctime()))
         newzcat.write(self.zcat_file, format='fits', overwrite=True)
         print("{} Finished zcat".format(asctime()))
-        return truth, targets, mtl, newzcat
+        return mtl, newzcat
 
 
     def simulate(self):
@@ -289,16 +284,38 @@ class SimSetup(object):
         """
         self.create_directories()
 
-        truth=targets=mtl=zcat=None
+        truth = Table.read(os.path.join(self.targets_path,'truth.fits'))
+        targets = Table.read(os.path.join(self.targets_path,'targets.fits'))
+        
+        #- Drop columns that aren't needed to save memory while manipulating
+        targets.remove_columns(['DEPTH_R', 'GALDEPTH_R'])
+        truth.remove_columns(['RA', 'DEC', 'BRICKNAME', 'SOURCETYPE'])
+        if 'MOCKID' in truth.colnames:
+            truth.remove_column('MOCKID')
+
+        if self.start_epoch == 0:
+            mtl = zcat = None
+        else:
+            print('INFO: starting at epoch {}'.format(self.start_epoch))
+            print('INFO: reading mtl and zcat from previous epoch')
+            epochdir = os.path.join(self.output_path, str(self.start_epoch-1))
+            mtl = Table.read(os.path.join(epochdir, 'mtl.fits'))
+            zcat = Table.read(os.path.join(epochdir, 'zcat.fits'))
+            
         for epoch in self.epochs_list[self.start_epoch:]:
             print('--- Epoch {} ---'.format(epoch))
+            
+            ntiles = sum([len(x) for x in self.epoch_tiles[epoch:]])
+            if ntiles == 0:
+                print('INFO: no remaining tiles; ending simulation')
+                break
 
             self.create_surveyfile(epoch)
 
             self.create_fiberassign_input()
 
-            truth, targets, mtl, zcat = self.simulate_epoch(epoch, perfect=False,
-                                                            truth=truth, targets=targets, mtl=mtl, zcat=zcat)
+            mtl, zcat = self.simulate_epoch(epoch, truth, targets,
+                                            perfect=False, mtl=mtl, zcat=zcat)
 
             self.backup_epoch_data(epoch_id=epoch)
 
