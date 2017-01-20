@@ -483,3 +483,43 @@ def sample_nz(objtype, n):
     #- Sample that distribution
     x = np.random.uniform(0.0, 1.0, size=n)
     return np.interp(x, cdf, zhi)
+
+
+def get_target_spectra(targets, truth, wave=None):
+    '''
+    Returns true flux, wavelengths, and template metadata for input targets.
+    
+    Args:
+        targets: rows of target selection table
+        truth: row-matched truth information corresponding to targets
+    
+    Optional:
+        wave: wavelength array to sample the output templates
+    
+    Returns (flux,wave,meta) analogous to desisim.templates.XYZ.make_templates()
+        flux: 2D[ntarget, nwave] array of flux [erg/s/cm2/Angstrom]
+        wave: 1D[nwave] array of sampled wavelengths [Angstroms]
+        meta: metadata table for these targets
+
+    Note:
+        targets and truth come from input mocks via
+        desitarget.build.select_mock_targets().
+    
+    TODO:
+        Document exactly which columns of `targets` and `truth` are needed.
+    '''
+
+''' Internally that will get split off into BGS vs. MWS vs. dark
+vs. calibrators, but I think all of them boil down to inputs rows from the
+targets and truth tables corresponding to the targets for which I want to get
+their model spectra, and outputs of flux, wavelength, and metadata.  The input
+subset of rows might correspond to the targets selected by a fiberassignment
+tile, or they might be all the targets on a brick, or something else.  Your code
+shouldn't know or care.
+
+If you think I need to provide more input, let me know what and we can figure
+out whether that should be added to the truth table in the first place or where
+else I can get the information.  And if you think I need more output than this,
+let me know.  '''
+
+
