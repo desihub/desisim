@@ -485,6 +485,17 @@ def sample_nz(objtype, n):
     return np.interp(x, cdf, zhi)
 
 
+def _default_wave(wavemin=None, wavemax=None, dw=0.2):
+    '''Construct and return the default wavelength vector.'''
+
+    if wavemin is None:
+        wavemin = desimodel.io.load_throughput('b').wavemin
+    if wavemax is None:
+        wavemax = desimodel.io.load_throughput('z').wavemax
+    wave = np.arange(round(wavemin, 1), wavemax, dw)
+
+    return wave
+
 def get_target_spectra(targets, truth, wave=None):
     '''
     Returns true flux, wavelengths, and template metadata for input targets.
@@ -507,19 +518,92 @@ def get_target_spectra(targets, truth, wave=None):
     
     TODO:
         Document exactly which columns of `targets` and `truth` are needed.
+
+
+    Internally that will get split off into BGS vs. MWS vs. dark
+    vs. calibrators, but I think all of them boil down to inputs rows from the
+    targets and truth tables corresponding to the targets for which I want to get
+    their model spectra, and outputs of flux, wavelength, and metadata.  The input
+    subset of rows might correspond to the targets selected by a fiberassignment
+    tile, or they might be all the targets on a brick, or something else.  Your code
+    shouldn't know or care.
+
+    If you think I need to provide more input, let me know what and we can figure
+    out whether that should be added to the truth table in the first place or where
+    else I can get the information.  And if you think I need more output than this,
+    let me know.
     '''
 
-''' Internally that will get split off into BGS vs. MWS vs. dark
-vs. calibrators, but I think all of them boil down to inputs rows from the
-targets and truth tables corresponding to the targets for which I want to get
-their model spectra, and outputs of flux, wavelength, and metadata.  The input
-subset of rows might correspond to the targets selected by a fiberassignment
-tile, or they might be all the targets on a brick, or something else.  Your code
-shouldn't know or care.
+    # Build the desired output wavelength array.
+    wave = _default_wave()
 
-If you think I need to provide more input, let me know what and we can figure
-out whether that should be added to the truth table in the first place or where
-else I can get the information.  And if you think I need more output than this,
-let me know.  '''
+    # Initialize the output flux vector.
+    nallobj = len(truth)
+    flux = np.zeros(nallobj, len(wave))
+    meta = empty_metatable(nmodel=nallobj, objtype='SKY')
+
+    true_objtype = truth['SOURCETYPE']
+
+    # Generate spectra for each unique object type.
+    for objtype in set(true_objtype):
+        ii = np.where(true_objtype == objtype)[0]
+        nobj = len(ii)
+
+        # Initialize the star_properties or input_meta tables.
+        if objtype == 'STD' or objtype == 'MWS_STAR' or objtype == 'WD':
+            
+        
 
 
+        if objtype == 'SKY':
+            continue
+
+        elif objtype == 'ELG':
+            from desisim.templates import ELG
+            elg = ELG(wave=wave)
+            simflux, wave1, meta = elg.make_templates(nmodel=nobj, seed=seed)
+
+        elif objtype == 'LRG':
+            from desisim.templates import LRG
+            lrg = LRG(wave=wave)
+            simflux, wave1, meta = lrg.make_templates(nmodel=nobj, seed=seed)
+
+        elif objtype == 'BGS':
+            from desisim.templates import BGS
+            bgs = BGS(wave=wave)
+            simflux, wave1, meta = bgs.make_templates(nmodel=nobj, seed=seed)
+
+        elif objtype == 'QSO':
+            from desisim.templates import QSO
+            qso = QSO(wave=wave)
+            simflux, wave1, meta = qso.make_templates(nmodel=nobj, seed=seed)
+
+        # For a "bad" QSO simulate a normal star without color cuts, which isn't
+        # right. We need to apply the QSO color-cuts to the normal stars to pull
+        # out the correct population of contaminating stars.
+
+        # Note by @moustakas: we can now do this using desisim/#150, but we are
+        # going to need 'noisy' photometry (because the QSO color-cuts
+        # explicitly avoid the stellar locus).
+        elif objtype == 'QSO_BAD':
+            from desisim.templates import STAR
+            #from desitarget.cuts import isQSO
+            #star = STAR(wave=wave, colorcuts_function=isQSO)
+            star = STAR(wave=wave)
+            simflux, wave1, meta = star.make_templates(nmodel=nobj, seed=seed)
+
+        elif objtype == 'STD':
+            from desisim.templates import FSTD
+            fstd = FSTD(wave=wave)
+            simflux, wave1, meta = fstd.make_templates(nmodel=nobj, seed=seed)
+
+        elif objtype == 'MWS_STAR':
+            from desisim.templates import MWS_STAR
+            mwsstar = MWS_STAR(wave=wave)
+            # todo: mag ranges for different flavors of STAR targets should be in desimodel
+            simflux, wave1, meta = mwsstar.make_templates(nmodel=nobj,rmagrange=(15.0,20.0), seed=seed) 
+
+        else:
+            raise ValueError('Unable to simulate OBJTYPE={}'.format(objtype))
+
+    return flux, wave, meta
