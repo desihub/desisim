@@ -14,7 +14,7 @@ import yaml
 from astropy.table import Table, Column, hstack
 
 from desimodel.focalplane import FocalPlane
-from desisim.io import empty_metatable
+from desisim.io import empty_metatable, empty_star_properties
 import desimodel.io
 from desispec.log import get_logger
 log = get_logger()
@@ -496,16 +496,23 @@ def _default_wave(wavemin=None, wavemax=None, dw=0.2):
 
     return wave
 
-def get_target_spectra(targets, truth, wave=None):
+def get_target_spectra(truetype, truth=None, wave=None, seed=None):
     '''
     Returns true flux, wavelengths, and template metadata for input targets.
     
     Args:
-        targets: rows of target selection table
-        truth: row-matched truth information corresponding to targets
+        truetype: spectral types to generate
     
     Optional:
         wave: wavelength array to sample the output templates
+        truth: table containing the detailed metadata for each object
+           TRUEZ -
+           TEFF - 
+           LOGG -
+           FEH -
+           SEED -
+           MAG -
+           NORMFILTER - 
     
     Returns (flux,wave,meta) analogous to desisim.templates.XYZ.make_templates()
         flux: 2D[ntarget, nwave] array of flux [erg/s/cm2/Angstrom]
@@ -538,45 +545,81 @@ def get_target_spectra(targets, truth, wave=None):
     wave = _default_wave()
 
     # Initialize the output flux vector.
-    nallobj = len(truth)
+    if truth is None:
+        star_properties = None
+        input_meta = None
+        normfilter = None
+
+        log.debug('Using random seed {}'.format(seed))
+        rand = np.random.seed(seed)
+    else:
+        truetype = truth['TRUETYPE']
+        nocolorcuts = True # assume the color-cuts have been applied already
+
+    nallobj = len(truetype)
+
     flux = np.zeros(nallobj, len(wave))
     meta = empty_metatable(nmodel=nallobj, objtype='SKY')
 
-    true_objtype = truth['SOURCETYPE']
-
     # Generate spectra for each unique object type.
-    for objtype in set(true_objtype):
-        ii = np.where(true_objtype == objtype)[0]
+    for objtype in set(truetype):
+        ii = np.where(truetype == objtype)[0]
         nobj = len(ii)
 
         # Initialize the star_properties or input_meta tables.
-        if objtype == 'STD' or objtype == 'MWS_STAR' or objtype == 'WD':
+        if truth is not None:
+            normfilter = set(truth['NORMFILTER'])
+            if len(normfilter) > 1:
+                log.fatal('Expecting NORMFILTER to be unique for OBJTYPE {}.'.format(objtype))
+                raise(ValueError)
             
-        
-
+            if 'MWS' in objtype or 'STD' in objtype or 'WD' in objtype:
+                star_properties = empty_star_properties(nstar=nobj)
+                star_properties['SEED'] = truth['SEED']
+                star_properties['MAG'] = truth['MAG']
+                star_properties['REDSHIFT'] = truth['TRUEZ']
+                star_properties['TEFF'] = truth['TEFF']
+                star_properties['LOGG'] = truth['LOGG']
+                star_properties['FEH'] = truth['FEH'] # ignored for WDs!
+            else:
+                # This could break if OBJTYPE is something I'm not expecting.
+                input_meta = empty_metatable(nmodel=nobj, objtype=objtype)
+                input_meta['SEED'] = truth['SEED']
+                input_meta['MAG'] = truth['MAG']
+                input_meta['REDSHIFT'] = truth['TRUEZ']
+                input_meta['TEMPLATEID'] = truth['TEMPLATEID']
 
         if objtype == 'SKY':
             continue
 
+        # Galaxies/QSOs of various flavors:
         elif objtype == 'ELG':
             from desisim.templates import ELG
-            elg = ELG(wave=wave)
-            simflux, wave1, meta = elg.make_templates(nmodel=nobj, seed=seed)
+            elg = ELG(wave=wave, normfilter=normfilter)
+            simflux, wave1, meta = elg.make_templates(nmodel=nobj, seed=seed,
+                                                      input_meta=input_meta,
+                                                      nocolorcuts=True)
 
         elif objtype == 'LRG':
             from desisim.templates import LRG
-            lrg = LRG(wave=wave)
-            simflux, wave1, meta = lrg.make_templates(nmodel=nobj, seed=seed)
+            lrg = LRG(wave=wave, normfilter=normfilter)
+            simflux, wave1, meta = lrg.make_templates(nmodel=nobj, seed=seed,
+                                                      input_meta=input_meta,
+                                                      nocolorcuts=True)
 
         elif objtype == 'BGS':
             from desisim.templates import BGS
-            bgs = BGS(wave=wave)
-            simflux, wave1, meta = bgs.make_templates(nmodel=nobj, seed=seed)
+            bgs = BGS(wave=wave, normfilter=normfilter)
+            simflux, wave1, meta = bgs.make_templates(nmodel=nobj, seed=seed,
+                                                      input_meta=input_meta,
+                                                      nocolorcuts=True)
 
         elif objtype == 'QSO':
             from desisim.templates import QSO
-            qso = QSO(wave=wave)
-            simflux, wave1, meta = qso.make_templates(nmodel=nobj, seed=seed)
+            qso = QSO(wave=wave, normfilter=normfilter)
+            simflux, wave1, meta = qso.make_templates(nmodel=nobj, seed=seed,
+                                                      input_meta=input_meta,
+                                                      nocolorcuts=True)
 
         # For a "bad" QSO simulate a normal star without color cuts, which isn't
         # right. We need to apply the QSO color-cuts to the normal stars to pull
@@ -589,17 +632,19 @@ def get_target_spectra(targets, truth, wave=None):
             from desisim.templates import STAR
             #from desitarget.cuts import isQSO
             #star = STAR(wave=wave, colorcuts_function=isQSO)
-            star = STAR(wave=wave)
-            simflux, wave1, meta = star.make_templates(nmodel=nobj, seed=seed)
+            star = STAR(wave=wave, normfilter=normfilter)
+            simflux, wave1, meta = star.make_templates(nmodel=nobj, seed=seed,
+                                                      input_meta=input_meta,
+                                                      nocolorcuts=True)
 
         elif objtype == 'STD':
             from desisim.templates import FSTD
-            fstd = FSTD(wave=wave)
+            fstd = FSTD(wave=wave, normfilter=normfilter)
             simflux, wave1, meta = fstd.make_templates(nmodel=nobj, seed=seed)
 
         elif objtype == 'MWS_STAR':
             from desisim.templates import MWS_STAR
-            mwsstar = MWS_STAR(wave=wave)
+            mwsstar = MWS_STAR(wave=wave, normfilter=normfilter)
             # todo: mag ranges for different flavors of STAR targets should be in desimodel
             simflux, wave1, meta = mwsstar.make_templates(nmodel=nobj,rmagrange=(15.0,20.0), seed=seed) 
 
