@@ -559,7 +559,7 @@ def _qso_format_version(filename):
         else:
             raise IOError('Unknown QSO basis template format '+filename)
 
-def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
+def read_basis_templates(objtype, outwave=None, nspec=None, infile=None, onlymeta=False):
     """Return the basis (continuum) templates for a given object type.  Optionally
     returns a randomly selected subset of nspec spectra sampled at
     wavelengths outwave.
@@ -572,6 +572,7 @@ def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
         infile (str, optional): full path to input template file to read,
             over-riding the contents of the $DESI_BASIS_TEMPLATES environment
             variable.
+        onlymeta (Bool, optional): read just the metadata table and return
 
     Returns:
         Tuple of (outflux, outwave, meta) where
@@ -599,6 +600,9 @@ def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
         infile = find_basis_template(ltype)
 
     log.info('Reading {}'.format(infile))
+
+    if onlymeta:
+        return Table(fits.getdata(infile, 1))
 
     if objtype.upper() == 'QSO':
         fx = fits.open(infile)
