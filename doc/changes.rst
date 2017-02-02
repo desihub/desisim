@@ -6,6 +6,7 @@ desisim change log
 -------------------
 
 * drops unused truth,targets columns to save memory in quicksurvey loop
+* pixsim add new required keywords DOSVER, FEEVER, DETECTOR
 
 0.17.1 (2016-12-05)
 -------------------
