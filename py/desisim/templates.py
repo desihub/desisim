@@ -412,6 +412,9 @@ class GALAXY(object):
            yet supported.
 
         """
+        if agnlike:
+            raise NotImplementedError('agnlike option not yet implemented')
+
         if rand is None:
             rand = np.random.RandomState()
 
@@ -442,7 +445,7 @@ class GALAXY(object):
                               minlineflux=0.0, sne_rfluxratiorange=(0.01, 0.1),
                               seed=None, redshift=None, mag=None, vdisp=None,
                               input_meta=None, nocolorcuts=False, nocontinuum=False,
-                              agnlike=False):
+                              agnlike=False, restframe=False):
         """Build Monte Carlo galaxy spectra/templates.
 
         This function chooses random subsets of the basis continuum spectra (for
@@ -516,6 +519,8 @@ class GALAXY(object):
           agnlike (bool, optional): Adopt AGN-like emission-line ratios (e.g.,
             for the LRGs and some BGS galaxies) (default False, meaning we adopt
             star-formation-like line-ratios).  Option not yet supported.
+          restframe (bool, optional): If True, return full resolution restframe
+            templates instead of resampled observer frame.
 
         Returns:
           outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
@@ -629,7 +634,11 @@ class GALAXY(object):
             EM = EMSpectrum(log10wave=np.log10(self.basewave))
 
         # Build each spectrum in turn.
-        outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
+        if restframe:
+            outflux = np.zeros([nmodel, len(self.basewave)])
+        else:
+            outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
+
         for ii in range(nmodel):
             templaterand = np.random.RandomState(templateseed[ii])
 
@@ -742,7 +751,10 @@ class GALAXY(object):
                         blurflux = (self.vdispblur((restflux[this, :] - thisemflux), vdisp[ii]) + \
                                     thisemflux) * magnorm[this]
 
-                    outflux[ii, :] = resample_flux(self.wave, zwave, blurflux)
+                    if restframe:
+                        outflux[ii, :] = blurflux
+                    else:
+                        outflux[ii, :] = resample_flux(self.wave, zwave, blurflux)
 
                     meta['TEMPLATEID'][ii] = tempid
                     meta['D4000'][ii] = d4000[tempid]
@@ -765,7 +777,10 @@ class GALAXY(object):
             log.warning('{} spectra could not be computed given the input priors!'.\
                         format(np.sum(success == 0)))
 
-        return outflux, self.wave, meta
+        if restframe:
+            return outflux, self.basewave, meta
+        else:
+            return outflux, self.wave, meta
 
 class ELG(GALAXY):
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs)."""
@@ -804,12 +819,12 @@ class ELG(GALAXY):
                        oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
                        minoiiflux=0.0, sne_rfluxratiorange=(0.1, 1.0), redshift=None,
                        mag=None, vdisp=None, seed=None, input_meta=None, nocolorcuts=False,
-                       nocontinuum=False, agnlike=False):
+                       nocontinuum=False, agnlike=False, restframe=False):
         """Build Monte Carlo ELG spectra/templates.
 
         See the GALAXY.make_galaxy_templates function for documentation on the
         arguments and inherited attributes.  Here we only document the arguments
-        which are specific to the ELG class.
+        that are specific to the ELG class.
 
         Args:
           rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
@@ -838,7 +853,7 @@ class ELG(GALAXY):
                                                          minlineflux=minoiiflux, redshift=redshift, vdisp=vdisp,
                                                          mag=mag, sne_rfluxratiorange=sne_rfluxratiorange,
                                                          seed=seed, input_meta=input_meta, nocolorcuts=nocolorcuts,
-                                                         nocontinuum=nocontinuum, agnlike=agnlike)
+                                                         nocontinuum=nocontinuum, agnlike=agnlike, restframe=restframe)
 
         return outflux, wave, meta
 
@@ -883,12 +898,12 @@ class BGS(GALAXY):
                        oiiihbrange=(-1.3, 0.6), logvdisp_meansig=(2.0, 0.17),
                        minhbetaflux=0.0, sne_rfluxratiorange=(0.1, 1.0), redshift=None,
                        mag=None, vdisp=None, seed=None, input_meta=None, nocolorcuts=False,
-                       nocontinuum=False, agnlike=False):
+                       nocontinuum=False, agnlike=False, restframe=False):
         """Build Monte Carlo BGS spectra/templates.
 
          See the GALAXY.make_galaxy_templates function for documentation on the
          arguments and inherited attributes.  Here we only document the
-         arguments which are specific to the BGS class.
+         arguments that are specific to the BGS class.
 
         Args:
           rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
@@ -917,7 +932,7 @@ class BGS(GALAXY):
                                                          minlineflux=minhbetaflux, redshift=redshift, vdisp=vdisp,
                                                          mag=mag, sne_rfluxratiorange=sne_rfluxratiorange,
                                                          seed=seed, input_meta=input_meta, nocolorcuts=nocolorcuts,
-                                                         nocontinuum=nocontinuum, agnlike=agnlike)
+                                                         nocontinuum=nocontinuum, agnlike=agnlike, restframe=restframe)
 
         return outflux, wave, meta
 
@@ -953,12 +968,13 @@ class LRG(GALAXY):
     def make_templates(self, nmodel=100, zrange=(0.5, 1.0), zmagrange=(19.0, 20.5),
                        logvdisp_meansig=(2.3, 0.1), sne_rfluxratiorange=(0.1, 1.0),
                        redshift=None, mag=None, vdisp=None, seed=None,
-                       input_meta=None, nocolorcuts=False, agnlike=False):
+                       input_meta=None, nocolorcuts=False, agnlike=False,
+                       restframe=False):
         """Build Monte Carlo BGS spectra/templates.
 
          See the GALAXY.make_galaxy_templates function for documentation on the
          arguments and inherited attributes.  Here we only document the
-         arguments which are specific to the LRG class.
+         arguments that are specific to the LRG class.
 
         Args:
           zmagrange (float, optional): Minimum and maximum DECam z-band (AB)
@@ -983,7 +999,7 @@ class LRG(GALAXY):
                                                          logvdisp_meansig=logvdisp_meansig, redshift=redshift,
                                                          vdisp=vdisp, mag=mag, sne_rfluxratiorange=sne_rfluxratiorange,
                                                          seed=seed, input_meta=input_meta, nocolorcuts=nocolorcuts,
-                                                         agnlike=agnlike)
+                                                         agnlike=agnlike, restframe=restframe)
 
         # Pack into the metadata table some additional information.
         good = np.where(meta['TEMPLATEID'] != -1)[0]
@@ -1060,7 +1076,7 @@ class SUPERSTAR(object):
     def make_star_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                             magrange=(18.0, 23.5), seed=None, redshift=None,
                             mag=None, input_meta=None, star_properties=None,
-                            nocolorcuts=False):
+                            nocolorcuts=False, restframe=False):
 
         """Build Monte Carlo spectra/templates for various flavors of stars.
 
@@ -1121,6 +1137,10 @@ class SUPERSTAR(object):
 
           nocolorcuts (bool, optional): Do not apply the color-cuts specified by
             the self.colorcuts_function function (default False).
+
+          restframe (bool, optional): If True, return full resolution restframe
+            templates instead of resampled observer frame.
+
 
         Returns:
           outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
@@ -1227,7 +1247,10 @@ class SUPERSTAR(object):
                                 input_properties, method='linear')
 
         # Build each spectrum in turn.
-        outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
+        if restframe:
+            outflux = np.zeros([nmodel, len(self.basewave)]) # [erg/s/cm2/A]
+        else:
+            outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
         for ii in range(nmodel):
             zwave = self.basewave.astype(float)*(1.0 + redshift[ii])
 
@@ -1271,7 +1294,10 @@ class SUPERSTAR(object):
                     this = templaterand.choice(np.where(colormask)[0]) # Pick one randomly.
                     tempid = templateid[this]
 
-                    outflux[ii, :] = resample_flux(self.wave, zwave, restflux[this, :]) * magnorm[this]
+                    if restframe:
+                        outflux[ii, :] = restflux[this, :] * magnorm[this]
+                    else:
+                        outflux[ii, :] = resample_flux(self.wave, zwave, restflux[this, :]) * magnorm[this]
 
                     meta['TEMPLATEID'][ii] = tempid
                     meta['DECAM_FLUX'][ii] = synthnano[this, :6]
@@ -1296,7 +1322,10 @@ class SUPERSTAR(object):
             log.warning('{} spectra could not be computed given the input priors!'.\
                         format(np.sum(success == 0)))
 
-        return outflux, self.wave, meta
+        if restframe:
+            return outflux, self.basewave, meta
+        else:
+            return outflux, self.wave, meta
 
 class STAR(SUPERSTAR):
     """Generate Monte Carlo spectra of generic stars."""
@@ -1325,7 +1354,8 @@ class STAR(SUPERSTAR):
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                        rmagrange=(18.0, 23.5), seed=None, redshift=None,
-                       mag=None, input_meta=None, star_properties=None):
+                       mag=None, input_meta=None, star_properties=None,
+                       restframe=False):
         """Build Monte Carlo spectra/templates for generic stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
@@ -1348,7 +1378,8 @@ class STAR(SUPERSTAR):
         outflux, wave, meta = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
                                                        magrange=rmagrange, seed=seed, redshift=redshift,
                                                        mag=mag, input_meta=input_meta,
-                                                       star_properties=star_properties)
+                                                       star_properties=star_properties,
+                                                       restframe=restframe)
         return outflux, wave, meta
 
 class FSTD(SUPERSTAR):
@@ -1383,7 +1414,7 @@ class FSTD(SUPERSTAR):
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), rmagrange=(16.0, 19.0),
                        seed=None, redshift=None, mag=None, input_meta=None, star_properties=None,
-                       nocolorcuts=False):
+                       nocolorcuts=False, restframe=False):
         """Build Monte Carlo spectra/templates for FSTD stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
@@ -1407,7 +1438,7 @@ class FSTD(SUPERSTAR):
                                                        magrange=rmagrange, seed=seed, redshift=redshift,
                                                        mag=mag, input_meta=input_meta,
                                                        star_properties=star_properties,
-                                                       nocolorcuts=nocolorcuts)
+                                                       nocolorcuts=nocolorcuts, restframe=restframe)
         return outflux, wave, meta
 
 class MWS_STAR(SUPERSTAR):
@@ -1441,7 +1472,7 @@ class MWS_STAR(SUPERSTAR):
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), rmagrange=(16.0, 20.0),
                        seed=None, redshift=None, mag=None, input_meta=None, star_properties=None,
-                       nocolorcuts=False):
+                       nocolorcuts=False, restframe=False):
         """Build Monte Carlo spectra/templates for MWS_STAR stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
@@ -1465,7 +1496,7 @@ class MWS_STAR(SUPERSTAR):
                                                        magrange=rmagrange, seed=seed, redshift=redshift,
                                                        mag=mag, input_meta=input_meta,
                                                        star_properties=star_properties,
-                                                       nocolorcuts=nocolorcuts)
+                                                       nocolorcuts=nocolorcuts, restframe=restframe)
         return outflux, wave, meta
 
 class WD(SUPERSTAR):
@@ -1496,7 +1527,7 @@ class WD(SUPERSTAR):
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), gmagrange=(16.0, 19.0),
                        seed=None, redshift=None, mag=None, input_meta=None, star_properties=None,
-                       nocolorcuts=False):
+                       nocolorcuts=False, restframe=False):
         """Build Monte Carlo spectra/templates for WD stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
@@ -1520,7 +1551,8 @@ class WD(SUPERSTAR):
                                                        magrange=gmagrange, seed=seed, redshift=redshift,
                                                        mag=mag, input_meta=input_meta,
                                                        star_properties=star_properties,
-                                                       nocolorcuts=nocolorcuts)
+                                                       nocolorcuts=nocolorcuts,
+                                                       restframe=restframe)
         return outflux, wave, meta
 
 class QSO():
