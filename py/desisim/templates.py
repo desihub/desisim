@@ -442,7 +442,7 @@ class GALAXY(object):
                               minlineflux=0.0, sne_rfluxratiorange=(0.01, 0.1),
                               seed=None, redshift=None, mag=None, vdisp=None,
                               input_meta=None, nocolorcuts=False, nocontinuum=False,
-                              agnlike=False):
+                              novdisp=False, agnlike=False):
         """Build Monte Carlo galaxy spectra/templates.
 
         This function chooses random subsets of the basis continuum spectra (for
@@ -513,6 +513,8 @@ class GALAXY(object):
             the output spectrum (useful for testing; default False).  Note that
             this option automatically sets nocolorcuts to True and add_SNeIa to
             False.
+          novdisp (bool, optional): Do not velocity-blur the spectrum (default
+            False).
           agnlike (bool, optional): Adopt AGN-like emission-line ratios (e.g.,
             for the LRGs and some BGS galaxies) (default False, meaning we adopt
             star-formation-like line-ratios).  Option not yet supported.
@@ -736,7 +738,7 @@ class GALAXY(object):
                     tempid = templateid[this]
 
                     thisemflux = emflux * normlineflux[templateid[this]]
-                    if nocontinuum:
+                    if nocontinuum or novdisp:
                         blurflux = restflux[this, :] * magnorm[this]
                     else:
                         blurflux = (self.vdispblur((restflux[this, :] - thisemflux), vdisp[ii]) + \
@@ -804,7 +806,7 @@ class ELG(GALAXY):
                        oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
                        minoiiflux=0.0, sne_rfluxratiorange=(0.1, 1.0), redshift=None,
                        mag=None, vdisp=None, seed=None, input_meta=None, nocolorcuts=False,
-                       nocontinuum=False, agnlike=False):
+                       nocontinuum=False, novdisp=False, agnlike=False):
         """Build Monte Carlo ELG spectra/templates.
 
         See the GALAXY.make_galaxy_templates function for documentation on the
@@ -838,7 +840,7 @@ class ELG(GALAXY):
                                                          minlineflux=minoiiflux, redshift=redshift, vdisp=vdisp,
                                                          mag=mag, sne_rfluxratiorange=sne_rfluxratiorange,
                                                          seed=seed, input_meta=input_meta, nocolorcuts=nocolorcuts,
-                                                         nocontinuum=nocontinuum, agnlike=agnlike)
+                                                         nocontinuum=nocontinuum, novdisp=novdisp, agnlike=agnlike)
 
         return outflux, wave, meta
 
@@ -883,7 +885,7 @@ class BGS(GALAXY):
                        oiiihbrange=(-1.3, 0.6), logvdisp_meansig=(2.0, 0.17),
                        minhbetaflux=0.0, sne_rfluxratiorange=(0.1, 1.0), redshift=None,
                        mag=None, vdisp=None, seed=None, input_meta=None, nocolorcuts=False,
-                       nocontinuum=False, agnlike=False):
+                       nocontinuum=False, novdisp=False, agnlike=False):
         """Build Monte Carlo BGS spectra/templates.
 
          See the GALAXY.make_galaxy_templates function for documentation on the
@@ -917,7 +919,7 @@ class BGS(GALAXY):
                                                          minlineflux=minhbetaflux, redshift=redshift, vdisp=vdisp,
                                                          mag=mag, sne_rfluxratiorange=sne_rfluxratiorange,
                                                          seed=seed, input_meta=input_meta, nocolorcuts=nocolorcuts,
-                                                         nocontinuum=nocontinuum, agnlike=agnlike)
+                                                         nocontinuum=nocontinuum, novdisp=novdisp, agnlike=agnlike)
 
         return outflux, wave, meta
 
@@ -953,7 +955,7 @@ class LRG(GALAXY):
     def make_templates(self, nmodel=100, zrange=(0.5, 1.0), zmagrange=(19.0, 20.5),
                        logvdisp_meansig=(2.3, 0.1), sne_rfluxratiorange=(0.1, 1.0),
                        redshift=None, mag=None, vdisp=None, seed=None,
-                       input_meta=None, nocolorcuts=False, agnlike=False):
+                       input_meta=None, nocolorcuts=False, novdisp=False, agnlike=False):
         """Build Monte Carlo BGS spectra/templates.
 
          See the GALAXY.make_galaxy_templates function for documentation on the
@@ -983,7 +985,7 @@ class LRG(GALAXY):
                                                          logvdisp_meansig=logvdisp_meansig, redshift=redshift,
                                                          vdisp=vdisp, mag=mag, sne_rfluxratiorange=sne_rfluxratiorange,
                                                          seed=seed, input_meta=input_meta, nocolorcuts=nocolorcuts,
-                                                         agnlike=agnlike)
+                                                         novdisp=novdisp, agnlike=agnlike)
 
         # Pack into the metadata table some additional information.
         good = np.where(meta['TEMPLATEID'] != -1)[0]
