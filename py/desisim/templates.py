@@ -17,65 +17,6 @@ log = get_logger()
 
 LIGHT = 2.99792458E5  #- speed of light in km/s
 
-class GaussianMixtureModel(object):
-    """Read and sample from a pre-defined Gaussian mixture model.
-
-    """
-    def __init__(self, weights, means, covars, covtype):
-        self.weights = weights
-        self.means = means
-        self.covars = covars
-        self.covtype = covtype
-        self.n_components, self.n_dimensions = self.means.shape
-
-    @staticmethod
-    def save(model, filename):
-        from astropy.io import fits
-        hdus = fits.HDUList()
-        hdr = fits.Header()
-        hdr['covtype'] = model.covariance_type
-        hdus.append(fits.ImageHDU(model.weights_, name='weights', header=hdr))
-        hdus.append(fits.ImageHDU(model.means_, name='means'))
-        hdus.append(fits.ImageHDU(model.covars_, name='covars'))
-        hdus.writeto(filename, clobber=True)
-
-    @staticmethod
-    def load(filename):
-        from astropy.io import fits
-        hdus = fits.open(filename, memmap=False)
-        hdr = hdus[0].header
-        covtype = hdr['covtype']
-        model = GaussianMixtureModel(
-            hdus['weights'].data, hdus['means'].data, hdus['covars'].data, covtype)
-        hdus.close()
-        return model
-
-    def sample(self, n_samples=1, random_state=None):
-
-        if self.covtype != 'full':
-            return NotImplementedError(
-                'covariance type "{0}" not implemented yet.'.format(self.covtype))
-
-        # Code adapted from sklearn's GMM.sample()
-        if random_state is None:
-            random_state = np.random.RandomState()
-
-        weight_cdf = np.cumsum(self.weights)
-        X = np.empty((n_samples, self.n_dimensions))
-        rand = random_state.rand(n_samples)
-        # decide which component to use for each sample
-        comps = weight_cdf.searchsorted(rand)
-        # for each component, generate all needed samples
-        for comp in range(self.n_components):
-            # occurrences of current component in X
-            comp_in_X = (comp == comps)
-            # number of those occurrences
-            num_comp_in_X = comp_in_X.sum()
-            if num_comp_in_X > 0:
-                X[comp_in_X] = random_state.multivariate_normal(
-                    self.means[comp], self.covars[comp], num_comp_in_X)
-        return X
-
 class EMSpectrum(object):
     """Construct a complete nebular emission-line spectrum.
 
@@ -117,6 +58,7 @@ class EMSpectrum(object):
     def __init__(self, minwave=3650.0, maxwave=7075.0, cdelt_kms=20.0, log10wave=None):
         from pkg_resources import resource_filename
         from astropy.table import Table, Column, vstack
+        from desiutil.sklearn import GaussianMixtureModel
 
         # Build a wavelength array if one is not given.
         if log10wave is None:
