@@ -1632,7 +1632,7 @@ class QSO():
 
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(21.0, 23.0),
                        seed=None, redshift=None, mag=None, input_meta=None,
-                       nocolorcuts=False):
+                       nocolorcuts=False, N_perz=1):
         """Build Monte Carlo QSO spectra/templates.
 
         This function generates QSO spectra on-the-fly using PCA decomposition
@@ -1671,7 +1671,7 @@ class QSO():
             ignored.
           nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
             cuts (default False).
-
+          N_perz (int, optional): Number of templatex per redshift bin or redshift value.
         Returns:
           outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
           wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
@@ -1735,8 +1735,8 @@ class QSO():
 
 
         _, final_flux, redshifts = dqt.desi_qso_templates(
-            z_wind=self.z_wind, N_perz=1, seed=templateseed,
-            redshift=redshift, rebin_wave=zwave, no_write=True, cosmo=cosmo, ipad=10)
+            z_wind=self.z_wind, N_perz=N_perz, seed=templateseed,
+            redshift=redshift, rebin_wave=zwave, no_write=True, cosmo=cosmo, ipad=8)
 
         templaterand = np.random.RandomState(templateseed)
 
