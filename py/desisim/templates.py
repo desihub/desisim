@@ -1728,13 +1728,22 @@ class QSO():
         zwave = self.wave # [observed-frame, Angstrom]
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
 
+
+        # Cosmology
+        from astropy import cosmology
+        cosmo = cosmology.core.FlatLambdaCDM(70., 0.3)
+
+
+        _, final_flux, redshifts = dqt.desi_qso_templates(
+            z_wind=self.z_wind, N_perz=1, seed=templateseed,
+            redshift=redshift, rebin_wave=zwave, no_write=True, cosmo=cosmo, ipad=10)
+
+        templaterand = np.random.RandomState(templateseed)
+
         for ii in range(nmodel):
             log.debug('Simulating {} template {}/{}.'.format(self.objtype, ii+1, nmodel))
-            templaterand = np.random.RandomState(templateseed[ii])
 
-            _, final_flux, redshifts = dqt.desi_qso_templates(
-                z_wind=self.z_wind, N_perz=50, rstate=templaterand,
-                redshift=redshift[ii], rebin_wave=zwave, no_write=True)
+
             restflux = final_flux.T
             nmade = np.shape(restflux)[0]
 
