@@ -1704,6 +1704,7 @@ class QSO():
             mag = input_meta['MAG'].data
 
             meta = empty_metatable(nmodel, self.objtype)
+
         else:
             meta = empty_metatable(nmodel, self.objtype)
 
@@ -1733,12 +1734,13 @@ class QSO():
         from astropy import cosmology
         cosmo = cosmology.core.FlatLambdaCDM(70., 0.3)
 
+        templaterand = np.random.RandomState(templateseed)
 
         _, final_flux, redshifts = dqt.desi_qso_templates(
-            z_wind=self.z_wind, N_perz=N_perz, seed=templateseed,
-            redshift=redshift, rebin_wave=zwave, no_write=True, cosmo=cosmo, ipad=8)
+            z_wind=self.z_wind, N_perz=N_perz, rstate=templaterand,
+            redshift=redshift, rebin_wave=zwave, no_write=True, cosmo=cosmo, ipad=10)
 
-        templaterand = np.random.RandomState(templateseed)
+
 
         for ii in range(nmodel):
             log.debug('Simulating {} template {}/{}.'.format(self.objtype, ii+1, nmodel))

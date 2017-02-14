@@ -3,6 +3,7 @@ from desisim.io import empty_metatable
 import scipy as sp
 from scipy import interpolate
 from speclite import filters
+import numpy as np
 
 def get_spectra(infile, first=0, nqso=None, seed=None):
  
@@ -46,24 +47,30 @@ def get_spectra(infile, first=0, nqso=None, seed=None):
     rand = sp.random.RandomState(seed)
     seed = rand.randint(2**32, size=nqso)
 
-    input_meta = empty_metatable(objtype='QSO', nmodel=nqso)
+    input_meta = empty_metatable(objtype='QSO', nmodel=1)
 
     filter_name = 'sdss2010-g'
 
     normfilt = filters.load_filters(filter_name)
     qso = QSO(normfilter=filter_name)
 
-    input_meta["REDSHIFT"]=zqso
-    input_meta["MAG"]=mag_g
-    input_meta["SEED"]=seed
-
-    flux, wave, meta = qso.make_templates(input_meta=input_meta)
-    
-    # Add RA,DEC to output meta
-    meta['RA'] = ra
-    meta['DEC'] = dec
+    flux = np.zeros([nqso, len(qso.wave)])
+    meta = {}
 
     for i,head in enumerate(h[first+1:first+1+nqso]):
+        input_meta["REDSHIFT"] = zqso[i]
+        input_meta["MAG"] = mag_g[i]
+        input_meta["SEED"] = seed[i]
+
+        f, wave, meta_qso = qso.make_templates(input_meta=input_meta)
+        ##append the meta information
+        try:
+            for k in meta_qso.keys():
+                meta[k] = np.append(all_meta[k], meta_qso[k])
+        except:
+            for k in meta_qso.keys():
+                meta[k] = meta_qso[k]
+
         ## read lambda and forest transmission
         la = head["LAMBDA"][:]
         tr = head["FLUX"][:]
@@ -73,13 +80,19 @@ def get_spectra(infile, first=0, nqso=None, seed=None):
         ## will interpolate the transmission at the spectral wavelengths, 
         ## if outside the forest, the transmission is 1
         itr=interpolate.interp1d(la,tr,bounds_error=False,fill_value=1)
-        flux[i,:]*=itr(wave)
-        padflux, padwave = normfilt.pad_spectrum(flux[i, :], wave, method='edge')
+        f *= itr(wave)
+        padflux, padwave = normfilt.pad_spectrum(f, wave, method='edge')
         normmaggies = sp.array(normfilt.get_ab_maggies(padflux, padwave, 
                                mask_invalid=True)[filter_name])
-        flux[i, :] *= 10**(-0.4*input_meta['MAG'][i]) / normmaggies
+        f *= 10**(-0.4*input_meta['MAG'][0]) / normmaggies
+        flux[i,:] = f.copy()
 
     h.close()
+
+    # Add RA,DEC to output meta
+    meta['RA'] = ra
+    meta['DEC'] = dec
+    
     return flux,wave,meta
 
 
