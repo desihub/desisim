@@ -599,10 +599,11 @@ def read_basis_templates(objtype, outwave=None, nspec=None, infile=None, onlymet
     if infile is None:
         infile = find_basis_template(ltype)
 
-    log.info('Reading {}'.format(infile))
-
     if onlymeta:
+        log.info('Reading {} metadata.'.format(infile))
         return Table(fits.getdata(infile, 1))
+
+    log.info('Reading {}'.format(infile))
 
     if objtype.upper() == 'QSO':
         fx = fits.open(infile)
