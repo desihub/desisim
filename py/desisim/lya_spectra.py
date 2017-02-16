@@ -61,7 +61,7 @@ def get_spectra(infile, first=0, nqso=None, seed=20):
         f, wave, meta_qso = qso.make_templates(nmodel=1,
                                                redshift=np.array([zqso[i]]), mag=np.array([mag_g[i]]), seed=seed[i])
 
-        meta_qso['TEMPLATEID'] = i + 1
+        meta_qso['TEMPLATEID'] = first + i + 1
         if meta is None:
             meta = meta_qso.copy()
         else:
