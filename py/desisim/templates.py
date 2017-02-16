@@ -1709,13 +1709,9 @@ class QSO():
             meta = empty_metatable(nmodel, self.objtype)
 
             # Initialize the random seed.
-            if seed is None:
-                log.fatal('We need a seed as input')
-            else:
-                rand = np.random.RandomState(seed)
-                templateseed = rand.randint(2**32, size=nmodel)
-#                if nmodel==1:
-#                    templateseed = templateseed[0]
+            rand = np.random.RandomState(seed)
+            templateseed = rand.randint(2**32, size=nmodel)
+
 
             # Assign redshift and magnitude priors.
             if redshift is None:
