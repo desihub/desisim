@@ -277,10 +277,10 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
     else:
         if np.isscalar(redshift):
             z0 = np.array([redshift])
-            z1 = z0 
         else:
             z0 = redshift.copy()
-            z1 = z0 + z_wind
+        z1 = z0 + z_wind
+
 
     pca_list = ['PCA0', 'PCA1', 'PCA2', 'PCA3']
     PCA_mean = np.zeros(4)

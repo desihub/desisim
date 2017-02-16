@@ -1747,7 +1747,7 @@ class QSO():
 
             _, final_flux, redshifts = dqt.desi_qso_templates(
                 z_wind=self.z_wind, N_perz=N_perz, rstate=templaterand,
-                redshift=redshift, rebin_wave=zwave, no_write=True, cosmo=cosmo, ipad=10)
+                redshift=redshift, rebin_wave=zwave, no_write=True, cosmo=cosmo, ipad=15)
 
             
             restflux = final_flux.T
