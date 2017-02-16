@@ -4,8 +4,9 @@ import scipy as sp
 from scipy import interpolate
 from speclite import filters
 import numpy as np
+import astropy.table 
 
-def get_spectra(infile, first=0, nqso=None, seed=None):
+def get_spectra(infile, first=0, nqso=None, seed=20):
  
     '''
     read input lyman-alpha absorption files,
@@ -55,34 +56,30 @@ def get_spectra(infile, first=0, nqso=None, seed=None):
     qso = QSO(normfilter=filter_name)
 
     flux = np.zeros([nqso, len(qso.wave)])
-    meta = {}
+    meta = None
     for i,head in enumerate(h[first+1:first+1+nqso]):
-
-        f, wave, meta_qso = qso.make_templates(nmodel=1, 
+        f, wave, meta_qso = qso.make_templates(nmodel=1,
                                                redshift=np.array([zqso[i]]), mag=np.array([mag_g[i]]), seed=seed[i])
-        ##append the meta information
-        try:
-            for k in meta_qso.keys():
-                meta[k] = np.append(all_meta[k], meta_qso[k])
-        except:
-            for k in meta_qso.keys():
-                meta[k] = meta_qso[k]
 
+        meta_qso['TEMPLATEID'] = i + 1
+        if meta is None:
+            meta = meta_qso.copy()
+        else:
+            meta = astropy.table.vstack([meta, meta_qso])
         ## read lambda and forest transmission
         la = head["LAMBDA"][:]
         tr = head["FLUX"][:]
-        if len(tr)==0:
-            continue
+        if len(tr):
+            ## will interpolate the transmission at the spectral wavelengths, 
+            ## if outside the forest, the transmission is 1
+            itr = interpolate.interp1d(la,tr,bounds_error=False,fill_value=1)
+            f *= itr(wave)
 
-        ## will interpolate the transmission at the spectral wavelengths, 
-        ## if outside the forest, the transmission is 1
-        itr=interpolate.interp1d(la,tr,bounds_error=False,fill_value=1)
-        f *= itr(wave)
         padflux, padwave = normfilt.pad_spectrum(f, wave, method='edge')
         normmaggies = sp.array(normfilt.get_ab_maggies(padflux, padwave, 
                                mask_invalid=True)[filter_name])
         f *= 10**(-0.4 * mag_g[i]) / normmaggies
-        flux[i,:] = f.copy()
+        flux[i,:] = f[:]
 
     h.close()
 

@@ -1714,8 +1714,8 @@ class QSO():
             else:
                 rand = np.random.RandomState(seed)
                 templateseed = rand.randint(2**32, size=nmodel)
-                if nmodel==1:
-                    templateseed = templateseed[0]
+#                if nmodel==1:
+#                    templateseed = templateseed[0]
 
             # Assign redshift and magnitude priors.
             if redshift is None:
@@ -1739,18 +1739,17 @@ class QSO():
         from astropy import cosmology
         cosmo = cosmology.core.FlatLambdaCDM(70., 0.3)
 
-        templaterand = np.random.RandomState(templateseed)
-
-        _, final_flux, redshifts = dqt.desi_qso_templates(
-            z_wind=self.z_wind, N_perz=N_perz, rstate=templaterand,
-            redshift=redshift, rebin_wave=zwave, no_write=True, cosmo=cosmo, ipad=15)
-
-
 
         for ii in range(nmodel):
             log.debug('Simulating {} template {}/{}.'.format(self.objtype, ii+1, nmodel))
 
+            templaterand = np.random.RandomState(templateseed[ii])
 
+            _, final_flux, redshifts = dqt.desi_qso_templates(
+                z_wind=self.z_wind, N_perz=N_perz, rstate=templaterand,
+                redshift=redshift, rebin_wave=zwave, no_write=True, cosmo=cosmo, ipad=10)
+            print('redshifts output {}'.format(redshifts))
+            
             restflux = final_flux.T
             nmade = np.shape(restflux)[0]
 
