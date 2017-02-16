@@ -81,7 +81,7 @@ def get_spectra(infile, first=0, nqso=None, seed=None):
         padflux, padwave = normfilt.pad_spectrum(f, wave, method='edge')
         normmaggies = sp.array(normfilt.get_ab_maggies(padflux, padwave, 
                                mask_invalid=True)[filter_name])
-        f *= 10**(-0.4*input_meta['MAG'][0]) / normmaggies
+        f *= 10**(-0.4 * mag_g[i]) / normmaggies
         flux[i,:] = f.copy()
 
     h.close()
