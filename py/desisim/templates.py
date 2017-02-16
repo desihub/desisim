@@ -1709,8 +1709,13 @@ class QSO():
             meta = empty_metatable(nmodel, self.objtype)
 
             # Initialize the random seed.
-            rand = np.random.RandomState(seed)
-            templateseed = rand.randint(2**32, size=nmodel)
+            if seed is None:
+                log.fatal('We need a seed as input')
+            else:
+                rand = np.random.RandomState(seed)
+                templateseed = rand.randint(2**32, size=nmodel)
+                if nmodel==1:
+                    templateseed = templateseed[0]
 
             # Assign redshift and magnitude priors.
             if redshift is None:
@@ -1738,7 +1743,7 @@ class QSO():
 
         _, final_flux, redshifts = dqt.desi_qso_templates(
             z_wind=self.z_wind, N_perz=N_perz, rstate=templaterand,
-            redshift=redshift, rebin_wave=zwave, no_write=True, cosmo=cosmo, ipad=10)
+            redshift=redshift, rebin_wave=zwave, no_write=True, cosmo=cosmo, ipad=15)
 
 
 

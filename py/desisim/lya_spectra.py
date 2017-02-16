@@ -56,13 +56,10 @@ def get_spectra(infile, first=0, nqso=None, seed=None):
 
     flux = np.zeros([nqso, len(qso.wave)])
     meta = {}
-
     for i,head in enumerate(h[first+1:first+1+nqso]):
-        input_meta["REDSHIFT"] = zqso[i]
-        input_meta["MAG"] = mag_g[i]
-        input_meta["SEED"] = seed[i]
 
-        f, wave, meta_qso = qso.make_templates(input_meta=input_meta)
+        f, wave, meta_qso = qso.make_templates(nmodel=1, 
+                                               redshift=np.array([zqso[i]]), mag=np.array([mag_g[i]]), seed=seed[i])
         ##append the meta information
         try:
             for k in meta_qso.keys():
