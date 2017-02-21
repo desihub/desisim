@@ -1671,7 +1671,7 @@ class QSO():
             ignored.
           nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
             cuts (default False).
-          N_perz (int, optional): Number of templatex per redshift bin or redshift value.
+          N_perz (int, optional): Number of templates per redshift bin or redshift value.
         Returns:
           outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
           wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).

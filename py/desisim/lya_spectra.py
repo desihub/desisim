@@ -6,7 +6,7 @@ from speclite import filters
 import numpy as np
 import astropy.table 
 
-def get_spectra(infile, first=0, nqso=None, seed=20):
+def get_spectra(infile, first=0, nqso=None, seed=None):
  
     '''
     read input lyman-alpha absorption files,
@@ -55,7 +55,7 @@ def get_spectra(infile, first=0, nqso=None, seed=20):
     normfilt = filters.load_filters(filter_name)
     qso = QSO(normfilter=filter_name)
 
-    flux = np.zeros([nqso, len(qso.wave)])
+    flux = np.zeros([nqso, len(qso.wave)], dtype='f4')
     meta = None
     for i,head in enumerate(h[first+1:first+1+nqso]):
         f, wave, meta_qso = qso.make_templates(nmodel=1,
@@ -66,12 +66,13 @@ def get_spectra(infile, first=0, nqso=None, seed=20):
             meta = meta_qso.copy()
         else:
             meta = astropy.table.vstack([meta, meta_qso])
-        ## read lambda and forest transmission
+
+        # read lambda and forest transmission
         la = head["LAMBDA"][:]
         tr = head["FLUX"][:]
         if len(tr):
-            ## will interpolate the transmission at the spectral wavelengths, 
-            ## if outside the forest, the transmission is 1
+            # will interpolate the transmission at the spectral wavelengths, 
+            # if outside the forest, the transmission is 1
             itr = interpolate.interp1d(la,tr,bounds_error=False,fill_value=1)
             f *= itr(wave)
 
