@@ -7,6 +7,8 @@ desisim change log
 
 * drops unused truth,targets columns to save memory in quicksurvey loop
 * pixsim add new required keywords DOSVER, FEEVER, DETECTOR
+* rewrote lya_spectra to achieve factor of 10 speedup.
+* COSMO (astropy.cosmology setup) is a new optional keyword for qso_desi_templates.
 
 0.17.1 (2016-12-05)
 -------------------

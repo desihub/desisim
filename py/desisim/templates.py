@@ -1632,7 +1632,7 @@ class QSO():
 
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(21.0, 23.0),
                        seed=None, redshift=None, mag=None, input_meta=None,
-                       nocolorcuts=False):
+                       nocolorcuts=False, N_perz=1):
         """Build Monte Carlo QSO spectra/templates.
 
         This function generates QSO spectra on-the-fly using PCA decomposition
@@ -1671,7 +1671,7 @@ class QSO():
             ignored.
           nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
             cuts (default False).
-
+          N_perz (int, optional): Number of templates per redshift bin or redshift value.
         Returns:
           outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
           wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
@@ -1704,12 +1704,14 @@ class QSO():
             mag = input_meta['MAG'].data
 
             meta = empty_metatable(nmodel, self.objtype)
+
         else:
             meta = empty_metatable(nmodel, self.objtype)
 
             # Initialize the random seed.
             rand = np.random.RandomState(seed)
             templateseed = rand.randint(2**32, size=nmodel)
+
 
             # Assign redshift and magnitude priors.
             if redshift is None:
@@ -1728,13 +1730,22 @@ class QSO():
         zwave = self.wave # [observed-frame, Angstrom]
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
 
+
+        # Cosmology
+        from astropy import cosmology
+        cosmo = cosmology.core.FlatLambdaCDM(70., 0.3)
+
+
         for ii in range(nmodel):
             log.debug('Simulating {} template {}/{}.'.format(self.objtype, ii+1, nmodel))
+
             templaterand = np.random.RandomState(templateseed[ii])
 
             _, final_flux, redshifts = dqt.desi_qso_templates(
-                z_wind=self.z_wind, N_perz=50, rstate=templaterand,
-                redshift=redshift[ii], rebin_wave=zwave, no_write=True)
+                z_wind=self.z_wind, N_perz=N_perz, rstate=templaterand,
+                redshift=redshift, rebin_wave=zwave, no_write=True, cosmo=cosmo, ipad=15)
+
+            
             restflux = final_flux.T
             nmade = np.shape(restflux)[0]
 

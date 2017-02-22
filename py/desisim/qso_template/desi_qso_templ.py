@@ -25,6 +25,8 @@ from desisim.qso_template import fit_boss_qsos as fbq
 from desiutil.stats import perc
 import desisim.io
 
+from desispec.interpolation import resample_flux
+
 from desispec.log import get_logger
 log = get_logger()
 
@@ -181,7 +183,7 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
                        boss_pca_fil=None, wvmnx=(3500., 10000.),
                        rebin_wave=None, rstate=None,
                        sdss_pca_fil=None, no_write=False, redshift=None,
-                       seed=None, old_read=False, ipad=20):
+                       seed=None, old_read=False, ipad=20, cosmo=None):
     """ Generate QSO templates for DESI
 
     Rebins to input wavelength array (or log10 in wvmnx)
@@ -206,7 +208,8 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
       Redshifts desired for the templates
     ipad : int, optional
       Padding for enabling enough models
-
+    cosmo: astropy.cosmology.core, optional
+       Cosmology inistantiation from astropy.cosmology.code
     Returns
     -------
     wave : ndarray
@@ -215,11 +218,13 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
     z : ndarray
       Redshifts
     """
-    # Cosmology
-    from astropy import cosmology
-    from desispec.interpolation import resample_flux
-    cosmo = cosmology.core.FlatLambdaCDM(70., 0.3)
 
+
+    # Cosmology
+    if cosmo is None:
+        from astropy import cosmology
+        cosmo = cosmology.core.FlatLambdaCDM(70., 0.3)
+        
     if old_read:
         # PCA values
         if boss_pca_fil is None:
@@ -270,8 +275,12 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
         z0 = np.arange(zmnx[0],zmnx[1],z_wind)
         z1 = z0 + z_wind
     else:
-        z0 = np.array([redshift])
-        z1 = z0
+        if np.isscalar(redshift):
+            z0 = np.array([redshift])
+        else:
+            z0 = redshift.copy()
+        z1 = z0 + z_wind
+
 
     pca_list = ['PCA0', 'PCA1', 'PCA2', 'PCA3']
     PCA_mean = np.zeros(4)
