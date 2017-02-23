@@ -165,6 +165,9 @@ def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
     #- Start metadata header
     header = simspec.header.copy()
     header['CAMERA'] = camera
+    header['DOSVER'] = 'SIM'
+    header['FEEVER'] = 'SIM'
+    header['DETECTOR'] = 'SIM'
     gain = params['ccd'][channel]['gain']
     for amp in ('1', '2', '3', '4'):
         header['GAIN'+amp] = gain

@@ -350,6 +350,9 @@ def main(args):
             elif thisobj == 'MWS_STAR' or thisobj == 'MWS':
                 mwsstar = desisim.templates.MWS_STAR(wave=wavelengths)
                 flux, tmpwave, meta1 = mwsstar.make_templates(nmodel=nobj, seed=args.seed)
+            elif thisobj == 'WD':
+                wd = desisim.templates.WD(wave=wavelengths)
+                flux, tmpwave, meta1 = wd.make_templates(nmodel=nobj, seed=args.seed)
             elif thisobj == 'SKY':
                 flux = np.zeros((nobj, npix))
                 meta1 = Table(dict(REDSHIFT=np.zeros(nobj, dtype=np.float32)))
@@ -542,7 +545,7 @@ def main(args):
             # If objtype is QSO_BAD or TEST then simulate a star
             if (truth['OBJTYPE'][j] == 'MWS' or truth['OBJTYPE'][j] == 'MWS_STAR' or \
                 truth['OBJTYPE'][j] == 'STD' or truth['OBJTYPE'][j] == 'QSO_BAD' or \
-                truth['OBJTYPE'][j] == 'TEST'):
+                truth['OBJTYPE'][j] == 'WD' or truth['OBJTYPE'][j] == 'TEST'):
                 thisobjtype = 'STAR'
             elif truth['OBJTYPE'][j] == 'BGS':
                 thisobjtype = 'ELG' # TODO (@moustakas): Fix this!

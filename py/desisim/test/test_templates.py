@@ -35,6 +35,15 @@ class TestTemplates(unittest.TestCase):
             flux, wave, meta = template_factory.make_templates(self.nspec, seed=self.seed)
             self._check_output_size(flux, wave, meta)
 
+    @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
+    def test_restframe(self):
+        '''Confirm restframe template creation for a galaxy and a star'''
+        print('In function test_simple, seed = {}'.format(self.seed))
+        for T in [ELG, MWS_STAR]:
+            template_factory = T(wave=self.wave)
+            flux, wave, meta = template_factory.make_templates(self.nspec, seed=self.seed, restframe=True)
+            self.assertEqual(len(wave), len(template_factory.basewave))
+
     def test_input_wave(self):
         '''Confirm that we can specify the wavelength array.'''
         print('In function test_input_wave, seed = {}'.format(self.seed))
