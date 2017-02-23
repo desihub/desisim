@@ -14,7 +14,7 @@ import yaml
 from astropy.table import Table, Column, hstack
 
 from desimodel.focalplane import FocalPlane
-from desisim.io import empty_metatable
+from desisim.io import empty_metatable, empty_star_properties
 import desimodel.io
 from desispec.log import get_logger
 log = get_logger()
@@ -483,3 +483,15 @@ def sample_nz(objtype, n):
     #- Sample that distribution
     x = np.random.uniform(0.0, 1.0, size=n)
     return np.interp(x, cdf, zhi)
+
+
+def _default_wave(wavemin=None, wavemax=None, dw=0.2):
+    '''Construct and return the default wavelength vector.'''
+
+    if wavemin is None:
+        wavemin = desimodel.io.load_throughput('b').wavemin
+    if wavemax is None:
+        wavemax = desimodel.io.load_throughput('z').wavemax
+    wave = np.arange(round(wavemin, 1), wavemax, dw)
+
+    return wave

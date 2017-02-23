@@ -559,7 +559,7 @@ def _qso_format_version(filename):
         else:
             raise IOError('Unknown QSO basis template format '+filename)
 
-def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
+def read_basis_templates(objtype, outwave=None, nspec=None, infile=None, onlymeta=False):
     """Return the basis (continuum) templates for a given object type.  Optionally
     returns a randomly selected subset of nspec spectra sampled at
     wavelengths outwave.
@@ -572,6 +572,7 @@ def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
         infile (str, optional): full path to input template file to read,
             over-riding the contents of the $DESI_BASIS_TEMPLATES environment
             variable.
+        onlymeta (Bool, optional): read just the metadata table and return
 
     Returns:
         Tuple of (outflux, outwave, meta) where
@@ -597,6 +598,10 @@ def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
 
     if infile is None:
         infile = find_basis_template(ltype)
+
+    if onlymeta:
+        log.info('Reading {} metadata.'.format(infile))
+        return Table(fits.getdata(infile, 1))
 
     log.info('Reading {}'.format(infile))
 
@@ -769,3 +774,18 @@ def empty_metatable(nmodel=1, objtype='ELG', add_SNeIa=None):
     meta['OBJTYPE'] = objtype.upper()
 
     return meta
+
+def empty_star_properties(nstar=1):
+    """Initialize a "star_properties" table for desisim.templates."""
+    from astropy.table import Table, Column
+
+    star_properties = Table()
+    star_properties.add_column(Column(name='REDSHIFT', length=nstar, dtype='f4'))
+    star_properties.add_column(Column(name='MAG', length=nstar, dtype='f4'))
+    star_properties.add_column(Column(name='TEFF', length=nstar, dtype='f4'))
+    star_properties.add_column(Column(name='LOGG', length=nstar, dtype='f4'))
+    star_properties.add_column(Column(name='FEH', length=nstar, dtype='f4'))
+    star_properties.add_column(Column(name='SEED', length=nstar, dtype='int64',
+                                      data=np.zeros(nstar)-1))
+
+    return star_properties
