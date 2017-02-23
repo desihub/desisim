@@ -492,7 +492,7 @@ class GALAXY(object):
 
             vzero = np.where(vdisp <= 0)[0]
             if len(vzero) > 0:
-                log.fatal('Velocity disperion is zero or negative in {} spectra!').format(len(vzero))
+                log.fatal('Velocity dispersion is zero or negative!')
                 raise ValueError
 
             if self.add_SNeIa:
