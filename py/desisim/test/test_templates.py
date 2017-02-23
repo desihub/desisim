@@ -168,10 +168,11 @@ class TestTemplates(unittest.TestCase):
         for T in [STAR]:
             Tx = T(wave=self.wave)
             flux, wave, meta = Tx.make_templates(star_properties=star_properties, seed=self.seed)
+            #import pdb ; pdb.set_trace()
             badkeys = list()
             for key in meta.colnames:
                 if key in star_properties.colnames:
-                    if not np.all(meta[key] == star_properties[key]):
+                    if not np.allclose(meta[key], star_properties[key]):
                         badkeys.append(key)
             self.assertEqual(len(badkeys), 0, 'mismatch for spectral type {} in keys {}'.format(meta['OBJTYPE'][0], badkeys))
 
