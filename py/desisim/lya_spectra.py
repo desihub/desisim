@@ -1,93 +1,104 @@
-from desisim.templates import QSO
-from desisim.io import empty_metatable
-import scipy as sp
-from scipy import interpolate
-from speclite import filters
-import numpy as np
-import astropy.table 
+"""
+desisim.lya_spectra
+===================
 
-def get_spectra(infile, first=0, nqso=None, seed=None):
- 
-    '''
-    read input lyman-alpha absorption files,
-    return normalized spectra including forest absorption.
+Function to simulate a QSO spectrum including Lyman-alpha absorption.
+"""
+
+from __future__ import division, print_function
+
+def get_spectra(lyafile, templateid=None, wave=None, normfilter='sdss2010-g',
+                rand=None, qso=None):
+    '''Generate a QSO spectrum which includes Lyman-alpha absorption.
 
     Args:
-        infile: name of the lyman-alpha spectra file
+        lyafile (str): name of the Lyman-alpha spectrum file to read.
+        templateid (int numpy.ndarray, optional): indices of the spectra
+          (0-indexed) to read from LYAFILE (default is to read everything).
+        wave (numpy.ndarray, optional): desired output wavelength vector.
+        normfilter (str, optional): normalization filter
+        rand (numpy.RandomState, optional): RandomState object used for the
+          random number generation.
+        qso (desisim.templates.QSO, optional): object with which to generate
+          individual spectra/templates.
 
-    Options:
-        first: first spectrum to read
-        nqso: number of spectra to read
-        seed: random seed for template generation
+    Returns:
+      flux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra
+        (erg/s/cm2/A).
+      wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
+      meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum
+        with columns defined in desisim.io.empty_metatable *plus* RA, DEC.
 
-    returns (flux, wave, meta)
-    spectra with forest absorption normalized according to the magnitude
-    
-    Note:
-        meta is metadata table from QSO continuum template generation
-        plus RA and DEC columns
     '''
+    import numpy as np
+    from scipy.interpolate import interp1d
 
     import fitsio
-    h = fitsio.FITS(infile)
-    if nqso is None:
+
+    from speclite.filters import load_filters
+    from desisim.templates import QSO
+    from desisim.io import empty_metatable
+
+    h = fitsio.FITS(lyafile)
+    if templateid is None:
         nqso = len(h)-1
+    else:
+        nqso = len(templateid)
 
-    if first<0:
-        raise ValueError("first must be >= 0")
-
-    heads = [head.read_header() for head in h[first+1:first+1+nqso]]
-
-    zqso = [head["ZQSO"] for head in heads]
-    ra = [head["RA"] for head in heads]
-    dec = [head["DEC"] for head in heads]
-    mag_g = [head["MAG_G"] for head in heads]
-
-    assert(len(zqso) == nqso)
-
-    rand = sp.random.RandomState(seed)
+    if rand is None:
+        rand = np.random.RandomState()
     seed = rand.randint(2**32, size=nqso)
 
-    input_meta = empty_metatable(objtype='QSO', nmodel=1)
+    #heads = [head.read_header() for head in h[templateid + 1]]
+    heads = []
+    for indx in templateid:
+        heads.append(h[indx + 1].read_header())
 
-    filter_name = 'sdss2010-g'
+    zqso = np.array([head['ZQSO'] for head in heads])
+    ra = np.array([head['RA'] for head in heads])
+    dec = np.array([head['DEC'] for head in heads])
+    mag_g = np.array([head['MAG_G'] for head in heads])
 
-    normfilt = filters.load_filters(filter_name)
-    qso = QSO(normfilter=filter_name)
+    # Hard-coded filtername!
+    normfilt = load_filters(normfilter)
 
-    flux = np.zeros([nqso, len(qso.wave)], dtype='f4')
-    meta = None
-    for i,head in enumerate(h[first+1:first+1+nqso]):
-        f, wave, meta_qso = qso.make_templates(nmodel=1,
-                                               redshift=np.array([zqso[i]]), mag=np.array([mag_g[i]]), seed=seed[i])
+    if qso is None:
+        qso = QSO(normfilter=normfilter, wave=wave)
+        
+    wave = qso.wave
+    flux = np.zeros([nqso, len(wave)], dtype='f4')
 
-        meta_qso['TEMPLATEID'] = first + i + 1
-        if meta is None:
-            meta = meta_qso.copy()
-        else:
-            meta = astropy.table.vstack([meta, meta_qso])
-
-        # read lambda and forest transmission
-        la = head["LAMBDA"][:]
-        tr = head["FLUX"][:]
-        if len(tr):
-            # will interpolate the transmission at the spectral wavelengths, 
-            # if outside the forest, the transmission is 1
-            itr = interpolate.interp1d(la,tr,bounds_error=False,fill_value=1)
-            f *= itr(wave)
-
-        padflux, padwave = normfilt.pad_spectrum(f, wave, method='edge')
-        normmaggies = sp.array(normfilt.get_ab_maggies(padflux, padwave, 
-                               mask_invalid=True)[filter_name])
-        f *= 10**(-0.4 * mag_g[i]) / normmaggies
-        flux[i,:] = f[:]
-
-    h.close()
-
-    # Add RA,DEC to output meta
+    meta = empty_metatable(objtype='QSO', nmodel=nqso)
+    meta['TEMPLATEID'] = templateid
+    meta['REDSHIFT'] = zqso
+    meta['MAG'] = mag_g
+    meta['SEED'] = seed
     meta['RA'] = ra
     meta['DEC'] = dec
     
-    return flux,wave,meta
+    for ii, indx in enumerate(templateid):
+        flux1, _, meta1 = qso.make_templates(nmodel=1, redshift=np.array([zqso[ii]]),
+                                             mag=np.array([mag_g[ii]]), seed=seed[ii])
+
+        # read lambda and forest transmission
+        data = h[indx + 1].read()
+        la = data['LAMBDA'][:]
+        tr = data['FLUX'][:]
+
+        if len(tr):
+            # Interpolate the transmission at the spectral wavelengths, if
+            # outside the forest, the transmission is 1.
+            itr = interp1d(la, tr, bounds_error=False, fill_value=1.0)
+            flux1 *= itr(wave)
+
+        padflux, padwave = normfilt.pad_spectrum(flux1, wave, method='edge')
+        normmaggies = np.array(normfilt.get_ab_maggies(padflux, padwave, 
+                                                       mask_invalid=True)[normfilter])
+        flux1 *= 10**(-0.4 * mag_g[ii]) / normmaggies
+        flux[ii, :] = flux1[:]
+
+    h.close()
+
+    return flux, wave, meta
 
 
