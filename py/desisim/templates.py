@@ -1109,7 +1109,7 @@ class SUPERSTAR(object):
         # Optionally unpack a metadata table.
         if input_meta is not None:
             nmodel = len(input_meta)
-            meta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
+            meta = empty_metatable(nmodel=nmodel, objtype=self.objtype, subtype=self.subtype)
 
             templateseed = input_meta['SEED'].data
             redshift = input_meta['REDSHIFT'].data
@@ -1495,8 +1495,17 @@ class WD(SUPERSTAR):
           meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
         Raises:
+          ValueError: If the INPUT_META or STAR_PROPERTIES table contains
+            different values of SUBTYPE.
 
         """
+        for intable in (input_meta, star_properties):
+            if intable is not None:
+                if 'SUBTYPE' in intable.dtype.names:
+                    if (self.subtype != '') and ~np.all(intable['SUBTYPE'] == self.subtype):
+                        log.warning('WD Class initialized with subtype {}, which does not match input table.'.format(self.subtype))
+                        raise ValueError
+        
         outflux, wave, meta = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
                                                        magrange=gmagrange, seed=seed, redshift=redshift,
                                                        mag=mag, input_meta=input_meta,

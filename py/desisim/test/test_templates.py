@@ -125,6 +125,16 @@ class TestTemplates(unittest.TestCase):
         wd = WD(wave=self.wave, subtype='DB')
         flux, wave, meta = wd.make_templates(self.nspec, seed=self.seed, nocolorcuts=True)
         np.all(meta['SUBTYPE'] == 'DB')
+
+    @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
+    @unittest.expectedFailure
+    def test_wd_subtype_failure(self):
+        '''Test a known failure of specifying the white dwarf subtype.'''
+        print('In function test_wd_subtype_failure, seed = {}'.format(self.seed))
+        wd = WD(wave=self.wave, subtype='DA')
+        flux1, wave1, meta1 = wd.make_templates(self.nspec, seed=self.seed, nocolorcuts=True)
+        meta1['SUBTYPE'][0] = 'DB'
+        flux2, wave2, meta2 = wd.make_templates(input_meta=meta1)
         
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_input_meta(self):
