@@ -605,7 +605,16 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
 
     if onlymeta:
         log.info('Reading {} metadata.'.format(infile))
-        return Table(fits.getdata(infile, 1))
+        meta = Table(fits.getdata(infile, 1))
+
+        if (objtype.upper() == 'WD') and (subtype != ''):
+            keep = np.where(meta['WDTYPE'] == subtype.upper())[0]
+            if len(keep) == 0:
+                log.warning('Unrecognized white dwarf subtype {}!'.format(subtype))
+            else:
+                meta = meta[keep]
+        
+        return meta
 
     log.info('Reading {}'.format(infile))
 
