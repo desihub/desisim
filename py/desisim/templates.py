@@ -958,7 +958,7 @@ class LRG(GALAXY):
 class SUPERSTAR(object):
     """Base class for generating Monte Carlo spectra of the various flavors of stars."""
 
-    def __init__(self, objtype='STAR', minwave=3600.0, maxwave=10000.0, cdelt=0.2,
+    def __init__(self, objtype='STAR', subtype='', minwave=3600.0, maxwave=10000.0, cdelt=0.2,
                  wave=None, colorcuts_function=None, normfilter='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Read the appropriate basis continuum templates, filter profiles and
@@ -968,7 +968,9 @@ class SUPERSTAR(object):
           Only a linearly-spaced output wavelength array is currently supported.
 
         Args:
-          objtype (str): type of object to simulate (default STAR)
+          objtype (str): type of object to simulate (default STAR).
+          subtype (str, optional): stellar subtype, currently only for white
+            dwarfs.  The choices are DA and DB and the default is DA.
           minwave (float, optional): minimum value of the output wavelength
             array (default 3600 Angstrom).
           maxwave (float, optional): minimum value of the output wavelength
@@ -997,6 +999,7 @@ class SUPERSTAR(object):
         from speclite import filters
 
         self.objtype = objtype.upper()
+        self.subtype = subtype.upper()
         self.colorcuts_function = colorcuts_function
         self.normfilter = normfilter
 
@@ -1011,6 +1014,11 @@ class SUPERSTAR(object):
         if baseflux is None or basewave is None or basemeta is None:
             from desisim.io import read_basis_templates
             baseflux, basewave, basemeta = read_basis_templates(objtype=self.objtype)
+            if objtype == 'WD':
+                keep = np.where(basemeta['WDTYPE'] == self.subtype)[0]
+                basemeta = basemeta[keep]
+                baseflux = baseflux[keep, :]
+            
         self.baseflux = baseflux
         self.basewave = basewave
         self.basemeta = basemeta
@@ -1449,7 +1457,7 @@ class WD(SUPERSTAR):
     """Generate Monte Carlo spectra of white dwarfs."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 normfilter='decam2014-g', colorcuts_function=None,
+                 subtype='DA', normfilter='decam2014-g', colorcuts_function=None,
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the WD class.  See the SUPERSTAR.__init__ method for documentation
         on the arguments plus the inherited attributes.
@@ -1466,7 +1474,7 @@ class WD(SUPERSTAR):
 
         """
 
-        super(WD, self).__init__(objtype='WD', minwave=minwave, maxwave=maxwave,
+        super(WD, self).__init__(objtype='WD', subtype=subtype, minwave=minwave, maxwave=maxwave,
                                  cdelt=cdelt, wave=wave, colorcuts_function=colorcuts_function,
                                  normfilter=normfilter, baseflux=baseflux, basewave=basewave,
                                  basemeta=basemeta)
