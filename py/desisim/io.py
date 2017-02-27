@@ -9,6 +9,7 @@ import time
 from glob import glob
 
 from astropy.io import fits
+from astropy.table import Table
 from astropy.stats import sigma_clipped_stats
 import numpy as np
 import multiprocessing
@@ -559,13 +560,18 @@ def _qso_format_version(filename):
         else:
             raise IOError('Unknown QSO basis template format '+filename)
 
-def read_basis_templates(objtype, outwave=None, nspec=None, infile=None, onlymeta=False):
+def read_basis_templates(objtype, subtype='', outwave=None, nspec=None, infile=None, onlymeta=False):
     """Return the basis (continuum) templates for a given object type.  Optionally
     returns a randomly selected subset of nspec spectra sampled at
     wavelengths outwave.
 
     Args:
-        objtype (str): object type to read (e.g., ELG, LRG, QSO, STAR, FSTD, WD, MWS_STAR, BGS).
+    
+        objtype (str): object type to read (e.g., ELG, LRG, QSO, STAR, FSTD, WD,
+          MWS_STAR, BGS).
+        subtype (str, optional): template subtype, currently only for white
+            dwarfs.  The choices are DA and DB and the default is to read both
+            types.
         outwave (numpy.array, optional): array of wavelength at which to sample
             the spectra.
         nspec (int, optional): number of templates to return
@@ -585,11 +591,8 @@ def read_basis_templates(objtype, outwave=None, nspec=None, infile=None, onlymet
         EnvironmentError: If the required $DESI_BASIS_TEMPLATES environment
             variable is not set.
         IOError: If the basis template file is not found.
-    """
-    from glob import glob
-    from astropy.io import fits
-    from astropy.table import Table
 
+    """
     ltype = objtype.lower()
     if objtype == 'FSTD':
         ltype = 'star'
@@ -626,6 +629,14 @@ def read_basis_templates(objtype, outwave=None, nspec=None, infile=None, onlymet
         flux, hdr = fits.getdata(infile, 0, header=True)
         meta = Table(fits.getdata(infile, 1))
         wave = fits.getdata(infile, 2)
+
+        if (objtype == 'WD') and (subtype != ''):
+            keep = np.where(meta['WDTYPE'] == subtype)[0]
+            if len(keep) == 0:
+                log.warning('Unrecognized white dwarf subtype {}!'.format(subtype))
+            else:
+                meta = meta[keep]
+                flux = flux[keep, :]
 
     # Optionally choose a random subset of spectra. There must be a fast way to
     # do this using fitsio.

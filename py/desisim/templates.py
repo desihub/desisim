@@ -1013,12 +1013,8 @@ class SUPERSTAR(object):
         # Read the rest-frame continuum basis spectra, if not specified.
         if baseflux is None or basewave is None or basemeta is None:
             from desisim.io import read_basis_templates
-            baseflux, basewave, basemeta = read_basis_templates(objtype=self.objtype)
-            if objtype == 'WD':
-                keep = np.where(basemeta['WDTYPE'] == self.subtype)[0]
-                basemeta = basemeta[keep]
-                baseflux = baseflux[keep, :]
-            
+            baseflux, basewave, basemeta = read_basis_templates(objtype=self.objtype,
+                                                                subtype=self.subtype)
         self.baseflux = baseflux
         self.basewave = basewave
         self.basemeta = basemeta
