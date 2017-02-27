@@ -119,12 +119,13 @@ class TestTemplates(unittest.TestCase):
         print('In function test_wd_subtype, seed = {}'.format(self.seed))
         wd = WD(wave=self.wave, subtype='DA')
         flux, wave, meta = wd.make_templates(self.nspec, seed=self.seed, nocolorcuts=True)
+        import pdb ; pdb.set_trace()
         self._check_output_size(flux, wave, meta)
-        np.all(meta['WDTYPE'] == 'DA')
+        np.all(meta['SUBTYPE'] == 'DA')
 
         wd = WD(wave=self.wave, subtype='DB')
         flux, wave, meta = wd.make_templates(self.nspec, seed=self.seed, nocolorcuts=True)
-        np.all(meta['WDTYPE'] == 'DB')
+        np.all(meta['SUBTYPE'] == 'DB')
         
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_input_meta(self):

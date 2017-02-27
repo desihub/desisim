@@ -509,9 +509,9 @@ class GALAXY(object):
             nmodel = len(input_meta)
             alltemplateid_chunk = [input_meta['TEMPLATEID'].data.reshape(nmodel, 1)]
 
-            meta = empty_metatable(nmodel, self.objtype, self.add_SNeIa)
+            meta = empty_metatable(nmodel=nmodel, objtype=self.objtype, add_SNeIa=self.add_SNeIa)
         else:
-            meta = empty_metatable(nmodel, self.objtype, self.add_SNeIa)
+            meta = empty_metatable(nmodel=nmodel, objtype=self.objtype, add_SNeIa=self.add_SNeIa)
 
             # Initialize the random seed.
             rand = np.random.RandomState(seed)
@@ -1109,7 +1109,7 @@ class SUPERSTAR(object):
         # Optionally unpack a metadata table.
         if input_meta is not None:
             nmodel = len(input_meta)
-            meta = empty_metatable(nmodel, self.objtype)
+            meta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
 
             templateseed = input_meta['SEED'].data
             redshift = input_meta['REDSHIFT'].data
@@ -1170,7 +1170,7 @@ class SUPERSTAR(object):
                     mag = rand.uniform(magrange[0], magrange[1], nmodel).astype('f4')
 
             # Initialize the metadata table.
-            meta = empty_metatable(nmodel, self.objtype)
+            meta = empty_metatable(nmodel=nmodel, objtype=self.objtype, subtype=self.subtype)
 
         # Basic error checking and some preliminaries.
         if redshift is not None:
@@ -1653,10 +1653,10 @@ class QSO():
             redshift = input_meta['REDSHIFT'].data
             mag = input_meta['MAG'].data
 
-            meta = empty_metatable(nmodel, self.objtype)
+            meta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
 
         else:
-            meta = empty_metatable(nmodel, self.objtype)
+            meta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
 
             # Initialize the random seed.
             rand = np.random.RandomState(seed)

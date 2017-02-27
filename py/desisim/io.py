@@ -560,7 +560,8 @@ def _qso_format_version(filename):
         else:
             raise IOError('Unknown QSO basis template format '+filename)
 
-def read_basis_templates(objtype, subtype='', outwave=None, nspec=None, infile=None, onlymeta=False):
+def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
+                         infile=None, onlymeta=False):
     """Return the basis (continuum) templates for a given object type.  Optionally
     returns a randomly selected subset of nspec spectra sampled at
     wavelengths outwave.
@@ -630,8 +631,8 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None, infile=N
         meta = Table(fits.getdata(infile, 1))
         wave = fits.getdata(infile, 2)
 
-        if (objtype == 'WD') and (subtype != ''):
-            keep = np.where(meta['WDTYPE'] == subtype)[0]
+        if (objtype.upper() == 'WD') and (subtype != ''):
+            keep = np.where(meta['WDTYPE'] == subtype.upper())[0]
             if len(keep) == 0:
                 log.warning('Unrecognized white dwarf subtype {}!'.format(subtype))
             else:
@@ -723,12 +724,13 @@ def _parse_filename(filename):
     elif len(x) == 3:
         return x[0], x[1].lower(), int(x[2])
 
-def empty_metatable(nmodel=1, objtype='ELG', add_SNeIa=None):
+def empty_metatable(nmodel=1, objtype='ELG', subtype='', add_SNeIa=None):
     """Initialize the metadata table for each object type."""
     from astropy.table import Table, Column
 
     meta = Table()
     meta.add_column(Column(name='OBJTYPE', length=nmodel, dtype=(str, 10)))
+    meta.add_column(Column(name='SUBTYPE', length=nmodel, dtype=(str, 10)))
     meta.add_column(Column(name='TEMPLATEID', length=nmodel, dtype='i4',
                            data=np.zeros(nmodel)-1))
     meta.add_column(Column(name='SEED', length=nmodel, dtype='int64',
@@ -783,6 +785,7 @@ def empty_metatable(nmodel=1, objtype='ELG', add_SNeIa=None):
                                data=np.zeros(nmodel)-1, unit='days'))
 
     meta['OBJTYPE'] = objtype.upper()
+    meta['SUBTYPE'] = subtype.upper()
 
     return meta
 
