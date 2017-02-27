@@ -119,7 +119,6 @@ class TestTemplates(unittest.TestCase):
         print('In function test_wd_subtype, seed = {}'.format(self.seed))
         wd = WD(wave=self.wave, subtype='DA')
         flux, wave, meta = wd.make_templates(self.nspec, seed=self.seed, nocolorcuts=True)
-        import pdb ; pdb.set_trace()
         self._check_output_size(flux, wave, meta)
         np.all(meta['SUBTYPE'] == 'DA')
 
