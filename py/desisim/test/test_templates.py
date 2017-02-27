@@ -114,19 +114,18 @@ class TestTemplates(unittest.TestCase):
             self.assertTrue(np.allclose(redshift, meta['REDSHIFT']))
     
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
-    def test_sne(self):
-        '''Test options for adding in SNeIa spectra'''
-        print('In function test_sne, seed = {}'.format(self.seed))
-        for T in [BGS]:
-            template_factory = T(wave=self.wave, add_SNeIa=True)
-            flux, wave, meta = template_factory.make_templates(self.nspec, seed=self.seed,
-                                                               nocolorcuts=True, 
-                                                               sne_rfluxratiorange=(0.5, 0.7))
-            self._check_output_size(flux, wave, meta)
-            self.assertTrue('SNE_TEMPLATEID' in meta.dtype.names)
-            self.assertTrue('SNE_RFLUXRATIO' in meta.dtype.names)
-            self.assertTrue('SNE_EPOCH' in meta.dtype.names)
-    
+    def test_wd_subtype(self):
+        '''Test option of specifying the white dwarf subtype.'''
+        print('In function test_wd_subtype, seed = {}'.format(self.seed))
+        wd = WD(wave=self.wave, subtype='DA')
+        flux, wave, meta = wd.make_templates(self.nspec, seed=self.seed, nocolorcuts=True)
+        self._check_output_size(flux, wave, meta)
+        np.all(meta['WDTYPE'] == 'DA')
+
+        wd = WD(wave=self.wave, subtype='DB')
+        flux, wave, meta = wd.make_templates(self.nspec, seed=self.seed, nocolorcuts=True)
+        np.all(meta['WDTYPE'] == 'DB')
+        
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_input_meta(self):
         '''Test that input meta table option works.'''
