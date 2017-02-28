@@ -53,7 +53,6 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
     else:
         templateid = np.array(templateid)
         nqso = len(templateid)
-    print(templateid)
 
     if rand is None:
         rand = np.random.RandomState(seed)
@@ -62,7 +61,6 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
     #heads = [head.read_header() for head in h[templateid + 1]]
     heads = []
     for indx in templateid:
-        print(indx + 1)
         heads.append(h[indx + 1].read_header())
 
     zqso = np.array([head['ZQSO'] for head in heads])
