@@ -44,10 +44,10 @@ env:
         - ASTROPY_VERSION=1.2.1
         # - SPHINX_VERSION=1.3
         # - DESIUTIL_VERSION=1.8.0
-        - DESIUTIL_VERSION=master
+        - DESIUTIL_VERSION=1.9.3
         - DESIMODEL_VERSION=0.5.0
         - DESIMODEL_DATA=branches/test-0.5.0
-        - DESISIM_TESTDATA_VERSION=0.3.2
+        - DESISIM_TESTDATA_VERSION=0.3.3
         - SPECLITE_VERSION=0.5
         - SPECSIM_VERSION=v0.6
         - SPECTER_VERSION=0.6.0

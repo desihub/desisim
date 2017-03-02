@@ -509,9 +509,9 @@ class GALAXY(object):
             nmodel = len(input_meta)
             alltemplateid_chunk = [input_meta['TEMPLATEID'].data.reshape(nmodel, 1)]
 
-            meta = empty_metatable(nmodel, self.objtype, self.add_SNeIa)
+            meta = empty_metatable(nmodel=nmodel, objtype=self.objtype, add_SNeIa=self.add_SNeIa)
         else:
-            meta = empty_metatable(nmodel, self.objtype, self.add_SNeIa)
+            meta = empty_metatable(nmodel=nmodel, objtype=self.objtype, add_SNeIa=self.add_SNeIa)
 
             # Initialize the random seed.
             rand = np.random.RandomState(seed)
@@ -958,7 +958,7 @@ class LRG(GALAXY):
 class SUPERSTAR(object):
     """Base class for generating Monte Carlo spectra of the various flavors of stars."""
 
-    def __init__(self, objtype='STAR', minwave=3600.0, maxwave=10000.0, cdelt=0.2,
+    def __init__(self, objtype='STAR', subtype='', minwave=3600.0, maxwave=10000.0, cdelt=0.2,
                  wave=None, colorcuts_function=None, normfilter='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Read the appropriate basis continuum templates, filter profiles and
@@ -968,7 +968,9 @@ class SUPERSTAR(object):
           Only a linearly-spaced output wavelength array is currently supported.
 
         Args:
-          objtype (str): type of object to simulate (default STAR)
+          objtype (str): type of object to simulate (default STAR).
+          subtype (str, optional): stellar subtype, currently only for white
+            dwarfs.  The choices are DA and DB and the default is DA.
           minwave (float, optional): minimum value of the output wavelength
             array (default 3600 Angstrom).
           maxwave (float, optional): minimum value of the output wavelength
@@ -997,6 +999,7 @@ class SUPERSTAR(object):
         from speclite import filters
 
         self.objtype = objtype.upper()
+        self.subtype = subtype.upper()
         self.colorcuts_function = colorcuts_function
         self.normfilter = normfilter
 
@@ -1010,7 +1013,8 @@ class SUPERSTAR(object):
         # Read the rest-frame continuum basis spectra, if not specified.
         if baseflux is None or basewave is None or basemeta is None:
             from desisim.io import read_basis_templates
-            baseflux, basewave, basemeta = read_basis_templates(objtype=self.objtype)
+            baseflux, basewave, basemeta = read_basis_templates(objtype=self.objtype,
+                                                                subtype=self.subtype)
         self.baseflux = baseflux
         self.basewave = basewave
         self.basemeta = basemeta
@@ -1105,7 +1109,7 @@ class SUPERSTAR(object):
         # Optionally unpack a metadata table.
         if input_meta is not None:
             nmodel = len(input_meta)
-            meta = empty_metatable(nmodel, self.objtype)
+            meta = empty_metatable(nmodel=nmodel, objtype=self.objtype, subtype=self.subtype)
 
             templateseed = input_meta['SEED'].data
             redshift = input_meta['REDSHIFT'].data
@@ -1166,7 +1170,7 @@ class SUPERSTAR(object):
                     mag = rand.uniform(magrange[0], magrange[1], nmodel).astype('f4')
 
             # Initialize the metadata table.
-            meta = empty_metatable(nmodel, self.objtype)
+            meta = empty_metatable(nmodel=nmodel, objtype=self.objtype, subtype=self.subtype)
 
         # Basic error checking and some preliminaries.
         if redshift is not None:
@@ -1449,7 +1453,7 @@ class WD(SUPERSTAR):
     """Generate Monte Carlo spectra of white dwarfs."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 normfilter='decam2014-g', colorcuts_function=None,
+                 subtype='DA', normfilter='decam2014-g', colorcuts_function=None,
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the WD class.  See the SUPERSTAR.__init__ method for documentation
         on the arguments plus the inherited attributes.
@@ -1466,7 +1470,7 @@ class WD(SUPERSTAR):
 
         """
 
-        super(WD, self).__init__(objtype='WD', minwave=minwave, maxwave=maxwave,
+        super(WD, self).__init__(objtype='WD', subtype=subtype, minwave=minwave, maxwave=maxwave,
                                  cdelt=cdelt, wave=wave, colorcuts_function=colorcuts_function,
                                  normfilter=normfilter, baseflux=baseflux, basewave=basewave,
                                  basemeta=basemeta)
@@ -1491,8 +1495,17 @@ class WD(SUPERSTAR):
           meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
         Raises:
+          ValueError: If the INPUT_META or STAR_PROPERTIES table contains
+            different values of SUBTYPE.
 
         """
+        for intable in (input_meta, star_properties):
+            if intable is not None:
+                if 'SUBTYPE' in intable.dtype.names:
+                    if (self.subtype != '') and ~np.all(intable['SUBTYPE'] == self.subtype):
+                        log.warning('WD Class initialized with subtype {}, which does not match input table.'.format(self.subtype))
+                        raise ValueError
+        
         outflux, wave, meta = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
                                                        magrange=gmagrange, seed=seed, redshift=redshift,
                                                        mag=mag, input_meta=input_meta,
@@ -1649,10 +1662,10 @@ class QSO():
             redshift = input_meta['REDSHIFT'].data
             mag = input_meta['MAG'].data
 
-            meta = empty_metatable(nmodel, self.objtype)
+            meta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
 
         else:
-            meta = empty_metatable(nmodel, self.objtype)
+            meta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
 
             # Initialize the random seed.
             rand = np.random.RandomState(seed)
