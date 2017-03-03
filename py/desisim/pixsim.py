@@ -266,7 +266,7 @@ def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
 
     if preproc:
         log.debug('Running preprocessing at {}'.format(asctime()))
-        image = desispec.preproc.preproc(rawpix, header)
+        image = desispec.preproc.preproc(rawpix, header, primary_header=simspec.header)
     else:
         log.debug('Skipping preprocessing')
         image = Image(np.zeros(rawpix.shape), np.zeros(rawpix.shape), meta=header)

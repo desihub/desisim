@@ -107,8 +107,11 @@ def write_simspec(meta, truth, expid, night, header=None, outfile=None):
         outfile = '{}/simspec-{:08d}.fits'.format(outdir, expid)
 
     #- Primary HDU is just a header from the input
+    header = desispec.io.util.fitsheader(header)
+    if 'DOSVER' not in header:
+        header['DOSVER'] = 'SIM'
     hx = fits.HDUList()
-    hx.append(fits.PrimaryHDU(None, header=desispec.io.util.fitsheader(header)))
+    hx.append(fits.PrimaryHDU(None, header=header))
 
     #- Object flux HDU (might not exist, e.g. for an arc)
     if 'FLUX' in truth:
