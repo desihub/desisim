@@ -346,6 +346,9 @@ def _project(args):
     try:
         psf, wave, phot, specmin = args
         nspec = phot.shape[0]
+        if phot.shape[-1] != wave.shape[-1]:
+            raise ValueError('phot.shape {} vs. wave.shape {} mismatch'.format(phot.shape, wave.shape))
+
         xyrange = psf.xyrange( [specmin, specmin+nspec], wave )
         img = psf.project(wave, phot, specmin=specmin, xyrange=xyrange)
         return (xyrange, img)
@@ -356,6 +359,7 @@ def _project(args):
             print('ERROR in _project', psf.wmin, psf.wmax, wave[0], wave[-1], phot.shape, specmin)
             traceback.print_exc()
             print('-'*60)
+
         raise e
 
 #- Move this into specter itself?
