@@ -2,14 +2,23 @@
 desisim change log
 ==================
 
-0.17.2 (unreleased)
+0.18.0 (2016-03-04)
 -------------------
 
-* drops unused truth,targets columns to save memory in quicksurvey loop
-* pixsim add new required keywords DOSVER, FEEVER, DETECTOR
-* rewrote lya_spectra to achieve factor of 10 speedup.
-* COSMO (astropy.cosmology setup) is a new optional keyword for qso_desi_templates.
-* minor enhancements to templates code
+* pixsims add new required keywords DOSVER, FEEVER, DETECTOR
+* small bug fixes in quickcat; drop unused truth,targets columns to save memory
+  in quicksurvey loop (PRs #198, #199)
+* quickgen update to support white dwarf templates (PR #204)
+* several enhancements of the templates code
+  
+  * optionally output rest-frame templates (PR #208)
+  * rewrite of lya_spectra to achieve factor of 10 speedup; use COSMO
+    (astropy.cosmology setup) as a new optional keyword for qso_desi_templates;
+    updated API (PRs #210, #212)
+  * various small changes to desisim.templates (PR #211)
+  * support for DA and DB white dwarf subtypes (PR #213)
+
+* update test dependencies (PR #214)
 
 0.17.1 (2016-12-05)
 -------------------
