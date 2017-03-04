@@ -622,22 +622,20 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
     log.info('Reading {}'.format(infile))
 
     if objtype.upper() == 'QSO':
-        fx = fits.open(infile)
-        format_version = _qso_format_version(infile)
-        if format_version == 1:
-            flux = fx[0].data * 1E-17
-            hdr = fx[0].header
-            from desispec.io.util import header2wave
-            wave = header2wave(hdr)
-            meta = Table(fx[1].data)
-        elif format_version == 2:
-            flux = fx['SDSS_EIGEN'].data.copy()
-            wave = fx['SDSS_EIGEN_WAVE'].data.copy()
-            meta = Table([np.arange(flux.shape[0]),], names=['PCAVEC',])
-        else:
-            raise IOError('Unknown QSO basis template format version {}'.format(format_version))
-
-        fx.close()
+        with fits.open(infile) as fx:
+            format_version = _qso_format_version(infile)
+            if format_version == 1:
+                flux = fx[0].data * 1E-17
+                hdr = fx[0].header
+                from desispec.io.util import header2wave
+                wave = header2wave(hdr)
+                meta = Table(fx[1].data)
+            elif format_version == 2:
+                flux = fx['SDSS_EIGEN'].data.copy()
+                wave = fx['SDSS_EIGEN_WAVE'].data.copy()
+                meta = Table([np.arange(flux.shape[0]),], names=['PCAVEC',])
+            else:
+                raise IOError('Unknown QSO basis template format version {}'.format(format_version))
     else:
         flux, hdr = fits.getdata(infile, 0, header=True)
         meta = Table(fits.getdata(infile, 1))

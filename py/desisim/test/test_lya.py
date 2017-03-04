@@ -35,6 +35,7 @@ class TestLya(unittest.TestCase):
         self.assertEqual(wave.shape[0], flux.shape[1])
         self.assertEqual(len(meta), self.nspec)
         templateid = [0,1,2]
+        nqso = len(templateid)
 
         flux, wave, meta = lya_spectra.get_spectra(self.infile, templateid=templateid,
                                                    wave=self.wave, seed=self.seed)
