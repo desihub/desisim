@@ -50,9 +50,9 @@ env:
         - DESISIM_TESTDATA_VERSION=0.3.3
         - SPECLITE_VERSION=0.5
         - SPECSIM_VERSION=v0.6
-        - SPECTER_VERSION=0.6.0
-        - DESISPEC_VERSION=0.12.0
-        - DESITARGET_VERSION=0.8.1
+        - SPECTER_VERSION=0.7.0
+        - DESISPEC_VERSION=0.13.0
+        - DESITARGET_VERSION=0.9.0
         # - DESIMODEL_VERSION=trunk
         - DESI_LOGLEVEL=DEBUG
         - MAIN_CMD='python setup.py'

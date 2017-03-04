@@ -644,6 +644,9 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
         wave = fits.getdata(infile, 2)
 
         if (objtype.upper() == 'WD') and (subtype != ''):
+            if 'WDTYPE' not in meta.colnames:
+                raise RuntimeError('Please upgrade to basis_templates >=2.3 to get WDTYPE support')
+
             keep = np.where(meta['WDTYPE'] == subtype.upper())[0]
             if len(keep) == 0:
                 log.warning('Unrecognized white dwarf subtype {}!'.format(subtype))

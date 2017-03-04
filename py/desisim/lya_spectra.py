@@ -51,7 +51,7 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
             nqso = len(h)-1
         templateid = np.arange(nqso)
     else:
-        templateid = np.array(templateid)
+        templateid = np.asarray(templateid)
         nqso = len(templateid)
 
     if rand is None:
