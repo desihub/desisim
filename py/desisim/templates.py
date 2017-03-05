@@ -911,7 +911,7 @@ class LRG(GALAXY):
                                   normfilter=normfilter, normline=None, add_SNeIa=add_SNeIa,
                                   baseflux=baseflux, basewave=basewave, basemeta=basemeta)
 
-    def make_templates(self, nmodel=100, zrange=(0.5, 1.0), zmagrange=(19.0, 20.5),
+    def make_templates(self, nmodel=100, zrange=(0.5, 1.0), zmagrange=(19.0, 20.4),
                        logvdisp_meansig=(2.3, 0.1), sne_rfluxratiorange=(0.1, 1.0),
                        redshift=None, mag=None, vdisp=None, seed=None,
                        input_meta=None, nocolorcuts=False, novdisp=False, agnlike=False,
