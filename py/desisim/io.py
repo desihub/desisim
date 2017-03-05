@@ -9,6 +9,7 @@ import time
 from glob import glob
 
 from astropy.io import fits
+from astropy.table import Table
 from astropy.stats import sigma_clipped_stats
 import numpy as np
 import multiprocessing
@@ -106,8 +107,11 @@ def write_simspec(meta, truth, expid, night, header=None, outfile=None):
         outfile = '{}/simspec-{:08d}.fits'.format(outdir, expid)
 
     #- Primary HDU is just a header from the input
+    header = desispec.io.util.fitsheader(header)
+    if 'DOSVER' not in header:
+        header['DOSVER'] = 'SIM'
     hx = fits.HDUList()
-    hx.append(fits.PrimaryHDU(None, header=desispec.io.util.fitsheader(header)))
+    hx.append(fits.PrimaryHDU(None, header=header))
 
     #- Object flux HDU (might not exist, e.g. for an arc)
     if 'FLUX' in truth:
@@ -559,19 +563,26 @@ def _qso_format_version(filename):
         else:
             raise IOError('Unknown QSO basis template format '+filename)
 
-def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
+def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
+                         infile=None, onlymeta=False):
     """Return the basis (continuum) templates for a given object type.  Optionally
     returns a randomly selected subset of nspec spectra sampled at
     wavelengths outwave.
 
     Args:
-        objtype (str): object type to read (e.g., ELG, LRG, QSO, STAR, FSTD, WD, MWS_STAR, BGS).
+    
+        objtype (str): object type to read (e.g., ELG, LRG, QSO, STAR, FSTD, WD,
+          MWS_STAR, BGS).
+        subtype (str, optional): template subtype, currently only for white
+            dwarfs.  The choices are DA and DB and the default is to read both
+            types.
         outwave (numpy.array, optional): array of wavelength at which to sample
             the spectra.
         nspec (int, optional): number of templates to return
         infile (str, optional): full path to input template file to read,
             over-riding the contents of the $DESI_BASIS_TEMPLATES environment
             variable.
+        onlymeta (Bool, optional): read just the metadata table and return
 
     Returns:
         Tuple of (outflux, outwave, meta) where
@@ -584,11 +595,8 @@ def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
         EnvironmentError: If the required $DESI_BASIS_TEMPLATES environment
             variable is not set.
         IOError: If the basis template file is not found.
-    """
-    from glob import glob
-    from astropy.io import fits
-    from astropy.table import Table
 
+    """
     ltype = objtype.lower()
     if objtype == 'FSTD':
         ltype = 'star'
@@ -598,29 +606,51 @@ def read_basis_templates(objtype, outwave=None, nspec=None, infile=None):
     if infile is None:
         infile = find_basis_template(ltype)
 
+    if onlymeta:
+        log.info('Reading {} metadata.'.format(infile))
+        meta = Table(fits.getdata(infile, 1))
+
+        if (objtype.upper() == 'WD') and (subtype != ''):
+            keep = np.where(meta['WDTYPE'] == subtype.upper())[0]
+            if len(keep) == 0:
+                log.warning('Unrecognized white dwarf subtype {}!'.format(subtype))
+            else:
+                meta = meta[keep]
+        
+        return meta
+
     log.info('Reading {}'.format(infile))
 
     if objtype.upper() == 'QSO':
-        fx = fits.open(infile)
-        format_version = _qso_format_version(infile)
-        if format_version == 1:
-            flux = fx[0].data * 1E-17
-            hdr = fx[0].header
-            from desispec.io.util import header2wave
-            wave = header2wave(hdr)
-            meta = Table(fx[1].data)
-        elif format_version == 2:
-            flux = fx['SDSS_EIGEN'].data.copy()
-            wave = fx['SDSS_EIGEN_WAVE'].data.copy()
-            meta = Table([np.arange(flux.shape[0]),], names=['PCAVEC',])
-        else:
-            raise IOError('Unknown QSO basis template format version {}'.format(format_version))
-
-        fx.close()
+        with fits.open(infile) as fx:
+            format_version = _qso_format_version(infile)
+            if format_version == 1:
+                flux = fx[0].data * 1E-17
+                hdr = fx[0].header
+                from desispec.io.util import header2wave
+                wave = header2wave(hdr)
+                meta = Table(fx[1].data)
+            elif format_version == 2:
+                flux = fx['SDSS_EIGEN'].data.copy()
+                wave = fx['SDSS_EIGEN_WAVE'].data.copy()
+                meta = Table([np.arange(flux.shape[0]),], names=['PCAVEC',])
+            else:
+                raise IOError('Unknown QSO basis template format version {}'.format(format_version))
     else:
         flux, hdr = fits.getdata(infile, 0, header=True)
         meta = Table(fits.getdata(infile, 1))
         wave = fits.getdata(infile, 2)
+
+        if (objtype.upper() == 'WD') and (subtype != ''):
+            if 'WDTYPE' not in meta.colnames:
+                raise RuntimeError('Please upgrade to basis_templates >=2.3 to get WDTYPE support')
+
+            keep = np.where(meta['WDTYPE'] == subtype.upper())[0]
+            if len(keep) == 0:
+                log.warning('Unrecognized white dwarf subtype {}!'.format(subtype))
+            else:
+                meta = meta[keep]
+                flux = flux[keep, :]
 
     # Optionally choose a random subset of spectra. There must be a fast way to
     # do this using fitsio.
@@ -707,12 +737,13 @@ def _parse_filename(filename):
     elif len(x) == 3:
         return x[0], x[1].lower(), int(x[2])
 
-def empty_metatable(nmodel=1, objtype='ELG', add_SNeIa=None):
+def empty_metatable(nmodel=1, objtype='ELG', subtype='', add_SNeIa=None):
     """Initialize the metadata table for each object type."""
     from astropy.table import Table, Column
 
     meta = Table()
     meta.add_column(Column(name='OBJTYPE', length=nmodel, dtype=(str, 10)))
+    meta.add_column(Column(name='SUBTYPE', length=nmodel, dtype=(str, 10)))
     meta.add_column(Column(name='TEMPLATEID', length=nmodel, dtype='i4',
                            data=np.zeros(nmodel)-1))
     meta.add_column(Column(name='SEED', length=nmodel, dtype='int64',
@@ -767,5 +798,21 @@ def empty_metatable(nmodel=1, objtype='ELG', add_SNeIa=None):
                                data=np.zeros(nmodel)-1, unit='days'))
 
     meta['OBJTYPE'] = objtype.upper()
+    meta['SUBTYPE'] = subtype.upper()
 
     return meta
+
+def empty_star_properties(nstar=1):
+    """Initialize a "star_properties" table for desisim.templates."""
+    from astropy.table import Table, Column
+
+    star_properties = Table()
+    star_properties.add_column(Column(name='REDSHIFT', length=nstar, dtype='f4'))
+    star_properties.add_column(Column(name='MAG', length=nstar, dtype='f4'))
+    star_properties.add_column(Column(name='TEFF', length=nstar, dtype='f4'))
+    star_properties.add_column(Column(name='LOGG', length=nstar, dtype='f4'))
+    star_properties.add_column(Column(name='FEH', length=nstar, dtype='f4'))
+    star_properties.add_column(Column(name='SEED', length=nstar, dtype='int64',
+                                      data=np.zeros(nstar)-1))
+
+    return star_properties
