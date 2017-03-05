@@ -2,6 +2,16 @@
 desisim change log
 ==================
 
+0.18.2 (2016-03-05)
+-------------------
+
+* No changes yet
+
+0.18.1 (2016-03-05)
+-------------------
+
+* update desisim.module to use DESI_BASIS_TEMPLATES v2.3
+
 0.18.0 (2016-03-04)
 -------------------
 
