@@ -1593,7 +1593,7 @@ class QSO():
                        seed=None, redshift=None, mag=None, input_meta=None,
                        nocolorcuts=False, N_perz=1):
         """Build Monte Carlo QSO spectra/templates.
-
+eed
         This function generates QSO spectra on-the-fly using PCA decomposition
         coefficients of SDSS and BOSS QSO spectra.  The default is to generate
         flat, uncorrelated priors on redshift and apparent magnitude (in the
