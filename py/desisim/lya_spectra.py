@@ -7,8 +7,11 @@ Function to simulate a QSO spectrum including Lyman-alpha absorption.
 
 from __future__ import division, print_function
 import numpy as np
+from scipy.special import wofz
 
 from pkg_resources import resource_filename
+
+c_cgs = 29979245800.0  # cm/s
 
 def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss2010-g',
                 seed=None, rand=None, qso=None, add_dlas=False):
@@ -112,7 +115,8 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
 
         # Inject a DLA?
         if add_dlas:
-            flux1 = insert_dlas(wave, flux1, zqso[ii])
+            dla_model = insert_dlas(wave, flux1, zqso[ii])
+            flux1 *= dla_model
         flux[ii, :] = flux1[:]
 
     h.close()
@@ -120,7 +124,7 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
     return flux, wave, meta
 
 
-def insert_dlas(wave, flux, zem, rstate=None, seed=None):
+def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, **kwargs):
     """ Insert zero, one or more DLAs into a given spectrum towards a source
     with a given redshift
     :param wave:
@@ -128,6 +132,7 @@ def insert_dlas(wave, flux, zem, rstate=None, seed=None):
     :param zem:
     :return:
     """
+    from scipy import interpolate
     #from pyigm.fN import dla as pyi_fd
     #from pyigm.abssys.dla import DLASystem
     #from pyigm.abssys.lls import LLSSystem
@@ -137,31 +142,24 @@ def insert_dlas(wave, flux, zem, rstate=None, seed=None):
     if rstate is None:
         rstate = np.random.RandomState(seed)
     if fNHI is None:
-        fNHI = init_fNHI(slls=slls, mix=mix, high=high)
+        fNHI = init_fNHI(**kwargs)
 
     # Allowed redshift placement
     ## Cut on zem and 910A rest-frame
-    zlya = spec.wavelength.value/1215.67 - 1
+    zlya = wave/1215.67 - 1
     dz = np.roll(zlya,-1)-zlya
     dz[-1] = dz[-2]
-    gdz = (zlya < zem) & (spec.wavelength > 910.*u.AA*(1+zem))
+    gdz = (zlya < zem) & (wave > 910.*(1+zem))
 
     # l(z) -- Uses DLA for SLLS too which is fine
-    lz = pyi_fd.lX(zlya[gdz], extrap=True, calc_lz=True)
+    lz = calc_lz(zlya[gdz])
     cum_lz = np.cumsum(lz*dz[gdz])
     tot_lz = cum_lz[-1]
     fzdla = interpolate.interp1d(cum_lz/tot_lz, zlya[gdz],
                                  bounds_error=False,fill_value=np.min(zlya[gdz]))#
 
     # n DLA
-    nDLA = 0
-    while nDLA == 0:
-        nval = rstate.poisson(tot_lz, 100)
-        gdv = nval > 0
-        if np.sum(gdv) == 0:
-            continue
-        else:
-            nDLA = nval[np.where(gdv)[0][0]]
+    nDLA = rstate.poisson(tot_lz, 1)
 
     # Generate DLAs
     dlas = []
@@ -170,30 +168,111 @@ def insert_dlas(wave, flux, zem, rstate=None, seed=None):
         zabs = float(fzdla(rstate.random_sample()))
         # Random NHI
         NHI = float(fNHI(rstate.random_sample()))
-        if (slls or mix):
-            dla = LLSSystem((0.,0), zabs, None, NHI=NHI)
-        else:
-            dla = DLASystem((0.,0), zabs, (None,None), NHI)
+        # Generate and append
+        dla = dict(z=zabs, N=NHI)
         dlas.append(dla)
 
-    # Insert
-    vmodel, _ = hi_model(dlas, spec, fwhm=3.)
-    # Add noise
-    rand = rstate.randn(spec.npix)
-    noise = rand * spec.sig * (1-vmodel.flux.value)
-    final_spec = XSpectrum1D.from_tuple((vmodel.wavelength,
-                                         spec.flux.value*vmodel.flux.value+noise,
-                                         spec.sig))
+    # Generate model of DLAs
+    dla_model = dla_spec(wave, dlas)
+
     # Return
-    return final_spec, dlas
+    return dla_model
 
+def dla_spec(wave, dlas):
+    """ Generate spectrum absorbed by dlas
+    Args:
+        wave (ndarray):  observed wavelengths
+        dlas (list):  DLA dicts
 
-def init_fNHI(slls=False, mix=False, high=False):
-    """ Generate the interpolator for log NHI
+    Returns:
+        abs_flux: ndarray of absorbed flux
+
+    """
+    flya = 0.4164
+    gamma_lya = 626500000.0
+    wavecm = wave / 1e8
+    tau = np.zeros(wave.size)
+    for dla in dlas:
+        par = [np.log10(dla['N'].value),
+               dla['z'],
+               30*1e5,  # b value
+               wavecm,
+               flya,
+               gamma_lya]
+        tau += voigt_tau(wavecm, par)
+    # Flux
+    flux = np.exp(-1.0*tau)
+    # Return
+    return flux
+
+def voigt_tau(wave, par):
+    """ Find the optical depth at input wavelengths
+    Taken from linetools.analysis.voigt
+
+    This is a stripped down routine for calculating a tau array for an
+    input line. Built for speed, not utility nor with much error
+    checking.  Use wisely.  And take careful note of the expected
+    units of the inputs (cgs)
+
+    Parameters
+    ----------
+    wave : ndarray
+      Assumed to be in cm
+    parm : list
+      Line parameters.  All are input unitless and should be in cgs
+        par[0] = logN (cm^-2)
+        par[1] = z
+        par[2] = b in cm/s
+        par[3] = wrest in cm
+        par[4] = f value
+        par[5] = gamma (s^-1)
 
     Returns
     -------
-    fNHI : scipy.interpolate.interp1d function
+    tau : ndarray
+      Optical depth at input wavelengths
+    """
+    cold = 10.0 ** par[0]  # / u.cm / u.cm
+    zp1 = par[1] + 1.0
+    # wv=line.wrest.to(u.cm) #*1.0e-8
+    nujk = c_cgs / par[3]
+    dnu = par[2] / par[3]  # (line.attrib['b'].to(u.km/u.s) / wv).to('Hz')
+    avoigt = par[5] / (4 * np.pi * dnu)
+    uvoigt = ((c_cgs / (wave / zp1)) - nujk) / dnu
+    # Voigt
+    cne = 0.014971475 * cold * par[4]  # line.data['f'] * u.cm * u.cm * u.Hz
+    tau = cne * voigt_wofz(uvoigt, avoigt) / dnu
+    #
+    return tau
+
+
+def voigt_wofz(vin,a):
+    """Uses scipy function for calculation.
+    Taken from linetools.analysis.voigt
+
+    Parameters
+    ----------
+    vin : ndarray
+      u parameter
+    a : float
+      a parameter
+
+    Returns
+    -------
+    voigt : ndarray
+    """
+    return wofz(vin + 1j * a).real
+
+
+def init_fNHI(slls=False, mix=True):
+    """
+    Args:
+        slls (bool): SLLS only?
+        mix (bool):  Mix of DLAs and SLLS?
+
+    Returns:
+        model: fNHI model
+
     """
     from astropy.io import fits
     from scipy import interpolate as scii
@@ -206,176 +285,85 @@ def init_fNHI(slls=False, mix=False, high=False):
     param = dict(sply=np.array(fN_data['FN']).flatten())
     fNHI_model = scii.PchipInterpolator(pivots, param['sply'], extrapolate=True)  # scipy 0.16
 
-
-
     # Integrate on NHI
     if slls:
-        lX, cum_lX, lX_NHI = calculate_lox(fN_model.zpivot,
-                                                    19.5, NHI_max=20.3, cumul=True)
-    elif high:
-        lX, cum_lX, lX_NHI = calculate_lox(fN_model.zpivot,
-                                                    21.2, NHI_max=22.5, cumul=True)
+        lX, cum_lX, lX_NHI = calculate_lox(fNHI_model, 19.5, NHI_max=20.3, cumul=True)
     elif mix:
-        lX, cum_lX, lX_NHI = calculate_lox(fN_model.zpivot,
-                                                    19.5, NHI_max=22.5, cumul=True)
+        lX, cum_lX, lX_NHI = calculate_lox(fNHI_model, 19.5, NHI_max=22.5, cumul=True)
     else:
-        lX, cum_lX, lX_NHI = calculate_lox(fN_model.zpivot,
-                                                20.3, NHI_max=22.5, cumul=True)
+        lX, cum_lX, lX_NHI = calculate_lox(fNHI_model, 20.3, NHI_max=22.5, cumul=True)
     # Interpolator
     cum_lX /= cum_lX[-1] # Normalize
-    fNHI = interpolate.interp1d(cum_lX, lX_NHI,
-                                bounds_error=False,fill_value=lX_NHI[0])
+    fNHI = scii.interp1d(cum_lX, lX_NHI, bounds_error=False,fill_value=lX_NHI[0])
+    # Return
     return fNHI
 
+def calc_lz(z):
+    """
+    Args:
+        z (ndarray): redshift values for evaluation
 
-    # Evaluate
-    def evaluate(self, NHI, z, vel_array=None, cosmo=None):
-        """ Evaluate the f(N,X) model at a set of NHI values
+    Returns:
+        ndarray:  l(z) aka dN/dz values of DLAs
 
-        Parameters
-        ----------
-        NHI : array
-          log NHI values
-        z : float or array
-          Redshift for evaluation
-        vel_array : ndarray, optional
-          Velocities relative to z
-        cosmo : astropy.cosmology, optional
+    """
+    lz = 0.6 * np.exp(-7./z**2)  # Prochaska et al. 2008, ApJ, 675, 1002
+    return lz
+
+def evaluate_fN(model, NHI):
+    """ Evaluate an f(N,X) model at a set of NHI values
+
+    Parameters
+    ----------
+    NHI : array
+      log NHI values
 
 
-        Returns
-        -------
-        log_fNX : float, array, or 2D array
-          f(NHI,X)[z] values
-          Float if given one NHI,z value each. Otherwise 2D array
-          If 2D, it is [NHI,z] on the axes
+    Returns
+    -------
+    log_fN : array
+      f(NHI,X) values
 
-        """
-        # Tuple?
-        if isinstance(NHI, tuple):  # All values packed into NHI parameter
-            z = NHI[1]
-            NHI = NHI[0]
-            flg_1D = 1
-        else:  # NHI and z separate
-            flg_1D = 0
+    """
+    # Evaluate without z dependence
+    log_fNX = model.__call__(NHI)
 
-        # NHI
-        if isiterable(NHI):
-            NHI = np.array(NHI)  # Insist on array
-        else:
-            NHI = np.array([NHI])
-        lenNHI = len(NHI)
+    return log_fNX
 
-        # Redshift
-        if vel_array is not None:
-            z_val = z + (1+z) * vel_array/(const.c.to('km/s').value)
-        else:
-            z_val = z
-        if isiterable(z_val):
-            z_val = np.array(z_val)
-        else:
-            z_val = np.array([z_val])
-        lenz = len(z_val)
+def calculate_lox(model, NHI_min, NHI_max=None, neval=10000, cumul=False):
+    """ Calculate l(X) over an N_HI interval
 
-        # Check on zmnx
-        bad = np.where((z_val < self.zmnx[0]) | (z_val > self.zmnx[1]))[0]
-        if len(bad) > 0:
-            raise ValueError(
-                'fN.model.eval: z={:g} not within self.zmnx={:g},{:g}'.format(
-                    z_val[bad[0]], *(self.zmnx)))
+    Parameters
+    ----------
+    z : float
+      Redshift for evaluation
+    NHI_min : float
+      minimum log NHI value
+    NHI_max : float, optional
+      maximum log NHI value for evaluation (Infinity)
+    neval : int, optional
+      Discretization parameter (10000)
+    cumul : bool, optional
+      Return a cumulative array? (False)
+    cosmo : astropy.cosmology, optional
+      Cosmological model to adopt (as needed)
 
-        if self.mtype == 'Hspline':
-            # Evaluate without z dependence
-            log_fNX = self.model.__call__(NHI)
-
-            # Evaluate
-            if (not isiterable(z_val)) | (flg_1D == 1):  # scalar or 1D array wanted
-                log_fNX += self.gamma * np.log10((1+z_val)/(1+self.zpivot))
-            else:
-                # Matrix algebra to speed things up
-                lgNHI_grid = np.outer(log_fNX, np.ones(len(z_val)))
-                lenfX = len(log_fNX)
-                #
-                z_grid1 = 10**(np.outer(np.ones(lenfX)*self.gamma,
-                                        np.log10(1+z_val)))  #; (1+z)^gamma
-                z_grid2 = np.outer( np.ones(lenfX)*((1./(1+self.zpivot))**self.gamma),
-                            np.ones(len(z_val)))
-                log_fNX = lgNHI_grid + np.log10(z_grid1*z_grid2)
-
-        # Gamma function (e.g. Inoue+14)
-        elif self.mtype == 'Gamma':
-            # Setup the parameters
-            Nl, Nu, Nc, bval = [self.param['common'][key]
-                                for key in ['Nl', 'Nu', 'Nc', 'bval']]
-            # gNHI
-            Bi = self.param['Bi']
-            ncomp = len(Bi)
-            log_gN = np.zeros((lenNHI, ncomp))
-            beta = [self.param[itype]['beta'] for itype in ['LAF', 'DLA']]
-            for kk in range(ncomp):
-                log_gN[:, kk] += (np.log10(Bi[kk]) + NHI*(-1 * beta[kk])
-                                + (-1. * 10.**(NHI-Nc) / np.log(10)))  # log10 [ exp(-NHI/Nc) ]
-            # f(z)
-            fz = np.zeros((lenz, 2))
-            # Loop on NHI
-            itypes = ['LAF', 'DLA']
-            for kk in range(ncomp):
-                if kk == 0:  # LyaF
-                    zcuts = self.param['LAF']['zcuts']
-                    gamma = self.param['LAF']['gamma']
-                else:        # DLA
-                    zcuts = self.param['DLA']['zcuts']
-                    gamma = self.param['DLA']['gamma']
-                zcuts = [0] + zcuts + [999.]
-                Aval = self.param[itypes[kk]]['Aval']
-                # Cut on z
-                for ii in range(1,len(zcuts)):
-                    izcut = np.where( (z_val < zcuts[ii]) &
-                                      (z_val > zcuts[ii-1]) )[0]
-                    liz = len(izcut)
-                    # Evaluate (at last!)
-                    if (ii <=2) & (liz > 0):
-                        fz[izcut, kk] = Aval * ( (1+z_val[izcut]) /
-                                                 (1+zcuts[1]) )**gamma[ii-1]
-                    elif (ii == 3) & (liz > 0):
-                        fz[izcut, kk] = Aval * ( ( (1+zcuts[2]) /
-                                                   (1+zcuts[1]) )**gamma[ii-2] *
-                                                    ((1+z_val[izcut]) / (1+zcuts[2]) )**gamma[ii-1] )
-            # dX/dz
-            if cosmo is None:
-                cosmo = self.cosmo
-            dXdz = pyigmu.cosm_xz(z_val, cosmo=cosmo, flg_return=1)
-
-            # Final steps
-            if flg_1D == 1:
-                fnX = np.sum(fz * 10.**log_gN, 1) / dXdz
-                log_fNX = np.log10(fnX)
-            else:
-                # Generate the matrix
-                fnz = np.zeros((lenNHI, lenz))
-                for kk in range(ncomp):
-                    fnz += np.outer(10.**log_gN[:, kk], fz[:, kk])
-                # Finish up
-                log_fNX = np.log10(fnz) - np.log10( np.outer(np.ones(lenNHI), dXdz))
-        elif self.mtype == 'PowerLaw':
-            log_fNX = self.param['B'] + self.param['beta'] * NHI
-            #
-            if (not isiterable(z_val)) | (flg_1D == 1):  # scalar or 1D array wanted
-                log_fNX += self.gamma * np.log10((1+z_val)/(1+self.zpivot))
-            else:
-                lgNHI_grid = np.outer(log_fNX, np.ones(len(z_val)))
-                lenfX = len(log_fNX)
-                #
-                z_grid1 = 10**(np.outer(np.ones(lenfX)*self.gamma,
-                                        np.log10(1+z_val)))  #; (1+z)^gamma
-                z_grid2 = np.outer( np.ones(lenfX)*((1./(1+self.zpivot))**self.gamma),
-                                    np.ones(len(z_val)))
-                log_fNX = lgNHI_grid + np.log10(z_grid1*z_grid2)
-        else:
-            raise ValueError('fN.model: Not ready for this model type {:%s}'.format(self.mtype))
-
-        # Return
-        if (lenNHI + lenz) == 2:
-            return log_fNX.flatten()[0]  # scalar
-        else:
-            return log_fNX
+    Returns
+    -------
+    lX : float
+      l(X) value
+    """
+    # Initial
+    if NHI_max is None:
+        NHI_max = 23.
+    # Brute force (should be good to ~0.5%)
+    lgNHI = np.linspace(NHI_min,NHI_max,neval)  #NHI_min + (NHI_max-NHI_min)*np.arange(neval)/(neval-1.)
+    dlgN = lgNHI[1]-lgNHI[0]
+    # Evaluate f(N,X)
+    lgfNX = evaluate_fN(model, lgNHI)
+    # Sum
+    lX = np.sum(10.**(lgfNX+lgNHI)) * dlgN * np.log(10.)
+    if cumul is True:
+        cum_sum = np.cumsum(10.**(lgfNX+lgNHI)) * dlgN * np.log(10.)
+    # Return
+    return lX, cum_sum, lgNHI
