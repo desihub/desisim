@@ -6,6 +6,8 @@ Function to simulate a QSO spectrum including Lyman-alpha absorption.
 """
 
 from __future__ import division, print_function
+import pdb
+
 import numpy as np
 from scipy.special import wofz
 
@@ -115,8 +117,9 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
 
         # Inject a DLA?
         if add_dlas:
-            dla_model = insert_dlas(wave, flux1, zqso[ii])
-            flux1 *= dla_model
+            if np.min(wave/1215.67 - 1) < zqso[ii]: # Any forest?
+                dla_model = insert_dlas(wave, zqso[ii])
+                flux1 *= dla_model
         flux[ii, :] = flux1[:]
 
     h.close()
@@ -127,16 +130,18 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
 def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, **kwargs):
     """ Insert zero, one or more DLAs into a given spectrum towards a source
     with a given redshift
-    :param wave:
-    :param flux:
-    :param zem:
-    :return:
+    Args:
+        wave:
+        zem:
+        rstate:
+        seed:
+        fNHI:
+        **kwargs:
+
+    Returns:
+
     """
     from scipy import interpolate
-    #from pyigm.fN import dla as pyi_fd
-    #from pyigm.abssys.dla import DLASystem
-    #from pyigm.abssys.lls import LLSSystem
-    #from pyigm.abssys.utils import hi_model
 
     # Init
     if rstate is None:
@@ -153,6 +158,7 @@ def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, **kwargs):
 
     # l(z) -- Uses DLA for SLLS too which is fine
     lz = calc_lz(zlya[gdz])
+    #pdb.set_trace()
     cum_lz = np.cumsum(lz*dz[gdz])
     tot_lz = cum_lz[-1]
     fzdla = interpolate.interp1d(cum_lz/tot_lz, zlya[gdz],

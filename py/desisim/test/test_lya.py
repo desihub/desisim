@@ -19,7 +19,7 @@ class TestLya(unittest.TestCase):
             fx = fitsio.FITS(cls.infile)
             cls.nspec = len(fx) - 1
             fx.close()
-        cls.wavemin = 5000
+        cls.wavemin = 3550
         cls.wavemax = 8000
         cls.dwave = 2.0
         cls.wave = np.arange(cls.wavemin, cls.wavemax+cls.dwave/2, cls.dwave)
@@ -55,6 +55,23 @@ class TestLya(unittest.TestCase):
         flux2, wave2, meta2 = lya_spectra.get_spectra(self.infile, wave=self.wave, nqso=3, seed=2)
         self.assertTrue(np.all(flux1a == flux1b))
         self.assertTrue(np.any(flux1a != flux2))
-                
+
+    @unittest.skipIf(missing_fitsio, 'fitsio not installed; skipping lya_spectra tests')
+    def test_insert_dla(self):
+        flux, wave, meta = lya_spectra.get_spectra(self.infile, wave=self.wave, seed=self.seed, add_dlas=True)
+        self.assertEqual(flux.shape[0], self.nspec)
+        self.assertEqual(wave.shape[0], flux.shape[1])
+        self.assertEqual(len(meta), self.nspec)
+        templateid = [0,1,2]
+        nqso = len(templateid)
+
+        flux, wave, meta = lya_spectra.get_spectra(self.infile, templateid=templateid,
+                                                   wave=self.wave, seed=self.seed)
+        self.assertEqual(flux.shape[0], nqso)
+        self.assertEqual(wave.shape[0], flux.shape[1])
+        self.assertEqual(len(meta), nqso)
+
+        #flux, wave, meta = lya_spectra.get_spectra(self.infile, nqso=nqso, first=2)
+
 if __name__ == '__main__':
     unittest.main()
