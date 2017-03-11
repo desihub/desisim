@@ -118,6 +118,7 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
         # Inject a DLA?
         if add_dlas:
             if np.min(wave/1215.67 - 1) < zqso[ii]: # Any forest?
+                print('ii = {:d}'.format(ii))
                 dla_model = insert_dlas(wave, zqso[ii])
                 flux1 *= dla_model
         flux[ii, :] = flux1[:]
@@ -127,7 +128,7 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
     return flux, wave, meta
 
 
-def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, **kwargs):
+def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, debug=False, **kwargs):
     """ Insert zero, one or more DLAs into a given spectrum towards a source
     with a given redshift
     Args:
@@ -174,6 +175,8 @@ def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, **kwargs):
         zabs = float(fzdla(rstate.random_sample()))
         # Random NHI
         NHI = float(fNHI(rstate.random_sample()))
+        if debug:
+            print('DLA: N={}, z={}'.format(zabs, NHI))
         # Generate and append
         dla = dict(z=zabs, N=NHI)
         dlas.append(dla)
@@ -196,13 +199,14 @@ def dla_spec(wave, dlas):
     """
     flya = 0.4164
     gamma_lya = 626500000.0
+    lyacm = 1215.6700 / 1e8
     wavecm = wave / 1e8
     tau = np.zeros(wave.size)
     for dla in dlas:
-        par = [np.log10(dla['N'].value),
+        par = [dla['N'],
                dla['z'],
                30*1e5,  # b value
-               wavecm,
+               lyacm,
                flya,
                gamma_lya]
         tau += voigt_tau(wavecm, par)
@@ -304,16 +308,17 @@ def init_fNHI(slls=False, mix=True):
     # Return
     return fNHI
 
-def calc_lz(z):
+def calc_lz(z, boost=1.6):
     """
     Args:
         z (ndarray): redshift values for evaluation
+        boost (float): boost for SLLS (should be 1 if only running DLAs)
 
     Returns:
         ndarray:  l(z) aka dN/dz values of DLAs
 
     """
-    lz = 0.6 * np.exp(-7./z**2)  # Prochaska et al. 2008, ApJ, 675, 1002
+    lz = boost * 0.6 * np.exp(-7./z**2)  # Prochaska et al. 2008, ApJ, 675, 1002
     return lz
 
 def evaluate_fN(model, NHI):
