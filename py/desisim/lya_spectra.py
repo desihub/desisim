@@ -16,7 +16,7 @@ from pkg_resources import resource_filename
 c_cgs = 29979245800.0  # cm/s
 
 def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss2010-g',
-                seed=None, rand=None, qso=None, add_dlas=False):
+                seed=None, rand=None, qso=None, add_dlas=False, debug=False):
     '''Generate a QSO spectrum which includes Lyman-alpha absorption.
 
     Args:
@@ -118,7 +118,8 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
         # Inject a DLA?
         if add_dlas:
             if np.min(wave/1215.67 - 1) < zqso[ii]: # Any forest?
-                print('ii = {:d}'.format(ii))
+                if debug:
+                    print('ii = {:d}'.format(ii))
                 dla_model = insert_dlas(wave, zqso[ii])
                 flux1 *= dla_model
         flux[ii, :] = flux1[:]
@@ -159,7 +160,6 @@ def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, debug=False, **kwa
 
     # l(z) -- Uses DLA for SLLS too which is fine
     lz = calc_lz(zlya[gdz])
-    #pdb.set_trace()
     cum_lz = np.cumsum(lz*dz[gdz])
     tot_lz = cum_lz[-1]
     fzdla = interpolate.interp1d(cum_lz/tot_lz, zlya[gdz],
