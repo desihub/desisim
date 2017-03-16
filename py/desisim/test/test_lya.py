@@ -25,7 +25,8 @@ class TestLya(unittest.TestCase):
         cls.wave = np.arange(cls.wavemin, cls.wavemax+cls.dwave/2, cls.dwave)
         cls.nspec = 5
         cls.templateid = [3, 10, 500]
-        cls.seed = np.random.randint(2**32)
+        cls.seed = 12311423
+        #cls.seed = np.random.randint(2**31)
         cls.rand = np.random.RandomState(cls.seed)
             
     @unittest.skipIf(missing_fitsio, 'fitsio not installed; skipping lya_spectra tests')

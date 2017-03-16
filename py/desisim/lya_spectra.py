@@ -6,14 +6,15 @@ Function to simulate a QSO spectrum including Lyman-alpha absorption.
 """
 
 from __future__ import division, print_function
-import pdb
 
 import numpy as np
 from scipy.special import wofz
 
+from astropy import constants as const
+
 from pkg_resources import resource_filename
 
-c_cgs = 29979245800.0  # cm/s
+c_cgs = const.c.to('cm/s').value
 
 def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss2010-g',
                 seed=None, rand=None, qso=None, add_dlas=False, debug=False):
@@ -37,6 +38,8 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
           individual spectra/templates.
         add_dlas (bool): Inject damped Lya systems into the Lya forest
           These are done according to the current best estimates for the incidence dN/dz
+            (Prochaska et al. 2008, ApJ, 675, 1002)
+          Set in calc_lz
           These are *not* inserted according to overdensity along the sightline
 
     Returns:
@@ -94,7 +97,12 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
     meta['SEED'] = templateseed
     meta['RA'] = ra
     meta['DEC'] = dec
-    
+
+    if add_dlas:
+        ndlas = []
+        zdlas = np.zeros((nqso, 100))  # Padded to 100 for flat Table
+        NHI_dlas = np.zeros((nqso, 100))  # Padded to 100 for flat Table
+
     for ii, indx in enumerate(templateid):
         flux1, _, meta1 = qso.make_templates(nmodel=1, redshift=np.array([zqso[ii]]),
                                              mag=np.array([mag_g[ii]]), seed=templateseed[ii])
@@ -118,13 +126,24 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
         # Inject a DLA?
         if add_dlas:
             if np.min(wave/1215.67 - 1) < zqso[ii]: # Any forest?
-                if debug:
-                    print('ii = {:d}'.format(ii))
-                dla_model = insert_dlas(wave, zqso[ii])
-                flux1 *= dla_model
+                dlas, dla_model = insert_dlas(wave, zqso[ii], seed=templateseed[ii])
+                ndla = len(dlas)
+                if ndla > 0:
+                    flux1 *= dla_model
+                # Save for meta Table
+                ndlas.append(ndla)
+                zdlas[ii, 0:ndla] = [idla['z'] for idla in dlas]
+                NHI_dlas[ii, 0:ndla] = [idla['N'] for idla in dlas]
+            else:
+                ndlas.append(0)
         flux[ii, :] = flux1[:]
 
     h.close()
+    # Finish meta
+    if add_dlas:
+        meta['n_DLA'] = ndlas
+        meta['z_DLA'] = zdlas  # Redshifts
+        meta['NHI_DLA'] = NHI_dlas  # log NHI values
 
     return flux, wave, meta
 
@@ -133,14 +152,16 @@ def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, debug=False, **kwa
     """ Insert zero, one or more DLAs into a given spectrum towards a source
     with a given redshift
     Args:
-        wave:
-        zem:
-        rstate:
-        seed:
-        fNHI:
-        **kwargs:
+        wave (ndarray):  wavelength array in Ang
+        zem (float): quasar emission redshift
+        rstate (numpy.random.rstate, optional): for random numberes
+        seed (int, optional):
+        fNHI (spline): f_NHI object
+        **kwargs: Passed to init_fNHI()
 
     Returns:
+        dla_model (ndarray): normalized specrtrum with DLAs inserted
+        dlas (list): List of DLA dict's with keys z,N
 
     """
     from scipy import interpolate
@@ -175,8 +196,6 @@ def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, debug=False, **kwa
         zabs = float(fzdla(rstate.random_sample()))
         # Random NHI
         NHI = float(fNHI(rstate.random_sample()))
-        if debug:
-            print('DLA: N={}, z={}'.format(zabs, NHI))
         # Generate and append
         dla = dict(z=zabs, N=NHI)
         dlas.append(dla)
@@ -185,7 +204,7 @@ def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, debug=False, **kwa
     dla_model = dla_spec(wave, dlas)
 
     # Return
-    return dla_model
+    return dlas, dla_model
 
 def dla_spec(wave, dlas):
     """ Generate spectrum absorbed by dlas
