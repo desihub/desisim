@@ -118,11 +118,6 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
             itr = interp1d(la, tr, bounds_error=False, fill_value=1.0)
             flux1 *= itr(wave)
 
-        padflux, padwave = normfilt.pad_spectrum(flux1, wave, method='edge')
-        normmaggies = np.array(normfilt.get_ab_maggies(padflux, padwave, 
-                                                       mask_invalid=True)[normfilter])
-        flux1 *= 10**(-0.4 * mag_g[ii]) / normmaggies
-
         # Inject a DLA?
         if add_dlas:
             if np.min(wave/1215.67 - 1) < zqso[ii]: # Any forest?
@@ -136,6 +131,12 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
                 NHI_dlas[ii, 0:ndla] = [idla['N'] for idla in dlas]
             else:
                 ndlas.append(0)
+
+        padflux, padwave = normfilt.pad_spectrum(flux1, wave, method='edge')
+        normmaggies = np.array(normfilt.get_ab_maggies(padflux, padwave, 
+                                                       mask_invalid=True)[normfilter])
+        flux1 *= 10**(-0.4 * mag_g[ii]) / normmaggies
+
         flux[ii, :] = flux1[:]
 
     h.close()
