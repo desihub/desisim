@@ -142,6 +142,7 @@ autodoc_mock_imports = ['desimodel.focalplane', 'desimodel.io',
                         'desispec.resolution', 'desispec.sky',
                         'desitarget.mtl', 'desitarget.targets',
                         'desitarget.targetmask',
+                        'numpy',
                         'specsim.simulator']
 
 # -- Options for HTML output ----------------------------------------------
