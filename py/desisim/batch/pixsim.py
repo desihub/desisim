@@ -1,4 +1,7 @@
 '''
+desisim.batch.pixsim
+====================
+
 Provides utility functions for batch processing of pixel-level simulations at
 NERSC.  This is a temporary pragmatic package -- after desispec.pipeline code
 is merged and vetted, this should use that infrastructure for more rigorous
@@ -46,10 +49,10 @@ def batch_newexp(batchfile, flavors, nspec=5000, night=None, expids=None,
 
     if night is None:
         night = obs.get_night()
-        
+
     if expids is None:
         expids = obs.get_next_expid(nexp)
-        
+
     if nodes is None:
         nodes = calc_nodes(nexp, tasktime=1.5, maxtime=20)
 
@@ -67,23 +70,23 @@ def batch_newexp(batchfile, flavors, nspec=5000, night=None, expids=None,
                 obs.update_obslog(obstype='science', program='gray', tileid=t)
             else:
                 obs.update_obslog(obstype='science', program='dark', tileid=t)
-        
+
     if pixprod is None:
         if 'PIXPROD' in os.environ:
             pixprod = os.environ['PIXPROD']
         else:
             raise ValueError('must provide pixprod or set $PIXPROD')
-        
+
     if desi_spectro_sim is None:
         if 'DESI_SPECTRO_SIM' in os.environ:
             desi_spectro_sim = os.environ['DESI_SPECTRO_SIM']
         else:
             raise ValueError('must provide desi_spectro_sim or set $DESI_SPECTRO_SIM')
-        
+
     log.info('output dir {}/{}/{}'.format(desi_spectro_sim, pixprod, night))
-    
+
     assert len(expids) == len(flavors)
-    
+
     cmd = "srun -n 1 -N 1 -c $nproc /usr/bin/time newexp-desi --night {night} --nspec {nspec} --flavor {flavor} --expid {expid} --tileid {tileid} --seed {seed}"
     with open(batchfile, 'w') as fx:
         fx.write("#!/bin/bash -l\n\n")
@@ -93,26 +96,26 @@ def batch_newexp(batchfile, flavors, nspec=5000, night=None, expids=None,
         fx.write("#SBATCH --time={}\n".format(timestr))
         fx.write("#SBATCH --job-name=newexp\n")
         fx.write("#SBATCH --output={}\n".format(logfile))
-        
+
         fx.write("if [ ${NERSC_HOST} = edison ]; then\n")
         fx.write("  nproc=24\n")
         fx.write("else\n")
         fx.write("  nproc=32\n")
         fx.write("fi\n\n")
-        
+
         fx.write('export DESI_SPECTRO_SIM={}\n'.format(desi_spectro_sim))
         fx.write('export PIXPROD={}\n'.format(pixprod))
         fx.write('\n')
         fx.write('echo Starting at `date`\n\n')
-        
+
         fx.write('mkdir -p $DESI_SPECTRO_SIM/$PIXPROD/etc\n')
         fx.write('mkdir -p $DESI_SPECTRO_SIM/$PIXPROD/{}\n'.format(night))
         fx.write('\n')
-        
+
         for expid, flavor, tileid, seed in zip(expids, flavors, tileids, seeds):
             fx.write(cmd.format(nspec=nspec, night=night, expid=expid,
                 flavor=flavor, tileid=tileid, seed=seed)+' &\n')
-            
+
         fx.write('\nwait\n')
         fx.write('\necho Done at `date`\n')
 
@@ -134,7 +137,7 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
 
     if night is None:
         night = obs.get_night()
-        
+
     if expids is None:
         expids = obs.get_next_expid(nexp)
 
@@ -145,7 +148,7 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
             pixprod = os.environ['PIXPROD']
         else:
             raise ValueError('must provide pixprod or set $PIXPROD')
-        
+
     if desi_spectro_sim is None:
         if 'DESI_SPECTRO_SIM' in os.environ:
             desi_spectro_sim = os.environ['DESI_SPECTRO_SIM']
@@ -158,7 +161,7 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
     if nodes is None:
         # nodes = calc_nodes(ntasks, tasktime=5, maxtime=20)
         nodes = nexp * nspectrographs
-        
+
     cmd = "srun -n {nspectrographs} -N {nspectrographs} -c $nproc /usr/bin/time pixsim-desi --mpi --verbose --cosmics --night {night} --expid {expid} --seed {seed}"
     with open(batchfile, 'w') as fx:
         fx.write("#!/bin/bash -l\n\n")
@@ -174,7 +177,7 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
         fx.write("else\n")
         fx.write("  nproc=32\n")
         fx.write("fi\n\n")
-        
+
         fx.write('export DESI_SPECTRO_SIM={}\n'.format(desi_spectro_sim))
         fx.write('export PIXPROD={}\n'.format(pixprod))
 
@@ -182,12 +185,12 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
 
         for expid, flavor, seed in zip(expids, flavors, seeds):
             fx.write('\n#- Exposure {} ({})\n'.format(expid, flavor))
-                
+
             cx = cmd.format(night=night, expid=expid, nspectrographs=nspectrographs, seed=seed)
             fx.write(cx + ' &\n')
-        
+
         fx.write('\nwait\n')
-        
+
         fx.write('\n#- Preprocess raw data\n')
         cmd = 'srun -n 1 -N 1 desi_preproc --infile {infile} --outdir {outdir} --cameras {cameras}'
         outdir = os.path.join(desi_spectro_sim, pixprod, night)
@@ -197,6 +200,6 @@ def batch_pixsim(batchfile, flavors, nspec=5000, night=None, expids=None,
                 cameras = 'b{},r{},z{}'.format(i,i,i)
                 cx = cmd.format(infile=infile, outdir=outdir, cameras=cameras)
                 fx.write(cx+' &\n')
-                
+
         fx.write('\nwait\n')
         fx.write('echo Done at `date`\n')

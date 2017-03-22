@@ -1,73 +1,73 @@
 """
-Quickgen quickly simulates pipeline outputs if given input files or brickname
+desisim.scripts.quickgen
+========================
+
+Quickgen quickly simulates pipeline outputs if given input files or brickname.
 This can be run in two distinct modes:
 
-  OPTION 1:
-    quickgen mode (must provide simspec and fibermap files via newexp-desi):
+* QUICKGEN MODE
 
-        Notes:
-        -Number of spectra to be simulated can be given as an argument for quickgen,
-         but the number of spectra in the simspec file is taken by default
-        -For this option, airmass and exposure time are keywords given to newexp-desi
-        -The keywords provided in the examples are all required, additional keywords
-         are provided below
+  - must provide simspec and fibermap files via newexp-desi
+  - Number of spectra to be simulated can be given as an argument for quickgen,
+    but the number of spectra in the simspec file is taken by default
+  - For this option, airmass and exposure time are keywords given to newexp-desi
+  - The keywords provided in the examples are all required, additional keywords
+    are provided below
+  - Collect a set of templates to simulate as a new exposure::
 
-        Collect a set of templates to simulate as a new exposure:
-        'newexp-desi --nspec 500 --night 20150915 --expid 0 --flavor dark'
+        newexp-desi --nspec 500 --night 20150915 --expid 0 --flavor dark
 
-            newexp-desi keyword arguments:
-            --flavor : arc/flat/dark/gray/bright/bgs/mws/elg/lrg/qso, type=str, default='dark'
-            --tileid : tile id, type=int
-            --expid : exposure id, type=int
-            --exptime : exposure time in seconds, default for arc = 5s, flat = 10s, dark/elg/lrg/qso=1000s, bright/bgs/mws=300s, type=int
-            --night : YEARMMDD, type=str
-            --nspec : Number of spectra to simulate, type=int, default=5000
-            --airmass : type=float, default=1.0
-            --seed : random number seed, type=int
-            --testslit : test slit simulation with fewer fibers, action="store_true"
-            --arc-lines : alternate arc lines filename, type=str, default=None
-            --flat-spectrum : alternate flat spectrum filename, type=str
+  - newexp-desi keyword arguments::
 
-        Actually do the simulation:
-        'simdir=$DESI_SPECTRO_SIM/$PIXPROD/20150915'
-        'quickgen --simspec $simdir/simspec-00000000.fits --fibermap $simdir/fibermap-00000000.fits'
+        --flavor : arc/flat/dark/gray/bright/bgs/mws/elg/lrg/qso, type=str, default='dark'
+        --tileid : tile id, type=int
+        --expid : exposure id, type=int
+        --exptime : exposure time in seconds, default for arc = 5s, flat = 10s, dark/elg/lrg/qso=1000s, bright/bgs/mws=300s, type=int
+        --night : YEARMMDD, type=str
+        --nspec : Number of spectra to simulate, type=int, default=5000
+        --airmass : type=float, default=1.0
+        --seed : random number seed, type=int
+        --testslit : test slit simulation with fewer fibers, action="store_true"
+        --arc-lines : alternate arc lines filename, type=str, default=None
+        --flat-spectrum : alternate flat spectrum filename, type=str
 
-        quickgen output (can also provide frame file only as keyword):
-        1. frame-{camera}-{expid}.fits : raw extracted photons with no calibration at all 
+  - Actually do the simulation::
+
+        simdir=$DESI_SPECTRO_SIM/$PIXPROD/20150915
+        quickgen --simspec $simdir/simspec-00000000.fits --fibermap $simdir/fibermap-00000000.fits
+
+  - quickgen output (can also provide frame file only as keyword)::
+
+        1. frame-{camera}-{expid}.fits : raw extracted photons with no calibration at all
         2. sky-{camera}-{expid}.fits : the sky model in photons
         3. fluxcalib-{camera}-{expid}.fits] : the flux calibration vectors
         4. cframe-{camera}-{expid}.fits : flux calibrated spectra
 
         These files are written to $simdir/{expid}
 
-  OPTION 2:
-    "quickbrick" mode (must provide brickname):
+* QUICKBRICK MODE
 
-        Notes:
-        -Simulates 100 spectra by default, unless nspec keyword is provided
-        -For this option, airmass and exposure time are given directly to quickgen
-        -Brickname is the only required keyword
+  - must provide brickname
+  - Simulates 100 spectra by default, unless nspec keyword is provided
+  - For this option, airmass and exposure time are given directly to quickgen
+  - Brickname is the only required keyword
+  - Simulate bricks (can provide anything as brick name)::
 
-        Simulate bricks (can provide anything as brick name):
-        'quickgen --brickname brick'
+        quickgen --brickname brick
 
-        quickbrick output:
+  - quickbrick output::
+
         1. brick-{arm}-{brickname}.fits : flux calibrated spectra in bricks
 
         These files are written to the current working directory by default
 
-  additional keyword arguments (descriptions below):
+* additional keyword arguments (descriptions below):
 
-        common to both modes:
-            nspec, config, seed, moon-phase, moon-angle, moon-zenith
-
-        quickgen only:
-            simspec, fibermap, nstart, spectrograph, frameonly
-
-        quickbrick only:
-            brickname, objtype, airmass, exptime, outdir, verbose, outdir-truth,
-            zrange-qso, zrange-elg, zrange-lrg, zrange-bgs, sne-rfluxratiorange,
-            add-SNeIa
+  - common to both modes: nspec, config, seed, moon-phase, moon-angle, moon-zenith
+  - quickgen only: simspec, fibermap, nstart, spectrograph, frameonly
+  - quickbrick only: brickname, objtype, airmass, exptime, outdir, verbose, outdir-truth,
+    zrange-qso, zrange-elg, zrange-lrg, zrange-bgs, sne-rfluxratiorange,
+    add-SNeIa
 """
 from __future__ import absolute_import, division, print_function
 
@@ -659,7 +659,7 @@ def main(args):
         else:
             # Looping over spectrograph
             for ii in range((args.nspec+args.nstart-1)//500+1):
-    
+
                 start=max(500*ii,args.nstart) # first spectrum for a given spectrograph
                 end=min(500*(ii+1),nmax) # last spectrum for the spectrograph
 
@@ -667,15 +667,15 @@ def main(args):
                     camera = "{}{}".format(channel, ii)
                     log.info("Writing files for channel:{}, spectrograph:{}, spectra:{} to {}".format(channel,ii,start,end))
                     num_pixels = len(waves[channel])
-    
+
                     # Write frame file
                     framefileName=desispec.io.findfile("frame",NIGHT,EXPID,camera)
-    
+
                     frame_flux=nobj[start:end,armName[channel],:num_pixels]+ \
                     nsky[start:end,armName[channel],:num_pixels] + \
                     frame_rand_noise[start:end,armName[channel],:num_pixels]
                     frame_ivar=nivar[start:end,armName[channel],:num_pixels]
-    
+
                     sh1=frame_flux.shape[0]  # required for slicing the resolution metric, resolusion matrix has (nspec,ndiag,wave)
                                               # for example if nstart =400, nspec=150: two spectrographs:
                                               # 400-499=> 0 spectrograph, 500-549 => 1
@@ -683,19 +683,19 @@ def main(args):
                         resol=resolution[channel][:sh1,:,:]
                     else:
                         resol=resolution[channel][-sh1:,:,:]
-    
+
                     # must create desispec.Frame object
                     frame=Frame(waves[channel], frame_flux, frame_ivar,\
                         resolution_data=resol, spectrograph=ii, \
                         fibermap=fibermap[start:end], meta=dict(CAMERA=camera) )
                     desispec.io.write_frame(framefileName, frame)
-    
+
                     framefilePath=desispec.io.findfile("frame",NIGHT,EXPID,camera)
                     log.info("Wrote file {}".format(framefilePath))
-    
+
                     if args.frameonly or simspec.flavor == 'arc':
                         continue
-    
+
                     # Write cframe file
                     cframeFileName=desispec.io.findfile("cframe",NIGHT,EXPID,camera)
                     cframeFlux=cframe_observedflux[start:end,armName[channel],:num_pixels]+cframe_rand_noise[start:end,armName[channel],:num_pixels]
@@ -706,25 +706,25 @@ def main(args):
                         resolution_data=resol, spectrograph=ii,
                         fibermap=fibermap[start:end], meta=dict(CAMERA=camera) )
                     desispec.io.frame.write_frame(cframeFileName,cframe)
-    
+
                     cframefilePath=desispec.io.findfile("cframe",NIGHT,EXPID,camera)
                     log.info("Wrote file {}".format(cframefilePath))
-    
+
                     # Write sky file
                     skyfileName=desispec.io.findfile("sky",NIGHT,EXPID,camera)
                     skyflux=nsky[start:end,armName[channel],:num_pixels] + \
                     sky_rand_noise[start:end,armName[channel],:num_pixels]
                     skyivar=sky_ivar[start:end,armName[channel],:num_pixels]
                     skymask=np.zeros(skyflux.shape, dtype=np.uint32)
-    
+
                     # must create desispec.Sky object
                     skymodel = SkyModel(waves[channel], skyflux, skyivar, skymask,
                         header=dict(CAMERA=camera))
                     desispec.io.sky.write_sky(skyfileName, skymodel)
-    
+
                     skyfilePath=desispec.io.findfile("sky",NIGHT,EXPID,camera)
                     log.info("Wrote file {}".format(skyfilePath))
-    
+
                     # Write calib file
                     calibVectorFile=desispec.io.findfile("calib",NIGHT,EXPID,camera)
                     flux = cframe_observedflux[start:end,armName[channel],:num_pixels]
@@ -732,18 +732,16 @@ def main(args):
                     calibration = np.zeros_like(phot)
                     jj = (flux>0)
                     calibration[jj] = phot[jj] / flux[jj]
-    
+
                     #- TODO: what should calibivar be?
                     #- For now, model it as the noise of combining ~10 spectra
                     calibivar=10/cframe_ivar[start:end,armName[channel],:num_pixels]
                     #mask=(1/calibivar>0).astype(int)??
                     mask=np.zeros(calibration.shape, dtype=np.uint32)
-    
+
                     # write flux calibration
                     fluxcalib = FluxCalib(waves[channel], calibration, calibivar, mask)
                     write_flux_calibration(calibVectorFile, fluxcalib)
-    
+
                     calibfilePath=desispec.io.findfile("calib",NIGHT,EXPID,camera)
                     log.info("Wrote file {}".format(calibfilePath))
-
-

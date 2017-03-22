@@ -1,5 +1,8 @@
 '''
-DESI wrapper functions for external specsim classes
+desisim.specsim
+===============
+
+DESI wrapper functions for external specsim classes.
 '''
 
 from __future__ import absolute_import, division, print_function
@@ -47,4 +50,3 @@ def get_simulator(config='desi'):
         _simdefaults[config] = defaults
 
     return qsim
-    

@@ -29,11 +29,15 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
           individual spectra/templates.
 
     Returns:
-        flux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra
-          (erg/s/cm2/A).
-        wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
-        meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum
-          with columns defined in desisim.io.empty_metatable *plus* RA, DEC.
+        flux (numpy.ndarray):
+            Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
+
+        wave (numpy.ndarray):
+            Observed-frame [npix] wavelength array (Angstrom).
+
+        meta (astropy.Table):
+            Table of meta-data [nmodel] for each output spectrum
+            with columns defined in desisim.io.empty_metatable *plus* RA, DEC.
 
     '''
     import numpy as np
@@ -73,7 +77,7 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
 
     if qso is None:
         qso = QSO(normfilter=normfilter, wave=wave)
-        
+
     wave = qso.wave
     flux = np.zeros([nqso, len(wave)], dtype='f4')
 
@@ -84,7 +88,7 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
     meta['SEED'] = templateseed
     meta['RA'] = ra
     meta['DEC'] = dec
-    
+
     for ii, indx in enumerate(templateid):
         flux1, _, meta1 = qso.make_templates(nmodel=1, redshift=np.array([zqso[ii]]),
                                              mag=np.array([mag_g[ii]]), seed=templateseed[ii])
@@ -101,7 +105,7 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
             flux1 *= itr(wave)
 
         padflux, padwave = normfilt.pad_spectrum(flux1, wave, method='edge')
-        normmaggies = np.array(normfilt.get_ab_maggies(padflux, padwave, 
+        normmaggies = np.array(normfilt.get_ab_maggies(padflux, padwave,
                                                        mask_invalid=True)[normfilter])
         flux1 *= 10**(-0.4 * mag_g[ii]) / normmaggies
         flux[ii, :] = flux1[:]
@@ -109,5 +113,3 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
     h.close()
 
     return flux, wave, meta
-
-

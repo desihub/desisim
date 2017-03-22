@@ -1,11 +1,13 @@
-# -*- coding: utf-8 -*-
+"""
+desisim.util
+============
+
+Utility functions for desisim.  These may belong elsewhere?
+"""
 
 from __future__ import print_function, division
 import numpy as np
 
-"""
-Utility functions for desisim.  These may belong elsewhere..?
-"""
 
 #- Experimental
 class _FakeMPIComm(object):
@@ -19,7 +21,7 @@ class _FakeMPIComm(object):
         '''creates a fake MPI communicator'''
         self._size = 1
         self._rank = 0
-    
+
     @property
     def size(self):
         return self._size
@@ -27,15 +29,15 @@ class _FakeMPIComm(object):
     @property
     def rank(self):
         return self._rank
-    
+
     def Get_size(self):
         '''mimics a real MPI communicator; returns 1'''
         return self._size
-        
+
     def Get_rank(self):
         '''mimics a real MPI communicator; returns 0'''
         return self._rank
-        
+
     def Barrier(self):
         '''mimics a real MPI communicator, but doesn't do anything here'''
         pass
@@ -53,7 +55,7 @@ def spline_medfilt2d(image, kernel_size=201):
         raise ValueError(
             'kernel_size {} must be < min image shape {}//3'.format(
                 kernel_size, min(image.shape)))
-        
+
     from scipy.interpolate import RectBivariateSpline
     n = kernel_size // 2
     xx = np.arange(n, image.shape[1], kernel_size)
@@ -63,18 +65,18 @@ def spline_medfilt2d(image, kernel_size=201):
         for j,y in enumerate(yy):
             xy = np.s_[y-n:y+n+1, x-n:x+n+1]
             zz[j,i] = np.median(image[xy])
-    
+
     #- adjust spline order for small test data
     kx = min(3, len(xx)-1)
     ky = min(3, len(yy)-1)
     s = RectBivariateSpline(xx, yy, zz, kx=kx, ky=ky)
     background = s(np.arange(image.shape[0]), np.arange(image.shape[1]))
 
-    return background            
+    return background
 
 def medxbin(x,y,binsize,minpts=20,xmin=None,xmax=None):
     """
-    Compute the median (and other statistics) in fixed bins along the x-axis. 
+    Compute the median (and other statistics) in fixed bins along the x-axis.
     """
     import numpy as np
     from scipy import ptp

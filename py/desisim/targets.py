@@ -1,5 +1,8 @@
 """
-Utility functions for working with simulated targets
+desisim.targets
+===============
+
+Utility functions for working with simulated targets.
 """
 
 from __future__ import absolute_import, division, print_function
