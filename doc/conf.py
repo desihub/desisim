@@ -134,11 +134,15 @@ napoleon_include_private_with_doc = True
 # some external dependencies are not met at build time and break the
 # building process.
 autodoc_mock_imports = ['desimodel.focalplane', 'desimodel.io',
-                        'desispec.cosmics', 'desispec.image',
+                        'desispec.cosmics', 'desispec.frame',
+                        'desispec.fiberflat', 'desispec.fluxcalibration',
+                        'desispec.image',
                         'desispec.io', 'desispec.io.fibermap', 'desispec.io.util',
                         'desispec.interpolation', 'desispec.log',
+                        'desispec.resolution', 'desispec.sky',
                         'desitarget.mtl', 'desitarget.targets',
-                        'desitarget.targetmask']
+                        'desitarget.targetmask',
+                        'specsim.simulator']
 
 # -- Options for HTML output ----------------------------------------------
 

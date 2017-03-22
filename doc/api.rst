@@ -32,8 +32,9 @@ desisim API
 .. automodule:: desisim.qso_template
     :members:
 
-.. automodule:: desisim.qso_template.boss_qsos_figs
-    :members:
+.. This is not even a proper module, just a script dumped here.
+.. .. automodule:: desisim.qso_template.boss_qsos_figs
+..     :members:
 
 .. automodule:: desisim.qso_template.desi_qso_templ
     :members:

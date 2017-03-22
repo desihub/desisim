@@ -1,4 +1,7 @@
 '''
+desisim.quickcat
+================
+
 Code for quickly generating an output zcatalog given fiber assignment tiles,
 a truth catalog, and optionally a previous zcatalog.
 
@@ -7,6 +10,7 @@ performance on the zdc1 training samples, documented by Govinda Dhungana at
 https://desi.lbl.gov/DocDB/cgi-bin/private/ShowDocument?docid=1657
 
 TODO:
+
 - Include magnitudes or [OII] flux as part of parameterizing results
 '''
 
@@ -60,10 +64,10 @@ _zwarn_fraction = {
 
 _cata_fail_fraction = {
    # Catastrophic error fractions from redmonster on oak (ELG, LRG, QSO)
-    'ELG': 0.08,       
-    'LRG': 0.013,      
+    'ELG': 0.08,
+    'LRG': 0.013,
     'QSO': 0.20,
-    'BGS': 0., 
+    'BGS': 0.,
     'STAR': 0.,
     'SKY': 0.,
     'UNKNOWN': 0.,
@@ -100,7 +104,7 @@ def get_zeff_obs(simtype, obsconditions):
     # airmass
     v = obsconditions['AIRMASS'] - np.mean(obsconditions['AIRMASS'])
     pv  = p_v[0] + p_v[1] * v + p_v[2] * (v**2. - np.mean(v**2))
-    
+
     # ebmv
     w = obsconditions['EBMV'] - np.mean(obsconditions['EBMV'])
     pw = p_w[0] + p_w[1] * w + p_w[2] * (w**2 - np.mean(w**2))
@@ -136,7 +140,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         simtype: ELG, LRG, QSO, MWS, BGS
         targets: target catalog table; currently used only for TARGETID
         truth: truth table with OIIFLUX, TRUEZ
-        targets_in_tile: dictionary. Keys correspond to tileids, its values are the 
+        targets_in_tile: dictionary. Keys correspond to tileids, its values are the
             arrays of targetids observed in that tile.
         obsconditions: table observing conditions with columns
            'TILEID': array of tile IDs
@@ -145,9 +149,12 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
            'LINTRANS': array of atmospheric transparency during spectro obs; floats [0-1]
            'MOONFRAC': array of moonfraction values on a tile.
            'SEEING': array of FWHM seeing during spectroscopic observation on a tile.
-           
-    Outputs: tuple of arrays (observed, p) both with same length as targets
+
+    Returns:
+        tuple of arrays (observed, p) both with same length as targets
+
         observed: boolean array of whether the target was observed in these tiles
+
         p: probability to get this redshift right
     """
     targetid = targets['TARGETID']
@@ -184,7 +191,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         except:
             raise Exception('Missing Rmag information to estimate redshift efficiency for LRGs')
 
-        r_mag = 22.5 - 2.5*np.log10(true_rflux) 
+        r_mag = 22.5 - 2.5*np.log10(true_rflux)
 
         mean_eff_mag=np.interp(r_mag,magr,magr_eff)
         fudge=0.002
@@ -196,7 +203,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         # Read the model gmag threshold
         filename = resource_filename('desisim', 'data/quickcat_qso_gmag_threshold.txt')
         zc, qso_gmag_threshold_vs_z = np.loadtxt(filename, unpack=True)
-        
+
         # Get Gflux from truth
         try:
             true_gmag = targets['DECAM_FLUX'][:,1]
@@ -220,13 +227,13 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
 
     elif simtype == 'MWS':
         simulated_eff = 0.98 * np.ones(n)
-    
+
     else:
         default_zeff = 0.98
         log.warning('using default redshift efficiency of {} for {}'.format(default_zeff, simtype))
         simulated_eff = default_zeff * np.ones(n)
 
-    if (obsconditions is None) and (truth['OIIFLUX'] is None) and (targets['DECAM_FLUX'] is None): 
+    if (obsconditions is None) and (truth['OIIFLUX'] is None) and (targets['DECAM_FLUX'] is None):
         raise Exception('Missing obsconditions and flux information to estimate redshift efficiency')
 
     #- Get the corrections for observing conditions per tile, then
@@ -236,7 +243,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
     #- NOTE: this still isn't quite right since multiple observations will
     #- be simultaneously fit instead of just taking whichever individual one
     #- succeeds.
-        
+
     zeff_obs = get_zeff_obs(simtype, obsconditions)
     pfail = np.ones(n)
     observed = np.zeros(n, dtype=bool)
@@ -256,11 +263,12 @@ def eff_model(x, sigma, max_efficiency):
     return 0.5*max_efficiency*(1.+sp.erf((x-1)/(np.sqrt(2.)*sigma)))
 
 def reverse_dictionary(a):
-    """
-    Inverts a dictionary mapping.
-    Input.
+    """Inverts a dictionary mapping.
+
+    Args:
         a: input dictionary.
-    Output:
+
+    Returns:
         b: output reversed dictionary.
     """
     b = {}
@@ -270,23 +278,23 @@ def reverse_dictionary(a):
                 if k not in b.keys():
                     b[k] = [i[0]]
                 else:
-                    b[k].append(i[0])            
+                    b[k].append(i[0])
         except:
             k = i[1]
             if k not in b.keys():
                 b[k] = [i[0]]
             else:
-                b[k].append(i[0])            
+                b[k].append(i[0])
     return b
 
 def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
     """
     Returns observed z, zerr, zwarn arrays given true object types and redshifts
 
-    Args:       
+    Args:
         targets: target catalog table; currently used only for target mask bits
         truth: truth table with OIIFLUX, TRUEZ
-        targets_in_tile: dictionary. Keys correspond to tileids, its values are the 
+        targets_in_tile: dictionary. Keys correspond to tileids, its values are the
             arrays of targetids observed in that tile.
         obsconditions: table observing conditions with columns
            'TILEID': array of tile IDs
@@ -295,11 +303,11 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
            'LINTRANS': array of atmospheric transparency during spectro obs; floats [0-1]
            'MOONFRAC': array of moonfraction values on a tile.
            'SEEING': array of FWHM seeing during spectroscopic observation on a tile.
-           
-    Returns tuple of (zout, zerr, zwarn)
 
+    Returns:
+        tuple of (zout, zerr, zwarn)
     """
-    
+
     simtype = get_simtype(truth['TRUETYPE'], targets['DESI_TARGET'], targets['BGS_TARGET'], targets['MWS_TARGET'])
     truez = truth['TRUEZ']
     targetid = truth['TARGETID']
@@ -310,14 +318,14 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
 
     objtypes = list(set(simtype))
     n_tiles = len(np.unique(obsconditions['TILEID']))
-    
+
     if(n_tiles!=len(targets_in_tile)):
         raise ValueError('Number of obsconditions {} != len(targets_in_tile) {}'.format(n_tiles, len(targets_in_tile)))
 
     for objtype in objtypes:
         if objtype in _sigma_v.keys():
             ii = (simtype == objtype)
-            n = np.count_nonzero(ii)        
+            n = np.count_nonzero(ii)
 
             # Error model for ELGs
             if (objtype =='ELG'):
@@ -327,7 +335,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
                     true_oii_flux = truth['OIIFLUX'][ii]
                 except:
                     raise Exception('Missing OII flux information to estimate redshift error for ELGs')
-        
+
                 mean_err_oii = np.interp(true_oii_flux,oii,errz_oii)
                 zerr[ii] = mean_err_oii*(1.+truez[ii])
                 zout[ii] += np.random.normal(scale=zerr[ii])
@@ -351,7 +359,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
                 0.825 8.85342361594e-05 -0.00176079966322
                 0.9625 6.96202042482e-05 -0.00138632103551
                 '''
-                
+
                 # for each redshift bin, select the corresponding coefs
                 zerr_tmp = np.zeros(len(truez[ii]))
                 for i in range(redbins.size-1):
@@ -365,10 +373,10 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
                     else:
                         index=index0
 
-                    # Find mean error at true mag 
+                    # Find mean error at true mag
                     pol = np.poly1d(coefs[i])
                     mean_err_mag=np.interp(true_magr[index],mag,pol(mag))
-                    
+
                     # Computes output error and redshift
                     zerr_tmp[index] = mean_err_mag
                 zerr[ii]=zerr_tmp*(1.+truez[ii])
@@ -384,7 +392,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
                     true_magg=targets['DECAM_FLUX'][ii,1]
                 except:
                     raise Exception('Missing DECAM g flux information to estimate redshift error for QSOs')
-                
+
                 coefs = [[0.000156950059747,-0.00320719603886],[0.000461779391179,-0.00924485142818],\
                              [0.000458672517009,-0.0091254038977],[0.000461427968475,-0.00923812594293],\
                              [0.000312919487343,-0.00618137905849],[0.000219438845624,-0.00423782927109]]
@@ -397,12 +405,12 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
                 2.5 0.000312919487343 -0.00618137905849
                 3.0 0.000219438845624 -0.00423782927109
                 '''
-                
+
                 # for each redshift bin, select the corresponding coefs
                 zerr_tmp = np.zeros(len(truez[ii]))
                 for i in range(redbins.size-1):
                     index0, = np.where((truez[ii]>=redbins[i]) & (truez[ii]<redbins[i+1]))
-                    if (i==0): 
+                    if (i==0):
                         index1, = np.where(truez[ii]<redbins[0])
                         index = np.concatenate((index0,index1))
                     elif (i==(redbins.size-2)):
@@ -410,11 +418,11 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
                         index = np.concatenate((index0,index1))
                     else:
                         index=index0
-                    # Find mean error at true mag    
+                    # Find mean error at true mag
                     pol = np.poly1d(coefs[i])
                     mean_err_mag=np.interp(true_magg[index],mag,pol(mag))
-                    
-                    # Computes output error and redshift 
+
+                    # Computes output error and redshift
                     zerr_tmp[index] = mean_err_mag
                 zerr[ii]=zerr_tmp*(1.+truez[ii])
                 zout[ii] += np.random.normal(scale=zerr[ii])
@@ -450,7 +458,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
                 index = np.random.choice(kk, size=num_cata, replace=False)
                 assert np.all(np.in1d(index, np.where(ii)[0]))
                 assert np.all(zwarn[index] == 0)
-                        
+
                 zout[index] = np.random.uniform(zlim[0],zlim[1],len(index))
 
         else:
@@ -461,14 +469,16 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
     return zout, zerr, zwarn
 
 def get_median_obsconditions(tileids):
-    """
-    Gets the observational conditions for a set of tiles.
+    """Gets the observational conditions for a set of tiles.
+
     Args:
        tileids : list of tileids that were observed
-    
-    Outputs:
-        obsconditions: Table with the observational conditions for every tile.
-            It inclues at least the following columns
+
+    Returns:
+        Table with the observational conditions for every tile.
+
+        It inclues at least the following columns::
+
            'TILEID': array of tile IDs
            'AIRMASS': array of airmass values on a tile
            'EBMV': array of E(B-V) values on a tile
@@ -481,15 +491,15 @@ def get_median_obsconditions(tileids):
     tiles = desimodel.io.load_tiles()
     tileids = np.asarray(tileids)
     ii = np.in1d(tiles['TILEID'], tileids)
-    
+
     tiles = tiles[ii]
     assert len(tiles) == len(tileids)
-    
+
     #- Sort tiles to match order of tileids
     i = np.argsort(tileids)
     j = np.argsort(tiles['TILEID'])
     k = np.argsort(i)
-    
+
     tiles = tiles[j[k]]
     assert np.all(tiles['TILEID'] == tileids)
 
@@ -506,7 +516,7 @@ def get_median_obsconditions(tileids):
     obsconditions['EBMV'] = tiles['EBV_MED']
     obsconditions['LINTRANS'] = np.ones(n)
     obsconditions['SEEING'] = np.ones(n) * 1.1
-    
+
     #- Add lunar conditions, defaulting to dark time
     from desitarget import obsconditions as obsbits
     obsconditions['MOONFRAC'] = np.zeros(n)
@@ -522,7 +532,7 @@ def get_median_obsconditions(tileids):
     obsconditions['MOONFRAC'][ii] = 0.7
     obsconditions['MOONALT'][ii] = 60.0
     obsconditions['MOONDIST'][ii] = 50.0
-        
+
     return obsconditions
 
 def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=False):
@@ -533,13 +543,11 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
         tilefiles : list of fiberassign tile files that were observed
         targets : astropy Table of targets
         truth : astropy Table of input truth with columns TARGETID, TRUEZ, and TRUETYPE
-    
-    Optional:
-        zcat: input zcatalog Table from previous observations
-        obsconditions: Table or ndarray with observing conditions from surveysim
-        perfect: if True, treat spectro pipeline as perfect with input=output,
+        zcat (optional): input zcatalog Table from previous observations
+        obsconditions (optional): Table or ndarray with observing conditions from surveysim
+        perfect (optional): if True, treat spectro pipeline as perfect with input=output,
             otherwise add noise and zwarn!=0 flags
-        
+
     Returns:
         zcatalog astropy Table based upon input truth, plus ZERR, ZWARN,
         NUMOBS, and TYPE columns
@@ -623,7 +631,7 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
     newzcat.add_column(Column(name='NUMOBS', length=nz, dtype=np.int32))
     for i in range(nz):
         newzcat['NUMOBS'][i] = nobs[newzcat['TARGETID'][i]]
-        
+
     #- Merge previous zcat with newzcat
     print('{} QC Merging previous zcat'.format(asctime()))
     if zcat is not None:
@@ -631,7 +639,7 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
         #- Note: this uses copy on write for the columns to be memory
         #- efficient while still letting us modify a column if needed
         zcat = zcat.copy()
-        
+
         #- targets that are in both zcat and newzcat
         repeats = np.in1d(zcat['TARGETID'], newzcat['TARGETID'])
 
@@ -651,10 +659,10 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
         #- trim newzcat to ones that shouldn't override original zcat
         discard = np.in1d(newzcat['TARGETID'], zcat['TARGETID'])
         newzcat = newzcat[~discard]
-        
+
         #- Should be non-overlapping now
         assert np.all(np.in1d(zcat['TARGETID'], newzcat['TARGETID']) == False)
-        
+
         #- merge them
         newzcat = vstack([zcat, newzcat])
 

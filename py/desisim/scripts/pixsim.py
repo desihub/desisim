@@ -1,3 +1,9 @@
+"""
+desisim.scripts.quickgen
+========================
+
+This is a module.
+"""
 from __future__ import absolute_import, division, print_function
 
 import os
@@ -18,23 +24,23 @@ from desispec.log import get_logger
 log = get_logger()
 
 def expand_args(args):
+    '''expand camera string into list of cameras
     '''
-    expand camera string into list of cameras
-    if simspec:
-        if not night:
-            get night from simspec
-        if not expid:
-            get expid from simspec
-    else:
-        assert night and expid are set
-        get simspec from (night, expid)
-    
-    if not outrawfile:
-        get outrawfile from (night, expid)
-        
-    if outpixfile or outsimpixfile:
-        assert len(cameras) == 1
-    '''
+    # if simspec:
+    #     if not night:
+    #         get night from simspec
+    #     if not expid:
+    #         get expid from simspec
+    # else:
+    #     assert night and expid are set
+    #     get simspec from (night, expid)
+    #
+    # if not outrawfile:
+    #     get outrawfile from (night, expid)
+    #
+    # if outpixfile or outsimpixfile:
+    #     assert len(cameras) == 1
+
     if args.simspec is None:
         if args.night is None or args.expid is None:
             msg = 'Must set --simspec or both --night and --expid'
@@ -59,7 +65,7 @@ def expand_args(args):
 
     if isinstance(args.spectrographs, str):
         args.spectrographs = [int(x) for x in args.spectrographs.split(',')]
-                
+
     #- expand camera list
     if args.cameras is None:
         args.cameras = list()
@@ -78,7 +84,7 @@ def expand_args(args):
     if args.preproc:
         if args.preproc_dir is None:
             args.preproc_dir = os.path.dirname(args.rawfile)
-    
+
     if args.simpixfile is None:
         args.simpixfile = io.findfile(
             'simpix', night=args.night, expid=args.expid,
@@ -99,13 +105,13 @@ def parse(options=None):
     parser.add_argument("--cosmics_file", type=str, help="Input file with cosmics templates")
     parser.add_argument("--simspec", type=str, help="input simspec file")
     parser.add_argument("--fibermap", type=str, help="fibermap file (optional)")
-        
+
     #- Output options
     parser.add_argument("--rawfile", type=str, help="output raw data file")
     parser.add_argument("--simpixfile", type=str, help="output truth image file")
     parser.add_argument("--preproc", action="store_true", help="preprocess raw -> pix files")
     parser.add_argument("--preproc_dir", type=str, help="directory for output preprocessed pix files")
-        
+
     #- Alternately derive inputs/outputs from night, expid, and cameras
     parser.add_argument("--night", type=str, help="YEARMMDD")
     parser.add_argument("--expid", type=int, help="exposure id")
@@ -130,7 +136,7 @@ def parse(options=None):
     if options is None:
         args = parser.parse_args()
     else:
-        options = [str(x) for x in options]        
+        options = [str(x) for x in options]
         args = parser.parse_args(options)
 
     expand_args(args)
@@ -168,7 +174,7 @@ def main(args=None):
             if camera.upper() in fx:
                 log.error('Camera {} already in {}'.format(camera, args.rawfile))
                 oops = True
-        
+
         fx.close()
         if oops:
             log.fatal('Exiting due to repeat cameras already in output file')
@@ -214,7 +220,7 @@ def main(args=None):
         log.debug('Rank {} processing camera {}'.format(mpicomm.rank, camera))
         channel = camera[0].lower()
         assert channel in ('b', 'r', 'z'), "Unknown camera {} doesn't start with b,r,z".format(camera)
-        
+
         #- Read inputs for this camera
         if args.psf is None:
             psf = desimodel.io.load_psf(channel)
@@ -222,7 +228,7 @@ def main(args=None):
                 psf.npix_x = args.ccd_npix_x
             if args.ccd_npix_y is not None:
                 psf.npix_y = args.ccd_npix_y
-            
+
         if args.cosmics:
             if args.cosmics_file is None:
                 cosmics_file = io.find_cosmics(camera, simspec.header['EXPTIME'],
@@ -235,7 +241,7 @@ def main(args=None):
             cosmics = io.read_cosmics(cosmics_file, args.expid, shape=shape)
         else:
             cosmics = None
-        
+
         #- Do the actual simulation
         image, rawpix, truepix = desisim.pixsim.simulate(
             camera, simspec, psf, fibers=fibers,
@@ -271,5 +277,3 @@ def main(args=None):
 
     if mpicomm.rank == 0:
         log.info('Finished pixsim {} expid {} at {}'.format(args.night, args.expid, asctime()))
-
-
