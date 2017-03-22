@@ -1,14 +1,10 @@
 """
-#;+
-#; NAME:
-#; fit_boss_qsos
-#;    Version 1.0
-#;
-#; PURPOSE:
-#;    Module for Fitting PCA to the BOSS QSOs
-#;   01-Dec-2014 by JXP
-#;-
-#;------------------------------------------------------------------------------
+desisim.qso_template.desi_qso_templ
+===================================
+
+Module for Fitting PCA to the BOSS QSOs
+
+01-Dec-2014 by JXP
 """
 from __future__ import print_function, absolute_import, division
 
@@ -224,7 +220,7 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
     if cosmo is None:
         from astropy import cosmology
         cosmo = cosmology.core.FlatLambdaCDM(70., 0.3)
-        
+
     if old_read:
         # PCA values
         if boss_pca_fil is None:

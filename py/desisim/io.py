@@ -1,4 +1,7 @@
 """
+desisim.io
+==========
+
 I/O routines for desisim
 """
 
@@ -570,7 +573,7 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
     wavelengths outwave.
 
     Args:
-    
+
         objtype (str): object type to read (e.g., ELG, LRG, QSO, STAR, FSTD, WD,
           MWS_STAR, BGS).
         subtype (str, optional): template subtype, currently only for white
@@ -616,7 +619,7 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
                 log.warning('Unrecognized white dwarf subtype {}!'.format(subtype))
             else:
                 meta = meta[keep]
-        
+
         return meta
 
     log.info('Reading {}'.format(infile))

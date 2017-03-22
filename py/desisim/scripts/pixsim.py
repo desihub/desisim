@@ -1,6 +1,6 @@
 """
-desisim.scripts.quickgen
-========================
+desisim.scripts.pixsim
+======================
 
 This is a module.
 """

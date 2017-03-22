@@ -1,14 +1,12 @@
 """
-#;+ 
-#; NAME:
-#; qso_pca
-#;    Version 1.0
-#;
-#; PURPOSE:
-#;    Module for generate QSO PCA templates
-#;   24-Nov-2014 by JXP
-#;-
-#;------------------------------------------------------------------------------
+desisim.qso_template.tests
+==========================
+
+Module for generate QSO PCA templates
+
+24-Nov-2014 by JXP
+
+I don't think the documentation of this module is correct.
 """
 from __future__ import print_function, absolute_import, division
 
@@ -18,7 +16,7 @@ import os
 from astropy.io import fits
 
 flg_xdb = True
-try: 
+try:
     from xastropy.xutils import xdebug as xdb
 except ImportError:
     flg_xdb = False

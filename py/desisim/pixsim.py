@@ -1,4 +1,7 @@
 """
+desisim.pixsim
+==============
+
 Tools for DESI pixel level simulations using specter
 """
 
