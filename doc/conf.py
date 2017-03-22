@@ -146,7 +146,7 @@ autodoc_mock_imports = ['astropy.constants', 'astropy.cosmology',
                         'desitarget.mtl', 'desitarget.targets',
                         'desitarget.targetmask',
                         'matplotlib', 'matplotlib.backends',
-                        'matplotlib.gridspec',
+                        'matplotlib.backends.backend_pdf', 'matplotlib.gridspec',
                         'numpy', 'scipy', 'scipy.constants',
                         'scipy.interpolate', 'scipy.special',
                         'specsim.simulator']
