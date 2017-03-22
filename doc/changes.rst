@@ -5,7 +5,9 @@ desisim change log
 0.18.2 (unreleased)
 -------------------
 
-* No changes yet.
+* Fixed a number of documentation errors (`PR #224`_).
+
+.. _`PR #224`: https://github.com/desihub/desisim/pull/224
 
 0.18.1 (2016-03-05)
 -------------------
