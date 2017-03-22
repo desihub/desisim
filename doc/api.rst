@@ -44,8 +44,9 @@ desisim API
 .. automodule:: desisim.qso_template.qso_pca
     :members:
 
-.. automodule:: desisim.qso_template.run_qso_fits
-    :members:
+.. This is not even a proper module, just a script dumped here.
+.. .. automodule:: desisim.qso_template.run_qso_fits
+..     :members:
 
 .. automodule:: desisim.qso_template.tests
     :members:
