@@ -133,7 +133,8 @@ napoleon_include_private_with_doc = True
 # This value contains a list of modules to be mocked up. This is useful when
 # some external dependencies are not met at build time and break the
 # building process.
-autodoc_mock_imports = ['desimodel.focalplane', 'desimodel.io',
+autodoc_mock_imports = ['astropy.cosmology', 'astropy.io',
+                        'desimodel.focalplane', 'desimodel.io',
                         'desispec.cosmics', 'desispec.frame',
                         'desispec.fiberflat', 'desispec.fluxcalibration',
                         'desispec.image',
