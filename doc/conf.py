@@ -133,8 +133,8 @@ napoleon_include_private_with_doc = True
 # This value contains a list of modules to be mocked up. This is useful when
 # some external dependencies are not met at build time and break the
 # building process.
-autodoc_mock_imports = ['astropy.cosmology', 'astropy.io', 'astropy.table',
-                        'astropy.units',
+autodoc_mock_imports = ['astropy.cosmology', 'astropy.io', 'astropy.stats',
+                        'astropy.table', 'astropy.units',
                         'desimodel.focalplane', 'desimodel.io',
                         'desispec.cosmics', 'desispec.frame',
                         'desispec.fiberflat', 'desispec.fluxcalibration',
@@ -144,7 +144,9 @@ autodoc_mock_imports = ['astropy.cosmology', 'astropy.io', 'astropy.table',
                         'desispec.resolution', 'desispec.sky',
                         'desitarget.mtl', 'desitarget.targets',
                         'desitarget.targetmask',
-                        'matplotlib', 'numpy', 'scipy',
+                        'matplotlib', 'matplotlib.gridspec',
+                        'numpy', 'scipy', 'scipy.interpolate',
+                        'scipy.special',
                         'specsim.simulator']
 
 # -- Options for HTML output ----------------------------------------------
