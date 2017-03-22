@@ -2,7 +2,7 @@
 desisim change log
 ==================
 
-0.18.2 (2016-03-05)
+0.18.2 (unreleased)
 -------------------
 
 * No changes yet
