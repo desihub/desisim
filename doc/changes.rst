@@ -7,6 +7,7 @@ desisim change log
 
 * Fixed a number of documentation errors (`PR #224`_).
 * Removed unneeded Travis scripts in ``etc/``.
+* Fixed N^2 scaling of ``QSO.make_templates``
 
 .. _`PR #224`: https://github.com/desihub/desisim/pull/224
 
