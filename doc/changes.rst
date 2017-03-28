@@ -2,7 +2,12 @@
 desisim change log
 ==================
 
-0.18.2 (unreleased)
+0.18.3 (unreleased)
+-------------------
+
+* No changes yet
+
+0.18.2 (2017-03-27)
 -------------------
 
 * Fixed a number of documentation errors (`PR #224`_).
