@@ -241,7 +241,7 @@ class GALAXY(object):
     """
     def __init__(self, objtype='ELG', minwave=3600.0, maxwave=10000.0, cdelt=0.2,
                  wave=None, colorcuts_function=None, normfilter='decam2014-r',
-                 normline='OII', baseflux=None, basewave=None, basemeta=None,
+                 normline='OII', nvdisp=25, baseflux=None, basewave=None, basemeta=None,
                  add_SNeIa=False):
         """Read the appropriate basis continuum templates, filter profiles and
         initialize the output wavelength array.
@@ -269,6 +269,7 @@ class GALAXY(object):
           normline (str): normalize the emission-line spectrum to the flux in
             this emission line.  The options are 'OII' (for ELGs, the default),
             'HBETA' (for BGS), or None (for LRGs).
+          nvdisp (int): number of unique velocity dispersion values (default 50). 
           add_SNeIa (boolean, optional): optionally include a random-epoch SNe
             Ia spectrum in the integrated spectrum (default False).
 
@@ -332,6 +333,7 @@ class GALAXY(object):
 
         # Pixel boundaries
         self.pixbound = pxs.cen2bound(basewave)
+        self.nvdisp = nvdisp
 
         # Initialize the filter profiles.
         self.rfilt = filters.load_filters('decam2014-r')
@@ -346,6 +348,21 @@ class GALAXY(object):
         blurflux = pxs.gauss_blur_matrix(self.pixbound, sigma) * flux
 
         return blurflux
+
+    def _blurmatrix(self, vdisp):
+        from desisim import pixelsplines as pxs
+
+        uvdisp = list(set(vdisp))
+        log.debug('Populating blur matrix for {} unique velocity dispersion values.'.format(len(uvdisp)))
+
+        blurindx = [np.where(vv == uvdisp)[0] for vv in vdisp]
+
+        blurmatrix = list()
+        for uvv in uvdisp:
+            sigma = 1.0 + (self.basewave * uvv / LIGHT)
+            blurmatrix.append((uvv, pxs.gauss_blur_matrix(self.pixbound, sigma)))
+            
+        return blurindx, blurmatrix
 
     def lineratios(self, nobj, oiiihbrange=(-0.5, 0.2), oiidoublet_meansig=(0.73, 0.05),
                    agnlike=False, rand=None):
@@ -535,10 +552,12 @@ class GALAXY(object):
                 mag = rand.uniform(magrange[0], magrange[1], nmodel).astype('f4')
 
             if vdisp is None:
+                nvdisp = np.min((nmodel, self.nvdisp))
                 if logvdisp_meansig[1] > 0:
-                    vdisp = 10**rand.normal(logvdisp_meansig[0], logvdisp_meansig[1], nmodel)
+                    vvdisp = 10**rand.normal(logvdisp_meansig[0], logvdisp_meansig[1], nvdisp)
                 else:
-                    vdisp = 10**np.repeat(logvdisp_meansig[0], nmodel)
+                    vvdisp = 10**np.repeat(logvdisp_meansig[0], nvdisp)
+                vdisp = rand.choice(vvdisp, nmodel)
 
             # Generate the (optional) distribution of SNe Ia priors.
             if self.add_SNeIa:
@@ -562,6 +581,10 @@ class GALAXY(object):
             if len(vdisp) != nmodel:
                 log.fatal('Vdisp must be an nmodel-length array')
                 raise ValueError
+
+        # Precompute the velocity dispersion convolution matrices for each
+        # unique value of vdisp.
+        blurindx, blurmatrix = self._blurmatrix(vdisp)
 
         # Populate some of the metadata table.
         for key, value in zip(('REDSHIFT', 'MAG', 'VDISP', 'SEED'),
@@ -692,8 +715,8 @@ class GALAXY(object):
                     if nocontinuum or novdisp:
                         blurflux = restflux[this, :] * magnorm[this]
                     else:
-                        blurflux = (self.vdispblur((restflux[this, :] - thisemflux), vdisp[ii]) + \
-                                    thisemflux) * magnorm[this]
+                        blurflux = ((blurmatrix[blurindx[ii][0]][1] * (restflux[this, :] - thisemflux)) + \
+                            thisemflux) * magnorm[this]
 
                     if restframe:
                         outflux[ii, :] = blurflux
