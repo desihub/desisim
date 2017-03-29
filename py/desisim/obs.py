@@ -107,7 +107,14 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
             infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.3/arc-lines-average-in-vacuum.fits'
         else :
             infile = arc_lines_filename
-        d = fits.getdata(infile, 1)
+        d, arc_header = fits.getdata(infile, 1, header=True)
+
+        #- v0.3 comment "typical exptime for BOSS=5s" but didn't set EXPTIME
+        if 'EXPTIME' not in arc_header:
+            arc_header['EXPTIME'] = 5.0
+
+        if exptime is None:
+            exptime = arc_header['EXPTIME']
 
         keys = d.columns.names
 
@@ -146,9 +153,9 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
             truth['WAVE_'+channel] = wave[ii]
             if phot is not None :
                 elec = phot*np.interp(wave,thru._wave,thru._thru,left=0,right=0)
+
+            elec *= exptime / arc_header['EXPTIME']
             truth['PHOT_'+channel] = np.tile(elec[ii], nspec).reshape(nspec, len(ii))
-
-
 
     elif flavor == 'flat':
 
@@ -157,9 +164,16 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
         else :
             infile = flat_spectrum_filename
 
-        flux = fits.getdata(infile, 0)
-        hdr = fits.getheader(infile, 0)
-        wave = desispec.io.util.header2wave(hdr)
+        flux, flat_header = fits.getdata(infile, 0, header=True)
+        wave = desispec.io.util.header2wave(flat_header)
+
+        #- v0.3 flat doesn't specify EXPTIME;
+        #- we've been treating it as 10 sec to not saturate CCDs
+        if 'EXPTIME' not in flat_header:
+            flat_header['EXPTIME'] = 10.0
+
+        if exptime is None:
+            exptime = flat_header['EXPTIME']
 
         #- resample to 0.2 A grid
         dw = 0.2
@@ -184,8 +198,8 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
         for channel in ('B', 'R', 'Z'):
             thru = desimodel.io.load_throughput(channel)
             ii = (thru.wavemin <= wave) & (wave <= thru.wavemax)
-            phot = thru.photons(wave[ii], flux[:,ii], units=hdr['BUNIT'],
-                            objtype='CALIB', exptime=10)
+            phot = thru.photons(wave[ii], flux[:,ii], units=flat_header['BUNIT'],
+                            objtype='CALIB', exptime=exptime)
 
             truth['WAVE_'+channel] = wave[ii]
             truth['PHOT_'+channel] = phot
