@@ -5,7 +5,9 @@ desisim change log
 0.18.3 (unreleased)
 -------------------
 
-* No changes yet
+* Fix quickgen for specsim v0.8 (`PR #226`_).
+
+.. _`PR #226`: https://github.com/desihub/desisim/pull/226
 
 0.18.2 (2017-03-27)
 -------------------
