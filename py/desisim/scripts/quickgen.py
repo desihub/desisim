@@ -91,7 +91,6 @@ import desisim
 import desisim.io
 import desisim.templates
 import desiutil.io
-from specsim.simulator import Simulator
 from desispec.resolution import Resolution
 from desispec.io import write_flux_calibration, write_fiberflat, read_fibermap, specprod_root, fitsheader, empty_fibermap, Brick
 from desispec.interpolation import resample_flux
@@ -102,6 +101,7 @@ from desispec.fluxcalibration import FluxCalib
 from desispec.log import get_logger, DEBUG, INFO
 from desisim.obs import get_night
 from desisim.targets import sample_objtype
+from desisim.specsim import get_simulator
 from desimodel.io import load_desiparams
 
 def _add_truth(hdus, header, meta, trueflux, sflux, wave, channel):
@@ -274,7 +274,7 @@ def main(args):
 
     log.info("Initializing SpecSim with config {}".format(args.config))
     desiparams = load_desiparams()
-    qsim = Simulator(args.config)
+    qsim = get_simulator(args.config, num_fibers=1)
 
     if args.simspec:
         # Read the input file
@@ -576,32 +576,32 @@ def main(args):
             # Extract the simulation results needed to create our uncalibrated
             # frame output file.
             num_pixels = len(output)
-            nobj[j, i, :num_pixels] = output['num_source_electrons']
-            nsky[j, i, :num_pixels] = output['num_sky_electrons']
-            nivar[j, i, :num_pixels] = 1.0 / output['variance_electrons']
+            nobj[j, i, :num_pixels] = output['num_source_electrons'][:,0]
+            nsky[j, i, :num_pixels] = output['num_sky_electrons'][:,0]
+            nivar[j, i, :num_pixels] = 1.0 / output['variance_electrons'][:,0]
 
             # Get results for our flux-calibrated output file.
-            cframe_observedflux[j, i, :num_pixels] = 1e17 * output['observed_flux']
-            cframe_ivar[j, i, :num_pixels] = 1e-34 * output['flux_inverse_variance']
+            cframe_observedflux[j, i, :num_pixels] = 1e17 * output['observed_flux'][:,0]
+            cframe_ivar[j, i, :num_pixels] = 1e-34 * output['flux_inverse_variance'][:,0]
 
             # Fill brick arrays from the results.
             camera = output.meta['name']
-            trueflux[camera][j][:] = 1e17 * output['observed_flux']
-            noisyflux[camera][j][:] = 1e17 * (output['observed_flux'] +
-                output['flux_calibration'] * output['random_noise_electrons'])
-            obsivar[camera][j][:] = 1e-34 * output['flux_inverse_variance']
+            trueflux[camera][j][:] = 1e17 * output['observed_flux'][:,0]
+            noisyflux[camera][j][:] = 1e17 * (output['observed_flux'][:,0] +
+                output['flux_calibration'][:,0] * output['random_noise_electrons'][:,0])
+            obsivar[camera][j][:] = 1e-34 * output['flux_inverse_variance'][:,0]
 
             # Use the same noise realization in the cframe and frame, without any
             # additional noise from sky subtraction for now.
-            frame_rand_noise[j, i, :num_pixels] = output['random_noise_electrons']
+            frame_rand_noise[j, i, :num_pixels] = output['random_noise_electrons'][:,0]
             cframe_rand_noise[j, i, :num_pixels] = 1e17 * (
-                output['flux_calibration'] * output['random_noise_electrons'])
+                output['flux_calibration'][:,0] * output['random_noise_electrons'][:,0])
 
             # The sky output file represents a model fit to ~40 sky fibers.
             # We reduce the variance by a factor of 25 to account for this and
             # give the sky an independent (Gaussian) noise realization.
             sky_ivar[j, i, :num_pixels] = 25.0 / (
-                output['variance_electrons'] - output['num_source_electrons'])
+                output['variance_electrons'][:,0] - output['num_source_electrons'][:,0])
             sky_rand_noise[j, i, :num_pixels] = random_state.normal(
                 scale=1.0 / np.sqrt(sky_ivar[j,i,:num_pixels]),size=num_pixels)
 

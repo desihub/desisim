@@ -17,14 +17,15 @@ _simdefaults = dict()
 import desispec.log
 log = desispec.log.get_logger()
 
-def get_simulator(config='desi'):
+def get_simulator(config='desi', num_fibers=1):
     '''
     returns new or cached specsim.simulator.Simulator object
     '''
-    if config in _simulators:
+    key = (config, num_fibers)
+    if key in _simulators:
         log.debug('Returning cached {} Simulator'.format(config))
-        qsim = _simulators[config]
-        defaults = _simdefaults[config]
+        qsim = _simulators[key]
+        defaults = _simdefaults[key]
         qsim.source.focal_xy = defaults['focal_xy']
         qsim.atmosphere.airmass = defaults['airmass']
         qsim.observation.exposure_time = defaults['exposure_time']
@@ -36,7 +37,7 @@ def get_simulator(config='desi'):
         log.debug('Creating new {} Simulator'.format(config))
         #- New config; create Simulator object
         import specsim.simulator
-        qsim = specsim.simulator.Simulator(config)
+        qsim = specsim.simulator.Simulator(config, num_fibers)
         #- Cache defaults to reset back to original state later
         defaults = dict()
         defaults['focal_xy'] = qsim.source.focal_xy
@@ -46,7 +47,7 @@ def get_simulator(config='desi'):
         defaults['moon_angle'] = qsim.atmosphere.moon.separation_angle
         defaults['moon_zenith'] = qsim.atmosphere.moon.moon_zenith
 
-        _simulators[config] = qsim
-        _simdefaults[config] = defaults
+        _simulators[key] = qsim
+        _simdefaults[key] = defaults
 
     return qsim
