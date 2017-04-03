@@ -187,7 +187,7 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
     Parameters
     ----------
     z_wind : float, optional
-      Window for sampling
+      Window for sampling PCAs
     zmnx : tuple, optional
       Min/max for generation
     N_perz : int, optional
@@ -275,7 +275,7 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
             z0 = np.array([redshift])
         else:
             z0 = redshift.copy()
-        z1 = z0 + z_wind
+        z1 = z0.copy() #+ z_wind
 
 
     pca_list = ['PCA0', 'PCA1', 'PCA2', 'PCA3']
