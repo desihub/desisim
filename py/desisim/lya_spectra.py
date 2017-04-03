@@ -76,7 +76,7 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
     normfilt = load_filters(normfilter)
 
     if qso is None:
-        qso = QSO(normfilter=normfilter, wave=wave)
+        qso = QSO(normfilter=normfilter, wave=wave,z_wind=0)
 
     wave = qso.wave
     flux = np.zeros([nqso, len(wave)], dtype='f4')
