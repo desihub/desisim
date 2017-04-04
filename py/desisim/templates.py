@@ -12,7 +12,7 @@ import sys
 import numpy as np
 
 from desisim.io import empty_metatable
-from desispec.log import get_logger
+from desiutil.log import get_logger
 log = get_logger()
 
 LIGHT = 2.99792458E5  #- speed of light in km/s
