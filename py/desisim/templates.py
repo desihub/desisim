@@ -567,7 +567,7 @@ class GALAXY(object):
 
             if vdisp is None:
                 # Limit the number of unique velocity dispersion values.
-                nvdisp = np.min((np.fix(nmodel * self.fracvdisp[0]), self.fracvdisp[1], 1))
+                nvdisp = np.max((np.min((np.round(nmodel * self.fracvdisp[0]), self.fracvdisp[1])), 1)).astype(int)
                 if logvdisp_meansig[1] > 0:
                     vvdisp = 10**rand.normal(logvdisp_meansig[0], logvdisp_meansig[1], nvdisp)
                 else:
