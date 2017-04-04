@@ -25,7 +25,7 @@ import desimodel.io
 from desispec.image import Image
 import desispec.io.util
 
-from desispec.log import get_logger
+from desiutil.log import get_logger
 log = get_logger()
 
 from desisim.util import spline_medfilt2d

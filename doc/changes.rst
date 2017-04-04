@@ -15,6 +15,8 @@ desisim change log
 * Fixed a number of documentation errors (`PR #224`_).
 * Removed unneeded Travis scripts in ``etc/``.
 * Fixed N^2 scaling of ``QSO.make_templates``
+* Speed up desisim.templates.GALAXY by factor of 8-12 by caching velocity
+  dispersions (PR #229)
 
 .. _`PR #224`: https://github.com/desihub/desisim/pull/224
 

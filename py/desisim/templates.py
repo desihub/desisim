@@ -12,7 +12,7 @@ import sys
 import numpy as np
 
 from desisim.io import empty_metatable
-from desispec.log import get_logger
+from desiutil.log import get_logger
 log = get_logger()
 
 LIGHT = 2.99792458E5  #- speed of light in km/s
@@ -241,8 +241,8 @@ class GALAXY(object):
     """
     def __init__(self, objtype='ELG', minwave=3600.0, maxwave=10000.0, cdelt=0.2,
                  wave=None, colorcuts_function=None, normfilter='decam2014-r',
-                 normline='OII', baseflux=None, basewave=None, basemeta=None,
-                 add_SNeIa=False):
+                 normline='OII', fracvdisp=(0.1, 40), baseflux=None, basewave=None,
+                 basemeta=None, add_SNeIa=False):
         """Read the appropriate basis continuum templates, filter profiles and
         initialize the output wavelength array.
 
@@ -269,6 +269,11 @@ class GALAXY(object):
           normline (str): normalize the emission-line spectrum to the flux in
             this emission line.  The options are 'OII' (for ELGs, the default),
             'HBETA' (for BGS), or None (for LRGs).
+          fracvdisp (tuple): two-element array which gives the fraction and
+            absolute number of unique velocity dispersion values.  For example,
+            the default (0.1, 40) means there will be either int(0.1*nmodel) or
+            40 unique values, where nmodel is defined in
+            GALAXY.make_galaxy_templates, below.
           add_SNeIa (boolean, optional): optionally include a random-epoch SNe
             Ia spectrum in the integrated spectrum (default False).
 
@@ -332,26 +337,42 @@ class GALAXY(object):
 
         # Pixel boundaries
         self.pixbound = pxs.cen2bound(basewave)
+        self.fracvdisp = fracvdisp
 
         # Initialize the filter profiles.
         self.rfilt = filters.load_filters('decam2014-r')
         self.normfilt = filters.load_filters(self.normfilter)
         self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
 
-    def vdispblur(self, flux, vdisp=150.0):
-        """Convolve an input spectrum with the velocity dispersion."""
+    def _blurmatrix(self, vdisp):
+        """Pre-compute the blur_matrix as a dictionary keyed by each unique value of
+        vdisp.
+
+        """
         from desisim import pixelsplines as pxs
 
-        sigma = 1.0 + (self.basewave * vdisp / LIGHT)
-        blurflux = pxs.gauss_blur_matrix(self.pixbound, sigma) * flux
+        uvdisp = list(set(vdisp))
+        log.debug('Populating blur matrix for {} unique velocity dispersion values.'.format(len(uvdisp)))
 
-        return blurflux
+        blurmatrix = dict()
+        #blurindx = [np.where(vv == uvdisp)[0] for vv in vdisp]
+        #blurmatrix = list()
+        for uvv in uvdisp:
+            sigma = 1.0 + (self.basewave * uvv / LIGHT)
+            #blurmatrix.append((uvv, pxs.gauss_blur_matrix(self.pixbound, sigma)))
+            blurmatrix[uvv] = pxs.gauss_blur_matrix(self.pixbound, sigma)
+
+        return blurmatrix
+        #return blurindx, blurmatrix
 
     def lineratios(self, nobj, oiiihbrange=(-0.5, 0.2), oiidoublet_meansig=(0.73, 0.05),
                    agnlike=False, rand=None):
         """Get the correct number and distribution of the forbidden and [OII] 3726/3729
-           doublet emission-line ratios.  Note that the agnlike option is not
-           yet supported.
+        doublet emission-line ratios.  Note that the agnlike option is not yet
+        supported.
+
+        Supporting oiiihbrange needs a different (fast) approach.  Suppressing
+        the code below for now until it's needed.
 
         """
         if agnlike:
@@ -365,20 +386,13 @@ class GALAXY(object):
         else:
             oiidoublet = np.repeat(oiidoublet_meansig[0], nobj)
 
-        oiihbeta = np.zeros(nobj)
-        niihbeta = np.zeros(nobj)
-        siihbeta = np.zeros(nobj)
-        oiiihbeta = np.zeros(nobj)-99
-        need = np.where(oiiihbeta==-99)[0]
-        while len(need) > 0:
-            samp = EMSpectrum().forbidmog.sample(len(need), random_state=rand)
-            oiiihbeta[need] = samp[:,0]
-            oiihbeta[need] = samp[:,1]
-            niihbeta[need] = samp[:,2]
-            siihbeta[need] = samp[:,3]
-            oiiihbeta[oiiihbeta<oiiihbrange[0]] = -99
-            oiiihbeta[oiiihbeta>oiiihbrange[1]] = -99
-            need = np.where(oiiihbeta==-99)[0]
+        # Sample from the MoG.  This is not strictly correct because it ignores
+        # the prior on [OIII]/Hbeta, but let's revisit that later.
+        samp = EMSpectrum().forbidmog.sample(nobj, random_state=rand)
+        oiiihbeta = samp[:, 0]
+        oiihbeta = samp[:, 1]
+        niihbeta = samp[:, 2]
+        siihbeta = samp[:, 3]
 
         return oiidoublet, oiihbeta, niihbeta, siihbeta, oiiihbeta
 
@@ -535,10 +549,14 @@ class GALAXY(object):
                 mag = rand.uniform(magrange[0], magrange[1], nmodel).astype('f4')
 
             if vdisp is None:
+                # Limit the number of unique velocity dispersion values.
+                nvdisp = int(np.max( ( np.min(
+                    ( np.round(nmodel * self.fracvdisp[0]), self.fracvdisp[1] ) ), 1 ) ))
                 if logvdisp_meansig[1] > 0:
-                    vdisp = 10**rand.normal(logvdisp_meansig[0], logvdisp_meansig[1], nmodel)
+                    vvdisp = 10**rand.normal(logvdisp_meansig[0], logvdisp_meansig[1], nvdisp)
                 else:
-                    vdisp = 10**np.repeat(logvdisp_meansig[0], nmodel)
+                    vvdisp = 10**np.repeat(logvdisp_meansig[0], nvdisp)
+                vdisp = rand.choice(vvdisp, nmodel)
 
             # Generate the (optional) distribution of SNe Ia priors.
             if self.add_SNeIa:
@@ -562,6 +580,10 @@ class GALAXY(object):
             if len(vdisp) != nmodel:
                 log.fatal('Vdisp must be an nmodel-length array')
                 raise ValueError
+
+        # Precompute the velocity dispersion convolution matrix for each unique
+        # value of vdisp.
+        blurmatrix = self._blurmatrix(vdisp)
 
         # Populate some of the metadata table.
         for key, value in zip(('REDSHIFT', 'MAG', 'VDISP', 'SEED'),
@@ -692,7 +714,7 @@ class GALAXY(object):
                     if nocontinuum or novdisp:
                         blurflux = restflux[this, :] * magnorm[this]
                     else:
-                        blurflux = (self.vdispblur((restflux[this, :] - thisemflux), vdisp[ii]) + \
+                        blurflux = ((blurmatrix[vdisp[ii]] * (restflux[this, :] - thisemflux)) +
                                     thisemflux) * magnorm[this]
 
                     if restframe:
