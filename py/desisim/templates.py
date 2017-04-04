@@ -241,8 +241,8 @@ class GALAXY(object):
     """
     def __init__(self, objtype='ELG', minwave=3600.0, maxwave=10000.0, cdelt=0.2,
                  wave=None, colorcuts_function=None, normfilter='decam2014-r',
-                 normline='OII', nvdisp=25, baseflux=None, basewave=None, basemeta=None,
-                 add_SNeIa=False):
+                 normline='OII', fracvdisp=(0.1, 40), baseflux=None, basewave=None,
+                 basemeta=None, add_SNeIa=False):
         """Read the appropriate basis continuum templates, filter profiles and
         initialize the output wavelength array.
 
@@ -269,7 +269,11 @@ class GALAXY(object):
           normline (str): normalize the emission-line spectrum to the flux in
             this emission line.  The options are 'OII' (for ELGs, the default),
             'HBETA' (for BGS), or None (for LRGs).
-          nvdisp (int): number of unique velocity dispersion values (default 50). 
+          fracvdisp (tuple): two-element array which gives the fraction and
+            absolute number of unique velocity dispersion values.  For example,
+            the default (0.1, 40) means there will be either int(0.1*nmodel) or
+            40 unique values, where nmodel is defined in
+            GALAXY.make_galaxy_templates, below.
           add_SNeIa (boolean, optional): optionally include a random-epoch SNe
             Ia spectrum in the integrated spectrum (default False).
 
@@ -333,7 +337,7 @@ class GALAXY(object):
 
         # Pixel boundaries
         self.pixbound = pxs.cen2bound(basewave)
-        self.nvdisp = nvdisp
+        self.fracvdisp = fracvdisp
 
         # Initialize the filter profiles.
         self.rfilt = filters.load_filters('decam2014-r')
@@ -552,7 +556,8 @@ class GALAXY(object):
                 mag = rand.uniform(magrange[0], magrange[1], nmodel).astype('f4')
 
             if vdisp is None:
-                nvdisp = np.min((nmodel, self.nvdisp))
+                # Limit the number of unique velocity dispersion values.
+                nvdisp = np.min((np.fix(nmodel * self.fracvdisp[0]), self.fracvdisp[1], 1))
                 if logvdisp_meansig[1] > 0:
                     vvdisp = 10**rand.normal(logvdisp_meansig[0], logvdisp_meansig[1], nvdisp)
                 else:

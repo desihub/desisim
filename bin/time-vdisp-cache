@@ -1,0 +1,38 @@
+#!/usr/bin/env python
+
+import numpy as np
+import argparse
+
+from desisim.templates import ELG
+from desisim.io import empty_metatable, read_basis_templates
+
+def make_elg(nobj=50, seed=123, fracvdisp=(0.1, 40), no_cache=False):
+    
+    rand = np.random.RandomState(seed)
+
+    if no_cache:
+        vdisp = 10**rand.normal(1.9, 0.15, nobj)
+    else:
+        nvdisp = int(np.min((np.fix(nobj * fracvdisp[0]), fracvdisp[1], 1)))
+        vdisp = 10**rand.normal(1.9, 0.15, nvdisp)
+
+    meta = read_basis_templates('ELG', onlymeta=True)
+
+    input_meta = empty_metatable(nobj, objtype='ELG')
+    input_meta['TEMPLATEID'] = rand.choice(meta['TEMPLATEID'], nobj)
+    input_meta['REDSHIFT'] = rand.uniform(0.8, 1.2, nobj)
+    input_meta['MAG'] = rand.uniform(21, 23, nobj)
+    input_meta['SEED'] = rand.randint(2**32, size=nobj)
+    input_meta['VDISP'] = rand.choice(vdisp, nobj)
+
+    ELG().make_templates(input_meta=input_meta, nocolorcuts=True)
+    #ELG().make_templates(nmodel=nobj, seed=seed, nocolorcuts=True)
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-n', '--nobj', type=int, help='Number of spectra to simulate.')
+    parser.add_argument('--no-cache', action='store_true', help='Do not cache the velocity dispersion (slow!)')
+
+    args = parser.parse_args()
+    make_elg(args.nobj, no_cache=args.no_cache)
