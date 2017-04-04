@@ -345,19 +345,25 @@ class GALAXY(object):
         self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
 
     def _blurmatrix(self, vdisp):
+        """Pre-compute the blur_matrix as a dictionary keyed by each unique value of
+        vdisp.
+
+        """
         from desisim import pixelsplines as pxs
 
         uvdisp = list(set(vdisp))
         log.debug('Populating blur matrix for {} unique velocity dispersion values.'.format(len(uvdisp)))
 
-        blurindx = [np.where(vv == uvdisp)[0] for vv in vdisp]
-
-        blurmatrix = list()
+        blurmatrix = dict()
+        #blurindx = [np.where(vv == uvdisp)[0] for vv in vdisp]
+        #blurmatrix = list()
         for uvv in uvdisp:
             sigma = 1.0 + (self.basewave * uvv / LIGHT)
-            blurmatrix.append((uvv, pxs.gauss_blur_matrix(self.pixbound, sigma)))
-            
-        return blurindx, blurmatrix
+            #blurmatrix.append((uvv, pxs.gauss_blur_matrix(self.pixbound, sigma)))
+            blurmatrix[uvv] = pxs.gauss_blur_matrix(self.pixbound, sigma)
+
+        return blurmatrix
+        #return blurindx, blurmatrix
 
     def lineratios(self, nobj, oiiihbrange=(-0.5, 0.2), oiidoublet_meansig=(0.73, 0.05),
                    agnlike=False, rand=None):
@@ -575,9 +581,9 @@ class GALAXY(object):
                 log.fatal('Vdisp must be an nmodel-length array')
                 raise ValueError
 
-        # Precompute the velocity dispersion convolution matrices for each
-        # unique value of vdisp.
-        blurindx, blurmatrix = self._blurmatrix(vdisp)
+        # Precompute the velocity dispersion convolution matrix for each unique
+        # value of vdisp.
+        blurmatrix = self._blurmatrix(vdisp)
 
         # Populate some of the metadata table.
         for key, value in zip(('REDSHIFT', 'MAG', 'VDISP', 'SEED'),
@@ -708,8 +714,8 @@ class GALAXY(object):
                     if nocontinuum or novdisp:
                         blurflux = restflux[this, :] * magnorm[this]
                     else:
-                        blurflux = ((blurmatrix[blurindx[ii][0]][1] * (restflux[this, :] - thisemflux)) + \
-                            thisemflux) * magnorm[this]
+                        blurflux = ((blurmatrix[vdisp[ii]] * (restflux[this, :] - thisemflux)) +
+                                    thisemflux) * magnorm[this]
 
                     if restframe:
                         outflux[ii, :] = blurflux
