@@ -1,5 +1,12 @@
 #!/usr/bin/env python
 
+"""Simple script to time the impact of using a subset of velocity dispersion
+values.  To compare the "before and after" run with:
+
+% time python time-vdisp-cache -n 100
+% time python time-vdisp-cache -n 100 --no-cache
+
+"""
 import numpy as np
 import argparse
 
@@ -13,7 +20,8 @@ def make_elg(nobj=50, seed=123, fracvdisp=(0.1, 40), no_cache=False):
     if no_cache:
         vdisp = 10**rand.normal(1.9, 0.15, nobj)
     else:
-        nvdisp = int(np.min((np.fix(nobj * fracvdisp[0]), fracvdisp[1], 1)))
+        nvdisp = int(np.max( (np.min( (np.fix(nobj * fracvdisp[0]), fracvdisp[1]) ), 1) ))
+        print(nvdisp)
         vdisp = 10**rand.normal(1.9, 0.15, nvdisp)
 
     meta = read_basis_templates('ELG', onlymeta=True)
