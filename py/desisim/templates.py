@@ -389,7 +389,7 @@ class GALAXY(object):
         else:
             oiidoublet = np.repeat(oiidoublet_meansig[0], nobj)
 
-        samp = EMSpectrum().forbidmog.sample(len(need), random_state=rand)
+        samp = EMSpectrum().forbidmog.sample(nobj, random_state=rand)
         oiiihbeta = samp[:, 0]
         oiihbeta = samp[:, 1]
         niihbeta = samp[:, 2]
