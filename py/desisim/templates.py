@@ -389,27 +389,13 @@ class GALAXY(object):
         else:
             oiidoublet = np.repeat(oiidoublet_meansig[0], nobj)
 
+        # Sample from the MoG.  This is not strictly correct because it ignores
+        # the prior on [OIII]/Hbeta, but let's revisit that later.
         samp = EMSpectrum().forbidmog.sample(nobj, random_state=rand)
         oiiihbeta = samp[:, 0]
         oiihbeta = samp[:, 1]
         niihbeta = samp[:, 2]
         siihbeta = samp[:, 3]
-
-        if False:
-            oiihbeta = np.zeros(nobj)
-            niihbeta = np.zeros(nobj)
-            siihbeta = np.zeros(nobj)
-            oiiihbeta = np.zeros(nobj)-99
-            need = np.where(oiiihbeta==-99)[0]
-            while len(need) > 0:
-                samp = EMSpectrum().forbidmog.sample(len(need), random_state=rand)
-                oiiihbeta[need] = samp[:,0]
-                oiihbeta[need] = samp[:,1]
-                niihbeta[need] = samp[:,2]
-                siihbeta[need] = samp[:,3]
-                oiiihbeta[oiiihbeta<oiiihbrange[0]] = -99
-                oiiihbeta[oiiihbeta>oiiihbrange[1]] = -99
-                need = np.where(oiiihbeta==-99)[0]
 
         return oiidoublet, oiihbeta, niihbeta, siihbeta, oiiihbeta
 
