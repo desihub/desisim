@@ -371,8 +371,11 @@ class GALAXY(object):
     def lineratios(self, nobj, oiiihbrange=(-0.5, 0.2), oiidoublet_meansig=(0.73, 0.05),
                    agnlike=False, rand=None):
         """Get the correct number and distribution of the forbidden and [OII] 3726/3729
-           doublet emission-line ratios.  Note that the agnlike option is not
-           yet supported.
+        doublet emission-line ratios.  Note that the agnlike option is not yet
+        supported.
+
+        Supporting oiiihbrange needs a different (fast) approach.  Suppressing
+        the code below for now until it's needed.
 
         """
         if agnlike:
@@ -386,20 +389,27 @@ class GALAXY(object):
         else:
             oiidoublet = np.repeat(oiidoublet_meansig[0], nobj)
 
-        oiihbeta = np.zeros(nobj)
-        niihbeta = np.zeros(nobj)
-        siihbeta = np.zeros(nobj)
-        oiiihbeta = np.zeros(nobj)-99
-        need = np.where(oiiihbeta==-99)[0]
-        while len(need) > 0:
-            samp = EMSpectrum().forbidmog.sample(len(need), random_state=rand)
-            oiiihbeta[need] = samp[:,0]
-            oiihbeta[need] = samp[:,1]
-            niihbeta[need] = samp[:,2]
-            siihbeta[need] = samp[:,3]
-            oiiihbeta[oiiihbeta<oiiihbrange[0]] = -99
-            oiiihbeta[oiiihbeta>oiiihbrange[1]] = -99
+        samp = EMSpectrum().forbidmog.sample(len(need), random_state=rand)
+        oiiihbeta = samp[:, 0]
+        oiihbeta = samp[:, 1]
+        niihbeta = samp[:, 2]
+        siihbeta = samp[:, 3]
+
+        if False:
+            oiihbeta = np.zeros(nobj)
+            niihbeta = np.zeros(nobj)
+            siihbeta = np.zeros(nobj)
+            oiiihbeta = np.zeros(nobj)-99
             need = np.where(oiiihbeta==-99)[0]
+            while len(need) > 0:
+                samp = EMSpectrum().forbidmog.sample(len(need), random_state=rand)
+                oiiihbeta[need] = samp[:,0]
+                oiihbeta[need] = samp[:,1]
+                niihbeta[need] = samp[:,2]
+                siihbeta[need] = samp[:,3]
+                oiiihbeta[oiiihbeta<oiiihbrange[0]] = -99
+                oiiihbeta[oiiihbeta>oiiihbrange[1]] = -99
+                need = np.where(oiiihbeta==-99)[0]
 
         return oiidoublet, oiihbeta, niihbeta, siihbeta, oiiihbeta
 
