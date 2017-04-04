@@ -344,15 +344,6 @@ class GALAXY(object):
         self.normfilt = filters.load_filters(self.normfilter)
         self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
 
-    def vdispblur(self, flux, vdisp=150.0):
-        """Convolve an input spectrum with the velocity dispersion."""
-        from desisim import pixelsplines as pxs
-
-        sigma = 1.0 + (self.basewave * vdisp / LIGHT)
-        blurflux = pxs.gauss_blur_matrix(self.pixbound, sigma) * flux
-
-        return blurflux
-
     def _blurmatrix(self, vdisp):
         from desisim import pixelsplines as pxs
 
@@ -553,7 +544,8 @@ class GALAXY(object):
 
             if vdisp is None:
                 # Limit the number of unique velocity dispersion values.
-                nvdisp = np.max((np.min((np.round(nmodel * self.fracvdisp[0]), self.fracvdisp[1])), 1)).astype(int)
+                nvdisp = np.max( ( np.min(
+                    ( np.round(nmodel * self.fracvdisp[0]), self.fracvdisp[1] ) ), 1 ) ).astype(int)
                 if logvdisp_meansig[1] > 0:
                     vvdisp = 10**rand.normal(logvdisp_meansig[0], logvdisp_meansig[1], nvdisp)
                 else:
