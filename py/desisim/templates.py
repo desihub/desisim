@@ -350,7 +350,7 @@ class GALAXY(object):
         from desisim import pixelsplines as pxs
 
         uvdisp = list(set(vdisp))
-        log.debug('Populating blur matrix for {} unique velocity dispersion values.'.format(len(uvdisp)))
+        log.debug('Populating blur matrix with {} unique velocity dispersion values.'.format(len(uvdisp)))
         if len(uvdisp) > self.fracvdisp[1]:
             log.warning('Slow code ahead! Consider reducing the number of input velocity dispersion values from {}.'.format(
                 len(uvdisp)))
