@@ -358,7 +358,7 @@ class GALAXY(object):
         blurmatrix = dict()
         for uvv in uvdisp:
             sigma = 1.0 + (self.basewave * uvv / LIGHT)
-            blurmatrix[uvv] = pxs.gauss_blur_matrix(self.pixbound, sigma)
+            blurmatrix[uvv] = pxs.gauss_blur_matrix(self.pixbound, sigma).astype('f4')
 
         return blurmatrix
 
