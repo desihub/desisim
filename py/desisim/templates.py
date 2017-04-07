@@ -358,7 +358,7 @@ class GALAXY(object):
         blurmatrix = dict()
         for uvv in uvdisp:
             sigma = 1.0 + (self.basewave * uvv / LIGHT)
-            blurmatrix[uvv] = pxs.gauss_blur_matrix(self.pixbound, sigma)
+            blurmatrix[uvv] = pxs.gauss_blur_matrix(self.pixbound, sigma).astype('f4')
 
         return blurmatrix
 
@@ -587,7 +587,10 @@ class GALAXY(object):
 
         # Precompute the velocity dispersion convolution matrix for each unique
         # value of vdisp.
-        blurmatrix = self._blurmatrix(vdisp, log=log)
+        if nocontinuum or novdisp:
+            pass
+        else:
+            blurmatrix = self._blurmatrix(vdisp, log=log)
 
         # Populate some of the metadata table.
         for key, value in zip(('REDSHIFT', 'MAG', 'VDISP', 'SEED'),
