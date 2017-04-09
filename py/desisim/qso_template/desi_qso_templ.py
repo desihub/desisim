@@ -179,7 +179,7 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
                        boss_pca_fil=None, wvmnx=(3500., 10000.),
                        rebin_wave=None, rstate=None,
                        sdss_pca_fil=None, no_write=False, redshift=None,
-                       seed=None, old_read=False, ipad=20, cosmo=None):
+                       seed=None, old_read=False, ipad=40, cosmo=None):
     """ Generate QSO templates for DESI
 
     Rebins to input wavelength array (or log10 in wvmnx)
@@ -363,7 +363,8 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
                 break
         if ngd != N_perz:
             print('Did not make enough!')
-            pdb.set_trace()
+            #pdb.set_trace()
+            log.warning('Did not make enough qso templates. ngd = {}, N_perz = {}'.format(ngd,N_perz))
 
     # Rebin
     if rebin_wave is None:
