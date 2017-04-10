@@ -1615,11 +1615,7 @@ class QSO():
                 log.error('Please upgrade desitarget to get the latest isQSO_colors function.')
                 from desitarget.cuts import isQSO as colorcuts_function
 
-            self.colorcuts_function = colorcuts_function
-
-        log.warning('Color-cuts not yet supported for QSOs!')
-        self.colorcuts_function = None
-
+        self.colorcuts_function = colorcuts_function
         self.normfilter = normfilter
 
         # Initialize the output wavelength array (linear spacing) unless it is
@@ -1785,7 +1781,7 @@ class QSO():
                     rflux=synthnano[2],
                     zflux=synthnano[4],
                     w1flux=synthnano[6],
-                    w2flux=synthnano[7])
+                    w2flux=synthnano[7], optical=True)
 
             # If the color-cuts pass then populate the output flux vector
             # (suitably normalized) and metadata table and finish up.
