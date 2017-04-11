@@ -5,7 +5,7 @@ desisim change log
 0.18.2 (2016-03-05)
 -------------------
 
-* No changes yet
+* Add DLAs to lya spectra (PR #220)
 
 0.18.1 (2016-03-05)
 -------------------

@@ -44,11 +44,6 @@ class TestLya(unittest.TestCase):
         self.assertEqual(wave.shape[0], flux.shape[1])
         self.assertEqual(len(meta), nqso)
 
-        #flux, wave, meta = lya_spectra.get_spectra(self.infile, nqso=nqso, first=2)
-        #self.assertEqual(flux.shape[0], nqso)
-        #self.assertEqual(wave.shape[0], flux.shape[1])
-        #self.assertEqual(len(meta), nqso)
-
     @unittest.skipIf(missing_fitsio, 'fitsio not installed; skipping lya_spectra tests')
     def test_read_lya_seed(self):
         flux1a, wave1a, meta1a = lya_spectra.get_spectra(self.infile, wave=self.wave, nqso=3, seed=1)
