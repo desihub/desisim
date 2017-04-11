@@ -2,25 +2,41 @@
 desisim change log
 ==================
 
-0.18.2 (2016-03-05)
+0.18.3 (unreleased)
 -------------------
 
 * Add DLAs to lya spectra (PR #220)
+* Fix quickgen for specsim v0.8 (`PR #226`_).
+* Add verbose output to templates code (`PR #230`_).
+
+.. _`PR #226`: https://github.com/desihub/desisim/pull/226
+.. _`PR #230`: https://github.com/desihub/desisim/pull/230
+
+0.18.2 (2017-03-27)
+-------------------
+
+* Fixed a number of documentation errors (`PR #224`_).
+* Removed unneeded Travis scripts in ``etc/``.
+* Fixed N^2 scaling of ``QSO.make_templates``
+* Speed up desisim.templates.GALAXY by factor of 8-12 by caching velocity
+  dispersions (PR #229)
+
+.. _`PR #224`: https://github.com/desihub/desisim/pull/224
 
 0.18.1 (2016-03-05)
 -------------------
 
-* update desisim.module to use DESI_BASIS_TEMPLATES v2.3
+* Update ``desisim.module`` to use :envvar:`DESI_BASIS_TEMPLATES` v2.3.
 
 0.18.0 (2016-03-04)
 -------------------
 
-* pixsims add new required keywords DOSVER, FEEVER, DETECTOR
-* small bug fixes in quickcat; drop unused truth,targets columns to save memory
-  in quicksurvey loop (PRs #198, #199)
+* pixsims add new required keywords DOSVER, FEEVER, DETECTOR.
+* Small bug fixes in quickcat; drop unused truth,targets columns to save memory
+  in quicksurvey loop (PRs #198, #199).
 * quickgen update to support white dwarf templates (PR #204)
 * several enhancements of the templates code
-  
+
   * optionally output rest-frame templates (PR #208)
   * rewrite of lya_spectra to achieve factor of 10 speedup; use COSMO
     (astropy.cosmology setup) as a new optional keyword for qso_desi_templates;
@@ -34,7 +50,7 @@ desisim change log
 -------------------
 
 * Fix bug when obsconditions contain tiles that don't overlap catalog
-* Add surveysim --start_epoch option
+* Add ``surveysim --start_epoch`` option
 
 0.17.0 (2016-12-02)
 -------------------

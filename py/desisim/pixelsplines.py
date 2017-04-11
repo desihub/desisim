@@ -1,7 +1,11 @@
-# pixelsplines.py
-# Pixel-integrated sline utilities.
-# Written by A. Bolton, U. of Utah, 2010-2013.
+"""
+desisim.pixelsplines
+====================
 
+Pixel-integrated spline utilities.
+
+Written by A. Bolton, U. of Utah, 2010-2013.
+"""
 from __future__ import absolute_import, division, print_function
 
 import numpy as n
@@ -14,13 +18,13 @@ def compute_duck_slopes(pixbound, flux):
         Compute the slope of the illuminating quadratic spline at
         the locations of the 'ducks', i.e., the pixel boundaries,
         given the integrated flux per unit baseline within the pixels.
-        
+
         ARGUMENTS:
         pixbound: (npix + 1) ndarray of pixel boundaries, in units of
         wavelength or log-wavelength or frequency or whatever you like.
         flux: (npix) ndarray of spectral flux (energy or counts) per
         abscissa unit, averaged over the extent of the pixel
-        
+
         RETURNS:
         an (npix+1) ndarray of the slope of the underlying/illuminating
         flux per unit abscissa spectrum at the position of the pixel
@@ -69,9 +73,9 @@ def gauss_blur_matrix(pixbound, sig_conv):
         The matrix will be flux-conserving if the spectrum to which it is
         applied has units of 'counts per unit x', and pixbound and sig_conv
         both have units of x.
-        
+
         pixbound should have one more element than sig_conv.
-        
+
         Output is a scipy sparse matrix that can implement the blurring as:
         blurflux = gauss_blur_matrix * flux
         where 'flux' has the same dimensions as 'sig_conv'.
@@ -137,14 +141,14 @@ class PixSplineError(Exception):
 class PixelSpline:
     """
         Pixel Spline object class.
-        
+
         Initialize as follows:
         PS = PixelSpline(pixbound, flux)
         where
         pixbound = array of pixel boundaries in baseline units
         and
         flux = array of specific flux values in baseline units.
-        
+
         Assumptions:
         'pixbound' should have one more element than 'flux', and
         units of 'flux' are -per-unit-baseline, for the baseline
@@ -297,7 +301,7 @@ class PixelSpline:
 class WeightedRebinCoadder:
     """
         Objet class for weighted rebinning and coaddition of spectra
-        
+
         Initialize as follows:
         WRC = WeighedRebinCoadder(fluxes, invvars, pixbounds)
         where

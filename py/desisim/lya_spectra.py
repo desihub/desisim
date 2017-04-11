@@ -88,7 +88,7 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
 
     if qso is None:
         qso = QSO(normfilter=normfilter, wave=wave)
-        
+
     wave = qso.wave
     flux = np.zeros([nqso, len(wave)], dtype='f4')
 
@@ -135,7 +135,7 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
                     dla_id += [indx]*ndla
 
         padflux, padwave = normfilt.pad_spectrum(flux1, wave, method='edge')
-        normmaggies = np.array(normfilt.get_ab_maggies(padflux, padwave, 
+        normmaggies = np.array(normfilt.get_ab_maggies(padflux, padwave,
                                                        mask_invalid=True)[normfilter])
         flux1 *= 10**(-0.4 * mag_g[ii]) / normmaggies
 

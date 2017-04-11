@@ -12,8 +12,6 @@ import sys
 import numpy as np
 
 from desisim.io import empty_metatable
-from desispec.log import get_logger
-log = get_logger()
 
 LIGHT = 2.99792458E5  #- speed of light in km/s
 
@@ -241,8 +239,8 @@ class GALAXY(object):
     """
     def __init__(self, objtype='ELG', minwave=3600.0, maxwave=10000.0, cdelt=0.2,
                  wave=None, colorcuts_function=None, normfilter='decam2014-r',
-                 normline='OII', baseflux=None, basewave=None, basemeta=None,
-                 add_SNeIa=False):
+                 normline='OII', fracvdisp=(0.1, 40), baseflux=None, basewave=None,
+                 basemeta=None, add_SNeIa=False):
         """Read the appropriate basis continuum templates, filter profiles and
         initialize the output wavelength array.
 
@@ -269,6 +267,11 @@ class GALAXY(object):
           normline (str): normalize the emission-line spectrum to the flux in
             this emission line.  The options are 'OII' (for ELGs, the default),
             'HBETA' (for BGS), or None (for LRGs).
+          fracvdisp (tuple): two-element array which gives the fraction and
+            absolute number of unique velocity dispersion values.  For example,
+            the default (0.1, 40) means there will be either int(0.1*nmodel) or
+            40 unique values, where nmodel is defined in
+            GALAXY.make_galaxy_templates, below.
           add_SNeIa (boolean, optional): optionally include a random-epoch SNe
             Ia spectrum in the integrated spectrum (default False).
 
@@ -332,26 +335,41 @@ class GALAXY(object):
 
         # Pixel boundaries
         self.pixbound = pxs.cen2bound(basewave)
+        self.fracvdisp = fracvdisp
 
         # Initialize the filter profiles.
         self.rfilt = filters.load_filters('decam2014-r')
         self.normfilt = filters.load_filters(self.normfilter)
         self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
 
-    def vdispblur(self, flux, vdisp=150.0):
-        """Convolve an input spectrum with the velocity dispersion."""
+    def _blurmatrix(self, vdisp, log=None):
+        """Pre-compute the blur_matrix as a dictionary keyed by each unique value of
+        vdisp.
+
+        """
         from desisim import pixelsplines as pxs
 
-        sigma = 1.0 + (self.basewave * vdisp / LIGHT)
-        blurflux = pxs.gauss_blur_matrix(self.pixbound, sigma) * flux
+        uvdisp = list(set(vdisp))
+        log.debug('Populating blur matrix with {} unique velocity dispersion values.'.format(len(uvdisp)))
+        if len(uvdisp) > self.fracvdisp[1]:
+            log.warning('Slow code ahead! Consider reducing the number of input velocity dispersion values from {}.'.format(
+                len(uvdisp)))
 
-        return blurflux
+        blurmatrix = dict()
+        for uvv in uvdisp:
+            sigma = 1.0 + (self.basewave * uvv / LIGHT)
+            blurmatrix[uvv] = pxs.gauss_blur_matrix(self.pixbound, sigma).astype('f4')
+
+        return blurmatrix
 
     def lineratios(self, nobj, oiiihbrange=(-0.5, 0.2), oiidoublet_meansig=(0.73, 0.05),
                    agnlike=False, rand=None):
         """Get the correct number and distribution of the forbidden and [OII] 3726/3729
-           doublet emission-line ratios.  Note that the agnlike option is not
-           yet supported.
+        doublet emission-line ratios.  Note that the agnlike option is not yet
+        supported.
+
+        Supporting oiiihbrange needs a different (fast) approach.  Suppressing
+        the code below for now until it's needed.
 
         """
         if agnlike:
@@ -365,20 +383,13 @@ class GALAXY(object):
         else:
             oiidoublet = np.repeat(oiidoublet_meansig[0], nobj)
 
-        oiihbeta = np.zeros(nobj)
-        niihbeta = np.zeros(nobj)
-        siihbeta = np.zeros(nobj)
-        oiiihbeta = np.zeros(nobj)-99
-        need = np.where(oiiihbeta==-99)[0]
-        while len(need) > 0:
-            samp = EMSpectrum().forbidmog.sample(len(need), random_state=rand)
-            oiiihbeta[need] = samp[:,0]
-            oiihbeta[need] = samp[:,1]
-            niihbeta[need] = samp[:,2]
-            siihbeta[need] = samp[:,3]
-            oiiihbeta[oiiihbeta<oiiihbrange[0]] = -99
-            oiiihbeta[oiiihbeta>oiiihbrange[1]] = -99
-            need = np.where(oiiihbeta==-99)[0]
+        # Sample from the MoG.  This is not strictly correct because it ignores
+        # the prior on [OIII]/Hbeta, but let's revisit that later.
+        samp = EMSpectrum().forbidmog.sample(nobj, random_state=rand)
+        oiiihbeta = samp[:, 0]
+        oiihbeta = samp[:, 1]
+        niihbeta = samp[:, 2]
+        siihbeta = samp[:, 3]
 
         return oiidoublet, oiihbeta, niihbeta, siihbeta, oiiihbeta
 
@@ -387,7 +398,7 @@ class GALAXY(object):
                               minlineflux=0.0, sne_rfluxratiorange=(0.01, 0.1),
                               seed=None, redshift=None, mag=None, vdisp=None,
                               input_meta=None, nocolorcuts=False, nocontinuum=False,
-                              agnlike=False, novdisp=False, restframe=False):
+                              agnlike=False, novdisp=False, restframe=False, verbose=False):
         """Build Monte Carlo galaxy spectra/templates.
 
         This function chooses random subsets of the basis continuum spectra (for
@@ -465,6 +476,7 @@ class GALAXY(object):
             star-formation-like line-ratios).  Option not yet supported.
           restframe (bool, optional): If True, return full resolution restframe
             templates instead of resampled observer frame.
+          verbose (bool, optional): Be verbose!
 
         Returns:
           outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
@@ -476,6 +488,12 @@ class GALAXY(object):
 
         """
         from desispec.interpolation import resample_flux
+        from desiutil.log import get_logger, DEBUG
+
+        if verbose:
+            log = get_logger(DEBUG)
+        else:
+            log = get_logger()
 
         # Basic error checking and some preliminaries.
         if nocontinuum:
@@ -535,10 +553,14 @@ class GALAXY(object):
                 mag = rand.uniform(magrange[0], magrange[1], nmodel).astype('f4')
 
             if vdisp is None:
+                # Limit the number of unique velocity dispersion values.
+                nvdisp = int(np.max( ( np.min(
+                    ( np.round(nmodel * self.fracvdisp[0]), self.fracvdisp[1] ) ), 1 ) ))
                 if logvdisp_meansig[1] > 0:
-                    vdisp = 10**rand.normal(logvdisp_meansig[0], logvdisp_meansig[1], nmodel)
+                    vvdisp = 10**rand.normal(logvdisp_meansig[0], logvdisp_meansig[1], nvdisp)
                 else:
-                    vdisp = 10**np.repeat(logvdisp_meansig[0], nmodel)
+                    vvdisp = 10**np.repeat(logvdisp_meansig[0], nvdisp)
+                vdisp = rand.choice(vvdisp, nmodel)
 
             # Generate the (optional) distribution of SNe Ia priors.
             if self.add_SNeIa:
@@ -562,6 +584,13 @@ class GALAXY(object):
             if len(vdisp) != nmodel:
                 log.fatal('Vdisp must be an nmodel-length array')
                 raise ValueError
+
+        # Precompute the velocity dispersion convolution matrix for each unique
+        # value of vdisp.
+        if nocontinuum or novdisp:
+            pass
+        else:
+            blurmatrix = self._blurmatrix(vdisp, log=log)
 
         # Populate some of the metadata table.
         for key, value in zip(('REDSHIFT', 'MAG', 'VDISP', 'SEED'),
@@ -692,7 +721,7 @@ class GALAXY(object):
                     if nocontinuum or novdisp:
                         blurflux = restflux[this, :] * magnorm[this]
                     else:
-                        blurflux = (self.vdispblur((restflux[this, :] - thisemflux), vdisp[ii]) + \
+                        blurflux = ((blurmatrix[vdisp[ii]] * (restflux[this, :] - thisemflux)) +
                                     thisemflux) * magnorm[this]
 
                     if restframe:
@@ -763,7 +792,8 @@ class ELG(GALAXY):
                        oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
                        minoiiflux=0.0, sne_rfluxratiorange=(0.1, 1.0), redshift=None,
                        mag=None, vdisp=None, seed=None, input_meta=None, nocolorcuts=False,
-                       nocontinuum=False, agnlike=False, novdisp=False, restframe=False):
+                       nocontinuum=False, agnlike=False, novdisp=False, restframe=False,
+                       verbose=False):
         """Build Monte Carlo ELG spectra/templates.
 
         See the GALAXY.make_galaxy_templates function for documentation on the
@@ -798,7 +828,7 @@ class ELG(GALAXY):
                                                          mag=mag, sne_rfluxratiorange=sne_rfluxratiorange,
                                                          seed=seed, input_meta=input_meta, nocolorcuts=nocolorcuts,
                                                          nocontinuum=nocontinuum, agnlike=agnlike, novdisp=novdisp,
-                                                         restframe=restframe)
+                                                         restframe=restframe, verbose=verbose)
 
         return outflux, wave, meta
 
@@ -843,7 +873,8 @@ class BGS(GALAXY):
                        oiiihbrange=(-1.3, 0.6), logvdisp_meansig=(2.0, 0.17),
                        minhbetaflux=0.0, sne_rfluxratiorange=(0.1, 1.0), redshift=None,
                        mag=None, vdisp=None, seed=None, input_meta=None, nocolorcuts=False,
-                       nocontinuum=False, agnlike=False, novdisp=False, restframe=False):
+                       nocontinuum=False, agnlike=False, novdisp=False, restframe=False,
+                       verbose=False):
         """Build Monte Carlo BGS spectra/templates.
 
          See the GALAXY.make_galaxy_templates function for documentation on the
@@ -878,7 +909,7 @@ class BGS(GALAXY):
                                                          mag=mag, sne_rfluxratiorange=sne_rfluxratiorange,
                                                          seed=seed, input_meta=input_meta, nocolorcuts=nocolorcuts,
                                                          nocontinuum=nocontinuum, agnlike=agnlike, novdisp=novdisp,
-                                                         restframe=restframe)
+                                                         restframe=restframe, verbose=verbose)
         
         return outflux, wave, meta
 
@@ -915,7 +946,7 @@ class LRG(GALAXY):
                        logvdisp_meansig=(2.3, 0.1), sne_rfluxratiorange=(0.1, 1.0),
                        redshift=None, mag=None, vdisp=None, seed=None,
                        input_meta=None, nocolorcuts=False, novdisp=False, agnlike=False,
-                       restframe=False):
+                       restframe=False, verbose=False):
         """Build Monte Carlo BGS spectra/templates.
 
          See the GALAXY.make_galaxy_templates function for documentation on the
@@ -945,7 +976,8 @@ class LRG(GALAXY):
                                                          logvdisp_meansig=logvdisp_meansig, redshift=redshift,
                                                          vdisp=vdisp, mag=mag, sne_rfluxratiorange=sne_rfluxratiorange,
                                                          seed=seed, input_meta=input_meta, nocolorcuts=nocolorcuts,
-                                                         novdisp=novdisp, agnlike=agnlike, restframe=restframe)
+                                                         novdisp=novdisp, agnlike=agnlike, restframe=restframe,
+                                                         verbose=verbose)
 
         # Pack into the metadata table some additional information.
         good = np.where(meta['TEMPLATEID'] != -1)[0]
@@ -1026,7 +1058,7 @@ class SUPERSTAR(object):
     def make_star_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                             magrange=(18.0, 23.5), seed=None, redshift=None,
                             mag=None, input_meta=None, star_properties=None,
-                            nocolorcuts=False, restframe=False):
+                            nocolorcuts=False, restframe=False, verbose=False):
 
         """Build Monte Carlo spectra/templates for various flavors of stars.
 
@@ -1087,10 +1119,9 @@ class SUPERSTAR(object):
 
           nocolorcuts (bool, optional): Do not apply the color-cuts specified by
             the self.colorcuts_function function (default False).
-
           restframe (bool, optional): If True, return full resolution restframe
             templates instead of resampled observer frame.
-
+          verbose (bool, optional): Be verbose!
 
         Returns:
           outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
@@ -1102,6 +1133,12 @@ class SUPERSTAR(object):
 
         """
         from desispec.interpolation import resample_flux
+        from desiutil.log import get_logger, DEBUG
+
+        if verbose:
+            log = get_logger(DEBUG)
+        else:
+            log = get_logger()
 
         npix = len(self.basewave)
         nbase = len(self.basemeta)
@@ -1305,7 +1342,7 @@ class STAR(SUPERSTAR):
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                        rmagrange=(18.0, 23.5), seed=None, redshift=None,
                        mag=None, input_meta=None, star_properties=None,
-                       restframe=False):
+                       restframe=False, verbose=False):
         """Build Monte Carlo spectra/templates for generic stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
@@ -1329,7 +1366,7 @@ class STAR(SUPERSTAR):
                                                        magrange=rmagrange, seed=seed, redshift=redshift,
                                                        mag=mag, input_meta=input_meta,
                                                        star_properties=star_properties,
-                                                       restframe=restframe)
+                                                       restframe=restframe, verbose=verbose)
         return outflux, wave, meta
 
 class FSTD(SUPERSTAR):
@@ -1364,7 +1401,7 @@ class FSTD(SUPERSTAR):
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), rmagrange=(16.0, 19.0),
                        seed=None, redshift=None, mag=None, input_meta=None, star_properties=None,
-                       nocolorcuts=False, restframe=False):
+                       nocolorcuts=False, restframe=False, verbose=False):
         """Build Monte Carlo spectra/templates for FSTD stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
@@ -1388,7 +1425,8 @@ class FSTD(SUPERSTAR):
                                                        magrange=rmagrange, seed=seed, redshift=redshift,
                                                        mag=mag, input_meta=input_meta,
                                                        star_properties=star_properties,
-                                                       nocolorcuts=nocolorcuts, restframe=restframe)
+                                                       nocolorcuts=nocolorcuts, restframe=restframe,
+                                                       verbose=verbose)
         return outflux, wave, meta
 
 class MWS_STAR(SUPERSTAR):
@@ -1422,7 +1460,7 @@ class MWS_STAR(SUPERSTAR):
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), rmagrange=(16.0, 20.0),
                        seed=None, redshift=None, mag=None, input_meta=None, star_properties=None,
-                       nocolorcuts=False, restframe=False):
+                       nocolorcuts=False, restframe=False, verbose=False):
         """Build Monte Carlo spectra/templates for MWS_STAR stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
@@ -1446,7 +1484,8 @@ class MWS_STAR(SUPERSTAR):
                                                        magrange=rmagrange, seed=seed, redshift=redshift,
                                                        mag=mag, input_meta=input_meta,
                                                        star_properties=star_properties,
-                                                       nocolorcuts=nocolorcuts, restframe=restframe)
+                                                       nocolorcuts=nocolorcuts, restframe=restframe,
+                                                       verbose=verbose)
         return outflux, wave, meta
 
 class WD(SUPERSTAR):
@@ -1477,7 +1516,7 @@ class WD(SUPERSTAR):
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), gmagrange=(16.0, 19.0),
                        seed=None, redshift=None, mag=None, input_meta=None, star_properties=None,
-                       nocolorcuts=False, restframe=False):
+                       nocolorcuts=False, restframe=False, verbose=False):
         """Build Monte Carlo spectra/templates for WD stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
@@ -1499,6 +1538,10 @@ class WD(SUPERSTAR):
             different values of SUBTYPE.
 
         """
+        from desiutil.log import get_logger
+
+        log = get_logger()
+        
         for intable in (input_meta, star_properties):
             if intable is not None:
                 if 'SUBTYPE' in intable.dtype.names:
@@ -1511,7 +1554,7 @@ class WD(SUPERSTAR):
                                                        mag=mag, input_meta=input_meta,
                                                        star_properties=star_properties,
                                                        nocolorcuts=nocolorcuts,
-                                                       restframe=restframe)
+                                                       restframe=restframe, verbose=verbose)
         return outflux, wave, meta
 
 class QSO():
@@ -1557,6 +1600,9 @@ class QSO():
         """
         from speclite import filters
         from desisim.io import find_basis_template
+        from desiutil.log import get_logger
+
+        log = get_logger()
 
         self.objtype = 'QSO'
 
@@ -1564,7 +1610,7 @@ class QSO():
             try:
                 from desitarget.cuts import isQSO_colors as colorcuts_function
             except ImportError:
-                log.error('please upgrade desitarget to get the latest isQSO_colors function')
+                log.error('Please upgrade desitarget to get the latest isQSO_colors function.')
                 from desitarget.cuts import isQSO as colorcuts_function
 
             self.colorcuts_function = colorcuts_function
@@ -1591,7 +1637,7 @@ class QSO():
 
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(21.0, 23.0),
                        seed=None, redshift=None, mag=None, input_meta=None,
-                       nocolorcuts=False, N_perz=1):
+                       nocolorcuts=False, N_perz=1, verbose=False):
         """Build Monte Carlo QSO spectra/templates.
 
         This function generates QSO spectra on-the-fly using PCA decomposition
@@ -1631,6 +1677,7 @@ class QSO():
           nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
             cuts (default False).
           N_perz (int, optional): Number of templates per redshift bin or redshift value.
+          verbose (bool, optional): Be verbose!
         Returns:
           outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
           wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
@@ -1640,8 +1687,15 @@ class QSO():
           ValueError
 
         """
+        from astropy import cosmology
         from desispec.interpolation import resample_flux
         from desisim.qso_template import desi_qso_templ as dqt
+        from desiutil.log import get_logger, DEBUG
+
+        if verbose:
+            log = get_logger(DEBUG)
+        else:
+            log = get_logger()
 
         if redshift is not None:
             if len(redshift) != nmodel:
@@ -1671,7 +1725,6 @@ class QSO():
             rand = np.random.RandomState(seed)
             templateseed = rand.randint(2**32, size=nmodel)
 
-
             # Assign redshift and magnitude priors.
             if redshift is None:
                 redshift = rand.uniform(zrange[0], zrange[1], nmodel)
@@ -1689,11 +1742,8 @@ class QSO():
         zwave = self.wave # [observed-frame, Angstrom]
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
 
-
         # Cosmology
-        from astropy import cosmology
         cosmo = cosmology.core.FlatLambdaCDM(70., 0.3)
-
 
         for ii in range(nmodel):
             log.debug('Simulating {} template {}/{}.'.format(self.objtype, ii+1, nmodel))
@@ -1702,8 +1752,7 @@ class QSO():
 
             _, final_flux, redshifts = dqt.desi_qso_templates(
                 z_wind=self.z_wind, N_perz=N_perz, rstate=templaterand,
-                redshift=redshift, rebin_wave=zwave, no_write=True, cosmo=cosmo, ipad=15)
-
+                redshift=redshift[ii], rebin_wave=zwave, no_write=True, cosmo=cosmo, ipad=15)
             
             restflux = final_flux.T
             nmade = np.shape(restflux)[0]

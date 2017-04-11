@@ -1,14 +1,10 @@
 """
-#;+ 
-#; NAME:
-#; fit_boss_qsos
-#;    Version 1.0
-#;
-#; PURPOSE:
-#;    Module for Fitting PCA to the BOSS QSOs
-#;   01-Dec-2014 by JXP
-#;-
-#;------------------------------------------------------------------------------
+desisim.qso_template.fit_boss_qsos
+==================================
+
+Module for Fitting PCA to the BOSS QSOs
+
+01-Dec-2014 by JXP
 """
 from __future__ import print_function, absolute_import, division
 
@@ -19,7 +15,7 @@ import multiprocessing as mp
 from astropy.io import fits
 
 flg_xdb = True
-try: 
+try:
     from xastropy.xutils import xdebug as xdb
 except ImportError:
     flg_xdb = False
@@ -110,14 +106,14 @@ def do_boss_lya_parallel(istart, iend, cut_Lya, output, debug=False):
         zqso = t_boss['z_pipe'][ii]
 
         wrest  = wave / (1+zqso)
-        wlya = 1215. 
+        wlya = 1215.
 
         # Cut Lya forest?
         if cut_Lya is True:
             Ly_imn = np.argmin(np.abs(wrest-wlya))
         else:
             Ly_imn = 0
-            
+
         # Pack
         imn = np.argmin(np.abs(wrest[Ly_imn]-eigen_wave))
         npix = len(wrest[Ly_imn:])
@@ -202,14 +198,14 @@ def do_sdss_lya_parallel(istart, iend, cut_Lya, output, debug=False):
         zqso = t_sdss['z'][ii]
 
         wrest  = wave / (1+zqso)
-        wlya = 1215. 
+        wlya = 1215.
 
         # Cut Lya forest?
         if cut_Lya is True:
             Ly_imn = np.argmin(np.abs(wrest-wlya))
         else:
             Ly_imn = 0
-            
+
         # Pack
         imn = np.argmin(np.abs(wrest[Ly_imn]-eigen_wave))
         npix = len(wrest[Ly_imn:])
@@ -265,7 +261,7 @@ def failed_parallel():
     processes = []
     nproc = 1
     nsub = nqso // nproc
-    
+
     cut_Lya = False
 
     # Setup the Processes
@@ -378,7 +374,7 @@ def splice_fits(flg=0):
     print('Writing {:s} table, with {:d} rows'.format(outfil,len(full_tab)))
     thdulist.writeto(outfil, clobber=True)
 
-    
+
 ## ################
 if __name__ == '__main__':
     '''
@@ -386,14 +382,14 @@ if __name__ == '__main__':
       0=BOSS, 1=SDSS
     '''
     import sys
-    
+
     flg = int(sys.argv[1])
     istrt = int(sys.argv[2])
     iend = int(sys.argv[3])
     outfil = str(sys.argv[4])
 
     cut_Lya = False
-    
+
     # Run
     #do_boss_lya_parallel(0,10, False, None,debug=True)
     #xdb.set_trace()
@@ -424,4 +420,3 @@ if __name__ == '__main__':
     # Done
     #xdb.set_trace()
     print('All done')
-
