@@ -48,6 +48,8 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
         wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
         meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum
           with columns defined in desisim.io.empty_metatable *plus* RA, DEC.
+        dla_meta (astropy.Table): Table of meta-data [ndla] for the DLAs injected
+          into the spectra.  Only returned if add_dlas=True
 
     '''
     from scipy.interpolate import interp1d
@@ -98,11 +100,12 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
     meta['RA'] = ra
     meta['DEC'] = dec
 
-    if add_dlas:
-        ndlas = []
-        zdlas = np.zeros((nqso, 100))  # Padded to 100 for flat Table
-        NHI_dlas = np.zeros((nqso, 100))  # Padded to 100 for flat Table
 
+    # Lists for DLA meta data
+    if add_dlas:
+        dla_NHI, dla_z, dla_id = [], [], []
+
+    # Loop on quasars
     for ii, indx in enumerate(templateid):
         flux1, _, meta1 = qso.make_templates(nmodel=1, redshift=np.array([zqso[ii]]),
                                              mag=np.array([mag_g[ii]]), seed=templateseed[ii])
@@ -125,12 +128,11 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
                 ndla = len(dlas)
                 if ndla > 0:
                     flux1 *= dla_model
-                # Save for meta Table
-                ndlas.append(ndla)
-                zdlas[ii, 0:ndla] = [idla['z'] for idla in dlas]
-                NHI_dlas[ii, 0:ndla] = [idla['N'] for idla in dlas]
-            else:
-                ndlas.append(0)
+                    # Meta
+                    for idla in dlas:
+                        dla_z += [idla['z'] for idla in dlas]
+                        dla_NHI += [idla['N'] for idla in dlas]
+                    dla_id += [indx]*ndla
 
         padflux, padwave = normfilt.pad_spectrum(flux1, wave, method='edge')
         normmaggies = np.array(normfilt.get_ab_maggies(padflux, padwave, 
@@ -140,13 +142,20 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
         flux[ii, :] = flux1[:]
 
     h.close()
-    # Finish meta
-    if add_dlas:
-        meta['n_DLA'] = ndlas
-        meta['z_DLA'] = zdlas  # Redshifts
-        meta['NHI_DLA'] = NHI_dlas  # log NHI values
 
-    return flux, wave, meta
+    # Finish
+    if add_dlas:
+        ndla = len(dla_id)
+        if ndla > 0:
+            dla_meta = empty_metatable(objtype='DLAs', nmodel=ndla)
+            dla_meta['NHI'] = dla_NHI  # log NHI values
+            dla_meta['z'] = dla_z
+            dla_meta['ID'] = dla_id
+        else:
+            dla_meta = None
+        return flux, wave, meta, dla_meta
+    else:
+        return flux, wave, meta
 
 
 def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, debug=False, **kwargs):
@@ -161,8 +170,8 @@ def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, debug=False, **kwa
         **kwargs: Passed to init_fNHI()
 
     Returns:
-        dla_model (ndarray): normalized specrtrum with DLAs inserted
         dlas (list): List of DLA dict's with keys z,N
+        dla_model (ndarray): normalized specrtrum with DLAs inserted
 
     """
     from scipy import interpolate

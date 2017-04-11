@@ -59,10 +59,12 @@ class TestLya(unittest.TestCase):
 
     @unittest.skipIf(missing_fitsio, 'fitsio not installed; skipping lya_spectra tests')
     def test_insert_dla(self):
-        flux, wave, meta = lya_spectra.get_spectra(self.infile, wave=self.wave, seed=self.seed, add_dlas=True)
+        flux, wave, meta, dla_meta = lya_spectra.get_spectra(self.infile, wave=self.wave, seed=self.seed, add_dlas=True)
         self.assertEqual(flux.shape[0], self.nspec)
         self.assertEqual(wave.shape[0], flux.shape[1])
         self.assertEqual(len(meta), self.nspec)
+        self.assertGreater(len(dla_meta), 0)
+        self.assertIn('NHI', dla_meta.keys())
         templateid = [0,1,2]
         nqso = len(templateid)
 
