@@ -1,9 +1,10 @@
 """
-desisim.spec_qa.high_level
-============
+desisim.spec_qa.redshifts
+=========================
 
 Module to run high_level QA on a given DESI run
- Written by JXP on 3 Sep 2015
+
+Written by JXP on 3 Sep 2015
 """
 from __future__ import print_function, absolute_import, division
 
@@ -42,16 +43,16 @@ def elg_flux_lim(z, oii_flux):
     '''Assess which objects pass the ELG flux limit
     Uses DESI document 318 from August 2014
 
-    Parameters:
-    -----------
-    z: ndarray
+    Parameters
+    ----------
+    z : ndarray
       ELG redshifts
-    oii_flux: ndarray
+    oii_flux : ndarray
       [OII] fluxes
     '''
     # Init mask
     mask = np.array([False]*len(z))
-    # 
+    #
     # Flux limits from document
     zmin = 0.6
     zstep = 0.2
@@ -73,19 +74,21 @@ def elg_flux_lim(z, oii_flux):
 def calc_stats(simz_tab, objtype, flux_lim=True):
     """Calculate redshift statistics for a given objtype
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
+    simz_tab : Table
+        This parameter is not documented.
     objtype : str
-      Object type, e.g. 'ELG', 'LRG'
+        Object type, e.g. 'ELG', 'LRG'
     flux_lim : bool, optional
-      Impose the flux limit for ELGs? [True] 
+        Impose the flux limit for ELGs? [True]
     """
     # Cut on targets that were analyzed by RedMonster
 
     # Init
     stat_dict = {} #dict(OBJTYPE=objtype)
 
-    # N targets 
+    # N targets
     obj_tab = slice_simz(simz_tab, objtype=objtype)
     stat_dict['NTARG'] = len(obj_tab)
 
@@ -97,7 +100,7 @@ def calc_stats(simz_tab, objtype, flux_lim=True):
     # Redshift measured (includes catastrophics)
     #   For ELGs, cut on OII_Flux too
     survey_tab = slice_simz(simz_tab,objtype=objtype,survey=True)
-    stat_dict['N_SURVEY'] = len(survey_tab) 
+    stat_dict['N_SURVEY'] = len(survey_tab)
 
     # Catastrophic failures
     cat_tab = slice_simz(simz_tab,objtype=objtype,
@@ -145,9 +148,9 @@ def catastrophic_dv(objtype):
     '''Pass back catastrophic velocity limit for given objtype
     From DESI document 318 (August 2014) in docdb
 
-    Parameters:
-    -----------
-    objtype: str
+    Parameters
+    ----------
+    objtype : str
       Object type, e.g. 'ELG', 'LRG'
     '''
     cat_dict = dict(ELG=1000., LRG=1000., QSO_L=1000., QSO_T=1000.)
@@ -168,8 +171,8 @@ def get_sty_otype():
 def load_z(fibermap_files, zbest_files, outfil=None):
     '''Load input and output redshift values for a set of exposures
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     fibermap_files: list
       List of fibermap files
     zbest_files: list
@@ -177,9 +180,9 @@ def load_z(fibermap_files, zbest_files, outfil=None):
     outfil: str, optional
       Output file for the table
 
-    Returns:
-    -----------
-    simz_tab: Table  
+    Returns
+    -------
+    Table
       Table of target info including Redmonster redshifts
     '''
     # imports
@@ -234,10 +237,10 @@ def load_z(fibermap_files, zbest_files, outfil=None):
     simz_tab.rename_column('OBJTYPE_2', 'TRUETYPE')
 
     # Rename QSO
-    qsol = np.where( (simz_tab['TRUETYPE'] == 'QSO') & 
+    qsol = np.where( (simz_tab['TRUETYPE'] == 'QSO') &
         (simz_tab['REDSHIFT'] >= 2.1))[0]
     simz_tab['TRUETYPE'][qsol] = 'QSO_L'
-    qsot = np.where( (simz_tab['TRUETYPE'] == 'QSO') & 
+    qsot = np.where( (simz_tab['TRUETYPE'] == 'QSO') &
         (simz_tab['REDSHIFT'] < 2.1))[0]
     simz_tab['TRUETYPE'][qsot] = 'QSO_T'
 
@@ -290,18 +293,21 @@ def obj_requirements(zstats, objtype):
     '''Assess where a given objtype passes the requirements
     Requirements from Doc 318 (August 2014)
 
-    Parameters:
-    -----------
-    objtype: str
-      Object type, e.g. 'ELG', 'LRG'
-    Returns:
-    -------------
-    pf_dict: dict  
-      Pass/fail dict
+    Parameters
+    ----------
+    zstats : Object
+        This parameter is not documented.
+    objtype : str
+        Object type, e.g. 'ELG', 'LRG'
+
+    Returns
+    -------
+    dict
+        Pass/fail dict
     '''
     log = get_logger()
     pf_dict = {}
-    # 
+    #
     all_dict=dict(ELG={'RMS_DZ':0.0005, 'MEAN_DZ': 0.0002, 'CAT_RATE': 0.05, 'EFF': 0.90},
         LRG={'RMS_DZ':0.0005, 'MEAN_DZ': 0.0002, 'CAT_RATE': 0.05, 'EFF': 0.95},
         QSO_T={'RMS_DZ':0.0025, 'MEAN_DZ': 0.0004, 'CAT_RATE': 0.05, 'EFF': 0.90},
@@ -338,10 +344,11 @@ def obj_requirements(zstats, objtype):
     return pf_dict, passf
 
 
-def slice_simz(simz_tab, objtype=None, redm=False, survey=False, 
+def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
     catastrophic=False, good=False, all_zwarn0=False):
     '''Slice input simz_tab in one of many ways
-    Parameters:
+
+    Parameters
     ----------
     redm : bool, optional
       RedMonster analysis required?
@@ -367,7 +374,7 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
         survey_mask = (simz_tab['Z'].mask == False)
         # Flux limit
         elg = np.where((simz_tab['TRUETYPE']=='ELG') & survey_mask)[0]
-        elg_mask = elg_flux_lim(simz_tab['REDSHIFT'][elg], 
+        elg_mask = elg_flux_lim(simz_tab['REDSHIFT'][elg],
             simz_tab['OIIFLUX'][elg])
         # Update
         survey_mask[elg[~elg_mask]] = False
@@ -392,7 +399,7 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
                 if not all_zwarn0:
                     catgd_mask[omask[cat]] = False
     else:
-        catgd_mask = np.array([True]*nrow) 
+        catgd_mask = np.array([True]*nrow)
 
     # Final mask
     mask = objtype_mask & redm_mask & survey_mask & catgd_mask
@@ -402,9 +409,8 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
 
 def obj_fig(simz_tab, objtype, summ_stats, outfil=None, pp=None):
     """Generate QA plot for a given object type
-    Parameters:
-    simz_tab
-    objtype : str
+
+    This function is not properly documented.
     """
     logs = get_logger()
     gdz_tab = slice_simz(simz_tab,objtype=objtype, survey=True,good=True)
@@ -433,7 +439,7 @@ def obj_fig(simz_tab, objtype, summ_stats, outfil=None, pp=None):
             # Stats
             rms = np.std(yval)
             redchi2 = np.sum(yval**2)/len(yval)
-            # 
+            #
             xtxt = 0.05
             ytxt = 1.0
             for req_tst in ['EFF','CAT_RATE']:
@@ -442,23 +448,23 @@ def obj_fig(simz_tab, objtype, summ_stats, outfil=None, pp=None):
                     tcolor='red'
                 else:
                     tcolor='green'
-                ax.text(xtxt, ytxt, '{:s}: {:.3f}'.format(req_tst, 
+                ax.text(xtxt, ytxt, '{:s}: {:.3f}'.format(req_tst,
                     summ_stats[objtype][req_tst]), color=tcolor,
                     transform=ax.transAxes, ha='left', fontsize='small')
             # Additional
             ytxt -= 0.12
             ax.text(xtxt, ytxt, '{:s}: {:.3f}'.format('RMS:',
-                rms), color='black', transform=ax.transAxes, 
+                rms), color='black', transform=ax.transAxes,
                 ha='left', fontsize='small')
             ytxt -= 0.12
             ax.text(xtxt, ytxt, '{:s}: {:.3f}'.format(r'$\chi^2_\nu$:',
-                redchi2), color='black', transform=ax.transAxes, 
+                redchi2), color='black', transform=ax.transAxes,
                 ha='left', fontsize='small')
         else:
             yval = calc_dz(gdz_tab)
             ylbl = (r'$(z_{\rm red}-z_{\rm true}) / (1+z)$')
             ylim = max(5.*summ_stats[objtype]['RMS_DZ'],1e-5)
-            if (np.median(summ_stats[objtype]['MEDIAN_DZ']) > 
+            if (np.median(summ_stats[objtype]['MEDIAN_DZ']) >
                 summ_stats[objtype]['RMS_DZ']):
                 yoff = summ_stats[objtype]['MEDIAN_DZ']
 
@@ -473,7 +479,7 @@ def obj_fig(simz_tab, objtype, summ_stats, outfil=None, pp=None):
             for stat in ['RMS_DZ','MEAN_DZ', 'MEDIAN_DZ']:
                 ytxt -= 0.12
                 try:
-                    pfail = summ_stats[objtype]['REQ_INDIV'][stat] 
+                    pfail = summ_stats[objtype]['REQ_INDIV'][stat]
                 except KeyError:
                     tcolor='black'
                 else:
@@ -481,7 +487,7 @@ def obj_fig(simz_tab, objtype, summ_stats, outfil=None, pp=None):
                         tcolor='red'
                     else:
                         tcolor='green'
-                ax.text(xtxt, ytxt, '{:s}: {:.5f}'.format(stat, 
+                ax.text(xtxt, ytxt, '{:s}: {:.5f}'.format(stat,
                     summ_stats[objtype][stat]), color=tcolor,
                     transform=ax.transAxes, ha='left', fontsize='small')
         # Histogram
@@ -524,7 +530,7 @@ def obj_fig(simz_tab, objtype, summ_stats, outfil=None, pp=None):
 
             # Points
             ax.plot([xmin,xmax], [0.,0], '--', color='gray')
-            ax.scatter(xval, yval, marker='o', s=1, label=objtype, 
+            ax.scatter(xval, yval, marker='o', s=1, label=objtype,
                 color=sty_otype[objtype]['color'])
 
     # Finish
@@ -559,7 +565,7 @@ def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
         marker='x', s=9, label='CAT', color='red')
 
     notype = []
-    for otype in otypes: 
+    for otype in otypes:
         gd_o = np.where(zobj_tab['TRUETYPE']==otype)[0]
         notype.append(len(gd_o))
         ax.scatter(zobj_tab['REDSHIFT'][gd_o], zobj_tab['Z'][gd_o],
@@ -578,12 +584,12 @@ def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
     jj=1
     ax= plt.subplot(gs[0:2,jj])
 
-    for otype in otypes: 
+    for otype in otypes:
         # Grab
         gd_o = np.where(zobj_tab['TRUETYPE']==otype)[0]
         # Stat
-        dz = calc_dz(zobj_tab[gd_o]) 
-        ax.scatter(zobj_tab['REDSHIFT'][gd_o], dz, marker='o', 
+        dz = calc_dz(zobj_tab[gd_o])
+        ax.scatter(zobj_tab['REDSHIFT'][gd_o], dz, marker='o',
             s=1, label=sty_otype[otype]['lbl'], color=sty_otype[otype]['color'])
 
     #ax.set_xlim(xmin, xmax)
@@ -609,7 +615,7 @@ def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
         if key == 'SPECPROD':
             continue
         ylbl -= yoff
-        ax.text(xlbl+0.1, ylbl, key+': {:s}'.format(meta[key]), 
+        ax.text(xlbl+0.1, ylbl, key+': {:s}'.format(meta[key]),
             transform=ax.transAxes, ha='left', fontsize='small')
 
     # Target stats
@@ -637,16 +643,16 @@ def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
 
 
 def summ_stats(simz_tab, outfil=None):
-    '''Generate summary stats 
+    '''Generate summary stats
 
-    Parameters:
-    -----------
-    simz_tab: Table
+    Parameters
+    ----------
+    simz_tab : Table
       Table summarizing redshifts
 
-    Returns:
-    ---------
-    summ_stats: List
+    Returns
+    -------
+    list
       List of summary stat dicts
     '''
     otypes = ['ELG','LRG', 'QSO_L', 'QSO_T']  # WILL HAVE TO DEAL WITH QSO_TRACER vs QSO_LYA
@@ -666,7 +672,7 @@ def summ_stats(simz_tab, outfil=None):
 
     # Return
     return summ_dict
-    #return stat_tab 
+    #return stat_tab
 
 
 def plot_slices(x, y, ok, bad, x_lo, x_hi, y_cut, num_slices=5, min_count=100,
@@ -678,7 +684,7 @@ def plot_slices(x, y, ok, bad, x_lo, x_hi, y_cut, num_slices=5, min_count=100,
     Parameters
     ----------
     x : array of float
-        X-coordinates to scatter plot.  Points outside [x_lo, x_hi] are
+        X-coordinates to scatter plot.  Points outside [ `x_lo`, `x_hi` ] are
         not displayed.
     y : array of float
         Y-coordinates to scatter plot.  Y values are assumed to be roughly
@@ -688,16 +694,16 @@ def plot_slices(x, y, ok, bad, x_lo, x_hi, y_cut, num_slices=5, min_count=100,
     bad : array of bool
         Array of booleans that identify which fits have failed catastrophically.
     x_lo : float
-        Minimum value of x to plot.
+        Minimum value of `x` to plot.
     x_hi : float
-        Maximum value of x to plot.
+        Maximum value of `x` to plot.
     y_cut : float
-        The target maximum value of |y|.  A dashed line at this value is
+        The target maximum value of :math:`|y|`.  A dashed line at this value is
         added to the plot, and the vertical axis is clipped at
-        |y| = 1.25 * y_cut (but values outside this range are included in
+        :math:`|y| = 1.25 \times y_{cut}` (but values outside this range are included in
         the percentile statistics).
     num_slices : int
-        Number of equally spaced slices to divide the interval [x_lo, x_hi]
+        Number of equally spaced slices to divide the interval [ `x_lo`, `x_hi` ]
         into.
     min_count : int
         Do not use slices with fewer points for superimposed percentile
@@ -780,16 +786,18 @@ def plot_slices(x, y, ok, bad, x_lo, x_hi, y_cut, num_slices=5, min_count=100,
 
 
 def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
-    """  Generate a summary figure comparing zfind to ztruth
+    """Generate a summary figure comparing zfind to ztruth.
 
     Parameters
     ----------
     simz_tab : Table
-      Table of redshift information
+      Table of redshift information.
     pp : PdfPages object
+      This parameter is not documented.
     pdict : dict
       Guides the plotting parameters
     min_count : int, optional
+      This parameter is not documented.
     """
     log = get_logger()
 
@@ -902,7 +910,7 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
             #else:
             axis.set_xlabel('{0} {1}'.format(otype, ptype))
             axis.set_xlim(x_min, x_max)
-            
+
             # Hide overlapping x-axis labels except in the bottom right.
             if overlap and (col < ncols - 1):
                 axis.set_xticks(axis.get_xticks()[0:-overlap])

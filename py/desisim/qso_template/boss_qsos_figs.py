@@ -1,5 +1,5 @@
 """
-#;+ 
+#;+
 #; NAME:
 #; boss_qso_figs
 #;    Version 1.0
@@ -24,11 +24,12 @@ from matplotlib.colors import LogNorm
 
 from astropy.io import fits
 
+# What the heck is xastropy???
 from xastropy.plotting import utils as xputils
 
 import fit_boss_qsos as fbq
 
-try: 
+try:
     from xastropy.xutils import xdebug as xdb
 except ImportError:
     import pdb as xdb
@@ -48,7 +49,7 @@ def fig_boss_pca_coeff(outfil=None, boss_fil=None,scl=100.):
     hdu = fits.open(boss_fil)
     pca_coeff = hdu[1].data
     #xdb.set_trace()
-    
+
     # Initialize
     #if 'xmnx' not in locals():
     #    xmnx = (17.0, 20.4)
@@ -56,9 +57,9 @@ def fig_boss_pca_coeff(outfil=None, boss_fil=None,scl=100.):
     #        (-1.9, 1.4),
     #        (-1.1, 1.4),
     #        (-2.1, 0.9))
-                
+
     ms = 1. # point size
-            
+
     allxi = [0,0,0,1,1,2]
     allyi = [1,2,3,2,3,3]
 
@@ -66,7 +67,7 @@ def fig_boss_pca_coeff(outfil=None, boss_fil=None,scl=100.):
             [-0.2,0.4],
             [-0.2, 0.5],
             [-0.2, 0.4])
-    
+
     # Start the plot
     if outfil != None:
         pp = PdfPages(outfil)
@@ -117,7 +118,7 @@ def fig_boss_pca_coeff(outfil=None, boss_fil=None,scl=100.):
     if outfil != None:
         pp.savefig(bbox_inches='tight')
         pp.close()
-    else: 
+    else:
         plt.show()
 
 # ##################### #####################
@@ -155,7 +156,7 @@ def fig_boss_x_vs_pca(outfil=None, boss_fil=None, flg=0):
         xmnx = [17.,22.5]
     else:
         raise ValueError('fig_boss_x_vs_pca: flg={:d} not allowed'.format(flg))
-    
+
     # Initialize
     #if 'xmnx' not in locals():
     #    xmnx = (17.0, 20.4)
@@ -163,11 +164,11 @@ def fig_boss_x_vs_pca(outfil=None, boss_fil=None, flg=0):
             (-0.2,0.4),
             (-0.2, 0.5),
             (-0.2, 0.4))
-                
+
     ms = 1. # point size
     scl = 100.
-            
-    
+
+
     # Start the plot
     if outfil != None:
         pp = PdfPages(outfil)
@@ -205,7 +206,7 @@ def fig_boss_x_vs_pca(outfil=None, boss_fil=None, flg=0):
     if outfil != None:
         pp.savefig(bbox_inches='tight')
         pp.close()
-    else: 
+    else:
         plt.show()
 
 
@@ -230,7 +231,7 @@ def fig_boss_eigen(outfil=None, boss_fil=None, flg=0):
             (-1, 1),
             (-1, 1),
             (-1, 1))
-                
+
     # Start the plot
     if outfil != None:
         pp = PdfPages(outfil)
@@ -252,7 +253,7 @@ def fig_boss_eigen(outfil=None, boss_fil=None, flg=0):
         # Labels
         if ii == 3:
             ax.set_xlabel('Rest Wavelength')
-        else: 
+        else:
             ax.get_xaxis().set_ticks([])
         ax.set_ylabel(ylbl)
 
@@ -268,7 +269,7 @@ def fig_boss_eigen(outfil=None, boss_fil=None, flg=0):
     if outfil != None:
         pp.savefig(bbox_inches='tight')
         pp.close()
-    else: 
+    else:
         plt.show()
 
 # ##################### #####################
@@ -294,13 +295,13 @@ def fig_boss_i_vs_z(outfil=None, boss_fil=None, flg=0):
     imag = tmp[:,3] # i-band mag
     ylbl=str('i mag')
     ymnx = [17.,22.5]
-    
+
     # Initialize
-                
+
     ms = 1. # point size
     scl = 100.
-            
-    
+
+
     # Start the plot
     if outfil != None:
         pp = PdfPages(outfil)
@@ -327,7 +328,7 @@ def fig_boss_i_vs_z(outfil=None, boss_fil=None, flg=0):
     if outfil != None:
         pp.savefig(bbox_inches='tight')
         pp.close()
-    else: 
+    else:
         plt.show()
 
 # ##################### #####################
@@ -349,7 +350,7 @@ def fig_desi_templ_z_i(outfil=None, boss_fil=None, flg=0):
             (-1, 1),
             (-1, 1),
             (-1, 1))
-                
+
     # Start the plot
     if outfil != None:
         pp = PdfPages(outfil)
@@ -371,7 +372,7 @@ def fig_desi_templ_z_i(outfil=None, boss_fil=None, flg=0):
         # Labels
         if ii == 3:
             ax.set_xlabel('Rest Wavelength')
-        else: 
+        else:
             ax.get_xaxis().set_ticks([])
         ax.set_ylabel(ylbl)
 
@@ -387,7 +388,7 @@ def fig_desi_templ_z_i(outfil=None, boss_fil=None, flg=0):
     if outfil != None:
         pp.savefig(bbox_inches='tight')
         pp.close()
-    else: 
+    else:
         plt.show()
 
 
@@ -398,7 +399,7 @@ def fig_desi_templ_z_i(outfil=None, boss_fil=None, flg=0):
 # Command line execution
 if __name__ == '__main__':
 
-    flg_fig = 0 
+    flg_fig = 0
     #flg_fig += 1  # PCA vs PCA
     #flg_fig += 2**1  # PCA vs z
     #flg_fig += 2**2  # PCA vs i

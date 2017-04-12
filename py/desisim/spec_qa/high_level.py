@@ -1,6 +1,6 @@
 """
 desisim.spec_qa.high_level
-============
+==========================
 
 Module to run high_level QA on a given DESI run
  Written by JXP on 3 Sep 2015
@@ -48,7 +48,7 @@ def main():
     for night in nights:
         onight = night[night.rfind('/'):]
         files = glob.glob(dio_meta.rawdata_root()+'/'+onight+'/fibermap*')
-        # 
+        #
         fibermap_files += files
 
     # Get list of zbest files
@@ -83,7 +83,7 @@ def main():
     summ_tab=full_summ_tab['OBJTYPE', 'NTARG', 'N_SURVEY', 'EFF', 'MED_DZ', 'CAT_RATE', 'REQ_FINAL']
     # Write
     summ_tab.meta = meta
-    summ_tab.write(summ_file,format='ascii.ecsv', 
+    summ_tab.write(summ_file,format='ascii.ecsv',
         formats=dict(MED_DZ='%8.6f',EFF='%5.3f',CAT_RATE='%6.4f'))#,clobber=True)
     '''
 
@@ -99,6 +99,5 @@ def main():
     pp.close()
 
 
-    # Write 
+    # Write
     #pdb.set_trace()
-

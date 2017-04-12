@@ -1,14 +1,10 @@
 """
-#;+ 
-#; NAME:
-#; qso_pca
-#;    Version 1.0
-#;
-#; PURPOSE:
-#;    Module for generate QSO PCA templates
-#;   24-Nov-2014 by JXP
-#;-
-#;------------------------------------------------------------------------------
+desisim.qso_template.qso_pca
+============================
+
+Module for generate QSO PCA templates
+
+24-Nov-2014 by JXP
 """
 from __future__ import print_function, absolute_import, division
 
@@ -18,7 +14,7 @@ import multiprocessing as mp
 
 from astropy.io import fits
 flg_xdb = True
-try: 
+try:
     from xastropy.xutils import xdebug as xdb
 except ImportError:
     flg_xdb = False
@@ -104,14 +100,14 @@ def do_boss_lya_parallel(istart, iend, output, debug=False, cut_Lya=True):
         zqso = t_boss['z_pipe'][ii]
 
         wrest  = wave / (1+zqso)
-        wlya = 1215. 
+        wlya = 1215.
 
         # Cut Lya forest?
         if cut_Lya is True:
             Ly_imn = np.argmin(np.abs(wrest-wlya))
         else:
             Ly_imn = 0
-            
+
         # Pack
         imn = np.argmin(np.abs(wrest[Ly_imn]-eigen_wave))
         npix = len(wrest[Ly_imn:])
@@ -133,11 +129,11 @@ def do_boss_lya_parallel(istart, iend, output, debug=False, cut_Lya=True):
     #xdb.set_trace()
     if output is not None:
         output.put((istart,iend,pca_val))
-    
-## #################################    
-## #################################    
+
+## #################################
+## #################################
 ## TESTING
-## #################################    
+## #################################
 if __name__ == '__main__':
 
     # Run
