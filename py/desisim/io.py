@@ -84,7 +84,89 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
 #-------------------------------------------------------------------------
 #- simspec
 
-def write_simspec(meta, truth, expid, night, header=None, outfile=None):
+def write_simspec(sim, meta, expid, night, outdir=None, filename=None,
+    header=None, overwrite=False):
+    '''
+    TODO: document
+    '''
+    import astropy.table
+    import astropy.units
+    import desiutil.depend
+    from desiutil.log import get_logger
+    log = get_logger()
+
+    if filename is None:
+        filename = findfile('simspec', night, expid, outdir=outdir)
+
+    # sim.simulated is table of pre-convolution quantities that we want
+    # to ouput.  sim.camera_output is post-convolution.
+
+    tflux = astropy.table.Table()
+    tflux['WAVELENGTH'] = sim.simulated['wavelength']
+    tflux['FLUX'] = sim.simulated['source_flux'].astype(np.float32)
+    tflux['SKYFLUX'] = sim.simulated['sky_fiber_flux'].astype(np.float32)
+
+    tphot = dict()
+    for i, camera in enumerate(sorted(sim.camera_names)):
+        wavemin = sim.camera_output[i]['wavelength'][0]
+        wavemax = sim.camera_output[i]['wavelength'][-1]
+        ww = sim.simulated['wavelength']
+        ii = (wavemin <= ww) & (ww <= wavemax)
+        tx = astropy.table.Table()
+        tx['WAVELENGTH'] = ww[ii]
+        tx['PHOT'] = sim.simulated['num_source_electrons_'+camera][ii].astype(np.float32)
+        tx['SKYPHOT'] = sim.simulated['num_sky_electrons_'+camera][ii].astype(np.float32)
+        tx['PHOT'].unit = astropy.units.photon
+        tx['SKYPHOT'].unit = astropy.units.photon
+        tphot[camera] = tx
+
+    header = desispec.io.util.fitsheader(header)
+    desiutil.depend.add_dependencies(header)
+    header['EXPID'] = expid
+    header['NIGHT'] = night
+    if 'DOSVER' not in header:
+        header['DOSVER'] = 'SIM'
+
+    if 'FLAVOR' not in header:
+        log.warn('FLAVOR not provided; guessing "science"')
+        header['FLAVOR'] = 'science'    #- optimistically guessing
+
+    if 'DATE-OBS' not in header:
+        import datetime
+        import astropy.time
+        year = int(night[0:4])
+        month = int(night[4:6])
+        day = int(night[6:8])
+        dt = datetime.datetime(year, month, day, 23, 59, 59)
+        tx = astropy.time.Time(dt) + 7*astropy.units.hour
+        header['DATE-OBS'] = tx.utc.isot
+        log.warn('Setting DATE-OBS to {} UTC'.format(header['DATE-OBS']))
+
+    hx = fits.HDUList()
+    hx.append(fits.PrimaryHDU(None, header=header))
+
+    fluxhdu = fits.table_to_hdu(tflux)
+    fluxhdu.header['EXTNAME'] = 'FLUX'
+    fluxhdu.header['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
+    hx.append(fluxhdu)
+
+    if isinstance(meta, astropy.table.Table):
+        metahdu = fits.table_to_hdu(meta)
+    else:
+        metahdu = fits.BinTableHDU(meta)
+
+    metahdu.header['EXTNAME'] = 'METADATA'
+    hx.append(metahdu)
+
+    for camera in sorted(tphot.keys()):
+        camhdu = fits.table_to_hdu(tphot[camera])
+        camhdu.header['EXTNAME'] = camera.upper()
+        camhdu.header['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
+        hx.append(camhdu)
+
+    hx.writeto(filename, clobber=overwrite)
+
+def _write_simspec_orig(meta, truth, expid, night, header=None, outfile=None):
     """Write ``$DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits``.
 
     Args:
@@ -113,6 +195,7 @@ def write_simspec(meta, truth, expid, night, header=None, outfile=None):
     header = desispec.io.util.fitsheader(header)
     if 'DOSVER' not in header:
         header['DOSVER'] = 'SIM'
+
     hx = fits.HDUList()
     hx.append(fits.PrimaryHDU(None, header=header))
 
@@ -221,6 +304,44 @@ class SimSpec(object):
         self.header = header
 
 def read_simspec(filename):
+    """Read simspec data from filename and return SimSpec object.
+    """
+
+    with fits.open(filename) as fx:
+        hdr = fx[0].header
+        flavor = hdr['FLAVOR']
+
+        #- All flavors have photons
+        wave = dict()
+        phot = dict()
+        skyphot = dict()
+        for channel in ('b', 'r', 'z'):
+            camera = fx[channel.upper()]
+            wave[channel] = camera.data['WAVELENGTH']
+            phot[channel] = camera.data['PHOT'].T
+            if 'SKYPHOT' in camera.data.dtype.names:
+                skyphot[channel] = camera.data['SKYPHOT'].T
+            else:
+                skyphot[channel] = np.zeros_like(phot[channel])
+
+        if flavor.lower() == 'arc':
+            return SimSpec(flavor, wave, phot, skyphot=skyphot, header=hdr)
+
+        elif flavor.lower() == 'flat':
+            wave['brz'] = fx['FLUX'].data['WAVELENGTH']
+            flux = fx['FLUX'].data['FLUX'].T
+            return SimSpec(flavor, wave, phot, skyphot=skyphot, flux=flux, header=hdr)
+
+        else:  #- multiple science flavors: dark, bright, bgs, mws, etc.
+            wave['brz'] = fx['FLUX'].data['WAVELENGTH']
+            flux = fx['FLUX'].data['FLUX'].T
+            skyflux = fx['FLUX'].data['SKYFLUX'].T
+            metadata = fx['METADATA'].data
+
+    return SimSpec(flavor, wave, phot, flux=flux, skyflux=skyflux,
+        skyphot=skyphot, metadata=metadata, header=hdr)
+
+def _read_simspec_orig(filename):
     """Read simspec data from filename and return SimSpec object.
     """
 
