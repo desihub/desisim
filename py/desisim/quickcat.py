@@ -149,8 +149,10 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
            'LINTRANS': array of atmospheric transparency during spectro obs; floats [0-1]
            'MOONFRAC': array of moonfraction values on a tile.
            'SEEING': array of FWHM seeing during spectroscopic observation on a tile.
+
     Returns:
         tuple of arrays (observed, p) both with same length as targets
+
         observed: boolean array of whether the target was observed in these tiles
 
         p: probability to get this redshift right
@@ -282,7 +284,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
             tmp = (simulated_eff[ii]*zeff_obs[i]).clip(0, 1)
             pfail[ii] *= (1-tmp)
             observed[ii] = True
-    
+
     simulated_eff = (1-pfail)
 
     return observed, simulated_eff
