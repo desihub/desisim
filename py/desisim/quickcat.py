@@ -12,12 +12,10 @@ TODO:
 
 from __future__ import absolute_import, division, print_function
 
-import cProfile, pstats, io # APC
-
 import os
 from collections import Counter
 from pkg_resources import resource_filename
-from time import asctime, time
+from time import asctime
 
 import numpy as np
 from astropy.io import fits
@@ -147,14 +145,11 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
            'LINTRANS': array of atmospheric transparency during spectro obs; floats [0-1]
            'MOONFRAC': array of moonfraction values on a tile.
            'SEEING': array of FWHM seeing during spectroscopic observation on a tile.
-           
+
     Outputs: tuple of arrays (observed, p) both with same length as targets
         observed: boolean array of whether the target was observed in these tiles
         p: probability to get this redshift right
     """
-    pr = cProfile.Profile()
-    pr.enable()
-
     targetid = targets['TARGETID']
     n = len(targetid)
 
@@ -246,65 +241,45 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
     pfail = np.ones(n)
     observed = np.zeros(n, dtype=bool)
 
-    t0 = time()
+    # More efficient alternative for large numbers of tiles + large target
+    # list, but requires pre-computing the sort order of targetids.
+    # Assume targets['TARGETID'] is unique, so not checking this.
+    sort_targetid = np.argsort(targetid)
 
-    APC = True
-    if not APC:
-        for i, tileid in enumerate(obsconditions['TILEID']):
-            ii = np.in1d(targets['TARGETID'], targets_in_tile[tileid])
-            if np.count_nonzero(ii) > 0:
-                tmp = (simulated_eff[ii]*zeff_obs[i]).clip(0, 1)
-                pfail[ii] *= (1-tmp)
-                observed[ii] = True
+    # Extract the targets-per-tile lists into one huge list.
+    concat_targets_in_tile  = np.concatenate([targets_in_tile[tileid] for tileid in obsconditions['TILEID']])
+    ntargets_per_tile       = np.array([len(targets_in_tile[tileid])  for tileid in obsconditions['TILEID']])
 
-    else:
-        ### APC >>> ###
+    # Match entries in each tile list against sorted target list.
+    target_idx    = targetid[sort_targetid].searchsorted(concat_targets_in_tile,side='left')
+    target_idx_r  = targetid[sort_targetid].searchsorted(concat_targets_in_tile,side='right')
+    del(concat_targets_in_tile)
 
-        # Assume targets['TARGETID'] is unique, so not checking this. 
+    # Flag targets in tiles that do not appear in the target list (sky,
+    # standards).
+    not_matched = target_idx_r - target_idx == 0
+    target_idx[not_matched] = -1
+    del(target_idx_r,not_matched)
 
-        # Extract the targets-per-tile lists into one huge list.
-        concat_targets_in_tile  = np.concatenate([targets_in_tile[tileid] for tileid in obsconditions['TILEID']])
-        ntargets_per_tile       = np.array([len(targets_in_tile[tileid])  for tileid in obsconditions['TILEID']])
-        
-        # Not every tile has 5000 targets, so count individually
-        offset            = np.concatenate([[0],np.cumsum(ntargets_per_tile[:-1])]) 
+    # Not every tile has 5000 targets, so use individual counts to
+    # construct offset of each tile in target_idx.
+    offset  = np.concatenate([[0],np.cumsum(ntargets_per_tile[:-1])])
 
-        # Match entries in each tile list against sorted target list.
-        # Fixme -- no need to do this multiple times; should sort outside this
-        # routine and allow passing a sorted targetid list to save time.
-        sort_targetid = np.argsort(targets['TARGETID'])
-        target_idx    = targets['TARGETID'][sort_targetid].searchsorted(concat_targets_in_tile,side='left')
-        target_idx_r  = targets['TARGETID'][sort_targetid].searchsorted(concat_targets_in_tile,side='right')
-
-        # Flag targets in tiles that do not appear in the target list (sky,
-        # standards)
-        not_matched = target_idx_r - target_idx == 0
-        target_idx[not_matched] = -1
-        del(target_idx_r,not_matched)
-
-        # For each tile, process targets
-        for i, tileid in enumerate(obsconditions['TILEID']):
-            if ntargets_per_tile[i] > 0:
-                # List of indices into sorted target list for each observed source
-                targets_this_tile  = target_idx[offset[i]:offset[i]+ntargets_per_tile[i]]
-                targets_this_tile  = targets_this_tile[targets_this_tile > 0]
-                ii  = sort_targetid[targets_this_tile]
-                tmp = (simulated_eff[ii]*zeff_obs[i]).clip(0, 1)
-                pfail[ii] *= (1-tmp)
-                observed[ii] = True
-
-        #del(sort_targetid)
-
-    t1 = time()
-    print('DEBUG TIME: %f s'%(t1-t0))
-    ### <<< APC ###
+    # For each tile, process targets.
+    for i, tileid in enumerate(obsconditions['TILEID']):
+        if ntargets_per_tile[i] > 0:
+            # Quickly get all the matched targets on this tile.
+            targets_this_tile  = target_idx[offset[i]:offset[i]+ntargets_per_tile[i]]
+            targets_this_tile  = targets_this_tile[targets_this_tile > 0]
+            # List of indices into sorted target list for each observed
+            # source.
+            ii  = sort_targetid[targets_this_tile]
+            tmp = (simulated_eff[ii]*zeff_obs[i]).clip(0, 1)
+            pfail[ii] *= (1-tmp)
+            observed[ii] = True
     
     simulated_eff = (1-pfail)
 
-    pr.disable()
-    #ps = pstats.Stats(pr).sort_stats('cumulative')
-    #ps.print_stats()
-    #assert(False)
     return observed, simulated_eff
 
 # Efficiency model
