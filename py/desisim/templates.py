@@ -662,9 +662,9 @@ class GALAXY(object):
                 snenorm = self.rfilt.get_ab_maggies(sne_restflux, zwave)
 
             for ichunk in range(nchunk):
-                if ii % 50 == 0:
-                    log.debug('Simulating {} template {}/{} in chunk {}/{}'. \
-                              format(self.objtype, ii, nmodel, ichunk, nchunk))
+                if ii % 100 == 0 and ii > 0:
+                    log.debug('Simulating {} template {}/{} in chunk {}/{}.'. \
+                              format(self.objtype, ii, nmodel, ichunk+1, nchunk))
                 templateid = alltemplateid_chunk[ichunk][ii, :]
                 nbasechunk = len(templateid)
 
@@ -1243,9 +1243,9 @@ class SUPERSTAR(object):
             zwave = self.basewave.astype(float)*(1.0 + redshift[ii])
 
             for ichunk in range(nchunk):
-                if ii % 50 == 0:
-                    log.debug('Simulating {} template {}/{} in chunk {}/{}'. \
-                              format(self.objtype, ii, nmodel, ichunk, nchunk))
+                if ii % 100 == 0 and ii > 0:
+                    log.debug('Simulating {} template {}/{} in chunk {}/{}.'. \
+                              format(self.objtype, ii, nmodel, ichunk+1, nchunk))
                 templateid = alltemplateid_chunk[ichunk][ii, :]
                 nbasechunk = len(templateid)
 
@@ -1744,7 +1744,7 @@ class QSO():
         cosmo = cosmology.core.FlatLambdaCDM(70., 0.3)
 
         for ii in range(nmodel):
-            if ii % 50 == 0:
+            if ii % 100 == 0 and ii > 0:
                 log.debug('Simulating {} template {}/{}.'.format(self.objtype, ii, nmodel))
 
             templaterand = np.random.RandomState(templateseed[ii])
