@@ -247,9 +247,40 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
     zeff_obs = get_zeff_obs(simtype, obsconditions)
     pfail = np.ones(n)
     observed = np.zeros(n, dtype=bool)
+
+    # More efficient alternative for large numbers of tiles + large target
+    # list, but requires pre-computing the sort order of targetids.
+    # Assume targets['TARGETID'] is unique, so not checking this.
+    sort_targetid = np.argsort(targetid)
+
+    # Extract the targets-per-tile lists into one huge list.
+    concat_targets_in_tile  = np.concatenate([targets_in_tile[tileid] for tileid in obsconditions['TILEID']])
+    ntargets_per_tile       = np.array([len(targets_in_tile[tileid])  for tileid in obsconditions['TILEID']])
+
+    # Match entries in each tile list against sorted target list.
+    target_idx    = targetid[sort_targetid].searchsorted(concat_targets_in_tile,side='left')
+    target_idx_r  = targetid[sort_targetid].searchsorted(concat_targets_in_tile,side='right')
+    del(concat_targets_in_tile)
+
+    # Flag targets in tiles that do not appear in the target list (sky,
+    # standards).
+    not_matched = target_idx_r - target_idx == 0
+    target_idx[not_matched] = -1
+    del(target_idx_r,not_matched)
+
+    # Not every tile has 5000 targets, so use individual counts to
+    # construct offset of each tile in target_idx.
+    offset  = np.concatenate([[0],np.cumsum(ntargets_per_tile[:-1])])
+
+    # For each tile, process targets.
     for i, tileid in enumerate(obsconditions['TILEID']):
-        ii = np.in1d(targets['TARGETID'], targets_in_tile[tileid])
-        if np.count_nonzero(ii) > 0:
+        if ntargets_per_tile[i] > 0:
+            # Quickly get all the matched targets on this tile.
+            targets_this_tile  = target_idx[offset[i]:offset[i]+ntargets_per_tile[i]]
+            targets_this_tile  = targets_this_tile[targets_this_tile > 0]
+            # List of indices into sorted target list for each observed
+            # source.
+            ii  = sort_targetid[targets_this_tile]
             tmp = (simulated_eff[ii]*zeff_obs[i]).clip(0, 1)
             pfail[ii] *= (1-tmp)
             observed[ii] = True
