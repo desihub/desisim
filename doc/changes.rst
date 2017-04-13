@@ -2,7 +2,12 @@
 desisim change log
 ==================
 
-0.18.3 (unreleased)
+0.18.4 (unreleased)
+-------------------
+
+* No changes yet
+
+0.18.3 (2017-04-13)
 -------------------
 
 * Fix quickgen for specsim v0.8 (`PR #226`_).
