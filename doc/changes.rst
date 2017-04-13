@@ -7,9 +7,11 @@ desisim change log
 
 * Fix quickgen for specsim v0.8 (`PR #226`_).
 * Add verbose output to templates code (`PR #230`_).
+* Much faster quickcat (`PR #233`_).
 
 .. _`PR #226`: https://github.com/desihub/desisim/pull/226
 .. _`PR #230`: https://github.com/desihub/desisim/pull/230
+.. _`PR #233`: https://github.com/desihub/desisim/pull/233
 
 0.18.2 (2017-03-27)
 -------------------
