@@ -1777,11 +1777,11 @@ class QSO():
                 colormask = np.repeat(1, nmade)
             else:
                 colormask = self.colorcuts_function(
-                    gflux=synthnano[1],
-                    rflux=synthnano[2],
-                    zflux=synthnano[4],
-                    w1flux=synthnano[6],
-                    w2flux=synthnano[7], optical=True)
+                    gflux=synthnano[:, 1],
+                    rflux=synthnano[:, 2],
+                    zflux=synthnano[:, 4],
+                    w1flux=synthnano[:, 6],
+                    w2flux=synthnano[:, 7], optical=True)
 
             # If the color-cuts pass then populate the output flux vector
             # (suitably normalized) and metadata table and finish up.
