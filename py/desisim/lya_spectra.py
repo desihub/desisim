@@ -18,7 +18,7 @@ c_cgs = const.c.to('cm/s').value
 
 def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss2010-g',
                 seed=None, rand=None, qso=None, add_dlas=False, debug=False):
-    '''Generate a QSO spectrum which includes Lyman-alpha absorption.
+    """Generate a QSO spectrum which includes Lyman-alpha absorption.
 
     Args:
         lyafile (str): name of the Lyman-alpha spectrum file to read.
@@ -51,7 +51,7 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
         dla_meta (astropy.Table): Table of meta-data [ndla] for the DLAs injected
           into the spectra.  Only returned if add_dlas=True
 
-    '''
+    """
     from scipy.interpolate import interp1d
 
     import fitsio
@@ -129,9 +129,8 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
                 if ndla > 0:
                     flux1 *= dla_model
                     # Meta
-                    for idla in dlas:
-                        dla_z += [idla['z'] for idla in dlas]
-                        dla_NHI += [idla['N'] for idla in dlas]
+                    dla_z += [idla['z'] for idla in dlas]
+                    dla_NHI += [idla['N'] for idla in dlas]
                     dla_id += [indx]*ndla
 
         padflux, padwave = normfilt.pad_spectrum(flux1, wave, method='edge')
@@ -147,7 +146,8 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
     if add_dlas:
         ndla = len(dla_id)
         if ndla > 0:
-            dla_meta = empty_metatable(objtype='DLAs', nmodel=ndla)
+            from astropy.table import Table
+            dla_meta = Table()
             dla_meta['NHI'] = dla_NHI  # log NHI values
             dla_meta['z'] = dla_z
             dla_meta['ID'] = dla_id
