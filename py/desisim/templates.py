@@ -1752,6 +1752,7 @@ class QSO():
             _, final_flux, redshifts = dqt.desi_qso_templates(
                 z_wind=self.z_wind, N_perz=N_perz, rstate=templaterand,
                 redshift=redshift[ii], rebin_wave=zwave, no_write=True, cosmo=cosmo, ipad=15)
+            import pdb ; pdb.set_trace()
             
             restflux = final_flux.T
             nmade = np.shape(restflux)[0]
