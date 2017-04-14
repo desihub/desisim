@@ -1600,6 +1600,7 @@ class QSO():
           decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence
 
         """
+        from astropy.io import fits
         from speclite import filters
         from desisim.io import find_basis_template
         from desiutil.log import get_logger
@@ -1625,17 +1626,50 @@ class QSO():
             wave = np.linspace(minwave, maxwave, npix)
         self.wave = wave
 
-        # Find the basis files.
-        self.basis_file = find_basis_template('qso')
+        # Load the PCA eigenvectors and associated data.
+        infile = find_basis_template('qso')
+        with fits.open(infile) as hdus:
+            hdu_names = [hdus[ii].name for ii in range(len(hdus))]
+            self.boss_pca_coeff = hdus[hdu_names.index('BOSS_PCA')].data
+            self.sdss_pca_coeff = hdus[hdu_names.index('SDSS_PCA')].data
+            self.boss_zQSO = hdus[hdu_names.index('BOSS_Z')].data
+            self.sdss_zQSO = hdus[hdu_names.index('SDSS_Z')].data
+            self.eigenflux = hdus[hdu_names.index('SDSS_EIGEN')].data
+            self.eigenwave = hdus[hdu_names.index('SDSS_EIGEN_WAVE')].data
+
+        self.pca_list = ['PCA0', 'PCA1', 'PCA2', 'PCA3']
+
         self.z_wind = z_wind
 
         # Initialize the filter profiles.
         self.normfilt = filters.load_filters(self.normfilter)
         self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
 
+    def _apply_mfp(self, wave, flux, zz, mfp, cosmo):
+        """MFP (Worseck+14)"""
+
+        lambda_912 = 911.76
+        pix912 = np.argmin( np.abs(self.eigenwave-lambda_912) )
+        
+        z912 = wave[0:pix912] / lambda_912 - 1.0
+        phys_dist = np.fabs( cosmo.lookback_distance(z912) -
+                             cosmo.lookback_distance(zz) ) # Mpc
+        flux[0:pix912] *= np.exp(-phys_dist.value / mfp[ii])
+
+        return flux
+
+    def _sample_pcacoeff(self, nsample, coeff, rand):
+        """Draw from the distribution of PCA coefficients."""
+        nmodel = len(coeff)
+        cdf = np.cumsum(coeff, dtype=float)
+        cdf /= cdf[-1]
+        x = rand.uniform(0.0, 1.0, size=nsample)
+        
+        return coeff[np.interp(x, cdf, np.arange(0, nmodel, 1)).astype('int')]
+
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(21.0, 23.0),
-                       seed=None, redshift=None, mag=None, input_meta=None,
-                       nocolorcuts=False, N_perz=1, verbose=False):
+                       seed=None, redshift=None, mag=None, input_meta=None, N_perz=20, 
+                       maxiter=20, uniform=False, nocolorcuts=False, verbose=False):
         """Build Monte Carlo QSO spectra/templates.
 
         This function generates QSO spectra on-the-fly using PCA decomposition
@@ -1672,9 +1706,14 @@ class QSO():
             data type for each column.  If this table is passed then all other
             optional inputs (nmodel, redshift, mag, zrange, rmagrange, etc.) are
             ignored.
+          N_perz (int, optional): Number of templates per redshift redshift
+            value to generate (default 20).
+          maxiter (int): maximum number of iterations for findng a non-negative
+            template that also satisfies the color-cuts (default 20).
+          uniform (bool, optional): Draw uniformly from the PCA coefficients
+            (default False).
           nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
             cuts (default False).
-          N_perz (int, optional): Number of templates per redshift bin or redshift value.
           verbose (bool, optional): Be verbose!
         Returns:
           outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
@@ -1687,13 +1726,18 @@ class QSO():
         """
         from astropy import cosmology
         from desispec.interpolation import resample_flux
-        from desisim.qso_template import desi_qso_templ as dqt
         from desiutil.log import get_logger, DEBUG
+        import lya_mock_p1d as mock
+
+        if uniform:
+            from desiutil.stats import perc
 
         if verbose:
             log = get_logger(DEBUG)
         else:
             log = get_logger()
+
+        cosmo = cosmology.core.FlatLambdaCDM(70.0, 0.3)
 
         if redshift is not None:
             if len(redshift) != nmodel:
@@ -1705,6 +1749,9 @@ class QSO():
             if len(mag) != nmodel:
                 log.fatal('Mag must be an nmodel-length array')
                 raise ValueError
+
+        # Fiddle with the eigen-vectors
+        npix = len(self.eigenwave)
 
         # Optionally unpack a metadata table.
         if input_meta is not None:
@@ -1736,12 +1783,14 @@ class QSO():
                                (redshift, mag, templateseed)):
             meta[key] = value
 
-        # Build each spectrum in turn.
-        zwave = self.wave # [observed-frame, Angstrom]
-        outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
+        mfp = np.atleast_1d(37.0 * ( (1 + redshift)/5.0)**(-5.4)) # Physical Mpc
 
-        # Cosmology
-        cosmo = cosmology.core.FlatLambdaCDM(70., 0.3)
+        # Build each spectrum in turn.
+        PCA_rand = np.zeros((4, N_perz))
+        #ztemplate = np.arange(0, N_perz, 1)
+        miniflux = np.zeros([N_perz, npix])
+
+        outflux = np.zeros([nmodel, npix]) # [erg/s/cm2/A]
 
         for ii in range(nmodel):
             if ii % 100 == 0 and ii > 0:
@@ -1749,33 +1798,68 @@ class QSO():
 
             templaterand = np.random.RandomState(templateseed[ii])
 
-            final_wave, final_flux = dqt.desi_qso_templates(
-                z_wind=self.z_wind, rstate=templaterand,
-                redshift=redshift[ii], no_write=True, cosmo=cosmo)
-            import pdb ; pdb.set_trace()
-            
-            restflux = final_flux.T
-            nmade = np.shape(restflux)[0]
-
-            # Synthesize photometry to determine which models will pass the
-            # color-cuts.  We have to temporarily pad because the spectra don't
-            # go red enough.
-            padflux, padzwave = self.decamwise.pad_spectrum(restflux, zwave, method='edge')
-            maggies = self.decamwise.get_ab_maggies(padflux, padzwave, mask_invalid=True)
-
-            if self.normfilter in self.decamwise.names:
-                normmaggies = np.array(maggies[self.normfilter])
+            # BOSS or SDSS?
+            if redshift[ii] > 2.15:
+                zQSO = self.boss_zQSO
+                pca_coeff = self.boss_pca_coeff
             else:
-                normmaggies = np.array(self.normfilt.get_ab_maggies(
-                    padflux, padzwave, mask_invalid=True)[self.normfilter])
-            magnorm = 10**(-0.4*mag[ii]) / normmaggies
+                zQSO = self.sdss_zQSO
+                pca_coeff = self.sdss_pca_coeff
 
-            synthnano = np.zeros((nmade, len(self.decamwise)))
-            for ff, key in enumerate(maggies.columns):
-                synthnano[:, ff] = 1E9 * maggies[key] * magnorm
+            zwave = np.outer(self.eigenwave, 1+redshift[ii]).flatten() # [observed-frame, Angstrom]
 
-            if nocolorcuts or self.colorcuts_function is None:
-                colormask = np.repeat(1, nmade)
+            idx = np.where( (zQSO > redshift[ii]-self.z_wind/2) * (zQSO < redshift[ii]+self.z_wind/2) )[0]
+            if len(idx) == 0:
+                idx = np.where( (zQSO > redshift[ii]-self.z_wind) * (zQSO < redshift[ii]+self.z_wind) )[0]
+                if len(idx) == 0:
+                    log.warning('Redshift {} far from any parent BOSS/SDSS quasars; choosing closest one.')
+                    idx = np.array( np.abs(zQSO-redshift[ii]).argmin() )
+
+            # Iterate up to maxiter.
+            makemore, itercount = True, 0
+            while makemore:
+                print(makemore, itercount)
+
+                # Gather N_perz sets of coefficients.
+                for jj, ipca in enumerate(self.pca_list):
+                    if uniform:
+                        if jj == 0:  # Use bounds for PCA0 [avoids negative values]
+                            xmnx = perc(pca_coeff[ipca][idx], per=95)
+                            PCA_rand[jj, :] = templaterand.uniform(xmnx[0], xmnx[1], N_perz)
+                        else:
+                            mn = np.mean(pca_coeff[ipca][idx])
+                            sig = np.std(pca_coeff[ipca][idx])
+                            PCA_rand[jj, :] = templaterand.uniform( mn - 2*sig, mn + 2*sig, N_perz)
+                    else:
+                        PCA_rand[jj, :] = self._sample_pcacoeff(N_perz, pca_coeff[ipca][idx], templaterand)
+
+                # Instantiate the templates.
+                for kk in range(N_perz):
+                    miniflux[kk, :] = np.dot(self.eigenflux.T, PCA_rand[:, kk]).flatten()
+                    if redshift[ii] > 2.39:
+                        miniflux[kk, :] = self._apply_mfp(zwave, miniflux[kk, :], redshift[ii], mfp, cosmo)
+
+                    if np.sum(flux[(zwave > 3000) & (zwave < 1E4)] < 0) == 0: # no negative flux
+
+                        # Synthesize photometry to determine which models will pass the
+                        # color-cuts.  We have to temporarily pad because the spectra don't
+                        # go red enough.
+                        padflux, padzwave = self.decamwise.pad_spectrum(flux, zwave, method='edge')
+                        maggies = self.decamwise.get_ab_maggies(padflux, padzwave, mask_invalid=True)
+
+                        if self.normfilter in self.decamwise.names:
+                            normmaggies = np.array(maggies[self.normfilter])
+                        else:
+                            normmaggies = np.array(self.normfilt.get_ab_maggies(
+                                padflux, padzwave, mask_invalid=True)[self.normfilter])
+                        magnorm = 10**(-0.4*mag[ii]) / normmaggies
+
+                        synthnano = np.zeros((nmade, len(self.decamwise)))
+                        for ff, key in enumerate(maggies.columns):
+                            synthnano[:, ff] = 1E9 * maggies[key] * magnorm
+
+                        if nocolorcuts or self.colorcuts_function is None:
+                            colormask = 1  np.repeat(1, nmade)
             else:
                 colormask = self.colorcuts_function(
                     gflux=synthnano[:, 1],
@@ -1793,6 +1877,22 @@ class QSO():
               # Temporary hack until the models go redder.
               meta['DECAM_FLUX'][ii] = synthnano[this, :6]
               meta['WISE_FLUX'][ii] = synthnano[this, 6:8]
+
+
+                        
+
+                        makemore = False
+                        break
+
+
+                    itercount += 1
+                    if itercount == maxiter:
+                        makemore = False
+                        
+
+            restflux = final_flux.T
+            nmade = np.shape(restflux)[0]
+
 
         # Check to see if any spectra could not be computed.
         success = (np.sum(outflux, axis=1) > 0)*1
