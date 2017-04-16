@@ -5,6 +5,7 @@ import unittest
 import numpy as np
 from astropy.table import Table, Column
 from desisim.templates import ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR, WD
+from desisim import lya_mock_p1d as lyamock
 
 desimodel_data_available = 'DESIMODEL' in os.environ
 desi_templates_available = 'DESI_ROOT' in os.environ
@@ -150,6 +151,7 @@ class TestTemplates(unittest.TestCase):
                     #- not sure why the tolerances aren't closer
                     if not np.allclose(meta1[key], meta2[key], atol=5e-5):
                         print(meta1['OBJTYPE'][0], key, meta1[key], meta2[key])
+                        import pdb ; pdb.set_trace()
                         badkeys.append(key)
                 else:
                     if not np.all(meta1[key] == meta2[key]):
@@ -185,5 +187,16 @@ class TestTemplates(unittest.TestCase):
                         badkeys.append(key)
             self.assertEqual(len(badkeys), 0, 'mismatch for spectral type {} in keys {}'.format(meta['OBJTYPE'][0], badkeys))
 
+    def test_lyamock_seed(self):
+        '''Test that random seed works to get the same results back'''
+        print('In function test_lyamock_seed, seed = {}'.format(self.seed))
+        mock = lyamock.MockMaker()
+        wave1, flux1 = mock.get_lya_skewers(self.nspec, new_seed=1)
+        wave2, flux2 = mock.get_lya_skewers(self.nspec, new_seed=1)
+        wave3, flux3 = mock.get_lya_skewers(self.nspec, new_seed=2)
+        self.assertTrue(np.all(flux1==flux2))
+        self.assertTrue(np.any(flux1!=flux3))
+        self.assertTrue(np.all(wave1==wave2))
+    
 if __name__ == '__main__':
     unittest.main()

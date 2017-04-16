@@ -366,7 +366,7 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
         elif objtype == 'QSO':
             from desisim.templates import QSO
             qso = QSO(wave=wave)
-            simflux, wave1, meta = qso.make_templates(nmodel=nobj, seed=seed, nocolorcuts=True)
+            simflux, wave1, meta = qso.make_templates(nmodel=nobj, seed=seed)
             fibermap['DESI_TARGET'][ii] = desi_mask.QSO
 
         # For a "bad" QSO simulate a normal star without color cuts, which isn't

@@ -1755,11 +1755,12 @@ class QSO():
             meta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
 
             # Pre-compute the Lyman-alpha skewers.
-            skewer_flux = np.zeros((nmodel, npix))
             if lyaforest:
                 for ii in range(nmodel):
                     skewer_wave, skewer_flux1 = self.lyamock_maker.get_lya_skewers(
-                        nmodel, new_seed=templateseed[ii])
+                        1, new_seed=templateseed[ii])
+                    if ii == 0:
+                        skewer_flux = np.zeros( (nmodel, len(skewer_wave)) )
                     skewer_flux[ii, :] = skewer_flux1
 
         else:
