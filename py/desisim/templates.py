@@ -1654,7 +1654,7 @@ class QSO():
         z912 = wave[0:pix912] / lambda_912 - 1.0
         phys_dist = np.fabs( cosmo.lookback_distance(z912) -
                              cosmo.lookback_distance(zz) ) # Mpc
-        flux[0:pix912] *= np.exp(-phys_dist.value / mfp[ii])
+        flux[0:pix912] *= np.exp(-phys_dist.value / mfp)
 
         return flux
 
@@ -1667,8 +1667,8 @@ class QSO():
         
         return coeff[np.interp(x, cdf, np.arange(0, nmodel, 1)).astype('int')]
 
-    def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(21.0, 23.0),
-                       seed=None, redshift=None, mag=None, input_meta=None, N_perz=20, 
+    def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(20.0, 22.5),
+                       seed=None, redshift=None, mag=None, input_meta=None, N_perz=50, 
                        maxiter=20, uniform=False, nocolorcuts=False, verbose=False):
         """Build Monte Carlo QSO spectra/templates.
 
@@ -1727,7 +1727,7 @@ class QSO():
         from astropy import cosmology
         from desispec.interpolation import resample_flux
         from desiutil.log import get_logger, DEBUG
-        import lya_mock_p1d as mock
+        #import lya_mock_p1d as mock
 
         if uniform:
             from desiutil.stats import perc
@@ -1787,13 +1787,15 @@ class QSO():
 
         # Build each spectrum in turn.
         PCA_rand = np.zeros((4, N_perz))
-        #ztemplate = np.arange(0, N_perz, 1)
-        miniflux = np.zeros([N_perz, npix])
+        nonegflux = np.zeros(N_perz)
+        colormask = np.repeat(1, N_perz)
+        flux = np.zeros([N_perz, npix])
 
-        outflux = np.zeros([nmodel, npix]) # [erg/s/cm2/A]
+        outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
 
         for ii in range(nmodel):
-            if ii % 100 == 0 and ii > 0:
+            if ii % 10 == 0 and ii > 0:
+            #if ii % 100 == 0 and ii > 0:
                 log.debug('Simulating {} template {}/{}.'.format(self.objtype, ii, nmodel))
 
             templaterand = np.random.RandomState(templateseed[ii])
@@ -1818,7 +1820,6 @@ class QSO():
             # Iterate up to maxiter.
             makemore, itercount = True, 0
             while makemore:
-                print(makemore, itercount)
 
                 # Gather N_perz sets of coefficients.
                 for jj, ipca in enumerate(self.pca_list):
@@ -1835,64 +1836,61 @@ class QSO():
 
                 # Instantiate the templates.
                 for kk in range(N_perz):
-                    miniflux[kk, :] = np.dot(self.eigenflux.T, PCA_rand[:, kk]).flatten()
-                    if redshift[ii] > 2.39:
-                        miniflux[kk, :] = self._apply_mfp(zwave, miniflux[kk, :], redshift[ii], mfp, cosmo)
+                    flux[kk, :] = np.dot(self.eigenflux.T, PCA_rand[:, kk]).flatten()
+                    #if redshift[ii] > 2.39:
+                    #    flux[kk, :] = self._apply_mfp(zwave, flux[kk, :], redshift[ii], mfp[ii], cosmo)
+                    nonegflux[kk] = (np.sum(flux[kk, (zwave > 3200) & (zwave < 1E4)] < 0) == 0) * 1
 
-                    if np.sum(flux[(zwave > 3000) & (zwave < 1E4)] < 0) == 0: # no negative flux
+                # Synthesize photometry to determine which models will pass the
+                # color-cuts.  We have to temporarily pad because the spectra
+                # don't go red enough.
+                padflux, padzwave = self.decamwise.pad_spectrum(flux, zwave, method='edge')
+                maggies = self.decamwise.get_ab_maggies(padflux, padzwave, mask_invalid=True)
 
-                        # Synthesize photometry to determine which models will pass the
-                        # color-cuts.  We have to temporarily pad because the spectra don't
-                        # go red enough.
-                        padflux, padzwave = self.decamwise.pad_spectrum(flux, zwave, method='edge')
-                        maggies = self.decamwise.get_ab_maggies(padflux, padzwave, mask_invalid=True)
+                if self.normfilter in self.decamwise.names:
+                    normmaggies = np.array(maggies[self.normfilter])
+                else:
+                    normmaggies = np.array(self.normfilt.get_ab_maggies(
+                        padflux, padzwave, mask_invalid=True)[self.normfilter])
+                magnorm = 10**(-0.4*mag[ii]) / normmaggies
 
-                        if self.normfilter in self.decamwise.names:
-                            normmaggies = np.array(maggies[self.normfilter])
-                        else:
-                            normmaggies = np.array(self.normfilt.get_ab_maggies(
-                                padflux, padzwave, mask_invalid=True)[self.normfilter])
-                        magnorm = 10**(-0.4*mag[ii]) / normmaggies
+                synthnano = np.zeros((N_perz, len(self.decamwise)))
+                for ff, key in enumerate(maggies.columns):
+                    synthnano[:, ff] = 1E9 * maggies[key] * magnorm
 
-                        synthnano = np.zeros((nmade, len(self.decamwise)))
-                        for ff, key in enumerate(maggies.columns):
-                            synthnano[:, ff] = 1E9 * maggies[key] * magnorm
+                if nocolorcuts or self.colorcuts_function is None:
+                    pass
+                else:
+                    colormask = self.colorcuts_function(
+                        gflux=synthnano[:, 1],
+                        rflux=synthnano[:, 2],
+                        zflux=synthnano[:, 4],
+                        w1flux=synthnano[:, 6],
+                        w2flux=synthnano[:, 7], optical=True)
 
-                        if nocolorcuts or self.colorcuts_function is None:
-                            colormask = 1  np.repeat(1, nmade)
-            else:
-                colormask = self.colorcuts_function(
-                    gflux=synthnano[:, 1],
-                    rflux=synthnano[:, 2],
-                    zflux=synthnano[:, 4],
-                    w1flux=synthnano[:, 6],
-                    w2flux=synthnano[:, 7], optical=True)
+                # If the color-cuts pass then populate the output flux vector
+                # (suitably normalized) and metadata table and finish up.
+                if np.any(colormask * nonegflux):
+                    this = templaterand.choice(np.where(colormask)[0]) # Pick one randomly.
+                    
+                    outflux[ii, :] = resample_flux(self.wave, zwave, flux[this, :]) * magnorm[this]
 
-            # If the color-cuts pass then populate the output flux vector
-            # (suitably normalized) and metadata table and finish up.
-            if np.any(colormask):
-              this = templaterand.choice(np.where(colormask)[0]) # Pick one randomly.
-              outflux[ii, :] = restflux[this, :] * magnorm[this]
+                    meta['DECAM_FLUX'][ii] = synthnano[this, :6]
+                    meta['WISE_FLUX'][ii] = synthnano[this, 6:8]
 
-              # Temporary hack until the models go redder.
-              meta['DECAM_FLUX'][ii] = synthnano[this, :6]
-              meta['WISE_FLUX'][ii] = synthnano[this, 6:8]
-
-
-                        
-
-                        makemore = False
-                        break
-
-
-                    itercount += 1
-                    if itercount == maxiter:
-                        makemore = False
-                        
-
-            restflux = final_flux.T
-            nmade = np.shape(restflux)[0]
-
+                    makemore = False
+                    
+                itercount += 1
+                if itercount == maxiter:
+                    log.warning('Maximum number of iterations reached on QSO {}, z={:.5f}.'.format(ii, redshift[ii]))
+                    makemore = False
+                    
+                    #import matplotlib.pyplot as plt
+                    #for bb in range(N_perz):
+                    #    plt.plot(zwave, flux[bb, :])
+                    #    plt.xlim(3500, 1E4)
+                    #plt.show()
+                    #import pdb ; pdb.set_trace()
 
         # Check to see if any spectra could not be computed.
         success = (np.sum(outflux, axis=1) > 0)*1
