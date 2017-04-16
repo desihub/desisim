@@ -1,0 +1,24 @@
+#!/usr/bin/env python
+
+"""Simple script to time the impact of using a subset of velocity dispersion
+values.  To compare the "before and after" run with:
+
+% time python time-vdisp-cache -n 100
+% time python time-vdisp-cache -n 100 --no-cache
+
+"""
+import argparse
+from desisim.templates import QSO
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-n', '--nobj', default=100, type=int, help='Number of spectra to simulate.')
+    parser.add_argument('-s', '--seed', default=None, type=int, help='Random seed.')
+    parser.add_argument('--no-lyaforest', action='store_true', help='Do not include the Lya forest.')
+
+    args = parser.parse_args()
+
+    qso = QSO()
+    ff, ww, mm = qso.make_templates(nmodel=args.nobj, verbose=True, seed=args.seed,
+                                    lyaforest=not args.no_lyaforest)
