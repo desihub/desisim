@@ -745,8 +745,8 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype='', add_SNeIa=None):
     from astropy.table import Table, Column
 
     meta = Table()
-    meta.add_column(Column(name='OBJTYPE', length=nmodel, dtype=(str, 10)))
-    meta.add_column(Column(name='SUBTYPE', length=nmodel, dtype=(str, 10)))
+    meta.add_column(Column(name='OBJTYPE', length=nmodel, dtype='U10'))
+    meta.add_column(Column(name='SUBTYPE', length=nmodel, dtype='U10'))
     meta.add_column(Column(name='TEMPLATEID', length=nmodel, dtype='i4',
                            data=np.zeros(nmodel)-1))
     meta.add_column(Column(name='SEED', length=nmodel, dtype='int64',

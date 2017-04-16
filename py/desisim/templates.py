@@ -1753,23 +1753,9 @@ class QSO():
             mag = input_meta['MAG'].data
 
             meta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
-
-            # Pre-compute the Lyman-alpha skewers.
-            if lyaforest:
-                for ii in range(nmodel):
-                    skewer_wave, skewer_flux1 = self.lyamock_maker.get_lya_skewers(
-                        1, new_seed=templateseed[ii])
-                    if ii == 0:
-                        skewer_flux = np.zeros( (nmodel, len(skewer_wave)) )
-                    skewer_flux[ii, :] = skewer_flux1
-
+            
         else:
             meta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
-
-            # Pre-compute the Lyman-alpha skewers.
-            if lyaforest:
-                skewer_wave, skewer_flux = self.lyamock_maker.get_lya_skewers(
-                    nmodel, new_seed=seed)
 
             # Initialize the random seed.
             rand = np.random.RandomState(seed)
@@ -1781,6 +1767,15 @@ class QSO():
 
             if mag is None:
                 mag = rand.uniform(rmagrange[0], rmagrange[1], nmodel).astype('f4')
+
+        # Pre-compute the Lyman-alpha skewers.
+        if lyaforest:
+            for ii in range(nmodel):
+                skewer_wave, skewer_flux1 = self.lyamock_maker.get_lya_skewers(
+                    1, new_seed=templateseed[ii])
+                if ii == 0:
+                    skewer_flux = np.zeros( (nmodel, len(skewer_wave)) )
+                skewer_flux[ii, :] = skewer_flux1
 
         # Populate some of the metadata table.
         meta['TEMPLATEID'] = np.arange(nmodel)
@@ -1806,8 +1801,7 @@ class QSO():
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
 
         for ii in range(nmodel):
-            if ii % 10 == 0 and ii > 0:
-            #if ii % 100 == 0 and ii > 0:
+            if ii % 100 == 0 and ii > 0:
                 log.debug('Simulating {} template {}/{}.'.format(self.objtype, ii, nmodel))
 
             templaterand = np.random.RandomState(templateseed[ii])
@@ -1820,7 +1814,7 @@ class QSO():
                 zQSO = self.sdss_zQSO
                 pca_coeff = self.sdss_pca_coeff
 
-            # Build the Lya forest spectrum.
+            # Interpolate the Lya forest spectrum.
             if lyaforest:
                 no_forest = ( skewer_wave > self.lambda_lyalpha * (1 + redshift[ii]) )
                 skewer_flux[ii, no_forest] = 1.0
@@ -1896,7 +1890,6 @@ class QSO():
                 # (suitably normalized) and metadata table and finish up.
                 if np.any(colormask * nonegflux):
                     this = templaterand.choice(np.where(colormask)[0]) # Pick one randomly.
-                    
                     outflux[ii, :] = resample_flux(self.wave, zwave[:, ii], flux[this, :]) * magnorm[this]
 
                     meta['DECAM_FLUX'][ii] = synthnano[this, :6]

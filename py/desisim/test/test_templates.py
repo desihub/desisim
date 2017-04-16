@@ -151,7 +151,6 @@ class TestTemplates(unittest.TestCase):
                     #- not sure why the tolerances aren't closer
                     if not np.allclose(meta1[key], meta2[key], atol=5e-5):
                         print(meta1['OBJTYPE'][0], key, meta1[key], meta2[key])
-                        import pdb ; pdb.set_trace()
                         badkeys.append(key)
                 else:
                     if not np.all(meta1[key] == meta2[key]):
@@ -179,7 +178,6 @@ class TestTemplates(unittest.TestCase):
         for T in [STAR]:
             Tx = T(wave=self.wave)
             flux, wave, meta = Tx.make_templates(star_properties=star_properties, seed=self.seed)
-            #import pdb ; pdb.set_trace()
             badkeys = list()
             for key in meta.colnames:
                 if key in star_properties.colnames:
