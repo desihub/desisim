@@ -16,9 +16,11 @@ if __name__ == '__main__':
     parser.add_argument('-n', '--nobj', default=100, type=int, help='Number of spectra to simulate.')
     parser.add_argument('-s', '--seed', default=None, type=int, help='Random seed.')
     parser.add_argument('--no-lyaforest', action='store_true', help='Do not include the Lya forest.')
+    parser.add_argument('--nocolorcuts', action='store_true', help='Do not apply color-cuts.')
 
     args = parser.parse_args()
 
     qso = QSO()
     ff, ww, mm = qso.make_templates(nmodel=args.nobj, verbose=True, seed=args.seed,
-                                    lyaforest=not args.no_lyaforest)
+                                    lyaforest=not args.no_lyaforest, nocolorcuts=args.nocolorcuts)
+    print(mm)

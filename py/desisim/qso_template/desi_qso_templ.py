@@ -34,7 +34,6 @@ try:
 except ImportError:
     flg_xdb = False
 
-LIGHT = 2.99792458e5        # [km/s]
 
 def mean_templ_zi(zimag, debug=False, i_wind=0.1, z_wind=0.05,
                   boss_pca_fil=None):
@@ -175,20 +174,13 @@ def fig_desi_templ_z_i(outfil=None, boss_fil=None, flg=0):
     else:
         plt.show()
 
-def _sample_pcacoeff(nsample, coeff, rand):
-    """Simple script to draw from the distribution of PCA coefficients."""
-    nmodel = len(coeff)
-    cdf = np.cumsum(coeff, dtype=float)
-    cdf /= cdf[-1]
-    x = rand.uniform(0.0, 1.0, size=nsample)
-    return coeff[np.interp(x, cdf, np.arange(0, nmodel, 1)).astype('int')]
 
-def desi_qso_templates(nqso=1, z_wind=0.2, zmnx=(0.4, 4.0), outfil=None, N_perz=20,
+def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
                        boss_pca_fil=None, wvmnx=(3500., 10000.),
-                       rebin_wave=None, rstate=None, maxiter=20, 
+                       rebin_wave=None, rstate=None,
                        sdss_pca_fil=None, no_write=False, redshift=None,
-                       seed=None, old_read=False, ipad=40, cosmo=None, uniform=False):
-    """Generate QSO templates for DESI
+                       seed=None, old_read=False, ipad=40, cosmo=None):
+    """ Generate QSO templates for DESI
 
     Rebins to input wavelength array (or log10 in wvmnx)
 
@@ -214,9 +206,6 @@ def desi_qso_templates(nqso=1, z_wind=0.2, zmnx=(0.4, 4.0), outfil=None, N_perz=
       Padding for enabling enough models
     cosmo: astropy.cosmology.core, optional
        Cosmology inistantiation from astropy.cosmology.code
-    uniform: uniformly draw PCA coefficients rather than from the PDFs
-       themselves
-    
     Returns
     -------
     wave : ndarray
@@ -224,8 +213,10 @@ def desi_qso_templates(nqso=1, z_wind=0.2, zmnx=(0.4, 4.0), outfil=None, N_perz=
     flux : ndarray (2D; flux vs. model)
     z : ndarray
       Redshifts
-
     """
+
+
+    # Cosmology
     if cosmo is None:
         from astropy import cosmology
         cosmo = cosmology.core.FlatLambdaCDM(70., 0.3)
@@ -269,60 +260,41 @@ def desi_qso_templates(nqso=1, z_wind=0.2, zmnx=(0.4, 4.0), outfil=None, N_perz=
             eigen = hdus[hdu_names.index('SDSS_EIGEN')].data
             eigen_wave = hdus[hdu_names.index('SDSS_EIGEN_WAVE')].data
 
-    pca_list = ['PCA0', 'PCA1', 'PCA2', 'PCA3']
-
     # Fiddle with the eigen-vectors
     npix = len(eigen_wave)
-    chkpix = np.where((eigen_wave > 900.0) & (eigen_wave < 5000.0) )[0]
+    chkpix = np.where((eigen_wave > 900.) & (eigen_wave < 5000.) )[0]
     lambda_912 = 911.76
     pix912 = np.argmin( np.abs(eigen_wave-lambda_912) )
+
+    # Loop on redshift.  If the
+    if redshift is None:
+        z0 = np.arange(zmnx[0],zmnx[1],z_wind)
+        z1 = z0 + z_wind
+    else:
+        if np.isscalar(redshift):
+            z0 = np.array([redshift])
+        else:
+            z0 = redshift.copy()
+        z1 = z0.copy() #+ z_wind
+
+
+    pca_list = ['PCA0', 'PCA1', 'PCA2', 'PCA3']
+    PCA_mean = np.zeros(4)
+    PCA_sig = np.zeros(4)
+    PCA_rand = np.zeros((4,N_perz*ipad))
+
+    final_spec = np.zeros((npix, N_perz * len(z0)))
+    final_wave = np.zeros((npix, N_perz * len(z0)))
+    final_z = np.zeros(N_perz * len(z0))
 
     # Random state
     if rstate is None:
         rstate = np.random.RandomState(seed)
 
-    # Loop on redshift.
-    if redshift is None:
-        redshift = rstate.uniform(zmnx[0], zmnx[1], nqso)
-        #z0 = np.arange(zmnx[0], zmnx[1], z_wind)
-        #z1 = z0 + z_wind
-    #else:
-    #    if np.isscalar(redshift):
-    #        z0 = np.array([redshift])
-    #    else:
-    #        z0 = redshift.copy()
-    #    z1 = z0.copy() #+ z_wind
-
-    mfp = np.atleast_1d(37.0 * ( (1 + redshift)/5.0)**(-5.4)) # Physical Mpc
-
-    #if rebin_wave is None:
-    #    velpixsize = 10.0           # [km/s]
-    #    pixsize = velpixsize / LIGHT / np.log(10) # [pixel size in log-10 A]
-    #    minwave = np.log10(wvmnx[0])          # minimum wavelength [log10-A]
-    #    maxwave = np.log10(wvmnx[1])          # maximum wavelength [log10-A]
-    #    r_npix = np.round((maxwave-minwave)/pixsize+1)
-    #    log_wave = minwave+np.arange(r_npix)*pixsize # constant log-10 spacing
-    #else:
-    #    log_wave = np.log10(rebin_wave)
-    #    r_npix = len(log_wave)
-
-    final_flux = np.zeros((npix, nqso))
-    final_wave = np.zeros((npix, nqso))
-
-    #PCA_rand = np.zeros( (4, N_perz) )
-    #final_spec = np.zeros((npix, N_perz * len(z0)))
-    #final_wave = np.zeros((npix, N_perz * len(z0)))
-    #final_z = np.zeros(N_perz * len(z0))
-
-    PCA_rand = np.zeros((4, N_perz))
-    ztemplate = np.arange(0, N_perz, 1)
-
-    # Generate each QSO in turn.
-    for ii, zz in enumerate(np.atleast_1d(redshift)):
-    #for ii in range(len(z0)):
+    for ii in range(len(z0)):
 
         # BOSS or SDSS?
-        if zz > 2.15:
+        if z0[ii] > 2.15:
             zQSO = boss_zQSO
             pca_coeff = boss_pca_coeff
         else:
@@ -330,127 +302,96 @@ def desi_qso_templates(nqso=1, z_wind=0.2, zmnx=(0.4, 4.0), outfil=None, N_perz=
             pca_coeff = sdss_pca_coeff
 
         # Random z values and wavelengths
-        #zrand = rstate.uniform( z0[ii], z1[ii], N_perz*ipad)
-        #wave = np.outer(eigen_wave, 1+zrand)
-        wave = np.outer(eigen_wave, 1+zz).flatten()
+        zrand = rstate.uniform( z0[ii], z1[ii], N_perz*ipad)
+        wave = np.outer(eigen_wave, 1+zrand)
 
-        #if redshift is None:
-        #    idx = np.where( (zQSO >= z0[ii]) & (zQSO < z1[ii]) )[0]
-        #else:
-        #    # Hack by @moustakas: add a little jitter to get the set of QSOs
-        #    # that are *nearest* in redshift to the desired output redshift.
-        #    idx = np.where( (zQSO >= z0[ii]-0.01) & (zQSO < z1[ii]+0.01) )[0]
-        #    if len(idx) == 0:
-        #        idx = np.array([(np.abs(zQSO-zrand[0])).argmin()])
-        #        #pdb.set_trace()
-        #log.debug('Making z=({:g},{:g}) with {:d} input quasars'.format(z0[ii],z1[ii],len(idx)))
+        # MFP (Worseck+14)
+        mfp = 37. * ( (1+zrand)/5. )**(-5.4) # Physical Mpc
 
-        idx = np.where( (zQSO >= zz-z_wind/2) * (zQSO <= zz+z_wind/2) )[0]
-        if len(idx) == 0:
-            idx = np.where( (zQSO >= zz-z_wind) * (zQSO <= zz+z_wind) )[0]
+        # Grab PCA mean + sigma
+        if redshift is None:
+            idx = np.where( (zQSO >= z0[ii]) & (zQSO < z1[ii]) )[0]
+        else:
+            # Hack by @moustakas: add a little jitter to get the set of QSOs
+            # that are *nearest* in redshift to the desired output redshift.
+            idx = np.where( (zQSO >= z0[ii]-0.01) & (zQSO < z1[ii]+0.01) )[0]
             if len(idx) == 0:
-                log.warning('Redshift {} far from any parent BOSS/SDSS quasars.')
-                idx = np.array( np.abs(zQSO-zz).argmin() )
+                idx = np.array([(np.abs(zQSO-zrand[0])).argmin()])
+                #pdb.set_trace()
+        log.debug('Making z=({:g},{:g}) with {:d} input quasars'.format(z0[ii],z1[ii],len(idx)))
 
-        # Iterate up to maxiter.
-        makemore, itercount = True, 0
-        while makemore:
-            print(makemore, itercount)
+        # Get PCA stats and random values
+        for jj,ipca in enumerate(pca_list):
+            if jj == 0:  # Use bounds for PCA0 [avoids negative values]
+                xmnx = perc(pca_coeff[ipca][idx], per=95)
+                PCA_rand[jj, :] = rstate.uniform(xmnx[0], xmnx[1], N_perz*ipad)
+            else:
+                PCA_mean[jj] = np.mean(pca_coeff[ipca][idx])
+                PCA_sig[jj] = np.std(pca_coeff[ipca][idx])
+                # Draws
+                PCA_rand[jj, :] = rstate.uniform( PCA_mean[jj] - 2*PCA_sig[jj],
+                                        PCA_mean[jj] + 2*PCA_sig[jj], N_perz*ipad)
 
-            # Get PCA stats and random values
-            for jj, ipca in enumerate(pca_list):
-                if uniform:
-                    if jj == 0:  # Use bounds for PCA0 [avoids negative values]
-                        xmnx = perc(pca_coeff[ipca][idx], per=95)
-                        PCA_rand[jj, :] = rstate.uniform(xmnx[0], xmnx[1], N_perz)
-                    else:
-                        mn = np.mean(pca_coeff[ipca][idx])
-                        sig = np.std(pca_coeff[ipca][idx])
-                        PCA_rand[jj, :] = rstate.uniform( mn - 2*sig, mn + 2*sig, N_perz)
-                else:
-                    PCA_rand[jj, :] = _sample_pcacoeff(N_perz, pca_coeff[ipca][idx], rstate)
-                    if False:
-                        import pdb ; pdb.set_trace()
-                        import matplotlib.pyplot as plt
-                        cc = _sample_pcacoeff(N_perz, pca_coeff[ipca][idx], rstate)
-                        plt.hist(pca_coeff[ipca][idx], bins=200, normed=True)
-                        plt.hist(cc, bins=200, normed=True, alpha=0.5)
-                        plt.xlim(-0.001, 0.002)
-                        plt.show()
+        # Generate the templates (ipad*N_perz)
+        spec = np.dot(eigen.T, PCA_rand)
 
-                # Generate only as many templates as we need
-                rstate.shuffle(ztemplate)
-                for ztemp in ztemplate:
-                    spec = np.dot(eigen.T, PCA_rand[:, ztemp]).flatten()
+        # Take first good N_perz
 
-                    # MFP (Worseck+14)
-                    if zz > 2.39:
-                        z912 = wave[0:pix912] / lambda_912 - 1.0
-                        phys_dist = np.fabs( cosmo.lookback_distance(z912) -
-                                             cosmo.lookback_distance(zz) ) # Mpc
-                        spec[0:pix912] *= np.exp(-phys_dist.value / mfp[ii])
+        # Truncate, MFP, Fill
+        ngd = 0
+        nbad = 0
+        for kk in range(ipad*N_perz):
+            # Any zero values?
+            mn = np.min(spec[chkpix, kk])
+            if mn < 0.:
+                nbad += 1
+                continue
 
-                    chkpix = np.where((wave > 3000) & (eigen_wave < 1E4) )[0]
-                    if np.min(spec[chkpix]) <= 0:
-                        log.debug('Negative!')
-                    else:
-                        makemore = False
-                        break
+            # MFP
+            if z0[ii] > 2.39:
+                z912 = wave[0:pix912,kk]/lambda_912 - 1.
+                phys_dist = np.fabs( cosmo.lookback_distance(z912) -
+                                cosmo.lookback_distance(zrand[kk]) ) # Mpc
+                spec[0:pix912, kk] = spec[0:pix912,kk] * np.exp(-phys_dist.value/mfp[kk])
 
-                itercount += 1
-                if itercount == maxiter:
-                    makemore = False
+            # Write
+            final_spec[:, ii*N_perz+ngd] = spec[:,kk]
+            final_wave[:, ii*N_perz+ngd] = wave[:,kk]
+            final_z[ii*N_perz+ngd] = zrand[kk]
+            ngd += 1
+            if ngd == N_perz:
+                break
+        if ngd != N_perz:
+            print('Did not make enough!')
+            #pdb.set_trace()
+            log.warning('Did not make enough qso templates. ngd = {}, N_perz = {}'.format(ngd,N_perz))
 
-            final_flux[:, ii] = spec
-            final_wave[:, ii] = wave
+    # Rebin
+    if rebin_wave is None:
+        light = 2.99792458e5        # [km/s]
+        velpixsize = 10.            # [km/s]
+        pixsize = velpixsize/light/np.log(10) # [pixel size in log-10 A]
+        minwave = np.log10(wvmnx[0])          # minimum wavelength [log10-A]
+        maxwave = np.log10(wvmnx[1])          # maximum wavelength [log10-A]
+        r_npix = np.round((maxwave-minwave)/pixsize+1)
 
-            #import pdb ; pdb.set_trace()
-            #import matplotlib.pyplot as plt
-            #plt.plot(wave, spec) ; plt.show()
-            #plt.scatter(zQSO[idx], pca_coeff['PCA1'][idx], color='orange')
+        log_wave = minwave+np.arange(r_npix)*pixsize # constant log-10 spacing
+    else:
+        log_wave = np.log10(rebin_wave)
+        r_npix = len(log_wave)
 
-        #plt.plot(wave.flatten(), spec.flatten()) ; plt.show()
-        #
-        ## Take first good N_perz
-        #
-        ## Truncate, MFP, Fill
-        #ngd = 0
-        #nbad = 0
-        #for kk in range(ipad*N_perz):
-        #    # Any zero values?
-        #    mn = np.min(spec[chkpix, kk])
-        #    if mn < 0.:
-        #        nbad += 1
-        #        continue
-        #
-        #    # MFP
-        #
-        #    # Write
-        #    final_spec[:, ii*N_perz+ngd] = spec[:,kk]
-        #    final_wave[:, ii*N_perz+ngd] = wave[:,kk]
-        #    final_z[ii*N_perz+ngd] = zrand[kk]
-        #    ngd += 1
-        #    if ngd == N_perz:
-        #        break
-        #if ngd != N_perz:
-        #    print('Did not make enough!')
-        #    #pdb.set_trace()
-        #    log.warning('Did not make enough qso templates. ngd = {}, N_perz = {}'.format(ngd,N_perz))
+    totN = N_perz * len(z0)
+    rebin_spec = np.zeros((r_npix, totN))
 
-    ## Rebin
-    #totN = N_perz * len(z0)
-    #rebin_spec = np.zeros((r_npix, totN))
-    #
-    #for ii in range(totN):
-    #    # Interpolate (in log space)
-    #    rebin_spec[:, ii] = resample_flux(log_wave, np.log10(final_wave[:, ii]), final_spec[:, ii])
-    #    #f1d = interp1d(np.log10(final_wave[:,ii]), final_spec[:,ii])
-    #    #rebin_spec[:,ii] = f1d(log_wave)
 
-    #if outfil is None:
-    #    return 10.**log_wave, rebin_spec, final_z
+    for ii in range(totN):
+        # Interpolate (in log space)
+        rebin_spec[:, ii] = resample_flux(log_wave, np.log10(final_wave[:, ii]), final_spec[:, ii])
+        #f1d = interp1d(np.log10(final_wave[:,ii]), final_spec[:,ii])
+        #rebin_spec[:,ii] = f1d(log_wave)
+
     if outfil is None:
-        return final_wave, final_flux
+        return 10.**log_wave, rebin_spec, final_z
 
     # Transpose for consistency
     out_spec = np.array(rebin_spec.T, dtype='float32')
@@ -470,9 +411,9 @@ def desi_qso_templates(nqso=1, z_wind=0.2, zmnx=(0.4, 4.0), outfil=None, N_perz=
     hdu.header.set('WAVEUNIT', 'Angstrom', ' wavelength units')
     hdu.header.set('BUNIT', '1e-17 erg/s/cm2/A', ' flux unit')
 
-    idval = list(range(nqso))
+    idval = list(range(totN))
     col0 = fits.Column(name=str('TEMPLATEID'),format=str('J'), array=idval)
-    col1 = fits.Column(name=str('Z'),format=str('E'),array=redshift)
+    col1 = fits.Column(name=str('Z'),format=str('E'),array=final_z)
     cols = fits.ColDefs([col0, col1])
     tbhdu = fits.BinTableHDU.from_columns(cols)
     tbhdu.header.set('EXTNAME','METADATA')
@@ -480,7 +421,7 @@ def desi_qso_templates(nqso=1, z_wind=0.2, zmnx=(0.4, 4.0), outfil=None, N_perz=
     hdulist = fits.HDUList([hdu, tbhdu])
     hdulist.writeto(outfil, clobber=True)
 
-    return final_wave, final_spec, redshift
+    return final_wave, final_spec, final_z
 
 # ##################### #####################
 # ##################### #####################

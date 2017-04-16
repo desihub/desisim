@@ -1652,28 +1652,13 @@ class QSO():
         self.normfilt = filters.load_filters(self.normfilter)
         self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
 
-    def _apply_mfp(self, wave, flux, zz, mfp):
-        """Attenuate below the Lyman-limit by the mean free path (MFP) model measured by
-        Worseck, Prochaska et al. 2014.
-
-        """
-        pix912 = np.argmin( np.abs(self.eigenwave-self.lambda_lylimit) )
-        
-        z912 = wave[0:pix912] / self.lambda_lylimit - 1.0
-        phys_dist = np.fabs( self.cosmo.lookback_distance(z912) -
-                             self.cosmo.lookback_distance(zz) ) # Mpc
-        flux[0:pix912] *= np.exp(-phys_dist.value / mfp)
-
-        return flux
-
     def _sample_pcacoeff(self, nsample, coeff, rand):
         """Draw from the distribution of PCA coefficients."""
-        nmodel = len(coeff)
         cdf = np.cumsum(coeff, dtype=float)
         cdf /= cdf[-1]
         x = rand.uniform(0.0, 1.0, size=nsample)
         
-        return coeff[np.interp(x, cdf, np.arange(0, nmodel, 1)).astype('int')]
+        return coeff[np.interp(x, cdf, np.arange(0, len(coeff), 1)).astype('int')]
 
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(20.0, 22.5),
                        seed=None, redshift=None, mag=None, input_meta=None, N_perz=40, 
@@ -1773,7 +1758,8 @@ class QSO():
             skewer_flux = np.zeros((nmodel, npix))
             if lyaforest:
                 for ii in range(nmodel):
-                    skewer_wave, skewer_flux1 = self.lyamock_maker.get_lya_skewers(nmodel, new_seed=templateseed[ii])
+                    skewer_wave, skewer_flux1 = self.lyamock_maker.get_lya_skewers(
+                        nmodel, new_seed=templateseed[ii])
                     skewer_flux[ii, :] = skewer_flux1
 
         else:
@@ -1781,7 +1767,8 @@ class QSO():
 
             # Pre-compute the Lyman-alpha skewers.
             if lyaforest:
-                skewer_wave, skewer_flux = self.lyamock_maker.get_lya_skewers(nmodel, new_seed=seed)
+                skewer_wave, skewer_flux = self.lyamock_maker.get_lya_skewers(
+                    nmodel, new_seed=seed)
 
             # Initialize the random seed.
             rand = np.random.RandomState(seed)
@@ -1799,17 +1786,22 @@ class QSO():
         for key, value in zip(('REDSHIFT', 'MAG', 'SEED'),
                                (redshift, mag, templateseed)):
             meta[key] = value
+        if lyaforest:
+            meta['SUBTYPE'] = 'LYA'
 
+        # Attenuate below the Lyman-limit by the mean free path (MFP) model
+        # measured by Worseck, Prochaska et al. 2014.
         mfp = np.atleast_1d(37.0 * ( (1 + redshift)/5.0)**(-5.4)) # Physical Mpc
-
-        import pdb ; pdb.set_trace()
+        pix912 = np.argmin( np.abs(self.eigenwave-self.lambda_lylimit) )
+        zlook = self.cosmo.lookback_distance(redshift)
 
         # Build each spectrum in turn.
-        PCA_rand = np.zeros((4, N_perz))
+        PCA_rand = np.zeros( (4, N_perz) )
+        colormask = np.ones( (1, N_perz) )
         nonegflux = np.zeros(N_perz)
-        colormask = np.ones(1, N_perz)
-        flux = np.zeros([N_perz, npix])
+        flux = np.zeros( (N_perz, npix) )
 
+        zwave = np.outer(self.eigenwave, 1+redshift) # [observed-frame, Angstrom]
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
 
         for ii in range(nmodel):
@@ -1827,13 +1819,11 @@ class QSO():
                 zQSO = self.sdss_zQSO
                 pca_coeff = self.sdss_pca_coeff
 
-            zwave = np.outer(self.eigenwave, 1+redshift[ii]).flatten() # [observed-frame, Angstrom]
-
             # Build the Lya forest spectrum.
             if lyaforest:
                 no_forest = ( skewer_wave > self.lambda_lyalpha * (1 + redshift[ii]) )
                 skewer_flux[ii, no_forest] = 1.0
-                qso_skewer_flux = resample_flux(zwave, skewer_wave, skewer_flux[ii, :])
+                qso_skewer_flux = resample_flux(zwave[:, ii], skewer_wave, skewer_flux[ii, :])
 
             idx = np.where( (zQSO > redshift[ii]-self.z_wind/2) * (zQSO < redshift[ii]+self.z_wind/2) )[0]
             if len(idx) == 0:
@@ -1842,6 +1832,11 @@ class QSO():
                     log.warning('Redshift {} far from any parent BOSS/SDSS quasars; choosing closest one.')
                     idx = np.array( np.abs(zQSO-redshift[ii]).argmin() )
 
+            # Need these arrays for the MFP, below.
+            if redshift[ii] > 2.39:
+                z912 = zwave[:pix912, ii] / self.lambda_lylimit - 1.0
+                phys_dist = np.fabs( self.cosmo.lookback_distance(z912) - zlook[ii] ) # [Mpc]
+                    
             # Iterate up to maxiter.
             makemore, itercount = True, 0
             while makemore:
@@ -1859,19 +1854,20 @@ class QSO():
                     else:
                         PCA_rand[jj, :] = self._sample_pcacoeff(N_perz, pca_coeff[ipca][idx], templaterand)
 
-                # Instantiate the templates, including the Lyman-alpha forest.
+                # Instantiate the templates, including attenuation below the
+                # Lyman-limit based on the MFP, and the Lyman-alpha forest.
                 for kk in range(N_perz):
                     flux[kk, :] = np.dot(self.eigenflux.T, PCA_rand[:, kk]).flatten()
-                    #if redshift[ii] > 2.39:
-                    #    flux[kk, :] = self._apply_mfp(zwave, flux[kk, :], redshift[ii], mfp[ii], cosmo)
+                    if redshift[ii] > 2.39:
+                         flux[kk, :pix912] *= np.exp(-phys_dist.value / mfp[ii])
                     if lyaforest:
                         flux[kk, :] *= qso_skewer_flux
-                    nonegflux[kk] = (np.sum(flux[kk, (zwave > 3000) & (zwave < 1E4)] < 0) == 0) * 1
+                    nonegflux[kk] = (np.sum(flux[kk, (zwave[:, ii] > 3000) & (zwave[:, ii] < 1E4)] < 0) == 0) * 1
 
                 # Synthesize photometry to determine which models will pass the
                 # color-cuts.  We have to temporarily pad because the spectra
                 # don't go red enough.
-                padflux, padzwave = self.decamwise.pad_spectrum(flux, zwave, method='edge')
+                padflux, padzwave = self.decamwise.pad_spectrum(flux, zwave[:, ii], method='edge')
                 maggies = self.decamwise.get_ab_maggies(padflux, padzwave, mask_invalid=True)
 
                 if self.normfilter in self.decamwise.names:
@@ -1900,7 +1896,7 @@ class QSO():
                 if np.any(colormask * nonegflux):
                     this = templaterand.choice(np.where(colormask)[0]) # Pick one randomly.
                     
-                    outflux[ii, :] = resample_flux(self.wave, zwave, flux[this, :]) * magnorm[this]
+                    outflux[ii, :] = resample_flux(self.wave, zwave[:, ii], flux[this, :]) * magnorm[this]
 
                     meta['DECAM_FLUX'][ii] = synthnano[this, :6]
                     meta['WISE_FLUX'][ii] = synthnano[this, 6:8]
@@ -1911,13 +1907,6 @@ class QSO():
                 if itercount == maxiter:
                     log.warning('Maximum number of iterations reached on QSO {}, z={:.5f}.'.format(ii, redshift[ii]))
                     makemore = False
-                    
-                #import matplotlib.pyplot as plt
-                #for bb in range(N_perz):
-                #    plt.plot(zwave, flux[bb, :])
-                #    plt.xlim(3000, 6100)
-                #plt.show()
-                #import pdb ; pdb.set_trace()
 
         # Check to see if any spectra could not be computed.
         success = (np.sum(outflux, axis=1) > 0)*1
