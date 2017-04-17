@@ -1793,7 +1793,6 @@ class QSO():
 
         # Build each spectrum in turn.
         PCA_rand = np.zeros( (4, N_perz) )
-        colormask = np.ones( (1, N_perz) )
         nonegflux = np.zeros(N_perz)
         flux = np.zeros( (N_perz, npix) )
 
@@ -1877,7 +1876,7 @@ class QSO():
                     synthnano[:, ff] = 1E9 * maggies[key] * magnorm
 
                 if nocolorcuts or self.colorcuts_function is None:
-                    pass
+                    colormask = np.repeat(1, N_perz)
                 else:
                     colormask = self.colorcuts_function(
                         gflux=synthnano[:, 1],
