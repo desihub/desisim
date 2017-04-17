@@ -1888,14 +1888,14 @@ class QSO():
                 # If the color-cuts pass then populate the output flux vector
                 # (suitably normalized) and metadata table and finish up.
                 if np.any(colormask * nonegflux):
-                    this = templaterand.choice(np.where(colormask)[0]) # Pick one randomly.
+                    this = templaterand.choice(np.where(colormask * nonegflux)[0]) # Pick one randomly.
                     outflux[ii, :] = resample_flux(self.wave, zwave[:, ii], flux[this, :]) * magnorm[this]
 
                     meta['DECAM_FLUX'][ii] = synthnano[this, :6]
                     meta['WISE_FLUX'][ii] = synthnano[this, 6:8]
 
                     makemore = False
-                    
+
                 itercount += 1
                 if itercount == maxiter:
                     log.warning('Maximum number of iterations reached on QSO {}, z={:.5f}.'.format(ii, redshift[ii]))
