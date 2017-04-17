@@ -70,8 +70,10 @@ class TestObs(unittest.TestCase):
             for i in range(nspec-1):
                 if truth1['OBJTYPE'][i] != 'SKY':
                     for j in range(i+1, nspec):
-                        self.assertFalse(np.all(truth1['FLUX'][i] == truth1['FLUX'][j]),
-                            'Spectra {} and {} are identical'.format(i,j))
+                        identical = np.all(truth1['FLUX'][i] == truth1['FLUX'][j])
+                        if identical:
+                            import pdb ; pdb.set_trace()
+                        self.assertFalse(identical, 'Spectra {} and {} are identical'.format(i,j))
 
 #- This runs all test* functions in any TestCase class in this file
 if __name__ == '__main__':
