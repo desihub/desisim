@@ -102,7 +102,8 @@ def write_simspec(sim, meta, expid, night, outdir=None, filename=None,
     # to ouput.  sim.camera_output is post-convolution.
 
     tflux = astropy.table.Table()
-    tflux['WAVELENGTH'] = sim.simulated['wavelength']
+    ww = sim.simulated['wavelength']
+    tflux['WAVELENGTH'] = ww
     tflux['FLUX'] = sim.simulated['source_flux'].astype(np.float32)
     tflux['SKYFLUX'] = sim.simulated['sky_fiber_flux'].astype(np.float32)
 
@@ -110,7 +111,6 @@ def write_simspec(sim, meta, expid, night, outdir=None, filename=None,
     for i, camera in enumerate(sorted(sim.camera_names)):
         wavemin = sim.camera_output[i]['wavelength'][0]
         wavemax = sim.camera_output[i]['wavelength'][-1]
-        ww = sim.simulated['wavelength']
         ii = (wavemin <= ww) & (ww <= wavemax)
         tx = astropy.table.Table()
         tx['WAVELENGTH'] = ww[ii]
@@ -150,13 +150,14 @@ def write_simspec(sim, meta, expid, night, outdir=None, filename=None,
     fluxhdu.header['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
     hx.append(fluxhdu)
 
-    if isinstance(meta, astropy.table.Table):
-        metahdu = fits.table_to_hdu(meta)
-    else:
-        metahdu = fits.BinTableHDU(meta)
+    if meta is not None:
+        if isinstance(meta, astropy.table.Table):
+            metahdu = fits.table_to_hdu(meta)
+        else:
+            metahdu = fits.BinTableHDU(meta)
 
-    metahdu.header['EXTNAME'] = 'METADATA'
-    hx.append(metahdu)
+        metahdu.header['EXTNAME'] = 'METADATA'
+        hx.append(metahdu)
 
     for camera in sorted(tphot.keys()):
         camhdu = fits.table_to_hdu(tphot[camera])
