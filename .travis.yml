@@ -52,7 +52,7 @@ env:
         - SPECSIM_VERSION=v0.8
         - SPECTER_VERSION=0.7.0
         - DESISPEC_VERSION=0.13.1
-        - DESITARGET_VERSION=0.9.0
+        - DESITARGET_VERSION=0.11.0
         # - DESIMODEL_VERSION=trunk
         - DESI_LOGLEVEL=DEBUG
         - MAIN_CMD='python setup.py'
