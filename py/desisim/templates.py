@@ -1852,7 +1852,7 @@ class QSO():
                 # Lyman-limit based on the MFP, and the Lyman-alpha forest.
                 for kk in range(N_perz):
                     flux[kk, :] = np.dot(self.eigenflux.T, PCA_rand[:, kk]).flatten()
-                    if redshift[ii] > 2.39:
+                    if redshift[ii] > 2.39 and not lyaforest:
                          flux[kk, :pix912] *= np.exp(-phys_dist.value / mfp[ii])
                     if lyaforest:
                         flux[kk, :] *= qso_skewer_flux
