@@ -124,6 +124,8 @@ def write_simspec(sim, meta, expid, night, outdir=None, filename=None,
     desiutil.depend.add_dependencies(header)
     header['EXPID'] = expid
     header['NIGHT'] = night
+    header['AIRMASS'] = sim.atmosphere.airmass
+    header['EXPTIME'] = sim.observation.exposure_time.to('s').value
     if 'DOSVER' not in header:
         header['DOSVER'] = 'SIM'
 
