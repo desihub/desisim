@@ -90,7 +90,7 @@ def write_simspec(sim, meta, expid, night, outdir=None, filename=None,
     TODO: document
     '''
     import astropy.table
-    import astropy.units
+    import astropy.units as u
     import desiutil.depend
     from desiutil.log import get_logger
     log = get_logger()
@@ -101,11 +101,12 @@ def write_simspec(sim, meta, expid, night, outdir=None, filename=None,
     # sim.simulated is table of pre-convolution quantities that we want
     # to ouput.  sim.camera_output is post-convolution.
 
+    fluxunits = 1e-17 * u.erg / (u.s * u.cm**2 * u.Angstrom)
     tflux = astropy.table.Table()
     ww = sim.simulated['wavelength']
     tflux['WAVELENGTH'] = ww
-    tflux['FLUX'] = sim.simulated['source_flux'].astype(np.float32)
-    tflux['SKYFLUX'] = sim.simulated['sky_fiber_flux'].astype(np.float32)
+    tflux['FLUX'] = sim.simulated['source_flux'].to(fluxunits).astype(np.float32)
+    tflux['SKYFLUX'] = sim.simulated['sky_fiber_flux'].to(fluxunits).astype(np.float32)
 
     tphot = dict()
     for i, camera in enumerate(sorted(sim.camera_names)):
@@ -116,8 +117,8 @@ def write_simspec(sim, meta, expid, night, outdir=None, filename=None,
         tx['WAVELENGTH'] = ww[ii]
         tx['PHOT'] = sim.simulated['num_source_electrons_'+camera][ii].astype(np.float32)
         tx['SKYPHOT'] = sim.simulated['num_sky_electrons_'+camera][ii].astype(np.float32)
-        tx['PHOT'].unit = astropy.units.photon
-        tx['SKYPHOT'].unit = astropy.units.photon
+        tx['PHOT'].unit = u.photon
+        tx['SKYPHOT'].unit = u.photon
         tphot[camera] = tx
 
     header = desispec.io.util.fitsheader(header)
@@ -140,7 +141,7 @@ def write_simspec(sim, meta, expid, night, outdir=None, filename=None,
         month = int(night[4:6])
         day = int(night[6:8])
         dt = datetime.datetime(year, month, day, 23, 59, 59)
-        tx = astropy.time.Time(dt) + 7*astropy.units.hour
+        tx = astropy.time.Time(dt) + 7*u.hour
         header['DATE-OBS'] = tx.utc.isot
         log.warn('Setting DATE-OBS to {} UTC'.format(header['DATE-OBS']))
 
