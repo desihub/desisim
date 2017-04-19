@@ -1815,9 +1815,11 @@ class QSO():
 
             # Interpolate the Lya forest spectrum.
             if lyaforest:
-                no_forest = ( skewer_wave > self.lambda_lyalpha * (1 + redshift[ii]) ) | (skewer_wave <  self.lambda_lylimit* (1 + redshift[ii]))
+                no_forest = ( skewer_wave > self.lambda_lyalpha * (1 + redshift[ii]) )
                 skewer_flux[ii, no_forest] = 1.0
                 qso_skewer_flux = resample_flux(zwave[:, ii], skewer_wave, skewer_flux[ii, :])
+                w=zwave[:, ii]>self.lambda_lyalpha * (1 + redshift[ii])
+                qso_skewer_flux[w]=1.
 
             idx = np.where( (zQSO > redshift[ii]-self.z_wind/2) * (zQSO < redshift[ii]+self.z_wind/2) )[0]
             if len(idx) == 0:
