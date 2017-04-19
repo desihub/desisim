@@ -103,6 +103,7 @@ from desisim.obs import get_night
 from desisim.targets import sample_objtype
 from desisim.specsim import get_simulator
 from desimodel.io import load_desiparams
+from desisim.newexp import get_source_types
 
 def _add_truth(hdus, header, meta, trueflux, sflux, wave, channel):
     """Utility function for adding truth to an output FITS file."""
@@ -171,11 +172,11 @@ def parse(options=None):
             msg = 'If simspec set, must also set fibermap'
             log.error(msg)
             raise ValueError(msg)
-        hdr = fits.getheader(args.simspec)
-        night = str(hdr['NIGHT'])
-        expid = int(hdr['EXPID'])
-        args.simspec = desisim.io.findfile('simspec', night, expid)
-        args.fibermap = desispec.io.findfile('fibermap', night, expid)
+        # hdr = fits.getheader(args.simspec)
+        # night = str(hdr['NIGHT'])
+        # expid = int(hdr['EXPID'])
+        # args.simspec = desisim.io.findfile('simspec', night, expid)
+        # args.fibermap = desispec.io.findfile('fibermap', night, expid)
 
     if args.simspec is None and args.brickname is None:
         msg = 'Must have simspec and fibermap files or provide brick name'
@@ -241,7 +242,7 @@ def main(args):
     if args.fibermap:
         log.info("Reading fibermap file {}".format(args.fibermap))
         fibermap=read_fibermap(args.fibermap)
-        objtype=fibermap['OBJTYPE'].copy()
+        objtype = get_source_types(fibermap)
         stdindx=np.where(objtype=='STD') # match STD with STAR
         mwsindx=np.where(objtype=='MWS_STAR') # match MWS_STAR with STAR
         bgsindx=np.where(objtype=='BGS') # match BGS with LRG
