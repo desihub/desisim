@@ -1815,7 +1815,7 @@ class QSO():
 
             # Interpolate the Lya forest spectrum.
             if lyaforest:
-                no_forest = ( skewer_wave > self.lambda_lyalpha * (1 + redshift[ii]) )
+                no_forest = ( skewer_wave > self.lambda_lyalpha * (1 + redshift[ii]) ) & (skewer_wave <  self.lambda_lylimit* (1 + redshift[ii]))
                 skewer_flux[ii, no_forest] = 1.0
                 qso_skewer_flux = resample_flux(zwave[:, ii], skewer_wave, skewer_flux[ii, :])
 
@@ -1852,7 +1852,7 @@ class QSO():
                 # Lyman-limit based on the MFP, and the Lyman-alpha forest.
                 for kk in range(N_perz):
                     flux[kk, :] = np.dot(self.eigenflux.T, PCA_rand[:, kk]).flatten()
-                    if redshift[ii] > 2.39 and not lyaforest:
+                    if redshift[ii] > 2.39:
                          flux[kk, :pix912] *= np.exp(-phys_dist.value / mfp[ii])
                     if lyaforest:
                         flux[kk, :] *= qso_skewer_flux
