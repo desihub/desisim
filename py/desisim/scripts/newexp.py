@@ -14,7 +14,7 @@ def parse(options=None):
     parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     #- Required
-    parser.add_argument('--fiberassign', type=str, help="input fiberassign directory or tile file")
+    parser.add_argument('--fiberassign', type=str, help="input fiberassign tile file")
     parser.add_argument('--obslist', type=str, help="input surveysim obslist file")
     parser.add_argument('--mockdir', type=str, help="directory with mock targets and truth")
     parser.add_argument('--obsnum', type=int, default=None, help="index in obslist file to use")
