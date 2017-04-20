@@ -10,6 +10,7 @@ from __future__ import absolute_import, division, print_function
 import os
 import time
 from glob import glob
+import warnings
 
 from astropy.io import fits
 from astropy.table import Table
@@ -135,20 +136,19 @@ def write_simspec(sim, meta, expid, night, outdir=None, filename=None,
         header['FLAVOR'] = 'science'    #- optimistically guessing
 
     if 'DATE-OBS' not in header:
-        import datetime
-        import astropy.time
-        year = int(night[0:4])
-        month = int(night[4:6])
-        day = int(night[6:8])
-        dt = datetime.datetime(year, month, day, 23, 59, 59)
-        tx = astropy.time.Time(dt) + 7*u.hour
-        header['DATE-OBS'] = tx.utc.isot
-        log.warn('Setting DATE-OBS to {} UTC'.format(header['DATE-OBS']))
+        #- TODO: DATE-OBS is exposure start or midpoint?
+        header['DATE-OBS'] = sim.observation.exposure_start.isot
+
+    log.info('DATE-OBS {} UTC'.format(header['DATE-OBS']))
 
     hx = fits.HDUList()
     hx.append(fits.PrimaryHDU(None, header=header))
 
-    fluxhdu = fits.table_to_hdu(tflux)
+    #- Ignore irritating astropy warnings about ergs and Angstroms
+    with warnings.catch_warnings(): # added by Moustakas
+        warnings.simplefilter('ignore')    
+        fluxhdu = fits.table_to_hdu(tflux)
+
     fluxhdu.header['EXTNAME'] = 'FLUX'
     fluxhdu.header['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
     hx.append(fluxhdu)
@@ -163,11 +163,15 @@ def write_simspec(sim, meta, expid, night, outdir=None, filename=None,
         hx.append(metahdu)
 
     for camera in sorted(tphot.keys()):
-        camhdu = fits.table_to_hdu(tphot[camera])
+        #- Ignore irritating astropy warnings about ergs and Angstroms
+        with warnings.catch_warnings(): # added by Moustakas
+            warnings.simplefilter('ignore')    
+            camhdu = fits.table_to_hdu(tphot[camera])
         camhdu.header['EXTNAME'] = camera.upper()
         camhdu.header['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
         hx.append(camhdu)
 
+    log.info('Writing {}'.format(filename))
     hx.writeto(filename, clobber=overwrite)
 
 def _write_simspec_orig(meta, truth, expid, night, header=None, outfile=None):
