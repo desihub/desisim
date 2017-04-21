@@ -38,7 +38,7 @@ reference_conditions['GRAY']['MOONDIST'] = 60
 
 reference_conditions['BRIGHT']['SEEING']  = 1.1
 reference_conditions['BRIGHT']['EXPTIME'] = 300
-reference_conditions['BRIGHT']['AIRMASS'] = 1.3
+reference_conditions['BRIGHT']['AIRMASS'] = 1.25
 reference_conditions['BRIGHT']['MOONFRAC'] = 0.7
 reference_conditions['BRIGHT']['MOONALT']  = 60
 reference_conditions['BRIGHT']['MOONDIST'] = 50
@@ -261,6 +261,7 @@ def newexp(fiberassign, mockdir, obsconditions=None, expid=None, nspec=None):
     if len(missing_keys) > 0:
         raise ValueError('obsconditions missing keys {}'.format(missing_keys))
 
+    # sim = simulate_spectra(wave, flux, meta=fibermeta, obsconditions=obsconditions)
     sim = simulate_spectra(wave, flux, meta=fibermeta, obsconditions=obsconditions)
     header = dict(FLAVOR='science')
 
