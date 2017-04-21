@@ -98,31 +98,3 @@ def main(args=None):
     header['DATE-OBS'] = tx.utc.isot
 
     desisim.io.write_simspec_arc(args.simspec, wave, phot, header, fibermap, overwrite=args.clobber)
-
-    # hx = fits.HDUList()
-    # hx.append(fits.PrimaryHDU(None, header=header))
-    #
-    # for camera in ['b', 'r', 'z']:
-    #     thru = desimodel.io.load_throughput(camera)
-    #     ii = (thru.wavemin <= wave) & (wave <= thru.wavemax)
-    #     tx = astropy.table.Table()
-    #     tx['WAVELENGTH'] = wave[ii]
-    #     tx['WAVELENGTH'].unit = u.Angstrom
-    #     tx['PHOT'] = phot[:,ii].T
-    #     tx['PHOT'].unit = u.photon
-    #
-    #     #- TODO: explain
-    #     with warnings.catch_warnings():
-    #         warnings.simplefilter('ignore')
-    #         camhdu = fits.table_to_hdu(tx)
-    #
-    #     camhdu.header['EXTNAME'] = camera.upper()
-    #     camhdu.header['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
-    #     hx.append(camhdu)
-    #
-    # log.info('Writing {}'.format(args.simspec))
-    # hx.writeto(args.simspec)
-
-    
-    
-    
