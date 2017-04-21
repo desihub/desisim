@@ -85,17 +85,16 @@ def newarc(arcdata, nspec=5000, nonuniform=False):
 
     return wave, phot, fibermap
 
-def newflat(flatfile=None, nspec=5000, nonuniform=False):
+def newflat(flatfile, nspec=5000, nonuniform=False, exptime=10):
     '''
     TODO: document
     '''
     import astropy.units as u
     import specsim.simulator
+    from desiutil.log import get_logger
+    log = get_logger()
     
-    if flatfile is None:
-        flatfile = os.path.join(os.getenv('DESI_ROOT'),
-            'spectro', 'templates', 'calib', 'v0.3', 'flat-3100K-quartz-iodine.fits')
-
+    log.info('Reading flat lamp spectrum from {}'.format(flatfile))
     sbflux, hdr = fits.getdata(flatfile, header=True)
     wave = desispec.io.util.header2wave(hdr)
     assert len(wave) == len(sbflux)
@@ -124,10 +123,15 @@ def newflat(flatfile=None, nspec=5000, nonuniform=False):
         ratio = _calib_screen_uniformity(radius=r)
         assert np.all(ratio <= 1) and np.all(ratio > 0.99)
         sbflux = (sbflux.T * ratio).T
+        tmp = np.min(sbflux) / np.max(sbflux)
+        log.info('Adjusting for calibration screen non-uniformity {:.4f}'.format(tmp))
 
+    log.debug('Creating specsim configuration')
     config = _specsim_config_for_wave(wave)
+    log.debug('Creating specsim simulator for {} spectra'.format(nspec))
     sim = specsim.simulator.Simulator(config, num_fibers=nspec)
     sim.observation.exposure_time = exptime * u.s
+    log.debug('Simulating')
     sim.simulate(calibration_surface_brightness=sbflux, focal_positions=xy)
 
     return sim, fibermap
