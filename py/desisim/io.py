@@ -145,7 +145,7 @@ def write_simspec(sim, meta, expid, night, outdir=None, filename=None,
     hx.append(fits.PrimaryHDU(None, header=header))
 
     #- Ignore irritating astropy warnings about ergs and Angstroms
-    with warnings.catch_warnings(): # added by Moustakas
+    with warnings.catch_warnings():
         warnings.simplefilter('ignore')    
         fluxhdu = fits.table_to_hdu(tflux)
 
@@ -164,7 +164,7 @@ def write_simspec(sim, meta, expid, night, outdir=None, filename=None,
 
     for camera in sorted(tphot.keys()):
         #- Ignore irritating astropy warnings about ergs and Angstroms
-        with warnings.catch_warnings(): # added by Moustakas
+        with warnings.catch_warnings():
             warnings.simplefilter('ignore')    
             camhdu = fits.table_to_hdu(tphot[camera])
         camhdu.header['EXTNAME'] = camera.upper()

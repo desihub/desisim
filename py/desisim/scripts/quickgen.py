@@ -283,6 +283,13 @@ def main(args):
         simspec = desisim.io.read_simspec(args.simspec)
         nspec = simspec.nspec
         if simspec.flavor == 'arc':
+            #- TODO: do we need quickgen to support arcs?  For full pipeline
+            #- arcs are used to measure PSF but aren't extracted except for
+            #- debugging.
+            #- TODO: if we do need arcs, this needs to be redone.
+            #- conversion from phot to flux doesn't include throughput,
+            #- and arc lines are rebinned to nearest 0.2 A.
+
             # Create full wavelength and flux arrays for arc exposure
             wave_b = np.array(simspec.wave['b'])
             wave_r = np.array(simspec.wave['r'])
