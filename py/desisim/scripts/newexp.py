@@ -34,7 +34,7 @@ def parse(options=None):
     return args
 
 def main(args=None):
-    
+
     if args is None:
         args = parse()
 
@@ -56,5 +56,12 @@ def main(args=None):
     if args.nspec is None:
         args.nspec = len(fiberassign)
 
-    sim, meta = newexp(fiberassign, args.expid, night, args.mockdir,
-        obsconditions=obs, outsimdir=args.outdir, nspec=args.nspec)
+    sim, fibermap, meta = newexp(fiberassign, args.mockdir, obsconditions=obs, nspec=args.nspec)
+
+    fibermap.meta['NIGHT'] = night
+    fibermap.meta['EXPID'] = args.expid
+    fibermap.write(desisim.io.findfile('simfibermap', night, args.expid,
+        outdir=args.outdir))
+    header = dict(FLAVOR='science')
+    desisim.io.write_simspec(sim, meta, args.expid, night, header=header,
+        outdir=args.outdir)

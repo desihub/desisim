@@ -61,12 +61,18 @@ def main(args=None):
     Note: this bypasses specsim since we don't have an arclamp model in
     surface brightness units; we only have electrons on the CCD
     '''
+    import desiutil.log
+    log = desiutil.log.get_logger()
+
     if isinstance(args, (list, tuple, type(None))):
         args = parse(args)
     
     sim, fibermap = \
         desisim.newexp.newflat(args.flatfile, nspec=args.nspec, nonuniform=args.nonuniform)
 
+    log.info('Writing {}'.format(args.fibermap))
+    fibermap.meta['NIGHT'] = args.night
+    fibermap.meta['EXPID'] = args.expid
     fibermap.write(args.fibermap)
 
     header = fits.Header()
