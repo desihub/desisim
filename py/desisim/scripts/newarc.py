@@ -61,14 +61,19 @@ def main(args=None):
     Note: this bypasses specsim since we don't have an arclamp model in
     surface brightness units; we only have electrons on the CCD
     '''
+    import desiutil.log
+    log = desiutil.log.get_logger()
+    
     if isinstance(args, (list, tuple, type(None))):
         args = parse(args)
     
+    log.info('reading arc data from {}'.format(args.arcfile))
     arcdata = astropy.table.Table.read(args.arcfile)
     
     wave, phot, fibermap = \
         desisim.newexp.newarc(arcdata, nspec=args.nspec, nonuniform=args.nonuniform)
 
+    log.info('Writing {}'.format(args.fibermap))
     fibermap.write(args.fibermap)
 
     #- TODO: explain bypassing desisim.io.write_simspec
@@ -104,6 +109,7 @@ def main(args=None):
         camhdu.header['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
         hx.append(camhdu)
 
+    log.info('Writing {}'.format(args.simspec))
     hx.writeto(args.simspec)
 
     
