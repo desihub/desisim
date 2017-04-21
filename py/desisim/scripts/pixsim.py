@@ -50,8 +50,14 @@ def expand_args(args):
 
     if (args.cameras is None) and (args.spectrographs is None):
         from astropy.io import fits
-        hdr = fits.getheader(args.simspec, 'PHOT_B')
-        nspec = hdr['NAXIS2']
+        try:
+            data = fits.getdata(args.simspec, 'B')
+            nspec = data['PHOT'].shape[1]
+        except KeyError:
+            #- Try old specsim format instead
+            hdr = fits.getheader(args.simspec, 'PHOT_B')
+            nspec = hdr['NAXIS2']
+
         nspectrographs = (nspec-1) // 500 + 1
         args.spectrographs = list(range(nspectrographs))
 
@@ -88,7 +94,7 @@ def expand_args(args):
     if args.simpixfile is None:
         args.simpixfile = io.findfile(
             'simpix', night=args.night, expid=args.expid,
-            outdir=os.path.dirname(args.rawfile))
+            outdir=os.path.dirname(os.path.abspath(args.rawfile)))
 
 #-------------------------------------------------------------------------
 #- Parse options
@@ -204,6 +210,8 @@ def main(args=None):
     if args.fibermap:
         fibermap = desispec.io.read_fibermap(args.fibermap)
         fibers = fibermap['FIBER']
+        if args.nspec is not None:
+            fibers = fibers[0:args.nspec]
     else:
         fibers = None
 
