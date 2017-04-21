@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 
 """
-Generate a new DESI exposure
-
-TODO: Document
+Generate a new DESI science exposure
 """
 
 import sys
