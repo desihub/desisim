@@ -169,14 +169,10 @@ def parse(options=None):
     if args.simspec:
         args.objtype = None
         if args.fibermap is None:
-            msg = 'If simspec set, must also set fibermap'
-            log.error(msg)
-            raise ValueError(msg)
-        # hdr = fits.getheader(args.simspec)
-        # night = str(hdr['NIGHT'])
-        # expid = int(hdr['EXPID'])
-        # args.simspec = desisim.io.findfile('simspec', night, expid)
-        # args.fibermap = desispec.io.findfile('fibermap', night, expid)
+            dirname = os.path.dirname(os.path.abspath(args.simspec))
+            filename = os.path.basename(args.simspec).replace('simspec', 'fibermap')
+            args.fibermap = os.path.join(dirname, filename)
+            log.warning('deriving fibermap {} from simspec input filename'.format(args.fibermap))
 
     if args.simspec is None and args.brickname is None:
         msg = 'Must have simspec and fibermap files or provide brick name'

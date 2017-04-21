@@ -58,6 +58,7 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
     location = dict(
         simspec = '{outdir:s}/simspec-{expid:08d}.fits',
         simpix = '{outdir:s}/simpix-{expid:08d}.fits',
+        simfibermap = '{outdir:s}/fibermap-{expid:08d}.fits',
         pix = '{outdir:s}/pix-{camera:s}-{expid:08d}.fits',
     )
 
