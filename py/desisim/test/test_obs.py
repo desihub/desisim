@@ -4,6 +4,7 @@ from shutil import rmtree
 
 import numpy as np
 from astropy.io import fits
+from astropy.table import Table
 
 from desisim import io
 from desisim import obs
@@ -15,6 +16,7 @@ class TestObs(unittest.TestCase):
     #- Create test subdirectory
     @classmethod
     def setUpClass(cls):
+        cls.night = '20150101'
         cls.testfile = 'test-{uuid}/test-{uuid}.fits'.format(uuid=uuid1())
         cls.testDir = os.path.join(os.environ['HOME'],'desi_test_io')
         cls.origEnv = dict(PIXPROD = None, DESI_SPECTRO_SIM = None)
@@ -26,6 +28,14 @@ class TestObs(unittest.TestCase):
             if e in os.environ:
                 cls.origEnv[e] = os.environ[e]
             os.environ[e] = cls.testEnv[e]
+
+    #- Cleanup files but not directories after each test
+    def tearDown(self):
+        for expid in range(5):
+            for filetype in ['simspec', 'simfibermap']:
+                filename = io.findfile('simspec', self.night, expid)
+                if os.path.exists(filename):
+                    os.remove(filename)
 
     #- Cleanup test files if they exist
     @classmethod
@@ -48,13 +58,15 @@ class TestObs(unittest.TestCase):
     @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
     @unittest.skipUnless(desi_root_available, '$DESI_ROOT not set')
     def test_newexp(self):
-        night = '20150101'
+        night = self.night
         seed = np.random.randint(2**30)
         #- flavors 'bgs' and 'bright' not yet implemented
         for expid, flavor in enumerate(['arc', 'flat', 'dark', 'mws']):
             fibermap, true = obs.new_exposure(flavor, nspec=10, night=night, expid=expid, seed=seed)
             simspecfile = io.findfile('simspec', night, expid=expid)
+            fibermapfile = io.findfile('simfibermap', night, expid=expid)
             self.assertTrue(os.path.exists(simspecfile))
+            self.assertTrue(os.path.exists(fibermapfile))
             simspec = io.read_simspec(simspecfile)
             self.assertEqual(simspec.flavor, flavor)
 
@@ -68,11 +80,11 @@ class TestObs(unittest.TestCase):
                     self.assertTrue(simspec.skyphot[channel].max() < 1e6, 'suspiciously many sky photons; wrong units?')
 
             if flavor not in ('arc', 'flat'):
-                fx = fits.open(simspecfile)
-                self.assertTrue(fx['FLUX'].header['BUNIT'].startswith('1e-17 '))
-                self.assertTrue(fx['SKYFLUX'].header['BUNIT'].startswith('1e-17 '))
-                flux = fx['FLUX'].data
-                skyflux = fx['SKYFLUX'].data
+                fx = Table.read(simspecfile, 'FLUX')
+                flux = fx['FLUX'].T
+                skyflux = fx['SKYFLUX'].T
+                self.assertTrue(str(flux.unit).startswith('1e-17'))
+                self.assertTrue(str(skyflux.unit).startswith('1e-17'))
                 for i in range(flux.shape[0]):
                     objtype = simspec.metadata['OBJTYPE'][i]
                     maxflux = flux[i].max()
@@ -86,7 +98,8 @@ class TestObs(unittest.TestCase):
                     else:
                         self.assertTrue(np.all(flux[i] == 0.0))
 
-                fx.close()
+            os.remove(simspecfile)
+            os.remove(fibermapfile)
 
         #- confirm that night and expid are optional
         fibermap, true = obs.new_exposure('arc', nspec=2)
@@ -94,10 +107,10 @@ class TestObs(unittest.TestCase):
     @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
     def test_newexp_sky(self):
         "Test different levels of sky brightness"
-        night = '20150101'
+        night = self.night
         #- flavors 'bgs' and 'bright' not yet implemented
-        fibermap, truth_dark = obs.new_exposure('dark', nspec=10, night=night, expid=0)
-        fibermap, truth_mws  = obs.new_exposure('mws', nspec=10, night=night, expid=1)
+        fibermap, truth_dark = obs.new_exposure('dark', nspec=10, night=night, expid=0, exptime=1000)
+        fibermap, truth_mws  = obs.new_exposure('mws', nspec=10, night=night, expid=1, exptime=1000)
         for channel in ['B', 'R', 'Z']:
             key = 'SKYPHOT_'+channel
             self.assertTrue(np.all(truth_mws[key] > truth_dark[key]))
