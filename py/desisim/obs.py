@@ -109,15 +109,24 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
     flavor = flavor.lower()
     log.debug('Generating {} targets'.format(nspec))
     
+    header = dict(NIGHT=night, EXPID=expid, FLAVOR=flavor)
+
+    #- ISO 8601 DATE-OBS year-mm-ddThh:mm:ss
+    header['DATE-OBS'] = time.strftime('%FT%T', dateobs)
+    
     if flavor == 'arc':
         if arc_lines_filename is None :
             infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.3/arc-lines-average-in-vacuum.fits'
         else :
             infile = arc_lines_filename
         arcdata = fits.getdata(infile, 1)
+        if exptime is None:
+            exptime = 5
         wave, phot, fibermap = desisim.newexp.newarc(arcdata, nspec=nspec)
-        header = dict(NIGHT=night, EXPID=expid, EXPTIME=5, FLAVOR='arc')
+
+        header['EXPTIME'] = exptime
         desisim.io.write_simspec_arc(outsimspec, wave, phot, header)
+
         fibermap.meta['NIGHT'] = night
         fibermap.meta['EXPID'] = expid
         fibermap.write(outfibermap)
@@ -130,10 +139,13 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
         else :
             infile = flat_spectrum_filename
 
-        exptime = 10
+        if exptime is None:
+            exptime = 10
         sim, fibermap = desisim.newexp.newflat(infile, nspec=nspec, exptime=exptime)
-        header = dict(NIGHT=night, EXPID=expid, EXPTIME=exptime, FLAVOR='flat')
+
+        header['EXPTIME'] = exptime
         desisim.io.write_simspec(sim, None, expid, night, header=header)
+
         fibermap.meta['NIGHT'] = night
         fibermap.meta['EXPID'] = expid
         fibermap.write(outfibermap)
@@ -192,18 +204,16 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
         FLAVOR = (flavor, 'Flavor [arc, flat, science, ...]'),
         TELRA = (telera, 'Telescope pointing RA [degrees]'),
         TELDEC = (teledec, 'Telescope pointing dec [degrees]'),
+        AIRMASS = (obsconditions['AIRMASS'], 'Airmass at middle of exposure'),
+        EXPTIME = (obsconditions['EXPTIME'], 'Exposure time [sec]'),
         )
-    #- ISO 8601 DATE-OBS year-mm-ddThh:mm:ss
-    fiberfile = desispec.io.findfile('fibermap', night, expid)
-    desispec.io.write_fibermap(fiberfile, fibermap, header=hdr)
-    log.info('Wrote '+fiberfile)
-
-    #- Write simspec; expand fibermap header
-    hdr['AIRMASS'] = (obsconditions['AIRMASS'], 'Airmass at middle of exposure')
-    hdr['EXPTIME'] = (obsconditions['EXPTIME'], 'Exposure time [sec]')
     hdr['DATE-OBS'] = (time.strftime('%FT%T', dateobs), 'Start of exposure')
 
     simfile = io.write_simspec(sim, meta, expid, night, header=hdr)
+
+    fiberfile = io.findfile('simfibermap', night, expid)
+    desispec.io.write_fibermap(fiberfile, fibermap, header=hdr)
+    log.info('Wrote '+fiberfile)
 
     update_obslog(obstype='science', program=flavor, expid=expid, dateobs=dateobs, tileid=tileid)
 
