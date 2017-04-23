@@ -314,9 +314,14 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
     """
     Returns:
         fibermap
-        truth table
+        truth dictionary
 
-    TODO: document this better
+    truth has key/values:
+        OBJTYPE : array of objtypes like ELG, LRG, QSO, STAR, SKY
+        FLUX : 2D[nspec, nwave] object flux
+        UNITS : (str) units of FLUX
+        WAVE : wavelengths in Angstroms
+        META : metadata truth table from template generation
     """
     if tileid is None:
         tile_ra, tile_dec = 0.0, 0.0
@@ -419,7 +424,7 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
             raise ValueError('Unable to simulate OBJTYPE={}'.format(objtype))
 
         truth['FLUX'][ii] = 1e17 * simflux
-        truth['UNITS'] = '1e-17 erg/s/cm2/A'
+        truth['UNITS'] = '1e-17 erg/s/cm2/Angstrom'
         truth['META'][ii] = meta
 
         ugrizy = 22.5-2.5*np.log10(meta['DECAM_FLUX'].data)

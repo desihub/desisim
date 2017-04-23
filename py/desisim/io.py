@@ -147,7 +147,7 @@ def write_simspec(sim, meta, expid, night, outdir=None, filename=None,
 
     #- Ignore irritating astropy warnings about ergs and Angstroms
     with warnings.catch_warnings():
-        warnings.simplefilter('ignore')    
+        warnings.simplefilter('ignore')
         fluxhdu = fits.table_to_hdu(tflux)
 
     fluxhdu.header['EXTNAME'] = 'FLUX'
@@ -166,7 +166,7 @@ def write_simspec(sim, meta, expid, night, outdir=None, filename=None,
     for camera in sorted(tphot.keys()):
         #- Ignore irritating astropy warnings about ergs and Angstroms
         with warnings.catch_warnings():
-            warnings.simplefilter('ignore')    
+            warnings.simplefilter('ignore')
             camhdu = fits.table_to_hdu(tphot[camera])
         camhdu.header['EXTNAME'] = camera.upper()
         camhdu.header['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
@@ -174,6 +174,39 @@ def write_simspec(sim, meta, expid, night, outdir=None, filename=None,
 
     log.info('Writing {}'.format(filename))
     hx.writeto(filename, clobber=overwrite)
+
+def write_simspec_arc(filename, wave, phot, header):
+    '''
+    Alternate writer for arc simspec files which just have photons
+    '''
+    import astropy.table
+    import astropy.units as u
+
+    hx = fits.HDUList()
+    hdr = desispec.io.util.fitsheader(header)
+    hx.append(fits.PrimaryHDU(None, header=hdr))
+
+    for camera in ['b', 'r', 'z']:
+        thru = desimodel.io.load_throughput(camera)
+        ii = (thru.wavemin <= wave) & (wave <= thru.wavemax)
+        tx = astropy.table.Table()
+        tx['WAVELENGTH'] = wave[ii]
+        tx['WAVELENGTH'].unit = u.Angstrom
+        tx['PHOT'] = phot[:,ii].T
+        tx['PHOT'].unit = u.photon
+
+        #- Avoid astropy complaints about Angstroms and ergs
+        ### with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        camhdu = fits.table_to_hdu(tx)
+
+        camhdu.header['EXTNAME'] = camera.upper()
+        camhdu.header['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
+        hx.append(camhdu)
+
+    log.info('Writing {}'.format(filename))
+    hx.writeto(filename)
+    return filename
 
 def _write_simspec_orig(meta, truth, expid, night, header=None, outfile=None):
     """Write ``$DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits``.
@@ -333,19 +366,31 @@ def read_simspec(filename):
             else:
                 skyphot[channel] = np.zeros_like(phot[channel])
 
-        if flavor.lower() == 'arc':
-            return SimSpec(flavor, wave, phot, skyphot=skyphot, header=hdr)
+            #- Correct for astropy incorrectly casting [n,1] arrays to 1D
+            if phot[channel].ndim == 1:
+                n = len(phot[channel])
+                phot[channel] = phot[channel].reshape([1,n])
+                skyphot[channel] = skyphot[channel].reshape([1,n])
 
-        elif flavor.lower() == 'flat':
+            assert phot[channel].shape == skyphot[channel].shape
+
+        #- Check for flux, skyflux, and metadata
+        flux = None
+        skyflux = None
+        if 'FLUX' in fx:
             wave['brz'] = fx['FLUX'].data['WAVELENGTH']
             flux = fx['FLUX'].data['FLUX'].T
-            return SimSpec(flavor, wave, phot, skyphot=skyphot, flux=flux, header=hdr)
+            if flux.ndim == 1:
+                flux = flux.reshape([1,len(flux)])
+            if 'SKYFLUX' in fx:
+                skyflux = fx['FLUX'].data['SKYFLUX']
+                if skyflux.ndim == 1:
+                    skyflux = skyflux.reshape([1,len(skyflux)])
 
-        else:  #- multiple science flavors: dark, bright, bgs, mws, etc.
-            wave['brz'] = fx['FLUX'].data['WAVELENGTH']
-            flux = fx['FLUX'].data['FLUX'].T
-            skyflux = fx['FLUX'].data['SKYFLUX'].T
+        if 'METADATA' in fx:
             metadata = fx['METADATA'].data
+        else:
+            metadata = None
 
     return SimSpec(flavor, wave, phot, flux=flux, skyflux=skyflux,
         skyphot=skyphot, metadata=metadata, header=hdr)

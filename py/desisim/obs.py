@@ -14,6 +14,7 @@ import fcntl
 import time
 from astropy.io import fits
 from astropy import table
+import astropy.units as u
 
 import desimodel.io
 import desispec.io
@@ -24,6 +25,8 @@ log = get_logger()
 
 from .targets import get_targets_parallel
 from . import io
+import desisim.newexp
+from .newexp import simulate_spectra
 
 def testslit_fibermap() :
     # from WBS 1.6 PDR Fiber Slit document
@@ -50,6 +53,169 @@ def testslit_fibermap() :
     return fibermap
 
 def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
+                 airmass=1.0, exptime=None, seed=None, testslit=False,
+                 arc_lines_filename=None, flat_spectrum_filename=None):
+
+    """
+    Create a new exposure and output input simulation files.
+    Does not generate pixel-level simulations or noisy spectra.
+
+    Args:
+        flavor: 'arc', 'flat', 'bright', 'dark', 'bgs', 'mws', ...
+
+    Options:
+        nspec : integer number of spectra to simulate
+        night : YEARMMDD string
+        expid : positive integer exposure ID
+        tileid : integer tile ID
+        airmass : airmass, default 1.0
+        exptime : exposure time in seconds
+        seed : random seed
+        testslit : simulate test slit if True, default False
+        arc_lines_filename : use alternate arc lines filename (used if flavor="arc")
+        flat_spectrum_filename : use alternate flat spectrum filename (used if flavor="flat")
+
+    Writes:
+        $DESI_SPECTRO_SIM/$PIXPROD/{night}/fibermap-{expid}.fits
+        $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
+
+    Returns:
+        fibermap numpy structured array
+        truth dictionary
+
+    Notes:
+        flavor is used to pick the sky brightness, and is propagated to
+        desisim.targets.sample_objtype() to get the correct distribution of
+        targets for a given flavor, e.g. ELGs, LRGs, QSOs for flavor='dark'.
+    """
+    if expid is None:
+        expid = get_next_expid()
+
+    if tileid is None:
+        tileid = get_next_tileid()
+
+    if night is None:
+        #- simulation obs time = now, even if sun is up
+        dateobs = time.gmtime()
+        night = get_night(utc=dateobs)
+    else:
+        #- 10pm on night YEARMMDD
+        night = str(night)  #- just in case we got an integer instead of string
+        dateobs = time.strptime(night+':22', '%Y%m%d:%H')
+
+    outsimspec = desisim.io.findfile('simspec', night, expid)
+    outfibermap = desisim.io.findfile('simfibermap', night, expid)
+    
+    flavor = flavor.lower()
+    log.debug('Generating {} targets'.format(nspec))
+    
+    if flavor == 'arc':
+        if arc_lines_filename is None :
+            infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.3/arc-lines-average-in-vacuum.fits'
+        else :
+            infile = arc_lines_filename
+        arcdata = fits.getdata(infile, 1)
+        wave, phot, fibermap = desisim.newexp.newarc(arcdata, nspec=nspec)
+        header = dict(NIGHT=night, EXPID=expid, EXPTIME=5, FLAVOR='arc')
+        desisim.io.write_simspec_arc(outsimspec, wave, phot, header)
+        fibermap.meta['NIGHT'] = night
+        fibermap.meta['EXPID'] = expid
+        fibermap.write(outfibermap)
+        truth = dict(WAVE=wave, PHOT=phot, UNITS='photon')
+        return fibermap, truth
+    
+    elif flavor == 'flat':
+        if flat_spectrum_filename is None :
+            infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.3/flat-3100K-quartz-iodine.fits'
+        else :
+            infile = flat_spectrum_filename
+
+        exptime = 10
+        sim, fibermap = desisim.newexp.newflat(infile, nspec=nspec, exptime=exptime)
+        header = dict(NIGHT=night, EXPID=expid, EXPTIME=exptime, FLAVOR='flat')
+        desisim.io.write_simspec(sim, None, expid, night, header=header)
+        fibermap.meta['NIGHT'] = night
+        fibermap.meta['EXPID'] = expid
+        fibermap.write(outfibermap)
+        # fluxunits = 1e-17 * u.erg / (u.s * u.cm**2 * u.Angstrom)
+        fluxunits = '1e-17 erg/(s * cm2 * Angstrom)'
+        flux = sim.simulated['source_flux'].to(fluxunits)
+        wave = sim.simulated['wavelength'].to('Angstrom')
+        truth = dict(WAVE=wave, FLUX=flux, UNITS=str(fluxunits))
+        return fibermap, truth
+
+    #- all other flavors
+    fibermap, truth = get_targets_parallel(nspec, flavor, tileid=tileid, seed=seed)
+
+    fibermap = table.Table(fibermap)
+    fibermap.remove_columns(['OBJTYPE', 'MAG'])
+    meta = table.hstack([fibermap, table.Table(truth['META'])])
+
+    wave = truth['WAVE']
+    flux = truth['FLUX']
+    if flavor.upper() in ['DARK', 'LRG', 'QSO']:
+        obsconditions = 'DARK'
+    elif flavor.upper() in ['ELG', 'GRAY', 'GREY']:
+        obsconditions = 'GRAY'
+    elif flavor.upper() in ['MWS', 'BGS', 'BRIGHT']:
+        obsconditions = 'BRIGHT'
+    else:
+        raise ValueError('unknown flavor {}'.format(flavor))
+
+    obsconditions = desisim.newexp.reference_conditions[obsconditions]
+    if exptime is not None:
+        obsconditions['EXPTIME'] = exptime
+    if airmass is not None:
+        obsconditions['AIRMASS'] = airmass
+
+    # sim = simulate_spectra(wave, flux, meta=meta, obsconditions=obsconditions, galsim=False)
+    sim = simulate_spectra(wave, 1e-17*flux, meta=fibermap, obsconditions=obsconditions, galsim=False)
+
+    #- Override $DESI_SPECTRO_DATA in order to write to simulation area
+    datadir_orig = os.getenv('DESI_SPECTRO_DATA')
+    simbase = os.path.join(os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'))
+    os.environ['DESI_SPECTRO_DATA'] = simbase
+
+    #- Copy some per-camera post-convolution results into the truth dict
+    for camera, results in zip(sim.camera_names, sim.camera_output):
+        camera = camera.upper()
+        truth['WAVE_'+camera] = results['wavelength']
+        truth['PHOT_'+camera] = results['num_source_electrons']
+        truth['SKYPHOT_'+camera] = results['num_sky_electrons']
+
+    #- Write fibermap
+    telera, teledec = io.get_tile_radec(tileid)
+    hdr = dict(
+        NIGHT = (night, 'Night of observation YEARMMDD'),
+        EXPID = (expid, 'DESI exposure ID'),
+        TILEID = (tileid, 'DESI tile ID'),
+        FLAVOR = (flavor, 'Flavor [arc, flat, science, ...]'),
+        TELRA = (telera, 'Telescope pointing RA [degrees]'),
+        TELDEC = (teledec, 'Telescope pointing dec [degrees]'),
+        )
+    #- ISO 8601 DATE-OBS year-mm-ddThh:mm:ss
+    fiberfile = desispec.io.findfile('fibermap', night, expid)
+    desispec.io.write_fibermap(fiberfile, fibermap, header=hdr)
+    log.info('Wrote '+fiberfile)
+
+    #- Write simspec; expand fibermap header
+    hdr['AIRMASS'] = (obsconditions['AIRMASS'], 'Airmass at middle of exposure')
+    hdr['EXPTIME'] = (obsconditions['EXPTIME'], 'Exposure time [sec]')
+    hdr['DATE-OBS'] = (time.strftime('%FT%T', dateobs), 'Start of exposure')
+
+    simfile = io.write_simspec(sim, meta, expid, night, header=hdr)
+
+    update_obslog(obstype='science', program=flavor, expid=expid, dateobs=dateobs, tileid=tileid)
+
+    #- Restore $DESI_SPECTRO_DATA
+    if datadir_orig is not None:
+        os.environ['DESI_SPECTRO_DATA'] = datadir_orig
+    else:
+        del os.environ['DESI_SPECTRO_DATA']
+
+    return fibermap, truth
+
+def _orig_new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
                  airmass=1.0, exptime=None, seed=None, testslit=False,
                  arc_lines_filename=None, flat_spectrum_filename=None):
 

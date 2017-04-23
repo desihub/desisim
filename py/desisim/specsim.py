@@ -51,3 +51,4 @@ def get_simulator(config='desi', num_fibers=1):
         _simdefaults[key] = defaults
 
     return qsim
+
