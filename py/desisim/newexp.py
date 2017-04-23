@@ -1,3 +1,5 @@
+from __future__ import absolute_import, division, print_function
+
 import os.path
 import warnings
 import datetime, time
@@ -11,9 +13,10 @@ from astropy.io import fits
 import desitarget
 import desispec.io
 import desispec.io.util
-import desisim.io
 import desimodel.io
 import desiutil.depend
+
+import desisim.io
 
 #- Reference observing conditions for each of dark, gray, bright
 #- TODO: verify numbers
@@ -60,7 +63,7 @@ def newarc(arcdata, nspec=5000, nonuniform=False):
     does include the effect of varying fiber sizes.
 
     TODO:
-        * add exptime
+        * add exptime support
         * update inputs to surface brightness and DESI lamp lines (DESI-2674)
     '''
     wave = arcdata['VACUUM_WAVE']
@@ -270,7 +273,6 @@ def newexp(fiberassign, mockdir, obsconditions=None, expid=None, nspec=None):
     if len(missing_keys) > 0:
         raise ValueError('obsconditions missing keys {}'.format(missing_keys))
 
-    # sim = simulate_spectra(wave, flux, meta=fibermeta, obsconditions=obsconditions)
     sim = simulate_spectra(wave, flux, meta=fibermeta, obsconditions=obsconditions)
     header = dict(FLAVOR='science')
 
@@ -331,35 +333,8 @@ def fibermeta2fibermap(fibermeta):
 
     return fibermap
 
-
 #-------------------------------------------------------------------------
-#- specsim.simulator.Simulator wrapper
-
-def _specsim_config_for_wave(wave):
-    '''
-    Generate specsim config object for a given wavelength grid
-
-    Args:
-        wave: array of linearly spaced wavelengths in Angstroms
-
-    Returns:
-        specsim Configuration object with wavelength parameters set to match
-        this input wavelength grid
-    '''
-    import specsim.config
-
-    dwave = round(np.mean(np.diff(wave)), 3)
-    assert np.allclose(dwave, np.diff(wave), rtol=1e-6, atol=1e-3)
-
-    config = specsim.config.load_config('desi')
-    config.wavelength_grid.min = wave[0]
-    config.wavelength_grid.max = wave[-1] + dwave/2.0
-    config.wavelength_grid.step = dwave
-    config.instrument.cameras.b.constants.output_pixel_size = "{:.3f} Angstrom".format(dwave)
-    config.instrument.cameras.r.constants.output_pixel_size = "{:.3f} Angstrom".format(dwave)
-    config.instrument.cameras.z.constants.output_pixel_size = "{:.3f} Angstrom".format(dwave)
-    config.update()
-    return config
+#- specsim related routines
 
 def simulate_spectra(wave, flux, meta=None, obsconditions=None, galsim=False):
     '''
@@ -442,7 +417,7 @@ def simulate_spectra(wave, flux, meta=None, obsconditions=None, galsim=False):
     elif 'X' in meta.dtype.names:
         xy = np.vstack([meta['X'], meta['Y']]).T * u.mm
     else:
-        xy = np.vstack([fiberpos['X'], fiberpos['Y']]).T
+        xy = np.vstack([fiberpos['X'], fiberpos['Y']]).T * u.mm
 
     if 'TARGETID' in meta.dtype.names:
         unassigned = (meta['TARGETID'] == -1)
@@ -460,6 +435,35 @@ def simulate_spectra(wave, flux, meta=None, obsconditions=None, galsim=False):
     desi.instrument.fiberloss_method = 'table'
     desi.simulate(source_fluxes=flux, focal_positions=xy, source_types=source_types)
     return desi
+
+def _specsim_config_for_wave(wave):
+    '''
+    Generate specsim config object for a given wavelength grid
+
+    Args:
+        wave: array of linearly spaced wavelengths in Angstroms
+
+    Returns:
+        specsim Configuration object with wavelength parameters set to match
+        this input wavelength grid
+    '''
+    import specsim.config
+
+    dwave = round(np.mean(np.diff(wave)), 3)
+    assert np.allclose(dwave, np.diff(wave), rtol=1e-6, atol=1e-3)
+
+    config = specsim.config.load_config('desi')
+    config.wavelength_grid.min = wave[0]
+    config.wavelength_grid.max = wave[-1] + dwave/2.0
+    config.wavelength_grid.step = dwave
+    config.instrument.cameras.b.constants.output_pixel_size = "{:.3f} Angstrom".format(dwave)
+    config.instrument.cameras.r.constants.output_pixel_size = "{:.3f} Angstrom".format(dwave)
+    config.instrument.cameras.z.constants.output_pixel_size = "{:.3f} Angstrom".format(dwave)
+    # config.instrument.cameras.b.constants.output_pixel_size = "1.0 Angstrom"
+    # config.instrument.cameras.r.constants.output_pixel_size = "1.0 Angstrom"
+    # config.instrument.cameras.z.constants.output_pixel_size = "1.0 Angstrom"
+    config.update()
+    return config
 
 def get_source_types(fibermap):
     '''

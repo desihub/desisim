@@ -420,7 +420,8 @@ def main(args):
 
     # Set airmass and exptime
     if args.simspec:
-        qsim.atmosphere.airmass = simspec.header['AIRMASS']
+        if 'AIRMASS' in simspec.header:
+            qsim.atmosphere.airmass = simspec.header['AIRMASS']
         qsim.observation.exposure_time = simspec.header['EXPTIME'] * u.s
     else:
         qsim.atmosphere.airmass = args.airmass
