@@ -184,6 +184,9 @@ def write_simspec_arc(filename, wave, phot, header):
 
     hx = fits.HDUList()
     hdr = desispec.io.util.fitsheader(header)
+    hdr['FLAVOR'] = 'arc'
+    if 'DOSVER' not in hdr:
+        hdr['DOSVER'] = 'SIM'
     hx.append(fits.PrimaryHDU(None, header=hdr))
 
     for camera in ['b', 'r', 'z']:
