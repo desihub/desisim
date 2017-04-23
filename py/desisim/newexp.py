@@ -19,6 +19,8 @@ import desispec.interpolation
 
 import desisim.io
 
+import desisim.io
+
 #- Reference observing conditions for each of dark, gray, bright
 #- TODO: verify numbers
 reference_conditions = dict(DARK=dict(), GRAY=dict(), BRIGHT=dict())
@@ -261,7 +263,6 @@ def newexp(fiberassign, mockdir, obsconditions=None, expid=None, nspec=None):
     if len(missing_keys) > 0:
         raise ValueError('obsconditions missing keys {}'.format(missing_keys))
 
-    # sim = simulate_spectra(wave, flux, meta=fibermeta, obsconditions=obsconditions)
     sim = simulate_spectra(wave, flux, meta=fibermeta, obsconditions=obsconditions)
     header = dict(FLAVOR='science')
 
