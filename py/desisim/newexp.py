@@ -407,11 +407,12 @@ def simulate_spectra(wave, flux, meta=None, obsconditions=None, galsim=False):
 
     if meta is None:
         meta = astropy.table.Table()
-        meta['X'] = fiberpos['X']
-        meta['Y'] = fiberpos['Y']
+        meta['X'] = fiberpos['X'][0:nspec]
+        meta['Y'] = fiberpos['Y'][0:nspec]
+        meta['FIBER'] = fiberpos['FIBER'][0:nspec]
 
     #- Extract fiber locations from meta Table -> xy[nspec,2]
-    assert np.all(meta['FIBER'] == fiberpos['FIBER'])
+    assert np.all(meta['FIBER'] == fiberpos['FIBER'][0:nspec])
     if 'XFOCAL_DESIGN' in meta.dtype.names:
         xy = np.vstack([meta['XFOCAL_DESIGN'], meta['YFOCAL_DESIGN']]).T * u.mm
     elif 'X' in meta.dtype.names:
@@ -459,9 +460,12 @@ def _specsim_config_for_wave(wave):
     config.instrument.cameras.b.constants.output_pixel_size = "{:.3f} Angstrom".format(dwave)
     config.instrument.cameras.r.constants.output_pixel_size = "{:.3f} Angstrom".format(dwave)
     config.instrument.cameras.z.constants.output_pixel_size = "{:.3f} Angstrom".format(dwave)
+
+    #- Pending https://github.com/desihub/specsim/issues/64
     # config.instrument.cameras.b.constants.output_pixel_size = "1.0 Angstrom"
     # config.instrument.cameras.r.constants.output_pixel_size = "1.0 Angstrom"
     # config.instrument.cameras.z.constants.output_pixel_size = "1.0 Angstrom"
+
     config.update()
     return config
 
