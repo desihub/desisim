@@ -1059,7 +1059,8 @@ class SUPERSTAR(object):
     def make_star_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                             magrange=(18.0, 23.5), seed=None, redshift=None,
                             mag=None, input_meta=None, star_properties=None,
-                            nocolorcuts=False, restframe=False, verbose=False):
+                            nocolorcuts=False, restframe=False, verbose=False,
+                            interp_method='cubic'):
 
         """Build Monte Carlo spectra/templates for various flavors of stars.
 
@@ -1232,7 +1233,9 @@ class SUPERSTAR(object):
         else:
             from scipy.interpolate import griddata
             baseflux = griddata(base_properties, self.baseflux,
-                                input_properties, method='linear')
+                                input_properties, method=interp_method)
+
+        import pdb ; pdb.set_trace()
 
         # Build each spectrum in turn.
         if restframe:
