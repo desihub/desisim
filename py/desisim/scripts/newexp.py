@@ -5,6 +5,7 @@ import argparse
 import numpy as np
 import astropy.table
 import astropy.time
+import astropy.units as u
 
 from desisim.newexp import newexp
 import desisim.io
@@ -47,8 +48,10 @@ def main(args=None):
 
     obs = obslist[args.obsnum]
 
+    #- Get YEARMMDD string of sunset (not current UTC)
     dateobs = astropy.time.Time(obs['MJD'], format='mjd')
-    night = dateobs.utc.isot[0:10].replace('-', '')     #- YEARMMDD string
+    localtime = (dateobs - 7*u.hour)
+    night = (localtime-12*u.hour).utc.isot[0:10].replace('-', '')
 
     if args.outdir is None:
         args.outdir = desisim.io.simdir(night=night, mkdir=True)
