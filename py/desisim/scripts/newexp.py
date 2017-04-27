@@ -63,6 +63,7 @@ def main(args=None):
 
     fibermap.meta['NIGHT'] = night
     fibermap.meta['EXPID'] = args.expid
+    fibermap.meta['FLAVOR'] = 'science'
     fibermap.write(desisim.io.findfile('simfibermap', night, args.expid,
         outdir=args.outdir))
     header = dict(FLAVOR='science')
