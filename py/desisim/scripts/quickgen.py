@@ -519,7 +519,7 @@ def main(args):
                     np.average(simspec.phot[channel]/dw, axis=0))
                 fiberflat = random_state.normal(loc=1.0,
                     scale=1.0 / np.sqrt(meanspec), size=(nspec, num_pixels))
-                ivar = np.tile(1.0 / meanspec, [nspec, 1])
+                ivar = np.tile(meanspec, [nspec, 1])
                 mask = np.zeros((simspec.nspec, num_pixels), dtype=np.uint32)
 
                 for kk in range((args.nspec+args.nstart-1)//500+1):
