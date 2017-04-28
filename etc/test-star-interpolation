@@ -24,22 +24,21 @@ def make_star(nobj=50, seed=123):
     #star_properties.add_column(Column(name='TEFF', length=nobj, dtype='f4'))
     #star_properties.add_column(Column(name='LOGG', length=nobj, dtype='f4'))
     #star_properties.add_column(Column(name='FEH', length=nobj, dtype='f4'))
+    
     star_properties['REDSHIFT'] = rand.uniform(0.8, 1.2, nobj)
     star_properties['MAG'] = rand.uniform(16, 16, nobj)
     star_properties['TEFF'] = rand.uniform(5500, 6500, nobj) 
     star_properties['FEH'] = rand.uniform(-1.0, 0.0, nobj) # [-2.5, 0]
     star_properties['LOGG'] = rand.uniform(3.5, 4.5, nobj) # [3-5]
-    star_properties['SEED'] = rand.randint(2**32, size=nobj)
-
     print(star_properties)
 
-    STAR().make_templates(star_properties=star_properties)
+    STAR().make_templates(star_properties=star_properties, seed=seed)
     #ELG().make_templates(nmodel=nobj, seed=seed, nocolorcuts=True)
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-n', '--nobj', type=int, help='Number of spectra to simulate.')
+    parser.add_argument('-n', '--nobj', type=int, default=10, help='Number of spectra to simulate.')
 
     args = parser.parse_args()
     make_star(args.nobj)

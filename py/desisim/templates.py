@@ -1173,11 +1173,11 @@ class SUPERSTAR(object):
                 if 'FEH' in self.basemeta.columns:
                     base_properties  = np.array([self.basemeta['LOGG'], self.basemeta['TEFF'],
                                                  self.basemeta['FEH']]).T.astype('f4')
-                    input_properties = (star_properties['LOGG'].data, star_properties['TEFF'].data,
-                                        star_properties['FEH'].data)
+                    input_properties = np.array([star_properties['LOGG'].data, star_properties['TEFF'].data,
+                                                 star_properties['FEH'].data]).T
                 else:
                     base_properties  = np.array([self.basemeta['LOGG'], self.basemeta['TEFF']]).T.astype('f4')
-                    input_properties = (star_properties['LOGG'].data, star_properties['TEFF'].data)
+                    input_properties = np.array([star_properties['LOGG'].data, star_properties['TEFF'].data]).T
 
                 nchunk = 1
                 alltemplateid_chunk = [np.arange(nmodel).reshape(nmodel, 1)]
@@ -1231,11 +1231,34 @@ class SUPERSTAR(object):
         if star_properties is None:
             baseflux = self.baseflux
         else:
+            from scipy.spatial import cKDTree
             from scipy.interpolate import griddata
-            baseflux = griddata(base_properties, self.baseflux,
-                                input_properties, method=interp_method)
 
-        import pdb ; pdb.set_trace()
+            # Normalize to the range 0->1.
+            mn = np.min(base_properties, axis=0)
+            mx = np.max(base_properties - mn, axis=0)
+            norm_base_properties = (base_properties - mn) / mx
+            norm_input_properties = (input_properties - mn) / mx
+
+            tree = cKDTree(norm_base_properties)
+            rr = tree.query_ball_point(norm_input_properties, 0.1)
+
+            import matplotlib.pyplot as plt
+            plt.scatter(norm_base_properties[:, 0], norm_base_properties[:, 1])
+            plt.scatter(norm_base_properties[rr[0], 0], norm_base_properties[rr[0], 1])
+            plt.scatter(norm_input_properties[0, 0], norm_input_properties[0, 1])
+            plt.show()
+
+            
+            import pdb ; pdb.set_trace()
+            
+            dist, indx = tree.query(input_properties)
+
+            
+
+            
+            baseflux = griddata(base_properties, self.baseflux, input_properties, method=interp_method)
+
 
         # Build each spectrum in turn.
         if restframe:
