@@ -86,10 +86,19 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
 #-------------------------------------------------------------------------
 #- simspec
 
-def write_simspec(sim, meta, expid, night, outdir=None, filename=None,
+def write_simspec(sim, truth, fibermap, obs, expid, night, outdir=None, filename=None,
     header=None, overwrite=False):
     '''
-    TODO: document
+    TODO: document more
+
+    Args:
+        sim: specsim Simulator object
+        truth: truth metadata Table
+        fibermap: fibermap Table
+        obs: dict-like observation conditions
+            TODO: define keys
+        expid: integer exposure ID
+        night: YEARMMDD string
     '''
     import astropy.table
     import astropy.units as u
@@ -123,6 +132,8 @@ def write_simspec(sim, meta, expid, night, outdir=None, filename=None,
         tx['SKYPHOT'].unit = u.photon
         tphot[camera] = tx
 
+    #- Primary HDU: header only
+
     header = desispec.io.util.fitsheader(header)
     desiutil.depend.add_dependencies(header)
     header['EXPID'] = expid
@@ -131,6 +142,8 @@ def write_simspec(sim, meta, expid, night, outdir=None, filename=None,
     header['EXPTIME'] = sim.observation.exposure_time.to('s').value
     if 'DOSVER' not in header:
         header['DOSVER'] = 'SIM'
+    if 'FEEVER' not in header:
+        header['FEEVER'] = 'SIM'
 
     if 'FLAVOR' not in header:
         log.warn('FLAVOR not provided; guessing "science"')
@@ -142,8 +155,17 @@ def write_simspec(sim, meta, expid, night, outdir=None, filename=None,
 
     log.info('DATE-OBS {} UTC'.format(header['DATE-OBS']))
 
+    #- Check truth and obs for science exposures
+    if header['FLAVOR'] == 'science':
+        if obs is None:
+            raise ValueError('obs Table must be included for science exposures')
+        if truth is None:
+            raise ValueError('truth Table must be included for science exposures')
+
     hx = fits.HDUList()
     hx.append(fits.PrimaryHDU(None, header=header))
+
+    #- FLUX HDU: table with wavelength, flux, skyflux
 
     #- Ignore irritating astropy warnings about ergs and Angstroms
     with warnings.catch_warnings():
@@ -154,15 +176,34 @@ def write_simspec(sim, meta, expid, night, outdir=None, filename=None,
     fluxhdu.header['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
     hx.append(fluxhdu)
 
-    if meta is not None:
-        if isinstance(meta, astropy.table.Table):
-            metahdu = fits.table_to_hdu(meta)
+    #- METADATA HDU: table with truth metadata
+    if truth is not None:
+        if isinstance(truth, astropy.table.Table):
+            truthhdu = fits.table_to_hdu(truth)
         else:
-            metahdu = fits.BinTableHDU(meta)
+            truthhdu = fits.BinTableHDU(truth)
 
-        metahdu.header['EXTNAME'] = 'METADATA'
-        hx.append(metahdu)
+        truthhdu.header['EXTNAME'] = 'TRUTH'
+        hx.append(truthhdu)
 
+    #- FIBERMAP HDU
+    fibermap_hdu = fits.table_to_hdu(fibermap)
+    fibermap_hdu.header['EXTNAME'] = 'FIBERMAP'
+    hx.append(fibermap_hdu)
+
+    #- OBSCONDITIONS HDU: Table with 1 row with observing conditions
+    #- is None for flat calibration calibration exposures
+    if obs is not None:
+        if isinstance(obs, astropy.table.Row):
+            obstable = astropy.table.Table(obs)
+        else:
+            obstable = astropy.table.Table([obs,])
+        obs_hdu = fits.table_to_hdu(obstable)
+        obs_hdu.header['EXTNAME'] = 'OBSCONDITIONS'
+        hx.append(obs_hdu)
+
+    #- DEPRECATED
+    #- B/R/Z HDUs: per-camera photons
     for camera in sorted(tphot.keys()):
         #- Ignore irritating astropy warnings about ergs and Angstroms
         with warnings.catch_warnings():
@@ -211,99 +252,6 @@ def write_simspec_arc(filename, wave, phot, header):
     hx.writeto(filename)
     return filename
 
-def _write_simspec_orig(meta, truth, expid, night, header=None, outfile=None):
-    """Write ``$DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits``.
-
-    Args:
-        meta : metadata table to write to "METADATA" HDU
-        truth : dictionary with keys:
-            FLUX: 2D array [nspec, nwave] in erg/s/cm2/A;
-            WAVE: 1D array of vacuum wavelengths [Angstroms];
-            SKYFLUX: array of sky flux [erg/s/cm2/A/arcsec],
-            either 1D [nwave] or 2D [nspec, nwave];
-            PHOT_{B,R,Z}: 2D array [nspec, nwave] of object photons/bin;
-            SKYPHOT_{B,R,Z}: 1D or 2D array of sky photons/bin
-        expid : integer exposure ID
-        night : string YEARMMDD
-        header : optional dictionary of header items to add to output
-        outfile : optional filename to write (otherwise auto-derived)
-
-    Returns:
-        str: full file path of output file written
-    """
-    #- Where should this go?
-    if outfile is None:
-        outdir = simdir(night, mkdir=True)
-        outfile = '{}/simspec-{:08d}.fits'.format(outdir, expid)
-
-    #- Primary HDU is just a header from the input
-    header = desispec.io.util.fitsheader(header)
-    if 'DOSVER' not in header:
-        header['DOSVER'] = 'SIM'
-
-    hx = fits.HDUList()
-    hx.append(fits.PrimaryHDU(None, header=header))
-
-    #- Object flux HDU (might not exist, e.g. for an arc)
-    if 'FLUX' in truth:
-        x = fits.ImageHDU(truth['WAVE'], name='WAVE')
-        x.header['BUNIT']  = ('Angstrom', 'Wavelength units')
-        x.header['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
-        hx.append(x)
-
-        x = fits.ImageHDU(truth['FLUX'].astype(np.float32), name='FLUX')
-        x.header['BUNIT'] = '1e-17 erg/s/cm2/A'
-        hx.append(x)
-
-    #- Sky flux HDU
-    if 'SKYFLUX' in truth:
-        x = fits.ImageHDU(truth['SKYFLUX'].astype(np.float32), name='SKYFLUX')
-        x.header['BUNIT'] = '1e-17 erg/s/cm2/A/arcsec2'
-        hx.append(x)
-
-    #- Write object photon and sky photons for each channel
-    for channel in ['B', 'R', 'Z']:
-        x = fits.ImageHDU(truth['WAVE_'+channel], name='WAVE_'+channel)
-        x.header['BUNIT']  = ('Angstrom', 'Wavelength units')
-        x.header['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
-        hx.append(x)
-
-        extname = 'PHOT_'+channel
-        x = fits.ImageHDU(truth[extname].astype(np.float32), name=extname)
-        x.header['EXTNAME'] = (extname, channel+' channel object photons per bin')
-        hx.append(x)
-
-        extname = 'SKYPHOT_'+channel
-        if extname in truth:
-            x = fits.ImageHDU(truth[extname].astype(np.float32), name=extname)
-            x.header['EXTNAME'] = (extname, channel+' channel sky photons per bin')
-            hx.append(x)
-
-    #- Write the file
-    hx.writeto(outfile, clobber=True)
-
-    #- Add Metadata table HDU; use write_bintable to get units and comments
-    if meta is not None:
-        comments = dict(
-            OBJTYPE     = 'Object type (ELG,LRG,QSO,STD,STAR,MWS_STAR,BGS)',
-            REDSHIFT    = 'true object redshift',
-            TEMPLATEID  = 'input template ID',
-            OIIFLUX     = '[OII] flux [erg/s/cm2]',
-            D4000       = '4000-A break'
-        )
-
-        units = dict(
-            # OBJTYPE     = 'Object type (ELG, LRG, QSO, STD, STAR, MWS_STAR, BGS)',
-            # REDSHIFT    = 'true object redshift',
-            # TEMPLATEID  = 'input template ID',
-            OIIFLUX      = 'erg/s/cm2',
-        )
-
-        write_bintable(outfile, meta, header=None, extname="METADATA",
-            comments=comments, units=units)
-
-    return outfile
-
 class SimSpec(object):
     """Lightweight wrapper object for simspec data.
 
@@ -320,6 +268,9 @@ class SimSpec(object):
         skyphot : dictionary with per-channel sky photon counts per bin
         metadata : table of metadata information about these spectra
         header : FITS header from HDU0
+        fibermap : fibermap Table
+        obs : (dict-like) observing conditions
+            TODO: document keys
 
     Notes:
       * input arguments become attributes
@@ -328,7 +279,7 @@ class SimSpec(object):
       * wave['brz'] is the wavelength grid for flux and skyflux
     """
     def __init__(self, flavor, wave, phot, flux=None, skyflux=None,
-                 skyphot=None, metadata=None, header=None):
+                 skyphot=None, metadata=None, fibermap=None, obs=None, header=None):
         for channel in ('b', 'r', 'z'):
             assert wave[channel].ndim == 1
             assert phot[channel].ndim == 2
@@ -346,13 +297,15 @@ class SimSpec(object):
         self.flux = flux
         self.skyflux = skyflux
         self.metadata = metadata
+        self.fibermap = fibermap
+        self.obs = obs
         self.header = header
 
-def read_simspec(filename):
+def read_simspec(filename, nspec=None, firstspec=0):
     """Read simspec data from filename and return SimSpec object.
     """
-
-    with fits.open(filename) as fx:
+    import astropy.table
+    with fits.open(filename, memmap=False) as fx:
         hdr = fx[0].header
         flavor = hdr['FLAVOR']
 
@@ -391,12 +344,38 @@ def read_simspec(filename):
                     skyflux = skyflux.reshape([1,len(skyflux)])
 
         if 'METADATA' in fx:
-            metadata = fx['METADATA'].data
+            metadata = astropy.table.Table(fx['METADATA'].data)
         else:
             metadata = None
 
+        if 'FIBERMAP' in fx:
+            fibermap = astropy.table.Table(fx['FIBERMAP'].data)
+        else:
+            fibermap = None
+
+        if 'OBSCONDITIONS' in fx:
+            obs = astropy.table.Table(fx['OBSCONDITIONS'].data)[0]
+        else:
+            obs = None
+
+    #- Trim down if requested
+    if nspec is None:
+        nspec = phot['b'].shape[0]
+
+    if firstspec > 0 or firstspec+nspec<phot['b'].shape[0]:
+        for channel in ('b', 'r', 'z'):
+            phot[channel] = phot[channel][firstspec:firstspec+nspec]
+            skyphot[channel] = skyphot[channel][firstspec:firstspec+nspec]
+        if flux is not None:
+            flux = flux[firstspec:firstspec+nspec]
+        if skyflux is not None:
+            skyflux = skyflux[firstspec:firstspec+nspec]
+        if metadata is not None:
+            metadata = metadata[firstspec:firstspec+nspec]
+
     return SimSpec(flavor, wave, phot, flux=flux, skyflux=skyflux,
-        skyphot=skyphot, metadata=metadata, header=hdr)
+        skyphot=skyphot, metadata=metadata, fibermap=fibermap, obs=obs,
+        header=hdr)
 
 def _read_simspec_orig(filename):
     """Read simspec data from filename and return SimSpec object.

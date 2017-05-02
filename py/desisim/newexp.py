@@ -75,20 +75,7 @@ def newarc(arcdata, nspec=5000, nonuniform=False):
 
     #-----
     #- Determine ratio of fiber sizes relative to larges fiber
-    #- TODO: fiberarea calculation should be in desimodel
-    params = desimodel.io.load_desiparams()
-    fiber_dia = params['fibers']['diameter_um']
-    r = np.sqrt(fibermap['X_TARGET']**2 + fibermap['Y_TARGET']**2)
-
-    #- Platescales in um/arcsec
-    ps = desimodel.io.load_platescale()
-    radial_scale = np.interp(r, ps['radius'], ps['radial_platescale'])
-    az_scale = np.interp(r, ps['radius'], ps['az_platescale'])
-
-    #- radial and azimuthal fiber radii in arcsec
-    rr  = 0.5 * fiber_dia / radial_scale
-    raz = 0.5 * fiber_dia / az_scale
-    fiber_area = (np.pi * rr * raz)
+    fiber_area = fiber_area_arcsec2(fibermap['X_TARGET'], fibermap['Y_TARGET'])
     size_ratio = fiber_area / np.max(fiber_area)
 
     #- Correct photons for fiber size
@@ -336,7 +323,8 @@ def fibermeta2fibermap(fibermeta):
 #-------------------------------------------------------------------------
 #- specsim related routines
 
-def simulate_spectra(wave, flux, meta=None, obsconditions=None, galsim=False):
+def simulate_spectra(wave, flux, meta=None, obsconditions=None, galsim=False,
+    dwave_out=None):
     '''
     Simulates an exposure without reading/writing data files
 
@@ -349,6 +337,10 @@ def simulate_spectra(wave, flux, meta=None, obsconditions=None, galsim=False):
         obsconditions: (dict-like) observation metadata including
             SEEING (arcsec), EXPTIME (sec), AIRMASS,
             MOONFRAC (0-1), MOONALT (deg), MOONDIST (deg)
+
+    TODO:
+        galsim
+        dwave_out
 
     Returns a specsim.simulator.Simulator object
     '''
@@ -371,7 +363,7 @@ def simulate_spectra(wave, flux, meta=None, obsconditions=None, galsim=False):
         wave = wave * u.Angstrom
 
     log.debug('loading specsim desi config')
-    config = _specsim_config_for_wave(wave.to('Angstrom').value)
+    config = _specsim_config_for_wave(wave.to('Angstrom').value, dwave_out=dwave_out)
 
     #- Create simulator
     log.debug('creating specsim desi simulator')
@@ -437,7 +429,7 @@ def simulate_spectra(wave, flux, meta=None, obsconditions=None, galsim=False):
     desi.simulate(source_fluxes=flux, focal_positions=xy, source_types=source_types)
     return desi
 
-def _specsim_config_for_wave(wave):
+def _specsim_config_for_wave(wave, dwave_out=None):
     '''
     Generate specsim config object for a given wavelength grid
 
@@ -457,14 +449,15 @@ def _specsim_config_for_wave(wave):
     config.wavelength_grid.min = wave[0]
     config.wavelength_grid.max = wave[-1] + dwave/2.0
     config.wavelength_grid.step = dwave
-    config.instrument.cameras.b.constants.output_pixel_size = "{:.3f} Angstrom".format(dwave)
-    config.instrument.cameras.r.constants.output_pixel_size = "{:.3f} Angstrom".format(dwave)
-    config.instrument.cameras.z.constants.output_pixel_size = "{:.3f} Angstrom".format(dwave)
 
-    #- Pending https://github.com/desihub/specsim/issues/64
-    # config.instrument.cameras.b.constants.output_pixel_size = "1.0 Angstrom"
-    # config.instrument.cameras.r.constants.output_pixel_size = "1.0 Angstrom"
-    # config.instrument.cameras.z.constants.output_pixel_size = "1.0 Angstrom"
+    if dwave_out is None:
+        #- Pending https://github.com/desihub/specsim/issues/64
+        # dwave_out = 1.0
+        dwave_out = dwave
+
+    config.instrument.cameras.b.constants.output_pixel_size = "{:.3f} Angstrom".format(dwave_out)
+    config.instrument.cameras.r.constants.output_pixel_size = "{:.3f} Angstrom".format(dwave_out)
+    config.instrument.cameras.z.constants.output_pixel_size = "{:.3f} Angstrom".format(dwave_out)
 
     config.update()
     return config
@@ -556,6 +549,30 @@ def read_fiberassign(tilefile_or_id, indir=None):
         tilefile = os.path.join(indir, tilefile_or_id)
 
     return astropy.table.Table.read(tilefile, 'FIBER_ASSIGNMENTS')
+
+#-------------------------------------------------------------------------
+#- TODO: fiber area calculation should be in desimodel.focalplane
+
+def fiber_area_arcsec2(x, y):
+    '''
+    Returns area of fibers at (x,y) in arcsec^2
+    '''
+    params = desimodel.io.load_desiparams()
+    fiber_dia = params['fibers']['diameter_um']
+    x = np.asarray(x)
+    y = np.asarray(y)
+    r = np.sqrt(x**2 + y**2)
+
+    #- Platescales in um/arcsec
+    ps = desimodel.io.load_platescale()
+    radial_scale = np.interp(r, ps['radius'], ps['radial_platescale'])
+    az_scale = np.interp(r, ps['radius'], ps['az_platescale'])
+
+    #- radial and azimuthal fiber radii in arcsec
+    rr  = 0.5 * fiber_dia / radial_scale
+    raz = 0.5 * fiber_dia / az_scale
+    fiber_area = (np.pi * rr * raz)
+    return fiber_area
 
 #-------------------------------------------------------------------------
 #- MOVE THESE TO desitarget.mocks.io (?)
