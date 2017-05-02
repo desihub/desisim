@@ -37,6 +37,7 @@ def parse(options=None):
     parser.add_argument('--fibermap', type=str, help="output fibermap file")
     parser.add_argument('--nspec', type=int, default=5000, help="number of spectra to include")
     parser.add_argument('--nonuniform', action='store_true', help="Include calibration screen non-uniformity")
+    parser.add_argument('--clobber', action='store_true', help="overwrite any pre-existing output files")
 
     if options is None:
         args = parser.parse_args()
@@ -57,7 +58,7 @@ def parse(options=None):
 def main(args=None):
     '''
     TODO: document
-    
+
     Note: this bypasses specsim since we don't have an arclamp model in
     surface brightness units; we only have electrons on the CCD
     '''
@@ -66,14 +67,14 @@ def main(args=None):
 
     if isinstance(args, (list, tuple, type(None))):
         args = parse(args)
-    
+
     sim, fibermap = \
         desisim.newexp.newflat(args.flatfile, nspec=args.nspec, nonuniform=args.nonuniform)
 
     log.info('Writing {}'.format(args.fibermap))
     fibermap.meta['NIGHT'] = args.night
     fibermap.meta['EXPID'] = args.expid
-    fibermap.write(args.fibermap)
+    fibermap.write(args.fibermap, overwrite=args.clobber)
 
     header = fits.Header()
     desiutil.depend.add_dependencies(header)
@@ -82,12 +83,16 @@ def main(args=None):
     header['FLAVOR'] = 'flat'
     header['DOSVER'] = 'SIM'
 
-    #- TODO: DATE-OBS on night instead of now
-    tx = astropy.time.Time(datetime.datetime(*time.gmtime()[0:6]))
+    #- Set calibrations as happening at 15:00 AZ local time = 22:00 UTC
+    year = int(args.night[0:4])
+    month = int(args.night[4:6])
+    day = int(args.night[6:8])
+    tx = astropy.time.Time(datetime.datetime(year, month, day, 22, 0, 0))
     header['DATE-OBS'] = tx.utc.isot
 
-    desisim.io.write_simspec(sim, None, args.expid, args.night,
-        filename=args.simspec, header=header)
-    
-    
-    
+    #- metadata truth and obs dictionary are None
+    desisim.io.write_simspec(sim, None, fibermap, None, args.expid, args.night,
+        filename=args.simspec, header=header, overwrite=args.clobber)
+
+
+
