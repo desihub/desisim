@@ -90,129 +90,6 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, outdir=None, filename
     header=None, overwrite=False):
     '''
     TODO: document more
-    '''
-    import astropy.table
-    import astropy.units as u
-    import desiutil.depend
-    from desiutil.log import get_logger
-    log = get_logger()
-
-    if filename is None:
-        filename = findfile('simspec', night, expid, outdir=outdir)
-
-    # sim.simulated is table of pre-convolution quantities that we want
-    # to ouput.  sim.camera_output is post-convolution.
-
-    fluxunits = 1e-17 * u.erg / (u.s * u.cm**2 * u.Angstrom)
-    tflux = astropy.table.Table()
-    ww = sim.simulated['wavelength']
-    tflux['WAVELENGTH'] = ww
-    tflux['FLUX'] = sim.simulated['source_flux'].to(fluxunits).astype(np.float32)
-    tflux['SKYFLUX'] = sim.simulated['sky_fiber_flux'].to(fluxunits).astype(np.float32)
-
-    tphot = dict()
-    for i, camera in enumerate(sorted(sim.camera_names)):
-        wavemin = sim.camera_output[i]['wavelength'][0]
-        wavemax = sim.camera_output[i]['wavelength'][-1]
-        ii = (wavemin <= ww) & (ww <= wavemax)
-        tx = astropy.table.Table()
-        tx['WAVELENGTH'] = ww[ii]
-        tx['PHOT'] = sim.simulated['num_source_electrons_'+camera][ii].astype(np.float32)
-        tx['SKYPHOT'] = sim.simulated['num_sky_electrons_'+camera][ii].astype(np.float32)
-        tx['PHOT'].unit = u.photon
-        tx['SKYPHOT'].unit = u.photon
-        tphot[camera] = tx
-
-    header = desispec.io.util.fitsheader(header)
-    desiutil.depend.add_dependencies(header)
-    header['EXPID'] = expid
-    header['NIGHT'] = night
-    header['AIRMASS'] = sim.atmosphere.airmass
-    header['EXPTIME'] = sim.observation.exposure_time.to('s').value
-    if 'DOSVER' not in header:
-        header['DOSVER'] = 'SIM'
-
-    if 'FLAVOR' not in header:
-        log.warn('FLAVOR not provided; guessing "science"')
-        header['FLAVOR'] = 'science'    #- optimistically guessing
-
-    if 'DATE-OBS' not in header:
-        #- TODO: DATE-OBS is exposure start or midpoint?
-        header['DATE-OBS'] = sim.observation.exposure_start.isot
-
-    log.info('DATE-OBS {} UTC'.format(header['DATE-OBS']))
-
-    hx = fits.HDUList()
-    hx.append(fits.PrimaryHDU(None, header=header))
-
-    #- Ignore irritating astropy warnings about ergs and Angstroms
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-        fluxhdu = fits.table_to_hdu(tflux)
-
-    fluxhdu.header['EXTNAME'] = 'FLUX'
-    fluxhdu.header['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
-    hx.append(fluxhdu)
-
-    if meta is not None:
-        if isinstance(meta, astropy.table.Table):
-            metahdu = fits.table_to_hdu(meta)
-        else:
-            metahdu = fits.BinTableHDU(meta)
-
-        metahdu.header['EXTNAME'] = 'METADATA'
-        hx.append(metahdu)
-
-    for camera in sorted(tphot.keys()):
-        #- Ignore irritating astropy warnings about ergs and Angstroms
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore')
-            camhdu = fits.table_to_hdu(tphot[camera])
-        camhdu.header['EXTNAME'] = camera.upper()
-        camhdu.header['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
-        hx.append(camhdu)
-
-    log.info('Writing {}'.format(filename))
-    hx.writeto(filename, clobber=overwrite)
-
-def write_simspec_arc(filename, wave, phot, header):
-    '''
-    Alternate writer for arc simspec files which just have photons
-    '''
-    import astropy.table
-    import astropy.units as u
-
-    hx = fits.HDUList()
-    hdr = desispec.io.util.fitsheader(header)
-    hdr['FLAVOR'] = 'arc'
-    if 'DOSVER' not in hdr:
-        hdr['DOSVER'] = 'SIM'
-    hx.append(fits.PrimaryHDU(None, header=hdr))
-
-    for camera in ['b', 'r', 'z']:
-        thru = desimodel.io.load_throughput(camera)
-        ii = (thru.wavemin <= wave) & (wave <= thru.wavemax)
-        tx = astropy.table.Table()
-        tx['WAVELENGTH'] = wave[ii]
-        tx['WAVELENGTH'].unit = u.Angstrom
-        tx['PHOT'] = phot[:,ii].T
-        tx['PHOT'].unit = u.photon
-
-        #- Avoid astropy complaints about Angstroms and ergs
-        ### with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-        camhdu = fits.table_to_hdu(tx)
-
-        camhdu.header['EXTNAME'] = camera.upper()
-        camhdu.header['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
-        hx.append(camhdu)
-
-    log.info('Writing {}'.format(filename))
-    hx.writeto(filename)
-    return filename
-
-def _write_simspec_orig(meta, truth, expid, night, header=None, outfile=None):
-    '''Write ``$DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits``.
 
     Args:
         sim: specsim Simulator object
@@ -339,7 +216,7 @@ def _write_simspec_orig(meta, truth, expid, night, header=None, outfile=None):
     log.info('Writing {}'.format(filename))
     hx.writeto(filename, clobber=overwrite)
 
-def write_simspec_arc(filename, wave, phot, header, fibermap, overwrite=False):
+def write_simspec_arc(filename, wave, phot, header):
     '''
     Alternate writer for arc simspec files which just have photons
     '''
@@ -352,11 +229,6 @@ def write_simspec_arc(filename, wave, phot, header, fibermap, overwrite=False):
     if 'DOSVER' not in hdr:
         hdr['DOSVER'] = 'SIM'
     hx.append(fits.PrimaryHDU(None, header=hdr))
-
-    #- FIBERMAP HDU
-    fibermap_hdu = fits.table_to_hdu(fibermap)
-    fibermap_hdu.header['EXTNAME'] = 'FIBERMAP'
-    hx.append(fibermap_hdu)
 
     for camera in ['b', 'r', 'z']:
         thru = desimodel.io.load_throughput(camera)
@@ -377,7 +249,7 @@ def write_simspec_arc(filename, wave, phot, header, fibermap, overwrite=False):
         hx.append(camhdu)
 
     log.info('Writing {}'.format(filename))
-    hx.writeto(filename, clobber=overwrite)
+    hx.writeto(filename)
     return filename
 
 class SimSpec(object):
@@ -504,56 +376,6 @@ def read_simspec(filename, nspec=None, firstspec=0):
     return SimSpec(flavor, wave, phot, flux=flux, skyflux=skyflux,
         skyphot=skyphot, metadata=metadata, fibermap=fibermap, obs=obs,
         header=hdr)
-
-def _read_simspec_orig(filename):
-    """Read simspec data from filename and return SimSpec object.
-    """
-
-    with fits.open(filename) as fx:
-        hdr = fx[0].header
-        flavor = hdr['FLAVOR']
-
-        #- All flavors have photons
-        wave = dict()
-        phot = dict()
-        skyphot = dict()
-        for channel in ('b', 'r', 'z'):
-            camera = fx[channel.upper()]
-            wave[channel] = camera.data['WAVELENGTH']
-            phot[channel] = camera.data['PHOT'].T
-            if 'SKYPHOT' in camera.data.dtype.names:
-                skyphot[channel] = camera.data['SKYPHOT'].T
-            else:
-                skyphot[channel] = np.zeros_like(phot[channel])
-
-            #- Correct for astropy incorrectly casting [n,1] arrays to 1D
-            if phot[channel].ndim == 1:
-                n = len(phot[channel])
-                phot[channel] = phot[channel].reshape([1,n])
-                skyphot[channel] = skyphot[channel].reshape([1,n])
-
-            assert phot[channel].shape == skyphot[channel].shape
-
-        #- Check for flux, skyflux, and metadata
-        flux = None
-        skyflux = None
-        if 'FLUX' in fx:
-            wave['brz'] = fx['FLUX'].data['WAVELENGTH']
-            flux = fx['FLUX'].data['FLUX'].T
-            if flux.ndim == 1:
-                flux = flux.reshape([1,len(flux)])
-            if 'SKYFLUX' in fx:
-                skyflux = fx['FLUX'].data['SKYFLUX']
-                if skyflux.ndim == 1:
-                    skyflux = skyflux.reshape([1,len(skyflux)])
-
-        if 'METADATA' in fx:
-            metadata = fx['METADATA'].data
-        else:
-            metadata = None
-
-    return SimSpec(flavor, wave, phot, flux=flux, skyflux=skyflux,
-        skyphot=skyphot, metadata=metadata, header=hdr)
 
 def _read_simspec_orig(filename):
     """Read simspec data from filename and return SimSpec object.
