@@ -1059,8 +1059,7 @@ class SUPERSTAR(object):
     def make_star_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                             magrange=(18.0, 23.5), seed=None, redshift=None,
                             mag=None, input_meta=None, star_properties=None,
-                            nocolorcuts=False, restframe=False, verbose=False,
-                            interp_method='cubic'):
+                            nocolorcuts=False, restframe=False, verbose=False):
 
         """Build Monte Carlo spectra/templates for various flavors of stars.
 
@@ -1173,11 +1172,11 @@ class SUPERSTAR(object):
                 if 'FEH' in self.basemeta.columns:
                     base_properties  = np.array([self.basemeta['LOGG'], self.basemeta['TEFF'],
                                                  self.basemeta['FEH']]).T.astype('f4')
-                    input_properties = np.array([star_properties['LOGG'].data, star_properties['TEFF'].data,
-                                                 star_properties['FEH'].data]).T
+                    input_properties = (star_properties['LOGG'].data, star_properties['TEFF'].data,
+                                        star_properties['FEH'].data)
                 else:
                     base_properties  = np.array([self.basemeta['LOGG'], self.basemeta['TEFF']]).T.astype('f4')
-                    input_properties = np.array([star_properties['LOGG'].data, star_properties['TEFF'].data]).T
+                    input_properties = (star_properties['LOGG'].data, star_properties['TEFF'].data)
 
                 nchunk = 1
                 alltemplateid_chunk = [np.arange(nmodel).reshape(nmodel, 1)]
@@ -1231,34 +1230,9 @@ class SUPERSTAR(object):
         if star_properties is None:
             baseflux = self.baseflux
         else:
-            from scipy.spatial import cKDTree
             from scipy.interpolate import griddata
-
-            # Normalize to the range 0->1.
-            mn = np.min(base_properties, axis=0)
-            mx = np.max(base_properties - mn, axis=0)
-            norm_base_properties = (base_properties - mn) / mx
-            norm_input_properties = (input_properties - mn) / mx
-
-            tree = cKDTree(norm_base_properties)
-            rr = tree.query_ball_point(norm_input_properties, 0.1)
-
-            import matplotlib.pyplot as plt
-            plt.scatter(norm_base_properties[:, 0], norm_base_properties[:, 1])
-            plt.scatter(norm_base_properties[rr[0], 0], norm_base_properties[rr[0], 1])
-            plt.scatter(norm_input_properties[0, 0], norm_input_properties[0, 1])
-            plt.show()
-
-            
-            import pdb ; pdb.set_trace()
-            
-            dist, indx = tree.query(input_properties)
-
-            
-
-            
-            baseflux = griddata(base_properties, self.baseflux, input_properties, method=interp_method)
-
+            baseflux = griddata(base_properties, self.baseflux,
+                                input_properties, method='linear')
 
         # Build each spectrum in turn.
         if restframe:
