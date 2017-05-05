@@ -16,9 +16,6 @@ import desispec.io.util
 import desimodel.io
 import desiutil.depend
 import desispec.interpolation
-
-import desisim.io
-
 import desisim.io
 
 #- Reference observing conditions for each of dark, gray, bright
