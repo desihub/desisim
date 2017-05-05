@@ -42,6 +42,11 @@ def main(args=None):
     
     print('Reading files')
     simspec = desisim.io.read_simspec(args.simspec)
+
+    if simspec.flavor == 'arc':
+        print('arc exposure; no frames to output')
+        sys.exit(0)
+
     fibermap = simspec.fibermap
     obs = simspec.obs
     night = simspec.header['NIGHT']
