@@ -25,6 +25,10 @@ def parse(options=None):
     parser.add_argument('--nspec', type=int, default=None, help="number of spectra to include")
     parser.add_argument('--clobber', action='store_true', help="overwrite any pre-existing output files")
 
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit(1)
+
     if options is None:
         args = parser.parse_args()
     else:

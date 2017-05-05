@@ -35,9 +35,14 @@ def parse(options=None):
         default=_default_arcfile)
     parser.add_argument('--simspec', type=str, help="output simspec file")
     parser.add_argument('--fibermap', type=str, help="output fibermap file")
+    parser.add_argument('--outdir', type=str, help="output directory")
     parser.add_argument('--nspec', type=int, default=5000, help="number of spectra to include")
     parser.add_argument('--nonuniform', action='store_true', help="Include calibration screen non-uniformity")
     parser.add_argument('--clobber', action='store_true', help="overwrite any pre-existing output files")
+
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit(1)
 
     if options is None:
         args = parser.parse_args()
@@ -45,7 +50,8 @@ def parse(options=None):
         args = parser.parse_args(options)
 
     if args.simspec is None:
-        args.simspec = desisim.io.findfile('simspec', args.night, args.expid)
+        args.simspec = desisim.io.findfile('simspec', args.night, args.expid,
+                                           outdir=args.outdir)
 
     if args.fibermap is None:
         #- put in same directory as simspec by default
