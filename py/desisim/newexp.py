@@ -15,6 +15,7 @@ import desispec.io
 import desispec.io.util
 import desimodel.io
 import desiutil.depend
+import desispec.interpolation
 
 import desisim.io
 
@@ -128,14 +129,10 @@ def newflat(flatfile, nspec=5000, nonuniform=False, exptime=10):
     wave = wave[ii]
     sbflux = sbflux[ii]
 
-    #- Downsample if needed to not blow up memory
-    dw = wave[1] - wave[0]
-    while dw < 0.19:
-        log.warning('Downsampling deltawave={:.3f} grid by 2x'.format(dw))
-        n = (len(wave) // 2) * 2
-        wave = 0.5 * (wave[0:n:2] + wave[1:n:2])
-        sbflux = 0.5 * (sbflux[0:n:2] + sbflux[0:n:2])
-        dw = wave[1] - wave[0]
+    #- Downsample to 0.2A grid to not blow up memory
+    ww = np.arange(wave[0], wave[-1]+0.1, 0.2)
+    sbflux = desispec.interpolation.resample_flux(ww, wave, sbflux)
+    wave = ww
 
     fibermap = astropy.table.Table(desispec.io.empty_fibermap(nspec))
     fibermap.meta['FLAVOR'] = 'flat'
@@ -338,6 +335,7 @@ def simulate_spectra(wave, flux, meta=None, obsconditions=None, galsim=False,
 
     Optional:
         meta: table from fiberassign tiles file; uses X/YFOCAL_DESIGN
+            TODO: document other columns for get_source_type
         obsconditions: (dict-like) observation metadata including
             SEEING (arcsec), EXPTIME (sec), AIRMASS,
             MOONFRAC (0-1), MOONALT (deg), MOONDIST (deg)
@@ -376,6 +374,8 @@ def simulate_spectra(wave, flux, meta=None, obsconditions=None, galsim=False,
     if obsconditions is None:
         log.warning('Assuming DARK conditions')
         obsconditions = reference_conditions['DARK']
+    elif isinstance(obsconditions, str):
+        obsconditions = reference_conditions[obsconditions.upper()]
 
     desi.atmosphere.seeing_fwhm_ref = obsconditions['SEEING'] * u.arcsec
     desi.observation.exposure_time = obsconditions['EXPTIME'] * u.s
