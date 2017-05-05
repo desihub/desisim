@@ -216,7 +216,7 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, outdir=None, filename
     log.info('Writing {}'.format(filename))
     hx.writeto(filename, clobber=overwrite)
 
-def write_simspec_arc(filename, wave, phot, header):
+def write_simspec_arc(filename, wave, phot, header, fibermap, overwrite=False):
     '''
     Alternate writer for arc simspec files which just have photons
     '''
@@ -229,6 +229,11 @@ def write_simspec_arc(filename, wave, phot, header):
     if 'DOSVER' not in hdr:
         hdr['DOSVER'] = 'SIM'
     hx.append(fits.PrimaryHDU(None, header=hdr))
+
+    #- FIBERMAP HDU
+    fibermap_hdu = fits.table_to_hdu(fibermap)
+    fibermap_hdu.header['EXTNAME'] = 'FIBERMAP'
+    hx.append(fibermap_hdu)
 
     for camera in ['b', 'r', 'z']:
         thru = desimodel.io.load_throughput(camera)
@@ -249,7 +254,7 @@ def write_simspec_arc(filename, wave, phot, header):
         hx.append(camhdu)
 
     log.info('Writing {}'.format(filename))
-    hx.writeto(filename)
+    hx.writeto(filename, clobber=overwrite)
     return filename
 
 class SimSpec(object):
