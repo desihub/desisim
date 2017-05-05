@@ -41,8 +41,8 @@ def parse(options=None):
 
 def main(args=None):
 
-    if args is None:
-        args = parse()
+    if isinstance(args, (list, tuple, type(None))):
+        args = parse(args)
 
     if isinstance(args, (list, tuple, type(None))):
         args = parse(args)
