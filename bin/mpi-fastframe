@@ -1,0 +1,90 @@
+#!/usr/bin/env python
+
+"""
+MPI wrapper for fastframe
+"""
+
+#- Load MPI and establish communication ASAP
+from __future__ import absolute_import, division, print_function
+from mpi4py import MPI
+
+comm = MPI.COMM_WORLD
+size = comm.Get_size()
+rank = comm.Get_rank()
+
+#- The proceed with other imports
+import sys, os, glob, time
+import numpy as np
+
+import astropy.time
+from astropy.table import Table
+
+import desisim.io
+import desisim.scripts.fastframe
+import argparse
+
+#-------------------------------------------------------------------------
+
+
+parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument('--outdir', type=str, help="output directory")
+parser.add_argument('--clobber', action='store_true', help="overwrite any pre-existing output files")
+parser.add_argument('--start', type=str, help="start date YEARMMDD")
+parser.add_argument('--stop', type=str, help="stop date YEARMMDD")
+args = parser.parse_args()
+
+if args.start is None:
+    args.start = '11112233'
+else:
+    args.start = args.start.replace('-', '')
+
+if args.stop is None:
+    args.stop = '99998877'
+else:
+    args.stop = args.stop.replace('-', '')
+
+#- Assemble full list of simspec files
+if rank == 0:
+    allfiles = sorted(glob.glob('{}/*/simspec*.fits'.format(desisim.io.simdir())))
+
+    #- TODO: check if outputs already exist
+
+    simspecfiles = list()
+    for filename in allfiles:
+        night = os.path.basename(os.path.split(filename)[0])
+        if (args.start <= night) & (night < args.stop):
+            simspecfiles.append(filename)
+else:
+    simspecfiles = None
+
+simspecfiles = comm.bcast(simspecfiles, root=0)
+
+#- Proceed with simulating exposures, using all ranks
+
+if rank == 0:
+    print('{} MPI ranks processing {}/{} exposures'.format(size, len(simspecfiles), len(allfiles)))
+
+if rank < len(simspecfiles):
+    for filename in simspecfiles[rank::size]:
+        cmd = "fastframe --simspec {}".format(filename)
+        if args.outdir:
+            cmd = cmd + " --outdir {}".format(args.outdir)
+        if args.clobber:
+            cmd = cmd + " --clobber"
+        
+        print('RUNNING: {}'.format(cmd))
+        try:
+            t0 = time.time()
+            desisim.scripts.fastframe.main(cmd.split()[1:])
+            runtime = time.time() - t0
+            print("rank {} took {:.1f} seconds".format(runtime))
+            sys.stdout.flush()
+        except:
+            print('FAILED: {}'.format(cmd))
+            import traceback
+            traceback.print_exc()
+            sys.stdout.flush()
+
+comm.barrier()
+MPI.Finalize()        
+    

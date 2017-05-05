@@ -73,6 +73,10 @@ def newarc(arcdata, nspec=5000, nonuniform=False):
     fibermap.meta['FLAVOR'] = 'arc'
     fibermap['OBJTYPE'] = 'ARC'
 
+    x = fibermap['X_TARGET']
+    y = fibermap['Y_TARGET']
+    r = np.sqrt(x**2 + y**2)
+
     #-----
     #- Determine ratio of fiber sizes relative to larges fiber
     fiber_area = fiber_area_arcsec2(fibermap['X_TARGET'], fibermap['Y_TARGET'])
@@ -451,9 +455,7 @@ def _specsim_config_for_wave(wave, dwave_out=None):
     config.wavelength_grid.step = dwave
 
     if dwave_out is None:
-        #- Pending https://github.com/desihub/specsim/issues/64
-        # dwave_out = 1.0
-        dwave_out = dwave
+        dwave_out = 1.0
 
     config.instrument.cameras.b.constants.output_pixel_size = "{:.3f} Angstrom".format(dwave_out)
     config.instrument.cameras.r.constants.output_pixel_size = "{:.3f} Angstrom".format(dwave_out)

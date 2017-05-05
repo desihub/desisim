@@ -37,6 +37,7 @@ def parse(options=None):
     parser.add_argument('--fibermap', type=str, help="output fibermap file")
     parser.add_argument('--nspec', type=int, default=5000, help="number of spectra to include")
     parser.add_argument('--nonuniform', action='store_true', help="Include calibration screen non-uniformity")
+    parser.add_argument('--clobber', action='store_true', help="overwrite any pre-existing output files")
 
     if options is None:
         args = parser.parse_args()
@@ -74,7 +75,7 @@ def main(args=None):
         desisim.newexp.newarc(arcdata, nspec=args.nspec, nonuniform=args.nonuniform)
 
     log.info('Writing {}'.format(args.fibermap))
-    fibermap.write(args.fibermap)
+    fibermap.write(args.fibermap, overwrite=args.clobber)
 
     #- TODO: explain bypassing desisim.io.write_simspec
     header = fits.Header()
@@ -88,7 +89,7 @@ def main(args=None):
     tx = astropy.time.Time(datetime.datetime(*time.gmtime()[0:6]))
     header['DATE-OBS'] = tx.utc.isot
 
-    desisim.io.write_simspec_arc(args.simspec, wave, phot, header)
+    desisim.io.write_simspec_arc(args.simspec, wave, phot, header, fibermap, overwrite=args.clobber)
 
     # hx = fits.HDUList()
     # hx.append(fits.PrimaryHDU(None, header=header))
