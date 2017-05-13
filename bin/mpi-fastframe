@@ -77,7 +77,7 @@ if rank < len(simspecfiles):
             t0 = time.time()
             desisim.scripts.fastframe.main(cmd.split()[1:])
             runtime = time.time() - t0
-            print("rank {} took {:.1f} seconds".format(runtime))
+            print("rank {} took {:.1f} seconds".format(rank, runtime))
             sys.stdout.flush()
         except:
             print('FAILED: {}'.format(cmd))
