@@ -98,9 +98,10 @@ def main(args=None):
             xphot = phot[imin:imax]
             xivar = ivar[imin:imax]
             xfibermap = fibermap[ii][imin:imax]
-            frame = Frame(wave, xphot, xivar, resolution_data=Rdata[0:imax-imin],
-                spectrograph=spectro, fibermap=xfibermap)
             camera = '{}{}'.format(sim.camera_names[i], spectro)
+            meta = dict(CAMERA = camera)
+            frame = Frame(wave, xphot, xivar, resolution_data=Rdata[0:imax-imin],
+                spectrograph=spectro, fibermap=xfibermap, meta=meta)
             outfile = desispec.io.findfile('frame', night, expid, camera, outdir=args.outdir)
             print('writing {}'.format(outfile))
             desispec.io.write_frame(outfile, frame)
