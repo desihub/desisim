@@ -66,7 +66,7 @@ def main(args=None):
         x = fibermap['X_TARGET']
         y = fibermap['Y_TARGET']
         fiber_area = desisim.newexp.fiber_area_arcsec2(fibermap['X_TARGET'], fibermap['Y_TARGET'])
-        surface_brightness = 1e-17 * (flux.T / fiber_area).T
+        surface_brightness = (flux.T / fiber_area).T
         config = desisim.newexp._specsim_config_for_wave(wave, dwave_out=1.0)
         sim = specsim.simulator.Simulator(config, num_fibers=nspec)
         sim.observation.exposure_time = simspec.header['EXPTIME'] * u.s
