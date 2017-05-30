@@ -81,6 +81,8 @@ def main(args=None):
         desisim.newexp.newarc(arcdata, nspec=args.nspec, nonuniform=args.nonuniform)
 
     log.info('Writing {}'.format(args.fibermap))
+    fibermap.meta['NIGHT'] = args.night
+    fibermap.meta['EXPID'] = args.expid
     fibermap.write(args.fibermap, overwrite=args.clobber)
 
     #- TODO: explain bypassing desisim.io.write_simspec
