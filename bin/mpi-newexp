@@ -47,7 +47,6 @@ parser.add_argument('--force', action='store_true', help="force re-processing to
 parser.add_argument('--nonuniform', action='store_true', help="simulate non-uniform calibration screen illumination")
 parser.add_argument('--start', type=str, help="start date YEARMMDD")
 parser.add_argument('--stop', type=str, help="stop date YEARMMDD")
-#- TODO: add start/stop options
 
 args = parser.parse_args()
 
@@ -91,19 +90,19 @@ if rank == 0:
             
         if night != current_night:
             current_night = night
-            for i in range(nflat):
+            for j in range(nflat):
                 exposures.append(['flat', night, expid, None, None])
                 expid += 1
-            for i in range(narc):
+            for j in range(narc):
                 exposures.append(['arc', night, expid, None, None])
                 expid += 1
 
         thisobs = ['science', night, expid, i, _row2dict(obs[i])]
         exposures.append(thisobs)
         expid += 1
+
 else:
     exposures = None
-
 exposures = comm.bcast(exposures, root=0)
 
 #- Check which ones still need to be done
@@ -147,6 +146,7 @@ if rank < len(todo):
         #- TODO: what about logging?  Use desisim.pipe log redirection logic?
 
         print('RUNNING: {}'.format(cmd))
+
         try:
             t0 = time.time()
             if cmd.startswith('newexp'):
