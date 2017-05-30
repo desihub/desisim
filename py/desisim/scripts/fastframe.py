@@ -99,7 +99,8 @@ def main(args=None):
             xivar = ivar[imin:imax]
             xfibermap = fibermap[ii][imin:imax]
             camera = '{}{}'.format(sim.camera_names[i], spectro)
-            meta = dict(CAMERA = camera)
+            meta = simspec.header.copy()
+            meta['CAMERA'] = camera
             frame = Frame(wave, xphot, xivar, resolution_data=Rdata[0:imax-imin],
                 spectrograph=spectro, fibermap=xfibermap, meta=meta)
             outfile = desispec.io.findfile('frame', night, expid, camera, outdir=args.outdir)
