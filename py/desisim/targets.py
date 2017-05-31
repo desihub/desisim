@@ -22,7 +22,7 @@ import desimodel.io
 from desispec.log import get_logger
 log = get_logger()
 
-from desispec import brick
+from desiutil import brick
 from desispec.io.fibermap import empty_fibermap
 from desitarget.targetmask import desi_mask, bgs_mask, mws_mask
 
