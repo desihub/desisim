@@ -341,7 +341,6 @@ def simulate_spectra(wave, flux, meta=None, obsconditions=None, galsim=False,
 
     TODO:
         galsim
-        dwave_out
 
     Returns a specsim.simulator.Simulator object
     '''
