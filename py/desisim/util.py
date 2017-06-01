@@ -124,6 +124,7 @@ def dateobs2night(dateobs):
         otherwise questioning the dateobs format
     '''
     import astropy.time
+    import datetime
     if isinstance(dateobs, float):
         dateobs = astropy.time.Time(dateobs, format='mjd')
     elif isinstance(dateobs, datetime.datetime):
