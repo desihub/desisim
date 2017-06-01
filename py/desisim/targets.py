@@ -91,7 +91,7 @@ def sample_objtype(nobj, flavor):
         with open(targetyaml) as fx:
             tgt = yaml.load(fx)
     elif os.path.exists(targetdat):
-        log.warn('please upgrade desimodel to get targets.yaml instead of targets.dat')
+        log.warn('please svn update {} to get targets.yaml instead of targets.dat'.format(os.environ['DESIMODEL']))
         with open(targetdat) as fx:
             tgt = yaml.load(fx)
             #- Fix some items that got renamed in the new yaml file
