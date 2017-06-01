@@ -5,6 +5,7 @@ desisim change log
 0.18.4 (unreleased)
 -------------------
 
+* Changed refs to ``desispec.brick`` to its new location at :mod:`desiutil.brick`
 * Refactor and speed-up of QSO templates; add Lya forest on-the-fly (`PR #234`_).
 
 .. _`PR #234`: https://github.com/desihub/desisim/pull/234
