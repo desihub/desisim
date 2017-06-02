@@ -85,9 +85,23 @@ def sample_objtype(nobj, flavor):
     #- Load target densities
     #- TODO: what about nobs_boss (BOSS-like LRGs)?
     #- TODO: This function should be using a desimodel.io function instead of opening desimodel directly.
-    fx = open(os.environ['DESIMODEL']+'/data/targets/targets.dat')
-    tgt = yaml.load(fx)
-    fx.close()
+    targetyaml = os.path.join(os.environ['DESIMODEL'], 'data', 'targets', 'targets.yaml')
+    targetdat = os.path.join(os.environ['DESIMODEL'], 'data', 'targets', 'targets.dat')
+    if os.path.exists(targetyaml):
+        with open(targetyaml) as fx:
+            tgt = yaml.load(fx)
+    elif os.path.exists(targetdat):
+        log.warn('please svn update {} to get targets.yaml instead of targets.dat'.format(os.environ['DESIMODEL']))
+        with open(targetdat) as fx:
+            tgt = yaml.load(fx)
+            #- Fix some items that got renamed in the new yaml file
+            tgt['nobs_mws'] = tgt['nobs_MWS']
+            tgt['nobs_bgs_bright'] = int(0.6 * tgt['nobs_BG'])
+            tgt['nobs_bgs_faint'] = int(0.4 * tgt['nobs_BG'])
+    else:
+        message = 'Unable to read {}'.format(targetyaml)
+        log.error(message)
+        raise IOError(message)
 
     # initialize so we can ask for 0 of some kinds of survey targets later
     nlrg = nqso = nelg = nmws = nbgs = nbgs = nmws = 0
@@ -122,9 +136,10 @@ def sample_objtype(nobj, flavor):
         true_objtype += ['ELG',] * nsci
     elif (flavor == 'BRIGHT'):
         #- BGS galaxies and MWS stars
-        ntgt = float(tgt['nobs_BG'] + tgt['nobs_MWS'])
-        prob_bgs = tgt['nobs_BG'] / ntgt
-        prob_mws = 1 - prob_bgs
+        #- TODO: split BGS bright vs. faint
+        ntgt = float(tgt['nobs_bgs_faint'] + tgt['nobs_bgs_bright'] + tgt['nobs_mws'])
+        prob_mws = tgt['nobs_mws'] / ntgt
+        prob_bgs = 1 - prob_mws
 
         p = [prob_bgs, prob_mws]
         nbgs, nmws = np.random.multinomial(nsci, p)
