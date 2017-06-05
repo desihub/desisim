@@ -99,6 +99,9 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, outdir=None, filename
             TODO: define keys
         expid: integer exposure ID
         night: YEARMMDD string
+    
+    Notes:
+        calibration exposures can use truth=None and obs=None
     '''
     import astropy.table
     import astropy.units as u
@@ -348,8 +351,11 @@ def read_simspec(filename, nspec=None, firstspec=0):
                 if skyflux.ndim == 1:
                     skyflux = skyflux.reshape([1,len(skyflux)])
 
-        if 'METADATA' in fx:
-            metadata = astropy.table.Table(fx['METADATA'].data)
+        if 'TRUTH' in fx:
+            metadata = astropy.table.Table(fx['TRUTH'].data)
+        #- For backwards compatibility, consider this
+        # elif 'METADATA' in fx:
+        #     metadata = astropy.table.Table(fx['METADATA'].data)
         else:
             metadata = None
 
