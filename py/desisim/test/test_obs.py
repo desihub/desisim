@@ -85,7 +85,7 @@ class TestObs(unittest.TestCase):
                 skyflux = fx['SKYFLUX'].T
                 self.assertTrue(str(flux.unit).startswith('1e-17'))
                 self.assertTrue(str(skyflux.unit).startswith('1e-17'))
-                for i in range(flux.shape[0]):                    
+                for i in range(flux.shape[0]):
                     objtype = simspec.metadata['OBJTYPE'][i]
                     maxflux = flux[i].max()
                     maxsky = skyflux[i].max()
