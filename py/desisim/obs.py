@@ -125,7 +125,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
         wave, phot, fibermap = desisim.newexp.newarc(arcdata, nspec=nspec)
 
         header['EXPTIME'] = exptime
-        desisim.io.write_simspec_arc(outsimspec, wave, phot, header)
+        desisim.io.write_simspec_arc(outsimspec, wave, phot, header, fibermap=fibermap)
 
         fibermap.meta['NIGHT'] = night
         fibermap.meta['EXPID'] = expid
@@ -144,7 +144,8 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
         sim, fibermap = desisim.newexp.newflat(infile, nspec=nspec, exptime=exptime)
 
         header['EXPTIME'] = exptime
-        desisim.io.write_simspec(sim, None, expid, night, header=header)
+        desisim.io.write_simspec(sim, truth=None, fibermap=fibermap, obs=None,
+            expid=expid, night=night, header=header)
 
         fibermap.meta['NIGHT'] = night
         fibermap.meta['EXPID'] = expid
@@ -209,7 +210,7 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
         )
     hdr['DATE-OBS'] = (time.strftime('%FT%T', dateobs), 'Start of exposure')
 
-    simfile = io.write_simspec(sim, meta, expid, night, header=hdr)
+    simfile = io.write_simspec(sim, meta, fibermap, obsconditions, expid, night, header=hdr)
 
     fiberfile = io.findfile('simfibermap', night, expid)
     desispec.io.write_fibermap(fiberfile, fibermap, header=hdr)

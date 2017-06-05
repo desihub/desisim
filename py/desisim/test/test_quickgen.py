@@ -332,9 +332,9 @@ class TestQuickgen(unittest.TestCase):
         s1=fits.open(simspec1)
         s2=fits.open(simspec2)
 
-        self.assertEqual(s0['METADATA'].data['OBJTYPE'][0], s1['METADATA'].data['OBJTYPE'][0])
-        self.assertEqual(s0['METADATA'].data['REDSHIFT'][0], s1['METADATA'].data['REDSHIFT'][0])
-        self.assertNotEqual(s0['METADATA'].data['REDSHIFT'][0], s2['METADATA'].data['REDSHIFT'][0])
+        self.assertEqual(s0['TRUTH'].data['OBJTYPE'][0], s1['TRUTH'].data['OBJTYPE'][0])
+        self.assertEqual(s0['TRUTH'].data['REDSHIFT'][0], s1['TRUTH'].data['REDSHIFT'][0])
+        self.assertNotEqual(s0['TRUTH'].data['REDSHIFT'][0], s2['TRUTH'].data['REDSHIFT'][0])
 
     #- Ensure that using --seed results in reproducible spectra for bricks
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
