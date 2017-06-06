@@ -277,8 +277,7 @@ class SimSpec(object):
         metadata : table of metadata information about these spectra
         header : FITS header from HDU0
         fibermap : fibermap Table
-        obs : (dict-like) observing conditions
-            TODO: document keys
+        obs : (dict-like) observing conditions (TODO: document keys)
 
     Notes:
       * input arguments become attributes
