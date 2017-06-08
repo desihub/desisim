@@ -8,7 +8,7 @@ Function to simulate a QSO spectrum including Lyman-alpha absorption.
 from __future__ import division, print_function
 
 def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss2010-g',
-                seed=None, rand=None, qso=None):
+                seed=None, rand=None, qso=None, nocolorcuts=False):
     '''Generate a QSO spectrum which includes Lyman-alpha absorption.
 
     Args:
@@ -27,6 +27,8 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
           SEED.
         qso (desisim.templates.QSO, optional): object with which to generate
           individual spectra/templates.
+        nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
+          cuts (default False).
 
     Returns:
         flux (numpy.ndarray):
@@ -90,8 +92,11 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
     meta['DEC'] = dec
 
     for ii, indx in enumerate(templateid):
-        flux1, _, meta1 = qso.make_templates(nmodel=1, redshift=np.array([zqso[ii]]),
-                                             mag=np.array([mag_g[ii]]), seed=templateseed[ii])
+        flux1, _, meta1 = qso.make_templates(nmodel=1, redshift=np.atleast_1d(zqso[ii]), 
+                                             mag=np.atleast_1d(mag_g[ii]), seed=templateseed[ii],
+                                             nocolorcuts=nocolorcuts)
+        for col in meta1.colnames:
+            meta[col][ii] = meta1[col][0]
 
         # read lambda and forest transmission
         data = h[indx + 1].read()
@@ -107,7 +112,11 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
         padflux, padwave = normfilt.pad_spectrum(flux1, wave, method='edge')
         normmaggies = np.array(normfilt.get_ab_maggies(padflux, padwave,
                                                        mask_invalid=True)[normfilter])
-        flux1 *= 10**(-0.4 * mag_g[ii]) / normmaggies
+        factor = 10**(-0.4 * mag_g[ii]) / normmaggies
+        flux1 *= factor
+        meta['DECAM_FLUX'][ii] *= factor
+        meta['WISE_FLUX'][ii] *= factor
+
         flux[ii, :] = flux1[:]
 
     h.close()
