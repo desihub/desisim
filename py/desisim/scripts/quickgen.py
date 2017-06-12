@@ -410,9 +410,13 @@ def main(args):
     if args.simspec is None:
         object_type = objtype
         flavor = None
+    elif simspec.flavor == 'science':
+        object_type = None
+        flavor = simspec.header['PROGRAM']
     else:
         object_type = None
         flavor = simspec.flavor
+        log.warn('Maybe using an outdated simspec file with flavor={}'.format(flavor))
 
     # Set airmass and exptime
     if args.simspec:
