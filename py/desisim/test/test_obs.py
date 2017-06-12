@@ -56,7 +56,10 @@ class TestObs(unittest.TestCase):
             simspecfile = io.findfile('simspec', night, expid=expid)
             self.assertTrue(os.path.exists(simspecfile))
             simspec = io.read_simspec(simspecfile)
-            self.assertEqual(simspec.flavor, flavor)
+            if flavor in ('arc', 'flat'):
+                self.assertEqual(simspec.flavor, flavor)
+            else:
+                self.assertEqual(simspec.flavor, 'science')
 
             #- Check that photons are in a reasonable range
             for channel in ('b', 'r', 'z'):
