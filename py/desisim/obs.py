@@ -281,10 +281,16 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
         NIGHT = (night, 'Night of observation YEARMMDD'),
         EXPID = (expid, 'DESI exposure ID'),
         TILEID = (tileid, 'DESI tile ID'),
-        FLAVOR = (flavor, 'Flavor [arc, flat, science, ...]'),
         TELRA = (telera, 'Telescope pointing RA [degrees]'),
         TELDEC = (teledec, 'Telescope pointing dec [degrees]'),
         )
+    if flavor in ('arc', 'flat'):
+        hdr['FLAVOR'] = (flavor, 'Flavor [arc, flat, science, ...]')
+        hdr['PROGRAM'] = 'calib'
+    else:
+        hdr['FLAVOR'] = ('science', 'Flavor [arc, flat, science, ...]')
+        hdr['PROGRAM'] = flavor
+        
     #- ISO 8601 DATE-OBS year-mm-ddThh:mm:ss
     fiberfile = desispec.io.findfile('fibermap', night, expid)
     desispec.io.write_fibermap(fiberfile, fibermap, header=hdr)

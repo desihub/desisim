@@ -2,14 +2,17 @@
 desisim change log
 ==================
 
-0.18.4 (unreleased)
+0.19.0 (unreleased)
 -------------------
 
 * Changed refs to ``desispec.brick`` to its new location at :mod:`desiutil.brick` (`PR #241`_).
 * Refactor and speed-up of QSO templates; add Lya forest on-the-fly (`PR #234`_).
+* "FLAVOR" keyword is arc/flat/science but not dark/bright/bgs/mws/etc to match
+  desispec usage (`PR #243`_).
 
 .. _`PR #234`: https://github.com/desihub/desisim/pull/234
-.. _`PR #241`: https://github.com/desihub/desisim/pull/241  
+.. _`PR #241`: https://github.com/desihub/desisim/pull/241
+.. _`PR #243`: https://github.com/desihub/desisim/pull/243
 
 0.18.3 (2017-04-13)
 -------------------

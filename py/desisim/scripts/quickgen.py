@@ -410,9 +410,13 @@ def main(args):
     if args.simspec is None:
         object_type = objtype
         flavor = None
+    elif simspec.flavor == 'science':
+        object_type = None
+        flavor = simspec.header['PROGRAM']
     else:
         object_type = None
         flavor = simspec.flavor
+        log.warn('Maybe using an outdated simspec file with flavor={}'.format(flavor))
 
     # Set airmass and exptime
     if args.simspec:
@@ -687,7 +691,8 @@ def main(args):
                     # must create desispec.Frame object
                     frame=Frame(waves[channel], frame_flux, frame_ivar,\
                         resolution_data=resol, spectrograph=ii, \
-                        fibermap=fibermap[start:end], meta=dict(CAMERA=camera) )
+                        fibermap=fibermap[start:end], \
+                        meta=dict(CAMERA=camera, FLAVOR=simspec.flavor) )
                     desispec.io.write_frame(framefileName, frame)
 
                     framefilePath=desispec.io.findfile("frame",NIGHT,EXPID,camera)
@@ -704,7 +709,8 @@ def main(args):
                     # must create desispec.Frame object
                     cframe = Frame(waves[channel], cframeFlux, cframeIvar, \
                         resolution_data=resol, spectrograph=ii,
-                        fibermap=fibermap[start:end], meta=dict(CAMERA=camera) )
+                        fibermap=fibermap[start:end],
+                        meta=dict(CAMERA=camera, FLAVOR=simspec.flavor) )
                     desispec.io.frame.write_frame(cframeFileName,cframe)
 
                     cframefilePath=desispec.io.findfile("cframe",NIGHT,EXPID,camera)
