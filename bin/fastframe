@@ -1,0 +1,9 @@
+#!/usr/bin/env python
+
+"""
+Let's try to make a faster frame maker than quickgen --frameonly
+"""
+
+import sys
+from desisim.scripts import fastframe
+sys.exit(fastframe.main())

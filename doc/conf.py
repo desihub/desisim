@@ -136,6 +136,7 @@ napoleon_include_private_with_doc = True
 autodoc_mock_imports = ['astropy.constants', 'astropy.cosmology',
                         'astropy.io', 'astropy.stats',
                         'astropy.table', 'astropy.units',
+                        'astropy.time',
                         'desimodel.focalplane', 'desimodel.io',
                         'desispec.cosmics', 'desispec.frame',
                         'desispec.fiberflat', 'desispec.fluxcalibration',

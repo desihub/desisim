@@ -104,25 +104,26 @@ class TestQuickgen(unittest.TestCase):
             rmtree(cls.testDir)
 
     def tearDown(self):
-        fibermap = desispec.io.findfile('fibermap', self.night, self.expid)
-        if os.path.exists(fibermap):
-            os.remove(fibermap)
-        simspecfile = io.findfile('simspec', self.night, self.expid)
-        if os.path.exists(simspecfile):
-            os.remove(simspecfile)
-        for camera in ('b0', 'r0', 'z0'):
-            framefile = desispec.io.findfile('frame', self.night, self.expid, camera=camera)
-            if os.path.exists(framefile):
-                os.remove(framefile)
-            cframefile = desispec.io.findfile('cframe', self.night, self.expid, camera=camera)
-            if os.path.exists(cframefile):
-                os.remove(cframefile)
-            skyfile = desispec.io.findfile('sky', self.night, self.expid, camera=camera)
-            if os.path.exists(skyfile):
-                os.remove(skyfile)
-            fluxcalibfile = desispec.io.findfile('calib', self.night, self.expid, camera=camera)
-            if os.path.exists(fluxcalibfile):
-                os.remove(fluxcalibfile)
+        for expid in [self.expid, 100, 101, 102]:
+            fibermap = desispec.io.findfile('fibermap', self.night, expid)
+            if os.path.exists(fibermap):
+                os.remove(fibermap)
+            simspecfile = io.findfile('simspec', self.night, expid)
+            if os.path.exists(simspecfile):
+                os.remove(simspecfile)
+            for camera in ('b0', 'r0', 'z0'):
+                framefile = desispec.io.findfile('frame', self.night, expid, camera=camera)
+                if os.path.exists(framefile):
+                    os.remove(framefile)
+                cframefile = desispec.io.findfile('cframe', self.night, expid, camera=camera)
+                if os.path.exists(cframefile):
+                    os.remove(cframefile)
+                skyfile = desispec.io.findfile('sky', self.night, expid, camera=camera)
+                if os.path.exists(skyfile):
+                    os.remove(skyfile)
+                fluxcalibfile = desispec.io.findfile('calib', self.night, expid, camera=camera)
+                if os.path.exists(fluxcalibfile):
+                    os.remove(fluxcalibfile)
 
     def test_parse(self):
         night = self.night
@@ -171,8 +172,11 @@ class TestQuickgen(unittest.TestCase):
             os.environ['DESI_SPECTRO_REDUX'] = os.path.join(os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'))
     
             #- run quickgen
-            simspec = io.findfile('simspec', self.night, self.expid)
-            fibermap = desispec.io.findfile('fibermap', self.night, self.expid)
+            simspec = io.findfile('simspec', night, expid)
+            fibermap = io.findfile('simfibermap', night, expid)
+            
+            self.assertTrue(os.path.exists(simspec))
+            self.assertTrue(os.path.exists(fibermap))
 
             if flavor == 'flat':
                 try:
@@ -209,6 +213,9 @@ class TestQuickgen(unittest.TestCase):
                 self.assertTrue(os.path.exists(skyfile))
                 fluxcalibfile = desispec.io.findfile('calib', night, expid, camera)
                 self.assertTrue(os.path.exists(fluxcalibfile))
+
+            os.remove(simspec)
+            os.remove(fibermap)
 
     #- Run basic test of quickgen and check its outputs for bricks
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
@@ -325,9 +332,9 @@ class TestQuickgen(unittest.TestCase):
         s1=fits.open(simspec1)
         s2=fits.open(simspec2)
 
-        self.assertTrue(s0[13].data['OBJTYPE'][0] == s1[13].data['OBJTYPE'][0])
-        self.assertTrue(s0[13].data['REDSHIFT'][0] == s1[13].data['REDSHIFT'][0])
-        self.assertTrue(s0[13].data['REDSHIFT'][0] != s2[13].data['REDSHIFT'][0])
+        self.assertEqual(s0['TRUTH'].data['OBJTYPE'][0], s1['TRUTH'].data['OBJTYPE'][0])
+        self.assertEqual(s0['TRUTH'].data['REDSHIFT'][0], s1['TRUTH'].data['REDSHIFT'][0])
+        self.assertNotEqual(s0['TRUTH'].data['REDSHIFT'][0], s2['TRUTH'].data['REDSHIFT'][0])
 
     #- Ensure that using --seed results in reproducible spectra for bricks
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickbrick/specsim test on Travis')
