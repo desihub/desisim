@@ -98,7 +98,7 @@ from desispec.frame import Frame
 from desispec.fiberflat import FiberFlat
 from desispec.sky import SkyModel
 from desispec.fluxcalibration import FluxCalib
-from desispec.log import get_logger, DEBUG, INFO
+from desiutil.log import get_logger, DEBUG, INFO
 from desisim.obs import get_night
 from desisim.targets import sample_objtype
 from desisim.specsim import get_simulator
