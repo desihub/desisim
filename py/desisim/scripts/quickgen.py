@@ -98,7 +98,7 @@ from desispec.frame import Frame
 from desispec.fiberflat import FiberFlat
 from desispec.sky import SkyModel
 from desispec.fluxcalibration import FluxCalib
-from desispec.log import get_logger, DEBUG, INFO
+from desiutil.log import get_logger, DEBUG, INFO
 from desisim.obs import get_night
 from desisim.targets import sample_objtype
 from desisim.specsim import get_simulator
@@ -171,11 +171,11 @@ def parse(options=None):
             msg = 'If simspec set, must also set fibermap'
             log.error(msg)
             raise ValueError(msg)
-        hdr = fits.getheader(args.simspec)
-        night = str(hdr['NIGHT'])
-        expid = int(hdr['EXPID'])
-        args.simspec = desisim.io.findfile('simspec', night, expid)
-        args.fibermap = desispec.io.findfile('fibermap', night, expid)
+        #hdr = fits.getheader(args.simspec)
+        #night = str(hdr['NIGHT'])
+        #expid = int(hdr['EXPID'])
+        #args.simspec = desisim.io.findfile('simspec', night, expid)
+        #args.fibermap = desispec.io.findfile('fibermap', night, expid)
 
     if args.simspec is None and args.brickname is None:
         msg = 'Must have simspec and fibermap files or provide brick name'

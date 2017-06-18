@@ -5,7 +5,9 @@ desisim change log
 0.19.1 (unreleased)
 -------------------
 
-* No changes yet.
+* Adds tutorial on simulating spectra (`PR #244`_).
+
+.. _`PR #244`: https://github.com/desihub/desisim/pull/244
 
 0.19.0 (2017-06-15)
 -------------------
