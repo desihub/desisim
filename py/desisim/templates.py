@@ -936,7 +936,7 @@ class LRG(GALAXY):
 
         """
         if colorcuts_function is None:
-            from desitarget.cuts import isLRG as colorcuts_function
+            from desitarget.cuts import isLRG_colors as colorcuts_function
 
         super(LRG, self).__init__(objtype='LRG', minwave=minwave, maxwave=maxwave,
                                   cdelt=cdelt, wave=wave, colorcuts_function=colorcuts_function,
