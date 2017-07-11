@@ -329,7 +329,8 @@ class GALAXY(object):
             sne_baseflux1, sne_basewave, sne_basemeta = read_basis_templates(objtype='SNE')
             sne_baseflux = np.zeros((len(sne_basemeta), len(self.basewave)))
             for ii in range(len(sne_basemeta)):
-                sne_baseflux[ii, :] = resample_flux(self.basewave, sne_basewave, sne_baseflux1[ii,:])
+                sne_baseflux[ii, :] = resample_flux(self.basewave, sne_basewave,
+                                                    sne_baseflux1[ii,:], extrapolate=True)
             self.sne_baseflux = sne_baseflux
             self.sne_basemeta = sne_basemeta
 
@@ -728,7 +729,7 @@ class GALAXY(object):
                     if restframe:
                         outflux[ii, :] = blurflux
                     else:
-                        outflux[ii, :] = resample_flux(self.wave, zwave, blurflux)
+                        outflux[ii, :] = resample_flux(self.wave, zwave, blurflux, extrapolate=True)
 
                     meta['TEMPLATEID'][ii] = tempid
                     meta['D4000'][ii] = d4000[tempid]
@@ -1286,7 +1287,8 @@ class SUPERSTAR(object):
                     if restframe:
                         outflux[ii, :] = restflux[this, :] * magnorm[this]
                     else:
-                        outflux[ii, :] = resample_flux(self.wave, zwave, restflux[this, :]) * magnorm[this]
+                        outflux[ii, :] = resample_flux(self.wave, zwave, restflux[this, :],
+                                                       extrapolate=True) * magnorm[this]
 
                     meta['TEMPLATEID'][ii] = tempid
                     meta['DECAM_FLUX'][ii] = synthnano[this, :6]
@@ -1817,9 +1819,10 @@ class QSO():
             if lyaforest:
                 no_forest = ( skewer_wave > self.lambda_lyalpha * (1 + redshift[ii]) )
                 skewer_flux[ii, no_forest] = 1.0
-                qso_skewer_flux = resample_flux(zwave[:, ii], skewer_wave, skewer_flux[ii, :])
-                w=zwave[:, ii]>self.lambda_lyalpha * (1 + redshift[ii])
-                qso_skewer_flux[w]=1.
+                qso_skewer_flux = resample_flux(zwave[:, ii], skewer_wave, skewer_flux[ii, :],
+                                                extrapolate=True)
+                w=zwave[:, ii] > self.lambda_lyalpha * (1 + redshift[ii])
+                qso_skewer_flux[w] = 1.0
 
             idx = np.where( (zQSO > redshift[ii]-self.z_wind/2) * (zQSO < redshift[ii]+self.z_wind/2) )[0]
             if len(idx) == 0:
@@ -1891,7 +1894,8 @@ class QSO():
                 # (suitably normalized) and metadata table and finish up.
                 if np.any(colormask * nonegflux):
                     this = templaterand.choice(np.where(colormask * nonegflux)[0]) # Pick one randomly.
-                    outflux[ii, :] = resample_flux(self.wave, zwave[:, ii], flux[this, :]) * magnorm[this]
+                    outflux[ii, :] = resample_flux(self.wave, zwave[:, ii], flux[this, :],
+                                                   extrapolate=True) * magnorm[this]
 
                     meta['DECAM_FLUX'][ii] = synthnano[this, :6]
                     meta['WISE_FLUX'][ii] = synthnano[this, 6:8]

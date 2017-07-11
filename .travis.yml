@@ -41,17 +41,17 @@ env:
         # to repeat them for all configurations.
         # - NUMPY_VERSION=1.10
         # - SCIPY_VERSION=0.16
-        - ASTROPY_VERSION=1.2.1
+        - ASTROPY_VERSION=1.3.3
         # - SPHINX_VERSION=1.3
         # - DESIUTIL_VERSION=1.8.0
         - DESIUTIL_VERSION=1.9.4
-        - DESIMODEL_VERSION=0.6.0
-        - DESIMODEL_DATA=branches/test-0.6.0
+        - DESIMODEL_VERSION=0.7.0
+        - DESIMODEL_DATA=branches/test-0.7.0
         - DESISIM_TESTDATA_VERSION=0.3.3
         - SPECLITE_VERSION=0.5
-        - SPECSIM_VERSION=v0.8
+        - SPECSIM_VERSION=v0.9
         - SPECTER_VERSION=0.7.0
-        - DESISPEC_VERSION=0.13.1
+        - DESISPEC_VERSION=master
         - DESITARGET_VERSION=master
         # - DESIMODEL_VERSION=trunk
         - DESI_LOGLEVEL=DEBUG
@@ -59,7 +59,7 @@ env:
         # These packages will always be installed.
         - CONDA_DEPENDENCIES="scipy pyyaml"
         # These packages will only be installed if we really need them.
-        - CONDA_ALL_DEPENDENCIES="scipy matplotlib coverage==3.7.1 pyyaml qt=4"
+        - CONDA_ALL_DEPENDENCIES="scipy matplotlib coverage==3.7.1 pyyaml qt=4 healpy"
         # These packages will always be installed.
         - PIP_DEPENDENCIES=""
         # These packages will only be installed if we really need them.
