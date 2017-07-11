@@ -6,8 +6,11 @@ desisim change log
 -------------------
 
 * Adds tutorial on simulating spectra (`PR #244`_).
+* Fixes QSO template wavelength extrapolation (`PR #247`_);
+  requires desispec > 0.15.1.
 
 .. _`PR #244`: https://github.com/desihub/desisim/pull/244
+.. _`PR #247`: https://github.com/desihub/desisim/pull/247
 
 0.19.0 (2017-06-15)
 -------------------
