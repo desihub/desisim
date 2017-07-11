@@ -576,8 +576,6 @@ def main(args):
             sflux[j][:] = 1e17 * qsim.source.flux_out.to(fluxunits).value
 
         for i, output in enumerate(qsim.camera_output):
-            print('observed_flux units {}'.format(output['observed_flux'].unit))
-            print('fluxunits {}'.format(fluxunits))
             assert output['observed_flux'].unit == 1e17 * fluxunits
             # Extract the simulation results needed to create our uncalibrated
             # frame output file.
