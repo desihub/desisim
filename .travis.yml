@@ -59,7 +59,7 @@ env:
         # These packages will always be installed.
         - CONDA_DEPENDENCIES="scipy pyyaml"
         # These packages will only be installed if we really need them.
-        - CONDA_ALL_DEPENDENCIES="scipy matplotlib coverage==3.7.1 pyyaml qt=4"
+        - CONDA_ALL_DEPENDENCIES="scipy matplotlib coverage==3.7.1 pyyaml qt=4 healpy"
         # These packages will always be installed.
         - PIP_DEPENDENCIES=""
         # These packages will only be installed if we really need them.
