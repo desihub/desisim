@@ -19,7 +19,7 @@ from astropy.table import Table, Column, hstack
 from desimodel.focalplane import FocalPlane
 from desisim.io import empty_metatable, empty_star_properties
 import desimodel.io
-from desispec.log import get_logger
+from desiutil.log import get_logger
 log = get_logger()
 
 from desiutil import brick

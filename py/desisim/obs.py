@@ -19,7 +19,7 @@ import desimodel.io
 import desispec.io
 from desispec.interpolation import resample_flux
 
-from desispec.log import get_logger
+from desiutil.log import get_logger
 log = get_logger()
 
 from .targets import get_targets_parallel

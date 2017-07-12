@@ -22,7 +22,7 @@ from desispec.image import Image
 import desispec.cosmics
 
 from . import obs, io
-from desispec.log import get_logger
+from desiutil.log import get_logger
 log = get_logger()
 
 def simulate_frame(night, expid, camera, ccdshape=None, **kwargs):

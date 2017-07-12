@@ -32,7 +32,7 @@ import desispec.io
 from desisim import obs
 from desisim.batch import calc_nodes
 
-from desispec.log import get_logger
+from desiutil.log import get_logger
 log = get_logger()
 
 def batch_newexp(batchfile, flavors, nspec=5000, night=None, expids=None,

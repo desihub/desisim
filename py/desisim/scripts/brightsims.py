@@ -17,7 +17,7 @@ from astropy.io import fits
 from astropy.table import Table
 
 import desisim.scripts.quickgen as quickbrick
-from desispec.log import get_logger, DEBUG
+from desiutil.log import get_logger, DEBUG
 from desispec.io.util import write_bintable, makepath
 
 def parse(options=None):

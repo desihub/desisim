@@ -14,8 +14,8 @@ _simulators = dict()
 #- simulator back to a reference state before returning it as a cached copy
 _simdefaults = dict()
 
-import desispec.log
-log = desispec.log.get_logger()
+import desiutil.log
+log = desiutil.log.get_logger()
 
 def get_simulator(config='desi', num_fibers=1):
     '''

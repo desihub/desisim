@@ -23,7 +23,7 @@ import desisim.io
 
 from desispec.interpolation import resample_flux
 
-from desispec.log import get_logger
+from desiutil.log import get_logger
 log = get_logger()
 
 #from xastropy.stats.basic import perc
