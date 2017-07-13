@@ -2,15 +2,22 @@
 desisim change log
 ==================
 
-0.20.0 (unreleased)
+0.20.1 (unreleased)
+-------------------
+
+* No changes yet.
+
+0.20.0 (2017-07-12)
 -------------------
 
 * Adds tutorial on simulating spectra (`PR #244`_).
 * Fixes QSO template wavelength extrapolation (`PR #247`_);
   requires desispec > 0.15.1.
+* Uses desitarget.cuts.isLRG_colors; requires desitarget >= 0.14.0 (`PR #246`_).
 * Uses desiutil.log instead of desispec.log
 
 .. _`PR #244`: https://github.com/desihub/desisim/pull/244
+.. _`PR #246`: https://github.com/desihub/desisim/pull/246
 .. _`PR #247`: https://github.com/desihub/desisim/pull/247
 
 0.19.0 (2017-06-15)
