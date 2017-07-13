@@ -20,7 +20,7 @@ import matplotlib.gridspec as gridspec
 from astropy.io import fits
 from astropy.table import Table, vstack, hstack, MaskedColumn, join
 
-from desispec.log import get_logger, DEBUG
+from desiutil.log import get_logger, DEBUG
 
 
 def calc_dz(simz_tab):

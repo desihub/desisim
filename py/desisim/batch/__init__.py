@@ -8,7 +8,7 @@ Batch scripts.  Why exactly is this sub-package different from
 from __future__ import absolute_import, division, print_function
 import math
 
-from desispec.log import get_logger
+from desiutil.log import get_logger
 _log = get_logger()
 
 def calc_nodes(ntasks, tasktime, maxtime):

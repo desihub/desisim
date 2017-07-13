@@ -13,7 +13,7 @@ from desisim import obs
 from desisim import pixsim
 import desisim.scripts.pixsim
 
-from desispec.log import get_logger
+from desiutil.log import get_logger
 log = get_logger()
 
 desi_templates_available = 'DESI_ROOT' in os.environ

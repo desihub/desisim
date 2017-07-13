@@ -36,7 +36,7 @@ from desitarget.targets import desi_mask
 from desitarget.targets import bgs_mask
 from desitarget.targets import mws_mask
 
-from desispec.log import get_logger
+from desiutil.log import get_logger
 log = get_logger()
 
 #- redshift errors and zwarn fractions from DESI-1657

@@ -8,7 +8,7 @@ import sys
 import desisim.io
 import desispec.io
 import desispec.pipeline as pipe
-import desispec.log as logging
+import desiutil.log as logging
 
 desi_templates_available = 'DESI_ROOT' in os.environ
 desi_root_available = 'DESI_ROOT' in os.environ
