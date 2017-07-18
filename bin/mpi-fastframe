@@ -4,8 +4,18 @@
 MPI wrapper for fastframe
 """
 
-#- Load MPI and establish communication ASAP
+#- Parse args first to enable --help from login node where MPI would crash
 from __future__ import absolute_import, division, print_function
+import argparse
+parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument('--outdir', type=str, help="output directory")
+parser.add_argument('--clobber', action='store_true', help="overwrite any pre-existing output files")
+parser.add_argument('--dryrun', action='store_true', help="print commands but don't run them")
+parser.add_argument('--start', type=str, help="start date YEARMMDD")
+parser.add_argument('--stop', type=str, help="stop date YEARMMDD")
+args = parser.parse_args()
+
+#- Load MPI and establish communication
 from mpi4py import MPI
 
 comm = MPI.COMM_WORLD
@@ -21,17 +31,6 @@ from astropy.table import Table
 
 import desisim.io
 import desisim.scripts.fastframe
-import argparse
-
-#-------------------------------------------------------------------------
-
-
-parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument('--outdir', type=str, help="output directory")
-parser.add_argument('--clobber', action='store_true', help="overwrite any pre-existing output files")
-parser.add_argument('--start', type=str, help="start date YEARMMDD")
-parser.add_argument('--stop', type=str, help="stop date YEARMMDD")
-args = parser.parse_args()
 
 if args.start is None:
     args.start = '11112233'
@@ -73,6 +72,9 @@ if rank < len(simspecfiles):
             cmd = cmd + " --clobber"
         
         print('RUNNING: {}'.format(cmd))
+        if args.dryrun:
+            continue
+
         try:
             t0 = time.time()
             desisim.scripts.fastframe.main(cmd.split()[1:])
