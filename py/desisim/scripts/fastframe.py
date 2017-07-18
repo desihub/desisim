@@ -45,7 +45,7 @@ def main(args=None):
 
     if simspec.flavor == 'arc':
         print('arc exposure; no frames to output')
-        sys.exit(0)
+        return
 
     fibermap = simspec.fibermap
     obs = simspec.obs
