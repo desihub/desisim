@@ -552,17 +552,17 @@ def get_median_obsconditions(tileids):
     from desitarget import obsconditions as obsbits
     obsconditions['MOONFRAC'] = np.zeros(n)
     obsconditions['MOONALT'] = -20.0 * np.ones(n)
-    obsconditions['MOONDIST'] = 180.0 * np.ones(n)
+    obsconditions['MOONSEP'] = 180.0 * np.ones(n)
 
     ii = (tiles['OBSCONDITIONS'] & obsbits.GRAY) != 0
     obsconditions['MOONFRAC'][ii] = 0.1
     obsconditions['MOONALT'][ii] = 10.0
-    obsconditions['MOONDIST'][ii] = 60.0
+    obsconditions['MOONSEP'][ii] = 60.0
 
     ii = (tiles['OBSCONDITIONS'] & obsbits.BRIGHT) != 0
     obsconditions['MOONFRAC'][ii] = 0.7
     obsconditions['MOONALT'][ii] = 60.0
-    obsconditions['MOONDIST'][ii] = 50.0
+    obsconditions['MOONSEP'][ii] = 50.0
 
     return obsconditions
 

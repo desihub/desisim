@@ -27,21 +27,21 @@ reference_conditions['DARK']['EXPTIME'] = 1000
 reference_conditions['DARK']['AIRMASS'] = 1.25
 reference_conditions['DARK']['MOONFRAC'] = 0.0
 reference_conditions['DARK']['MOONALT'] = -60
-reference_conditions['DARK']['MOONDIST'] = 180
+reference_conditions['DARK']['MOONSEP'] = 180
 
 reference_conditions['GRAY']['SEEING']  = 1.1
 reference_conditions['GRAY']['EXPTIME'] = 1000
 reference_conditions['GRAY']['AIRMASS'] = 1.25
 reference_conditions['GRAY']['MOONFRAC'] = 0.1
 reference_conditions['GRAY']['MOONALT']  = 10
-reference_conditions['GRAY']['MOONDIST'] = 60
+reference_conditions['GRAY']['MOONSEP'] = 60
 
 reference_conditions['BRIGHT']['SEEING']  = 1.1
 reference_conditions['BRIGHT']['EXPTIME'] = 300
 reference_conditions['BRIGHT']['AIRMASS'] = 1.25
 reference_conditions['BRIGHT']['MOONFRAC'] = 0.7
 reference_conditions['BRIGHT']['MOONALT']  = 60
-reference_conditions['BRIGHT']['MOONDIST'] = 50
+reference_conditions['BRIGHT']['MOONSEP'] = 50
 
 def newarc(arcdata, nspec=5000, nonuniform=False):
     '''
@@ -193,7 +193,7 @@ def newexp(fiberassign, mockdir, obsconditions=None, expid=None, nspec=None):
     Options:
         obsconditions: observation metadata with keys
             SEEING (arcsec), EXPTIME (sec), AIRMASS,
-            MOONFRAC (0-1), MOONALT (deg), MOONDIST (deg)
+            MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
         expid: (int) exposure ID
         nspec: (int) number of spectra to simulate
 
@@ -338,7 +338,7 @@ def simulate_spectra(wave, flux, meta=None, obsconditions=None, galsim=False,
             TODO: document other columns for get_source_type
         obsconditions: (dict-like) observation metadata including
             SEEING (arcsec), EXPTIME (sec), AIRMASS,
-            MOONFRAC (0-1), MOONALT (deg), MOONDIST (deg)
+            MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
 
     TODO:
         galsim
@@ -381,10 +381,9 @@ def simulate_spectra(wave, flux, meta=None, obsconditions=None, galsim=False,
     desi.atmosphere.airmass = obsconditions['AIRMASS']
     desi.atmosphere.moon.moon_phase = np.arccos(2*obsconditions['MOONFRAC']-1)/np.pi
     desi.atmosphere.moon.moon_zenith = (90 - obsconditions['MOONALT']) * u.deg
-    desi.atmosphere.moon.separation_angle = obsconditions['MOONDIST'] * u.deg
+    desi.atmosphere.moon.separation_angle = obsconditions['MOONSEP'] * u.deg
 
     try:
-        #- TODO: is MJD start or midpoint of observation?
         desi.observation.exposure_start = astropy.time.Time(obsconditions['MJD'], format='mjd')
         log.info('exposure_start {}'.format(desi.observation.exposure_start.utc.isot))
     except KeyError:
@@ -628,7 +627,7 @@ def read_mock_spectra(truthfile, targetids, mockdir=None):
     Reads mock spectra from a truth file
 
     Args:
-        truthfile (str): full path to a mocks truth*.fits file
+        truthfile (str): full path to a mocks spectra_truth*.fits file
         targetids (array-like): targetids to load from that file
         mockdir: ???
 
@@ -640,7 +639,11 @@ def read_mock_spectra(truthfile, targetids, mockdir=None):
     with fits.open(truthfile) as fx:
         wave = fx['WAVE'].data
         flux = fx['FLUX'].data
-        truth = fx['TRUTH'].data
+
+    #- TODO: figure out truth vs. spectra_truth tables
+    with fits.open(truthfile.replace('spectra_truth-', 'truth-')) as fx:
+        # truth = fx['TRUTH'].data
+        truth = fx[1].data
 
     #- Trim to just the spectra for these targetids
     ii = np.in1d(truth['TARGETID'], targetids)
@@ -722,21 +725,21 @@ def targets2truthfiles_healpix(targets, basedir, nside=64):
     #- TODO: what should be done with assignments without targets?
     targets = targets[targets['TARGETID'] != -1]
 
-    phi = np.radians(90-targets['DEC'])
-    theta = np.radians(targets['RA'])
+    theta = np.radians(90-targets['DEC'])
+    phi = np.radians(targets['RA'])
     pixels = healpy.ang2pix(nside, theta, phi, nest=True)
 
     truthfiles = list()
-    targetids == list()
-    for ipix in sorted(pixels):
-        subdir = str(ipix // (nside//2))
-        filename = 'truth-{}-{}.fits'.format(nside, ipix)
-        truthfiles.append(os.path.join(basedir, subdir, filename))
+    targetids = list()
+    for ipix in sorted(np.unique(pixels)):
+        subdir = str(ipix // 100)
+        filename = 'spectra_truth-{}-{}.fits'.format(nside, ipix)
+        truthfiles.append(os.path.join(basedir, subdir, str(ipix), filename))
         ii = (pixels == ipix)
         targetids.append(targets['TARGETID'][ii])
 
     return truthfiles, targetids
 
 #- Use brick naming scheme for now
-targets2truthfiles = targets2truthfiles_bricks
+targets2truthfiles = targets2truthfiles_healpix
 

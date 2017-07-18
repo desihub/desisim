@@ -9,6 +9,7 @@ import astropy.units as u
 
 from desisim.newexp import newexp
 import desisim.io
+import desisim.util
 
 def parse(options=None):
     parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -24,10 +25,6 @@ def parse(options=None):
     parser.add_argument('--outdir', type=str, help="output directory")
     parser.add_argument('--nspec', type=int, default=None, help="number of spectra to include")
     parser.add_argument('--clobber', action='store_true', help="overwrite any pre-existing output files")
-
-    if len(sys.argv) == 1:
-        parser.print_help()
-        sys.exit(1)
 
     if options is None:
         args = parser.parse_args()
@@ -49,19 +46,43 @@ def main(args=None):
     else:
         obslist = astropy.table.Table.read(args.obslist)
 
+    #----
+    #-  Standardize some column names from surveysim output vs.
+    #- twopct.ecsv from 2% survey data challenge.
+
+    #- column names should be upper case
+    for col in list(obslist.colnames):
+        obslist.rename_column(col, col.upper())
+
+    #- MOONDIST -> MOONSEP
+    if 'MOONDIST' in obslist.colnames:
+        obslist.rename_column('MOONDIST', 'MOONSEP')
+
+    #- NIGHT = YEARMMDD (not YEAR-MM-DD) of sunset, derived from MJD if needed
+    if 'NIGHT' not in obslist.colnames:
+        #- Derive NIGHT from MJD
+        obslist['NIGHT'] = [desisim.util.dateobs2night(x) for x in obslist['MJD']]
+    else:
+        #- strip dashes from NIGHT string to make YEARMMDD
+        obslist['NIGHT'] = np.char.replace(obslist['NIGHT'], '-', '')
+
+    #- Fragile: derive PROGRAM from PASS
+    if 'PROGRAM' not in obslist.colnames:
+        obslist['PROGRAM'] = 'BRIGHT'
+        obslist['PROGRAM'][obslist['PASS'] < 4] = 'DARK'
+        obslist['PROGRAM'][obslist['PASS'] == 4] = 'GRAY'
+
+    #- end of oblist standardization
+
     obs = obslist[args.obsnum]
     tileid = obs['TILEID']
+    night = obs['NIGHT']
 
     if os.path.isdir(args.fiberassign):
         #- TODO: move file location logic to desispec / desitarget / fiberassign
         args.fiberassign = os.path.join(args.fiberassign, 'tile_{:05d}.fits'.format(tileid))
         
     fiberassign = astropy.table.Table.read(args.fiberassign, 'FIBER_ASSIGNMENTS')
-
-    #- Get YEARMMDD string of sunset (not current UTC)
-    dateobs = astropy.time.Time(obs['MJD'], format='mjd')
-    localtime = (dateobs - 7*u.hour)
-    night = (localtime-12*u.hour).utc.isot[0:10].replace('-', '')
 
     if args.outdir is None:
         args.outdir = desisim.io.simdir(night=night, mkdir=True)
