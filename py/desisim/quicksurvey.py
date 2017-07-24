@@ -44,7 +44,7 @@ class SimSetup(object):
     def __init__(self, output_path, targets_path,
         fiberassign_exec, template_fiberassign,
         start_epoch=0, n_epochs=None, epochs_path=None,
-        obsconditions=None, fiberassign_dates=None):
+        obsconditions=None, fiberassign_dates=None, surveysim_output_path=None):
         """Initializes all the paths, filenames and numbers describing DESI survey.
 
         Args:
@@ -61,7 +61,8 @@ class SimSetup(object):
                 (obslist_all.fits) or Table read from that file
             fiberassign_dates: file with list of dates to run fiberassign;
                 one YEARMMDD or YEAR-MM-DD per line
-
+            surveysim_output_path: path to the plan_* and progress_* files from
+                surveysim
         Notes:
             must provide epochs_path or (obsconditions and fiberassign_dates)
             obsconditions and epochs_path is also allowed, but there are no
@@ -72,6 +73,17 @@ class SimSetup(object):
         self.targets_path = targets_path
         self.fiberassign_exec = fiberassign_exec
         self.template_fiberassign = template_fiberassign
+
+        if surveysim_output_path is not None:
+            self.surveysim_output_path = surveysim_output_path
+            self.plan_files = glob.glob(os.path.join(self.surveysim_output_path, "plan_*.fits"))
+            self.progress_files = glob.glob(os.path.join(self.surveysim_output_path, "progress_*.fits"))
+            print(self.plan_files)
+            print(self.progress_files)
+        else:
+            self.surveysim_output_path = None
+            self.plan_files = []
+            self.progress_files = []
 
         if obsconditions is not None:
             if isinstance(obsconditions, (Table, np.ndarray)):

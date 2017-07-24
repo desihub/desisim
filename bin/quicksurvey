@@ -17,6 +17,7 @@ parser.add_argument("--n_epochs","-N",help="Total number of epochs", type=int, d
 parser.add_argument("--start_epoch",help="Epoch to start with (0-indexed)", type=int, default=0)
 parser.add_argument("--obsconditions",help="obslist_all.fits file from surveysim", type=str, required=False)
 parser.add_argument("--fiberassign_dates",help="file with list of dates to run fiberassign", type=str, required=False)
+parser.add_argument("--surveysim_output_path","-S",help="path to the outputs from surveysim", type=str, required=False)
 
 args = parser.parse_args()
 
@@ -29,6 +30,7 @@ setup = qs.SimSetup(output_path = args.output_dir,
                     n_epochs = args.n_epochs,
                     obsconditions = args.obsconditions,
                     fiberassign_dates = args.fiberassign_dates,
+                    surveysim_output_path = args.surveysim_output_path
                     )
 
 setup.simulate()
