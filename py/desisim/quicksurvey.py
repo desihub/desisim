@@ -23,7 +23,7 @@ from astropy.table import Table, Column
 import os.path
 from collections import Counter
 from time import time, asctime
-
+import fitsio
 import desitarget.mtl
 from desisim.quickcat import quickcat
 from astropy.table import join
@@ -169,11 +169,14 @@ class SimSetup(object):
         self.tilefiles = []
         self.observed_tiles = []
 
-        previous_progress_data = Table.read(self.progress_files[epoch])
-        progress_data = Table.read(self.progress_files[epoch+1])
+#        previous_progress_data = Table.read(self.progress_files[epoch])
+#        progress_data = Table.read(self.progress_files[epoch+1])
 
-        progress_tileid = progress_data['tileid'][progress_data['status']==2]
-        previous_progress_tileid = previous_progress_data['tileid'][previous_progress_data['status']==2]
+        previous_progress_data = Table(fitsio.read(self.progress_files[epoch], upper=True))
+        progress_data = Table(fitsio.read(self.progress_files[epoch + 1], upper=True))
+
+        progress_tileid = progress_data['TILEID'][progress_data['STATUS']==2]
+        previous_progress_tileid = previous_progress_data['TILEID'][previous_progress_data['STATUS']==2]
         self.observed_tiles = list(set(progress_tileid) - set(previous_progress_tileid))
 
         for i in self.observed_tiles:
@@ -189,8 +192,9 @@ class SimSetup(object):
         """Creates the list of tilefiles to be gathered to buikd the redshift catalog.     
         """
         self.plan_tiles = []
-        plan_data = Table.read(self.plan_files[epoch])
-        self.plan_tiles = plan_data['tileid'][plan_data['active']==True]
+ #       plan_data = Table.read(self.plan_files[epoch])
+        plan_data = Table(fitsio.read(self.plan_files[epoch], upper=True))
+        self.plan_tiles = plan_data['TILEID'][plan_data['ACTIVE']==True]
         
     def simulate_epoch(self, epoch, truth, targets, perfect=False, mtl=None, zcat=None):
         """Core routine simulating a DESI epoch,
