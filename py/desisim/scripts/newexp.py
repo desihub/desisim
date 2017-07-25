@@ -10,6 +10,7 @@ import astropy.units as u
 from desisim.newexp import newexp
 import desisim.io
 import desisim.util
+from desiutil.log import get_logger
 
 def parse(options=None):
     parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -38,6 +39,7 @@ def parse(options=None):
 
 def main(args=None):
 
+    log = get_logger()
     if isinstance(args, (list, tuple, type(None))):
         args = parse(args)
 
@@ -75,7 +77,7 @@ def main(args=None):
         obslist['PROGRAM'][obslist['PASS'] < 4] = 'DARK'
         obslist['PROGRAM'][obslist['PASS'] == 4] = 'GRAY'
 
-    #- end of oblist standardization
+    #- end of obslist standardization
 
     obs = obslist[args.obsnum]
     tileid = obs['TILEID']
@@ -93,10 +95,12 @@ def main(args=None):
     if args.nspec is None:
         args.nspec = len(fiberassign)
 
+    log.info('Simulating night {} expid {} tile {}'.format(night, args.expid, tileid))
     sim, fibermap, truthmeta = newexp(fiberassign, args.mockdir, obsconditions=obs, nspec=args.nspec)
 
     fibermap.meta['NIGHT'] = night
     fibermap.meta['EXPID'] = args.expid
+    fibermap.meta['TILEID'] = tileid
     fibermap.meta['FLAVOR'] = 'science'
     fibermap.write(desisim.io.findfile('simfibermap', night, args.expid,
         outdir=args.outdir), overwrite=args.clobber)

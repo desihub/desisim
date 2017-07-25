@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
+import sys
 import os.path
 import warnings
 import datetime, time
@@ -635,14 +636,10 @@ def read_mock_spectra(truthfile, targetids, mockdir=None):
         wave[nwave]: wavelengths in Angstroms
         truth[nspec]: metadata truth table
     '''
-    with fits.open(truthfile) as fx:
+    with fits.open(truthfile, memmap=False) as fx:
+        truth = fx['TRUTH'].data
         wave = fx['WAVE'].data
         flux = fx['FLUX'].data
-
-    #- TODO: figure out truth vs. spectra_truth tables
-    with fits.open(truthfile.replace('spectra_truth-', 'truth-')) as fx:
-        # truth = fx['TRUTH'].data
-        truth = fx[1].data
 
     #- Trim to just the spectra for these targetids
     ii = np.in1d(truth['TARGETID'], targetids)
@@ -665,6 +662,9 @@ def read_mock_spectra(truthfile, targetids, mockdir=None):
     truth = truth[j[k]]
     flux = flux[j[k]]
     assert np.all(truth['TARGETID'] == targetids)
+
+    wave = desispec.io.util.native_endian(wave).astype(np.float64)
+    flux = desispec.io.util.native_endian(flux).astype(np.float64)
 
     return flux, wave, truth
 
@@ -719,6 +719,7 @@ def targets2truthfiles_healpix(targets, basedir, nside=64):
         where subdir = ipix // (nside//2)
     '''
     import healpy
+    import desitarget.mock.io as mockio
     assert nside >= 2
 
     #- TODO: what should be done with assignments without targets?
@@ -731,9 +732,8 @@ def targets2truthfiles_healpix(targets, basedir, nside=64):
     truthfiles = list()
     targetids = list()
     for ipix in sorted(np.unique(pixels)):
-        subdir = str(ipix // 100)
-        filename = 'spectra_truth-{}-{}.fits'.format(nside, ipix)
-        truthfiles.append(os.path.join(basedir, subdir, str(ipix), filename))
+        filename = mockio.findfile('truth', nside, ipix, basedir=basedir)
+        truthfiles.append(filename)
         ii = (pixels == ipix)
         targetids.append(targets['TARGETID'][ii])
 
