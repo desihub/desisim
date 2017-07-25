@@ -42,7 +42,7 @@ class SimSetup(object):
 
     """
     def __init__(self, output_path, targets_path, fiberassign_exec, template_fiberassign,
-                 surveysim_output_path, start_epoch=0, n_epochs=None):
+                 exposures, fiberassign_dates):
         """Initializes all the paths, filenames and numbers describing DESI survey.
 
         Args:
@@ -50,29 +50,15 @@ class SimSetup(object):
             targets_path (str): Path where the files targets.fits can be found
             fiberassign_exec (str): Name of the fiberassign executable
             template_fiberassign (str): Filename of the template input for fiberassign
-            n_epochs (int): number of epochs to be simulated.
-            surveysim_output_path: path to the plan_* and progress_* files from
-                surveysim
-
+            exposures (stri): exposures.fits file summarazing surveysim results
+            fiberassign_dates (str): ascii file with the dates to run fiberassign.
         """
         self.output_path = output_path
         self.targets_path = targets_path
         self.fiberassign_exec = fiberassign_exec
         self.template_fiberassign = template_fiberassign
 
-
-        self.surveysim_output_path = surveysim_output_path
-        self.plan_files = glob.glob(os.path.join(self.surveysim_output_path, "plan_*.fits"))
-        self.progress_files = glob.glob(os.path.join(self.surveysim_output_path, "progress_*.fits"))
-        self.plan_files.sort() 
-        self.progress_files.sort()
-
-        if n_epochs is None:
-            self.n_epochs = len(self.progress_files) - 1
-        else:
-            self.n_epochs = n_epochs
-        
-        self.start_epoch = start_epoch
+        self.exposures = fitsio.read(exposures, upper=True)
 
         self.tmp_output_path = os.path.join(self.output_path, 'tmp/')
         self.tmp_fiber_path = os.path.join(self.tmp_output_path, 'fiberassign/')
@@ -82,11 +68,38 @@ class SimSetup(object):
         self.zcat_file = None
         self.mtl_file = None
 
-        self.epoch_tiles = []
-        self.tilefiles = []
-        self.plan_tiles = []
-        self.observed_tiles = []
-        self.epochs_list = list(range(self.n_epochs))
+        self.epoch_tiles = list()
+        self.tilefiles = list()
+        self.plan_tiles = list()
+        self.observed_tiles = list()
+        self.epochs_list = list()
+        self.n_epochs = 0
+        self.start_epoch = 0
+ 
+        dateobs = np.core.defchararray.decode(self.exposures['NIGHT'])
+        dates = list()
+        with open(fiberassign_dates) as fx:
+            for line in fx:
+                line = line.strip()
+                if line.startswith('#') or len(line) < 2:
+                    continue
+                yearmmdd = line.replace('-', '')
+                year_mm_dd = yearmmdd[0:4]+'-'+yearmmdd[4:6]+'-'+yearmmdd[6:8]
+                dates.append(year_mm_dd)
+
+            #- add pre- and post- dates for date range bookkeeping
+        if dates[0] > min(dateobs[0]):
+                dates.insert(0, dateobs[0])
+
+        dates.append('9999-99-99')
+        print(dates)
+
+        self.n_epochs = len(dates) - 1
+
+        for i in range(len(dates)-1):
+            ii = (dates[i] < dateobs) & (dateobs < dates[i+1])
+            self.epoch_tiles.append(self.exposures['TILEID'][ii])
+            print('tiles in epoch {}: {}'.format(i,np.count_nonzero(ii)))
 
 
     def create_directories(self):
@@ -147,8 +160,9 @@ class SimSetup(object):
 
         # create survey list from mtl_epochs IDS
         surveyfile = os.path.join(self.tmp_output_path, "survey_list.txt")
-        np.savetxt(surveyfile, self.plan_tiles, fmt='%d')
-        print("{} tiles to be included in fiberassign".format(len(self.plan_tiles)))
+        tiles = np.concatenate(self.epoch_tiles[epoch:])
+        np.savetxt(surveyfile, tiles, fmt='%d')
+        print("{} tiles to be included in fiberassign".format(len(tiles)))
 
 
     def create_fiberassign_input(self):
@@ -166,20 +180,8 @@ class SimSetup(object):
         """Creates the list of tilefiles to be gathered to buikd the redshift catalog.        
 
         """        
-        self.tilefiles = []
-        self.observed_tiles = []
-
-#        previous_progress_data = Table.read(self.progress_files[epoch])
-#        progress_data = Table.read(self.progress_files[epoch+1])
-
-        previous_progress_data = Table(fitsio.read(self.progress_files[epoch], upper=True))
-        progress_data = Table(fitsio.read(self.progress_files[epoch + 1], upper=True))
-
-        progress_tileid = progress_data['TILEID'][progress_data['STATUS']==2]
-        previous_progress_tileid = previous_progress_data['TILEID'][previous_progress_data['STATUS']==2]
-        self.observed_tiles = list(set(progress_tileid) - set(previous_progress_tileid))
-
-        for i in self.observed_tiles:
+        tiles = np.concatenate(self.epoch_tiles[epoch])
+        for i in tiles:
             tilename = os.path.join(self.tmp_fiber_path, 'tile_%05d.fits'%(i))
             if os.path.isfile(tilename):
                 self.tilefiles.append(tilename)
@@ -187,14 +189,6 @@ class SimSetup(object):
                 print('Suggested but does not exist {}'.format(tilename))
         print("{} {} tiles to gather in zcat".format(asctime(), len(self.tilefiles)))
 
-
-    def update_plan_tiles(self, epoch):
-        """Creates the list of tilefiles to be gathered to buikd the redshift catalog.     
-        """
-        self.plan_tiles = []
- #       plan_data = Table.read(self.plan_files[epoch])
-        plan_data = Table(fitsio.read(self.plan_files[epoch], upper=True))
-        self.plan_tiles = plan_data['TILEID'][plan_data['ACTIVE']==True]
         
     def simulate_epoch(self, epoch, truth, targets, perfect=False, mtl=None, zcat=None):
         """Core routine simulating a DESI epoch,
@@ -228,8 +222,7 @@ class SimSetup(object):
             for tilefile in tilefiles:
                 os.remove(tilefile)
 
-        #
-        self.update_plan_tiles(epoch)
+        # setup the tileids for the current observation epoch
         self.create_surveyfile(epoch)
         self.create_fiberassign_input()
 
