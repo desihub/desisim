@@ -68,6 +68,16 @@ else:
 nflat = 3
 narc = 3
 
+def read_tiles(filename):
+    if filename.endswith('.fits'):
+        tilesubset = Table.read(filename, format='fits')['TILEID']
+    elif filename.endswith('.ecsv'):
+        tilesubset = Table.read(filename, format='ascii.ecsv')['TILEID']
+    else:
+        tilesubset = np.loadtxt(filename).astype(int)
+
+    return tilesubset
+
 #- Assemble full list of exposures
 if rank == 0:
     if args.obslist.endswith('.ecsv'):
@@ -81,14 +91,7 @@ if rank == 0:
 
     obs['OBSNUM'] = np.arange(len(obs))
     if args.tilefile is not None:
-        tilesubset = list()
-        with open(args.tilefile) as fx:
-            for line in fx:
-                line = line.strip()
-                if len(line)<2 or line.startswith('#'):
-                    continue
-                else:
-                    tilesubset.append(int(line.split()[0]))
+        tilesubset = read_tiles(args.tilefile)
         ii = np.in1d(obs['TILEID'], tilesubset)
         if np.any(ii):
             obs = obs[ii]
