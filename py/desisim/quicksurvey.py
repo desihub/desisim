@@ -96,10 +96,15 @@ class SimSetup(object):
 
         self.n_epochs = len(dates) - 1
 
+
         for i in range(len(dates)-1):
             ii = (dates[i] < dateobs) & (dateobs < dates[i+1])
-            self.epoch_tiles.append(self.exposures['TILEID'][ii])
-            print('tiles in epoch {}: {}'.format(i,np.count_nonzero(ii)))
+            epoch_tiles = list()
+            for tile in self.exposures['TILEID'][ii]:
+                if tile not in epoch_tiles:
+                    epoch_tiles.append(tile)
+            self.epoch_tiles.append(epoch_tiles)
+            print('tiles in epoch {}: {}'.format(i,len(self.epoch_tiles[i])))
 
 
     def create_directories(self):
@@ -160,7 +165,7 @@ class SimSetup(object):
 
         # create survey list from mtl_epochs IDS
         surveyfile = os.path.join(self.tmp_output_path, "survey_list.txt")
-        tiles = np.concatenate(self.epoch_tiles[epoch:])
+        tiles = self.epoch_tiles[epoch]
         np.savetxt(surveyfile, tiles, fmt='%d')
         print("{} tiles to be included in fiberassign".format(len(tiles)))
 
@@ -180,7 +185,8 @@ class SimSetup(object):
         """Creates the list of tilefiles to be gathered to buikd the redshift catalog.        
 
         """        
-        tiles = np.concatenate(self.epoch_tiles[epoch])
+        self.tilefiles = list()
+        tiles = self.epoch_tiles[epoch]
         for i in tiles:
             tilename = os.path.join(self.tmp_fiber_path, 'tile_%05d.fits'%(i))
             if os.path.isfile(tilename):
