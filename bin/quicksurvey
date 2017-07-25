@@ -12,9 +12,8 @@ parser.add_argument("--output_dir", "-O", help="Path to write the outputs", type
 parser.add_argument("--targets_dir","-T",help="Path to the targets.fits file", type=str, required=True)
 parser.add_argument("--fiberassign_exec", "-f", help="Executable file for fiberassign", type=str, required=True)
 parser.add_argument("--template_fiberassign","-t",help="File containing template for fiberassign", type=str, required=True)
-parser.add_argument("--n_epochs","-N",help="Total number of epochs", type=int, default=None)
-parser.add_argument("--start_epoch",help="Epoch to start with (0-indexed)", type=int, default=0)
-parser.add_argument("--surveysim_output_path","-S",help="path to the outputs from surveysim", type=str, required=True)
+parser.add_argument("--exposures","-E",help="exposures.fits file from surveysim", type=str, required=True)
+parser.add_argument("--fiberassign_dates","-D", help="file with list of dates to run fiberassign", type=str, required=True)
 
 args = parser.parse_args()
 
@@ -22,9 +21,8 @@ setup = qs.SimSetup(output_path = args.output_dir,
                     targets_path = args.targets_dir, 
                     fiberassign_exec = args.fiberassign_exec, 
                     template_fiberassign = args.template_fiberassign, 
-                    start_epoch = args.start_epoch,
-                    n_epochs = args.n_epochs,
-                    surveysim_output_path = args.surveysim_output_path
+                    exposures = args.exposures,
+                    fiberassign_dates = args.fiberassign_dates
                     )
 
 setup.simulate()
