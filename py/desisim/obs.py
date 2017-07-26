@@ -28,32 +28,9 @@ from . import io
 import desisim.newexp
 from .newexp import simulate_spectra
 
-def testslit_fibermap() :
-    # from WBS 1.6 PDR Fiber Slit document
-    # science slit has 20 bundles of 25 fibers
-    # test slit has 1 fiber per bundle except in the middle where it is fully populated
-    nspectro=10
-    testslit_nspec_per_spectro=20
-    testslit_nspec = nspectro*testslit_nspec_per_spectro
-    fibermap = np.zeros(testslit_nspec, dtype=desispec.io.fibermap.fibermap_columns)
-    fibermap['FIBER'] = np.zeros((testslit_nspec)).astype(int)
-    fibermap['SPECTROID'] = np.zeros((testslit_nspec)).astype(int)
-    for spectro in range(nspectro) :
-        fiber_index=testslit_nspec_per_spectro*spectro
-        first_fiber_id=500*spectro
-        for b in range(20) :
-            # Fibers at Top of top block or Bottom of bottom block
-            if b <= 10:
-                fibermap['FIBER'][fiber_index]  = 25*b + first_fiber_id
-            else:
-                fibermap['FIBER'][fiber_index]  = 25*b + 24 + first_fiber_id
-
-            fibermap['SPECTROID'][fiber_index] = spectro
-            fiber_index+=1
-    return fibermap
-
 def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
-                 airmass=1.0, exptime=None, seed=None, testslit=False,
+                 airmass=1.0, exptime=None, seed=None,
+                 obsconditions=None, testslit=False,
                  arc_lines_filename=None, flat_spectrum_filename=None):
 
     """
@@ -71,7 +48,11 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         airmass : airmass, default 1.0
         exptime : exposure time in seconds
         seed : random seed
-        testslit : simulate test slit if True, default False
+        obsconditions: string 'dark', 'gray', 'bright', or
+            dict-like observation metadata with keys
+                SEEING (arcsec), EXPTIME (sec), AIRMASS,
+                MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
+        testslit : simulate test slit if True, default False; only for arc/flat
         arc_lines_filename : use alternate arc lines filename (used if program="arc")
         flat_spectrum_filename : use alternate flat spectrum filename (used if program="flat")
 
@@ -126,7 +107,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         arcdata = fits.getdata(infile, 1)
         if exptime is None:
             exptime = 5
-        wave, phot, fibermap = desisim.newexp.newarc(arcdata, nspec=nspec)
+        wave, phot, fibermap = desisim.newexp.newarc(arcdata, nspec=nspec, testslit=testslit)
 
         header['EXPTIME'] = exptime
         desisim.io.write_simspec_arc(outsimspec, wave, phot, header, fibermap=fibermap)
@@ -145,7 +126,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
 
         if exptime is None:
             exptime = 10
-        sim, fibermap = desisim.newexp.newflat(infile, nspec=nspec, exptime=exptime)
+        sim, fibermap = desisim.newexp.newflat(infile, nspec=nspec, exptime=exptime, testslit=testslit)
 
         header['EXPTIME'] = exptime
         header['FLAVOR'] = 'flat'
@@ -171,23 +152,30 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
 
     wave = truth['WAVE']
     flux = truth['FLUX']
-    if program.upper() in ['DARK', 'LRG', 'QSO']:
-        obsconditions = 'DARK'
-    elif program.upper() in ['ELG', 'GRAY', 'GREY']:
-        obsconditions = 'GRAY'
-    elif program.upper() in ['MWS', 'BGS', 'BRIGHT']:
-        obsconditions = 'BRIGHT'
-    else:
-        raise ValueError('unknown program {}'.format(program))
 
-    obsconditions = desisim.newexp.reference_conditions[obsconditions]
+    if obsconditions is None:
+        if program in ['dark', 'lrg', 'qso']:
+            obsconditions = desisim.newexp.reference_conditions['DARK']
+        elif program in ['elg', 'gray', 'grey']:
+            obsconditions = desisim.newexp.reference_conditions['GRAY']
+        elif program in ['mws', 'bgs', 'bright']:
+            obsconditions = desisim.newexp.reference_conditions['BRIGHT']
+        else:
+            raise ValueError('unknown program {}'.format(program))
+    elif isinstance(obsconditions, str):
+        try:
+            obsconditions = desisim.newexp.reference_conditions[obsconditions.upper()]
+        except KeyError:
+            raise ValueError('obsconditions {} not in {}'.format(
+                obsconditions.upper(),
+                list(desisim.newexp.reference_conditions.keys())))
+
     if exptime is not None:
         obsconditions['EXPTIME'] = exptime
     if airmass is not None:
         obsconditions['AIRMASS'] = airmass
 
-    # sim = simulate_spectra(wave, flux, meta=meta, obsconditions=obsconditions, galsim=False)
-    sim = simulate_spectra(wave, 1e-17*flux, meta=fibermap, obsconditions=obsconditions, galsim=False)
+    sim = simulate_spectra(wave, 1e-17*flux, meta=fibermap, obsconditions=obsconditions)
 
     #- Override $DESI_SPECTRO_DATA in order to write to simulation area
     datadir_orig = os.getenv('DESI_SPECTRO_DATA')

@@ -43,7 +43,7 @@ reference_conditions['BRIGHT']['MOONFRAC'] = 0.7
 reference_conditions['BRIGHT']['MOONALT']  = 60
 reference_conditions['BRIGHT']['MOONSEP'] = 50
 
-def newarc(arcdata, nspec=5000, nonuniform=False):
+def newarc(arcdata, nspec=5000, nonuniform=False, testslit=False):
     '''
     Simulates an arc lamp exposure
 
@@ -70,7 +70,10 @@ def newarc(arcdata, nspec=5000, nonuniform=False):
     wave = arcdata['VACUUM_WAVE']
     phot = arcdata['ELECTRONS']
 
-    fibermap = astropy.table.Table(desispec.io.empty_fibermap(nspec))
+    if testslit:
+        fibermap = astropy.table.Table(testslit_fibermap()[0:nspec])
+    else:
+        fibermap = astropy.table.Table(desispec.io.empty_fibermap(nspec))
     fibermap.meta['FLAVOR'] = 'arc'
     fibermap['OBJTYPE'] = 'ARC'
 
@@ -95,7 +98,7 @@ def newarc(arcdata, nspec=5000, nonuniform=False):
 
     return wave, phot, fibermap
 
-def newflat(flatfile, nspec=5000, nonuniform=False, exptime=10):
+def newflat(flatfile, nspec=5000, nonuniform=False, exptime=10, testslit=False):
     '''
     Simulates a flat lamp calibration exposure
 
@@ -134,7 +137,11 @@ def newflat(flatfile, nspec=5000, nonuniform=False, exptime=10):
     sbflux = desispec.interpolation.resample_flux(ww, wave, sbflux)
     wave = ww
 
-    fibermap = astropy.table.Table(desispec.io.empty_fibermap(nspec))
+    if testslit:
+        fibermap = astropy.table.Table(testslit_fibermap()[0:nspec])
+    else:
+        fibermap = astropy.table.Table(desispec.io.empty_fibermap(nspec))
+
     fibermap.meta['FLAVOR'] = 'flat'
     fibermap['OBJTYPE'] = 'FLAT'
     x = fibermap['X_TARGET']
@@ -324,8 +331,7 @@ def fibermeta2fibermap(fibermeta):
 #-------------------------------------------------------------------------
 #- specsim related routines
 
-def simulate_spectra(wave, flux, meta=None, obsconditions=None, galsim=False,
-    dwave_out=None):
+def simulate_spectra(wave, flux, meta=None, obsconditions=None, dwave_out=None):
     '''
     Simulates an exposure without reading/writing data files
 
@@ -573,6 +579,33 @@ def fiber_area_arcsec2(x, y):
     raz = 0.5 * fiber_dia / az_scale
     fiber_area = (np.pi * rr * raz)
     return fiber_area
+
+#-------------------------------------------------------------------------
+#- Move this to desispec.io?
+
+def testslit_fibermap():
+    # from WBS 1.6 PDR Fiber Slit document
+    # science slit has 20 bundles of 25 fibers
+    # test slit has 1 fiber per bundle except in the middle where it is fully populated
+    nspectro=10
+    testslit_nspec_per_spectro=20
+    testslit_nspec = nspectro*testslit_nspec_per_spectro
+    fibermap = np.zeros(testslit_nspec, dtype=desispec.io.fibermap.fibermap_columns)
+    fibermap['FIBER'] = np.zeros((testslit_nspec)).astype(int)
+    fibermap['SPECTROID'] = np.zeros((testslit_nspec)).astype(int)
+    for spectro in range(nspectro) :
+        fiber_index=testslit_nspec_per_spectro*spectro
+        first_fiber_id=500*spectro
+        for b in range(20) :
+            # Fibers at Top of top block or Bottom of bottom block
+            if b <= 10:
+                fibermap['FIBER'][fiber_index]  = 25*b + first_fiber_id
+            else:
+                fibermap['FIBER'][fiber_index]  = 25*b + 24 + first_fiber_id
+
+            fibermap['SPECTROID'][fiber_index] = spectro
+            fiber_index+=1
+    return fibermap
 
 #-------------------------------------------------------------------------
 #- MOVE THESE TO desitarget.mocks.io (?)
