@@ -53,42 +53,41 @@ class TestObs(unittest.TestCase):
         if os.path.exists(cls.testDir):
             rmtree(cls.testDir)
 
-    # def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None, \
+    # def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None, \
     #     airmass=1.0, exptime=None):
     @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
     @unittest.skipUnless(desi_root_available, '$DESI_ROOT not set')
     def test_newexp(self):
         night = self.night
         seed = np.random.randint(2**30)
-        #- flavors 'bgs' and 'bright' not yet implemented
-        for expid, flavor in enumerate(['arc', 'flat', 'dark', 'mws']):
-            fibermap, true = obs.new_exposure(flavor, nspec=10, night=night, expid=expid, seed=seed)
+        #- programs 'bgs' and 'bright' not yet implemented
+        for expid, program in enumerate(['arc', 'flat', 'dark', 'mws']):
+            fibermap, true = obs.new_exposure(program, nspec=10, night=night, expid=expid, seed=seed)
             simspecfile = io.findfile('simspec', night, expid=expid)
             fibermapfile = io.findfile('simfibermap', night, expid=expid)
             self.assertTrue(os.path.exists(simspecfile))
             self.assertTrue(os.path.exists(fibermapfile))
             simspec = io.read_simspec(simspecfile)
-            if flavor in ('arc', 'flat'):
-                self.assertEqual(simspec.flavor, flavor)
+            if program in ('arc', 'flat'):
+                self.assertEqual(simspec.flavor, program)
             else:
                 self.assertEqual(simspec.flavor, 'science')
 
             #- Check that photons are in a reasonable range
             for channel in ('b', 'r', 'z'):
                 maxphot = simspec.phot[channel].max()
-                self.assertTrue(maxphot > 1, 'suspiciously few {} photons ({}); wrong units?'.format(flavor, maxphot))
-                self.assertTrue(maxphot < 1e6, 'suspiciously many {} photons ({}); wrong units?'.format(flavor, maxphot))
-                if flavor not in ('arc', 'flat'):
+                self.assertTrue(maxphot > 1, 'suspiciously few {} photons ({}); wrong units?'.format(program, maxphot))
+                self.assertTrue(maxphot < 1e6, 'suspiciously many {} photons ({}); wrong units?'.format(program, maxphot))
+                if program not in ('arc', 'flat'):
                     self.assertTrue(simspec.skyphot[channel].max() > 1, 'suspiciously few sky photons; wrong units?')
                     self.assertTrue(simspec.skyphot[channel].max() < 1e6, 'suspiciously many sky photons; wrong units?')
 
-            if flavor not in ('arc', 'flat'):
-                fx = Table.read(simspecfile, 'FLUX')
-                flux = fx['FLUX'].T
-                skyflux = fx['SKYFLUX'].T
-                self.assertTrue(str(flux.unit).startswith('1e-17'))
-                self.assertTrue(str(skyflux.unit).startswith('1e-17'))
-                for i in range(flux.shape[0]):                    
+            if program not in ('arc', 'flat'):
+                flux, fluxhdr = fits.getdata(simspecfile, 'FLUX', header=True)
+                skyflux, skyfluxhdr = fits.getdata(simspecfile, 'SKYFLUX', header=True)
+                self.assertTrue(fluxhdr['BUNIT'].startswith('1e-17'))
+                self.assertTrue(skyfluxhdr['BUNIT'].startswith('1e-17'))
+                for i in range(flux.shape[0]):
                     objtype = simspec.metadata['OBJTYPE'][i]
                     maxflux = flux[i].max()
                     maxsky = skyflux[i].max()
@@ -111,7 +110,7 @@ class TestObs(unittest.TestCase):
     def test_newexp_sky(self):
         "Test different levels of sky brightness"
         night = self.night
-        #- flavors 'bgs' and 'bright' not yet implemented
+        #- programs 'bgs' and 'bright' not yet implemented
         fibermap, truth_dark = obs.new_exposure('dark', nspec=10, night=night, expid=0, exptime=1000)
         fibermap, truth_mws  = obs.new_exposure('mws', nspec=10, night=night, expid=1, exptime=1000)
         for channel in ['B', 'R', 'Z']:

@@ -420,7 +420,7 @@ def main(args):
     else:
         object_type = None
         flavor = simspec.flavor
-        log.warn('Maybe using an outdated simspec file with flavor={}'.format(flavor))
+        log.warning('Maybe using an outdated simspec file with flavor={}'.format(flavor))
 
     # Set airmass and exptime
     if args.simspec:

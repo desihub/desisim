@@ -91,7 +91,7 @@ def sample_objtype(nobj, flavor):
         with open(targetyaml) as fx:
             tgt = yaml.load(fx)
     elif os.path.exists(targetdat):
-        log.warn('please svn update {} to get targets.yaml instead of targets.dat'.format(os.environ['DESIMODEL']))
+        log.warning('please svn update {} to get targets.yaml instead of targets.dat'.format(os.environ['DESIMODEL']))
         with open(targetdat) as fx:
             tgt = yaml.load(fx)
             #- Fix some items that got renamed in the new yaml file
@@ -288,13 +288,13 @@ def _simspec_truth(truth, wave=None, seed=None):
     if np.any(isSTD):
         results.append( make_templates(truth[isSTD], FSTD, wave, seed) )
     if np.any(isFakeQSO):
-        log.warn('not applying QSO color cuts to Fake QSOs yet')
+        log.warning('not applying QSO color cuts to Fake QSOs yet')
         results.append( make_templates(truth[isFakeQSO], MWS_STAR, wave, seed) )
     if np.any(isFakeELG):
-        log.warn('not applying ELG color cuts to Fake ELGs yet')
+        log.warning('not applying ELG color cuts to Fake ELGs yet')
         results.append( make_templates(truth[isFakeELG], MWS_STAR, wave, seed) )
     if np.any(isFakeLRG):
-        log.warn('not applying LRG color cuts to Fake LRGs yet')
+        log.warning('not applying LRG color cuts to Fake LRGs yet')
         results.append( make_templates(truth[isFakeLRG], MWS_STAR, wave, seed) )
 
     simflux = np.vstack([x[0] for x in results])

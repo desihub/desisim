@@ -128,7 +128,7 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, outdir=None, filename
         header['FEEVER'] = 'SIM'
 
     if 'FLAVOR' not in header:
-        log.warn('FLAVOR not provided; guessing "science"')
+        log.warning('FLAVOR not provided; guessing "science"')
         header['FLAVOR'] = 'science'    #- optimistically guessing
 
     if 'DATE-OBS' not in header:
@@ -156,11 +156,16 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, outdir=None, filename
     flux32 = sim.simulated['source_flux'].to(fluxunits).astype(np.float32).value.T
     nspec = flux32.shape[0]
     assert flux32.shape == (nspec, wave.shape[0])
-    hx.append(fits.ImageHDU(flux32, name='FLUX'))
+    hdu_flux = fits.ImageHDU(flux32, name='FLUX')
+    hdu_flux.header['BUNIT'] = str(fluxunits)
+    hx.append(hdu_flux)
 
+    #- sky_fiber_flux is not flux per fiber area, it is normal flux density
     skyflux32 = sim.simulated['sky_fiber_flux'].to(fluxunits).astype(np.float32).value.T
     assert skyflux32.shape == (nspec, wave.shape[0])
-    hx.append(fits.ImageHDU(skyflux32, name='SKYFLUX'))
+    hdu_skyflux = fits.ImageHDU(skyflux32, name='SKYFLUX')
+    hdu_skyflux.header['BUNIT'] = str(fluxunits)
+    hx.append(hdu_skyflux)
 
     #- DEPRECATE?  per-camera photons (derivable from flux and throughput)
     for i, camera in enumerate(sorted(sim.camera_names)):

@@ -482,7 +482,7 @@ def get_source_types(fibermap):
     from desiutil.log import get_logger
     log = get_logger('DEBUG')
     if 'DESI_TARGET' not in fibermap.dtype.names:
-        log.warn("DESI_TARGET not in fibermap table; using source_type='star' for everything")
+        log.warning("DESI_TARGET not in fibermap table; using source_type='star' for everything")
         return np.array(['star',] * len(fibermap))
 
     source_type = np.zeros(len(fibermap), dtype='U4')
