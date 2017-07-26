@@ -22,17 +22,22 @@ parser.add_argument('--tilefile', type=str, help="ASCII file with subset of tile
 parser.add_argument('--force', action='store_true', help="force re-processing to overwrite pre-existing output files")
 parser.add_argument('--nonuniform', action='store_true', help="simulate non-uniform calibration screen illumination")
 parser.add_argument('--dryrun', action='store_true', help="print commands but don't run them")
+parser.add_argument('--mpi', action='store_true', help="use MPI parallelism")
 parser.add_argument('--start', type=str, help="start date YEARMMDD")
 parser.add_argument('--stop', type=str, help="stop date YEARMMDD")
 
 args = parser.parse_args()
 
 #- Then load MPI and establish communication ASAP
-from mpi4py import MPI
-
-comm = MPI.COMM_WORLD
-size = comm.Get_size()
-rank = comm.Get_rank()
+if args.mpi:
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+    size = comm.Get_size()
+    rank = comm.Get_rank()
+else:
+    comm = None
+    size = 1
+    rank = 0
 
 #- The proceed with other imports
 import sys, os, time
@@ -128,7 +133,9 @@ if rank == 0:
 
 else:
     exposures = None
-exposures = comm.bcast(exposures, root=0)
+
+if comm is not None:
+    exposures = comm.bcast(exposures, root=0)
 
 #- Check which ones still need to be done
 #- This could be distributed across ranks if needed to spread load
@@ -142,7 +149,8 @@ if rank == 0:
 else:
     todo = None
 
-todo = comm.bcast(todo, root=0)
+if comm is not None:
+    todo = comm.bcast(todo, root=0)
 
 #- Proceed with simulating exposures, using all ranks
 
@@ -154,11 +162,11 @@ if rank < len(todo):
         (flavor, night, expid, obsnum, obscond) = thisobs
         assert flavor in ('science', 'arc', 'flat')
         if flavor == 'science':
-            cmd = "newexp --obslist {} --fiberassign {} --mockdir {} --clobber".format(
+            cmd = "newexp --obslist {} --fiberassign {} --mockdir {}".format(
                 args.obslist, args.fiberassign, args.mockdir)
             if args.outdir is not None:
                 cmd = cmd + " --outdir {}".format(args.outdir)
-            cmd = cmd + " --expid {} --obsnum {}".format(expid, obsnum)
+            cmd = cmd + " --clobber --expid {} --obsnum {}".format(expid, obsnum)
         elif flavor == 'flat':
             cmd = "newflat --night {} --expid {} --clobber".format(night, expid)
             if args.nonuniform:
@@ -193,6 +201,7 @@ if rank < len(todo):
             traceback.print_exc()
             sys.stdout.flush()
 
-comm.barrier()
-MPI.Finalize()        
+if comm is not None:
+    comm.barrier()
+    MPI.Finalize()
     

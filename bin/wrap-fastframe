@@ -11,16 +11,21 @@ parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpForm
 parser.add_argument('--outdir', type=str, help="output directory")
 parser.add_argument('--clobber', action='store_true', help="overwrite any pre-existing output files")
 parser.add_argument('--dryrun', action='store_true', help="print commands but don't run them")
+parser.add_argument('--mpi', action='store_true', help="use MPI parallelism")
 parser.add_argument('--start', type=str, help="start date YEARMMDD")
 parser.add_argument('--stop', type=str, help="stop date YEARMMDD")
 args = parser.parse_args()
 
 #- Load MPI and establish communication
-from mpi4py import MPI
-
-comm = MPI.COMM_WORLD
-size = comm.Get_size()
-rank = comm.Get_rank()
+if args.mpi:
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+    size = comm.Get_size()
+    rank = comm.Get_rank()
+else:
+    comm = None
+    size = 1
+    rank = 0
 
 #- The proceed with other imports
 import sys, os, glob, time
@@ -56,7 +61,8 @@ if rank == 0:
 else:
     simspecfiles = None
 
-simspecfiles = comm.bcast(simspecfiles, root=0)
+if comm is not None:
+    simspecfiles = comm.bcast(simspecfiles, root=0)
 
 #- Proceed with simulating exposures, using all ranks
 
@@ -87,6 +93,7 @@ if rank < len(simspecfiles):
             traceback.print_exc()
             sys.stdout.flush()
 
-comm.barrier()
-MPI.Finalize()        
+if comm is not None:
+    comm.barrier()
+    MPI.Finalize()
     
