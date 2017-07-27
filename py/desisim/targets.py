@@ -23,6 +23,7 @@ from desiutil.log import get_logger
 log = get_logger()
 
 from desiutil import brick
+import desimodel.io
 from desispec.io.fibermap import empty_fibermap
 from desitarget.targetmask import desi_mask, bgs_mask, mws_mask
 
@@ -83,25 +84,7 @@ def sample_objtype(nobj, flavor):
     flavor = flavor.upper()
 
     #- Load target densities
-    #- TODO: what about nobs_boss (BOSS-like LRGs)?
-    #- TODO: This function should be using a desimodel.io function instead of opening desimodel directly.
-    targetyaml = os.path.join(os.environ['DESIMODEL'], 'data', 'targets', 'targets.yaml')
-    targetdat = os.path.join(os.environ['DESIMODEL'], 'data', 'targets', 'targets.dat')
-    if os.path.exists(targetyaml):
-        with open(targetyaml) as fx:
-            tgt = yaml.load(fx)
-    elif os.path.exists(targetdat):
-        log.warning('please svn update {} to get targets.yaml instead of targets.dat'.format(os.environ['DESIMODEL']))
-        with open(targetdat) as fx:
-            tgt = yaml.load(fx)
-            #- Fix some items that got renamed in the new yaml file
-            tgt['nobs_mws'] = tgt['nobs_MWS']
-            tgt['nobs_bgs_bright'] = int(0.6 * tgt['nobs_BG'])
-            tgt['nobs_bgs_faint'] = int(0.4 * tgt['nobs_BG'])
-    else:
-        message = 'Unable to read {}'.format(targetyaml)
-        log.error(message)
-        raise IOError(message)
+    tgt = desimodel.io.load_target_info()
 
     # initialize so we can ask for 0 of some kinds of survey targets later
     nlrg = nqso = nelg = nmws = nbgs = nbgs = nmws = 0

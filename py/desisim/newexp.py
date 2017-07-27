@@ -20,25 +20,24 @@ import desispec.interpolation
 import desisim.io
 
 #- Reference observing conditions for each of dark, gray, bright
-#- TODO: verify numbers
 reference_conditions = dict(DARK=dict(), GRAY=dict(), BRIGHT=dict())
 reference_conditions['DARK']['SEEING']  = 1.1
 reference_conditions['DARK']['EXPTIME'] = 1000
-reference_conditions['DARK']['AIRMASS'] = 1.25
+reference_conditions['DARK']['AIRMASS'] = 1.0
 reference_conditions['DARK']['MOONFRAC'] = 0.0
 reference_conditions['DARK']['MOONALT'] = -60
 reference_conditions['DARK']['MOONSEP'] = 180
 
 reference_conditions['GRAY']['SEEING']  = 1.1
 reference_conditions['GRAY']['EXPTIME'] = 1000
-reference_conditions['GRAY']['AIRMASS'] = 1.25
+reference_conditions['GRAY']['AIRMASS'] = 1.0
 reference_conditions['GRAY']['MOONFRAC'] = 0.1
 reference_conditions['GRAY']['MOONALT']  = 10
 reference_conditions['GRAY']['MOONSEP'] = 60
 
 reference_conditions['BRIGHT']['SEEING']  = 1.1
 reference_conditions['BRIGHT']['EXPTIME'] = 300
-reference_conditions['BRIGHT']['AIRMASS'] = 1.25
+reference_conditions['BRIGHT']['AIRMASS'] = 1.0
 reference_conditions['BRIGHT']['MOONFRAC'] = 0.7
 reference_conditions['BRIGHT']['MOONALT']  = 60
 reference_conditions['BRIGHT']['MOONSEP'] = 50
@@ -346,8 +345,7 @@ def simulate_spectra(wave, flux, meta=None, obsconditions=None, dwave_out=None):
             SEEING (arcsec), EXPTIME (sec), AIRMASS,
             MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
 
-    TODO:
-        galsim
+    TODO: galsim support
 
     Returns a specsim.simulator.Simulator object
     '''

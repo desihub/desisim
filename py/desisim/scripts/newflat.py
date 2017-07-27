@@ -63,10 +63,7 @@ def parse(options=None):
 
 def main(args=None):
     '''
-    TODO: document
-
-    Note: this bypasses specsim since we don't have an arclamp model in
-    surface brightness units; we only have electrons on the CCD
+    Generates a new flat exposure; see newflat --help for usage options
     '''
     import desiutil.log
     log = desiutil.log.get_logger()

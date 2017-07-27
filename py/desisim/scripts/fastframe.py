@@ -33,9 +33,9 @@ def parse(options=None):
 
 def main(args=None):
     '''
-    TODO: document
-    TODO: use desiutil.log
+    Converts simspec -> frame files; see fastframe --help for usage options
     '''
+    #- TODO: use desiutil.log
 
     if isinstance(args, (list, tuple, type(None))):
         args = parse(args)

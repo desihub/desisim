@@ -438,9 +438,7 @@ def update_obslog(obstype='science', program='DARK', expid=None, dateobs=None,
         if tileid < 0:
             ra, dec = (0.0, 0.0)
         else:
-            #- TODO: mod 50k is to convert bright tileids to locations of
-            #- dark tileids; update this when new tiling file exists
-            ra, dec = io.get_tile_radec(tileid % 50000)
+            ra, dec = io.get_tile_radec(tileid)
 
     night = get_night(utc=dateobs)
 

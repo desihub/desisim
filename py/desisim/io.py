@@ -89,16 +89,23 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
 def write_simspec(sim, truth, fibermap, obs, expid, night, outdir=None, filename=None,
     header=None, overwrite=False):
     '''
-    TODO: document more
+    Write a simspec file
 
     Args:
         sim: specsim Simulator object
         truth: truth metadata Table
         fibermap: fibermap Table
-        obs: dict-like observation conditions
-            TODO: define keys
+        obs: dict-like observation conditions with keys
+            SEEING (arcsec), EXPTIME (sec), AIRMASS,
+            MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
         expid: integer exposure ID
         night: YEARMMDD string
+
+    Options:
+        outdir: output directory
+        filename: if None, auto-derive from envvars, night, expid, and outdir
+        header: dict-like header to include in HDU0
+        overwrite: overwrite pre-existing files
     
     Notes:
         calibration exposures can use truth=None and obs=None
@@ -132,7 +139,6 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, outdir=None, filename
         header['FLAVOR'] = 'science'    #- optimistically guessing
 
     if 'DATE-OBS' not in header:
-        #- TODO: DATE-OBS is exposure start or midpoint?
         header['DATE-OBS'] = sim.observation.exposure_start.isot
 
     log.info('DATE-OBS {} UTC'.format(header['DATE-OBS']))
@@ -273,7 +279,9 @@ class SimSpec(object):
         metadata : table of metadata information about these spectra
         header : FITS header from HDU0
         fibermap : fibermap Table
-        obs : (dict-like) observing conditions (TODO: document keys)
+        obs : (dict-like) observing conditions with keys
+            SEEING (arcsec), EXPTIME (sec), AIRMASS,
+            MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
 
     Notes:
       * input arguments become attributes
@@ -678,7 +686,7 @@ def get_tile_radec(tileid):
     Return (ra, dec) in degrees for the requested tileid.
 
     If tileid is not in DESI, return (0.0, 0.0)
-    TODO: should it raise and exception instead?
+    TODO: should it raise an exception instead?
     """
     if not isinstance(tileid, (int, np.int64, np.int32, np.int16)):
         raise ValueError('tileid should be an int, not {}'.format(type(tileid)))
