@@ -270,7 +270,7 @@ class SimSpec(object):
         wave : dictionary with per-channel wavelength grids, keyed by
             'b', 'r', 'z'.  Optionally also has 'brz' key for channel
             independent wavelength grid
-        phot : dictinoary with per-channel photon counts per bin
+        phot : dictionary with per-channel photon counts per bin
 
     Optional:
         flux : channel-independent flux [erg/s/cm^2/A]
@@ -279,15 +279,15 @@ class SimSpec(object):
         metadata : table of metadata information about these spectra
         header : FITS header from HDU0
         fibermap : fibermap Table
-        obs : (dict-like) observing conditions with keys
-            SEEING (arcsec), EXPTIME (sec), AIRMASS,
-            MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
+        obs : (dict-like) observing conditions; see keys in notes below
 
     Notes:
       * input arguments become attributes
       * wave[channel] is the wavelength grid for phot[channel] and
             skyphot[channel] where channel = 'b', 'r', or 'z'
       * wave['brz'] is the wavelength grid for flux and skyflux
+      * obsconditions keys SEEING (arcsec), EXPTIME (sec), AIRMASS,
+        MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
     """
     def __init__(self, flavor, wave, phot, flux=None, skyflux=None,
                  skyphot=None, metadata=None, fibermap=None, obs=None, header=None):

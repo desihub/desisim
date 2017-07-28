@@ -48,10 +48,8 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         airmass : airmass, default 1.0
         exptime : exposure time in seconds
         seed : random seed
-        obsconditions: string 'dark', 'gray', 'bright', or
-            dict-like observation metadata with keys
-                SEEING (arcsec), EXPTIME (sec), AIRMASS,
-                MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
+        obsconditions: str or dict-like; see options below
+
         testslit : simulate test slit if True, default False; only for arc/flat
         arc_lines_filename : use alternate arc lines filename (used if program="arc")
         flat_spectrum_filename : use alternate flat spectrum filename (used if program="flat")
@@ -64,10 +62,13 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         fibermap numpy structured array
         truth dictionary
 
-    Notes:
-        program is used to pick the sky brightness, and is propagated to
-        desisim.targets.sample_objtype() to get the correct distribution of
-        targets for a given program, e.g. ELGs, LRGs, QSOs for program='dark'.
+    obsconditions can be a string 'dark', 'gray', 'bright', or dict-like
+    observation metadata with keys SEEING (arcsec), EXPTIME (sec), AIRMASS,
+    MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
+
+    program is used to pick the sky brightness, and is propagated to
+    desisim.targets.sample_objtype() to get the correct distribution of
+    targets for a given program, e.g. ELGs, LRGs, QSOs for program='dark'.
 
     Also see simexp.simarc(), .simflat(), and .simscience(), the last of
     which simulates a science exposure given surveysim obsconditions input,
