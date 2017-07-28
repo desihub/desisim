@@ -29,8 +29,10 @@ else:
 
 #- The proceed with other imports
 import sys, os, glob, time
+tstart = time.time()
 import numpy as np
 
+from astropy.io import fits
 import astropy.time
 from astropy.table import Table
 
@@ -47,7 +49,7 @@ if args.stop is None:
 else:
     args.stop = args.stop.replace('-', '')
 
-#- Assemble full list of simspec files
+#- Assemble full list of simspec files; group by flavor to help MPI balancing
 if rank == 0:
     allfiles = sorted(glob.glob('{}/*/simspec*.fits'.format(desisim.io.simdir())))
 
@@ -57,7 +59,10 @@ if rank == 0:
     for filename in allfiles:
         night = os.path.basename(os.path.split(filename)[0])
         if (args.start <= night) & (night < args.stop):
-            simspecfiles.append(filename)
+            flavor = fits.getval(filename, 'FLAVOR')
+            simspecfiles.append( (flavor, filename) )
+
+    simspecfiles = sorted(simspecfiles)
 else:
     simspecfiles = None
 
@@ -70,14 +75,15 @@ if rank == 0:
     print('{} MPI ranks processing {}/{} exposures'.format(size, len(simspecfiles), len(allfiles)))
 
 if rank < len(simspecfiles):
-    for filename in simspecfiles[rank::size]:
+    for flavor, filename in simspecfiles[rank::size]:
         cmd = "fastframe --simspec {}".format(filename)
         if args.outdir:
             cmd = cmd + " --outdir {}".format(args.outdir)
         if args.clobber:
             cmd = cmd + " --clobber"
         
-        print('RUNNING: {}'.format(cmd))
+        print('Rank {} running {}: {}'.format(rank, flavor, cmd))
+        sys.stdout.flush()
         if args.dryrun:
             continue
 
@@ -85,15 +91,25 @@ if rank < len(simspecfiles):
             t0 = time.time()
             desisim.scripts.fastframe.main(cmd.split()[1:])
             runtime = time.time() - t0
-            print("rank {} took {:.1f} seconds".format(rank, runtime))
+            print("rank {} took {:.1f} seconds for {} frame".format(rank, runtime, flavor))
             sys.stdout.flush()
         except:
-            print('FAILED: {}'.format(cmd))
+            print('Rank {} FAILED {}: {}'.format(rank, flavor, cmd))
             import traceback
             traceback.print_exc()
             sys.stdout.flush()
 
 if comm is not None:
     comm.barrier()
+
+if rank == 0:
+    import collections
+    nflavor = collections.Counter([x[0] for x in simspecfiles])
+    tottime = time.time() - tstart
+    print('{:.1f} minutes for {} arc, {} flat, {} science exposures'.format(
+        tottime/60, nflavor['arc'], nflavor['flat'], nflavor['science']
+    ))
+
+if comm is not None:
     MPI.Finalize()
     

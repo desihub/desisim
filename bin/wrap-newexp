@@ -41,9 +41,10 @@ else:
 
 #- The proceed with other imports
 import sys, os, time
+tstart = time.time()
+
 import numpy as np
 
-import astropy.time
 from astropy.table import Table
 
 from desisim.util import dateobs2night
@@ -57,7 +58,6 @@ def _row2dict(row):
     for key in row.colnames:
         result[key] = row[key]
     return result
-
 
 if args.start is None:
     args.start = '11112233'
@@ -146,6 +146,10 @@ if rank == 0:
         simspec = desisim.io.findfile('simspec', night, expid)
         if args.force or not os.path.exists(simspec):
             todo.append(thisobs)
+
+        #- Sort todo by flavor so that one rank doesn't accidentally get a
+        #- bunch of fast arcs
+        todo = sorted(todo)
 else:
     todo = None
 
@@ -203,5 +207,15 @@ if rank < len(todo):
 
 if comm is not None:
     comm.barrier()
+
+if rank == 0:
+    import collections
+    nflavor = collections.Counter([x[0] for x in todo])
+    tottime = time.time() - tstart
+    print('{:.1f} minutes for {} arc, {} flat, {} science exposures'.format(
+        tottime/60, nflavor['arc'], nflavor['flat'], nflavor['science']
+    ))
+
+if comm is not None:
     MPI.Finalize()
-    
+
