@@ -25,8 +25,8 @@ log = get_logger()
 
 from .targets import get_targets_parallel
 from . import io
-import desisim.newexp
-from .newexp import simulate_spectra
+import desisim.simexp
+from .simexp import simulate_spectra
 
 def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
                  airmass=1.0, exptime=None, seed=None,
@@ -68,6 +68,10 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         program is used to pick the sky brightness, and is propagated to
         desisim.targets.sample_objtype() to get the correct distribution of
         targets for a given program, e.g. ELGs, LRGs, QSOs for program='dark'.
+
+    Also see simexp.simarc(), .simflat(), and .simscience(), the last of
+    which simulates a science exposure given surveysim obsconditions input,
+    fiber assignments, and pre-generated mock target spectra.
     """
     if expid is None:
         expid = get_next_expid()
@@ -107,7 +111,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         arcdata = fits.getdata(infile, 1)
         if exptime is None:
             exptime = 5
-        wave, phot, fibermap = desisim.newexp.newarc(arcdata, nspec=nspec, testslit=testslit)
+        wave, phot, fibermap = desisim.simexp.simarc(arcdata, nspec=nspec, testslit=testslit)
 
         header['EXPTIME'] = exptime
         desisim.io.write_simspec_arc(outsimspec, wave, phot, header, fibermap=fibermap)
@@ -126,7 +130,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
 
         if exptime is None:
             exptime = 10
-        sim, fibermap = desisim.newexp.newflat(infile, nspec=nspec, exptime=exptime, testslit=testslit)
+        sim, fibermap = desisim.simexp.simflat(infile, nspec=nspec, exptime=exptime, testslit=testslit)
 
         header['EXPTIME'] = exptime
         header['FLAVOR'] = 'flat'
@@ -155,20 +159,20 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
 
     if obsconditions is None:
         if program in ['dark', 'lrg', 'qso']:
-            obsconditions = desisim.newexp.reference_conditions['DARK']
+            obsconditions = desisim.simexp.reference_conditions['DARK']
         elif program in ['elg', 'gray', 'grey']:
-            obsconditions = desisim.newexp.reference_conditions['GRAY']
+            obsconditions = desisim.simexp.reference_conditions['GRAY']
         elif program in ['mws', 'bgs', 'bright']:
-            obsconditions = desisim.newexp.reference_conditions['BRIGHT']
+            obsconditions = desisim.simexp.reference_conditions['BRIGHT']
         else:
             raise ValueError('unknown program {}'.format(program))
     elif isinstance(obsconditions, str):
         try:
-            obsconditions = desisim.newexp.reference_conditions[obsconditions.upper()]
+            obsconditions = desisim.simexp.reference_conditions[obsconditions.upper()]
         except KeyError:
             raise ValueError('obsconditions {} not in {}'.format(
                 obsconditions.upper(),
-                list(desisim.newexp.reference_conditions.keys())))
+                list(desisim.simexp.reference_conditions.keys())))
 
     if exptime is not None:
         obsconditions['EXPTIME'] = exptime

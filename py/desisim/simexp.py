@@ -42,7 +42,7 @@ reference_conditions['BRIGHT']['MOONFRAC'] = 0.7
 reference_conditions['BRIGHT']['MOONALT']  = 60
 reference_conditions['BRIGHT']['MOONSEP'] = 50
 
-def newarc(arcdata, nspec=5000, nonuniform=False, testslit=False):
+def simarc(arcdata, nspec=5000, nonuniform=False, testslit=False):
     '''
     Simulates an arc lamp exposure
 
@@ -97,7 +97,7 @@ def newarc(arcdata, nspec=5000, nonuniform=False, testslit=False):
 
     return wave, phot, fibermap
 
-def newflat(flatfile, nspec=5000, nonuniform=False, exptime=10, testslit=False):
+def simflat(flatfile, nspec=5000, nonuniform=False, exptime=10, testslit=False):
     '''
     Simulates a flat lamp calibration exposure
 
@@ -187,9 +187,9 @@ def _calib_screen_uniformity(theta=None, radius=None):
     else:
         raise ValueError('must provide theta or radius')
 
-def newexp(fiberassign, mockdir, obsconditions=None, expid=None, nspec=None):
+def simscience(fiberassign, mockdir, obsconditions='DARK', expid=None, nspec=None):
     '''
-    Simulates a new DESI exposure
+    Simulates a new DESI exposure from surveysim+fiberassign+mock spectra
 
     Args:
         fiberassign: Table of fiber assignments
@@ -197,22 +197,23 @@ def newexp(fiberassign, mockdir, obsconditions=None, expid=None, nspec=None):
             from select_mock_targets
 
     Options:
-        obsconditions: observation metadata with keys
-            SEEING (arcsec), EXPTIME (sec), AIRMASS,
-            MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
+        obsconditions: observation metadata as
+            str: DARK (default) or GRAY or BRIGHT
+            dict or row of Table with keys
+                SEEING (arcsec), EXPTIME (sec), AIRMASS,
+                MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
+            Table including EXPID for subselection of which row to use
+            filename with obsconditions Table; expid must also be set
         expid: (int) exposure ID
         nspec: (int) number of spectra to simulate
-
-    obsconditions can be one of the following
-        dict or row of Table
-        str: DARK or GRAY or BRIGHT
-        Table including EXPID for subselection of which row to use
-        filename with obsconditions Table; expid must also be set
 
     Returns sim, fibermap, meta
         sim: specsim.simulate.Simulator object
         fibermap: Table
         meta: target metadata truth table
+
+    See obs.new_exposure() for function to generate new random exposure,
+    independent from surveysim, fiberassignment, and pre-generated mocks.
     '''
     from desiutil.log import get_logger
     log = get_logger()
@@ -228,10 +229,7 @@ def newexp(fiberassign, mockdir, obsconditions=None, expid=None, nspec=None):
     fibermap = fibermeta2fibermap(fibermeta)
 
     #- Parse multiple options for obsconditions
-    if obsconditions is None:
-        log.warning('Assuming DARK obsconditions')
-        obsconditions = reference_conditions['DARK']
-    elif isinstance(obsconditions, str):
+    if isinstance(obsconditions, str):
         #- DARK GRAY BRIGHT
         if obsconditions.upper() in reference_conditions:
             log.info('Using reference {} obsconditions'.format(obsconditions.upper()))
@@ -699,12 +697,12 @@ def read_mock_spectra(truthfile, targetids, mockdir=None):
 
     return flux, wave, truth
 
-def targets2truthfiles_bricks(targets, basedir):
+def targets2truthfiles(targets, basedir, nside=64):
     '''
     Return list of mock truth files that contain these targets
 
     Args:
-        targets: target Table from targeting or fiber assignment
+        targets: table with TARGETID column, e.g. from fiber assignment
         basedir: base directory under which files are found
 
     Returns (truthfiles, targetids):
@@ -713,41 +711,6 @@ def targets2truthfiles_bricks(targets, basedir):
 
     i.e. targetids[i] is the list of targetids from targets['TARGETID'] that
         are in truthfiles[i]
-
-    Note: uses brickname grouping {basedir}/{subdir}/truth-{brickname}.fits
-        where subdir = brickname[0:3]
-    '''
-    #- TODO: what should be done with assignments without targets?
-    targets = targets[targets['TARGETID'] != -1]
-
-    truthfiles = list()
-    targetids = list()
-    for brickname in sorted(set(targets['BRICKNAME'])):
-        filename = 'truth-{}.fits'.format(brickname)
-        subdir = brickname[0:3]
-        truthfiles.append(os.path.join(basedir, subdir, filename))
-        ii = (targets['BRICKNAME'] == brickname)
-        targetids.append(targets['TARGETID'][ii])
-
-    return truthfiles, targetids
-
-def targets2truthfiles_healpix(targets, basedir, nside=64):
-    '''
-    Return list of mock truth files that contain these targets
-
-    Args:
-        targets: target Table from targeting or fiber assignment
-        basedir: base directory under which files are found
-
-    Returns (truthfiles, targetids):
-        truthfiles: list of truth filenames
-        targetids: list of lists of targetids in each truthfile
-
-    i.e. targetids[i] is the list of targetids from targets['TARGETID'] that
-        are in truthfiles[i]
-
-    Note: uses healpix grouping {basedir}/{subdir}/truth-{nside}-{ipix}.fits
-        where subdir = ipix // (nside//2)
     '''
     import healpy
     import desitarget.mock.io as mockio
@@ -769,7 +732,4 @@ def targets2truthfiles_healpix(targets, basedir, nside=64):
         targetids.append(targets['TARGETID'][ii])
 
     return truthfiles, targetids
-
-#- Use brick naming scheme for now
-targets2truthfiles = targets2truthfiles_healpix
 

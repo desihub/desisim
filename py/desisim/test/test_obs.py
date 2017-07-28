@@ -8,7 +8,7 @@ from astropy.table import Table
 
 from desisim import io
 from desisim import obs
-import desisim.newexp
+import desisim.simexp
 
 desimodel_data_available = 'DESIMODEL' in os.environ
 desi_root_available = 'DESI_ROOT' in os.environ
@@ -173,7 +173,7 @@ class TestObs(unittest.TestCase):
         
     def test_testslit_fibermap(self):
         #- Should have one fiber per bundle = 10*20 = 200
-        fm = desisim.newexp.testslit_fibermap()
+        fm = desisim.simexp.testslit_fibermap()
         self.assertTrue(len(fm) == 200)     #- 10 spectro * 20 bundles
         self.assertTrue(len(set(fm['FIBER'])) == 200)   #- unique fibers
         for i in range(10):

@@ -7,17 +7,17 @@ This can be run in two distinct modes:
 
 * QUICKGEN MODE
 
-  - must provide simspec and fibermap files via newexp-desi
+  - must provide simspec and fibermap files via newexp script
   - Number of spectra to be simulated can be given as an argument for quickgen,
     but the number of spectra in the simspec file is taken by default
-  - For this option, airmass and exposure time are keywords given to newexp-desi
+  - For this option, airmass and exposure time are keywords given to newexp
   - The keywords provided in the examples are all required, additional keywords
     are provided below
   - Collect a set of templates to simulate as a new exposure::
 
-        newexp-desi --nspec 500 --night 20150915 --expid 0 --flavor dark
+        newexp --nspec 500 --night 20150915 --expid 0 --flavor dark
 
-  - newexp-desi keyword arguments::
+  - newexp keyword arguments::
 
         --flavor : arc/flat/dark/gray/bright/bgs/mws/elg/lrg/qso, type=str, default='dark'
         --tileid : tile id, type=int
@@ -103,7 +103,7 @@ from desisim.obs import get_night
 from desisim.targets import sample_objtype
 from desisim.specsim import get_simulator
 from desimodel.io import load_desiparams
-from desisim.newexp import get_source_types
+from desisim.simexp import get_source_types
 
 def _add_truth(hdus, header, meta, trueflux, sflux, wave, channel):
     """Utility function for adding truth to an output FITS file."""

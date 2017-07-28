@@ -7,7 +7,7 @@ import astropy.table
 import astropy.time
 import astropy.units as u
 
-from desisim.newexp import newexp
+from desisim.simexp import simscience
 import desisim.io
 import desisim.util
 from desiutil.log import get_logger
@@ -96,7 +96,7 @@ def main(args=None):
         args.nspec = len(fiberassign)
 
     log.info('Simulating night {} expid {} tile {}'.format(night, args.expid, tileid))
-    sim, fibermap, truthmeta = newexp(fiberassign, args.mockdir, obsconditions=obs, nspec=args.nspec)
+    sim, fibermap, truthmeta = simscience(fiberassign, args.mockdir, obsconditions=obs, nspec=args.nspec)
 
     fibermap.meta['NIGHT'] = night
     fibermap.meta['EXPID'] = args.expid

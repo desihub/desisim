@@ -12,7 +12,7 @@ from astropy.io import fits
 import astropy.units as u
 
 import desimodel.io
-import desisim.newexp
+import desisim.simexp
 import desisim.io
 import desispec.io
 import desiutil.depend
@@ -72,7 +72,7 @@ def main(args=None):
         args = parse(args)
 
     sim, fibermap = \
-        desisim.newexp.newflat(args.flatfile, nspec=args.nspec, nonuniform=args.nonuniform)
+        desisim.simexp.simflat(args.flatfile, nspec=args.nspec, nonuniform=args.nonuniform)
 
     log.info('Writing {}'.format(args.fibermap))
     fibermap.meta['NIGHT'] = args.night

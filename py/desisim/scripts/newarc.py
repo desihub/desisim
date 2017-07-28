@@ -12,7 +12,7 @@ from astropy.io import fits
 import astropy.units as u
 
 import desimodel.io
-import desisim.newexp
+import desisim.simexp
 import desisim.io
 import desispec.io
 import desiutil.depend
@@ -78,7 +78,7 @@ def main(args=None):
     arcdata = astropy.table.Table.read(args.arcfile)
     
     wave, phot, fibermap = \
-        desisim.newexp.newarc(arcdata, nspec=args.nspec, nonuniform=args.nonuniform)
+        desisim.simexp.simarc(arcdata, nspec=args.nspec, nonuniform=args.nonuniform)
 
     log.info('Writing {}'.format(args.fibermap))
     fibermap.meta['NIGHT'] = args.night

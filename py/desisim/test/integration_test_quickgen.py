@@ -69,7 +69,7 @@ def sim(night, nspec=25, clobber=False):
 
     for expid, flavor in zip([0,1,2], ['flat', 'arc', 'dark']):
 
-        cmd = "newexp-desi --flavor {flavor} --nspec {nspec} --night {night} --expid {expid}".format(expid=expid, flavor=flavor, nspec=nspec, night=night)
+        cmd = "newexp --flavor {flavor} --nspec {nspec} --night {night} --expid {expid}".format(expid=expid, flavor=flavor, nspec=nspec, night=night)
         simspec = desisim.io.findfile('simspec', night, expid)
         fibermap = '{}/fibermap-{:08d}.fits'.format(os.path.dirname(simspec),expid) 
         if pipe.runcmd(cmd, clobber=clobber) != 0:
