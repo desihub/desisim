@@ -422,14 +422,12 @@ def get_targets(nspec, flavor, tileid=None, seed=None, specmin=0):
         truth['UNITS'] = '1e-17 erg/s/cm2/A'
         truth['META'][ii] = meta
 
-        ugrizy = 22.5-2.5*np.log10(meta['DECAM_FLUX'].data)
-        wise = 22.5-2.5*np.log10(meta['WISE_FLUX'].data)
         fibermap['FILTER'][ii, :6] = ['DECAM_G', 'DECAM_R', 'DECAM_Z', 'WISE_W1', 'WISE_W2']
-        fibermap['MAG'][ii, 0] = ugrizy[:, 1]
-        fibermap['MAG'][ii, 1] = ugrizy[:, 2]
-        fibermap['MAG'][ii, 2] = ugrizy[:, 4]
-        fibermap['MAG'][ii, 3] = wise[:, 0]
-        fibermap['MAG'][ii, 4] = wise[:, 1]
+        fibermap['MAG'][ii, 0] = 22.5 - 2.5 * np.log10(meta['FLUX_G'])
+        fibermap['MAG'][ii, 1] = 22.5 - 2.5 * np.log10(meta['FLUX_R'])
+        fibermap['MAG'][ii, 2] = 22.5 - 2.5 * np.log10(meta['FLUX_Z'])
+        fibermap['MAG'][ii, 3] = 22.5 - 2.5 * np.log10(meta['FLUX_W1'])
+        fibermap['MAG'][ii, 4] = 22.5 - 2.5 * np.log10(meta['FLUX_W2'])
 
     #- Load fiber -> positioner mapping and tile information
     fiberpos = desimodel.io.load_fiberpos()
