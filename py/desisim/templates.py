@@ -283,9 +283,10 @@ class GALAXY(object):
             corresponding to BASEFLUX (Angstrom).
           basemeta (astropy.Table): Table of meta-data [nbase] for each base template.
           pixbound (numpy.ndarray): Pixel boundaries of BASEWAVE (Angstrom).
-          rfilt (speclite.filters instance): DECam2014 r-band FilterSequence
-          normfilt (speclite.filters instance): FilterSequence of self.normfilter
-          decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence
+          rfilt (speclite.filters instance): DECam2014 r-band FilterSequence.
+          normfilt (speclite.filters instance): FilterSequence of self.normfilter.
+          decamwise (speclite.filters instance): DECam2014-[g,r,z] and WISE2010-[W1,W2]
+            FilterSequence.
 
         Optional Attributes:
           sne_baseflux (numpy.ndarray): Array [sne_nbase,sne_npix] of the base
@@ -341,7 +342,8 @@ class GALAXY(object):
         # Initialize the filter profiles.
         self.rfilt = filters.load_filters('decam2014-r')
         self.normfilt = filters.load_filters(self.normfilter)
-        self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
+        self.decamwise = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
+                                              'wise2010-W1', 'wise2010-W2')
 
     def _blurmatrix(self, vdisp, log=None):
         """Pre-compute the blur_matrix as a dictionary keyed by each unique value of
@@ -1026,8 +1028,9 @@ class SUPERSTAR(object):
           basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths
             corresponding to BASEFLUX (Angstrom).
           basemeta (astropy.Table): Table of meta-data [nbase] for each base template.
-          normfilt (speclite.filters instance): FilterSequence of self.normfilter
-          decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence
+          normfilt (speclite.filters instance): FilterSequence of self.normfilter.
+          decamwise (speclite.filters instance): DECam2014-[g,r,z] and WISE2010-[W1,W2]
+            FilterSequence.
 
         """
         from speclite import filters
@@ -1055,7 +1058,8 @@ class SUPERSTAR(object):
 
         # Initialize the filter profiles.
         self.normfilt = filters.load_filters(self.normfilter)
-        self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
+        self.decamwise = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
+                                              'wise2010-W1', 'wise2010-W2')
 
     def make_star_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                             magrange=(18.0, 23.5), seed=None, redshift=None,
@@ -1595,8 +1599,9 @@ class QSO():
           wave (numpy.ndarray): Output wavelength array [Angstrom].
           cosmo (astropy.cosmology): Default cosmology object (currently
             hard-coded to FlatLCDM with H0=70, Omega0=0.3).
-          normfilt (speclite.filters instance): FilterSequence of self.normfilter
-          decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence
+          normfilt (speclite.filters instance): FilterSequence of self.normfilter.
+          decamwise (speclite.filters instance): DECam2014-[g,r,z] and WISE2010-[W1,W2]
+            FilterSequence.
 
         """
         from astropy.io import fits
@@ -1652,7 +1657,8 @@ class QSO():
 
         # Initialize the filter profiles.
         self.normfilt = filters.load_filters(self.normfilter)
-        self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
+        self.decamwise = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
+                                              'wise2010-W1', 'wise2010-W2')
 
     def _sample_pcacoeff(self, nsample, coeff, rand):
         """Draw from the distribution of PCA coefficients."""
