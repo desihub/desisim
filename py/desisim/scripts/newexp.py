@@ -77,7 +77,7 @@ def main(args=None):
         obslist['PROGRAM'][obslist['PASS'] < 4] = 'DARK'
         obslist['PROGRAM'][obslist['PASS'] == 4] = 'GRAY'
 
-    #- end of obslist standardization
+    #---- end of obslist standardization
 
     obs = obslist[args.obsnum]
     tileid = obs['TILEID']
@@ -96,7 +96,8 @@ def main(args=None):
         args.nspec = len(fiberassign)
 
     log.info('Simulating night {} expid {} tile {}'.format(night, args.expid, tileid))
-    sim, fibermap, truthmeta = simscience(fiberassign, args.mockdir, obsconditions=obs, nspec=args.nspec)
+    flux, wave, meta = get_mock_spectra(fiberassign, mockdir=args.mockdir)
+    sim, fibermap = simscience((flux, wave, meta), fiberassign, obsconditions=obs, nspec=args.nspec)
 
     fibermap.meta['NIGHT'] = night
     fibermap.meta['EXPID'] = args.expid
@@ -105,5 +106,5 @@ def main(args=None):
     fibermap.write(desisim.io.findfile('simfibermap', night, args.expid,
         outdir=args.outdir), overwrite=args.clobber)
     header = dict(FLAVOR='science')
-    desisim.io.write_simspec(sim, truthmeta, fibermap, obs, args.expid, night, header=header,
+    desisim.io.write_simspec(sim, meta, fibermap, obs, args.expid, night, header=header,
         outdir=args.outdir, overwrite=args.clobber)

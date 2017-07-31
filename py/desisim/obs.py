@@ -59,16 +59,19 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
 
     Returns:
-        fibermap numpy structured array
-        truth dictionary
+        science: sim, fibermap, meta, obsconditions
 
-    obsconditions can be a string 'dark', 'gray', 'bright', or dict-like
+    input obsconditions can be a string 'dark', 'gray', 'bright', or dict-like
     observation metadata with keys SEEING (arcsec), EXPTIME (sec), AIRMASS,
-    MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
+    MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg).  Output obsconditions is
+    is expanded dict-like structure.
 
     program is used to pick the sky brightness, and is propagated to
     desisim.targets.sample_objtype() to get the correct distribution of
     targets for a given program, e.g. ELGs, LRGs, QSOs for program='dark'.
+
+    if program is 'arc' or 'flat', then `sim` is truth table with keys
+    FLUX and WAVE; and meta=None and obsconditions=None.
 
     Also see simexp.simarc(), .simflat(), and .simscience(), the last of
     which simulates a science exposure given surveysim obsconditions input,
@@ -121,7 +124,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         fibermap.meta['EXPID'] = expid
         fibermap.write(outfibermap)
         truth = dict(WAVE=wave, PHOT=phot, UNITS='photon')
-        return fibermap, truth
+        return truth, fibermap, None, None
     
     elif program == 'flat':
         if flat_spectrum_filename is None :
@@ -146,17 +149,10 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         flux = sim.simulated['source_flux'].to(fluxunits)
         wave = sim.simulated['wavelength'].to('Angstrom')
         truth = dict(WAVE=wave, FLUX=flux, UNITS=str(fluxunits))
-        return fibermap, truth
+        return truth, fibermap, None, None
 
     #- all other programs
-    fibermap, truth = get_targets_parallel(nspec, program, tileid=tileid, seed=seed)
-
-    fibermap = table.Table(fibermap)
-    fibermap.remove_columns(['OBJTYPE', 'MAG'])
-    meta = table.hstack([fibermap, table.Table(truth['META'])])
-
-    wave = truth['WAVE']
-    flux = truth['FLUX']
+    fibermap, (flux, wave, meta) = get_targets_parallel(nspec, program, tileid=tileid, seed=seed)
 
     if obsconditions is None:
         if program in ['dark', 'lrg', 'qso']:
@@ -180,19 +176,12 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
     if airmass is not None:
         obsconditions['AIRMASS'] = airmass
 
-    sim = simulate_spectra(wave, 1e-17*flux, meta=fibermap, obsconditions=obsconditions)
+    sim = simulate_spectra(wave, 1e-17*flux, fibermap=fibermap, obsconditions=obsconditions)
 
     #- Override $DESI_SPECTRO_DATA in order to write to simulation area
     datadir_orig = os.getenv('DESI_SPECTRO_DATA')
     simbase = os.path.join(os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'))
     os.environ['DESI_SPECTRO_DATA'] = simbase
-
-    #- Copy some per-camera post-convolution results into the truth dict
-    for camera, results in zip(sim.camera_names, sim.camera_output):
-        camera = camera.upper()
-        truth['WAVE_'+camera] = results['wavelength']
-        truth['PHOT_'+camera] = results['num_source_electrons']
-        truth['SKYPHOT_'+camera] = results['num_sky_electrons']
 
     #- Write fibermap
     telera, teledec = io.get_tile_radec(tileid)
@@ -223,7 +212,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
     else:
         del os.environ['DESI_SPECTRO_DATA']
 
-    return fibermap, truth
+    return sim, fibermap, meta, obsconditions
 
 #- Mapping of DESI objtype to things specter knows about
 def specter_objtype(desitype):

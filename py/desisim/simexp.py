@@ -187,14 +187,13 @@ def _calib_screen_uniformity(theta=None, radius=None):
     else:
         raise ValueError('must provide theta or radius')
 
-def simscience(fiberassign, mockdir, obsconditions='DARK', expid=None, nspec=None):
+def simscience(targets, fiberassign, obsconditions='DARK', expid=None, nspec=None):
     '''
     Simulates a new DESI exposure from surveysim+fiberassign+mock spectra
 
     Args:
-        fiberassign: Table of fiber assignments
-        mockdir: (str) directory containing mock targets and truth spectra
-            from select_mock_targets
+        targets: tuple of (flux[nspec,nwave], wave[nwave], meta[nspec])
+        fiberassign: fiber assignments table
 
     Options:
         obsconditions: observation metadata as
@@ -218,15 +217,13 @@ def simscience(fiberassign, mockdir, obsconditions='DARK', expid=None, nspec=Non
     from desiutil.log import get_logger
     log = get_logger()
 
+    flux, wave, meta = targets
+
     if nspec is not None:
         fiberassign = fiberassign[0:nspec]
 
-    flux, wave, meta = get_mock_spectra(fiberassign, mockdir=mockdir)
-
     assert np.all(fiberassign['TARGETID'] == meta['TARGETID'])
-    fiberassign.remove_column('TARGETID')
-    fibermeta = astropy.table.hstack([meta, fiberassign])
-    fibermap = fibermeta2fibermap(fibermeta)
+    fibermap = fibermeta2fibermap(fiberassign, meta)
 
     #- Parse multiple options for obsconditions
     if isinstance(obsconditions, str):
@@ -265,12 +262,12 @@ def simscience(fiberassign, mockdir, obsconditions='DARK', expid=None, nspec=Non
     if len(missing_keys) > 0:
         raise ValueError('obsconditions missing keys {}'.format(missing_keys))
 
-    sim = simulate_spectra(wave, flux, meta=fibermeta, obsconditions=obsconditions)
+    sim = simulate_spectra(wave, flux, fibermap=fibermap, obsconditions=obsconditions)
     header = dict(FLAVOR='science')
 
-    return sim, fibermap, meta
+    return sim, fibermap
 
-def fibermeta2fibermap(fibermeta):
+def fibermeta2fibermap(fiberassign, meta):
     '''
     Convert a fiberassign + targeting metadata table into a fibermap Table
 
@@ -280,17 +277,17 @@ def fibermeta2fibermap(fibermeta):
     from desitarget import desi_mask
 
     #- Copy column names in common
-    fibermap = desispec.io.empty_fibermap(len(fibermeta))
+    fibermap = desispec.io.empty_fibermap(len(fiberassign))
     for c in ['FIBER', 'TARGETID', 'DESI_TARGET', 'BGS_TARGET', 'MWS_TARGET',
               'BRICKNAME']:
-        fibermap[c] = fibermeta[c]
+        fibermap[c] = fiberassign[c]
 
     #- MAG and FILTER; ignore warnings from negative flux
     #- these are deprecated anyway and will be replaced with FLUX_G, FLUX_R, etc.
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
-        ugrizy = 22.5 - 2.5 * np.log10(fibermeta['DECAM_FLUX'].data)
-        wise = 22.5 - 2.5 * np.log10(fibermeta['WISE_FLUX'].data)
+        ugrizy = 22.5 - 2.5 * np.log10(meta['DECAM_FLUX'].data)
+        wise = 22.5 - 2.5 * np.log10(meta['WISE_FLUX'].data)
 
     fibermap['FILTER'][:, :5] = ['DECAM_G', 'DECAM_R', 'DECAM_Z', 'WISE_W1', 'WISE_W2']
     fibermap['MAG'][:, 0] = ugrizy[:, 1]
@@ -302,22 +299,22 @@ def fibermeta2fibermap(fibermeta):
     #- set OBJTYPE
     #- TODO: what about MWS science targets that are also standard stars?
     stdmask = (desi_mask.STD_FSTAR | desi_mask.STD_WD | desi_mask.STD_BRIGHT)
-    isSTD = (fibermeta['DESI_TARGET'] & stdmask) != 0
-    isSKY = (fibermeta['DESI_TARGET'] & desi_mask.SKY) != 0
+    isSTD = (fiberassign['DESI_TARGET'] & stdmask) != 0
+    isSKY = (fiberassign['DESI_TARGET'] & desi_mask.SKY) != 0
     isSCI = (~isSTD & ~isSKY)
     fibermap['OBJTYPE'][isSTD] = 'STD'
     fibermap['OBJTYPE'][isSKY] = 'SKY'
     fibermap['OBJTYPE'][isSCI] = 'SCIENCE'
 
     fibermap['LAMBDAREF'] = 5400.0
-    fibermap['RA_TARGET'] = fibermeta['RA']
-    fibermap['DEC_TARGET'] = fibermeta['DEC']
-    fibermap['RA_OBS']   = fibermeta['RA']
-    fibermap['DEC_OBS']  = fibermeta['DEC']
-    fibermap['X_TARGET'] = fibermeta['XFOCAL_DESIGN']
-    fibermap['Y_TARGET'] = fibermeta['YFOCAL_DESIGN']
-    fibermap['X_FVCOBS'] = fibermeta['XFOCAL_DESIGN']
-    fibermap['Y_FVCOBS'] = fibermeta['YFOCAL_DESIGN']
+    fibermap['RA_TARGET'] = fiberassign['RA']
+    fibermap['DEC_TARGET'] = fiberassign['DEC']
+    fibermap['RA_OBS']   = fiberassign['RA']
+    fibermap['DEC_OBS']  = fiberassign['DEC']
+    fibermap['X_TARGET'] = fiberassign['XFOCAL_DESIGN']
+    fibermap['Y_TARGET'] = fiberassign['YFOCAL_DESIGN']
+    fibermap['X_FVCOBS'] = fiberassign['XFOCAL_DESIGN']
+    fibermap['Y_FVCOBS'] = fiberassign['YFOCAL_DESIGN']
 
     #- TODO: POSITIONER -> LOCATION
     #- TODO: TARGETCAT (how should we propagate this info into here?)
@@ -328,7 +325,7 @@ def fibermeta2fibermap(fibermeta):
 #-------------------------------------------------------------------------
 #- specsim related routines
 
-def simulate_spectra(wave, flux, meta=None, obsconditions=None, dwave_out=None):
+def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, dwave_out=None):
     '''
     Simulates an exposure without reading/writing data files
 
@@ -337,8 +334,7 @@ def simulate_spectra(wave, flux, meta=None, obsconditions=None, dwave_out=None):
         flux (array): 2D[nspec,nwave] flux in erg/s/cm2/Angstrom
 
     Optional:
-        meta: table from fiberassign tiles file; uses X/YFOCAL_DESIGN
-            TODO: document other columns for get_source_type
+        fibermap: table from fiberassign or fibermap; uses X/YFOCAL_DESIGN, TARGETID, DESI_TARGET
         obsconditions: (dict-like) observation metadata including
             SEEING (arcsec), EXPTIME (sec), AIRMASS,
             MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
@@ -397,27 +393,28 @@ def simulate_spectra(wave, flux, meta=None, obsconditions=None, dwave_out=None):
 
     #- Set fiber locations from meta Table or default fiberpos
     fiberpos = desimodel.io.load_fiberpos()
-    if meta is not None and len(fiberpos) != len(meta):
-        ii = np.in1d(fiberpos['FIBER'], meta['FIBER'])
+    if fibermap is not None and len(fiberpos) != len(fibermap):
+        ii = np.in1d(fiberpos['FIBER'], fibermap['FIBER'])
         fiberpos = fiberpos[ii]
 
-    if meta is None:
-        meta = astropy.table.Table()
-        meta['X'] = fiberpos['X'][0:nspec]
-        meta['Y'] = fiberpos['Y'][0:nspec]
-        meta['FIBER'] = fiberpos['FIBER'][0:nspec]
+    if fibermap is None:
+        fibermap = astropy.table.Table()
+        fibermap['X'] = fiberpos['X'][0:nspec]
+        fibermap['Y'] = fiberpos['Y'][0:nspec]
+        fibermap['FIBER'] = fiberpos['FIBER'][0:nspec]
+        fibermap['LOCATION'] = fiberpos['LOCATION'][0:nspec]
 
     #- Extract fiber locations from meta Table -> xy[nspec,2]
-    assert np.all(meta['FIBER'] == fiberpos['FIBER'][0:nspec])
-    if 'XFOCAL_DESIGN' in meta.dtype.names:
-        xy = np.vstack([meta['XFOCAL_DESIGN'], meta['YFOCAL_DESIGN']]).T * u.mm
-    elif 'X' in meta.dtype.names:
-        xy = np.vstack([meta['X'], meta['Y']]).T * u.mm
+    assert np.all(fibermap['FIBER'] == fiberpos['FIBER'][0:nspec])
+    if 'XFOCAL_DESIGN' in fibermap.dtype.names:
+        xy = np.vstack([fibermap['XFOCAL_DESIGN'], fibermap['YFOCAL_DESIGN']]).T * u.mm
+    elif 'X' in fibermap.dtype.names:
+        xy = np.vstack([fibermap['X'], fibermap['Y']]).T * u.mm
     else:
         xy = np.vstack([fiberpos['X'], fiberpos['Y']]).T * u.mm
 
-    if 'TARGETID' in meta.dtype.names:
-        unassigned = (meta['TARGETID'] == -1)
+    if 'TARGETID' in fibermap.dtype.names:
+        unassigned = (fibermap['TARGETID'] == -1)
         if np.any(unassigned):
             #- see https://github.com/astropy/astropy/issues/5961
             #- for the units -> array -> units trick
@@ -426,7 +423,7 @@ def simulate_spectra(wave, flux, meta=None, obsconditions=None, dwave_out=None):
 
     #- Determine source types
     #- TODO: source shapes + galsim instead of fixed types + fiberloss table
-    source_types = get_source_types(meta)
+    source_types = get_source_types(fibermap)
 
     log.debug('running simulation')
     desi.instrument.fiberloss_method = 'table'
