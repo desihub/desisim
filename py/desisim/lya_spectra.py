@@ -114,8 +114,8 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
                                                        mask_invalid=True)[normfilter])
         factor = 10**(-0.4 * mag_g[ii]) / normmaggies
         flux1 *= factor
-        meta['DECAM_FLUX'][ii] *= factor
-        meta['WISE_FLUX'][ii] *= factor
+        for key in ('FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2'):
+            meta[key][ii] *= factor
 
         flux[ii, :] = flux1[:]
 
