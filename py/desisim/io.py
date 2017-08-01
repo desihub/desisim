@@ -206,7 +206,7 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, outdir=None, filename
 
     #- FIBERMAP HDU
     assert len(fibermap) == nspec
-    fibermap_hdu = fits.table_to_hdu(fibermap)
+    fibermap_hdu = fits.table_to_hdu(Table(fibermap))
     fibermap_hdu.header['EXTNAME'] = 'FIBERMAP'
     hx.append(fibermap_hdu)
 

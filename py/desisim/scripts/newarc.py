@@ -92,6 +92,7 @@ def main(args=None):
     header['NIGHT'] = args.night
     header['FLAVOR'] = 'arc'
     header['DOSVER'] = 'SIM'
+    header['EXPTIME'] = 5       #- TODO: add exptime support
 
     #- TODO: DATE-OBS on night instead of now
     tx = astropy.time.Time(datetime.datetime(*time.gmtime()[0:6]))

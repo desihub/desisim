@@ -487,19 +487,13 @@ def get_source_types(fibermap):
     source_type = np.zeros(len(fibermap), dtype='U4')
     assert np.all(source_type == '')
 
-    if 'FLAVOR' in fibermap.meta:
-        if fibermap.meta['FLAVOR'].lower() == 'arc':
-            source_type[:] = 'ARC'
-            return source_type
-        elif fibermap.meta['FLAVOR'].lower() == 'flat':
-            source_type[:] = 'FLAT'
-            return source_type
-
     tm = desitarget.desi_mask
     if 'TARGETID' in fibermap.dtype.names:
         unassigned = fibermap['TARGETID'] == -1
         source_type[unassigned] = 'sky'
 
+    source_type[(fibermap['OBJTYPE'] == 'FLAT')] = 'FLAT'
+    source_type[(fibermap['OBJTYPE'] == 'ARC')] = 'ARC'
     source_type[(fibermap['DESI_TARGET'] & tm.SKY) != 0] = 'sky'
     source_type[(fibermap['DESI_TARGET'] & tm.ELG) != 0] = 'elg'
     source_type[(fibermap['DESI_TARGET'] & tm.LRG) != 0] = 'lrg'
@@ -513,6 +507,12 @@ def get_source_types(fibermap):
         nBGS = np.count_nonzero(isBGS)
         log.warning("Setting {} BGS targets to have source_type='lrg'".format(nBGS))
         source_type[isBGS] = 'lrg'
+
+    if np.any(source_type == ''):
+        #--- DEBUG ---
+        import IPython
+        IPython.embed()
+        #--- DEBUG ---
 
     assert not np.any(source_type == '')
 

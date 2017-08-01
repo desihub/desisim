@@ -29,8 +29,7 @@ import desisim.simexp
 from .simexp import simulate_spectra
 
 def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
-                 airmass=1.0, exptime=None, seed=None,
-                 obsconditions=None, testslit=False,
+                 seed=None, obsconditions=None, testslit=False, exptime=None,
                  arc_lines_filename=None, flat_spectrum_filename=None):
 
     """
@@ -45,10 +44,9 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         night : YEARMMDD string
         expid : positive integer exposure ID
         tileid : integer tile ID
-        airmass : airmass, default 1.0
-        exptime : exposure time in seconds
         seed : random seed
         obsconditions: str or dict-like; see options below
+        exptime: float exposure time [seconds], overrides obsconditions['EXPTIME']
 
         testslit : simulate test slit if True, default False; only for arc/flat
         arc_lines_filename : use alternate arc lines filename (used if program="arc")
@@ -173,8 +171,6 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
 
     if exptime is not None:
         obsconditions['EXPTIME'] = exptime
-    if airmass is not None:
-        obsconditions['AIRMASS'] = airmass
 
     sim = simulate_spectra(wave, 1e-17*flux, fibermap=fibermap, obsconditions=obsconditions)
 

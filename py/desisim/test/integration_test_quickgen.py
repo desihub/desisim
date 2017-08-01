@@ -8,6 +8,7 @@ import sys
 import desisim.io
 import desispec.io
 import desispec.pipeline as pipe
+from desispec.util import runcmd
 import desiutil.log as logging
 
 desi_templates_available = 'DESI_ROOT' in os.environ
@@ -67,17 +68,17 @@ def sim(night, nspec=25, clobber=False):
 
     # Create input fibermaps, spectra, and quickgen data
 
-    for expid, flavor in zip([0,1,2], ['flat', 'arc', 'dark']):
+    for expid, program in zip([0,1,2], ['flat', 'arc', 'dark']):
+        cmd = "newexp-random --program {program} --nspec {nspec} --night {night} --expid {expid}".format(expid=expid, program=program, nspec=nspec, night=night)
 
-        cmd = "newexp --flavor {flavor} --nspec {nspec} --night {night} --expid {expid}".format(expid=expid, flavor=flavor, nspec=nspec, night=night)
         simspec = desisim.io.findfile('simspec', night, expid)
         fibermap = '{}/fibermap-{:08d}.fits'.format(os.path.dirname(simspec),expid) 
-        if pipe.runcmd(cmd, clobber=clobber) != 0:
-            raise RuntimeError('newexp failed for {} exposure {}'.format(flavor, expid))
+        if runcmd(cmd, clobber=clobber) != 0:
+            raise RuntimeError('newexp failed for {} exposure {}'.format(program, expid))
 
         cmd = "quickgen --simspec {} --fibermap {}".format(simspec,fibermap)
-        if pipe.runcmd(cmd, clobber=clobber) != 0:
-            raise RuntimeError('quickgen failed for {} exposure {}'.format(flavor, expid))
+        if runcmd(cmd, clobber=clobber) != 0:
+            raise RuntimeError('quickgen failed for {} exposure {}'.format(program, expid))
 
     return
 
@@ -117,25 +118,25 @@ def integration_test(night="20160726", nspec=25, clobber=False):
 
         # verify that quickgen output works for full pipeline
         com = "desi_compute_sky --infile {} --fiberflat {} --outfile {}".format(framefile, fiberflatfile, skytestfile)
-        if pipe.runcmd(com, clobber=clobber) != 0:
+        if runcmd(com, clobber=clobber) != 0:
             raise RuntimeError('desi_compute_sky failed for camera {}'.format(camera))
 
         # only fit stdstars once
         if camera == 'b0':
             com = "desi_fit_stdstars --frames {} --skymodels {} --fiberflats {} --starmodels $DESI_BASIS_TEMPLATES/star_templates_v2.1.fits --outfile {}".format(framefile, skyfile, fiberflatfile, stdstarsfile)
-            if pipe.runcmd(com, clobber=clobber) != 0:
+            if runcmd(com, clobber=clobber) != 0:
                 raise RuntimeError('desi_fit_stdstars failed for camera {}'.format(camera))
 
         com = "desi_compute_fluxcalibration --infile {} --fiberflat {} --sky {} --models {} --outfile {}".format(framefile, fiberflatfile, skyfile, stdstarsfile, calibtestfile)
-        if pipe.runcmd(com, clobber=clobber) != 0:
+        if runcmd(com, clobber=clobber) != 0:
             raise RuntimeError('desi_compute_fluxcalibration failed for camera {}'.format(camera))
 
         com = "desi_process_exposure --infile {} --fiberflat {} --sky {} --calib {} --outfile {}".format(framefile, fiberflatfile, skyfile, calibfile, cframetestfile)
-        if pipe.runcmd(com, clobber=clobber) != 0:
+        if runcmd(com, clobber=clobber) != 0:
             raise RuntimeError('desi_process_exposure failed for camera {}'.format(camera))
 
     com = "desi_make_bricks --night {}".format(night)
-    if pipe.runcmd(com, clobber=clobber) != 0:
+    if runcmd(com, clobber=clobber) != 0:
         raise RuntimeError('desi_make_bricks failed')
 
 if __name__ == '__main__':
