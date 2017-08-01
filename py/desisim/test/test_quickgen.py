@@ -10,6 +10,7 @@ import numpy as np
 import desispec.io
 from desisim import io
 from desisim import obs
+from desisim import simexp
 from desisim.scripts import quickgen
 from desiutil.log import get_logger
 log = get_logger()
@@ -369,10 +370,13 @@ class TestQuickgen(unittest.TestCase):
         expid1 = 101
 
         # generate exposures of varying airmass
-        obs.new_exposure('dark',night=night,expid=expid0,nspec=1,airmass=1.5,seed=1)
+        obscond = simexp.reference_conditions['DARK']
+        obscond['AIRMASS'] = 1.5
+        obs.new_exposure('dark',night=night,expid=expid0,nspec=1,seed=1,obsconditions=obscond)
         simspec0 = io.findfile('simspec', night, expid0)
         fibermap0 = desispec.io.findfile('fibermap', night, expid0)
-        obs.new_exposure('dark',night=night,expid=expid1,nspec=1,airmass=1.0,seed=1)
+        obscond['AIRMASS'] = 1.0
+        obs.new_exposure('dark',night=night,expid=expid1,nspec=1,seed=1,obsconditions=obscond)
         simspec1 = io.findfile('simspec', night, expid1)
         fibermap1 = desispec.io.findfile('fibermap', night, expid1)
 
