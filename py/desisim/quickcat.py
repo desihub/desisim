@@ -167,8 +167,6 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         else:
             true_gflux = targets['FLUX_G']
             true_rflux = targets['FLUX_R']
-        import pdb ; pdb.set_trace()
-        
     except:
         raise Exception('Missing photometry needed to estimate redshift efficiency!')
 
@@ -343,6 +341,16 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
     simtype = get_simtype(truth['TRUETYPE'], targets['DESI_TARGET'], targets['BGS_TARGET'], targets['MWS_TARGET'])
     truez = truth['TRUEZ']
     targetid = truth['TARGETID']
+
+    try:
+        if 'DECAM_FLUX' in targets.colnames:
+            true_gflux = targets['DECAM_FLUX'][:, 1]
+            true_rflux = targets['DECAM_FLUX'][:, 2]
+        else:
+            true_gflux = targets['FLUX_G']
+            true_rflux = targets['FLUX_R']
+    except:
+        raise Exception('Missing photometry needed to estimate redshift efficiency!')
 
     zout = truez.copy()
     zerr = np.zeros(len(truez), dtype=np.float32)
