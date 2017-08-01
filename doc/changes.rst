@@ -2,10 +2,13 @@
 desisim change log
 ==================
 
-0.20.1 (unreleased)
+0.21.0 (unreleased)
 -------------------
 
-* No changes yet.
+* Major refactor of newexp to add connection to upstream mocks, surveysims,
+  and fiber assignment (`PR #250`_).
+
+.. _`PR #250`: https://github.com/desihub/desisim/pull/250
 
 0.20.0 (2017-07-12)
 -------------------
