@@ -338,7 +338,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
         tuple of (zout, zerr, zwarn)
     """
 
-    simtype = get_simtype(truth['TRUETYPE'], targets['DESI_TARGET'], targets['BGS_TARGET'], targets['MWS_TARGET'])
+    simtype = get_simtype(np.char.strip(truth['TRUESPECTYPE']), targets['DESI_TARGET'], targets['BGS_TARGET'], targets['MWS_TARGET'])
     truez = truth['TRUEZ']
     targetid = truth['TARGETID']
 
@@ -641,7 +641,7 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
         newzcat['BRICKNAME'] = np.zeros(len(truth), dtype=(str, 8))
 
     #- Copy TRUETYPE -> SPECTYPE so that we can change without altering original
-    newzcat['SPECTYPE'] = truth['TRUETYPE'].copy()
+    newzcat['SPECTYPE'] = truth['TRUESPECTYPE'].copy()
 
     #- Add ZERR and ZWARN
     print('{} QC Adding ZERR and ZWARN'.format(asctime()))

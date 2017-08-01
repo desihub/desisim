@@ -54,13 +54,20 @@ def get_simtype(spectype, desi_target, bgs_target, mws_target):
     isBGS = isGalaxy & ((bgs_target & bgs_mask.BGS_BRIGHT) != 0)
     isBGS |= isGalaxy & ((bgs_target & bgs_mask.BGS_FAINT) != 0)
 
+    # this is introduced in the case of contaminants for mocks
+    # where spectype != desi_target. 
+    # We assume that spectype=="Truth" and desi_target=="targeting information"
+    isELG |= isGalaxy & ((desi_target & desi_mask.QSO) !=0 )
+
     simtype[isLRG] = 'LRG'
     simtype[isELG] = 'ELG'
     simtype[isBGS] = 'BGS'
     simtype[isQSO] = 'QSO'
     simtype[isStar] = 'STAR'
     simtype[isSky] = 'SKY'
-
+#    from pdb import set_trace as bp
+#    bp()
+#    print(len(simtype), np.count_nonzero(simtype=='???'), spectype, type(spectype))
     assert np.all(simtype != '???')
     return simtype
 
