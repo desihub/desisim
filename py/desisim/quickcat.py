@@ -160,16 +160,24 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
     targetid = targets['TARGETID']
     n = len(targetid)
 
+    try:
+        if 'DECAM_FLUX' in targets.colnames.upper():
+            true_rflux, true_gflux = targets['DECAM_FLUX'][:, 2], targets['DECAM_FLUX'][:, 1]
+        else:
+            true_rflux, true_gflux = targets['FLUX_R'], targets['FLUX_G']
+    except:
+        raise Exception('Missing photometry needed to estimate redshift efficiency!')
+
+    if (obsconditions is None) and (truth['OIIFLUX'] not in truth.colnames().upper()):
+        raise Exception('Missing obsconditions and flux information to estimate redshift efficiency')
+
     if (simtype == 'ELG'):
         # Read the model OII flux threshold (FDR fig 7.12 modified to fit redmonster efficiency on OAK)
         filename = resource_filename('desisim', 'data/quickcat_elg_oii_flux_threshold.txt')
         fdr_z, modified_fdr_oii_flux_threshold = np.loadtxt(filename, unpack=True)
 
         # Get OIIflux from truth
-        try:
-            true_oii_flux = truth['OIIFLUX']
-        except:
-            raise Exception('Missing OII flux information to estimate redshift efficiency for ELGs')
+        true_oii_flux = truth['OIIFLUX']
 
         # Compute OII flux thresholds for truez
         oii_flux_threshold = np.interp(truth['TRUEZ'],fdr_z,modified_fdr_oii_flux_threshold)
@@ -186,11 +194,6 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         magr, magr_eff = np.loadtxt(filename, unpack=True)
 
         # Get Rflux from truth
-        try:
-            true_rflux = targets['DECAM_FLUX'][:,2]
-        except:
-            raise Exception('Missing Rmag information to estimate redshift efficiency for LRGs')
-
         r_mag = 22.5 - 2.5*np.log10(true_rflux)
 
         mean_eff_mag=np.interp(r_mag,magr,magr_eff)
@@ -205,11 +208,8 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         zc, qso_gmag_threshold_vs_z = np.loadtxt(filename, unpack=True)
 
         # Get Gflux from truth
-        try:
-            true_gmag = targets['DECAM_FLUX'][:,1]
-        except:
-            raise Exception('Missing Gmag information to estimate redshift efficiency for QSOs')
-
+        true_gmag = 22.5 - 2.5 * np.log10(true_gflux) 
+            
         # Computes QSO mag thresholds for truez
         qso_gmag_threshold=np.interp(truth['TRUEZ'],zc,qso_gmag_threshold_vs_z)
         assert (qso_gmag_threshold.size == true_gmag.size),"qso_gmag_threshold and true_gmag should have the same size"
@@ -232,9 +232,6 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         default_zeff = 0.98
         log.warning('using default redshift efficiency of {} for {}'.format(default_zeff, simtype))
         simulated_eff = default_zeff * np.ones(n)
-
-    if (obsconditions is None) and (truth['OIIFLUX'] is None) and (targets['DECAM_FLUX'] is None):
-        raise Exception('Missing obsconditions and flux information to estimate redshift efficiency')
 
     #- Get the corrections for observing conditions per tile, then
     #- correct targets on those tiles.  Parameterize in terms of failure
@@ -375,10 +372,8 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
             elif (objtype == 'LRG'):
                 redbins=np.linspace(0.55,1.1,5)
                 mag = np.linspace(20.5,23.,50)
-                try:
-                    true_magr=targets['DECAM_FLUX'][ii,2]
-                except:
-                    raise Exception('Missing DECAM r flux information to estimate redshift error for LRGs')
+
+                true_magr = 22.5 - 2.5 * np.log10(true_rflux)
 
                 coefs = [[9.46882282e-05,-1.87022383e-03],[6.14601021e-05,-1.17406643e-03],\
                              [8.85342362e-05,-1.76079966e-03],[6.96202042e-05,-1.38632104e-03]]
@@ -419,10 +414,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
                 redbins = np.linspace(0.5,3.5,7)
                 mag = np.linspace(21.,23.,50)
 
-                try:
-                    true_magg=targets['DECAM_FLUX'][ii,1]
-                except:
-                    raise Exception('Missing DECAM g flux information to estimate redshift error for QSOs')
+                true_magg = 22.5 - 2.5 * np.log10(true_gflux)
 
                 coefs = [[0.000156950059747,-0.00320719603886],[0.000461779391179,-0.00924485142818],\
                              [0.000458672517009,-0.0091254038977],[0.000461427968475,-0.00923812594293],\
