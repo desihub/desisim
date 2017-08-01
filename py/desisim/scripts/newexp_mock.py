@@ -86,6 +86,7 @@ def main(args=None):
     obs = obslist[args.obsnum]
     tileid = obs['TILEID']
     night = obs['NIGHT']
+    program = obs['PROGRAM']
 
     if os.path.isdir(args.fiberassign):
         #- TODO: move file location logic to desispec / desitarget / fiberassign
@@ -103,12 +104,29 @@ def main(args=None):
     flux, wave, meta = get_mock_spectra(fiberassign, mockdir=args.mockdir)
     sim, fibermap = simscience((flux, wave, meta), fiberassign, obsconditions=obs, nspec=args.nspec)
 
-    fibermap.meta['NIGHT'] = night
-    fibermap.meta['EXPID'] = args.expid
-    fibermap.meta['TILEID'] = tileid
-    fibermap.meta['FLAVOR'] = 'science'
+    #- TODO: header keyword code is replicated from obs.new_exposure()
+    telera, teledec = desisim.io.get_tile_radec(tileid)
+    header = dict(
+        NIGHT = (night, 'Night of observation YEARMMDD'),
+        EXPID = (args.expid, 'DESI exposure ID'),
+        TILEID = (tileid, 'DESI tile ID'),
+        PROGRAM = (program, 'program [dark, bright, ...]'),
+        FLAVOR = ('science', 'Flavor [arc, flat, science, zero, ...]'),
+        TELRA = (telera, 'Telescope pointing RA [degrees]'),
+        TELDEC = (teledec, 'Telescope pointing dec [degrees]'),
+        AIRMASS = (obsconditions['AIRMASS'], 'Airmass at middle of exposure'),
+        EXPTIME = (obsconditions['EXPTIME'], 'Exposure time [sec]'),
+        SEEING = (obsconditions['SEEING'], 'Seeing FWHM [arcsec]'),
+        MOONFRAC = (obsconditions['MOONFRAC'], 'Moon illumination fraction 0-1; 1=full'),
+        MOONALT  = (obsconditions['MOONALT'], 'Moon altitude [degrees]'),
+        MOONSEP  = (obsconditions['MOONSEP'], 'Moon:tile separation angle [degrees]'),
+        )
+    header['DATE-OBS'] = (sim.observation.exposure_start.isot, 'Start of exposure')
+
+    #- Write fibermap to $DESI_SPECTRO_SIM/$PIXPROD not $DESI_SPECTRO_DATA
+    fibermap.meta.extend(header)
     fibermap.write(desisim.io.findfile('simfibermap', night, args.expid,
         outdir=args.outdir), overwrite=args.clobber)
-    header = dict(FLAVOR='science')
+
     desisim.io.write_simspec(sim, meta, fibermap, obs, args.expid, night, header=header,
         outdir=args.outdir, overwrite=args.clobber)

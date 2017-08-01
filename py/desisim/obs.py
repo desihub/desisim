@@ -31,7 +31,6 @@ from .simexp import simulate_spectra
 def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
                  seed=None, obsconditions=None, testslit=False, exptime=None,
                  arc_lines_filename=None, flat_spectrum_filename=None):
-
     """
     Create a new exposure and output input simulation files.
     Does not generate pixel-level simulations or noisy spectra.
@@ -191,11 +190,16 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         TELDEC = (teledec, 'Telescope pointing dec [degrees]'),
         AIRMASS = (obsconditions['AIRMASS'], 'Airmass at middle of exposure'),
         EXPTIME = (obsconditions['EXPTIME'], 'Exposure time [sec]'),
+        SEEING = (obsconditions['SEEING'], 'Seeing FWHM [arcsec]'),
+        MOONFRAC = (obsconditions['MOONFRAC'], 'Moon illumination fraction 0-1; 1=full'),
+        MOONALT  = (obsconditions['MOONALT'], 'Moon altitude [degrees]'),
+        MOONSEP  = (obsconditions['MOONSEP'], 'Moon:tile separation angle [degrees]'),
         )
     hdr['DATE-OBS'] = (time.strftime('%FT%T', dateobs), 'Start of exposure')
 
     simfile = io.write_simspec(sim, meta, fibermap, obsconditions, expid, night, header=hdr)
 
+    #- Write fibermap to $DESI_SPECTRO_SIM/$PIXPROD not $DESI_SPECTRO_DATA
     fiberfile = io.findfile('simfibermap', night, expid)
     desispec.io.write_fibermap(fiberfile, fibermap, header=hdr)
     log.info('Wrote '+fiberfile)
@@ -440,16 +444,3 @@ def update_obslog(obstype='science', program='DARK', expid=None, dateobs=None,
     db.commit()
 
     return expid, dateobs
-
-#- for the future
-# def ndarray_from_columns(keys, columns):
-#     nrow = len(columns[0])
-#     dtype = list()
-#     for name, col in zip(keys, columns):
-#         dtype.append( (name, col.dtype) )
-#
-#     result = np.zeros(nrow, dtype=dtype)
-#     for name, col in zip(keys, columns):
-#         result[name] = col
-#
-#     return result

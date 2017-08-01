@@ -13,6 +13,7 @@ from desispec.resolution import Resolution
 import desisim.io
 import desisim.simexp
 from desisim.util import dateobs2night
+import desisim.specsim
 
 #-------------------------------------------------------------------------
 
@@ -68,7 +69,8 @@ def main(args=None):
         fiber_area = desisim.simexp.fiber_area_arcsec2(fibermap['X_TARGET'], fibermap['Y_TARGET'])
         surface_brightness = (flux.T / fiber_area).T
         config = desisim.simexp._specsim_config_for_wave(wave, dwave_out=1.0)
-        sim = specsim.simulator.Simulator(config, num_fibers=nspec)
+        # sim = specsim.simulator.Simulator(config, num_fibers=nspec)
+        sim = desisim.specsim.get_simulator(config, num_fibers=nspec)
         sim.observation.exposure_time = simspec.header['EXPTIME'] * u.s
         sbunit = 1e-17 * u.erg / (u.Angstrom * u.s * u.cm ** 2 * u.arcsec ** 2)
         xy = np.vstack([x, y]).T * u.mm

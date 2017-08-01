@@ -41,9 +41,6 @@ def parse(options=None):
     else:
         args = parser.parse_args(options)
 
-    if args.expid is None:
-        args.expid = args.obsnum
-
     return args
 
 def main(args=None):

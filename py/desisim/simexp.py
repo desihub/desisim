@@ -18,6 +18,7 @@ import desimodel.io
 import desiutil.depend
 import desispec.interpolation
 import desisim.io
+import desisim.specsim
 
 #- Reference observing conditions for each of dark, gray, bright
 reference_conditions = dict(DARK=dict(), GRAY=dict(), BRIGHT=dict())
@@ -41,6 +42,11 @@ reference_conditions['BRIGHT']['AIRMASS'] = 1.0
 reference_conditions['BRIGHT']['MOONFRAC'] = 0.7
 reference_conditions['BRIGHT']['MOONALT']  = 60
 reference_conditions['BRIGHT']['MOONSEP'] = 50
+
+for objtype in ('LRG', 'QSO', 'ELG'):
+    reference_conditions[objtype] = reference_conditions['DARK']
+for objtype in ('MWS', 'BGS'):
+    reference_conditions[objtype] = reference_conditions['BRIGHT']
 
 def simarc(arcdata, nspec=5000, nonuniform=False, testslit=False):
     '''
@@ -162,7 +168,8 @@ def simflat(flatfile, nspec=5000, nonuniform=False, exptime=10, testslit=False):
     log.debug('Creating specsim configuration')
     config = _specsim_config_for_wave(wave)
     log.debug('Creating specsim simulator for {} spectra'.format(nspec))
-    sim = specsim.simulator.Simulator(config, num_fibers=nspec)
+    # sim = specsim.simulator.Simulator(config, num_fibers=nspec)
+    sim = desisim.specsim.get_simulator(config, num_fibers=nspec)
     sim.observation.exposure_time = exptime * u.s
     log.debug('Simulating')
     sim.simulate(calibration_surface_brightness=sbflux, focal_positions=xy)
@@ -263,7 +270,6 @@ def simscience(targets, fiberassign, obsconditions='DARK', expid=None, nspec=Non
         raise ValueError('obsconditions missing keys {}'.format(missing_keys))
 
     sim = simulate_spectra(wave, flux, fibermap=fibermap, obsconditions=obsconditions)
-    header = dict(FLAVOR='science')
 
     return sim, fibermap
 
@@ -366,7 +372,8 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, dwave_out=No
 
     #- Create simulator
     log.debug('creating specsim desi simulator')
-    desi = specsim.simulator.Simulator(config, num_fibers=nspec)
+    # desi = specsim.simulator.Simulator(config, num_fibers=nspec)
+    desi = desisim.specsim.get_simulator(config, num_fibers=nspec)
 
     if obsconditions is None:
         log.warning('Assuming DARK conditions')
@@ -428,6 +435,7 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, dwave_out=No
     log.debug('running simulation')
     desi.instrument.fiberloss_method = 'table'
     desi.simulate(source_fluxes=flux, focal_positions=xy, source_types=source_types)
+
     return desi
 
 def _specsim_config_for_wave(wave, dwave_out=None):
@@ -498,21 +506,9 @@ def get_source_types(fibermap):
     source_type[(fibermap['DESI_TARGET'] & tm.ELG) != 0] = 'elg'
     source_type[(fibermap['DESI_TARGET'] & tm.LRG) != 0] = 'lrg'
     source_type[(fibermap['DESI_TARGET'] & tm.QSO) != 0] = 'qso'
+    source_type[(fibermap['DESI_TARGET'] & tm.BGS_ANY) != 0] = 'bgs'
     starmask = tm.STD_FSTAR | tm.STD_WD | tm.STD_BRIGHT | tm.MWS_ANY
     source_type[(fibermap['DESI_TARGET'] & starmask) != 0] = 'star'
-
-    #- FIXME: no BGS default in specsim yet
-    isBGS = (fibermap['DESI_TARGET'] & tm.BGS_ANY) != 0
-    if np.any(isBGS):
-        nBGS = np.count_nonzero(isBGS)
-        log.warning("Setting {} BGS targets to have source_type='lrg'".format(nBGS))
-        source_type[isBGS] = 'lrg'
-
-    if np.any(source_type == ''):
-        #--- DEBUG ---
-        import IPython
-        IPython.embed()
-        #--- DEBUG ---
 
     assert not np.any(source_type == '')
 
