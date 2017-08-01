@@ -5,5 +5,5 @@ Generate a new DESI science exposure
 """
 
 import sys
-from desisim.scripts.newexp import main
+from desisim.scripts.newexp_mock import main
 sys.exit(main())

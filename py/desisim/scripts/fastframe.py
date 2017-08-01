@@ -60,7 +60,7 @@ def main(args=None):
     flux = simspec.flux
     ii = slice(firstspec, firstspec+nspec)
     if simspec.flavor == 'science':
-        sim = desisim.simexp.simulate_spectra(wave, 1e-17*flux[ii], meta=fibermap[ii],
+        sim = desisim.simexp.simulate_spectra(wave, 1e-17*flux[ii], fibermap=fibermap[ii],
             obsconditions=obs, dwave_out=1.0)
     elif simspec.flavor in ['arc', 'flat', 'calib']:
         x = fibermap['X_TARGET']

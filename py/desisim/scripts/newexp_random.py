@@ -17,7 +17,7 @@ def parse(options=None):
     parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     #- Required
-    parser.add_argument('--program', type=str, help="Program name, e.g. dark, bright, gray")
+    parser.add_argument('--program', type=str, required=True, help="Program name, e.g. dark, bright, gray")
 
     #- Optional observing conditions to override program defaults
     parser.add_argument('--seeing', type=float, default=None, help="Seeing FWHM [arcsec]")

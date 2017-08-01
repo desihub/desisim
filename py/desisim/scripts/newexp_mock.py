@@ -7,7 +7,7 @@ import astropy.table
 import astropy.time
 import astropy.units as u
 
-from desisim.simexp import simscience
+from desisim.simexp import simscience, get_mock_spectra
 import desisim.io
 import desisim.util
 from desiutil.log import get_logger
@@ -16,10 +16,14 @@ def parse(options=None):
     parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     #- Required
-    parser.add_argument('--fiberassign', type=str, help="input fiberassign directory or tile file")
-    parser.add_argument('--obslist', type=str, help="input surveysim obslist file")
-    parser.add_argument('--mockdir', type=str, help="directory with mock targets and truth")
-    parser.add_argument('--obsnum', type=int, default=None, help="index in obslist file to use")
+    parser.add_argument('--fiberassign', type=str, required=True,
+                        help="input fiberassign directory or tile file")
+    parser.add_argument('--mockdir', type=str, required=True,
+                        help="directory with mock targets and truth")
+    parser.add_argument('--obslist', type=str, required=True,
+                        help="input surveysim obslist file")
+    parser.add_argument('--obsnum', type=int, required=True,
+                        help="index in obslist file to use")
 
     #- Optional
     parser.add_argument('--expid', type=int, default=None, help="exposure ID")
