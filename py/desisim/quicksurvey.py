@@ -98,13 +98,13 @@ class SimSetup(object):
 
 
         for i in range(len(dates)-1):
-            ii = (dates[i] < dateobs) & (dateobs < dates[i+1])
+            ii = (dates[i] <= dateobs) & (dateobs < dates[i+1])
             epoch_tiles = list()
             for tile in self.exposures['TILEID'][ii]:
                 if tile not in epoch_tiles:
                     epoch_tiles.append(tile)
             self.epoch_tiles.append(epoch_tiles)
-            print('tiles in epoch {}: {}'.format(i,len(self.epoch_tiles[i])))
+            print('tiles in epoch {} [{} to {}]: {}'.format(i,dates[i], dates[i+1], len(self.epoch_tiles[i])))
 
 
     def create_directories(self):
@@ -267,9 +267,12 @@ class SimSetup(object):
         truth = Table.read(os.path.join(self.targets_path,'truth.fits'))
         targets = Table.read(os.path.join(self.targets_path,'targets.fits'))
 
+        print(truth.keys())
         #- Drop columns that aren't needed to save memory while manipulating
-        targets.remove_columns(['DEPTH_R', 'GALDEPTH_R'])
-        truth.remove_columns(['RA', 'DEC', 'BRICKNAME', 'SOURCETYPE'])
+#        targets.remove_columns(['DEPTH_R', 'GALDEPTH_R'])
+#        truth.remove_columns(['RA', 'DEC', 'BRICKNAME', 'SOURCETYPE'])
+#        truth.remove_columnes([])
+        truth.remove_columns(['SEED', 'MAG', 'DECAM_FLUX', 'WISE_FLUX', 'HBETAFLUX', 'TEFF', 'LOGG', 'FEH'])
         if 'MOCKID' in truth.colnames:
             truth.remove_column('MOCKID')
 
@@ -304,7 +307,7 @@ def print_efficiency_stats(truth, mtl_initial, zcat):
     zcat_types = ['GALAXY', 'GALAXY', 'QSO']
 
     for true_type, zcat_type in zip(true_types, zcat_types):
-        i_initial = ((tmp_init['DESI_TARGET'] & desi_mask.mask(true_type)) != 0) & (tmp_init['TRUETYPE'] == zcat_type)
+        i_initial = ((tmp_init['DESI_TARGET'] & desi_mask.mask(true_type)) != 0) & (tmp_init['TRUESPECTYPE'] == zcat_type)
         i_final = ((total['DESI_TARGET'] & desi_mask.mask(true_type)) != 0) & (total['SPECTYPE'] == zcat_type)
         n_t = 1.0*len(total['TARGETID'][i_final])
         n_i = 1.0*len(tmp_init['TARGETID'][i_initial])
