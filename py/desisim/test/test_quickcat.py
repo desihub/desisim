@@ -59,15 +59,15 @@ class TestQuickCat(unittest.TestCase):
         truth = Table()
         truth['TARGETID'] = targets['TARGETID']
         truth['TRUEZ'] = np.random.uniform(0, 1.5, size=n)
-        truth['TRUETYPE'] = np.zeros(n, dtype=(str, 10))
+        truth['TRUESPECTYPE'] = np.zeros(n, dtype=(str, 10))
         truth['GMAG'] = np.random.uniform(18.0, 24.0, size=n)
         ii = (targets['DESI_TARGET'] & desi_mask.mask('LRG|ELG|BGS_ANY')) != 0
-        truth['TRUETYPE'][ii] = 'GALAXY'
+        truth['TRUESPECTYPE'][ii] = 'GALAXY'
         ii = (targets['DESI_TARGET'] == desi_mask.QSO)
-        truth['TRUETYPE'][ii] = 'QSO'
+        truth['TRUESPECTYPE'][ii] = 'QSO'
         starmask = desi_mask.mask('MWS_ANY|STD_FSTAR|STD_WD|STD_BRIGHT')
         ii = (targets['DESI_TARGET'] & starmask) != 0
-        truth['TRUETYPE'][ii] = 'STAR'
+        truth['TRUESPECTYPE'][ii] = 'STAR'
 
         #- Add some fake [OII] fluxes for the ELGs; include some that will fail
         isELG = (targets['DESI_TARGET'] & desi_mask.ELG) != 0
