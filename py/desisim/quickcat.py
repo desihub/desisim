@@ -161,14 +161,18 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
     n = len(targetid)
 
     try:
-        if 'DECAM_FLUX' in targets.colnames.upper():
-            true_rflux, true_gflux = targets['DECAM_FLUX'][:, 2], targets['DECAM_FLUX'][:, 1]
+        if 'DECAM_FLUX' in targets.colnames:
+            true_gflux = targets['DECAM_FLUX'][:, 1]
+            true_rflux = targets['DECAM_FLUX'][:, 2]
         else:
-            true_rflux, true_gflux = targets['FLUX_R'], targets['FLUX_G']
+            true_gflux = targets['FLUX_G']
+            true_rflux = targets['FLUX_R']
+        import pdb ; pdb.set_trace()
+        
     except:
         raise Exception('Missing photometry needed to estimate redshift efficiency!')
 
-    if (obsconditions is None) and (truth['OIIFLUX'] not in truth.colnames().upper()):
+    if (obsconditions is None) and (truth['OIIFLUX'] not in truth.colnames):
         raise Exception('Missing obsconditions and flux information to estimate redshift efficiency')
 
     if (simtype == 'ELG'):
