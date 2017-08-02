@@ -1,0 +1,44 @@
+variables:
+  GIT_STRATEGY: clone
+  GITLAB: registry.gitlab.com
+  SHIFTER: registry.services.nersc.gov:8443
+  REGISTRY_USER: TonyWildish
+  APPLICATION: desiutil
+  TEST_IMAGE: $REGISTRY/$REGISTRY_USER/$APPLICATION:latest
+  DOCKER_DRIVER: overlay
+
+stages:
+  - build
+  - install
+
+compileBranch:
+  stage: build
+  only:
+    - branches
+  tags:
+    - linux
+    - shared
+  script:
+    - echo "Project $CI_PROJECT_NAME, branch $CI_COMMIT_REF_NAME"
+
+compileTag:
+  stage: build
+  only:
+    - tags
+  tags:
+    - linux
+    - shared
+  script:
+    - echo "Project $CI_PROJECT_NAME, tag $CI_COMMIT_REF_NAME"
+
+install:
+  stage: install
+  tags:
+    - linux,shared
+  script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends python-pip python-devel
+    - pip install numpy # could add '--root /desi' to this and the next two lines
+    - pip install -r requirements.txt
+    - python setup.py install
+    - python -c "from desiutil.bitmask import BitMask"
