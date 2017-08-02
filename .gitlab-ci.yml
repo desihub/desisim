@@ -3,7 +3,7 @@ variables:
   GITLAB: registry.gitlab.com
   SHIFTER: registry.services.nersc.gov:8443
   REGISTRY_USER: TonyWildish
-  APPLICATION: desiutil
+  APPLICATION: desisim
   TEST_IMAGE: $REGISTRY/$REGISTRY_USER/$APPLICATION:latest
   DOCKER_DRIVER: overlay
 
@@ -36,9 +36,10 @@ install:
   tags:
     - linux,shared
   script:
-    - apt-get update
-    - apt-get install -y --no-install-recommends python-pip python-devel
-    - pip install numpy # could add '--root /desi' to this and the next two lines
-    - pip install -r requirements.txt
-    - python setup.py install
-    - python -c "from desiutil.bitmask import BitMask"
+    - echo "installing $CI_PROJECT_NAME (not really)"
+    # - apt-get update
+    # - apt-get install -y --no-install-recommends python-pip python-devel
+    # - pip install numpy # could add '--root /desi' to this and the next two lines
+    # - pip install -r requirements.txt
+    # - python setup.py install
+    # - python -c "from desiutil.bitmask import BitMask"
