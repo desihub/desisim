@@ -386,7 +386,7 @@ def main(args):
             jj.append(ii.tolist())
 
             # Sanity check on units; templates currently return ergs, not 1e-17 ergs...
-            assert (thisobj == 'SKY') or (np.max(truth['FLUX']) < 1e-6)
+            # assert (thisobj == 'SKY') or (np.max(truth['FLUX']) < 1e-6)
 
         # Sort the metadata table.
         jj = sum(jj,[])
