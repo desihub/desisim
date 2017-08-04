@@ -335,7 +335,7 @@ def get_targets(nspec, program, tileid=None, seed=None, specmin=0):
         else:
             raise ValueError('Unable to simulate OBJTYPE={}'.format(objtype))
 
-        flux[ii] = 1e17 * simflux
+        flux[ii] = simflux
         meta[ii] = meta1
 
         fibermap['FILTER'][ii, :6] = ['DECAM_G', 'DECAM_R', 'DECAM_Z', 'WISE_W1', 'WISE_W2']

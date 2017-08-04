@@ -863,7 +863,7 @@ def write_templates(outfile, flux, wave, meta, objtype=None,
         CDELT1 = (wave[1]-wave[0], 'Wavelength step [Angstrom]'),
         LOGLAM = (0, 'linear wavelength steps, not log10'),
         AIRORVAC = ('vac', 'wavelengths in vacuum (vac) or air'),
-        BUNIT = ('erg/s/cm2/A', 'spectrum flux units')
+        BUNIT = ('1e-17 erg/(s cm2 Angstrom)', 'spectrum flux units')
         )
     hdr = fitsheader(header)
 
