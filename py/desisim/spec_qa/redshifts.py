@@ -322,14 +322,14 @@ def obj_requirements(zstats, objtype):
             if zstats[key] < req_dict[key]:
                 ipassf = str('FAIL')
                 tst_fail = tst_fail+key+'-'
-                log.warn('{:s} failed requirement {:s}: {} < {}'.format(objtype, key, zstats[key], req_dict[key]))
+                log.warning('{:s} failed requirement {:s}: {} < {}'.format(objtype, key, zstats[key], req_dict[key]))
             else:
                 log.debug('{:s} passed requirement {:s}: {} >= {}'.format(objtype, key, zstats[key], req_dict[key]))
         else:
             if zstats[key] > req_dict[key]:
                 ipassf = str('FAIL')
                 tst_fail = tst_fail+key+'-'
-                log.warn('{:s} failed requirement {:s}: {} > {}'.format(objtype, key, zstats[key], req_dict[key]))
+                log.warning('{:s} failed requirement {:s}: {} > {}'.format(objtype, key, zstats[key], req_dict[key]))
             else:
                 log.debug('{:s} passed requirement {:s}: {} <= {}'.format(objtype, key, zstats[key], req_dict[key]))
         # Update
@@ -338,7 +338,7 @@ def obj_requirements(zstats, objtype):
             passf = str('FAIL')
     if passf == str('FAIL'):
         tst_fail = tst_fail[:-1]
-        # log.warn('OBJ={:s} failed tests {:s}'.format(objtype,tst_fail))
+        # log.warning('OBJ={:s} failed tests {:s}'.format(objtype,tst_fail))
     #
     #pf_dict['FINAL'] = passf
     return pf_dict, passf
@@ -768,7 +768,7 @@ def plot_slices(x, y, ok, bad, x_lo, x_hi, y_cut, num_slices=5, min_count=100,
                 x[bad], range=(x_lo, x_hi), bins=num_slices, histtype='step',
                 weights=weights, color='k', cumulative=True)
         except UnboundLocalError:
-            log.warn('All values lie outside the plot range')
+            log.warning('All values lie outside the plot range')
 
     weights = np.ones_like(x[~ok]) / len(x)
     if len(weights) > 0:
@@ -777,7 +777,7 @@ def plot_slices(x, y, ok, bad, x_lo, x_hi, y_cut, num_slices=5, min_count=100,
                 x[~ok], range=(x_lo, x_hi), bins=num_slices, histtype='step',
                 weights=weights, color='k', ls='dashed', cumulative=True)
         except UnboundLocalError:
-            log.warn('All values lie outside the plot range')
+            log.warning('All values lie outside the plot range')
 
     axis.set_ylim(-1.25 * y_cut, +1.25 * y_cut)
     axis.set_xlim(x_lo, x_hi)
@@ -854,7 +854,7 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
             elif ptype == 'OIIFLUX':
                 x = survey['OIIFLUX']
             else:
-                log.warn('Assuming hardcoded filter order')
+                log.warning('Assuming hardcoded filter order')
                 if ptype == 'GMAG':
                     x = survey['MAG'][:,0]
                 elif ptype == 'RMAG':
@@ -878,7 +878,7 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
             #pdb.set_trace()
 
             if len(survey) < 100:
-                log.warn("Insufficient objects of type {:s}.  Skipping slice QA".format(otype))
+                log.warning("Insufficient objects of type {:s}.  Skipping slice QA".format(otype))
                 continue
             lhs, rhs = plot_slices(
                     x=x, y=dv, ok=ok, bad=bad, x_lo=x_min, x_hi=x_max,

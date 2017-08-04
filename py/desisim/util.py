@@ -107,3 +107,38 @@ def medxbin(x,y,binsize,minpts=20,xmin=None,xmax=None):
     stats = stats[good]
 
     return bins[good], stats
+
+#- TODO: move to desiutil
+def dateobs2night(dateobs):
+    '''
+    Convert UTC dateobs to KPNO YEARMMDD night string
+
+    Args:
+        dateobs:
+            float -> interpret as MJD
+            str -> interpret as ISO 8601 YEAR-MM-DDThh:mm:ss.s string
+            astropy.time.Time -> UTC
+            python datetime.datetime -> UTC
+
+    TODO: consider adding format option to pass to astropy.time.Time without
+        otherwise questioning the dateobs format
+    '''
+    import astropy.time
+    import datetime
+    if isinstance(dateobs, float):
+        dateobs = astropy.time.Time(dateobs, format='mjd')
+    elif isinstance(dateobs, datetime.datetime):
+        dateobs = astropy.time.Time(dateobs, format='datetime')
+    elif isinstance(dateobs, str):
+        dateobs = astropy.time.Time(dateobs, format='isot')
+    elif not isinstance(dateobs, astropy.time.Time):
+        raise ValueError('dateobs must be float, str, datetime, or astropy time object')
+
+    import astropy.units as u
+    kpno_time = dateobs - 7*u.hour
+
+    #- "night" rolls over at local noon, not midnight, so subtract another 12 hours
+    yearmmdd = (kpno_time - 12*u.hour).isot[0:10].replace('-', '')
+    assert len(yearmmdd) == 8
+
+    return yearmmdd

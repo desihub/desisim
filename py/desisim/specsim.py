@@ -20,6 +20,8 @@ log = desiutil.log.get_logger()
 def get_simulator(config='desi', num_fibers=1):
     '''
     returns new or cached specsim.simulator.Simulator object
+
+    Also adds placeholder for BGS fiberloss if that isn't already in the config
     '''
     key = (config, num_fibers)
     if key in _simulators:
@@ -38,6 +40,13 @@ def get_simulator(config='desi', num_fibers=1):
         #- New config; create Simulator object
         import specsim.simulator
         qsim = specsim.simulator.Simulator(config, num_fibers)
+
+        #- TODO FIXME HACK: desimodel/specsim doesn't have BGS fiberloss yet
+        #- so scale from LRG
+        if 'bgs' not in qsim.instrument.fiber_acceptance_dict.keys():
+            log.warning('Treating BGS fiberloss = 0.5 * LRG fiberloss')
+            qsim.instrument.fiber_acceptance_dict['bgs'] = 0.5 * qsim.instrument.fiber_acceptance_dict['lrg']
+
         #- Cache defaults to reset back to original state later
         defaults = dict()
         defaults['focal_xy'] = qsim.source.focal_xy
@@ -51,3 +60,4 @@ def get_simulator(config='desi', num_fibers=1):
         _simdefaults[key] = defaults
 
     return qsim
+

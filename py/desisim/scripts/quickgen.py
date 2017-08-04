@@ -7,17 +7,17 @@ This can be run in two distinct modes:
 
 * QUICKGEN MODE
 
-  - must provide simspec and fibermap files via newexp-desi
+  - must provide simspec and fibermap files via newexp script
   - Number of spectra to be simulated can be given as an argument for quickgen,
     but the number of spectra in the simspec file is taken by default
-  - For this option, airmass and exposure time are keywords given to newexp-desi
+  - For this option, airmass and exposure time are keywords given to newexp
   - The keywords provided in the examples are all required, additional keywords
     are provided below
   - Collect a set of templates to simulate as a new exposure::
 
-        newexp-desi --nspec 500 --night 20150915 --expid 0 --flavor dark
+        newexp --nspec 500 --night 20150915 --expid 0 --flavor dark
 
-  - newexp-desi keyword arguments::
+  - newexp keyword arguments::
 
         --flavor : arc/flat/dark/gray/bright/bgs/mws/elg/lrg/qso, type=str, default='dark'
         --tileid : tile id, type=int
@@ -103,6 +103,7 @@ from desisim.obs import get_night
 from desisim.targets import sample_objtype
 from desisim.specsim import get_simulator
 from desimodel.io import load_desiparams
+from desisim.simexp import get_source_types
 
 def _add_truth(hdus, header, meta, trueflux, sflux, wave, channel):
     """Utility function for adding truth to an output FITS file."""
@@ -168,14 +169,10 @@ def parse(options=None):
     if args.simspec:
         args.objtype = None
         if args.fibermap is None:
-            msg = 'If simspec set, must also set fibermap'
-            log.error(msg)
-            raise ValueError(msg)
-        #hdr = fits.getheader(args.simspec)
-        #night = str(hdr['NIGHT'])
-        #expid = int(hdr['EXPID'])
-        #args.simspec = desisim.io.findfile('simspec', night, expid)
-        #args.fibermap = desispec.io.findfile('fibermap', night, expid)
+            dirname = os.path.dirname(os.path.abspath(args.simspec))
+            filename = os.path.basename(args.simspec).replace('simspec', 'fibermap')
+            args.fibermap = os.path.join(dirname, filename)
+            log.warning('deriving fibermap {} from simspec input filename'.format(args.fibermap))
 
     if args.simspec is None and args.brickname is None:
         msg = 'Must have simspec and fibermap files or provide brick name'
@@ -241,7 +238,7 @@ def main(args):
     if args.fibermap:
         log.info("Reading fibermap file {}".format(args.fibermap))
         fibermap=read_fibermap(args.fibermap)
-        objtype=fibermap['OBJTYPE'].copy()
+        objtype = get_source_types(fibermap)
         stdindx=np.where(objtype=='STD') # match STD with STAR
         mwsindx=np.where(objtype=='MWS_STAR') # match MWS_STAR with STAR
         bgsindx=np.where(objtype=='BGS') # match BGS with LRG
@@ -282,6 +279,13 @@ def main(args):
         simspec = desisim.io.read_simspec(args.simspec)
         nspec = simspec.nspec
         if simspec.flavor == 'arc':
+            #- TODO: do we need quickgen to support arcs?  For full pipeline
+            #- arcs are used to measure PSF but aren't extracted except for
+            #- debugging.
+            #- TODO: if we do need arcs, this needs to be redone.
+            #- conversion from phot to flux doesn't include throughput,
+            #- and arc lines are rebinned to nearest 0.2 A.
+
             # Create full wavelength and flux arrays for arc exposure
             wave_b = np.array(simspec.wave['b'])
             wave_r = np.array(simspec.wave['r'])
@@ -416,11 +420,12 @@ def main(args):
     else:
         object_type = None
         flavor = simspec.flavor
-        log.warn('Maybe using an outdated simspec file with flavor={}'.format(flavor))
+        log.warning('Maybe using an outdated simspec file with flavor={}'.format(flavor))
 
     # Set airmass and exptime
     if args.simspec:
-        qsim.atmosphere.airmass = simspec.header['AIRMASS']
+        if 'AIRMASS' in simspec.header:
+            qsim.atmosphere.airmass = simspec.header['AIRMASS']
         qsim.observation.exposure_time = simspec.header['EXPTIME'] * u.s
     else:
         qsim.atmosphere.airmass = args.airmass
@@ -518,7 +523,7 @@ def main(args):
                     np.average(simspec.phot[channel]/dw, axis=0))
                 fiberflat = random_state.normal(loc=1.0,
                     scale=1.0 / np.sqrt(meanspec), size=(nspec, num_pixels))
-                ivar = np.tile(1.0 / meanspec, [nspec, 1])
+                ivar = np.tile(meanspec, [nspec, 1])
                 mask = np.zeros((simspec.nspec, num_pixels), dtype=np.uint32)
 
                 for kk in range((args.nspec+args.nstart-1)//500+1):
