@@ -16,7 +16,6 @@ import astropy.units as u
 from desisim.io import empty_metatable
 
 LIGHT = 2.99792458E5  #- speed of light in km/s
-FLUX_UNIT = u.erg / (u.cm**2 * u.s * u.Angstrom)
 
 class EMSpectrum(object):
     """Construct a complete nebular emission-line spectrum.
@@ -761,9 +760,9 @@ class GALAXY(object):
                         format(np.sum(success == 0)))
 
         if restframe:
-            return outflux * 1e17 * FLUX_UNIT, self.basewave * u.Angstrom, meta
+            return outflux * 1e17 * u.erg / (u.cm**2 * u.s * u.Angstrom), self.basewave * u.Angstrom, meta
         else:
-            return outflux * 1e17 * FLUX_UNIT, self.wave * u.Angstrom, meta
+            return outflux * 1e17 * u.erg / (u.cm**2 * u.s * u.Angstrom), self.wave * u.Angstrom, meta
 
 class ELG(GALAXY):
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs)."""
@@ -1327,9 +1326,9 @@ class SUPERSTAR(object):
                         format(np.sum(success == 0)))
 
         if restframe:
-            return outflux * 1e17 * FLUX_UNIT, self.basewave * u.Angstrom, meta
+            return outflux * 1e17 * u.erg / (u.cm**2 * u.s * u.Angstrom), self.basewave * u.Angstrom, meta
         else:
-            return outflux * 1e17 * FLUX_UNIT, self.wave * u.Angstrom, meta
+            return outflux * 1e17 * u.erg / (u.cm**2 * u.s * u.Angstrom), self.wave * u.Angstrom, meta
 
 class STAR(SUPERSTAR):
     """Generate Monte Carlo spectra of generic stars."""
@@ -1931,4 +1930,4 @@ class QSO():
             log.warning('{} spectra could not be computed given the input priors!'.\
                         format(np.sum(success == 0)))
 
-        return outflux * 1e17 * FLUX_UNIT, self.wave * u.Angstrom, meta
+        return outflux * 1e17 * u.erg / (u.cm**2 * u.s * u.Angstrom), self.wave * u.Angstrom, meta
