@@ -699,20 +699,20 @@ class GALAXY(object):
                             restflux, zwave, mask_invalid=True)[self.normfilter])
                     magnorm = 10**(-0.4*mag[ii]) / normmaggies
 
-                synthnano = np.zeros((nbasechunk, len(self.decamwise)))
-                for ff, key in enumerate(maggies.columns):
-                    synthnano[:, ff] = 1E9 * maggies[key] * magnorm # nanomaggies
+                synthnano = dict()
+                for key in maggies.columns:
+                    synthnano[key] = 1E9 * maggies[key] * magnorm # nanomaggies
                 zlineflux = normlineflux[templateid] * magnorm
 
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, nbasechunk)
                 else:
                     colormask = self.colorcuts_function(
-                        gflux=synthnano[:, 0],
-                        rflux=synthnano[:, 1],
-                        zflux=synthnano[:, 2],
-                        w1flux=synthnano[:, 3],
-                        w2flux=synthnano[:, 4])
+                        gflux=synthnano['decam2014-g'],
+                        rflux=synthnano['decam2014-r'],
+                        zflux=synthnano['decam2014-z'],
+                        w1flux=synthnano['wise2010-W1'],
+                        w2flux=synthnano['wise2010-W2'])
 
                 # If the color-cuts pass then populate the output flux vector
                 # (suitably normalized) and metadata table, convolve with the
@@ -737,11 +737,11 @@ class GALAXY(object):
 
                     meta['TEMPLATEID'][ii] = tempid
                     meta['D4000'][ii] = d4000[tempid]
-                    meta['FLUX_G'][ii] = synthnano[this, 0]
-                    meta['FLUX_R'][ii] = synthnano[this, 1]
-                    meta['FLUX_Z'][ii] = synthnano[this, 2]
-                    meta['FLUX_W1'][ii] = synthnano[this, 3]
-                    meta['FLUX_W2'][ii] = synthnano[this, 4]
+                    meta['FLUX_G'][ii] = synthnano['decam2014-g'][this]
+                    meta['FLUX_R'][ii] = synthnano['decam2014-r'][this]
+                    meta['FLUX_Z'][ii] = synthnano['decam2014-z'][this]
+                    meta['FLUX_W1'][ii] = synthnano['wise2010-W1'][this]
+                    meta['FLUX_W2'][ii] = synthnano['wise2010-W2'][this]
 
                     if self.normline is not None:
                         if self.normline == 'OII':
@@ -1271,19 +1271,19 @@ class SUPERSTAR(object):
                         restflux, zwave, mask_invalid=True)[self.normfilter])
                 magnorm = 10**(-0.4*mag[ii]) / normmaggies
 
-                synthnano = np.zeros((nbasechunk, len(self.decamwise)))
-                for ff, key in enumerate(maggies.columns):
-                    synthnano[:, ff] = 1E9 * maggies[key] * magnorm
+                synthnano = dict()
+                for key in maggies.columns:
+                    synthnano[key] = 1E9 * maggies[key] * magnorm
 
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, nbasechunk)
                 else:
                     colormask = self.colorcuts_function(
-                        gflux=synthnano[:, 0],
-                        rflux=synthnano[:, 1],
-                        zflux=synthnano[:, 2],
-                        w1flux=synthnano[:, 3],
-                        w2flux=synthnano[:, 4])
+                        gflux=synthnano['decam2014-g'],
+                        rflux=synthnano['decam2014-r'],
+                        zflux=synthnano['decam2014-z'],
+                        w1flux=synthnano['wise2010-W1'],
+                        w2flux=synthnano['wise2010-W2'])
 
                 # If the color-cuts pass then populate the output flux vector
                 # (suitably normalized) and metadata table and finish up.
@@ -1300,11 +1300,11 @@ class SUPERSTAR(object):
                                                        extrapolate=True) * magnorm[this]
 
                     meta['TEMPLATEID'][ii] = tempid
-                    meta['FLUX_G'][ii] = synthnano[this, 0]
-                    meta['FLUX_R'][ii] = synthnano[this, 1]
-                    meta['FLUX_Z'][ii] = synthnano[this, 2]
-                    meta['FLUX_W1'][ii] = synthnano[this, 3]
-                    meta['FLUX_W2'][ii] = synthnano[this, 4]
+                    meta['FLUX_G'][ii] = synthnano['decam2014-g'][this]
+                    meta['FLUX_R'][ii] = synthnano['decam2014-r'][this]
+                    meta['FLUX_Z'][ii] = synthnano['decam2014-z'][this]
+                    meta['FLUX_W1'][ii] = synthnano['wise2010-W1'][this]
+                    meta['FLUX_W2'][ii] = synthnano['wise2010-W2'][this]
 
                     if star_properties is None:
                         meta['TEFF'][ii] = self.basemeta['TEFF'][tempid]
@@ -1890,19 +1890,20 @@ class QSO():
                         padflux, padzwave, mask_invalid=True)[self.normfilter])
                 magnorm = 10**(-0.4*mag[ii]) / normmaggies
 
-                synthnano = np.zeros((N_perz, len(self.decamwise)))
-                for ff, key in enumerate(maggies.columns):
-                    synthnano[:, ff] = 1E9 * maggies[key] * magnorm
+                synthnano = dict()
+                for key in maggies.columns:
+                    synthnano[key] = 1E9 * maggies[key] * magnorm
 
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, N_perz)
                 else:
                     colormask = self.colorcuts_function(
-                        gflux=synthnano[:, 0],
-                        rflux=synthnano[:, 1],
-                        zflux=synthnano[:, 2],
-                        w1flux=synthnano[:, 3],
-                        w2flux=synthnano[:, 4], optical=True)
+                        gflux=synthnano['decam2014-g'],
+                        rflux=synthnano['decam2014-r'],
+                        zflux=synthnano['decam2014-z'],
+                        w1flux=synthnano['wise2010-W1'],
+                        w2flux=synthnano['wise2010-W2'],
+                        optical=True)
 
                 # If the color-cuts pass then populate the output flux vector
                 # (suitably normalized) and metadata table and finish up.
@@ -1911,11 +1912,11 @@ class QSO():
                     outflux[ii, :] = resample_flux(self.wave, zwave[:, ii], flux[this, :],
                                                    extrapolate=True) * magnorm[this]
 
-                    meta['FLUX_G'][ii] = synthnano[this, 0]
-                    meta['FLUX_R'][ii] = synthnano[this, 1]
-                    meta['FLUX_Z'][ii] = synthnano[this, 2]
-                    meta['FLUX_W1'][ii] = synthnano[this, 3]
-                    meta['FLUX_W2'][ii] = synthnano[this, 4]
+                    meta['FLUX_G'][ii] = synthnano['decam2014-g'][this]
+                    meta['FLUX_R'][ii] = synthnano['decam2014-r'][this]
+                    meta['FLUX_Z'][ii] = synthnano['decam2014-z'][this]
+                    meta['FLUX_W1'][ii] = synthnano['wise2010-W1'][this]
+                    meta['FLUX_W2'][ii] = synthnano['wise2010-W2'][this]
 
                     makemore = False
 
