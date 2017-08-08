@@ -916,7 +916,7 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype='', add_SNeIa=None):
     meta.add_column(Column(name='REDSHIFT', length=nmodel, dtype='f4',
                            data=np.zeros(nmodel)))
     meta.add_column(Column(name='MAG', length=nmodel, dtype='f4',
-                           data=np.zeros(nmodel)-1), unit='mag')
+                           data=np.zeros(nmodel)-1, unit='mag'))
     meta.add_column(Column(name='FLUX_G', length=nmodel, dtype='f4',
                            unit='nanomaggies'))
     meta.add_column(Column(name='FLUX_R', length=nmodel, dtype='f4',

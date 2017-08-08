@@ -78,7 +78,7 @@ class TestTemplates(unittest.TestCase):
         for i in range(len(meta)):
             z = meta['REDSHIFT'][i]
             ii = (3722*(1+z) < wave) & (wave < 3736*(1+z))
-            OIIflux = 1e-17 * np.sum(flux[i,ii].value * np.gradient(wave[ii]))
+            OIIflux = 1e-17 * np.sum(flux[i,ii] * np.gradient(wave[ii]))
             self.assertAlmostEqual(OIIflux, meta['OIIFLUX'][i], 2)
     
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
@@ -100,7 +100,7 @@ class TestTemplates(unittest.TestCase):
         for i in range(len(meta)):
             z = meta['REDSHIFT'][i]
             ii = (4854*(1+z) < wave) & (wave < 4868*(1+z))
-            hbetaflux = 1e-17 * np.sum(flux[i,ii].value * np.gradient(wave[ii]))
+            hbetaflux = 1e-17 * np.sum(flux[i,ii] * np.gradient(wave[ii]))
             self.assertAlmostEqual(hbetaflux, meta['HBETAFLUX'][i], 2)
     
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
@@ -157,7 +157,7 @@ class TestTemplates(unittest.TestCase):
                         badkeys.append(key)
 
             self.assertEqual(len(badkeys), 0, 'mismatch for spectral type {} in keys {}'.format(meta1['OBJTYPE'][0], badkeys))
-            self.assertTrue(np.allclose(flux1.value, flux2.value))
+            self.assertTrue(np.allclose(flux1, flux2))
             self.assertTrue(np.all(wave1 == wave2))
 
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
