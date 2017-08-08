@@ -483,11 +483,12 @@ class GALAXY(object):
             templates instead of resampled observer frame.
           verbose (bool, optional): Be verbose!
 
-        Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+        Returns (outflux, wave, meta) tuple where:
+
+          * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
             spectra (1e-17 erg/s/cm2/A).
-          wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
-          meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
+          * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
+          * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
         Raises:
           ValueError
@@ -823,11 +824,12 @@ class ELG(GALAXY):
           minoiiflux (float, optional): Minimum [OII] 3727 flux (default 0.0
             erg/s/cm2).
 
-        Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+        Returns (outflux, wave, meta) tuple where:
+
+          * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
             spectra (1e-17 erg/s/cm2/A).
-          wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
-          meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
+          * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
+          * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
         Raises:
 
@@ -905,14 +907,12 @@ class BGS(GALAXY):
           minhbetaflux (float, optional): Minimum H-beta flux (default 0.0
             erg/s/cm2).
 
-        Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+        Returns (outflux, wave, meta) tuple where:
+
+          * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
             spectra (1e-17 erg/s/cm2/A).
-          wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
-          meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
-
-        Raises:
-
+          * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
+          * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
         """
         outflux, wave, meta = self.make_galaxy_templates(nmodel=nmodel, zrange=zrange, magrange=rmagrange,
                                                          oiiihbrange=oiiihbrange, logvdisp_meansig=logvdisp_meansig,
@@ -974,11 +974,12 @@ class LRG(GALAXY):
           agnlike (bool, optional): adopt AGN-like emission-line ratios (not yet
             supported; defaults False).
 
-        Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+        Returns (outflux, wave, meta) tuple where:
+
+          * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
             spectra (1e-17 erg/s/cm2/A).
-          wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
-          meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
+          * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
+          * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
         Raises:
 
@@ -1137,11 +1138,12 @@ class SUPERSTAR(object):
             templates instead of resampled observer frame.
           verbose (bool, optional): Be verbose!
 
-        Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+        Returns (outflux, wave, meta) tuple where:
+
+          * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
             spectra (1e-17 erg/s/cm2/A).
-          wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
-          meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
+          * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
+          * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
         Raises:
           ValueError
@@ -1374,11 +1376,12 @@ class STAR(SUPERSTAR):
             magnitude range.  Defaults to a uniform distribution between (18,
             23.5).
 
-        Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+        Returns (outflux, wave, meta) tuple where:
+
+          * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
             spectra (1e-17 erg/s/cm2/A).
-          wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
-          meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
+          * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
+          * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
         Raises:
 
@@ -1434,11 +1437,12 @@ class FSTD(SUPERSTAR):
             magnitude range.  Defaults to a uniform distribution between (16,
             19).
 
-        Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+        Returns (outflux, wave, meta) tuple where:
+
+          * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
             spectra (1e-17 erg/s/cm2/A).
-          wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
-          meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
+          * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
+          * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
         Raises:
 
@@ -1494,11 +1498,12 @@ class MWS_STAR(SUPERSTAR):
             magnitude range.  Defaults to a uniform distribution between (16,
             20).
 
-        Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+        Returns (outflux, wave, meta) tuple where:
+
+          * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
             spectra (1e-17 erg/s/cm2/A).
-          wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
-          meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
+          * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
+          * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
         Raises:
 
@@ -1551,11 +1556,12 @@ class WD(SUPERSTAR):
             magnitude range.  Defaults to a uniform distribution between (16,
             19).
 
-        Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+        Returns (outflux, wave, meta) tuple where:
+
+          * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
             spectra (1e-17 erg/s/cm2/A).
-          wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
-          meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
+          * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
+          * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
         Raises:
           ValueError: If the INPUT_META or STAR_PROPERTIES table contains
@@ -1735,11 +1741,13 @@ class QSO():
           nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
             cuts (default False).
           verbose (bool, optional): Be verbose!
-        Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+
+        Returns (outflux, wave, meta) tuple where:
+
+          * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
             spectra (1e-17 erg/s/cm2/A).
-          wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
-          meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
+          * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
+          * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
         Raises:
           ValueError
