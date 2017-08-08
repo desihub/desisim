@@ -39,38 +39,6 @@ def calc_dzsig(simz_tab):
     return dzsig
 
 
-def elg_flux_lim(z, oii_flux):
-    '''Assess which objects pass the ELG flux limit
-    Uses DESI document 318 from August 2014
-
-    Parameters
-    ----------
-    z : ndarray
-      ELG redshifts
-    oii_flux : ndarray
-      [OII] fluxes
-    '''
-    # Init mask
-    mask = np.array([False]*len(z))
-    #
-    # Flux limits from document
-    zmin = 0.6
-    zstep = 0.2
-    OII_lim = np.array([10., 9., 9., 9., 9])*1e-17
-    # Get bin
-    zbin = (z-0.6)/zstep
-    gd = np.where((zbin>0.) & (zbin<len(OII_lim)) &
-        (oii_flux>0.))[0]
-    # Fill gd
-    OII_match = np.zeros(len(gd))
-    for igd in gd:
-        OII_match[igd] = OII_lim[int(zbin[igd])]
-    # Query
-    gd_gd = np.where(oii_flux[gd] > OII_match)[0]
-    mask[gd_gd] = True
-    # Return
-    return mask
-
 def calc_stats(simz_tab, objtype, flux_lim=True):
     """Calculate redshift statistics for a given objtype
 
@@ -144,29 +112,6 @@ def calc_stats(simz_tab, objtype, flux_lim=True):
     # Return
     return stat_dict
 
-def catastrophic_dv(objtype):
-    '''Pass back catastrophic velocity limit for given objtype
-    From DESI document 318 (August 2014) in docdb
-
-    Parameters
-    ----------
-    objtype : str
-      Object type, e.g. 'ELG', 'LRG'
-    '''
-    cat_dict = dict(ELG=1000., LRG=1000., QSO_L=1000., QSO_T=1000.)
-    #
-    return cat_dict[objtype]
-
-
-def get_sty_otype():
-    '''Styles for plots'''
-    sty_otype = dict(ELG={'color':'green', 'lbl':'ELG'},
-        LRG={'color':'red', 'lbl':'LRG'},
-        QSO={'color':'blue', 'lbl':'QSO'},
-        QSO_L={'color':'blue', 'lbl':'QSO z>2.1'},
-        QSO_T={'color':'cyan', 'lbl':'QSO z<2.1'})
-    return sty_otype
-
 
 def load_z(fibermap_files, zbest_files, outfil=None):
     '''Load input and output redshift values for a set of exposures
@@ -208,7 +153,8 @@ def load_z(fibermap_files, zbest_files, outfil=None):
         sps_hdu = fits.open(simspec_file)
         # Make Tables
         fbm_tabs.append(Table(fbm_hdu['FIBERMAP'].data,masked=True))
-        sps_tabs.append(Table(sps_hdu['METADATA'].data,masked=True))
+        #sps_tabs.append(Table(sps_hdu['METADATA'].data,masked=True))
+        sps_tabs.append(Table(sps_hdu['TRUTH'].data,masked=True))
         sps_hdu.close()
 
     # Stack
