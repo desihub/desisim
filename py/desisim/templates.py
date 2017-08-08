@@ -914,7 +914,6 @@ class BGS(GALAXY):
         Raises:
 
         """
-
         outflux, wave, meta = self.make_galaxy_templates(nmodel=nmodel, zrange=zrange, magrange=rmagrange,
                                                          oiiihbrange=oiiihbrange, logvdisp_meansig=logvdisp_meansig,
                                                          minlineflux=minhbetaflux, redshift=redshift, vdisp=vdisp,
