@@ -484,7 +484,8 @@ class GALAXY(object):
           verbose (bool, optional): Be verbose!
 
         Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
+          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+            spectra (1e-17 erg/s/cm2/A).
           wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
           meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
@@ -760,9 +761,9 @@ class GALAXY(object):
                         format(np.sum(success == 0)))
 
         if restframe:
-            return outflux * 1e17 * u.erg / (u.cm**2 * u.s * u.Angstrom), self.basewave * u.Angstrom, meta
+            return 1e17 * outflux, self.basewave, meta
         else:
-            return outflux * 1e17 * u.erg / (u.cm**2 * u.s * u.Angstrom), self.wave * u.Angstrom, meta
+            return 1e17 * outflux, self.wave, meta
 
 class ELG(GALAXY):
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs)."""
@@ -823,7 +824,8 @@ class ELG(GALAXY):
             erg/s/cm2).
 
         Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
+          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+            spectra (1e-17 erg/s/cm2/A).
           wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
           meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
@@ -904,7 +906,8 @@ class BGS(GALAXY):
             erg/s/cm2).
 
         Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
+          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+            spectra (1e-17 erg/s/cm2/A).
           wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
           meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
@@ -973,7 +976,8 @@ class LRG(GALAXY):
             supported; defaults False).
 
         Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
+          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+            spectra (1e-17 erg/s/cm2/A).
           wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
           meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
@@ -1135,7 +1139,8 @@ class SUPERSTAR(object):
           verbose (bool, optional): Be verbose!
 
         Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
+          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+            spectra (1e-17 erg/s/cm2/A).
           wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
           meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
@@ -1326,9 +1331,9 @@ class SUPERSTAR(object):
                         format(np.sum(success == 0)))
 
         if restframe:
-            return outflux * 1e17 * u.erg / (u.cm**2 * u.s * u.Angstrom), self.basewave * u.Angstrom, meta
+            return 1e17 * outflux, self.basewave, meta
         else:
-            return outflux * 1e17 * u.erg / (u.cm**2 * u.s * u.Angstrom), self.wave * u.Angstrom, meta
+            return 1e17 * outflux, self.wave, meta
 
 class STAR(SUPERSTAR):
     """Generate Monte Carlo spectra of generic stars."""
@@ -1371,7 +1376,8 @@ class STAR(SUPERSTAR):
             23.5).
 
         Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
+          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+            spectra (1e-17 erg/s/cm2/A).
           wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
           meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
@@ -1430,7 +1436,8 @@ class FSTD(SUPERSTAR):
             19).
 
         Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
+          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+            spectra (1e-17 erg/s/cm2/A).
           wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
           meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
@@ -1489,7 +1496,8 @@ class MWS_STAR(SUPERSTAR):
             20).
 
         Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
+          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+            spectra (1e-17 erg/s/cm2/A).
           wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
           meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
@@ -1545,7 +1553,8 @@ class WD(SUPERSTAR):
             19).
 
         Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
+          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+            spectra (1e-17 erg/s/cm2/A).
           wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
           meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
@@ -1728,7 +1737,8 @@ class QSO():
             cuts (default False).
           verbose (bool, optional): Be verbose!
         Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
+          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+            spectra (1e-17 erg/s/cm2/A).
           wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
           meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
@@ -1931,4 +1941,4 @@ class QSO():
             log.warning('{} spectra could not be computed given the input priors!'.\
                         format(np.sum(success == 0)))
 
-        return outflux * 1e17 * u.erg / (u.cm**2 * u.s * u.Angstrom), self.wave * u.Angstrom, meta
+        return 1e17 * outflux, self.wave, meta
