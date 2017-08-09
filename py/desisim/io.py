@@ -863,7 +863,7 @@ def write_templates(outfile, flux, wave, meta, objtype=None,
         CDELT1 = (wave[1]-wave[0], 'Wavelength step [Angstrom]'),
         LOGLAM = (0, 'linear wavelength steps, not log10'),
         AIRORVAC = ('vac', 'wavelengths in vacuum (vac) or air'),
-        BUNIT = ('erg/s/cm2/A', 'spectrum flux units')
+        BUNIT = ('1e-17 erg/(s cm2 Angstrom)', 'spectrum flux units')
         )
     hdr = fitsheader(header)
 
@@ -916,9 +916,17 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype='', add_SNeIa=None):
     meta.add_column(Column(name='REDSHIFT', length=nmodel, dtype='f4',
                            data=np.zeros(nmodel)))
     meta.add_column(Column(name='MAG', length=nmodel, dtype='f4',
-                           data=np.zeros(nmodel)-1))
-    meta.add_column(Column(name='DECAM_FLUX', shape=(6,), length=nmodel, dtype='f4'))
-    meta.add_column(Column(name='WISE_FLUX', shape=(2,), length=nmodel, dtype='f4'))
+                           data=np.zeros(nmodel)-1, unit='mag'))
+    meta.add_column(Column(name='FLUX_G', length=nmodel, dtype='f4',
+                           unit='nanomaggies'))
+    meta.add_column(Column(name='FLUX_R', length=nmodel, dtype='f4',
+                           unit='nanomaggies'))
+    meta.add_column(Column(name='FLUX_Z', length=nmodel, dtype='f4',
+                           unit='nanomaggies'))
+    meta.add_column(Column(name='FLUX_W1', length=nmodel, dtype='f4',
+                           unit='nanomaggies'))
+    meta.add_column(Column(name='FLUX_W2', length=nmodel, dtype='f4',
+                           unit='nanomaggies'))
 
     meta.add_column(Column(name='OIIFLUX', length=nmodel, dtype='f4',
                            data=np.zeros(nmodel)-1, unit='erg/(s*cm2)'))

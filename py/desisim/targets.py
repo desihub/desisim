@@ -335,17 +335,15 @@ def get_targets(nspec, program, tileid=None, seed=None, specmin=0):
         else:
             raise ValueError('Unable to simulate OBJTYPE={}'.format(objtype))
 
-        flux[ii] = 1e17 * simflux
+        flux[ii] = simflux
         meta[ii] = meta1
 
-        ugrizy = 22.5-2.5*np.log10(meta1['DECAM_FLUX'].data)
-        wise = 22.5-2.5*np.log10(meta1['WISE_FLUX'].data)
         fibermap['FILTER'][ii, :6] = ['DECAM_G', 'DECAM_R', 'DECAM_Z', 'WISE_W1', 'WISE_W2']
-        fibermap['MAG'][ii, 0] = ugrizy[:, 1]
-        fibermap['MAG'][ii, 1] = ugrizy[:, 2]
-        fibermap['MAG'][ii, 2] = ugrizy[:, 4]
-        fibermap['MAG'][ii, 3] = wise[:, 0]
-        fibermap['MAG'][ii, 4] = wise[:, 1]
+        fibermap['MAG'][ii, 0] = 22.5 - 2.5 * np.log10(meta['FLUX_G'][ii])
+        fibermap['MAG'][ii, 1] = 22.5 - 2.5 * np.log10(meta['FLUX_R'][ii])
+        fibermap['MAG'][ii, 2] = 22.5 - 2.5 * np.log10(meta['FLUX_Z'][ii])
+        fibermap['MAG'][ii, 3] = 22.5 - 2.5 * np.log10(meta['FLUX_W1'][ii])
+        fibermap['MAG'][ii, 4] = 22.5 - 2.5 * np.log10(meta['FLUX_W2'][ii])
 
     #- Load fiber -> positioner mapping and tile information
     fiberpos = desimodel.io.load_fiberpos()
