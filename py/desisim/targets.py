@@ -173,7 +173,7 @@ def _wrap_get_targets(args):
     nspec, program, tileid, seed, specmin = args
     return get_targets(nspec, program, tileid, seed=seed, specmin=specmin)
 
-def get_targets_parallel(nspec, program, tileid=None, nproc=None, seed=None):
+def get_targets_parallel(nspec, program, tileid=None, nproc=None, seed=None, specify_targets=None):
     '''
     Parallel wrapper for get_targets()
 
@@ -186,7 +186,7 @@ def get_targets_parallel(nspec, program, tileid=None, nproc=None, seed=None):
     #- don't bother with parallelism if there aren't many targets
     if nspec < 20:
         log.debug('Not Parallelizing get_targets for only {} targets'.format(nspec))
-        return get_targets(nspec, program, tileid, seed=seed)
+        return get_targets(nspec, program, tileid, seed=seed, specify_targets=specify_targets)
     else:
         nproc = min(nproc, nspec//10)
         log.debug('Parallelizing get_targets using {} cores'.format(nproc))
@@ -197,9 +197,9 @@ def get_targets_parallel(nspec, program, tileid=None, nproc=None, seed=None):
         seeds = np.random.randint(2**32, size=nspec)
         for i in range(0, nspec, n):
             if i+n < nspec:
-                args.append( (n, program, tileid, seeds[i], i) )
+                args.append( (n, program, tileid, seeds[i], specify_targets, i) )
             else:
-                args.append( (nspec-i, program, tileid, seeds[i], i) )
+                args.append( (nspec-i, program, tileid, seeds[i], specify_targets, i) )
 
         pool = mp.Pool(nproc)
         results = pool.map(_wrap_get_targets, args)
@@ -225,7 +225,7 @@ def get_targets_parallel(nspec, program, tileid=None, nproc=None, seed=None):
 
         return fibermap, (flux, wave, meta)
 
-def get_targets(nspec, program, tileid=None, seed=None, specmin=0):
+def get_targets(nspec, program, tileid=None, seed=None, specify_targets=None, specmin=0):
     """
     Generates a set of targets for the requested program
 
@@ -236,6 +236,9 @@ def get_targets(nspec, program, tileid=None, seed=None, specmin=0):
     Options:
         tileid: (int) tileid, used for setting RA,dec
         seed: (int) random number seed
+        specify_targets: dict;  Define target properties like magnitude and redshift
+                                see simspec.templates.specify_galparams_dict() or 
+                                simsepc.templates.specify_starparams_dict()
         specmin: (int) first spectrum number (0-indexed)
 
     Returns:
@@ -279,19 +282,28 @@ def get_targets(nspec, program, tileid=None, seed=None, specmin=0):
         elif objtype == 'ELG':
             from desisim.templates import ELG
             elg = ELG(wave=wave)
-            simflux, wave1, meta1 = elg.make_templates(nmodel=nobj, seed=seed)
+            if specify_targets is None:
+                simflux, wave1, meta1 = elg.make_templates(nmodel=nobj, seed=seed)
+            else:
+                simflux, wave1, meta1 = elg.make_templates(nmodel=nobj, seed=seed, **specify_targets)
             fibermap['DESI_TARGET'][ii] = desi_mask.ELG
 
         elif objtype == 'LRG':
             from desisim.templates import LRG
             lrg = LRG(wave=wave)
-            simflux, wave1, meta1 = lrg.make_templates(nmodel=nobj, seed=seed)
+            if specify_targets is None:
+                simflux, wave1, meta1 = lrg.make_templates(nmodel=nobj, seed=seed)
+            else:
+                simflux, wave1, meta1 = lrg.make_templates(nmodel=nobj, seed=seed, **specify_targets)
             fibermap['DESI_TARGET'][ii] = desi_mask.LRG
 
         elif objtype == 'BGS':
             from desisim.templates import BGS
             bgs = BGS(wave=wave)
-            simflux, wave1, meta1 = bgs.make_templates(nmodel=nobj, seed=seed)
+            if specify_targets is None:
+                simflux, wave1, meta1 = bgs.make_templates(nmodel=nobj, seed=seed)
+            else:
+                simflux, wave1, meta1 = bgs.make_templates(nmodel=nobj, seed=seed), **specify_targets
             fibermap['DESI_TARGET'][ii] = desi_mask.BGS_ANY
             fibermap['BGS_TARGET'][ii] = bgs_mask.BGS_BRIGHT
 
@@ -319,14 +331,20 @@ def get_targets(nspec, program, tileid=None, seed=None, specmin=0):
         elif objtype == 'STD':
             from desisim.templates import FSTD
             fstd = FSTD(wave=wave)
-            simflux, wave1, meta1 = fstd.make_templates(nmodel=nobj, seed=seed)
+            if specify_targets is None:
+                simflux, wave1, meta1 = fstd.make_templates(nmodel=nobj, seed=seed)
+            else:
+                simflux, wave1, meta1 = fstd.make_templates(nmodel=nobj, seed=seed, **specify_targets)
             fibermap['DESI_TARGET'][ii] = desi_mask.STD_FSTAR
 
         elif objtype == 'MWS_STAR':
             from desisim.templates import MWS_STAR
             mwsstar = MWS_STAR(wave=wave)
             # todo: mag ranges for different programs of STAR targets should be in desimodel
-            simflux, wave1, meta1 = mwsstar.make_templates(nmodel=nobj,rmagrange=(15.0,20.0), seed=seed)
+            if specify_targets is None:
+                from desisim.templates import specify_starparams_dict
+                specify_targets = specify_starparams_dict('MWS_STAR',magrange=(15.0,20.0))
+            simflux, wave1, meta1 = mwsstar.make_templates(nmodel=nobj, seed=seed, **specify_targets)
             fibermap['DESI_TARGET'][ii] = desi_mask.MWS_ANY
             #- MWS bit names changed after desitarget 0.6.0 so use number
             #- instead of name for now (bit 0 = mask 1 = MWS_MAIN currently)

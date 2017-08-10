@@ -1949,3 +1949,95 @@ class QSO():
                         format(np.sum(success == 0)))
 
         return 1e17 * outflux, self.wave, meta
+
+
+def specify_galparams_dict(templatetype, zrange=None, magrange=None,
+                            oiiihbrange=None, logvdisp_meansig=None,
+                            minlineflux=None, sne_rfluxratiorange=None,
+                            redshift=None, mag=None, vdisp=None,
+                            nocolorcuts=None, nocontinuum=None,
+                            agnlike=None, novdisp=None, restframe=None):
+    
+    '''
+    Creates a dictionary of keyword variables to be passed to GALAXY.make_templates (or one
+    of GALAXY's child classes). Allows the user to fully define the templated spectra, via
+    defining individual targets or ranges in values. Values already specified in get_targets
+    are not included here. Anything not define or set to None will not be assigned and 
+    *.make_templates will assume the following as defaults:
+      nmodel=100, zrange=(0.6, 1.6), magrange=(21.0, 23.5),
+      oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
+      minlineflux=0.0, sne_rfluxratiorange=(0.01, 0.1),
+      seed=None, redshift=None, mag=None, vdisp=None,
+      input_meta=None, nocolorcuts=False, nocontinuum=False,
+      agnlike=False, novdisp=False, restframe=False, verbose=False
+    '''
+    fulldef_dict = {}
+    if zrange is not None:
+        fulldef_dict['zrange'] = zrange
+    if magrange is not None:
+        if templatetype == 'LRG':
+            fulldef_dict['zmagrange'] = magrange
+        else:
+            fulldef_dict['rmagrange'] = magrange
+    if oiiihbrange is not None:
+        fulldef_dict['oiiihbrange'] = oiiihbrange
+    if logvdisp_meansig is not None:
+        fulldef_dict['logvdisp_meansig'] = logvdisp_meansig
+    if minlineflux is not None:
+        fulldef_dict['minlineflux'] = minlineflux
+    if sne_rfluxratiorange is not None:
+        fulldef_dict['sne_rfluxratiorange'] = sne_rfluxratiorange
+    if redshift is not None:
+        fulldef_dict['redshift'] = redshift
+    if mag is not None:
+        fulldef_dict['mag'] = mag
+    if vdisp is not None:
+        fulldef_dict['vdisp'] = vdisp
+    if nocolorcuts is not None:
+        fulldef_dict['nocolorcuts'] = nocolorcuts
+    if nocontinuum is not None:
+        fulldef_dict['nocontinuum'] = nocontinuum
+    if agnlike is not None:
+        fulldef_dict['agnlike'] = agnlike
+    if novdisp is not None:
+        fulldef_dict['novdisp'] = novdisp
+    if restframe is not None:
+        fulldef_dict['restframe'] = restframe    
+    return fulldef_dict
+
+def specify_starparams_dict(templatetype,vrad_meansig=None,
+                            magrange=None, redshift=None,
+                            mag=None, input_meta=None, star_properties=None,
+                            nocolorcuts=None, restframe=None):
+    '''
+    Creates a dictionary of keyword variables to be passed to SUPERSTAR.make_templates (or one
+    of SUPERSTAR's child classes). Allows the user to fully define the templated spectra, via
+    defining individual targets or ranges in values. Values already specified in get_targets
+    are not included here. Anything not define or set to None will not be assigned and 
+    *.make_templates will assume the following as defaults:    
+    nmodel=100, vrad_meansig=(0.0, 200.0),
+    magrange=(18.0, 23.5), seed=None, redshift=None,
+    mag=None, input_meta=None, star_properties=None,
+    nocolorcuts=False, restframe=False, verbose=False)
+    '''
+    fulldef_dict = {}
+    if vrad_meansig is not None:
+        fulldef_dict['vrad_meansig'] = vrad_meansig
+    if magrange is not None:
+        if templatetype=='WD':
+            fulldef_dict['gmagrange'] = magrange
+        else:
+            fulldef_dict['rmagrange'] = magrange
+    if redshift is not None:
+        fulldef_dict['redshift'] = redshift
+    if mag is not None:
+        fulldef_dict['mag'] = mag
+    if input_meta is not None:
+        fulldef_dict['input_meta'] = input_meta
+    if star_properties is not None:
+        fulldef_dict['star_properties'] = star_properties
+    if nocolorcuts is not None:
+        fulldef_dict['nocolorcuts'] = nocolorcuts
+    if restframe is not None:
+        fulldef_dict['restframe'] = restframe
+    return fulldef_dict

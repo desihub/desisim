@@ -29,7 +29,7 @@ import desisim.simexp
 from .simexp import simulate_spectra
 
 def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
-                 seed=None, obsconditions=None, testslit=False, exptime=None,
+                 seed=None, obsconditions=None, specify_targets=None, testslit=False, exptime=None,
                  arc_lines_filename=None, flat_spectrum_filename=None):
     """
     Create a new exposure and output input simulation files.
@@ -45,6 +45,9 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         tileid : integer tile ID
         seed : random seed
         obsconditions: str or dict-like; see options below
+        specify_targets: dict;  Define target properties like magnitude and redshift
+                                see simspec.templates.specify_galparams_dict() or 
+                                simsepc.templates.specify_starparams_dict()
         exptime: float exposure time [seconds], overrides obsconditions['EXPTIME']
 
         testslit : simulate test slit if True, default False; only for arc/flat
@@ -149,7 +152,8 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         return truth, fibermap, None, None
 
     #- all other programs
-    fibermap, (flux, wave, meta) = get_targets_parallel(nspec, program, tileid=tileid, seed=seed)
+    fibermap, (flux, wave, meta) = get_targets_parallel(nspec, program, tileid=tileid, \
+                                          seed=seed, specify_targets=specify_targets)
 
     if obsconditions is None:
         if program in ['dark', 'lrg', 'qso']:
