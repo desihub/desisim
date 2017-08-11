@@ -234,16 +234,16 @@ def get_targets(nspec, program, tileid=None, seed=None, specify_targets=None, sp
         program: (str) program name DARK, BRIGHT, GRAY, MWS, BGS, LRG, ELG, ...
 
     Options:
-        tileid: (int) tileid, used for setting RA,dec
-        seed: (int) random number seed
-        specify_targets: dict;  Define target properties like magnitude and redshift
-                                see simspec.templates.specify_galparams_dict() or 
-                                simsepc.templates.specify_starparams_dict()
-        specmin: (int) first spectrum number (0-indexed)
+      * tileid: (int) tileid, used for setting RA,dec
+      * seed: (int) random number seed
+      * specify_targets: (dict)  Define target properties like magnitude and redshift
+                                see simspec.templates.specify_galparams_dict() 
+                                or simsepc.templates.specify_starparams_dict()
+      * specmin: (int) first spectrum number (0-indexed)
 
     Returns:
-        fibermap
-        targets as tuple of (flux, wave, meta)
+      * fibermap
+      * targets as tuple of (flux, wave, meta)
     """
     if tileid is None:
         tile_ra, tile_dec = 0.0, 0.0
@@ -303,7 +303,7 @@ def get_targets(nspec, program, tileid=None, seed=None, specify_targets=None, sp
             if specify_targets is None:
                 simflux, wave1, meta1 = bgs.make_templates(nmodel=nobj, seed=seed)
             else:
-                simflux, wave1, meta1 = bgs.make_templates(nmodel=nobj, seed=seed), **specify_targets
+                simflux, wave1, meta1 = bgs.make_templates(nmodel=nobj, seed=seed, **specify_targets)
             fibermap['DESI_TARGET'][ii] = desi_mask.BGS_ANY
             fibermap['BGS_TARGET'][ii] = bgs_mask.BGS_BRIGHT
 
