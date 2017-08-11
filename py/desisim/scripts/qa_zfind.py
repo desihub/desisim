@@ -25,6 +25,7 @@ def parse(options=None):
     parser.add_argument('--qafile', type = str, default = None, required=False,
                         help = 'path of QA file.')
     parser.add_argument('--qafig', type=str, default=None, help = 'path of QA figure file')
+    parser.add_argument('--write_simz_table', type=str, default=None, help = 'Write simz to this filename')
 
     if options is None:
         args = parser.parse_args()
@@ -115,8 +116,10 @@ def main(args):
         log.fatal('No zbest files found')
         sys.exit(1)
 
-    # Load Table
+    # Write? Table
     simz_tab = dsqa_z.load_z(fibermap_files, zbest_files)
+    if args.write_simz_table is not None:
+        simz_tab.write(args.write_simz_table, overwrite=True)
     #from astropy.table import Table
     #simz_tab = Table.read('tmp_simz.fits')
 
