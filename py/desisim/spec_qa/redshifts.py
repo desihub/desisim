@@ -20,13 +20,15 @@ import matplotlib.gridspec as gridspec
 from astropy.io import fits
 from astropy.table import Table, vstack, hstack, MaskedColumn, join
 
+from .utils import elg_flux_lim, get_sty_otype, catastrophic_dv
+
 from desiutil.log import get_logger, DEBUG
 
 
 def calc_dz(simz_tab):
     '''Calcualte deltaz/(1+z) for a given simz_tab
     '''
-    dz = (simz_tab['Z']-simz_tab['REDSHIFT'])/(1+simz_tab['REDSHIFT'])
+    dz = (simz_tab['Z']-simz_tab['TRUEZ'])/(1+simz_tab['TRUEZ'])
     #
     return dz
 
@@ -34,7 +36,7 @@ def calc_dz(simz_tab):
 def calc_dzsig(simz_tab):
     '''Calcualte deltaz/sig(z) for a given simz_tab
     '''
-    dzsig = (simz_tab['Z']-simz_tab['REDSHIFT'])/simz_tab['ZERR']
+    dzsig = (simz_tab['Z']-simz_tab['TRUEZ'])/simz_tab['ZERR']
     #
     return dzsig
 
@@ -143,16 +145,16 @@ def load_z(fibermap_files, zbest_files, outfil=None):
 
         # skip calibration exposures
         flavor = fbm_hdu[1].header['FLAVOR']
+        fbm_hdu.close()
         if flavor in ('arc', 'flat', 'bias'):
-            fbm_hdu.close()
             continue
 
         log.info('Reading: {:s}'.format(fibermap_file))
-        # Load simspec
+        # Load simspec (for fibermap too!)
         simspec_file = fibermap_file.replace('fibermap','simspec')
         sps_hdu = fits.open(simspec_file)
         # Make Tables
-        fbm_tabs.append(Table(fbm_hdu['FIBERMAP'].data,masked=True))
+        fbm_tabs.append(Table(sps_hdu['FIBERMAP'].data,masked=True))
         sps_tabs.append(Table(sps_hdu['TRUTH'].data,masked=True))
         sps_hdu.close()
 
@@ -162,7 +164,7 @@ def load_z(fibermap_files, zbest_files, outfil=None):
     del fbm_tabs, sps_tabs
 
     # Add the version number header keywords from fibermap_files[0]
-    hdr = fits.getheader(fibermap_files[0], 'FIBERMAP')
+    hdr = fits.getheader(fibermap_files[0].replace('fibermap', 'simspec'))
     for key, value in sorted(hdr.items()):
         if key.startswith('DEPNAM') or key.startswith('DEPVER'):
             fbm_tab.meta[key] = value
@@ -173,30 +175,35 @@ def load_z(fibermap_files, zbest_files, outfil=None):
     sps_tab = sps_tab[uni_idx]
 
     # Combine + Sort
+    sps_tab.remove_column('TARGETID')  # It occurs in both tables
+    sps_tab.remove_column('MAG')  # It occurs in both tables
     simz_tab = hstack([fbm_tab,sps_tab],join_type='exact')
     simz_tab.sort('TARGETID')
     nsim = len(simz_tab)
 
     # Cleanup some names
-    simz_tab.rename_column('OBJTYPE_1', 'OBJTYPE')
-    simz_tab.rename_column('OBJTYPE_2', 'TRUETYPE')
+    #simz_tab.rename_column('OBJTYPE_1', 'OBJTYPE')
+    #simz_tab.rename_column('OBJTYPE_2', 'TRUETYPE')
 
     # Rename QSO
-    qsol = np.where( (simz_tab['TRUETYPE'] == 'QSO') &
-        (simz_tab['REDSHIFT'] >= 2.1))[0]
-    simz_tab['TRUETYPE'][qsol] = 'QSO_L'
-    qsot = np.where( (simz_tab['TRUETYPE'] == 'QSO') &
-        (simz_tab['REDSHIFT'] < 2.1))[0]
-    simz_tab['TRUETYPE'][qsot] = 'QSO_T'
+    qsol = np.where( (simz_tab['TEMPLATETYPE'] == 'QSO') &
+        (simz_tab['TRUEZ'] >= 2.1))[0]
+    simz_tab['TEMPLATETYPE'][qsol] = 'QSO_L'
+    qsot = np.where( (simz_tab['TEMPLATETYPE'] == 'QSO') &
+        (simz_tab['TRUEZ'] < 2.1))[0]
+    simz_tab['TEMPLATETYPE'][qsot] = 'QSO_T'
 
-    import pdb; pdb.set_trace()
     # Load up zbest files
     zb_tabs = []
     for zbest_file in zbest_files:
-        zb_hdu = fits.open(zbest_file)
-        zb_tabs.append(Table(zb_hdu[1].data))
-    # Stack
+        try:
+            zb_hdu = fits.open(zbest_file)
+        except FileNotFoundError:
+            log.info("ZBEST FILE NOT FOUND.  I HOPE YOU ARE ONLY TESTING")
+        else:
+            zb_tabs.append(Table(zb_hdu[1].data))
 
+    # Stack
     zb_tab = vstack(zb_tabs)
     univ, uni_idx = np.unique(np.array(zb_tab['TARGETID']),return_index=True)
     zb_tab = zb_tab[uni_idx]
@@ -218,8 +225,7 @@ def load_z(fibermap_files, zbest_files, outfil=None):
     mask[sim_idx] = False
     for kk,ztag in enumerate(ztags):
         # Generate a MaskedColumn
-        new_clm = MaskedColumn([zb_tab[ztag][z_idx[0]]]*nsim,
-            name=ztag, mask=mask)
+        new_clm = MaskedColumn([zb_tab[ztag][z_idx[0]]]*nsim, name=ztag, mask=mask)
         #name=new_tags[kk], mask=mask)
         # Fill
         new_clm[sim_idx] = zb_tab[ztag][z_idx]
@@ -309,7 +315,7 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
     if objtype is None:
         objtype_mask = np.array([True]*nrow)
     else:
-        objtype_mask = simz_tab['TRUETYPE'] == objtype
+        objtype_mask = simz_tab['TEMPLATETYPE'] == objtype
     # RedMonster analysis
     if redm:
         redm_mask = simz_tab['Z'].mask == False  # Not masked in Table
@@ -319,8 +325,8 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
     if survey:
         survey_mask = (simz_tab['Z'].mask == False)
         # Flux limit
-        elg = np.where((simz_tab['TRUETYPE']=='ELG') & survey_mask)[0]
-        elg_mask = elg_flux_lim(simz_tab['REDSHIFT'][elg],
+        elg = np.where((simz_tab['TEMPLATETYPE']=='ELG') & survey_mask)[0]
+        elg_mask = elg_flux_lim(simz_tab['TRUEZ'][elg],
             simz_tab['OIIFLUX'][elg])
         # Update
         survey_mask[elg[~elg_mask]] = False
@@ -334,7 +340,7 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
             catgd_mask = simz_tab['ZWARN']==0
         for obj in ['ELG','LRG','QSO_L','QSO_T']:
             dv = catastrophic_dv(obj) # km/s
-            omask = np.where((simz_tab['TRUETYPE'] == obj)&
+            omask = np.where((simz_tab['TEMPLATETYPE'] == obj)&
                 (simz_tab['ZWARN']==0))[0]
             dz = calc_dz(simz_tab[omask]) # dz/1+z
             cat = np.where(np.abs(dz)*3e5 > dv)[0]
@@ -453,7 +459,7 @@ def obj_fig(simz_tab, objtype, summ_stats, outfil=None, pp=None):
         else:
             if kk == 2:
                 lbl = r'$z_{\rm true}$'
-                xval = gdz_tab['REDSHIFT']
+                xval = gdz_tab['TRUEZ']
                 xmin,xmax=np.min(xval),np.max(xval)
                 dx = np.maximum(1,(xmax-xmin)//0.5)*0.1
                 ax.xaxis.set_major_locator(plt.MultipleLocator(dx))
@@ -507,20 +513,20 @@ def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
 
     # Catastrophic
     cat_tab = slice_simz(simz_tab,survey=True, catastrophic=True)
-    ax.scatter(cat_tab['REDSHIFT'], cat_tab['Z'],
+    ax.scatter(cat_tab['TRUEZ'], cat_tab['Z'],
         marker='x', s=9, label='CAT', color='red')
 
     notype = []
     for otype in otypes:
-        gd_o = np.where(zobj_tab['TRUETYPE']==otype)[0]
+        gd_o = np.where(zobj_tab['TEMPLATETYPE']==otype)[0]
         notype.append(len(gd_o))
-        ax.scatter(zobj_tab['REDSHIFT'][gd_o], zobj_tab['Z'][gd_o],
+        ax.scatter(zobj_tab['TRUEZ'][gd_o], zobj_tab['Z'][gd_o],
             marker='o', s=1, label=sty_otype[otype]['lbl'], color=sty_otype[otype]['color'])
     ax.set_ylabel(r'$z_{\rm red}$')
     ax.set_xlabel(r'$z_{\rm true}$')
-    ax.set_xlim(-0.1, 1.02*np.max(np.array([np.max(zobj_tab['REDSHIFT']),
+    ax.set_xlim(-0.1, 1.02*np.max(np.array([np.max(zobj_tab['TRUEZ']),
         np.max(zobj_tab['Z'])])))
-    ax.set_ylim(-0.1, np.max(np.array([np.max(zobj_tab['REDSHIFT']),
+    ax.set_ylim(-0.1, np.max(np.array([np.max(zobj_tab['TRUEZ']),
         np.max(zobj_tab['Z'])])))
     # Legend
     legend = ax.legend(loc='upper left', borderpad=0.3,
@@ -532,10 +538,10 @@ def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
 
     for otype in otypes:
         # Grab
-        gd_o = np.where(zobj_tab['TRUETYPE']==otype)[0]
+        gd_o = np.where(zobj_tab['TEMPLATETYPE']==otype)[0]
         # Stat
         dz = calc_dz(zobj_tab[gd_o])
-        ax.scatter(zobj_tab['REDSHIFT'][gd_o], dz, marker='o',
+        ax.scatter(zobj_tab['TRUEZ'][gd_o], dz, marker='o',
             s=1, label=sty_otype[otype]['lbl'], color=sty_otype[otype]['color'])
 
     #ax.set_xlim(xmin, xmax)
@@ -573,7 +579,7 @@ def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
     yoff=0.15
     for jj,otype in enumerate(otypes):
         ylbl -= yoff
-        gd_o = simz_tab['TRUETYPE']==otype
+        gd_o = simz_tab['TEMPLATETYPE']==otype
         ax.text(xlbl+0.1, ylbl, sty_otype[otype]['lbl']+': {:d} ({:d})'.format(np.sum(gd_o),notype[jj]),
             transform=ax.transAxes, ha='left', fontsize='small')
 
@@ -796,7 +802,7 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
 
             # Plot the truth distribution for this variable.
             if ptype == 'TRUEZ':
-                x = survey['REDSHIFT']
+                x = survey['TRUEZ']
             elif ptype == 'OIIFLUX':
                 x = survey['OIIFLUX']
             else:

@@ -32,20 +32,20 @@ def elg_flux_lim(z, oii_flux):
     mask = np.array([False]*len(z))
     #
     # Flux limits from document
-    zmin = 0.6
-    zstep = 0.2
     OII_lim = np.array([10., 9., 9., 9., 9])*1e-17
     # Get bin
-    zbin = (z-0.6)/zstep
-    gd = np.where((zbin>0.) & (zbin<len(OII_lim)) &
-        (oii_flux>0.))[0]
+    #zbin = (z-0.6)/zstep
+    zbins = [0.6, 0.8, 1., 1.2, 1.4, 5.6]
+    z_i = np.digitize(z, zbins) - 1
+    gd_elg = (z_i >= 0) & (oii_flux>0.)
+    #gd = np.where((zbin>0.) & (zbin<len(OII_lim)) & (oii_flux>0.))[0]
     # Fill gd
-    OII_match = np.zeros(len(gd))
-    for igd in gd:
-        OII_match[igd] = OII_lim[int(zbin[igd])]
+    OII_match = np.ones_like(gd_elg) * 9e99
+    for ss in range(len(zbins)-1):
+        OII_match[z_i==ss] = OII_lim[ss]
     # Query
-    gd_gd = np.where(oii_flux[gd] > OII_match)[0]
-    mask[gd_gd] = True
+    really_gd = (oii_flux > OII_match) & gd_elg
+    mask[really_gd] = True
     # Return
     return mask
 

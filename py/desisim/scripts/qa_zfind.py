@@ -36,6 +36,7 @@ def main(args):
     import os.path
     import sys
     import yaml
+    import numpy as np
     import pdb
     import matplotlib
     matplotlib.use('agg')
@@ -47,6 +48,7 @@ def main(args):
     from desisim.spec_qa import redshifts as dsqa_z
     from desiutil.io import yamlify
     import desiutil.depend
+    from desimodel.footprint import radec2pix
 
     log = get_logger()
 
@@ -58,17 +60,15 @@ def main(args):
     fibermap_files = []
     zbest_files = []
     nights = desispec.io.get_nights()
-    pdb.set_trace()
     for night in nights:
         for exposure in desispec.io.get_exposures(night, raw=True, rawdata_dir=args.rawdir):
             # Ignore exposures with no fibermap, assuming they are calibration data.
             fibermap_path = desispec.io.findfile(filetype='fibermap', night=night,
-                                                 expid=exposure, rawdata_dir = args.rawdir)
+                                                 expid=exposure, rawdata_dir=args.rawdir)
             if not os.path.exists(fibermap_path):
                 log.debug('Skipping exposure %08d with no fibermap.' % exposure)
                 continue
-            else:
-                fibermap_files.append(fibermap_path)
+            '''
             # Search for zbest files
             fibermap_data = desispec.io.read_fibermap(fibermap_path)
             flavor = fibermap_data.meta['FLAVOR']
@@ -86,7 +86,29 @@ def main(args):
                 else:
                     log.warn('Missing {}'.format(os.path.basename(zbest_path)))
                     #pdb.set_trace()
+            '''
+            # Load data
+            fibermap_data = desispec.io.read_fibermap(fibermap_path)
+            # Skip calib
+            if fibermap_data['OBJTYPE'][0] in ['FLAT','ARC','BIAS']:
+                continue
+            elif fibermap_data['OBJTYPE'][0] in ['SKY','STD','SCIENCE']:
+                pass
+            else:
+                pdb.set_trace()
+            # Append fibermap file
+            fibermap_files.append(fibermap_path)
+            # Search for zbest files with healpy
+            ra_targ = fibermap_data['RA_TARGET'].data
+            dec_targ = fibermap_data['DEC_TARGET'].data
+            # Getting some NAN in RA/DEC
+            good = np.isfinite(ra_targ) & np.isfinite(dec_targ)
+            pixels = radec2pix(64, ra_targ[good], dec_targ[good])
+            uni_pixels = np.unique(pixels)
+            for uni_pix in uni_pixels:
+                zbest_files.append(desispec.io.findfile('zbest', groupname=uni_pix, nside=64))
 
+    # Cut down zbest_files to unique ones
     zbest_files = list(set(zbest_files))
 
     if len(zbest_files) == 0:
@@ -94,7 +116,11 @@ def main(args):
         sys.exit(1)
 
     # Load Table
-    simz_tab = dsqa_z.load_z(fibermap_files, zbest_files)
+    if False:
+        simz_tab = dsqa_z.load_z(fibermap_files, zbest_files)
+    else:
+        from astropy.table import Table
+        simz_tab = Table.read('tmp_simz.fits')
 
     # Meta data
     meta = dict(
