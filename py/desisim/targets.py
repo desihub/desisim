@@ -170,8 +170,8 @@ def sample_objtype(nobj, program):
 
 #- multiprocessing needs one arg, not multiple args
 def _wrap_get_targets(args):
-    nspec, program, tileid, seed, specmin = args
-    return get_targets(nspec, program, tileid, seed=seed, specmin=specmin)
+    nspec, program, tileid, seed, specify_targets, specmin = args
+    return get_targets(nspec, program, tileid, seed=seed, specify_targets=specify_targets, specmin=specmin)
 
 def get_targets_parallel(nspec, program, tileid=None, nproc=None, seed=None, specify_targets=dict()):
     '''
