@@ -8,20 +8,13 @@ Written by JXP on 3 Sep 2015
 """
 from __future__ import print_function, absolute_import, division
 
-import matplotlib
-# matplotlib.use('Agg')
-
 import numpy as np
 import sys, os, pdb, glob
-
-from matplotlib import pyplot as plt
-import matplotlib.gridspec as gridspec
 
 from astropy.io import fits
 from astropy.table import Table, vstack, hstack, MaskedColumn, join
 
 from desiutil.log import get_logger, DEBUG
-
 
 
 def elg_flux_lim(z, oii_flux):

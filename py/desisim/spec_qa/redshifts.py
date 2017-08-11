@@ -153,7 +153,6 @@ def load_z(fibermap_files, zbest_files, outfil=None):
         sps_hdu = fits.open(simspec_file)
         # Make Tables
         fbm_tabs.append(Table(fbm_hdu['FIBERMAP'].data,masked=True))
-        #sps_tabs.append(Table(sps_hdu['METADATA'].data,masked=True))
         sps_tabs.append(Table(sps_hdu['TRUTH'].data,masked=True))
         sps_hdu.close()
 
@@ -190,6 +189,7 @@ def load_z(fibermap_files, zbest_files, outfil=None):
         (simz_tab['REDSHIFT'] < 2.1))[0]
     simz_tab['TRUETYPE'][qsot] = 'QSO_T'
 
+    import pdb; pdb.set_trace()
     # Load up zbest files
     zb_tabs = []
     for zbest_file in zbest_files:
