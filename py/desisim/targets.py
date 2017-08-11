@@ -173,7 +173,7 @@ def _wrap_get_targets(args):
     nspec, program, tileid, seed, specmin = args
     return get_targets(nspec, program, tileid, seed=seed, specmin=specmin)
 
-def get_targets_parallel(nspec, program, tileid=None, nproc=None, seed=None, specify_targets=None):
+def get_targets_parallel(nspec, program, tileid=None, nproc=None, seed=None, specify_targets=dict()):
     '''
     Parallel wrapper for get_targets()
 
@@ -225,7 +225,7 @@ def get_targets_parallel(nspec, program, tileid=None, nproc=None, seed=None, spe
 
         return fibermap, (flux, wave, meta)
 
-def get_targets(nspec, program, tileid=None, seed=None, specify_targets=None, specmin=0):
+def get_targets(nspec, program, tileid=None, seed=None, specify_targets=dict(), specmin=0):
     """
     Generates a set of targets for the requested program
 
@@ -236,9 +236,10 @@ def get_targets(nspec, program, tileid=None, seed=None, specify_targets=None, sp
     Options:
       * tileid: (int) tileid, used for setting RA,dec
       * seed: (int) random number seed
-      * specify_targets: (dict)  Define target properties like magnitude and redshift
-                                see simspec.templates.specify_galparams_dict() 
-                                or simsepc.templates.specify_starparams_dict()
+      * specify_targets: (dict of dicts)  Define target properties like magnitude and redshift
+                                 for each target class. Each objtype has its own key,value pair
+                                 see simspec.templates.specify_galparams_dict() 
+                                 or simsepc.templates.specify_starparams_dict()
       * specmin: (int) first spectrum number (0-indexed)
 
     Returns:
@@ -274,6 +275,11 @@ def get_targets(nspec, program, tileid=None, seed=None, specify_targets=None, sp
 
         fibermap['OBJTYPE'][ii] = target_objtype[ii]
 
+        if objtype in specify_targets.keys():
+            obj_kwargs = specify_targets[objtype]
+        else:
+            obj_kwargs = dict()
+                
         # Simulate spectra
         if objtype == 'SKY':
             fibermap['DESI_TARGET'][ii] = desi_mask.SKY
@@ -282,35 +288,26 @@ def get_targets(nspec, program, tileid=None, seed=None, specify_targets=None, sp
         elif objtype == 'ELG':
             from desisim.templates import ELG
             elg = ELG(wave=wave)
-            if specify_targets is None:
-                simflux, wave1, meta1 = elg.make_templates(nmodel=nobj, seed=seed)
-            else:
-                simflux, wave1, meta1 = elg.make_templates(nmodel=nobj, seed=seed, **specify_targets)
+            simflux, wave1, meta1 = elg.make_templates(nmodel=nobj, seed=seed, **obj_kwargs)
             fibermap['DESI_TARGET'][ii] = desi_mask.ELG
 
         elif objtype == 'LRG':
             from desisim.templates import LRG
             lrg = LRG(wave=wave)
-            if specify_targets is None:
-                simflux, wave1, meta1 = lrg.make_templates(nmodel=nobj, seed=seed)
-            else:
-                simflux, wave1, meta1 = lrg.make_templates(nmodel=nobj, seed=seed, **specify_targets)
+            simflux, wave1, meta1 = lrg.make_templates(nmodel=nobj, seed=seed, **obj_kwargs)
             fibermap['DESI_TARGET'][ii] = desi_mask.LRG
 
         elif objtype == 'BGS':
             from desisim.templates import BGS
             bgs = BGS(wave=wave)
-            if specify_targets is None:
-                simflux, wave1, meta1 = bgs.make_templates(nmodel=nobj, seed=seed)
-            else:
-                simflux, wave1, meta1 = bgs.make_templates(nmodel=nobj, seed=seed, **specify_targets)
+            simflux, wave1, meta1 = bgs.make_templates(nmodel=nobj, seed=seed, **obj_kwargs)
             fibermap['DESI_TARGET'][ii] = desi_mask.BGS_ANY
             fibermap['BGS_TARGET'][ii] = bgs_mask.BGS_BRIGHT
 
         elif objtype == 'QSO':
             from desisim.templates import QSO
             qso = QSO(wave=wave)
-            simflux, wave1, meta1 = qso.make_templates(nmodel=nobj, seed=seed, lyaforest=False)
+            simflux, wave1, meta1 = qso.make_templates(nmodel=nobj, seed=seed, lyaforest=False, **obj_kwargs)
             fibermap['DESI_TARGET'][ii] = desi_mask.QSO
 
         # For a "bad" QSO simulate a normal star without color cuts, which isn't
@@ -325,26 +322,22 @@ def get_targets(nspec, program, tileid=None, seed=None, specify_targets=None, sp
             #from desitarget.cuts import isQSO
             #star = STAR(wave=wave, colorcuts_function=isQSO)
             star = STAR(wave=wave)
-            simflux, wave1, meta1 = star.make_templates(nmodel=nobj, seed=seed)
+            simflux, wave1, meta1 = star.make_templates(nmodel=nobj, seed=seed, **obj_kwargs)
             fibermap['DESI_TARGET'][ii] = desi_mask.QSO
 
         elif objtype == 'STD':
             from desisim.templates import FSTD
             fstd = FSTD(wave=wave)
-            if specify_targets is None:
-                simflux, wave1, meta1 = fstd.make_templates(nmodel=nobj, seed=seed)
-            else:
-                simflux, wave1, meta1 = fstd.make_templates(nmodel=nobj, seed=seed, **specify_targets)
+            simflux, wave1, meta1 = fstd.make_templates(nmodel=nobj, seed=seed, **obj_kwargs)
             fibermap['DESI_TARGET'][ii] = desi_mask.STD_FSTAR
 
         elif objtype == 'MWS_STAR':
             from desisim.templates import MWS_STAR
             mwsstar = MWS_STAR(wave=wave)
             # todo: mag ranges for different programs of STAR targets should be in desimodel
-            if specify_targets is None:
-                from desisim.templates import specify_starparams_dict
-                specify_targets = specify_starparams_dict('MWS_STAR',magrange=(15.0,20.0))
-            simflux, wave1, meta1 = mwsstar.make_templates(nmodel=nobj, seed=seed, **specify_targets)
+            if 'rmagrange' not in obj_kwargs.keys():
+                obj_kwargs['rmagrange'] = (15.0,20.0)
+            simflux, wave1, meta1 = mwsstar.make_templates(nmodel=nobj, seed=seed, **obj_kwargs)
             fibermap['DESI_TARGET'][ii] = desi_mask.MWS_ANY
             #- MWS bit names changed after desitarget 0.6.0 so use number
             #- instead of name for now (bit 0 = mask 1 = MWS_MAIN currently)
