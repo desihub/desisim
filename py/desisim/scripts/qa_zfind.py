@@ -13,7 +13,7 @@ import argparse
 def parse(options=None):
 
 
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(description="Generate QA on redshift for a production [v1.1]", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--verbose', action = 'store_true',
         help = 'Provide verbose reporting of progress.')
     parser.add_argument('--night', type=str, default = None, metavar = 'YYYYMMDD',
@@ -116,11 +116,9 @@ def main(args):
         sys.exit(1)
 
     # Load Table
-    if False:
-        simz_tab = dsqa_z.load_z(fibermap_files, zbest_files)
-    else:
-        from astropy.table import Table
-        simz_tab = Table.read('tmp_simz.fits')
+    simz_tab = dsqa_z.load_z(fibermap_files, zbest_files)
+    #from astropy.table import Table
+    #simz_tab = Table.read('tmp_simz.fits')
 
     # Meta data
     meta = dict(
