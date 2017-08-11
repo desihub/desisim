@@ -1949,3 +1949,198 @@ class QSO():
                         format(np.sum(success == 0)))
 
         return 1e17 * outflux, self.wave, meta
+
+
+def specify_galparams_dict(templatetype, zrange=None, magrange=None,
+                            oiiihbrange=None, logvdisp_meansig=None,
+                            minlineflux=None, sne_rfluxratiorange=None,
+                            redshift=None, mag=None, vdisp=None,
+                            nocolorcuts=None, nocontinuum=None,
+                            agnlike=None, novdisp=None, restframe=None):
+    
+    '''
+    Creates a dictionary of keyword variables to be passed to GALAXY.make_templates (or one
+    of GALAXY's child classes). Allows the user to fully define the templated spectra, via
+    defining individual targets or ranges in values. Values already specified in get_targets
+    are not included here. Anything not define or set to None will not be assigned and 
+    CLASS.make_templates will assume the following as defaults:
+        
+        * nmodel=100, zrange=(0.6, 1.6), magrange=(21.0, 23.5),
+        * oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
+        * minlineflux=0.0, sne_rfluxratiorange=(0.01, 0.1),
+        * seed=None, redshift=None, mag=None, vdisp=None,
+        * input_meta=None, nocolorcuts=False, nocontinuum=False,
+        * agnlike=False, novdisp=False, restframe=False, verbose=False
+
+    Args:
+        
+        * nmodel (int, optional): Number of models to generate (default 100).
+        * zrange (float, optional): Minimum and maximum redshift range.  Defaults
+            to a uniform distribution between (0.6, 1.6).
+        * magrange (float, optional): Minimum and maximum magnitude in the
+            bandpass specified by self.normfilter.  Defaults to a uniform
+            distribution between (21, 23.4) in the r-band.
+        * oiiihbrange (float, optional): Minimum and maximum logarithmic
+            [OIII] 5007/H-beta line-ratio.  Defaults to a uniform distribution
+            between (-0.5, 0.2).
+        * logvdisp_meansig (float, optional): Logarithmic mean and sigma values
+            for the (Gaussian) stellar velocity dispersion distribution.
+            Defaults to log10-sigma=1.9+/-0.15 km/s.
+        * minlineflux (float, optional): Minimum emission-line flux in the line
+            specified by self.normline (default 0 erg/s/cm2).
+        * sne_rfluxratiorange (float, optional): r-band flux ratio of the SNeIa
+            spectrum with respect to the underlying galaxy.  Defaults to a
+            uniform distribution between (0.01, 0.1).
+        * seed (int, optional): Input seed for the random numbers.
+        * redshift (float, optional): Input/output template redshifts.  Array
+            size must equal nmodel.  Ignores zrange input.
+        * mag (float, optional): Input/output template magnitudes in the band
+            specified by self.normfilter.  Array size must equal nmodel.
+            Ignores magrange input.
+        * vdisp (float, optional): Input/output velocity dispersions.  Array
+            size must equal nmodel.  Ignores magrange input.
+        * input_meta (astropy.Table): *Input* metadata table with the following
+            required columns: TEMPLATEID, SEED, REDSHIFT, VDISP, MAG (where mag
+            is specified by self.normfilter).  In addition, if add_SNeIa is True
+            then the table must also contain SNE_TEMPLATEID, SNE_EPOCH, and
+            SNE_RFLUXRATIO columns.  See desisim.io.empty_metatable for the
+            required data type for each column.  If this table is passed then
+            all other optional inputs (nmodel, redshift, vdisp, mag, zrange,
+            logvdisp_meansig, etc.) are ignored.
+        * nocolorcuts (bool, optional): Do not apply the color-cuts specified by
+            the self.colorcuts_function function (default False).
+        * nocontinuum (bool, optional): Do not include the stellar continuum in
+            the output spectrum (useful for testing; default False).  Note that
+            this option automatically sets nocolorcuts to True and add_SNeIa to
+            False.
+        * novdisp (bool, optional): Do not velocity-blur the spectrum (default False).
+        * agnlike (bool, optional): Adopt AGN-like emission-line ratios (e.g.,
+            for the LRGs and some BGS galaxies) (default False, meaning we adopt
+            star-formation-like line-ratios).  Option not yet supported.
+        * restframe (bool, optional): If True, return full resolution restframe
+            templates instead of resampled observer frame.
+        * verbose (bool, optional): Be verbose!
+
+    Returns:
+        
+      * fulldef_dict (dict): dictionary containing all of the values passed defined
+                   with variable names as the corresonding key. These are intentionally
+                   identical to those passed to the make_templates classes above
+                   
+    '''
+    
+    fulldef_dict = {}
+    if zrange is not None:
+        fulldef_dict['zrange'] = zrange
+    if magrange is not None:
+        if templatetype == 'LRG':
+            fulldef_dict['zmagrange'] = magrange
+        else:
+            fulldef_dict['rmagrange'] = magrange
+    if oiiihbrange is not None:
+        fulldef_dict['oiiihbrange'] = oiiihbrange
+    if logvdisp_meansig is not None:
+        fulldef_dict['logvdisp_meansig'] = logvdisp_meansig
+    if minlineflux is not None:
+        fulldef_dict['minlineflux'] = minlineflux
+    if sne_rfluxratiorange is not None:
+        fulldef_dict['sne_rfluxratiorange'] = sne_rfluxratiorange
+    if redshift is not None:
+        fulldef_dict['redshift'] = redshift
+    if mag is not None:
+        fulldef_dict['mag'] = mag
+    if vdisp is not None:
+        fulldef_dict['vdisp'] = vdisp
+    if nocolorcuts is not None:
+        fulldef_dict['nocolorcuts'] = nocolorcuts
+    if nocontinuum is not None:
+        fulldef_dict['nocontinuum'] = nocontinuum
+    if agnlike is not None:
+        fulldef_dict['agnlike'] = agnlike
+    if novdisp is not None:
+        fulldef_dict['novdisp'] = novdisp
+    if restframe is not None:
+        fulldef_dict['restframe'] = restframe    
+    return fulldef_dict
+
+def specify_starparams_dict(templatetype,vrad_meansig=None,
+                            magrange=None, redshift=None,
+                            mag=None, input_meta=None, star_properties=None,
+                            nocolorcuts=None, restframe=None):
+    '''
+    Creates a dictionary of keyword variables to be passed to SUPERSTAR.make_templates (or one
+    of SUPERSTAR's child classes). Allows the user to fully define the templated spectra, via
+    defining individual targets or ranges in values. Values already specified in get_targets
+    are not included here. Anything not define or set to None will not be assigned and 
+    CLASS.make_templates will assume the following as defaults:    
+    
+        * nmodel=100, vrad_meansig=(0.0, 200.0),
+        * magrange=(18.0, 23.5), seed=None, redshift=None,
+        * mag=None, input_meta=None, star_properties=None,
+        * nocolorcuts=False, restframe=False, verbose=False 
+        
+    Args:
+        
+        * nmodel (int, optional): Number of models to generate (default 100).
+        * vrad_meansig (float, optional): Mean and sigma (standard deviation) of the
+                    radial velocity "jitter" (in km/s) that should be included in each
+                    spectrum.  Defaults to a normal distribution with a mean of zero and
+                    sigma of 200 km/s.
+        * magrange (float, optional): Minimum and maximum magnitude in the
+                    bandpass specified by self.normfilter.  Defaults to a uniform
+                    distribution between (18, 23.5) in the r-band.
+        * seed (int, optional): input seed for the random numbers.
+        * redshift (float, optional): Input/output (dimensionless) radial
+                    velocity.  Array size must equal nmodel.  Ignores vrad_meansig
+                    input.
+        * mag (float, optional): Input/output template magnitudes in the band
+                   specified by self.normfilter.  Array size must equal nmodel.
+                   Ignores magrange input.
+        * input_meta (astropy.Table): *Input* metadata table with the following
+                   required columns: TEMPLATEID, SEED, REDSHIFT, and MAG 
+                   (where mag is specified by self.normfilter).  
+                   See desisim.io.empty_metatable for the required data type 
+                   for each column.  If this table is passed then all other
+                   optional inputs (nmodel, redshift, mag, vrad_meansig                                                                                                   etc.) are ignored.
+        * star_properties (astropy.Table): *Input* table with the following
+                   required columns: REDSHIFT, MAG, TEFF, LOGG, and FEH (except for
+                   WDs, which don't need to have an FEH column).  Optionally, SEED can
+                   also be included in the table.  When this table is passed, the basis
+                   templates are interpolated to the desired physical values provided,
+                   enabling large numbers of mock stellar spectra to be generated with
+                   physically consistent properties.
+        * nocolorcuts (bool, optional): Do not apply the color-cuts specified by
+                   the self.colorcuts_function function (default False).
+        * restframe (bool, optional): If True, return full resolution restframe
+                   templates instead of resampled observer frame.
+        * verbose (bool, optional): Be verbose!
+      
+    Returns:
+        
+        * fulldef_dict (dict): dictionary containing all of the values passed defined
+                   with variable names as the corresonding key. These are intentionally
+                   identical to those passed to the make_templates classes above
+                   
+    '''
+    
+    fulldef_dict = {}
+    if vrad_meansig is not None:
+        fulldef_dict['vrad_meansig'] = vrad_meansig
+    if magrange is not None:
+        if templatetype=='WD':
+            fulldef_dict['gmagrange'] = magrange
+        else:
+            fulldef_dict['rmagrange'] = magrange
+    if redshift is not None:
+        fulldef_dict['redshift'] = redshift
+    if mag is not None:
+        fulldef_dict['mag'] = mag
+    if input_meta is not None:
+        fulldef_dict['input_meta'] = input_meta
+    if star_properties is not None:
+        fulldef_dict['star_properties'] = star_properties
+    if nocolorcuts is not None:
+        fulldef_dict['nocolorcuts'] = nocolorcuts
+    if restframe is not None:
+        fulldef_dict['restframe'] = restframe
+    return fulldef_dict
