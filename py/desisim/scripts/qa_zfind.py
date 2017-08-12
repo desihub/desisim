@@ -131,6 +131,7 @@ def main(args):
         )
     
     # Run stats
+    log.info("Running stats..")
     summ_dict = dsqa_z.summ_stats(simz_tab)
     if args.qafile is not None:
         log.info("Generating yaml file: {:s}".format(args.qafile))
@@ -144,10 +145,11 @@ def main(args):
         log.info("Generating QA files")
         # Summary for dz of all types
         outfile = args.qafig_root+'_dzsumm.png'
-        dsqa_z.dz_summ(simz_tab, outfile=outfile)
+        #dsqa_z.dz_summ(simz_tab, outfile=outfile)
         # Summary of individual types
         outfile = args.qafig_root+'_summ_fig.png'
-        dsqa_z.summ_fig(simz_tab, summ_dict, meta, outfile=outfile)
+        #dsqa_z.summ_fig(simz_tab, summ_dict, meta, outfile=outfile)
+        #for objtype in ['ELG']: #,'LRG', 'QSO_T', 'QSO_L']:
         for objtype in ['ELG','LRG', 'QSO_T', 'QSO_L']:
             outfile = args.qafig_root+'_{:s}.png'.format(objtype)
             dsqa_z.obj_fig(simz_tab, objtype, summ_dict, outfile=outfile)

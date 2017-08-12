@@ -361,8 +361,6 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
 
 def obj_fig(simz_tab, objtype, summ_stats, outfile=None):
     """Generate QA plot for a given object type
-
-    This function is not properly documented.
     """
     logs = get_logger()
     gdz_tab = slice_simz(simz_tab,objtype=objtype, survey=True,good=True)
@@ -468,7 +466,7 @@ def obj_fig(simz_tab, objtype, summ_stats, outfile=None):
                 if objtype == 'ELG':
                     lbl = r'[OII] Flux ($10^{-16}$)'
                     xval = gdz_tab['OIIFLUX']*1e16
-                    xmin,xmax=0.3,20
+                    xmin,xmax=0.5,20
                     ax.set_xscale("log", nonposy='clip')
                 else:
                     lbl = '{:s} (Mag)'.format(gdz_tab[0]['FILTER'][0])
@@ -476,14 +474,27 @@ def obj_fig(simz_tab, objtype, summ_stats, outfile=None):
                     xmin,xmax=np.min(xval),np.max(xval)
             # Labels
             ax.set_xlabel(lbl)
-            ax.set_xlim(xmin,xmax)
             ax.set_ylabel(ylbl)
+            ax.set_xlim(xmin,xmax)
             ax.set_ylim(-ylim+yoff, ylim+yoff)
 
             # Points
             ax.plot([xmin,xmax], [0.,0], '--', color='gray')
-            ax.scatter(xval, yval, marker='o', s=1, label=objtype,
-                color=sty_otype[objtype]['color'])
+            #ax.scatter(xval, yval, marker='o', s=1, label=objtype,
+            #    color=sty_otype[objtype]['color'])
+            cm = plt.get_cmap(sty_otype[objtype]['pcolor'])
+            if objtype == 'ELG':
+                xbins = 10**np.linspace(np.log10(xmin), np.log10(xmax), 20)
+            else:
+                xbins = np.linspace(xmin, xmax, 20)
+            ybins = np.linspace(-ylim+yoff, ylim+yoff, 40)
+            counts, xedges, yedges = np.histogram2d(xval, yval, bins=(xbins, ybins))
+            max_c = np.max(counts)
+            ax.pcolormesh(xedges, yedges, counts.transpose(), cmap=cm, vmin=0, vmax=max_c/5.)
+
+            #ax.hist2d(xval, yval, bins=20, cmap=cm)
+            #ax.scatter(xval, yval, marker='o', s=1, label=objtype,
+            #           color=sty_otype[objtype]['color'])
 
     # Finish
     plt.tight_layout(pad=0.2,h_pad=0.2,w_pad=0.3)

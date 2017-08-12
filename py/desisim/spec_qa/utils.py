@@ -65,9 +65,9 @@ def catastrophic_dv(objtype):
 
 def get_sty_otype():
     '''Styles for plots'''
-    sty_otype = dict(ELG={'color':'green', 'lbl':'ELG'},
-        LRG={'color':'red', 'lbl':'LRG'},
-        QSO={'color':'blue', 'lbl':'QSO'},
-        QSO_L={'color':'blue', 'lbl':'QSO z>2.1'},
-        QSO_T={'color':'cyan', 'lbl':'QSO z<2.1'})
+    sty_otype = dict(ELG={'color':'green', 'pcolor':'Greens', 'lbl':'ELG'},
+        LRG={'color':'red', 'lbl':'LRG', 'pcolor':'Reds'},
+        QSO={'color':'blue', 'lbl':'QSO', 'pcolor':'Blues'},
+        QSO_L={'color':'blue', 'lbl':'QSO z>2.1', 'pcolor':'Blues'},
+        QSO_T={'color':'cyan', 'lbl':'QSO z<2.1', 'pcolor':'GnBu'})
     return sty_otype
