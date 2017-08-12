@@ -107,9 +107,10 @@ def calc_stats(simz_tab, objtype, flux_lim=True):
     dz = calc_dz(gdz_tab)
     if len(dz) == 0:
         dz = np.zeros(1)
-    stat_dict['MEAN_DZ'] = float(np.mean(dz))
-    stat_dict['MEDIAN_DZ'] = float(np.median(dz))
-    stat_dict['RMS_DZ'] = float(np.std(dz))
+    not_nan = np.isfinite(dz)
+    stat_dict['MEAN_DZ'] = float(np.mean(dz[not_nan]))
+    stat_dict['MEDIAN_DZ'] = float(np.median(dz[not_nan]))
+    stat_dict['RMS_DZ'] = float(np.std(dz[not_nan]))
 
     # Return
     return stat_dict
