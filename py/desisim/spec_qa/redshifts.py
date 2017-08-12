@@ -359,7 +359,7 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
     # Return
     return simz_tab[mask]
 
-def obj_fig(simz_tab, objtype, summ_stats, outfil=None, pp=None):
+def obj_fig(simz_tab, objtype, summ_stats, outfile=None):
     """Generate QA plot for a given object type
 
     This function is not properly documented.
@@ -488,14 +488,12 @@ def obj_fig(simz_tab, objtype, summ_stats, outfil=None, pp=None):
     # Finish
     plt.tight_layout(pad=0.2,h_pad=0.2,w_pad=0.3)
     plt.subplots_adjust(top=0.92)
-    if outfil is not None:
-        plt.savefig(outfil)
-    else:
-        if pp is not None:
-            pp.savefig()
+    if outfile is not None:
+        plt.savefig(outfile, dpi=700)
         plt.close()
 
-def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
+
+def summ_fig(simz_tab, summ_tab, meta, outfile=None):
     '''Generate summary summ_fig
     '''
     # Plot
@@ -585,11 +583,8 @@ def summ_fig(simz_tab, summ_tab, meta, outfil=None, pp=None):
 
     # Finish
     plt.tight_layout(pad=0.1,h_pad=0.0,w_pad=0.1)
-    if outfil is not None:
-        plt.savefig(outfil)
-    else:
-        if pp is not None:
-            pp.savefig()
+    if outfile is not None:
+        plt.savefig(outfile, dpi=700)
         plt.close()
 
 
@@ -737,7 +732,7 @@ def plot_slices(x, y, ok, bad, x_lo, x_hi, y_cut, num_slices=5, min_count=100,
     return axis, rhs
 
 
-def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
+def dz_summ(simz_tab, outfile=None, pdict=None, min_count=20):
     """Generate a summary figure comparing zfind to ztruth.
 
     Parameters
@@ -871,6 +866,6 @@ def dz_summ(simz_tab, pp=None, pdict=None, min_count=20):
             left=0.1, bottom=0.07, right=0.9, top=0.95,
             hspace=0.2, wspace=0.05)
 
-    if pp is not None:
-        pp.savefig()
+    if outfile is not None:
+        plt.savefig(outfile, dpi=700)
     plt.close()
