@@ -1,0 +1,15 @@
+#!/usr/bin/env python
+#
+# See top-level LICENSE.rst file for Copyright information
+#
+# -*- coding: utf-8 -*-
+
+"""
+This script generates QA related to redshifts for a production
+"""
+
+import desisim.scripts.qa_s2n as qa_s2n
+
+if __name__ == '__main__':
+    args = qa_s2n.parse()
+    qa_s2n.main(args)
