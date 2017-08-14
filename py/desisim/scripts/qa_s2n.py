@@ -71,11 +71,11 @@ def main(args):
             # Load
             s2n_values = load_s2n_values(objtype, nights, channel)#, sub_exposures=exposures)
             # Plot
-            outfile = qafig_root+'_s2n_{:s}.png'.format(objtype)
+            outfile = qafig_root+'_s2n_{:s}_{:s}.png'.format(objtype, channel)
             obj_s2n_wave(s2n_values, wv_bins, flux_bins, objtype, outfile=outfile)
             # S/N vs. z for ELG
             if (channel == 'z') & (objtype=='ELG'):
-                outfile = qafig_root+'_s2n_{:s}_z.png'.format(objtype)
+                outfile = qafig_root+'_s2n_{:s}_{:s}_redshift.png'.format(objtype,channel)
                 obj_s2n_z(s2n_values, z_bins, oii_bins, objtype, outfile=outfile)
 
 
