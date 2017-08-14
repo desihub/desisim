@@ -9,6 +9,11 @@ desisim change log
   and fiber assignment (`PR #250`_).
 * Support latest (>DR4) data model in the templates metadata table and also
   scale simulated templates by 1e17 erg/s/cm2/Angstrom (`PR #252`_).
+* Add desi_qa_s2n script
+* Refactor desi_qa_zfind script
+* Refactor redshift QA for new data model
+* Refactor shared QA methods to desisim.spec_qa.utils
+* New plots for S/N of spectra for various objects (ELG, LRG, QSO)
 
 .. _`PR #250`: https://github.com/desihub/desisim/pull/250
 .. _`PR #252`: https://github.com/desihub/desisim/pull/252

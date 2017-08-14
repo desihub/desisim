@@ -8,8 +8,8 @@
 This script generates QA related to redshifts for a production
 """
 
-import desisim.scripts.qa_zfind as qa_zfind
+import desisim.scripts.qa_s2n as qa_s2n
 
 if __name__ == '__main__':
-    args = qa_zfind.parse()
-    qa_zfind.main(args)
+    args = qa_s2n.parse()
+    qa_s2n.main(args)
