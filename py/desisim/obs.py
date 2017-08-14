@@ -29,7 +29,7 @@ import desisim.simexp
 from .simexp import simulate_spectra
 
 def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
-                 seed=None, obsconditions=None, testslit=False, exptime=None,
+                 seed=None, obsconditions=None, specify_targets=dict(), testslit=False, exptime=None,
                  arc_lines_filename=None, flat_spectrum_filename=None):
     """
     Create a new exposure and output input simulation files.
@@ -39,24 +39,27 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         program: 'arc', 'flat', 'bright', 'dark', 'bgs', 'mws', ...
 
     Options:
-        nspec : integer number of spectra to simulate
-        night : YEARMMDD string
-        expid : positive integer exposure ID
-        tileid : integer tile ID
-        seed : random seed
-        obsconditions: str or dict-like; see options below
-        exptime: float exposure time [seconds], overrides obsconditions['EXPTIME']
-
-        testslit : simulate test slit if True, default False; only for arc/flat
-        arc_lines_filename : use alternate arc lines filename (used if program="arc")
-        flat_spectrum_filename : use alternate flat spectrum filename (used if program="flat")
+        * nspec : integer number of spectra to simulate
+        * night : YEARMMDD string
+        * expid : positive integer exposure ID
+        * tileid : integer tile ID
+        * seed : random seed
+        * obsconditions: str or dict-like; see options below
+        * specify_targets: (dict of dicts)  Define target properties like magnitude and redshift
+                                 for each target class. Each objtype has its own key,value pair
+                                 see simspec.templates.specify_galparams_dict() 
+                                 or simsepc.templates.specify_starparams_dict()
+        * exptime: float exposure time [seconds], overrides obsconditions['EXPTIME']
+        * testslit : simulate test slit if True, default False; only for arc/flat
+        * arc_lines_filename : use alternate arc lines filename (used if program="arc")
+        * flat_spectrum_filename : use alternate flat spectrum filename (used if program="flat")
 
     Writes:
-        $DESI_SPECTRO_SIM/$PIXPROD/{night}/fibermap-{expid}.fits
-        $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
+        * $DESI_SPECTRO_SIM/$PIXPROD/{night}/fibermap-{expid}.fits
+        * $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
 
     Returns:
-        science: sim, fibermap, meta, obsconditions
+        * science: sim, fibermap, meta, obsconditions
 
     input obsconditions can be a string 'dark', 'gray', 'bright', or dict-like
     observation metadata with keys SEEING (arcsec), EXPTIME (sec), AIRMASS,
@@ -149,7 +152,8 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         return truth, fibermap, None, None
 
     #- all other programs
-    fibermap, (flux, wave, meta) = get_targets_parallel(nspec, program, tileid=tileid, seed=seed)
+    fibermap, (flux, wave, meta) = get_targets_parallel(nspec, program, tileid=tileid, \
+                                          seed=seed, specify_targets=specify_targets)
 
     if obsconditions is None:
         if program in ['dark', 'lrg', 'qso']:

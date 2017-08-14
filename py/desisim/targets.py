@@ -170,10 +170,10 @@ def sample_objtype(nobj, program):
 
 #- multiprocessing needs one arg, not multiple args
 def _wrap_get_targets(args):
-    nspec, program, tileid, seed, specmin = args
-    return get_targets(nspec, program, tileid, seed=seed, specmin=specmin)
+    nspec, program, tileid, seed, specify_targets, specmin = args
+    return get_targets(nspec, program, tileid, seed=seed, specify_targets=specify_targets, specmin=specmin)
 
-def get_targets_parallel(nspec, program, tileid=None, nproc=None, seed=None):
+def get_targets_parallel(nspec, program, tileid=None, nproc=None, seed=None, specify_targets=dict()):
     '''
     Parallel wrapper for get_targets()
 
@@ -186,7 +186,7 @@ def get_targets_parallel(nspec, program, tileid=None, nproc=None, seed=None):
     #- don't bother with parallelism if there aren't many targets
     if nspec < 20:
         log.debug('Not Parallelizing get_targets for only {} targets'.format(nspec))
-        return get_targets(nspec, program, tileid, seed=seed)
+        return get_targets(nspec, program, tileid, seed=seed, specify_targets=specify_targets)
     else:
         nproc = min(nproc, nspec//10)
         log.debug('Parallelizing get_targets using {} cores'.format(nproc))
@@ -197,9 +197,9 @@ def get_targets_parallel(nspec, program, tileid=None, nproc=None, seed=None):
         seeds = np.random.randint(2**32, size=nspec)
         for i in range(0, nspec, n):
             if i+n < nspec:
-                args.append( (n, program, tileid, seeds[i], i) )
+                args.append( (n, program, tileid, seeds[i], specify_targets, i) )
             else:
-                args.append( (nspec-i, program, tileid, seeds[i], i) )
+                args.append( (nspec-i, program, tileid, seeds[i], specify_targets, i) )
 
         pool = mp.Pool(nproc)
         results = pool.map(_wrap_get_targets, args)
@@ -225,7 +225,7 @@ def get_targets_parallel(nspec, program, tileid=None, nproc=None, seed=None):
 
         return fibermap, (flux, wave, meta)
 
-def get_targets(nspec, program, tileid=None, seed=None, specmin=0):
+def get_targets(nspec, program, tileid=None, seed=None, specify_targets=dict(), specmin=0):
     """
     Generates a set of targets for the requested program
 
@@ -234,13 +234,17 @@ def get_targets(nspec, program, tileid=None, seed=None, specmin=0):
         program: (str) program name DARK, BRIGHT, GRAY, MWS, BGS, LRG, ELG, ...
 
     Options:
-        tileid: (int) tileid, used for setting RA,dec
-        seed: (int) random number seed
-        specmin: (int) first spectrum number (0-indexed)
+      * tileid: (int) tileid, used for setting RA,dec
+      * seed: (int) random number seed
+      * specify_targets: (dict of dicts)  Define target properties like magnitude and redshift
+                                 for each target class. Each objtype has its own key,value pair
+                                 see simspec.templates.specify_galparams_dict() 
+                                 or simsepc.templates.specify_starparams_dict()
+      * specmin: (int) first spectrum number (0-indexed)
 
     Returns:
-        fibermap
-        targets as tuple of (flux, wave, meta)
+      * fibermap
+      * targets as tuple of (flux, wave, meta)
     """
     if tileid is None:
         tile_ra, tile_dec = 0.0, 0.0
@@ -271,6 +275,11 @@ def get_targets(nspec, program, tileid=None, seed=None, specmin=0):
 
         fibermap['OBJTYPE'][ii] = target_objtype[ii]
 
+        if objtype in specify_targets.keys():
+            obj_kwargs = specify_targets[objtype]
+        else:
+            obj_kwargs = dict()
+                
         # Simulate spectra
         if objtype == 'SKY':
             fibermap['DESI_TARGET'][ii] = desi_mask.SKY
@@ -279,26 +288,26 @@ def get_targets(nspec, program, tileid=None, seed=None, specmin=0):
         elif objtype == 'ELG':
             from desisim.templates import ELG
             elg = ELG(wave=wave)
-            simflux, wave1, meta1 = elg.make_templates(nmodel=nobj, seed=seed)
+            simflux, wave1, meta1 = elg.make_templates(nmodel=nobj, seed=seed, **obj_kwargs)
             fibermap['DESI_TARGET'][ii] = desi_mask.ELG
 
         elif objtype == 'LRG':
             from desisim.templates import LRG
             lrg = LRG(wave=wave)
-            simflux, wave1, meta1 = lrg.make_templates(nmodel=nobj, seed=seed)
+            simflux, wave1, meta1 = lrg.make_templates(nmodel=nobj, seed=seed, **obj_kwargs)
             fibermap['DESI_TARGET'][ii] = desi_mask.LRG
 
         elif objtype == 'BGS':
             from desisim.templates import BGS
             bgs = BGS(wave=wave)
-            simflux, wave1, meta1 = bgs.make_templates(nmodel=nobj, seed=seed)
+            simflux, wave1, meta1 = bgs.make_templates(nmodel=nobj, seed=seed, **obj_kwargs)
             fibermap['DESI_TARGET'][ii] = desi_mask.BGS_ANY
             fibermap['BGS_TARGET'][ii] = bgs_mask.BGS_BRIGHT
 
         elif objtype == 'QSO':
             from desisim.templates import QSO
             qso = QSO(wave=wave)
-            simflux, wave1, meta1 = qso.make_templates(nmodel=nobj, seed=seed, lyaforest=False)
+            simflux, wave1, meta1 = qso.make_templates(nmodel=nobj, seed=seed, lyaforest=False, **obj_kwargs)
             fibermap['DESI_TARGET'][ii] = desi_mask.QSO
 
         # For a "bad" QSO simulate a normal star without color cuts, which isn't
@@ -313,20 +322,22 @@ def get_targets(nspec, program, tileid=None, seed=None, specmin=0):
             #from desitarget.cuts import isQSO
             #star = STAR(wave=wave, colorcuts_function=isQSO)
             star = STAR(wave=wave)
-            simflux, wave1, meta1 = star.make_templates(nmodel=nobj, seed=seed)
+            simflux, wave1, meta1 = star.make_templates(nmodel=nobj, seed=seed, **obj_kwargs)
             fibermap['DESI_TARGET'][ii] = desi_mask.QSO
 
         elif objtype == 'STD':
             from desisim.templates import FSTD
             fstd = FSTD(wave=wave)
-            simflux, wave1, meta1 = fstd.make_templates(nmodel=nobj, seed=seed)
+            simflux, wave1, meta1 = fstd.make_templates(nmodel=nobj, seed=seed, **obj_kwargs)
             fibermap['DESI_TARGET'][ii] = desi_mask.STD_FSTAR
 
         elif objtype == 'MWS_STAR':
             from desisim.templates import MWS_STAR
             mwsstar = MWS_STAR(wave=wave)
             # todo: mag ranges for different programs of STAR targets should be in desimodel
-            simflux, wave1, meta1 = mwsstar.make_templates(nmodel=nobj,rmagrange=(15.0,20.0), seed=seed)
+            if 'rmagrange' not in obj_kwargs.keys():
+                obj_kwargs['rmagrange'] = (15.0,20.0)
+            simflux, wave1, meta1 = mwsstar.make_templates(nmodel=nobj, seed=seed, **obj_kwargs)
             fibermap['DESI_TARGET'][ii] = desi_mask.MWS_ANY
             #- MWS bit names changed after desitarget 0.6.0 so use number
             #- instead of name for now (bit 0 = mask 1 = MWS_MAIN currently)
@@ -335,17 +346,15 @@ def get_targets(nspec, program, tileid=None, seed=None, specmin=0):
         else:
             raise ValueError('Unable to simulate OBJTYPE={}'.format(objtype))
 
-        flux[ii] = 1e17 * simflux
+        flux[ii] = simflux
         meta[ii] = meta1
 
-        ugrizy = 22.5-2.5*np.log10(meta1['DECAM_FLUX'].data)
-        wise = 22.5-2.5*np.log10(meta1['WISE_FLUX'].data)
         fibermap['FILTER'][ii, :6] = ['DECAM_G', 'DECAM_R', 'DECAM_Z', 'WISE_W1', 'WISE_W2']
-        fibermap['MAG'][ii, 0] = ugrizy[:, 1]
-        fibermap['MAG'][ii, 1] = ugrizy[:, 2]
-        fibermap['MAG'][ii, 2] = ugrizy[:, 4]
-        fibermap['MAG'][ii, 3] = wise[:, 0]
-        fibermap['MAG'][ii, 4] = wise[:, 1]
+        fibermap['MAG'][ii, 0] = 22.5 - 2.5 * np.log10(meta['FLUX_G'][ii])
+        fibermap['MAG'][ii, 1] = 22.5 - 2.5 * np.log10(meta['FLUX_R'][ii])
+        fibermap['MAG'][ii, 2] = 22.5 - 2.5 * np.log10(meta['FLUX_Z'][ii])
+        fibermap['MAG'][ii, 3] = 22.5 - 2.5 * np.log10(meta['FLUX_W1'][ii])
+        fibermap['MAG'][ii, 4] = 22.5 - 2.5 * np.log10(meta['FLUX_W2'][ii])
 
     #- Load fiber -> positioner mapping and tile information
     fiberpos = desimodel.io.load_fiberpos()

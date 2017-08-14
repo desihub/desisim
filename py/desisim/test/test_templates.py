@@ -78,7 +78,7 @@ class TestTemplates(unittest.TestCase):
         for i in range(len(meta)):
             z = meta['REDSHIFT'][i]
             ii = (3722*(1+z) < wave) & (wave < 3736*(1+z))
-            OIIflux = np.sum(flux[i,ii]*np.gradient(wave[ii]))
+            OIIflux = 1e-17 * np.sum(flux[i,ii] * np.gradient(wave[ii]))
             self.assertAlmostEqual(OIIflux, meta['OIIFLUX'][i], 2)
     
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
@@ -96,11 +96,11 @@ class TestTemplates(unittest.TestCase):
             nmodel=10, zrange=(0.05, 0.4),
             logvdisp_meansig=[np.log10(75),0.0], 
             nocolorcuts=True, nocontinuum=True)
-    
+
         for i in range(len(meta)):
             z = meta['REDSHIFT'][i]
             ii = (4854*(1+z) < wave) & (wave < 4868*(1+z))
-            hbetaflux = np.sum(flux[i,ii]*np.gradient(wave[ii]))
+            hbetaflux = 1e-17 * np.sum(flux[i,ii] * np.gradient(wave[ii]))
             self.assertAlmostEqual(hbetaflux, meta['HBETAFLUX'][i], 2)
     
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
@@ -147,7 +147,7 @@ class TestTemplates(unittest.TestCase):
             flux2, wave2, meta2 = Tx.make_templates(input_meta=meta1)
             badkeys = list()
             for key in meta1.colnames:
-                if key in ('DECAM_FLUX', 'WISE_FLUX', 'OIIFLUX', 'HBETAFLUX'):
+                if key in ('FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2', 'OIIFLUX', 'HBETAFLUX'):
                     #- not sure why the tolerances aren't closer
                     if not np.allclose(meta1[key], meta2[key], atol=5e-5):
                         print(meta1['OBJTYPE'][0], key, meta1[key], meta2[key])
