@@ -68,6 +68,7 @@ def get_sty_otype():
     sty_otype = dict(ELG={'color':'green', 'pcolor':'Greens', 'lbl':'ELG'},
         LRG={'color':'red', 'lbl':'LRG', 'pcolor':'Reds'},
                      BGS={'color':'orange', 'lbl':'BGS', 'pcolor':'Oranges'},
+                     MWS={'color':'purple', 'lbl':'MWS', 'pcolor':'Purples'},
         QSO={'color':'blue', 'lbl':'QSO', 'pcolor':'Blues'},
         QSO_L={'color':'blue', 'lbl':'QSO z>2.1', 'pcolor':'Blues'},
         QSO_T={'color':'cyan', 'lbl':'QSO z<2.1', 'pcolor':'GnBu'})
@@ -84,13 +85,10 @@ def match_otype(tbl, objtype):
         targets = (tbl['DESI_TARGET'] & desi_mask['BGS_ANY']) != 0
     elif objtype in ['MWS']:
         targets = (tbl['DESI_TARGET'] & desi_mask['MWS_ANY']) != 0
-        import pdb; pdb.set_trace()
     elif objtype in ['QSO_L']:
-        targets = np.where( match_otype(tbl, 'QSO') &
-                            (tbl['TRUEZ'] >= 2.1))[0]
+        targets =  match_otype(tbl, 'QSO') & (tbl['TRUEZ'] >= 2.1)
     elif objtype in ['QSO_T']:
-        targets = np.where( match_otype(tbl, 'QSO') &
-                     (tbl['TRUEZ'] < 2.1))[0]
+        targets =  match_otype(tbl, 'QSO') & (tbl['TRUEZ'] < 2.1)
     else:
         targets = (tbl['DESI_TARGET'] & desi_mask[objtype]) != 0
     # Return
