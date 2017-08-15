@@ -72,3 +72,26 @@ def get_sty_otype():
         QSO_L={'color':'blue', 'lbl':'QSO z>2.1', 'pcolor':'Blues'},
         QSO_T={'color':'cyan', 'lbl':'QSO z<2.1', 'pcolor':'GnBu'})
     return sty_otype
+
+def match_otype(tbl, objtype):
+    """ Generate a mask for the input objtype
+    :param tbl:
+    :param objtype: str
+    :return: targets: bool mask
+    """
+    from desitarget import desi_mask
+    if objtype in ['BGS']:
+        targets = (tbl['DESI_TARGET'] & desi_mask['BGS_ANY']) != 0
+    elif objtype in ['MWS']:
+        targets = (tbl['DESI_TARGET'] & desi_mask['MWS_ANY']) != 0
+        import pdb; pdb.set_trace()
+    elif objtype in ['QSO_L']:
+        targets = np.where( match_otype(tbl, 'QSO') &
+                            (tbl['TRUEZ'] >= 2.1))[0]
+    elif objtype in ['QSO_T']:
+        targets = np.where( match_otype(tbl, 'QSO') &
+                     (tbl['TRUEZ'] < 2.1))[0]
+    else:
+        targets = (tbl['DESI_TARGET'] & desi_mask[objtype]) != 0
+    # Return
+    return targets

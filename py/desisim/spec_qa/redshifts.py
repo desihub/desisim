@@ -20,7 +20,7 @@ import matplotlib.gridspec as gridspec
 from astropy.io import fits
 from astropy.table import Table, vstack, hstack, MaskedColumn, join
 
-from .utils import elg_flux_lim, get_sty_otype, catastrophic_dv
+from .utils import elg_flux_lim, get_sty_otype, catastrophic_dv, match_otype
 
 from desiutil.log import get_logger, DEBUG
 
@@ -187,10 +187,10 @@ def load_z(fibermap_files, zbest_files, outfil=None):
     #simz_tab.rename_column('OBJTYPE_2', 'TRUETYPE')
 
     # Rename QSO
-    qsol = np.where( (simz_tab['TEMPLATETYPE'] == 'QSO') &
+    qsol = np.where( match_otype(simz_tab, 'QSO') &
         (simz_tab['TRUEZ'] >= 2.1))[0]
     simz_tab['TEMPLATETYPE'][qsol] = 'QSO_L'
-    qsot = np.where( (simz_tab['TEMPLATETYPE'] == 'QSO') &
+    qsot = np.where( match_otype(simz_tab, 'QSO') &
         (simz_tab['TRUEZ'] < 2.1))[0]
     simz_tab['TEMPLATETYPE'][qsot] = 'QSO_T'
 
@@ -325,7 +325,7 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
     if objtype is None:
         objtype_mask = np.array([True]*nrow)
     else:
-        objtype_mask = simz_tab['TEMPLATETYPE'] == objtype
+        objtype_mask = match_otype(simz_tab, objtype)  # simz_tab['TEMPLATETYPE'] == objtype
     # RedMonster analysis
     if redm:
         redm_mask = simz_tab['Z'].mask == False  # Not masked in Table
@@ -335,7 +335,7 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
     if survey:
         survey_mask = (simz_tab['Z'].mask == False)
         # Flux limit
-        elg = np.where((simz_tab['TEMPLATETYPE']=='ELG') & survey_mask)[0]
+        elg = np.where(match_otype(simz_tab, 'ELG') & survey_mask)[0]
         elg_mask = elg_flux_lim(simz_tab['TRUEZ'][elg],
             simz_tab['OIIFLUX'][elg])
         # Update
@@ -350,8 +350,7 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
             catgd_mask = simz_tab['ZWARN']==0
         for obj in ['ELG','LRG','QSO_L','QSO_T']:
             dv = catastrophic_dv(obj) # km/s
-            omask = np.where((simz_tab['TEMPLATETYPE'] == obj)&
-                (simz_tab['ZWARN']==0))[0]
+            omask = np.where(match_otype(simz_tab, objtype) & (simz_tab['ZWARN']==0))[0]
             dz = calc_dz(simz_tab[omask]) # dz/1+z
             cat = np.where(np.abs(dz)*3e5 > dv)[0]
             # Update

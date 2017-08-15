@@ -149,7 +149,7 @@ def main(args):
         # Summary of individual types
         #outfile = args.qafig_root+'_summ_fig.png'
         #dsqa_z.summ_fig(simz_tab, summ_dict, meta, outfile=outfile)
-        for objtype in ['BGS', 'ELG','LRG', 'QSO_T', 'QSO_L']:
+        for objtype in ['MWS', 'BGS', 'ELG','LRG', 'QSO_T', 'QSO_L']:
             outfile = args.qafig_root+'_zfind_{:s}.png'.format(objtype)
             dsqa_z.obj_fig(simz_tab, objtype, summ_dict, outfile=outfile)
 
