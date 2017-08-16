@@ -20,7 +20,7 @@ import matplotlib.gridspec as gridspec
 from astropy.io import fits
 from astropy.table import Table, vstack, hstack, MaskedColumn, join
 
-from .utils import elg_flux_lim, get_sty_otype, catastrophic_dv
+from .utils import elg_flux_lim, get_sty_otype, catastrophic_dv, match_otype
 
 from desiutil.log import get_logger, DEBUG
 
@@ -187,10 +187,10 @@ def load_z(fibermap_files, zbest_files, outfil=None):
     #simz_tab.rename_column('OBJTYPE_2', 'TRUETYPE')
 
     # Rename QSO
-    qsol = np.where( (simz_tab['TEMPLATETYPE'] == 'QSO') &
+    qsol = np.where( match_otype(simz_tab, 'QSO') &
         (simz_tab['TRUEZ'] >= 2.1))[0]
     simz_tab['TEMPLATETYPE'][qsol] = 'QSO_L'
-    qsot = np.where( (simz_tab['TEMPLATETYPE'] == 'QSO') &
+    qsot = np.where( match_otype(simz_tab, 'QSO') &
         (simz_tab['TRUEZ'] < 2.1))[0]
     simz_tab['TEMPLATETYPE'][qsot] = 'QSO_T'
 
@@ -242,8 +242,9 @@ def load_z(fibermap_files, zbest_files, outfil=None):
     # Return
     return simz_tab # Masked Table
 
+
 def obj_requirements(zstats, objtype):
-    '''Assess where a given objtype passes the requirements
+    """Assess where a given objtype passes the requirements
     Requirements from Doc 318 (August 2014)
 
     Parameters
@@ -257,12 +258,14 @@ def obj_requirements(zstats, objtype):
     -------
     dict
         Pass/fail dict
-    '''
+    """
     log = get_logger()
     pf_dict = {}
     #
     all_dict=dict(ELG={'RMS_DZ':0.0005, 'MEAN_DZ': 0.0002, 'CAT_RATE': 0.05, 'EFF': 0.90},
         LRG={'RMS_DZ':0.0005, 'MEAN_DZ': 0.0002, 'CAT_RATE': 0.05, 'EFF': 0.95},
+                  BGS={'RMS_DZ':0.0005, 'MEAN_DZ': 0.0002, 'CAT_RATE': 0.05, 'EFF': 0.95},
+                  MWS={'RMS_DZ':0.0005, 'MEAN_DZ': 0.0002, 'CAT_RATE': 0.05, 'EFF': 0.95},
         QSO_T={'RMS_DZ':0.0025, 'MEAN_DZ': 0.0004, 'CAT_RATE': 0.05, 'EFF': 0.90},
         QSO_L={'RMS_DZ':0.0025, 'CAT_RATE': 0.02, 'EFF': 0.90})
     req_dict = all_dict[objtype]
@@ -308,6 +311,13 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
     all_zwarn0 : bool, optional
       Ignores catastrophic failures in the slicing to return
       all sources with ZWARN==0
+    survey : bool, optional
+      Only include objects that satisfy the Survey requirements
+      e.g. ELGs with sufficient OII_flux
+
+    Returns
+    -------
+    simz_table : Table cut by input parameters
     '''
     # Init
     nrow = len(simz_tab)
@@ -316,7 +326,7 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
     if objtype is None:
         objtype_mask = np.array([True]*nrow)
     else:
-        objtype_mask = simz_tab['TEMPLATETYPE'] == objtype
+        objtype_mask = match_otype(simz_tab, objtype)  # simz_tab['TEMPLATETYPE'] == objtype
     # RedMonster analysis
     if redm:
         redm_mask = simz_tab['Z'].mask == False  # Not masked in Table
@@ -326,7 +336,7 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
     if survey:
         survey_mask = (simz_tab['Z'].mask == False)
         # Flux limit
-        elg = np.where((simz_tab['TEMPLATETYPE']=='ELG') & survey_mask)[0]
+        elg = np.where(match_otype(simz_tab, 'ELG') & survey_mask)[0]
         elg_mask = elg_flux_lim(simz_tab['TRUEZ'][elg],
             simz_tab['OIIFLUX'][elg])
         # Update
@@ -341,8 +351,7 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
             catgd_mask = simz_tab['ZWARN']==0
         for obj in ['ELG','LRG','QSO_L','QSO_T']:
             dv = catastrophic_dv(obj) # km/s
-            omask = np.where((simz_tab['TEMPLATETYPE'] == obj)&
-                (simz_tab['ZWARN']==0))[0]
+            omask = np.where(match_otype(simz_tab, objtype) & (simz_tab['ZWARN']==0))[0]
             dz = calc_dz(simz_tab[omask]) # dz/1+z
             cat = np.where(np.abs(dz)*3e5 > dv)[0]
             # Update
@@ -363,10 +372,14 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
 def obj_fig(simz_tab, objtype, summ_stats, outfile=None):
     """Generate QA plot for a given object type
     """
+    from astropy.stats import sigma_clip
     logs = get_logger()
     gdz_tab = slice_simz(simz_tab,objtype=objtype, survey=True,good=True)
+    if objtype == 'ELG':
+        allgd_tab = slice_simz(simz_tab,objtype=objtype, survey=False,good=True)
+
     if len(gdz_tab) <= 1:
-        logs.warn("Not enough objects of type {:s} for QA".format(objtype))
+        logs.info("Not enough objects of type {:s} for QA".format(objtype))
         return
 
     # Plot
@@ -377,8 +390,6 @@ def obj_fig(simz_tab, objtype, summ_stats, outfile=None):
     fig.suptitle('{:s}: Summary'.format(sty_otype[objtype]['lbl']),
         fontsize='large')
 
-
-
     # Offset
     for kk in range(4):
         yoff = 0.
@@ -387,9 +398,10 @@ def obj_fig(simz_tab, objtype, summ_stats, outfile=None):
             yval = calc_dzsig(gdz_tab)
             ylbl = (r'$(z_{\rm red}-z_{\rm true}) / \sigma(z)$')
             ylim = 5.
-            # Stats
-            rms = np.std(yval)
-            redchi2 = np.sum(yval**2)/len(yval)
+            # Stats with clipping
+            clip_y = sigma_clip(yval, sigma=5.)
+            rms = np.std(clip_y)
+            redchi2 = np.sum(clip_y**2)/np.sum(~clip_y.mask)
             #
             xtxt = 0.05
             ytxt = 1.0
@@ -404,16 +416,18 @@ def obj_fig(simz_tab, objtype, summ_stats, outfile=None):
                     transform=ax.transAxes, ha='left', fontsize='small')
             # Additional
             ytxt -= 0.12
-            ax.text(xtxt, ytxt, '{:s}: {:.3f}'.format('RMS:',
-                rms), color='black', transform=ax.transAxes,
-                ha='left', fontsize='small')
+            ax.text(xtxt, ytxt, '{:s}: {:.3f}'.format('RMS:', rms),
+                    color='black', transform=ax.transAxes, ha='left', fontsize='small')
             ytxt -= 0.12
             ax.text(xtxt, ytxt, '{:s}: {:.3f}'.format(r'$\chi^2_\nu$:',
                 redchi2), color='black', transform=ax.transAxes,
                 ha='left', fontsize='small')
         else:
             yval = calc_dz(gdz_tab)
-            ylbl = (r'$(z_{\rm red}-z_{\rm true}) / (1+z)$')
+            if kk == 1:
+                ylbl = (r'$(z_{\rm red}-z_{\rm true}) / (1+z)$')
+            else:
+                ylbl = r'$\delta v_{\rm red-true}$ [km/s]'
             ylim = max(5.*summ_stats[objtype]['RMS_DZ'],1e-5)
             if (np.median(summ_stats[objtype]['MEDIAN_DZ']) >
                 summ_stats[objtype]['RMS_DZ']):
@@ -424,8 +438,6 @@ def obj_fig(simz_tab, objtype, summ_stats, outfile=None):
             xtxt = 0.05
             ytxt = 1.0
             dx = ((ylim/2.)//0.0001 +1)*0.0001
-            #import pdb
-            #pdb.set_trace()
             ax.xaxis.set_major_locator(plt.MultipleLocator(dx))
             for stat in ['RMS_DZ','MEAN_DZ', 'MEDIAN_DZ']:
                 ytxt -= 0.12
@@ -444,7 +456,8 @@ def obj_fig(simz_tab, objtype, summ_stats, outfile=None):
         # Histogram
         if kk < 2:
             binsz = ylim/10.
-            i0, i1 = int( np.min(yval) / binsz) - 1, int( np.max(yval) / binsz) + 1
+            #i0, i1 = int( np.min(yval) / binsz) - 1, int( np.max(yval) / binsz) + 1
+            i0, i1 = int(-ylim/binsz) - 1, int( ylim/ binsz) + 1
             rng = tuple( binsz*np.array([i0,i1]) )
             nbin = i1-i0
             # Histogram
@@ -466,7 +479,13 @@ def obj_fig(simz_tab, objtype, summ_stats, outfile=None):
             elif kk == 3:
                 if objtype == 'ELG':
                     lbl = r'[OII] Flux ($10^{-16}$)'
-                    xval = gdz_tab['OIIFLUX']*1e16
+                    #xval = gdz_tab['OIIFLUX']*1e16
+                    xval = allgd_tab['OIIFLUX']*1e16
+                    yval = calc_dz(allgd_tab)
+                    # Avoid NAN
+                    gdy = np.isfinite(yval)
+                    xval = xval[gdy]
+                    yval = yval[gdy]
                     xmin,xmax=0.5,20
                     ax.set_xscale("log", nonposy='clip')
                 else:
@@ -477,7 +496,8 @@ def obj_fig(simz_tab, objtype, summ_stats, outfile=None):
             ax.set_xlabel(lbl)
             ax.set_ylabel(ylbl)
             ax.set_xlim(xmin,xmax)
-            ax.set_ylim(-ylim+yoff, ylim+yoff)
+            v_ylim = ylim * 3e5  # redshift to km/s
+            ax.set_ylim(-v_ylim+yoff, v_ylim+yoff)
 
             # Points
             ax.plot([xmin,xmax], [0.,0], '--', color='gray')
@@ -488,9 +508,11 @@ def obj_fig(simz_tab, objtype, summ_stats, outfile=None):
                 xbins = 10**np.linspace(np.log10(xmin), np.log10(xmax), 20)
             else:
                 xbins = np.linspace(xmin, xmax, 20)
-            ybins = np.linspace(-ylim+yoff, ylim+yoff, 40)
-            counts, xedges, yedges = np.histogram2d(xval, yval, bins=(xbins, ybins))
+            ybins = np.linspace(-v_ylim+yoff, v_ylim+yoff, 40) # km/s
+            #import pdb; pdb.set_trace()
+            counts, xedges, yedges = np.histogram2d(xval, yval * 3e5, bins=(xbins, ybins))
             max_c = np.max(counts)
+            #if kk == 3:
             ax.pcolormesh(xedges, yedges, counts.transpose(), cmap=cm, vmin=0, vmax=max_c/5.)
 
             #ax.hist2d(xval, yval, bins=20, cmap=cm)
@@ -503,11 +525,17 @@ def obj_fig(simz_tab, objtype, summ_stats, outfile=None):
     if outfile is not None:
         plt.savefig(outfile, dpi=700)
         plt.close()
+        print("Wrote {:s}".format(outfile))
 
 
 def summ_fig(simz_tab, summ_tab, meta, outfile=None):
-    '''Generate summary summ_fig
-    '''
+    """Generate summary summ_fig
+    :param simz_tab:
+    :param summ_tab:
+    :param meta:
+    :param outfile:
+    :return:
+    """
     # Plot
     sty_otype = get_sty_otype()
     fig = plt.figure(figsize=(8, 5.0))
@@ -614,7 +642,7 @@ def summ_stats(simz_tab, outfil=None):
     list
       List of summary stat dicts
     '''
-    otypes = ['ELG','LRG', 'QSO_L', 'QSO_T']  # WILL HAVE TO DEAL WITH QSO_TRACER vs QSO_LYA
+    otypes = ['ELG','LRG', 'QSO_L', 'QSO_T', 'BGS', 'MWS']  # WILL HAVE TO DEAL WITH QSO_TRACER vs QSO_LYA
     summ_dict = {}
 
     rows = []

@@ -45,8 +45,10 @@ env:
         # - SPHINX_VERSION=1.3
         # - DESIUTIL_VERSION=1.8.0
         - DESIUTIL_VERSION=1.9.4
-        - DESIMODEL_VERSION=0.7.0
-        - DESIMODEL_DATA=branches/test-0.7.0
+        # - DESIMODEL_VERSION=0.7.0
+        # - DESIMODEL_DATA=branches/test-0.7.0
+        - DESIMODEL_VERSION=master
+        - DESIMODEL_DATA=trunk
         - DESISIM_TESTDATA_VERSION=0.3.3
         - SPECLITE_VERSION=0.5
         - SPECSIM_VERSION=master

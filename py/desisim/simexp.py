@@ -15,6 +15,7 @@ import desitarget
 import desispec.io
 import desispec.io.util
 import desimodel.io
+from desimodel.focalplane import fiber_area_arcsec2
 import desiutil.depend
 import desispec.interpolation
 import desisim.io
@@ -544,30 +545,6 @@ def read_fiberassign(tilefile_or_id, indir=None):
         tilefile = os.path.join(indir, tilefile_or_id)
 
     return astropy.table.Table.read(tilefile, 'FIBER_ASSIGNMENTS')
-
-#-------------------------------------------------------------------------
-#- TODO: fiber area calculation should be in desimodel.focalplane
-
-def fiber_area_arcsec2(x, y):
-    '''
-    Returns area of fibers at (x,y) in arcsec^2
-    '''
-    params = desimodel.io.load_desiparams()
-    fiber_dia = params['fibers']['diameter_um']
-    x = np.asarray(x)
-    y = np.asarray(y)
-    r = np.sqrt(x**2 + y**2)
-
-    #- Platescales in um/arcsec
-    ps = desimodel.io.load_platescale()
-    radial_scale = np.interp(r, ps['radius'], ps['radial_platescale'])
-    az_scale = np.interp(r, ps['radius'], ps['az_platescale'])
-
-    #- radial and azimuthal fiber radii in arcsec
-    rr  = 0.5 * fiber_dia / radial_scale
-    raz = 0.5 * fiber_dia / az_scale
-    fiber_area = (np.pi * rr * raz)
-    return fiber_area
 
 #-------------------------------------------------------------------------
 #- Move this to desispec.io?

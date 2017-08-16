@@ -55,11 +55,14 @@ def load_s2n_values(objtype, nights, channel, sub_exposures=None):
                 except:
                     log.warn("Cannot find file: {:s}".format(cframe_path))
                     continue
-                # Calculate S/N
+                # Calculate S/N per Ang
+                dwave = cframe.wave - np.roll(cframe.wave,1)
+                dwave[0] = dwave[1]
+                #
                 iobjs = objs[cframe.fibers]
                 if np.sum(iobjs) == 0:
                     continue
-                s2n = cframe.flux[iobjs,:] * np.sqrt(cframe.ivar[iobjs,:])
+                s2n = cframe.flux[iobjs,:] * np.sqrt(cframe.ivar[iobjs,:]) / np.sqrt(dwave)
                 # Save
                 fdict['waves'].append(cframe.wave)
                 fdict['s2n'].append(s2n)
@@ -69,6 +72,7 @@ def load_s2n_values(objtype, nights, channel, sub_exposures=None):
                 fdict['exptime'].append(cframe.meta['EXPTIME'])
     # Return
     return fdict
+
 
 def obj_s2n_wave(s2n_dict, wv_bins, flux_bins, otype, outfile=None, ax=None):
     """Generate QA of S/N for a given object type
@@ -117,7 +121,7 @@ def obj_s2n_wave(s2n_dict, wv_bins, flux_bins, otype, outfile=None, ax=None):
 
     ax.set_xlabel('Wavelength (Ang)')
     #ax.set_xlim(-ylim, ylim)
-    ax.set_ylabel('Mean S/N per pixel in bins of 20A')
+    ax.set_ylabel('Mean S/N per Ang in bins of 20A')
     ax.set_yscale("log", nonposy='clip')
     ax.set_ylim(0.1, mxy*1.1)
 
@@ -181,7 +185,7 @@ def obj_s2n_z(s2n_dict, z_bins, flux_bins, otype, outfile=None, ax=None):
 
     ax.set_xlabel('Redshift')
     ax.set_xlim(z_bins[0], z_bins[-1])
-    ax.set_ylabel('Mean S/N per pixel in dz bins')
+    ax.set_ylabel('Mean S/N per Ang in dz bins')
     ax.set_yscale("log", nonposy='clip')
     ax.set_ylim(0.1, mxy*1.1)
 

@@ -50,7 +50,7 @@ def main(args):
     nights = desispec.io.get_nights()
 
     # Loop on channel
-    for channel in ['b','z']: #,'r','z']:
+    for channel in ['b','r', 'z']:
         if channel == 'b':
             wv_bins = np.arange(3570., 5950., 20.)
         elif channel == 'z':
@@ -59,8 +59,7 @@ def main(args):
         else:
             pdb.set_trace()
         # Loop on OBJTYPE
-        #for objtype in ['ELG', 'LRG', 'QSO']:
-        for objtype in ['ELG']:
+        for objtype in ['ELG', 'LRG', 'QSO']:
             if objtype == 'ELG':
                 flux_bins = np.linspace(19., 24., 6)
                 oii_bins = np.array([1., 6., 10., 30., 100., 1000.])
