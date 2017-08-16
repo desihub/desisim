@@ -264,8 +264,8 @@ def obj_requirements(zstats, objtype):
     #
     all_dict=dict(ELG={'RMS_DZ':0.0005, 'MEAN_DZ': 0.0002, 'CAT_RATE': 0.05, 'EFF': 0.90},
         LRG={'RMS_DZ':0.0005, 'MEAN_DZ': 0.0002, 'CAT_RATE': 0.05, 'EFF': 0.95},
-                  BGS={'RMS_DZ':1.0000, 'MEAN_DZ': 1.0000, 'CAT_RATE': 1.00, 'EFF': 0.0}, # MAKE BELIEVE
-                  MWS={'RMS_DZ':1.0000, 'MEAN_DZ': 1.0000, 'CAT_RATE': 1.00, 'EFF': 0.0}, # MAKE BELIEVE
+                  BGS={'RMS_DZ':0.0005, 'MEAN_DZ': 0.0002, 'CAT_RATE': 0.05, 'EFF': 0.95},
+                  MWS={'RMS_DZ':0.0005, 'MEAN_DZ': 0.0002, 'CAT_RATE': 0.05, 'EFF': 0.95},
         QSO_T={'RMS_DZ':0.0025, 'MEAN_DZ': 0.0004, 'CAT_RATE': 0.05, 'EFF': 0.90},
         QSO_L={'RMS_DZ':0.0025, 'CAT_RATE': 0.02, 'EFF': 0.90})
     req_dict = all_dict[objtype]
