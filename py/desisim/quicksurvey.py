@@ -269,10 +269,7 @@ class SimSetup(object):
 
         print(truth.keys())
         #- Drop columns that aren't needed to save memory while manipulating
-#        targets.remove_columns(['DEPTH_R', 'GALDEPTH_R'])
-#        truth.remove_columns(['RA', 'DEC', 'BRICKNAME', 'SOURCETYPE'])
-#        truth.remove_columnes([])
-        truth.remove_columns(['SEED', 'MAG', 'DECAM_FLUX', 'WISE_FLUX', 'HBETAFLUX', 'TEFF', 'LOGG', 'FEH'])
+        truth.remove_columns(['SEED', 'MAG', 'FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2', 'HBETAFLUX', 'TEFF', 'LOGG', 'FEH'])
         if 'MOCKID' in truth.colnames:
             truth.remove_column('MOCKID')
 
