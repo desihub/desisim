@@ -150,7 +150,7 @@ autodoc_mock_imports = ['astropy.constants', 'astropy.cosmology',
                         'matplotlib.backends.backend_pdf', 'matplotlib.gridspec',
                         'numpy', 'scipy', 'scipy.constants',
                         'scipy.interpolate', 'scipy.special',
-                        'specsim.simulator']
+                        'specsim.simulator', 'fitsio']
 
 # -- Options for HTML output ----------------------------------------------
 
