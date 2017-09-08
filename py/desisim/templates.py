@@ -712,14 +712,23 @@ class GALAXY(object):
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, nbasechunk)
                 else:
-                    import pdb ; pdb.set_trace()
-                    
-                    colormask = self.colorcuts_function(
-                        gflux=synthnano['decam2014-g'],
-                        rflux=synthnano['decam2014-r'],
-                        zflux=synthnano['decam2014-z'],
-                        w1flux=synthnano['wise2010-W1'],
-                        w2flux=synthnano['wise2010-W2'])
+                    if type(self.colorcuts_function) == tuple:
+                        _colormask = []
+                        for cf in self.colorcuts_function:
+                            _colormask.append(cf(
+                                gflux=synthnano['decam2014-g'],
+                                rflux=synthnano['decam2014-r'],
+                                zflux=synthnano['decam2014-z'],
+                                w1flux=synthnano['wise2010-W1'],
+                                w2flux=synthnano['wise2010-W2']))
+                        colormask = np.any( np.ma.getdata(np.vstack(_colormask)), axis=0)
+                    else:
+                        colormask = self.colorcuts_function(
+                            gflux=synthnano['decam2014-g'],
+                            rflux=synthnano['decam2014-r'],
+                            zflux=synthnano['decam2014-z'],
+                            w1flux=synthnano['wise2010-W1'],
+                            w2flux=synthnano['wise2010-W2'])
 
                 # If the color-cuts pass then populate the output flux vector
                 # (suitably normalized) and metadata table, convolve with the
