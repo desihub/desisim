@@ -16,10 +16,13 @@ desisim change log
 * New plots for S/N of spectra for various objects (ELG, LRG, QSO) (`PR #254`_)
 * Add BGS, MWS to z_find QA
 * Miscellaneous polishing in QA (velocity, clip before RMS, extend [OII] flux, S/N per Ang)
+* Bug fix: correctly select both "bright" and "faint" BGS templates by default
+  (`PR #257`_).  
 
 .. _`PR #250`: https://github.com/desihub/desisim/pull/250
 .. _`PR #252`: https://github.com/desihub/desisim/pull/252
 .. _`PR #254`: https://github.com/desihub/desisim/pull/254
+.. _`PR #257`: https://github.com/desihub/desisim/pull/257
 
 0.20.0 (2017-07-12)
 -------------------
