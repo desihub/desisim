@@ -712,7 +712,7 @@ class GALAXY(object):
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, nbasechunk)
                 else:
-                    if type(self.colorcuts_function) == tuple:
+                    if isinstance(self.colorcuts_function, (tuple, list)):
                         _colormask = []
                         for cf in self.colorcuts_function:
                             _colormask.append(cf(
