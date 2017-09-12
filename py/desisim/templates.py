@@ -262,7 +262,10 @@ class GALAXY(object):
           wave (numpy.ndarray): Input/output observed-frame wavelength array,
             overriding the minwave, maxwave, and cdelt arguments (Angstrom).
           colorcuts_function (function name): Function to use to select
-            templates that pass the color-cuts for the specified objtype
+            templates that pass the color-cuts for the specified objtype Note
+            that this argument can also be a tuple of more than one selection
+            function to apply (e.g., desitarget.cuts.isBGS_faint and
+            desitarget.cuts.isBGS_bright) which will be applied in sequence
             (default None).
           normfilter (str): normalize each spectrum to the magnitude in this
             filter bandpass (default 'decam2014-r').
@@ -709,12 +712,23 @@ class GALAXY(object):
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, nbasechunk)
                 else:
-                    colormask = self.colorcuts_function(
-                        gflux=synthnano['decam2014-g'],
-                        rflux=synthnano['decam2014-r'],
-                        zflux=synthnano['decam2014-z'],
-                        w1flux=synthnano['wise2010-W1'],
-                        w2flux=synthnano['wise2010-W2'])
+                    if isinstance(self.colorcuts_function, (tuple, list)):
+                        _colormask = []
+                        for cf in self.colorcuts_function:
+                            _colormask.append(cf(
+                                gflux=synthnano['decam2014-g'],
+                                rflux=synthnano['decam2014-r'],
+                                zflux=synthnano['decam2014-z'],
+                                w1flux=synthnano['wise2010-W1'],
+                                w2flux=synthnano['wise2010-W2']))
+                        colormask = np.any( np.ma.getdata(np.vstack(_colormask)), axis=0)
+                    else:
+                        colormask = self.colorcuts_function(
+                            gflux=synthnano['decam2014-g'],
+                            rflux=synthnano['decam2014-r'],
+                            zflux=synthnano['decam2014-z'],
+                            w1flux=synthnano['wise2010-W1'],
+                            w2flux=synthnano['wise2010-W2'])
 
                 # If the color-cuts pass then populate the output flux vector
                 # (suitably normalized) and metadata table, convolve with the
@@ -869,11 +883,9 @@ class BGS(GALAXY):
 
         """
         if colorcuts_function is None:
-            try:
-                from desitarget.cuts import isBGS_bright as colorcuts_function
-            except:
-                from desitarget.cuts import isBGS as colorcuts_function
-                log.warning('You are using on old version of desitarget')
+            from desitarget.cuts import isBGS_bright
+            from desitarget.cuts import isBGS_faint
+            colorcuts_function = (isBGS_bright, isBGS_faint)
 
         super(BGS, self).__init__(objtype='BGS', minwave=minwave, maxwave=maxwave,
                                   cdelt=cdelt, wave=wave, colorcuts_function=colorcuts_function,
