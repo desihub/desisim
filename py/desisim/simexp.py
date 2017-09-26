@@ -10,6 +10,7 @@ import numpy as np
 import astropy.table
 import astropy.time
 from astropy.io import fits
+import fitsio
 
 import desitarget
 import desispec.io
@@ -290,18 +291,18 @@ def fibermeta2fibermap(fiberassign, meta):
         fibermap[c] = fiberassign[c]
 
     #- MAG and FILTER; ignore warnings from negative flux
-    #- these are deprecated anyway and will be replaced with FLUX_G, FLUX_R, etc.
+    #- these are deprecated anyway and will be replaced with FLUX_G, FLUX_R,
+    #- etc. in the fibermap as well
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
-        ugrizy = 22.5 - 2.5 * np.log10(meta['DECAM_FLUX'].data)
-        wise = 22.5 - 2.5 * np.log10(meta['WISE_FLUX'].data)
 
-    fibermap['FILTER'][:, :5] = ['DECAM_G', 'DECAM_R', 'DECAM_Z', 'WISE_W1', 'WISE_W2']
-    fibermap['MAG'][:, 0] = ugrizy[:, 1]
-    fibermap['MAG'][:, 1] = ugrizy[:, 2]
-    fibermap['MAG'][:, 2] = ugrizy[:, 4]
-    fibermap['MAG'][:, 3] = wise[:, 0]
-    fibermap['MAG'][:, 4] = wise[:, 1]
+        fibermap['FILTER'][:, :5] = \
+            ['DECAM_G', 'DECAM_R', 'DECAM_Z', 'WISE_W1', 'WISE_W2']
+        fibermap['MAG'][:, 0] = 22.5 - 2.5 * np.log10(meta['FLUX_G'].data)
+        fibermap['MAG'][:, 1] = 22.5 - 2.5 * np.log10(meta['FLUX_R'].data)
+        fibermap['MAG'][:, 2] = 22.5 - 2.5 * np.log10(meta['FLUX_Z'].data)
+        fibermap['MAG'][:, 3] = 22.5 - 2.5 * np.log10(meta['FLUX_W1'].data)
+        fibermap['MAG'][:, 4] = 22.5 - 2.5 * np.log10(meta['FLUX_W2'].data)
 
     #- set OBJTYPE
     #- TODO: what about MWS science targets that are also standard stars?
@@ -635,37 +636,59 @@ def read_mock_spectra(truthfile, targetids, mockdir=None):
         wave[nwave]: wavelengths in Angstroms
         truth[nspec]: metadata truth table
     '''
-    with fits.open(truthfile, memmap=False) as fx:
-        truth = fx['TRUTH'].data
-        wave = fx['WAVE'].data
-        flux = fx['FLUX'].data
+    if len(targetids) != len(np.unique(targetids)):
+        from desiutil.log import get_logger
+        log = get_logger()
+        log.error("Requested TARGETIDs for {} are not unique".format(
+            os.path.basename(truthfile)))
+
+    #- astropy.io.fits doesn't return a real ndarray, causing problems
+    #- with the reordering downstream so use fitsio instead
+    # with fits.open(truthfile, memmap=False) as fx:
+    #     truth = fx['TRUTH'].data
+    #     wave = fx['WAVE'].data
+    #     flux = fx['FLUX'].data
+    with fitsio.FITS(truthfile) as fx:
+        truth = fx['TRUTH'].read()
+        wave = fx['WAVE'].read()
+        flux = fx['FLUX'].read()
+
+    missing = np.in1d(targetids, truth['TARGETID'], invert=True)
+    if np.any(missing):
+        missingids = targetids[missing]
+        raise ValueError('Targets missing from {}: {}'.format(truthfile, missingids))
 
     #- Trim to just the spectra for these targetids
     ii = np.in1d(truth['TARGETID'], targetids)
-    if np.count_nonzero(ii) != len(targetids):
-        jj = ~np.in1d(targetids, truth['TARGETID'])
-        missingids = targetids[jj]
-        raise ValueError('Targets missing from {}: {}'.format(truthfile, missingids))
-
     flux = flux[ii]
     truth = truth[ii]
 
     assert set(targetids) == set(truth['TARGETID'])
 
     #- sort truth to match order of input targetids
-    #- Sort tiles to match order of tileids
-    i = np.argsort(targetids)
-    j = np.argsort(truth['TARGETID'])
-    k = np.argsort(i)
+    if len(targetids) == len(truth['TARGETID']):
+        i = np.argsort(targetids)
+        j = np.argsort(truth['TARGETID'])
+        k = np.argsort(i)
+        reordered_truth = truth[j[k]]
+        reordered_flux = flux[j[k]]
+    else:
+        #- Slower, but works even with repeated TARGETIDs
+        ii = np.argsort(truth['TARGETID'])
+        sorted_truthids = truth['TARGETID'][ii]
+        reordered_flux = np.empty(shape=(len(targetids), flux.shape[1]), dtype=flux.dtype)
+        reordered_truth = np.empty(shape=(len(targetids),), dtype=truth.dtype)
+        for j, tx in enumerate(targetids):
+            k = np.searchsorted(sorted_truthids, tx)
+            reordered_flux[j] = flux[ii[k]]
+            reordered_truth[j] = truth[ii[k]]
 
-    truth = truth[j[k]]
-    flux = flux[j[k]]
-    assert np.all(truth['TARGETID'] == targetids)
+    assert np.all(reordered_truth['TARGETID'] == targetids)
 
     wave = desispec.io.util.native_endian(wave).astype(np.float64)
-    flux = desispec.io.util.native_endian(flux).astype(np.float64)
+    reordered_flux = desispec.io.util.native_endian(reordered_flux).astype(np.float64)
 
-    return flux, wave, truth
+    return reordered_flux, wave, reordered_truth
 
 def targets2truthfiles(targets, basedir, nside=64):
     '''
@@ -699,7 +722,7 @@ def targets2truthfiles(targets, basedir, nside=64):
         filename = mockio.findfile('truth', nside, ipix, basedir=basedir)
         truthfiles.append(filename)
         ii = (pixels == ipix)
-        targetids.append(targets['TARGETID'][ii])
+        targetids.append(np.asarray(targets['TARGETID'][ii]))
 
     return truthfiles, targetids
 

@@ -49,7 +49,7 @@ from astropy.table import Table
 
 from desisim.util import dateobs2night
 import desisim.io
-import desisim.scripts.newexp
+import desisim.scripts.newexp_mock
 import desisim.scripts.newflat
 import desisim.scripts.newarc
 
@@ -166,7 +166,7 @@ if rank < len(todo):
         (flavor, night, expid, obsnum, obscond) = thisobs
         assert flavor in ('science', 'arc', 'flat')
         if flavor == 'science':
-            cmd = "newexp --obslist {} --fiberassign {} --mockdir {}".format(
+            cmd = "newexp-mock --obslist {} --fiberassign {} --mockdir {}".format(
                 args.obslist, args.fiberassign, args.mockdir)
             if args.outdir is not None:
                 cmd = cmd + " --outdir {}".format(args.outdir)
@@ -189,7 +189,7 @@ if rank < len(todo):
         try:
             t0 = time.time()
             if cmd.startswith('newexp'):
-                desisim.scripts.newexp.main(cmd.split()[1:])
+                desisim.scripts.newexp_mock.main(cmd.split()[1:])
             elif cmd.startswith('newflat'):
                 desisim.scripts.newflat.main(cmd.split()[1:])
             elif cmd.startswith('newarc'):

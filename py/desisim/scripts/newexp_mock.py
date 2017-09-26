@@ -101,7 +101,12 @@ def main(args=None):
         args.nspec = len(fiberassign)
 
     log.info('Simulating night {} expid {} tile {}'.format(night, args.expid, tileid))
-    flux, wave, meta = get_mock_spectra(fiberassign, mockdir=args.mockdir)
+    try:
+        flux, wave, meta = get_mock_spectra(fiberassign, mockdir=args.mockdir)
+    except Exception as err:
+        log.fatal('Failed obsnum {} fiberassign {} tile {}'.format(args.obsnum, args.fiberassign, tileid))
+        raise err
+
     sim, fibermap = simscience((flux, wave, meta), fiberassign, obsconditions=obs, nspec=args.nspec)
 
     #- TODO: header keyword code is replicated from obs.new_exposure()
@@ -114,17 +119,17 @@ def main(args=None):
         FLAVOR = ('science', 'Flavor [arc, flat, science, zero, ...]'),
         TELRA = (telera, 'Telescope pointing RA [degrees]'),
         TELDEC = (teledec, 'Telescope pointing dec [degrees]'),
-        AIRMASS = (obsconditions['AIRMASS'], 'Airmass at middle of exposure'),
-        EXPTIME = (obsconditions['EXPTIME'], 'Exposure time [sec]'),
-        SEEING = (obsconditions['SEEING'], 'Seeing FWHM [arcsec]'),
-        MOONFRAC = (obsconditions['MOONFRAC'], 'Moon illumination fraction 0-1; 1=full'),
-        MOONALT  = (obsconditions['MOONALT'], 'Moon altitude [degrees]'),
-        MOONSEP  = (obsconditions['MOONSEP'], 'Moon:tile separation angle [degrees]'),
+        AIRMASS = (obs['AIRMASS'], 'Airmass at middle of exposure'),
+        EXPTIME = (obs['EXPTIME'], 'Exposure time [sec]'),
+        SEEING = (obs['SEEING'], 'Seeing FWHM [arcsec]'),
+        MOONFRAC = (obs['MOONFRAC'], 'Moon illumination fraction 0-1; 1=full'),
+        MOONALT  = (obs['MOONALT'], 'Moon altitude [degrees]'),
+        MOONSEP  = (obs['MOONSEP'], 'Moon:tile separation angle [degrees]'),
         )
     header['DATE-OBS'] = (sim.observation.exposure_start.isot, 'Start of exposure')
 
     #- Write fibermap to $DESI_SPECTRO_SIM/$PIXPROD not $DESI_SPECTRO_DATA
-    fibermap.meta.extend(header)
+    fibermap.meta.update(header)
     fibermap.write(desisim.io.findfile('simfibermap', night, args.expid,
         outdir=args.outdir), overwrite=args.clobber)
 

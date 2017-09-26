@@ -129,9 +129,15 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, outdir=None, filename
     header['NIGHT'] = night
     header['EXPTIME'] = sim.observation.exposure_time.to('s').value
     if obs is not None:
-        for key in obs.keys():
-            if key not in header:
-                header[key] = obs[key]
+        try:
+            keys = obs.keys()
+        except AttributeError:
+            keys = obs.dtype.names
+
+        for key in keys:
+            shortkey = key[0:8]  #- FITS keywords can only be 8 char
+            if shortkey not in header:
+                header[shortkey] = obs[key]
     if 'DOSVER' not in header:
         header['DOSVER'] = 'SIM'
     if 'FEEVER' not in header:
