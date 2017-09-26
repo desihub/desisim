@@ -886,7 +886,7 @@ def simdir(night='', mkdir=False):
     Return $DESI_SPECTRO_SIM/$PIXPROD/{night}
     If mkdir is True, create directory if needed
     """
-    dirname = os.path.join(os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'), night)
+    dirname = os.path.join(os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'), str(night))
     if mkdir and not os.path.exists(dirname):
         os.makedirs(dirname)
 
