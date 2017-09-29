@@ -18,6 +18,7 @@ desisim change log
 * Miscellaneous polishing in QA (velocity, clip before RMS, extend [OII] flux, S/N per Ang)
 * Bug fix: correctly select both "bright" and "faint" BGS templates by default
   (`PR #257`_).  
+* Updates for newexp/fastframe wrappers for end-to-end sims.
 
 .. _`PR #250`: https://github.com/desihub/desisim/pull/250
 .. _`PR #252`: https://github.com/desihub/desisim/pull/252
