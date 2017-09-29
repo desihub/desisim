@@ -288,7 +288,7 @@ class TestQuickgen(unittest.TestCase):
                 std = np.std(mederr[ii] - np.polyval(coeff[channel], medflux[ii]))
                 if std > 0.15:
                     print(cmd)
-                    self.assertLess(std, 0.2, 'noise model failed for channel {} seed {}'.format(channel, seed))
+                    self.assertLess(std, 0.25, 'noise model failed for channel {} seed {}'.format(channel, seed))
 
     #- Ensure that using --seed results in reproducible spectra using simspec as input
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')

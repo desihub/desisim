@@ -2,7 +2,12 @@
 desisim change log
 ==================
 
-0.21.0 (unreleased)
+0.21.1 (unreleased)
+-------------------
+
+* No changes yet
+
+0.21.0 (2017-09-29)
 -------------------
 
 * Major refactor of newexp to add connection to upstream mocks, surveysims,
