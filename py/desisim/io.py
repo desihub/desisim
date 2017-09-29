@@ -60,6 +60,8 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
         simpix = '{outdir:s}/simpix-{expid:08d}.fits',
         simfibermap = '{outdir:s}/fibermap-{expid:08d}.fits',
         pix = '{outdir:s}/pix-{camera:s}-{expid:08d}.fits',
+        fastframelog = '{outdir:s}/fastframe-{expid:08d}.log',
+        newexplog = '{outdir:s}/newexp-{expid:08d}.log',
     )
 
     #- Do we know about this kind of file?
@@ -129,9 +131,15 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, outdir=None, filename
     header['NIGHT'] = night
     header['EXPTIME'] = sim.observation.exposure_time.to('s').value
     if obs is not None:
-        for key in obs.keys():
-            if key not in header:
-                header[key] = obs[key]
+        try:
+            keys = obs.keys()
+        except AttributeError:
+            keys = obs.dtype.names
+
+        for key in keys:
+            shortkey = key[0:8]  #- FITS keywords can only be 8 char
+            if shortkey not in header:
+                header[shortkey] = obs[key]
     if 'DOSVER' not in header:
         header['DOSVER'] = 'SIM'
     if 'FEEVER' not in header:
@@ -880,7 +888,7 @@ def simdir(night='', mkdir=False):
     Return $DESI_SPECTRO_SIM/$PIXPROD/{night}
     If mkdir is True, create directory if needed
     """
-    dirname = os.path.join(os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'), night)
+    dirname = os.path.join(os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'), str(night))
     if mkdir and not os.path.exists(dirname):
         os.makedirs(dirname)
 

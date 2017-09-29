@@ -8,6 +8,10 @@ MPI wrapper for newexp
 #- from login node where MPI doesn't work
 from __future__ import absolute_import, division, print_function
 import argparse
+import subprocess
+import sys
+
+import desisim.io
 
 parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
@@ -49,7 +53,7 @@ from astropy.table import Table
 
 from desisim.util import dateobs2night
 import desisim.io
-import desisim.scripts.newexp
+import desisim.scripts.newexp_mock
 import desisim.scripts.newflat
 import desisim.scripts.newarc
 
@@ -166,7 +170,7 @@ if rank < len(todo):
         (flavor, night, expid, obsnum, obscond) = thisobs
         assert flavor in ('science', 'arc', 'flat')
         if flavor == 'science':
-            cmd = "newexp --obslist {} --fiberassign {} --mockdir {}".format(
+            cmd = "newexp-mock --obslist {} --fiberassign {} --mockdir {}".format(
                 args.obslist, args.fiberassign, args.mockdir)
             if args.outdir is not None:
                 cmd = cmd + " --outdir {}".format(args.outdir)
@@ -183,19 +187,33 @@ if rank < len(todo):
         #- TODO: what about logging?  Use desisim.pipe log redirection logic?
 
         print('RUNNING: {}'.format(cmd))
+        sys.stdout.flush()
         if args.dryrun:
             continue
 
         try:
             t0 = time.time()
-            if cmd.startswith('newexp'):
-                desisim.scripts.newexp.main(cmd.split()[1:])
-            elif cmd.startswith('newflat'):
-                desisim.scripts.newflat.main(cmd.split()[1:])
-            elif cmd.startswith('newarc'):
-                desisim.scripts.newarc.main(cmd.split()[1:])
-            else:
-                print('ERROR: unknown command {}'.format(cmd))
+            logfile = desisim.io.findfile(
+                'simspec', night, expid).replace('.fits', '.log')
+            print('logging {}-{} {} to {}'.format(night, expid, flavor, logfile))
+
+            #- Spawn call to avoid memory leak problems from repeated
+            #- desisim.scripts.newexp_mock.main() calls within same interpreter
+            with open(logfile, 'w') as logx:
+                err = subprocess.call(cmd.split(), stdout=logx, stderr=logx)
+            # if cmd.startswith('newexp'):
+            #     desisim.scripts.newexp_mock.main(cmd.split()[1:])
+            # elif cmd.startswith('newflat'):
+            #     desisim.scripts.newflat.main(cmd.split()[1:])
+            # elif cmd.startswith('newarc'):
+            #     desisim.scripts.newarc.main(cmd.split()[1:])
+            # else:
+            #     print('ERROR: unknown command {}'.format(cmd))
+            if err != 0:
+                print('ERROR: night {} expid {} failed with error {}'.format(
+                    night, expid, err))
+                raise RuntimeError
+
             runtime = time.time() - t0
             print("{} took {:.1f} seconds".format(cmd.split()[0], runtime))
             sys.stdout.flush()

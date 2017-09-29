@@ -28,7 +28,7 @@ else:
     rank = 0
 
 #- The proceed with other imports
-import sys, os, glob, time
+import sys, os, glob, time, subprocess
 tstart = time.time()
 import numpy as np
 
@@ -89,8 +89,24 @@ if rank < len(simspecfiles):
 
         try:
             t0 = time.time()
-            desisim.scripts.fastframe.main(cmd.split()[1:])
+            logfile = filename.replace('simspec', 'fastframe').replace('.fits', '.log')
+            assert logfile != filename
+
+            #- Use subprocess.call instead of fastframe.main() to avoid
+            #- potential memory leaks and separate logging; this does incur
+            #- extra python interpreter startup time.
+            ### desisim.scripts.fastframe.main(cmd.split()[1:])
+
+            print('logging to {}'.format(logfile))
+            with open(logfile, 'w') as logx:
+                err = subprocess.call(cmd.split(), stdout=logx, stderr=logx)
+
             runtime = time.time() - t0
+            if err != 0:
+                print("ERROR: rank {} simspec {} error code {} after {:.1f} sec".format(
+                    rank, os.path.basename(filename), err, runtime))
+                raise RuntimeError
+
             print("rank {} took {:.1f} seconds for {} frame".format(rank, runtime, flavor))
             sys.stdout.flush()
         except:

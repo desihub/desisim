@@ -175,7 +175,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
     if exptime is not None:
         obsconditions['EXPTIME'] = exptime
 
-    sim = simulate_spectra(wave, 1e-17*flux, fibermap=fibermap, obsconditions=obsconditions)
+    sim = simulate_spectra(wave, flux, fibermap=fibermap, obsconditions=obsconditions)
 
     #- Override $DESI_SPECTRO_DATA in order to write to simulation area
     datadir_orig = os.getenv('DESI_SPECTRO_DATA')
@@ -444,7 +444,9 @@ def update_obslog(obstype='science', program='DARK', expid=None, dateobs=None,
     INSERT OR REPLACE INTO obslog(expid,dateobs,night,obstype,program,tileid,ra,dec)
     VALUES (?,?,?,?,?,?,?,?)
     """
-    db.execute(insert, (expid, time.mktime(dateobs), night, obstype.upper(), program.upper(), tileid, ra, dec))
+    db.execute(insert, (int(expid), time.mktime(dateobs), str(night),
+        str(obstype.upper()), str(program.upper()), int(tileid),
+        float(ra), float(dec)))
     db.commit()
 
     return expid, dateobs
