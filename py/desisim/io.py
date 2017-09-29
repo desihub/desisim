@@ -60,6 +60,8 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
         simpix = '{outdir:s}/simpix-{expid:08d}.fits',
         simfibermap = '{outdir:s}/fibermap-{expid:08d}.fits',
         pix = '{outdir:s}/pix-{camera:s}-{expid:08d}.fits',
+        fastframelog = '{outdir:s}/fastframe-{expid:08d}.log',
+        newexplog = '{outdir:s}/newexp-{expid:08d}.log',
     )
 
     #- Do we know about this kind of file?

@@ -271,7 +271,7 @@ def simscience(targets, fiberassign, obsconditions='DARK', expid=None, nspec=Non
     if len(missing_keys) > 0:
         raise ValueError('obsconditions missing keys {}'.format(missing_keys))
 
-    sim = simulate_spectra(wave, flux, fibermap=fibermap, obsconditions=obsconditions)
+    sim = simulate_spectra(wave, 1e-17*flux, fibermap=fibermap, obsconditions=obsconditions)
 
     return sim, fibermap
 
