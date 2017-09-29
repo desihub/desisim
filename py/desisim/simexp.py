@@ -271,7 +271,7 @@ def simscience(targets, fiberassign, obsconditions='DARK', expid=None, nspec=Non
     if len(missing_keys) > 0:
         raise ValueError('obsconditions missing keys {}'.format(missing_keys))
 
-    sim = simulate_spectra(wave, 1e-17*flux, fibermap=fibermap, obsconditions=obsconditions)
+    sim = simulate_spectra(wave, flux, fibermap=fibermap, obsconditions=obsconditions)
 
     return sim, fibermap
 
@@ -339,7 +339,8 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, dwave_out=No
 
     Args:
         wave (array): 1D wavelengths in Angstroms
-        flux (array): 2D[nspec,nwave] flux in erg/s/cm2/Angstrom
+        flux (array): 2D[nspec,nwave] flux in 1e-17 erg/s/cm2/Angstrom
+            or astropy Quantity with flux units
 
     Optional:
         fibermap: table from fiberassign or fibermap; uses X/YFOCAL_DESIGN, TARGETID, DESI_TARGET
@@ -363,7 +364,7 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, dwave_out=No
 
     #- Convert to unit-ful quantities for specsim
     if not isinstance(flux, u.Quantity):
-        fluxunits = u.erg / (u.Angstrom * u.s * u.cm**2)
+        fluxunits = 1e-17 * u.erg / (u.Angstrom * u.s * u.cm**2)
         flux = flux * fluxunits
 
     if not isinstance(wave, u.Quantity):
