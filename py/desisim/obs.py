@@ -444,7 +444,9 @@ def update_obslog(obstype='science', program='DARK', expid=None, dateobs=None,
     INSERT OR REPLACE INTO obslog(expid,dateobs,night,obstype,program,tileid,ra,dec)
     VALUES (?,?,?,?,?,?,?,?)
     """
-    db.execute(insert, (expid, time.mktime(dateobs), night, obstype.upper(), program.upper(), tileid, ra, dec))
+    db.execute(insert, (int(expid), time.mktime(dateobs), str(night),
+        str(obstype.upper()), str(program.upper()), int(tileid),
+        float(ra), float(dec)))
     db.commit()
 
     return expid, dateobs
