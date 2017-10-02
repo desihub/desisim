@@ -1,0 +1,9 @@
+#!/usr/bin/env python
+
+"""
+Generate a new DESI science exposure
+"""
+
+import sys
+from desisim.scripts.quickspectra import main
+sys.exit(main())
