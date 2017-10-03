@@ -22,7 +22,21 @@ from desispec.resolution import Resolution
 import matplotlib.pyplot as plt
 
 def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None, expid=0, seed=0):
+    """
+    Simulate spectra from an input set of wavelength and flux and writes a FITS file in the Spectra format that can
+    be used as input to the redshift fitter.
+
+    Args:
+        wave : 1D np.array of wavelength in Angstrom (in vacuum) in observer frame (i.e. redshifted)
+        flux : 1D or 2D np.array. 1D array must have same size as wave, 2D array must have shape[1]=wave.size
+               flux has to be in units of 10^-17 ergs/s/cm2/A
+        spectra_filename : path to output FITS file in the Spectra format
     
+    Optional:
+        obsconditions : dictionnary of observation conditions with SEEING EXPTIME AIRMASS MOONFRAC MOONALT MOONSEP
+        expid : this expid number will be saved in the Spectra fibermap
+        seed : random seed       
+    """
     log = get_logger()
 
     if len(flux.shape)==1 :
@@ -129,7 +143,7 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None, expid
 def parse(options=None):
     parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                    description="""Fast simulation of spectra into the final DESI format (Spectra class) that can be directly used as
-                                   an input to the redshift fitter (redrock). The input file is an ASCII file with first column the wavelength in A (in vacuum, redshifted), the other columns are treated as spectral flux densities in units of 10^-17 ergs/s/cm2.""")
+                                   an input to the redshift fitter (redrock). The input file is an ASCII file with first column the wavelength in A (in vacuum, redshifted), the other columns are treated as spectral flux densities in units of 10^-17 ergs/s/cm2/A.""")
 
     #- Required
     parser.add_argument('-i','--input', type=str, required=True, help="Input spectra, ASCII or fits")
@@ -198,7 +212,7 @@ def main(args=None):
             log.error("need an HDU with EXTNAME='WAVELENGTH' with a 1D array/image of wavelength in A in vacuum")
             sys.exit(12)
         if not "FLUX" in hdulist :
-            log.error("need an HDU with EXTNAME='FLUX' with a 1D or 2D array/image of flux in units of 10^-17 ergs/s/cm2")
+            log.error("need an HDU with EXTNAME='FLUX' with a 1D or 2D array/image of flux in units of 10^-17 ergs/s/cm2/A")
             sys.exit(12)
         input_wave = hdulist["WAVELENGTH"].data
         input_flux = hdulist["FLUX"].data
@@ -210,12 +224,12 @@ def main(args=None):
         try :
             tmp = np.loadtxt(args.input).T
         except (ValueError,TypeError) :
-            log.error("could not read ASCII file, need at least two columns, separated by ' ', the first one for wavelength in A in vacuum, the other ones for flux in units of 10^-17 ergs/s/cm2, one column per spectrum.")
+            log.error("could not read ASCII file, need at least two columns, separated by ' ', the first one for wavelength in A in vacuum, the other ones for flux in units of 10^-17 ergs/s/cm2/A, one column per spectrum.")
             log.error("error message : {}".format(sys.exc_info()))
             sys.exit(12)
         
         if tmp.shape[0]<2 :
-            log.error("need at least two columns in ASCII file (one for wavelength in A in vacuum, one for flux in units of 10^-17 ergs/s/cm2")
+            log.error("need at least two columns in ASCII file (one for wavelength in A in vacuum, one for flux in units of 10^-17 ergs/s/cm2/A")
             sys.exit(12)
         
         input_wave = tmp[0]
