@@ -203,7 +203,7 @@ def main(args=None):
     try :
         hdulist=pyfits.open(args.input)
         isfits=True
-    except OSError :
+    except (IOError,OSError) :
         pass 
     
     if isfits :
