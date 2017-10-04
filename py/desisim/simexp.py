@@ -434,10 +434,76 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, dwave_out=No
     #- Determine source types
     #- TODO: source shapes + galsim instead of fixed types + fiberloss table
     source_types = get_source_types(fibermap)
+    # source types are sky elg lrg qso bgs star , they 
+    # are only used in specsim.fiberloss for the desi.instrument.fiberloss_method="table" method
+    
+    
+    desi.instrument.fiberloss_method = 'fastsim'
 
-    log.debug('running simulation')
-    desi.instrument.fiberloss_method = 'table'
-    desi.simulate(source_fluxes=flux, focal_positions=xy, source_types=source_types)
+    log.debug('running simulation with {} fiber loss method'.format(desi.instrument.fiberloss_method))
+    
+    unique_source_types = set(source_types)
+    comment_line="source types:"
+    for u in set(source_types) :
+        comment_line+=" {} {}".format(np.sum(source_types==u),u)
+    log.debug(comment_line)
+    
+    source_fraction=None
+    source_half_light_radius=None
+    source_minor_major_axis_ratio=None
+    source_position_angle=None
+
+    
+    if desi.instrument.fiberloss_method == 'fastsim' or desi.instrument.fiberloss_method == 'galsim' :
+        # the following parameters are used only with fastsim and galsim methods
+        
+        elgs=(source_types=="elg")
+        lrgs=(source_types=="lrg")
+        bgss=(source_types=="bgs")
+
+        if np.sum(lrgs)>0 or np.sum(elgs)>0 or np.sum(bgss)>0 :
+            log.warning("the half light radii are fixed here (and not magnitude or redshift dependent)")
+            if np.sum(bgss)>0 :
+                log.warning("bgs source profile parameters are set to be the same as lrgs")
+        
+        # source_fraction[:,0] is DISK profile (exponential) fraction
+        # source_fraction[:,1] is BULGE profile (devaucouleurs) fraction
+        # 1 - np.sum(source_fraction,axis=1) is POINT source profile fraction        
+        source_fraction=np.zeros((nspec,2)) 
+        source_fraction[elgs,0]=1.
+        source_fraction[lrgs,1]=1.
+        source_fraction[bgss,1]=1. # assume is same as lrg profile
+
+        # source_half_light_radius[:,0] is the half light radius in arcsec for the DISK profile
+        # source_half_light_radius[:,1] is the half light radius in arcsec for the BULGE profile        
+        source_half_light_radius=np.zeros((nspec,2))
+        source_half_light_radius[elgs,0]=0.45 # arcsec
+        source_half_light_radius[lrgs,1]=1. # arcsec
+        source_half_light_radius[bgss,1]=1. # arcsec
+        
+        if desi.instrument.fiberloss_method == 'galsim' :
+            # the following parameters are used only with galsim method
+        
+            # source_minor_major_axis_ratio[:,0] is the axis ratio for the DISK profile
+            # source_minor_major_axis_ratio[:,1] is the axis ratio for the BULGE profile
+            source_minor_major_axis_ratio=np.zeros((nspec,2)) 
+            source_minor_major_axis_ratio[elgs,0]=0.7 
+            source_minor_major_axis_ratio[lrgs,1]=0.7
+            source_minor_major_axis_ratio[bgss,1]=0.7
+            
+            # the source position angle is in degrees
+            source_position_angle = np.zeros((nspec,2))
+            random_angles = np.random.uniform(size=nspec)
+            source_position_angle[elgs,0]=random_angles[elgs]
+            source_position_angle[lrgs,1]=random_angles[lrgs]
+            source_position_angle[bgss,1]=random_angles[bgss]
+            
+    
+    desi.simulate(source_fluxes=flux, focal_positions=xy, source_types=source_types,
+                  source_fraction=source_fraction,
+                  source_half_light_radius=source_half_light_radius,
+                  source_minor_major_axis_ratio=source_minor_major_axis_ratio,
+                  source_position_angle=source_position_angle)
 
     return desi
 
