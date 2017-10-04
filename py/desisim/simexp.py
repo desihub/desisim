@@ -493,7 +493,7 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, dwave_out=No
             
             # the source position angle is in degrees
             source_position_angle = np.zeros((nspec,2))
-            random_angles = np.random.uniform(size=nspec)
+            random_angles = 360.*np.random.uniform(size=nspec)
             source_position_angle[elgs,0]=random_angles[elgs]
             source_position_angle[lrgs,1]=random_angles[lrgs]
             source_position_angle[bgss,1]=random_angles[bgss]
