@@ -351,8 +351,11 @@ def main(args, comm=None):
             comm.barrier()
 
     # Move temp files into place
-    os.rename(simpixtemp, args.simpixfile)
-    os.rename(rawtemp, args.rawfile)
+    if rank == 0:
+        os.rename(simpixtemp, args.simpixfile)
+        os.rename(rawtemp, args.rawfile)
+    if comm is not None:
+        comm.barrier()
 
     # Apply preprocessing
     if args.preproc:

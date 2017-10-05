@@ -1,4 +1,10 @@
+"""
+desisim.scripts.pixsim_nights
+======================
 
+Entry point for simulating multiple nights.
+"""
+from __future__ import absolute_import, division, print_function
 
 import sys
 import os
