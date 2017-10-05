@@ -16,7 +16,6 @@ from astropy.io import fits
 from astropy.table import Table
 from astropy.stats import sigma_clipped_stats
 import numpy as np
-import multiprocessing
 
 from desispec.interpolation import resample_flux
 from desispec.io.util import write_bintable, native_endian, header2wave
@@ -842,7 +841,7 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
         args = list()
         for jj in range(nspec):
             args.append((outwave, wave, flux[jj,:]))
-
+        import multiprocessing
         ncpu = multiprocessing.cpu_count() // 2   #- avoid hyperthreading
         pool = multiprocessing.Pool(ncpu)
         outflux = pool.map(_resample_flux, args)
