@@ -191,8 +191,8 @@ def main(args, comm=None):
 
     comm_group = comm
     comm_rank = None
-    group = comm.rank
-    ngroup = comm.size
+    group = 0
+    ngroup = 1
     group_rank = 0
     if comm is not None:
         if args.mpi_camera > 1:
@@ -202,11 +202,16 @@ def main(args, comm=None):
             comm_group = comm.Split(color=group, key=group_rank)
             comm_rank = comm.Split(color=group_rank, key=group)
         else:
+            group = comm.rank
+            ngroup = comm.size
             comm_group = MPI.COMM_SELF
             comm_rank = comm
 
     mycameras = np.array_split(np.arange(ncamera, dtype=np.int32), 
         ngroup)[group]
+
+    rawtemp = "{}.tmp".format(args.rawfile)
+    simpixtemp = "{}.tmp".format(args.simpixfile)
 
     if rank == 0:
         if args.overwrite and os.path.exists(args.rawfile):
@@ -216,6 +221,10 @@ def main(args, comm=None):
         if args.overwrite and os.path.exists(args.simpixfile):
             log.debug('removing {}'.format(args.simpixfile))
             os.remove(args.simpixfile)
+
+        # cleanup stale temp files
+        if os.path.isfile(rawtemp):
+            os.remove(rawtemp)
     
     if comm is not None:
         comm.barrier()
@@ -330,16 +339,20 @@ def main(args, comm=None):
         camera = args.cameras[c]
         if c in mycameras:
             if group_rank == 0:
-                desispec.io.write_raw(args.rawfile, rawpix[camera], 
+                desispec.io.write_raw(rawtemp, rawpix[camera], 
                     camera=camera, header=image[camera].meta, 
                     primary_header=simspec.header)
                 log.info('Wrote {} image to {}'.format(camera, args.rawfile))
-                io.write_simpix(args.simpixfile, truepix[camera], 
+                io.write_simpix(simpixtemp, truepix[camera], 
                     camera=camera, meta=simspec.header)
                 log.info('Wrote {} image to {}'.format(camera, 
                     args.simpixfile))
         if comm is not None:
             comm.barrier()
+
+    # Move temp files into place
+    os.rename(simpixtemp, args.simpixfile)
+    os.rename(rawtemp, args.rawfile)
 
     # Apply preprocessing
     if args.preproc:
