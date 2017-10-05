@@ -1,8 +1,8 @@
 
-from mpi4py import MPI
 
 import sys
 import os
+import re
 import argparse
 import traceback
 
@@ -14,11 +14,11 @@ from desispec.parallel import stdouterr_redirected
 
 import desispec.io as specio
 
-import desisim.io as simio
+from .. import io as simio
 
-from desisim.io import SimSpec
+from ..io import SimSpec
 
-import desisim.scripts.pixsim as pixsim
+from . import pixsim
 
 
 def parse(options=None):
@@ -30,19 +30,20 @@ def parse(options=None):
     parser.add_argument("--verbose", action="store_true", help="Include debug log info")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing raw and simpix files")
     parser.add_argument("--cosmics", action="store_true", help="Add simulated cosmics")
+    parser.add_argument("--preproc", action="store_true", help="Run the preprocessing")
     parser.add_argument("--seed", type=int, default=123456, required=False, help="random number seed")
 
     parser.add_argument("--cameras", type=str, default=None, help="cameras, e.g. b0,r5,z9")
     parser.add_argument("--camera_procs", type=int, default=1, help="Number "
         "of MPI processes to use per camera")
 
+    args = None
     if options is None:
         args = parser.parse_args()
     else:
         options = [str(x) for x in options]
         args = parser.parse_args(options)
 
-    expand_args(args)
     return args
 
 
@@ -124,6 +125,7 @@ def main(args, comm=None):
     ngroup = comm.size
     group_rank = 0
     if comm is not None:
+        from mpi4py import MPI
         if taskproc > 1:
             ngroup = int(comm.size / taskproc)
             group = int(comm.rank / taskproc)
@@ -138,10 +140,32 @@ def main(args, comm=None):
 
     for ex in myexpids:
         nt = exp_to_night[ex]
+        
         # path to raw file
         simspecfile = simio.findfile('simspec', nt, ex)
         rawfile = specio.findfile('raw', nt, ex)
         rawfile = os.path.join(os.path.dirname(simspecfile), rawfile)
+        
+        # Is this exposure already finished?
+        done = True
+        if group_rank == 0:
+            if not os.path.isfile(rawfile):
+                done = False
+            if args.preproc:
+                for c in cams:
+                    pixfile = specio.findfile('pix', night=nt,
+                        expid=ex, camera=c)
+                    if not os.path.isfile(pixfile):
+                        done = False
+        if comm_group is not None:
+            done = comm_group.bcast(done, root=0)
+        if done and not args.overwrite:
+            if group_rank == 0:
+                print("Skipping completed exposure {:08d} on night {}".format(ex, nt))
+            continue
+
+        # Write per-process logs to a separate directory,
+        # since there are so many of them.
         logdir = "{}_logs".format(rawfile)
         if group_rank == 0:
             if not os.path.isdir(logdir):
@@ -149,6 +173,7 @@ def main(args, comm=None):
         if comm_group is not None:
             comm_group.barrier()
         tasklog = os.path.join(logdir, "pixsim")
+
         with stdouterr_redirected(to=tasklog, comm=comm_group):
             try:
                 options = {}
@@ -159,9 +184,10 @@ def main(args, comm=None):
                 options["cameras"] = ",".join(cams)
                 options["mpi_camera"] = args.camera_procs
                 options["verbose"] = args.verbose
+                options["preproc"] = args.preproc
                 optarray = option_list(options)
-                args = pixsim.parse(optarray)
-                pixsim.main(args, comm_group)
+                pixargs = pixsim.parse(optarray)
+                pixsim.main(pixargs, comm_group)
             except:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 lines = traceback.format_exception(exc_type, exc_value, exc_traceback)

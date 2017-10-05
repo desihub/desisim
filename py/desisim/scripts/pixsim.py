@@ -313,6 +313,9 @@ def main(args, comm=None):
             wavemin=args.wavemin, wavemax=args.wavemax, preproc=False,
             comm=comm_group)
 
+        if args.psf is None:
+            del psf
+
     # Wait for all processes to finish their cameras
     if comm is not None:
         comm.barrier()
@@ -353,5 +356,11 @@ def main(args, comm=None):
     if comm is not None:
         comm.barrier()
     
+    # Python is terrible with garbage collection, but at least
+    # encourage it...
+    del image
+    del rawpix
+    del truepix
+
     if rank == 0:
         log.info('Finished pixsim {} expid {} at {}'.format(args.night, args.expid, asctime()))
