@@ -275,6 +275,14 @@ def main(args, comm=None):
             log.debug('Processing camera {}'.format(camera))
         channel = camera[0].lower()
 
+        # Set the seed for this camera (regardless of which process is
+        # performing the simulation).
+        np.random.seed(seeds[c])
+
+        # Get the random cosmic expids.  The actual values will be
+        # remapped internally with the modulus operator.
+        cosexpid = np.random.randint(0, 100, size=1)[0]
+
         # Read inputs for this camera.  Unfortunately psf
         # objects are not serializable, so we read it on all
         # processes.
@@ -297,14 +305,10 @@ def main(args, comm=None):
                     cosmics_file = args.cosmics_file
 
                 shape = (psf.npix_y, psf.npix_x)
-                cosmics = io.read_cosmics(cosmics_file, args.expid, 
+                cosmics = io.read_cosmics(cosmics_file, cosexpid, 
                     shape=shape)
             if comm_group is not None:
                 cosmics = comm_group.bcast(cosmics, root=0)
-
-        # Set the seed for this camera (regardless of which process is
-        # performing the simulation).
-        np.random.seed(seeds[c])
 
         #- Do the actual simulation
         image[camera], rawpix[camera], truepix[camera] = \

@@ -153,7 +153,8 @@ class TestPixsim(unittest.TestCase):
             opts.extend( ['--ncpu', ncpu] )
             
         log.debug('testing pixsim.main({})'.format(opts))
-        desisim.scripts.pixsim.main(opts)
+        pixsimargs = desisim.scripts.pixsim.parse(opts)
+        desisim.scripts.pixsim.main(pixsimargs)
 
         #- verify outputs
         simpixfile = io.findfile('simpix', night, expid)
