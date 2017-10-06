@@ -139,7 +139,7 @@ def parse(options=None):
     # Brick options
     parser.add_argument('-b','--brickname', type=str, help='unique output brickname suffix', metavar='')
     parser.add_argument('--objtype', type=str,  help='ELG, LRG, QSO, BGS, MWS, WD, DARK_MIX, or BRIGHT_MIX', default='DARK_MIX', metavar='')
-    parser.add_argument('-a','--airmass', type=float,  help='airmass', default=1.25, metavar='') # Science Req. Doc L3.3.2
+    parser.add_argument('-a','--airmass', type=float,  help='airmass', default=None, metavar='') 
     parser.add_argument('-e','--exptime', type=float,  help='exposure time (s)', default=None,metavar='')
     parser.add_argument('-o','--outdir', type=str,  help='output directory', default='.', metavar='')
     parser.add_argument('-v','--verbose', action='store_true', help='toggle on verbose output')
@@ -422,61 +422,59 @@ def main(args):
         flavor = simspec.flavor
         log.warning('Maybe using an outdated simspec file with flavor={}'.format(flavor))
 
-    # Set airmass and exptime
-    if args.simspec:
-        if 'AIRMASS' in simspec.header:
-            qsim.atmosphere.airmass = simspec.header['AIRMASS']
-        qsim.observation.exposure_time = simspec.header['EXPTIME'] * u.s
-    else:
+    # Set airmass
+    if args.airmass is not None:
         qsim.atmosphere.airmass = args.airmass
-        if args.exptime is None:
-            if objtype in bright_objects:
-                qsim.observation.exposure_time = desiparams['exptime_bright'] * u.s
-            else:
-                qsim.observation.exposure_time = desiparams['exptime_dark'] * u.s
-        else:
-            qsim.observation.exposure_time = args.exptime * u.s
-
-    # Set moon parameters
-    if flavor in bright_objects or object_type in bright_objects:
-        if args.moon_phase is None:
-            qsim.atmosphere.moon.moon_phase = 0.7
-        else:
-            qsim.atmosphere.moon.moon_phase = args.moon_phase
-        if args.moon_angle is None:
-            qsim.atmosphere.moon.separation_angle = 50 * u.deg
-        else:
-            qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
-        if args.moon_zenith is None:
-            qsim.atmosphere.moon.moon_zenith = 30 * u.deg
-        else:
-            qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
-    elif flavor in gray_objects:
-        if args.moon_phase is None:
-            qsim.atmosphere.moon.moon_phase = 0.1
-        else:
-            qsim.atmosphere.moon.moon_phase = args.moon_phase
-        if args.moon_angle is None:
-            qsim.atmosphere.moon.separation_angle = 60 * u.deg
-        else:
-            qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
-        if args.moon_zenith is None:
-            qsim.atmosphere.moon.moon_zenith = 80 * u.deg
-        else:
-            qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
+    elif args.simspec and 'AIRMASS' in simspec.header:
+        qsim.atmosphere.airmass = simspec.header['AIRMASS']
     else:
-        if args.moon_phase is None:
-            qsim.atmosphere.moon.moon_phase = 0.5
-        else:
-            qsim.atmosphere.moon.moon_phase = args.moon_phase
-        if args.moon_angle is None:
-            qsim.atmosphere.moon.separation_angle = 60 * u.deg
-        else:
-            qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
-        if args.moon_zenith is None:
-            qsim.atmosphere.moon.moon_zenith = 100 * u.deg
-        else:
-            qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
+        qsim.atmosphere.airmass =  1.25   # Science Req. Doc L3.3.2
+        
+    # Set exptime
+    if args.exptime is not None:
+        qsim.observation.exposure_time = args.exptime * u.s
+    elif args.simspec and 'EXPTIME' in simspec.header:
+        qsim.observation.exposure_time = simspec.header['EXPTIME'] * u.s
+    elif objtype in bright_objects:
+        qsim.observation.exposure_time = desiparams['exptime_bright'] * u.s
+    else:
+        qsim.observation.exposure_time = desiparams['exptime_dark'] * u.s
+
+    # Set Moon Phase
+    if args.moon_phase is not None:
+        qsim.atmosphere.moon.moon_phase = args.moon_phase
+    elif args.simspec and 'MOONFRAC' in simspec.header:
+        qsim.atmosphere.moon.moon_phase = simspec.header['MOONFRAC']
+    elif flavor in bright_objects or object_type in bright_objects:
+        qsim.atmosphere.moon.moon_phase = 0.7
+    elif flavor in gray_objects:
+        qsim.atmosphere.moon.moon_phase = 0.1
+    else:
+        qsim.atmosphere.moon.moon_phase = 0.5
+        
+    # Set Moon Zenith
+    if args.moon_zenith is not None:
+        qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
+    elif args.simspec and 'MOONALT' in simspec.header:
+        qsim.atmosphere.moon.moon_zenith = simspec.header['MOONALT'] * u.deg
+    elif flavor in bright_objects or object_type in bright_objects:
+        qsim.atmosphere.moon.moon_zenith = 30 * u.deg
+    elif flavor in gray_objects:
+        qsim.atmosphere.moon.moon_zenith = 80 * u.deg
+    else:
+        qsim.atmosphere.moon.moon_zenith = 100 * u.deg
+
+    # Set Moon - Object Angle
+    if args.separation_angle is not None:
+        qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
+    elif args.simspec and 'MOONSEP' in simspec.header:
+        qsim.atmosphere.moon.separation_angle = simspec.header['MOONSEP'] * u.deg
+    elif flavor in bright_objects or object_type in bright_objects:
+        qsim.atmosphere.moon.separation_angle = 50 * u.deg
+    elif flavor in gray_objects:
+        qsim.atmosphere.moon.separation_angle = 60 * u.deg
+    else:
+        qsim.atmosphere.moon.separation_angle = 60 * u.deg
 
     # Initialize per-camera output arrays that will be saved to the brick files.
     waves, trueflux, noisyflux, obsivar, resolution, sflux = {}, {}, {}, {}, {}, {}
