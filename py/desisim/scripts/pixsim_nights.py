@@ -120,7 +120,7 @@ def main(args, comm=None):
     # create a set of reproducible seeds for each exposure
     np.random.seed(args.seed)
     maxexp = np.max(expids)
-    allseeds = np.random.randint(2**32, size=maxexp)
+    allseeds = np.random.randint(2**32, size=(maxexp+1))
     seeds = allseeds[-nexp:]
 
     taskproc = ncamera * args.camera_procs
