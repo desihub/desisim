@@ -465,7 +465,7 @@ def main(args):
         qsim.atmosphere.moon.moon_zenith = 100 * u.deg
 
     # Set Moon - Object Angle
-    if args.separation_angle is not None:
+    if args.moon_angle is not None:
         qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
     elif args.simspec and 'MOONSEP' in simspec.header:
         qsim.atmosphere.moon.separation_angle = simspec.header['MOONSEP'] * u.deg
