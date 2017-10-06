@@ -29,7 +29,8 @@ import desisim.simexp
 from .simexp import simulate_spectra
 
 def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
-                 seed=None, obsconditions=None, specify_targets=dict(), testslit=False, exptime=None,
+                 nproc=None, seed=None, obsconditions=None, 
+                 specify_targets=dict(), testslit=False, exptime=None,
                  arc_lines_filename=None, flat_spectrum_filename=None):
     """
     Create a new exposure and output input simulation files.
@@ -152,8 +153,8 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         return truth, fibermap, None, None
 
     #- all other programs
-    fibermap, (flux, wave, meta) = get_targets_parallel(nspec, program, tileid=tileid, \
-                                          seed=seed, specify_targets=specify_targets)
+    fibermap, (flux, wave, meta) = get_targets_parallel(nspec, program,
+        tileid=tileid, nproc=nproc, seed=seed, specify_targets=specify_targets)
 
     if obsconditions is None:
         if program in ['dark', 'lrg', 'qso']:
@@ -410,43 +411,41 @@ def update_obslog(obstype='science', program='DARK', expid=None, dateobs=None,
         os.makedirs(dbdir)
 
     dbfile = dbdir+'/obslog.sqlite'
-    db = sqlite3.connect(dbfile)
-    db.execute("""\
-    CREATE TABLE IF NOT EXISTS obslog (
-        expid INTEGER PRIMARY KEY,
-        dateobs DATETIME,                   -- seconds since Unix Epoch (1970)
-        night TEXT,                         -- YEARMMDD
-        obstype TEXT DEFAULT "science",
-        program TEXT DEFAULT "DARK",
-        tileid INTEGER DEFAULT -1,
-        ra REAL DEFAULT 0.0,
-        dec REAL DEFAULT 0.0
-    )
-    """)
+    with sqlite3.connect(dbfile, isolation_level="EXCLUSIVE") as db:
+        db.execute("""\
+        CREATE TABLE IF NOT EXISTS obslog (
+            expid INTEGER PRIMARY KEY,
+            dateobs DATETIME,                   -- seconds since Unix Epoch (1970)
+            night TEXT,                         -- YEARMMDD
+            obstype TEXT DEFAULT "science",
+            program TEXT DEFAULT "DARK",
+            tileid INTEGER DEFAULT -1,
+            ra REAL DEFAULT 0.0,
+            dec REAL DEFAULT 0.0
+        )
+        """)
 
-    #- Fill in defaults
-    if expid is None:
-        expid = get_next_expid()
+        #- Fill in defaults
+        if expid is None:
+            expid = get_next_expid()
 
-    if dateobs is None:
-        dateobs = time.localtime()
+        if dateobs is None:
+            dateobs = time.localtime()
 
-    if ra is None:
-        assert (dec is None)
-        if tileid < 0:
-            ra, dec = (0.0, 0.0)
-        else:
-            ra, dec = io.get_tile_radec(tileid)
+        if ra is None:
+            assert (dec is None)
+            if tileid < 0:
+                ra, dec = (0.0, 0.0)
+            else:
+                ra, dec = io.get_tile_radec(tileid)
 
-    night = get_night(utc=dateobs)
+        night = get_night(utc=dateobs)
 
-    insert = """\
-    INSERT OR REPLACE INTO obslog(expid,dateobs,night,obstype,program,tileid,ra,dec)
-    VALUES (?,?,?,?,?,?,?,?)
-    """
-    db.execute(insert, (int(expid), time.mktime(dateobs), str(night),
-        str(obstype.upper()), str(program.upper()), int(tileid),
-        float(ra), float(dec)))
-    db.commit()
+        insert = """\
+        INSERT OR REPLACE INTO obslog(expid,dateobs,night,obstype,program,tileid,ra,dec)
+        VALUES (?,?,?,?,?,?,?,?)
+        """
+        db.execute(insert, (int(expid), time.mktime(dateobs), str(night), str(obstype.upper()), str(program.upper()), int(tileid), float(ra), float(dec)))
+        db.commit()
 
     return expid, dateobs

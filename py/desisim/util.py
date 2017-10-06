@@ -9,44 +9,6 @@ from __future__ import print_function, division
 import numpy as np
 
 
-#- Experimental
-class _FakeMPIComm(object):
-    '''
-    Provides a fake MPI communicator with a very small subset of the actual
-    functions that mpi4py.MPI.COMM_WORLD provides.  This can be used by
-    programs that want to gracefully fall back from MPI to serial code if they
-    only need to get rank, size, and do barriers.
-    '''
-    def __init__(self):
-        '''creates a fake MPI communicator'''
-        self._size = 1
-        self._rank = 0
-
-    @property
-    def size(self):
-        return self._size
-
-    @property
-    def rank(self):
-        return self._rank
-
-    def Get_size(self):
-        '''mimics a real MPI communicator; returns 1'''
-        return self._size
-
-    def Get_rank(self):
-        '''mimics a real MPI communicator; returns 0'''
-        return self._rank
-
-    def Barrier(self):
-        '''mimics a real MPI communicator, but doesn't do anything here'''
-        pass
-
-    def Abort(self):
-        '''Stop hard'''
-        import sys
-        sys.exit(1)
-
 def spline_medfilt2d(image, kernel_size=201):
     '''
     Returns a 2D spline interpolation of a median filtered input image
