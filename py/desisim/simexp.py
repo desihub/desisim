@@ -463,35 +463,54 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, dwave_out=No
 
         if np.sum(lrgs)>0 or np.sum(elgs)>0 or np.sum(bgss)>0 :
             log.warning("the half light radii are fixed here (and not magnitude or redshift dependent)")
-            if np.sum(bgss)>0 :
-                log.warning("bgs source profile parameters are set to be the same as lrgs")
+
+        # BGS parameters based on SDSS main sample, in g-band
+        # see analysis from J. Moustakas in
+        # https://github.com/desihub/desitarget/blob/bgs-properties/doc/nb/bgs-morphology-properties.ipynb
+        # B/T (bulge-to-total ratio): 0.48 (0.36 - 0.59).
+        # Bulge Sersic n: 2.27 (1.12 - 3.60).
+        # log10 (Bulge Half-light radius): 0.11 (-0.077 - 0.307) arcsec
+        # log10 (Disk Half-light radius): 0.67 (0.54 - 0.82) arcsec
+        # This gives
+        # bulge_fraction = 0.48
+        # disk_fraction  = 0.52
+        # bulge_half_light_radius = 1.3 arcsec
+        # disk_half_light_radius  = 4.7 arcsec
+        # note we use De Vaucouleurs' law , which correspond to a Sersic index n=4
         
         # source_fraction[:,0] is DISK profile (exponential) fraction
         # source_fraction[:,1] is BULGE profile (devaucouleurs) fraction
-        # 1 - np.sum(source_fraction,axis=1) is POINT source profile fraction        
+        # 1 - np.sum(source_fraction,axis=1) is POINT source profile fraction
+        # see specsim.GalsimFiberlossCalculator.create_source routine
         source_fraction=np.zeros((nspec,2)) 
-        source_fraction[elgs,0]=1.
-        source_fraction[lrgs,1]=1.
-        source_fraction[bgss,1]=1. # assume is same as lrg profile
+        source_fraction[elgs,0]=1.   # ELG are disk only
+        source_fraction[lrgs,1]=1.   # LRG are bulge only
+        source_fraction[bgss,0]=0.52 # disk comp in BGS
+        source_fraction[bgss,1]=0.48 # bulge comp in BGS
+        
 
         # source_half_light_radius[:,0] is the half light radius in arcsec for the DISK profile
         # source_half_light_radius[:,1] is the half light radius in arcsec for the BULGE profile        
+        # see specsim.GalsimFiberlossCalculator.create_source routine
         source_half_light_radius=np.zeros((nspec,2))
-        source_half_light_radius[elgs,0]=0.45 # arcsec
-        source_half_light_radius[lrgs,1]=1. # arcsec
-        source_half_light_radius[bgss,1]=1. # arcsec
-        
+        source_half_light_radius[elgs,0]=0.45 # ELG are disk only, arcsec
+        source_half_light_radius[lrgs,1]=1.   # LRG are bulge only, arcsec
+        source_half_light_radius[bgss,0]=4.7  # disk comp in BGS, arcsec
+        source_half_light_radius[bgss,1]=1.3  # bulge comp in BGS, arcsec
+       
         if desi.instrument.fiberloss_method == 'galsim' :
             # the following parameters are used only with galsim method
         
             # source_minor_major_axis_ratio[:,0] is the axis ratio for the DISK profile
             # source_minor_major_axis_ratio[:,1] is the axis ratio for the BULGE profile
+            # see specsim.GalsimFiberlossCalculator.create_source routine
             source_minor_major_axis_ratio=np.zeros((nspec,2)) 
             source_minor_major_axis_ratio[elgs,0]=0.7 
             source_minor_major_axis_ratio[lrgs,1]=0.7
             source_minor_major_axis_ratio[bgss,1]=0.7
             
             # the source position angle is in degrees
+            # see specsim.GalsimFiberlossCalculator.create_source routine
             source_position_angle = np.zeros((nspec,2))
             random_angles = 360.*np.random.uniform(size=nspec)
             source_position_angle[elgs,0]=random_angles[elgs]
