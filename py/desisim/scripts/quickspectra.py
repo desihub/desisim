@@ -21,7 +21,7 @@ from desispec.spectra import Spectra,spectra_dtype
 from desispec.resolution import Resolution
 import matplotlib.pyplot as plt
 
-def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None, expid=0, seed=0):
+def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None, sourcetype=None, expid=0, seed=0):
     """
     Simulate spectra from an input set of wavelength and flux and writes a FITS file in the Spectra format that can
     be used as input to the redshift fitter.
@@ -34,15 +34,21 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None, expid
     
     Optional:
         obsconditions : dictionnary of observation conditions with SEEING EXPTIME AIRMASS MOONFRAC MOONALT MOONSEP
+        sourcetype : list of string, allowed values are (sky,elg,lrg,qso,bgs,star), type of sources, used for fiber aperture loss , default is star
         expid : this expid number will be saved in the Spectra fibermap
         seed : random seed       
     """
     log = get_logger()
-
+    
     if len(flux.shape)==1 :
         flux=flux.reshape((1,flux.size))
     nspec=flux.shape[0]
+    
     log.info("Starting simulation of {} spectra".format(nspec))
+    
+    if sourcetype is None :        
+        sourcetype = np.array(["star" for i in range(nspec)])
+    log.debug("sourcetype = {}".format(sourcetype))
     
     tileid  = 0
     telera  = 0
@@ -57,13 +63,18 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None, expid
     frame_fibermap.meta["NIGHT"]=night
     frame_fibermap.meta["EXPID"]=expid
     
-    # add DESI_TARGET and TARGETID
-    tm = desitarget.desi_mask
-    for spec in range(nspec) :
-        frame_fibermap['DESI_TARGET'][spec] = tm.STD_FSTAR
-        frame_fibermap['TARGETID'][spec] = spec
-       
-     
+    # add DESI_TARGET 
+    tm = desitarget.desi_mask    
+    frame_fibermap['DESI_TARGET'][sourcetype=="star"]=tm.STD_FSTAR
+    frame_fibermap['DESI_TARGET'][sourcetype=="lrg"]=tm.LRG
+    frame_fibermap['DESI_TARGET'][sourcetype=="elg"]=tm.ELG
+    frame_fibermap['DESI_TARGET'][sourcetype=="qso"]=tm.QSO
+    frame_fibermap['DESI_TARGET'][sourcetype=="sky"]=tm.SKY
+    frame_fibermap['DESI_TARGET'][sourcetype=="bgs"]=tm.BGS_ANY
+    
+    # add dummy TARGETID
+    frame_fibermap['TARGETID']=np.arange(nspec).astype(int)
+         
     # spectra fibermap has two extra fields : night and expid
     spectra_fibermap = np.zeros(shape=(nspec,), dtype=spectra_dtype())
     for s in range(nspec):
@@ -160,6 +171,7 @@ def parse(options=None):
     parser.add_argument('--moonalt', type=float, default=None, help="Moon altitude [degrees]")
     parser.add_argument('--moonsep', type=float, default=None, help="Moon separation to tile [degrees]")
     parser.add_argument('--seed', type=int, default=0, help="Random seed")
+    parser.add_argument('--source-type', type=str, default=None, help="Source type (for fiber loss), among sky,elg,lrg,qso,bgs,star")
     
     
     if options is None:
@@ -178,6 +190,12 @@ def main(args=None):
     if isinstance(args, (list, tuple, type(None))):
         args = parse(args)
 
+    if args.source_type is not None :
+        allowed=["sky","elg","lrg","qso","bgs","star"]
+        if not args.source_type in allowed :
+            log.error("source type has to be among {}".format(allowed))
+            sys.exit(12)
+        
     exptime = args.exptime
     if exptime is None :
         exptime = 1000. # sec
@@ -241,6 +259,10 @@ def main(args=None):
     else :
         log.info("input flux shape = {}".format(input_flux.shape))
     
+    sourcetype=args.source_type
+    if sourcetype is not None and len(input_flux.shape)>1 :
+        nspec=input_flux.shape[0]
+        sourcetype=np.array([sourcetype for i in range(nspec)])
     
-    sim_spectra(input_wave, input_flux, args.program, obsconditions=obsconditions,spectra_filename=args.out_spectra,seed=args.seed)
+    sim_spectra(input_wave, input_flux, args.program, obsconditions=obsconditions,spectra_filename=args.out_spectra,seed=args.seed,sourcetype=sourcetype)
     
