@@ -127,13 +127,17 @@ def main(args, comm=None):
 
     comm_group = comm
     comm_rank = None
-    group = comm.rank
-    ngroup = comm.size
+    group = 0
+    ngroup = 1
+    if comm is not None:
+        group = comm.rank
+        ngroup = comm.size
+
     group_rank = 0
     if comm is not None:
         from mpi4py import MPI
         if taskproc > 1:
-            ngroup = int(comm.size / taskproc)
+            ngroup     = int(np.ceil(float(comm.size) / taskproc))
             group = int(comm.rank / taskproc)
             group_rank = comm.rank % taskproc
             comm_group = comm.Split(color=group, key=group_rank)
@@ -144,7 +148,7 @@ def main(args, comm=None):
 
     myexpids = np.array_split(expids, ngroup)[group]
 
-    for ex in myexpids:
+    for ex_counter,ex in enumerate(myexpids):
         nt = exp_to_night[ex]
         
         # path to raw file
@@ -186,7 +190,7 @@ def main(args, comm=None):
                 options["night"] = nt
                 options["expid"] = int(ex)
                 options["cosmics"] = args.cosmics
-                options["seed"] = seeds[ex]
+                options["seed"] = seeds[ex_counter]
                 options["cameras"] = ",".join(cams)
                 options["mpi_camera"] = args.camera_procs
                 options["verbose"] = args.verbose
