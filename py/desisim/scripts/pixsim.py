@@ -179,6 +179,7 @@ def parse(options=None):
     parser.add_argument("--ncpu", type=int, help="Number of cpu cores per thread to use %(default)s", default=mp.cpu_count() // 2)
     parser.add_argument("--wavemin", type=float, help="Minimum wavelength to simulate")
     parser.add_argument("--wavemax", type=float, help="Maximum wavelength to simulate")
+    parser.add_argument("--no-mpi", action="store_true", help="disable MPI")
 
     parser.add_argument("--mpi_camera", type=int, default=1, help="Number of "
         "MPI processes to use per camera")
@@ -194,10 +195,14 @@ def parse(options=None):
 
 
 def main(args, comm=None):
+    
     if args.verbose:
         import logging
         log.setLevel(logging.DEBUG)
-
+    
+    if args.no_mpi :
+        comm=None
+    
     rank = 0
     nproc = 1
     if comm is not None:
