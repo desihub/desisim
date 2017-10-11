@@ -40,6 +40,7 @@ def parse(options=None):
     parser.add_argument("--seed", type=int, default=123456, required=False, help="random number seed")
 
     parser.add_argument("--cameras", type=str, default=None, help="cameras, e.g. b0,r5,z9")
+    parser.add_argument("--expids", type=str, default=None, help="expids, e.g. 0,12,14")
     parser.add_argument("--camera_procs", type=int, default=1, help="Number "
         "of MPI processes to use per camera")
 
@@ -79,15 +80,31 @@ def main(args, comm=None):
             nights = comm.bcast(nights, root=0)
 
     # Get the list of exposures for each night
+    requested_expids=None
+    if args.expids is not None :
+        requested_expids=list()
+        vals = args.expids.split(",")
+        for v in vals :
+            requested_expids.append(int(v))
+    
     night_expid = {}
     all_expid = []
     exp_to_night = {}
     if rank == 0:
         for nt in nights:
-            night_expid[nt] = specio.get_exposures(nt, raw=True)
+            if requested_expids is not None :
+                night_expid[nt] = list()
+                for expid in specio.get_exposures(nt, raw=True) :
+                    if expid in requested_expids :
+                        night_expid[nt].append(expid)
+            else :    
+                night_expid[nt] = specio.get_exposures(nt, raw=True) 
+            
             all_expid.extend(night_expid[nt])
             for ex in night_expid[nt]:
                 exp_to_night[ex] = nt
+            
+    
     if comm is not None:
         night_expid = comm.bcast(night_expid, root=0)
         all_expid = comm.bcast(all_expid, root=0)
