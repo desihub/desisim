@@ -23,8 +23,47 @@ import desisim.pixsim
 from desisim.io import SimSpec
 from desisim import obs, io
 from desiutil.log import get_logger
+from scipy.sparse import lil_matrix
+
 log = get_logger()
 
+
+class SparseArray(object) :
+    def __init__(self,array,begin,end) :
+        self.mat = lil_matrix(array.shape)
+        self.mat[begin:end] = array[begin:end]
+    def __getitem__(self, index):
+        return self.mat[index] #.toarray()
+
+class SparseSimSpec(object) :
+    """ a slice of a desisim.io.SimSpec object """
+    def __init__(self, simspec, begin, end, rank=0) :
+        self.flavor = simspec.flavor
+        self.obs = simspec.obs
+        self.header = simspec.header
+        self.nspec = simspec.nspec
+        self.wave = simspec.wave
+        self.metadata = simspec.metadata
+        self.fibermap = simspec.fibermap
+
+        if rank==0 :
+            self.flux     = simspec.flux
+            self.skyflux  = simspec.skyflux
+        else :
+            self.flux     = None
+            self.skyflux  = None
+
+        # now, for the rest we only want to allocate the memory and fill vectors in range begin:end
+        # but 'pretending' it's a full array
+        
+        self.phot = dict()
+        self.skyphot = dict()
+        for channel in ('b', 'r', 'z'):
+            self.phot[channel]     = SparseArray(simspec.phot[channel],begin,end).mat
+            self.skyphot[channel]  = SparseArray(simspec.skyphot[channel],begin,end).mat
+        
+        
+            
 def expand_args(args):
     '''expand camera string into list of cameras
     '''
@@ -164,7 +203,7 @@ def main(args, comm=None):
     if comm is not None:
         rank = comm.rank
         nproc = comm.size
-
+    
     if rank == 0:
         log.info('Starting pixsim at {}'.format(asctime()))
 
@@ -233,10 +272,47 @@ def main(args, comm=None):
     if args.psf is not None:
         from specter.psf import load_psf
         psf = load_psf(args.psf)
-
+    
+    
+    # trick to have only one copy of the simspec
+    # rank 0 reads the data and then distributes to each rank
+    # a sparse sparsesimspec
     simspec = None
-    if rank == 0:
+    if comm is None or rank == 0 :
+        log.debug("reading simspec")
         simspec = io.read_simspec(args.simspec)
+    
+    if comm is not None : 
+        if rank == 0:
+            log.debug("rank 0 : distributing sparsesimspec")
+            cams=np.array(args.cameras)[mycameras]
+            log.debug("my cameras = {}".format(cams))
+            
+            specids=[]
+            for camera in cams : specids.append(int(camera[1]))
+            uspecids=np.unique(specids)
+            log.debug("my spectrographs = {}".format(uspecids))
+                        
+            tmp = np.array_split(np.arange(500, dtype=np.int32), comm.size) # splitting fibers for a given camera among processes
+            spec_of_ranks = []
+            for orank in range(comm.size) :
+                spec_of_rank = np.array([])
+                for specid in uspecids :
+                    spec_of_rank = np.append(spec_of_rank,tmp[orank]+500*specid)
+                spec_of_ranks.append(spec_of_rank.astype(int))
+            
+            for other_rank in range(1,comm.size) :
+                log.debug("rank 0 -> {} : sending {} spectra from {} to {}".format(other_rank,spec_of_ranks[other_rank].size,spec_of_ranks[other_rank][0],spec_of_ranks[other_rank][-1]))
+                comm.send(SparseSimSpec(simspec,spec_of_ranks[other_rank][0],spec_of_ranks[other_rank][-1]+1,other_rank), dest=other_rank, tag=11)
+            simspec = SparseSimSpec(simspec,spec_of_ranks[0][0],spec_of_ranks[0][-1],0)
+        else :
+            simspec = comm.recv(source=0, tag=11)
+        if rank == 0:
+            log.debug("rank {} : done".format(rank))
+        
+    
+    """
+    
     if comm is not None:
         # Broadcast one array at a time, since this is a 
         # very large object.
@@ -259,7 +335,8 @@ def main(args, comm=None):
         simspec.fibermap = comm.bcast(simspec.fibermap, root=0)
         simspec.obs = comm.bcast(simspec.obs, root=0)
         simspec.header = comm.bcast(simspec.header, root=0)
-
+    """
+    
     fibers = None
     if args.fibermap:
         if rank == 0:
