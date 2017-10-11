@@ -11,6 +11,7 @@ import sys
 import os
 import os.path
 import random
+import scipy
 from time import asctime
 
 import numpy as np
@@ -87,7 +88,7 @@ def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
 
     Args:
         camera (string) : b0, r1, .. z9
-        simspec : desispec.io.SimSpec object e.g. from desispec.io.read_simspec()
+        simspec : desisim.io.SimSpec object e.g. from desisim.io.read_simspec()
         psf : subclass of specter.psf.psf.PSF, e.g. from desimodel.io.load_psf()
         fibers (array_like, optional):  fibers included in this simspec
         nspec (int, optional) : number of spectra to simulate
@@ -119,8 +120,9 @@ def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
 
     if fibers is not None:
         fibers = np.asarray(fibers)
+        
         allphot = simspec.phot[channel] + simspec.skyphot[channel]
-
+        
         #- Trim to just fibers on this spectrograph
         ii = np.where(fibers//500 == ispec)[0]
         fibers = fibers[ii]
@@ -146,7 +148,7 @@ def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
             ii = slice(nfibers*ispec, nfibers*ispec + nspec)
 
         phot = phot[ii]
-
+    
     #- Trim wavelenths if needed
     wave = simspec.wave[channel]
     if wavemin is not None:
@@ -165,7 +167,9 @@ def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
     #- Project to image and append that to file
     if (comm is None) or (comm.rank == 0):
         log.info("Projecting photons onto {} CCD".format(camera))
-
+        
+    
+    
     # The returned true pixel values will only exist on rank 0 in the
     # MPI case.  Otherwise it will be None.
     truepix = parallel_project(psf, wave, phot, ncpu=ncpu, comm=comm)
@@ -391,10 +395,14 @@ def parallel_project(psf, wave, phot, ncpu=None, comm=None):
         from mpi4py import MPI
         specs = np.arange(phot.shape[0], dtype=np.int32)
         myspecs = np.array_split(specs, comm.size)[comm.rank]
-        myimg = psf.project(wave, phot[myspecs])
-        if comm.rank == 0:
-            img = np.zeros_like(myimg)
-        comm.Reduce(myimg, img, op=MPI.SUM, root=0)
+        # log.debug("rank {} comm.size {} myspec={}".format(comm.rank,comm.size,myspecs))
+        if myspecs.size>0 :
+            myphot=phot[myspecs]
+            if scipy.sparse.issparse(myphot) : myphot=myphot.toarray()
+            myimg = psf.project(wave, myphot, specmin=myspecs[0] )
+            if comm.rank == 0:
+                img = np.zeros_like(myimg)
+            comm.Reduce(myimg, img, op=MPI.SUM, root=0)
     else:
         import multiprocessing as mp
         if ncpu is None:
