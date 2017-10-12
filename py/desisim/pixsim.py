@@ -395,7 +395,7 @@ def parallel_project(psf, wave, phot, ncpu=None, comm=None):
         from mpi4py import MPI
         specs = np.arange(phot.shape[0], dtype=np.int32)
         myspecs = np.array_split(specs, comm.size)[comm.rank]
-        # log.debug("rank {} comm.size {} myspec={}".format(comm.rank,comm.size,myspecs))
+        log.debug("rank {} comm.size {} myspec={}".format(comm.rank,comm.size,myspecs))
         if myspecs.size>0 :
             myphot=phot[myspecs]
             if scipy.sparse.issparse(myphot) : myphot=myphot.toarray()

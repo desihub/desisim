@@ -15,7 +15,7 @@ import traceback
 import numpy as np
 
 from desispec.util import option_list
-
+from desiutil.log import get_logger
 from desispec.parallel import stdouterr_redirected
 
 import desispec.io as specio
@@ -42,7 +42,7 @@ def parse(options=None):
     parser.add_argument("--cameras", type=str, default=None, help="cameras, e.g. b0,r5,z9")
     parser.add_argument("--expids", type=str, default=None, help="expids, e.g. 0,12,14")
     parser.add_argument("--camera_procs", type=int, default=1, help="Number "
-        "of MPI processes to use per camera")
+        "of MPI processes to use per camera and node")
 
     args = None
     if options is None:
@@ -61,6 +61,12 @@ def main(args, comm=None):
         rank = comm.rank
         nproc = comm.size
 
+    log = get_logger()
+
+    if(args.verbose) :
+        import logging
+        log.setLevel(logging.DEBUG)
+    
     # Determine which nights we are using
     nights = None
     if args.nights is not None:
@@ -103,7 +109,10 @@ def main(args, comm=None):
             all_expid.extend(night_expid[nt])
             for ex in night_expid[nt]:
                 exp_to_night[ex] = nt
-            
+        
+        log.info("Will simulate:")
+        for nt in nights: 
+            log.info("night {} expids {}".format(nt,night_expid[nt]))
     
     if comm is not None:
         night_expid = comm.bcast(night_expid, root=0)
@@ -126,92 +135,112 @@ def main(args, comm=None):
     # number of cameras
     ncamera = len(cams)
 
-    # check that our communicator is an appropriate size
-
-    if comm is not None:
-        if ncamera * args.camera_procs > comm.size:
-            if comm.rank == 0:
-                print("Communicator size ({}) too small for {} cameras each with {} procs".format(comm.size, ncamera, args.camera_procs), flush=True)
-                comm.Abort()
-
-    # create a set of reproducible seeds for each exposure
+    # this is the total number of tasks to do 
+    # number of cameras x number of exposures
+    # by default it is going to be 3*10*nexps
+    ntask = ncamera*nexp
+    
+    # create a set of reproducible seeds for each exposure and camera
     np.random.seed(args.seed)
-    maxexp = np.max(expids)
-    allseeds = np.random.randint(2**32, size=(maxexp+1))
-    seeds = allseeds[-nexp:]
-
-    taskproc = ncamera * args.camera_procs
-
+    seeds = np.random.randint(2**32, size=ntask)
+    
+    nproc = 1 
+    nnode = 1
+    
+    if comm is not None:
+        nproc = comm.size
+        nnode = nproc//args.camera_procs
+    
+    if rank==0 :
+        log.debug("number of cameras = {}".format(ncamera))
+        log.debug("number of expids  = {}".format(nexp))
+        log.debug("number of tasks   = {}".format(ntask))
+        log.debug("number of procs   = {}".format(nproc))
+        log.debug("number of nodes   = {}".format(nnode))
+    
     comm_group = comm
-    comm_rank = None
-    group = 0
-    ngroup = 1
-    if comm is not None:
-        group = comm.rank
-        ngroup = comm.size
-
-    group_rank = 0
-    if comm is not None:
+    group = 0 # we want to have a group = a node
+    group_rank = rank
+    if comm is not None and nnode>1 :
         from mpi4py import MPI
-        if taskproc > 1:
-            ngroup     = int(np.ceil(float(comm.size) / taskproc))
-            group = int(comm.rank / taskproc)
-            group_rank = comm.rank % taskproc
-            comm_group = comm.Split(color=group, key=group_rank)
-            comm_rank = comm.Split(color=group_rank, key=group)
-        else:
-            comm_group = MPI.COMM_SELF
-            comm_rank = comm
+        group      = comm.rank//args.camera_procs
+        group_rank = comm.rank % args.camera_procs
+        comm_group = comm.Split(color=group, key=group_rank)
+    
+    # splitting tasks on procs according to the node they belong to
+    mytasks  = np.array_split(np.arange(ntask,dtype=np.int32),nnode)[group]
+     
+    if comm is not None and group_rank == 0 :
+            log.debug("group {} size {} tasks {}".format(group,comm_group.size,mytasks))
+    
+    
+    # now we loop on the exposures and cameras that each group has to do
+    for task in mytasks :
 
-    myexpids = np.array_split(expids, ngroup)[group]
-
-    for ex_counter,ex in enumerate(myexpids):
-        nt = exp_to_night[ex]
+        # from the task index, find which exposure and camera it corresponds to
+        # we do first each camera of exposure before going to the next
+        camera_index   = task%ncamera
+        exposure_index = task//ncamera
+        seed           = seeds[task]
+        
+        #if comm is not None:
+        #    log.debug("rank {} task {} exposure_index {} camera_index {}".format(rank,task,exposure_index,camera_index))
+        
+        expid  = expids[exposure_index]
+        camera = cams[camera_index]
+        night = exp_to_night[expid]
+        
+        
+        
+        # Is this task already finished?
+        # checking if already done
         
         # path to raw file
-        simspecfile = simio.findfile('simspec', nt, ex)
-        rawfile = specio.findfile('raw', nt, ex)
+        simspecfile = simio.findfile('simspec', night, expid)
+        rawfile = specio.findfile('raw', night, expid)
         rawfile = os.path.join(os.path.dirname(simspecfile), rawfile)
+        pixfile = specio.findfile('pix', night=night, expid=expid, camera=camera)
+
+        if comm_group is not None : comm_group.barrier()
         
-        # Is this exposure already finished?
-        done = True
+        done = True        
         if group_rank == 0:
-            if not os.path.isfile(rawfile):
-                done = False
-            if args.preproc:
-                for c in cams:
-                    pixfile = specio.findfile('pix', night=nt,
-                        expid=ex, camera=c)
-                    if not os.path.isfile(pixfile):
-                        done = False
+            done &= os.path.isfile(rawfile)
+            if args.preproc: 
+                done &= os.path.isfile(pixfile)
         if comm_group is not None:
             done = comm_group.bcast(done, root=0)
-        if done and not args.overwrite:
+        
+        if done and not args.overwrite :
             if group_rank == 0:
-                print("Skipping completed exposure {:08d} on night {}".format(ex, nt))
+                log.info("group {} skipping completed night {} expid {} camera {}".format(group,night,expid,camera))
+                sys.stdout.flush()
             continue
-
+        
+        if comm is not None and group_rank == 0 :
+            log.debug("group {} doing night {} expid {} camera {}".format(group,night,expid,camera))
+                
+        # now we run this
+        
         # Write per-process logs to a separate directory,
         # since there are so many of them.
-        logdir = "{}_logs".format(rawfile)
-        if group_rank == 0:
-            if not os.path.isdir(logdir):
-                os.makedirs(logdir)
-        if comm_group is not None:
-            comm_group.barrier()
-        tasklog = os.path.join(logdir, "pixsim")
-
+        tasklog = pixfile.replace(".fits",".log")
         with stdouterr_redirected(to=tasklog, comm=comm_group):
+            
             try:
                 options = {}
-                options["night"] = nt
-                options["expid"] = int(ex)
+                options["night"] = night
+                options["expid"] = int(expid)
+                options["cameras"] = camera
                 options["cosmics"] = args.cosmics
-                options["seed"] = seeds[ex_counter]
-                options["cameras"] = ",".join(cams)
+                options["seed"] = seed                
                 options["mpi_camera"] = args.camera_procs
                 options["verbose"] = args.verbose
                 options["preproc"] = args.preproc
+                
+                #log.debug("group {} running pixsim {}".format(group,options))
+                #sys.stdout.flush()
+                
                 optarray = option_list(options)
                 pixargs = pixsim.parse(optarray)
                 pixsim.main(pixargs, comm_group)

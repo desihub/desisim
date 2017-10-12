@@ -6,7 +6,7 @@ This is a module.
 """
 from __future__ import absolute_import, division, print_function
 
-import os
+import os,sys
 import os.path
 import multiprocessing as mp
 import random
@@ -211,6 +211,9 @@ def main(args, comm=None):
     
     if rank == 0:
         log.info('Starting pixsim at {}'.format(asctime()))
+        if comm is not None :
+            log.debug('comm.rank {} comm.size {} night {} expid {} cameras {}'.format(comm.rank,comm.size,args.night,args.expid,args.cameras))
+    
 
     #- Pre-flight check that these cameras haven't been done yet
     if (rank == 0) and (not args.overwrite) and os.path.exists(args.rawfile):
@@ -240,7 +243,8 @@ def main(args, comm=None):
     group_rank = 0
     if comm is not None:
         if args.mpi_camera > 1:
-            ngroup = int(comm.size / args.mpi_camera)
+            #ngroup = int(comm.size / args.mpi_camera)
+            ngroup = int(np.ceil(float(comm.size) / args.mpi_camera))
             group = int(comm.rank / args.mpi_camera)
             group_rank = comm.rank % args.mpi_camera
             comm_group = comm.Split(color=group, key=group_rank)
@@ -250,6 +254,10 @@ def main(args, comm=None):
             ngroup = comm.size
             comm_group = MPI.COMM_SELF
             comm_rank = comm
+        #log.debug("rank={} comm.size={} ngroup={} group={}".format(comm.rank,comm.size,ngroup,group))
+    
+    sys.stdout.flush()
+    
 
     mycameras = np.array_split(np.arange(ncamera, dtype=np.int32), 
         ngroup)[group]
@@ -265,14 +273,17 @@ def main(args, comm=None):
         if args.overwrite and os.path.exists(args.simpixfile):
             log.debug('removing {}'.format(args.simpixfile))
             os.remove(args.simpixfile)
-
+        
+        sys.stdout.flush()
+        
         # cleanup stale temp files
         if os.path.isfile(rawtemp):
             os.remove(rawtemp)
     
     if comm is not None:
         comm.barrier()
-
+        
+    
     psf = None
     if args.psf is not None:
         from specter.psf import load_psf
@@ -314,7 +325,7 @@ def main(args, comm=None):
             simspec = comm.recv(source=0, tag=11)
         if rank == 0:
             log.debug("rank {} : done".format(rank))
-        
+        sys.stdout.flush()
     
     """
     
@@ -364,6 +375,7 @@ def main(args, comm=None):
         camera = args.cameras[c]
         if group_rank == 0:
             log.debug('Processing camera {}'.format(camera))
+            sys.stdout.flush()
         channel = camera[0].lower()
 
         # Set the seed for this camera (regardless of which process is
@@ -429,6 +441,7 @@ def main(args, comm=None):
                     camera=camera, meta=simspec.header)
                 log.info('Wrote {} image to {}'.format(camera, 
                     args.simpixfile))
+                sys.stdout.flush()
         if comm is not None:
             comm.barrier()
 
@@ -443,6 +456,7 @@ def main(args, comm=None):
     if args.preproc:
         if rank == 0:
             log.info('Preprocessing raw -> pix files')
+            sys.stdout.flush()
         from desispec.scripts import preproc
         if len(mycameras) > 0:
             if group_rank == 0:
@@ -466,3 +480,4 @@ def main(args, comm=None):
 
     if rank == 0:
         log.info('Finished pixsim {} expid {} at {}'.format(args.night, args.expid, asctime()))
+        sys.stdout.flush()
