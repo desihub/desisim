@@ -181,7 +181,7 @@ def parse(options=None):
     parser.add_argument("--wavemax", type=float, help="Maximum wavelength to simulate")
     parser.add_argument("--no-mpi", action="store_true", help="disable MPI")
 
-    parser.add_argument("--mpi_camera", type=int, default=None, help="Number of "
+    parser.add_argument("--camera_procs", type=int, default=None, help="Number of "
         "MPI processes to use per camera")
 
     if options is None:
@@ -209,15 +209,15 @@ def main(args, comm=None):
         rank = comm.rank
         nproc = comm.size
         
-        if args.mpi_camera is None :
+        if args.camera_procs is None :
             # make a choice based on slurm variables
             JOB_NUM_NODES=1
             NPROCS=1
             if "SLURM_JOB_NUM_NODES" in os.environ : JOB_NUM_NODES=int(os.environ["SLURM_JOB_NUM_NODES"])
             if "SLURM_NPROCS" in os.environ : NPROCS=int(os.environ["SLURM_NPROCS"])
-            args.mpi_camera = NPROCS//JOB_NUM_NODES
+            args.camera_procs = NPROCS//JOB_NUM_NODES
         if rank==0 :
-            log.info("Will use {} processes per camera".format(args.mpi_camera))
+            log.info("Will use {} processes per camera".format(args.camera_procs))
     
 
 
@@ -247,36 +247,43 @@ def main(args, comm=None):
                 sys.exit(1)
 
     ncamera = len(args.cameras)
-
-    comm_group = comm
-    comm_rank = None
-    group = 0
-    ngroup = 1
-    group_rank = 0
+    
+    nproc = 1 
+    nnode = 1
+    
     if comm is not None:
-        if args.mpi_camera > 1:
-            #ngroup = int(comm.size / args.mpi_camera)
-            ngroup = int(np.ceil(float(comm.size) / args.mpi_camera))
-            group = int(comm.rank / args.mpi_camera)
-            group_rank = comm.rank % args.mpi_camera
-            comm_group = comm.Split(color=group, key=group_rank)
-            comm_rank = comm.Split(color=group_rank, key=group)
-        else:
-            group = comm.rank
-            ngroup = comm.size
-            comm_group = MPI.COMM_SELF
-            comm_rank = comm
-        #log.debug("rank={} comm.size={} ngroup={} group={}".format(comm.rank,comm.size,ngroup,group))
+        nproc = comm.size
+        nnode = nproc//args.camera_procs
+        
+        if rank==0 :
+            log.debug("number of cameras = {}".format(ncamera))
+            log.debug("number of procs   = {}".format(nproc))
+            log.debug("number of nodes   = {}".format(nnode))
+        
+        comm.barrier()
+
+    comm_group = comm    
+    group = 0
+    group_rank = rank
+    if comm is not None and nnode>1 :
+        from mpi4py import MPI
+        group      = comm.rank//args.camera_procs
+        group_rank = comm.rank%args.camera_procs
+        comm_group = comm.Split(color=group, key=group_rank)
+    
+    if comm is not None :
+        log.debug("rank {} group {} group size {} group_rank {}".format(comm.rank,group,comm_group.size,group_rank))
     
     sys.stdout.flush()
     
-
-    mycameras = np.array_split(np.arange(ncamera, dtype=np.int32), 
-        ngroup)[group]
+    mycameras = np.array_split(np.arange(ncamera, dtype=np.int32), nnode)[group]
+    if group_rank==0 :
+        log.debug("group {} cameras {}".format(group,mycameras))
+    
 
     rawtemp = "{}.tmp".format(args.rawfile)
     simpixtemp = "{}.tmp".format(args.simpixfile)
-
+    
     if rank == 0:
         if args.overwrite and os.path.exists(args.rawfile):
             log.debug('removing {}'.format(args.rawfile))

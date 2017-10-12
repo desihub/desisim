@@ -58,7 +58,7 @@ def parse(options=None):
 
     parser.add_argument("--cameras", type=str, default=None, help="cameras, e.g. b0,r5,z9")
     parser.add_argument("--expids", type=str, default=None, help="expids, e.g. 0,12,14")
-    parser.add_argument("--camera_procs", type=int, default=1, help="Number "
+    parser.add_argument("--camera_procs", type=int, default=None, help="Number "
         "of MPI processes to use per camera and node")
 
     args = None
@@ -72,13 +72,27 @@ def parse(options=None):
 
 
 def main(args, comm=None):
+    
+    log = get_logger()
+    
     rank = 0
     nproc = 1
     if comm is not None:
         rank = comm.rank
         nproc = comm.size
 
-    log = get_logger()
+        if args.camera_procs is None :
+            # make a choice based on slurm variables
+            JOB_NUM_NODES=1
+            NPROCS=1
+            if "SLURM_JOB_NUM_NODES" in os.environ : JOB_NUM_NODES=int(os.environ["SLURM_JOB_NUM_NODES"])
+            if "SLURM_NPROCS" in os.environ : NPROCS=int(os.environ["SLURM_NPROCS"])
+            args.camera_procs = NPROCS//JOB_NUM_NODES
+        if rank==0 :
+            log.info("Will use {} processes per camera".format(args.camera_procs))
+    
+
+    
 
     if(args.verbose) :
         import logging
@@ -181,7 +195,7 @@ def main(args, comm=None):
     if comm is not None and nnode>1 :
         from mpi4py import MPI
         group      = comm.rank//args.camera_procs
-        group_rank = comm.rank % args.camera_procs
+        group_rank = comm.rank%args.camera_procs
         comm_group = comm.Split(color=group, key=group_rank)
     
     # splitting tasks on procs according to the node they belong to
@@ -251,7 +265,7 @@ def main(args, comm=None):
                 options["cameras"] = camera
                 options["cosmics"] = args.cosmics
                 options["seed"] = seed                
-                options["mpi_camera"] = args.camera_procs
+                options["camera_procs"] = args.camera_procs
                 options["verbose"] = args.verbose
                 options["preproc"] = args.preproc
                 
