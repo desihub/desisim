@@ -181,7 +181,7 @@ def parse(options=None):
     parser.add_argument("--wavemax", type=float, help="Maximum wavelength to simulate")
     parser.add_argument("--no-mpi", action="store_true", help="disable MPI")
 
-    parser.add_argument("--mpi_camera", type=int, default=1, help="Number of "
+    parser.add_argument("--mpi_camera", type=int, default=None, help="Number of "
         "MPI processes to use per camera")
 
     if options is None:
@@ -208,7 +208,19 @@ def main(args, comm=None):
     if comm is not None:
         rank = comm.rank
         nproc = comm.size
+        
+        if args.mpi_camera is None :
+            # make a choice based on slurm variables
+            JOB_NUM_NODES=1
+            NPROCS=1
+            if "SLURM_JOB_NUM_NODES" in os.environ : JOB_NUM_NODES=int(os.environ["SLURM_JOB_NUM_NODES"])
+            if "SLURM_NPROCS" in os.environ : NPROCS=int(os.environ["SLURM_NPROCS"])
+            args.mpi_camera = NPROCS//JOB_NUM_NODES
+        if rank==0 :
+            log.info("Will use {} processes per camera".format(args.mpi_camera))
     
+
+
     if rank == 0:
         log.info('Starting pixsim at {}'.format(asctime()))
         if comm is not None :
