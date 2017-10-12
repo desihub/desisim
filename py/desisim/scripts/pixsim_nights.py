@@ -29,8 +29,25 @@ from . import pixsim
 
 def parse(options=None):
     parser = argparse.ArgumentParser(
-        description = 'Generate pixel-level simulated DESI data for one or more nights',
-        )
+        description = "Generate pixel-level simulated DESI data for one or more nights",
+        formatter_class=argparse.RawTextHelpFormatter,
+        epilog="""
+        Example run with mpi
+        
+        export DESI_SPECTRO_SIM=...
+        export PIXPROD=...
+        export DESI_SPECTRO_DATA=${DESI_SPECTRO_SIM}/$PIXPROD
+
+        # NNODE : number of nodes to be tuned depending on queue and things to do
+        # For NEXP exposures to process, the number of tasks per node is NEXP*30/NNODE
+        # and it takes about 10min per task.
+        NNODE=50 # to be tuned.
+        NCORE=32 # number of cores per node; 32 for cori haswell
+        NPROC=$(( NNODE * NCORE )) # number of MPI processes
+        
+        srun --cpu_bind=cores -n $NPROC -N $NNODE -c 2 pixsim_nights -verbose --cosmics --preproc --camera_procs $NCORE  
+        """
+    )
 
     parser.add_argument("--nights", type=str, default=None, required=False, help="YEARMMDD,YEARMMDD,YEARMMDD")
     parser.add_argument("--verbose", action="store_true", help="Include debug log info")
