@@ -10,6 +10,7 @@ import os,sys
 import os.path
 import multiprocessing as mp
 import random
+import shutil
 from time import asctime
 
 import numpy as np
@@ -138,6 +139,17 @@ def expand_args(args):
             outdir=os.path.dirname(os.path.abspath(args.rawfile)))
 
 
+def file_per_camera(filename,camera) :
+    
+    for extension in [".fits.gz",".fits.fz",".fits",".fz"] :
+        if filename.find(extension) == (len(filename)-len(extension)) :
+            ofilename = filename.replace(extension,"-{}{}".format(camera,extension))
+            #log.debug("{} -> {}".format(filename,ofilename))
+            return ofilename
+    raise IOError("ERROR in parsing extension of {}".format(filename))
+    
+
+
 #-------------------------------------------------------------------------
 #- Parse options
 def parse(options=None):
@@ -180,7 +192,8 @@ def parse(options=None):
     parser.add_argument("--wavemin", type=float, help="Minimum wavelength to simulate")
     parser.add_argument("--wavemax", type=float, help="Maximum wavelength to simulate")
     parser.add_argument("--no-mpi", action="store_true", help="disable MPI")
-
+    parser.add_argument("--io-per-camera", action="store_true", help="write raw data and simpix per camera")
+    
     parser.add_argument("--camera_procs", type=int, default=None, help="Number of "
         "MPI processes to use per camera")
 
@@ -206,6 +219,7 @@ def main(args, comm=None):
     rank = 0
     nproc = 1
     if comm is not None:
+        
         rank = comm.rank
         nproc = comm.size
         
@@ -219,33 +233,47 @@ def main(args, comm=None):
         if rank==0 :
             log.info("Will use {} processes per camera".format(args.camera_procs))
     
-
-
     if rank == 0:
         log.info('Starting pixsim at {}'.format(asctime()))
         if comm is not None :
             log.debug('comm.rank {} comm.size {} night {} expid {} cameras {}'.format(comm.rank,comm.size,args.night,args.expid,args.cameras))
     
-
+           
     #- Pre-flight check that these cameras haven't been done yet
-    if (rank == 0) and (not args.overwrite) and os.path.exists(args.rawfile):
+
+    if (rank == 0) and (not args.overwrite) :
         log.debug('Checking if cameras are already in output file')
         from astropy.io import fits
-        fx = fits.open(args.rawfile)
+        
         oops = False
-        for camera in args.cameras:
-            if camera.upper() in fx:
-                log.error('Camera {} already in {}'.format(camera, 
-                    args.rawfile))
-                oops = True
-        fx.close()
+        
+        if not args.io_per_camera and  os.path.exists(args.rawfile) :
+            fx = fits.open(args.rawfile)
+            for camera in args.cameras:
+                log.debug("testing camera {}".format(camera))
+                if camera.upper() in fx:
+                    log.error('Camera {} already in {}'.format(camera, 
+                                                               args.rawfile))
+                    oops = True
+            fx.close()
+        else :
+            for camera in args.cameras:
+                rawfile = file_per_camera(args.rawfile,camera)
+                oops |= os.path.isfile(rawfile)
+        
         if oops:
+            log.debug("need to exit due to repeat cameras already in output file")
             log.fatal('Exiting due to repeat cameras already in output file')
             if comm is not None:
                 comm.Abort()
             else:
                 sys.exit(1)
-
+        else :
+            log.debug("ok")
+    
+    if comm is not None : comm.barrier()
+    
+        
     ncamera = len(args.cameras)
     
     nproc = 1 
@@ -259,9 +287,7 @@ def main(args, comm=None):
             log.debug("number of cameras = {}".format(ncamera))
             log.debug("number of procs   = {}".format(nproc))
             log.debug("number of nodes   = {}".format(nnode))
-        
-        comm.barrier()
-
+    
     comm_group = comm    
     group = 0
     group_rank = rank
@@ -280,27 +306,18 @@ def main(args, comm=None):
     if group_rank==0 :
         log.debug("group {} cameras {}".format(group,mycameras))
     
-
-    rawtemp = "{}.tmp".format(args.rawfile)
-    simpixtemp = "{}.tmp".format(args.simpixfile)
     
-    if rank == 0:
-        if args.overwrite and os.path.exists(args.rawfile):
+    
+    if rank == 0 and not args.io_per_camera :
+        if args.overwrite and os.path.exists(args.rawfile) :
             log.debug('removing {}'.format(args.rawfile))
             os.remove(args.rawfile)
-
         if args.overwrite and os.path.exists(args.simpixfile):
             log.debug('removing {}'.format(args.simpixfile))
             os.remove(args.simpixfile)
-        
         sys.stdout.flush()
-        
-        # cleanup stale temp files
-        if os.path.isfile(rawtemp):
-            os.remove(rawtemp)
     
-    if comm is not None:
-        comm.barrier()
+    if comm is not None: comm.barrier()
         
     
     psf = None
@@ -346,31 +363,6 @@ def main(args, comm=None):
             log.debug("rank {} : done".format(rank))
         sys.stdout.flush()
     
-    """
-    
-    if comm is not None:
-        # Broadcast one array at a time, since this is a 
-        # very large object.
-        flv = None
-        wv = None
-        pht = None
-        if simspec is not None:
-            flv = simspec.flavor
-            wv = simspec.wave
-            pht = simspec.phot
-        flv = comm.bcast(flv, root=0)
-        wv = comm.bcast(wv, root=0)
-        pht = comm.bcast(pht, root=0)
-        if simspec is None:
-            simspec = SimSpec(flv, wv, pht)
-        simspec.flux = comm.bcast(simspec.flux, root=0)
-        simspec.skyflux = comm.bcast(simspec.skyflux, root=0)
-        simspec.skyphot = comm.bcast(simspec.skyphot, root=0)
-        simspec.metadata = comm.bcast(simspec.metadata, root=0)
-        simspec.fibermap = comm.bcast(simspec.fibermap, root=0)
-        simspec.obs = comm.bcast(simspec.obs, root=0)
-        simspec.header = comm.bcast(simspec.header, root=0)
-    """
     
     fibers = None
     if args.fibermap:
@@ -443,31 +435,48 @@ def main(args, comm=None):
             del psf
 
     # Wait for all processes to finish their cameras
-    if comm is not None:
-        comm.barrier()
-
+    if comm is not None: comm.barrier()
+    
     # Write the cameras in order.  Only the rank zero process in each
     # group has the data.
     for c in np.arange(ncamera, dtype=np.int32):
         camera = args.cameras[c]
-        if c in mycameras:
-            if group_rank == 0:
+        if c in mycameras :
+            if group_rank == 0 :
+
+                if args.io_per_camera :
+                    rawfile     = file_per_camera(args.rawfile,camera)
+                    simpixfile  = file_per_camera(args.simpixfile,camera)
+                else :
+                    rawfile     = args.rawfile
+                    simpixfile  = args.simpixfile
+                
+
+                rawtemp = "{}.tmp".format(rawfile)
+                simpixtemp = "{}.tmp".format(simpixfile)
+                if os.path.isfile(rawfile) and not args.io_per_camera :
+                    log.debug("Copy {} to {}".format(rawfile,rawtemp))
+                    shutil.copy(rawfile,rawtemp)
+
+                if os.path.isfile(simpixfile) and not args.io_per_camera :
+                    log.debug("Copy {} to {}".format(simpixfile,simpixtemp))
+                    shutil.copy(simpixfile,simpixtemp)
+
                 desispec.io.write_raw(rawtemp, rawpix[camera], 
                     camera=camera, header=image[camera].meta, 
                     primary_header=simspec.header)
-                log.info('Wrote {} image to {}'.format(camera, args.rawfile))
                 io.write_simpix(simpixtemp, truepix[camera], 
                     camera=camera, meta=simspec.header)
-                log.info('Wrote {} image to {}'.format(camera, 
-                    args.simpixfile))
-                sys.stdout.flush()
-        if comm is not None:
-            comm.barrier()
 
-    # Move temp files into place
-    if rank == 0:
-        os.rename(simpixtemp, args.simpixfile)
-        os.rename(rawtemp, args.rawfile)
+                # Move temp files into place
+                log.debug("Move {} to {}".format(simpixtemp,simpixfile))
+                log.debug("Move {} to {}".format(rawtemp,rawfile))
+                os.rename(simpixtemp, simpixfile)
+                os.rename(rawtemp, rawfile)
+                log.info('Wrote {} image to {}'.format(camera, rawfile))
+                log.info('Wrote {} image to {}'.format(camera,simpixfile))
+                sys.stdout.flush()
+    
     if comm is not None:
         comm.barrier()
 
@@ -483,7 +492,11 @@ def main(args, comm=None):
                     camera = args.cameras[c]
                     pixfile = desispec.io.findfile('pix', night=args.night,
                         expid=args.expid, camera=camera)
-                    preproc_opts = ['--infile', args.rawfile, '--outdir',
+                    if args.io_per_camera :
+                        rawfile = file_per_camera(args.rawfile,camera)
+                    else :
+                        rawfile = args.rawfile
+                    preproc_opts = ['--infile', rawfile, '--outdir',
                         args.preproc_dir, '--pixfile', pixfile]
                     preproc_opts += ['--cameras', camera]
                     preproc.main(preproc.parse(preproc_opts))

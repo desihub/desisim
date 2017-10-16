@@ -74,7 +74,9 @@ def parse(options=None):
 def main(args, comm=None):
     
     log = get_logger()
-    
+
+    io_per_camera = True
+
     rank = 0
     nproc = 1
     if comm is not None:
@@ -162,32 +164,56 @@ def main(args, comm=None):
         for band in ['b', 'r', 'z']:
             for spec in range(10):
                 cams.append('{}{}'.format(band, spec))
-
-    # number of cameras
-    ncamera = len(cams)
-
-    # this is the total number of tasks to do 
+    
+    # the total number of tasks to do is
     # number of cameras x number of exposures
     # by default it is going to be 3*10*nexps
-    ntask = ncamera*nexp
+    # but we need to check NOW, before starting anything, if some are already done
+    task_expid  = None
+    task_camera = None
+    if rank==0 :
+        task_expid = []
+        task_camera = []
+        for expid in expids :
+            night = exp_to_night[expid]
+            for camera in cams :
+                simspecfile = simio.findfile('simspec', night, expid)
+                rawfile = specio.findfile('raw', night, expid)
+                rawfile = os.path.join(os.path.dirname(simspecfile), rawfile)                
+                
+                if io_per_camera :
+                    simspecfile = pixsim.file_per_camera(simspecfile,camera)
+                    rawfile = pixsim.file_per_camera(rawfile,camera)
+                
+                done = os.path.isfile(rawfile)
+                if args.preproc:
+                    pixfile = specio.findfile('pix', night=night, expid=expid, camera=camera) 
+                    done &= os.path.isfile(pixfile)
+                if done : 
+                    log.info("skipping completed night {} expid {} camera {}".format(night,expid,camera))
+                    continue
+                
+                task_expid.append(expid)
+                task_camera.append(camera)
+        
+    task_expid  = comm.bcast(task_expid, root=0)
+    task_camera = comm.bcast(task_camera, root=0)
+    ntask       = len(task_expid)
+    if rank==0 :
+        log.info("number of tasks = {}".format(ntask))
     
     # create a set of reproducible seeds for each exposure and camera
     np.random.seed(args.seed)
     seeds = np.random.randint(2**32, size=ntask)
     
     nproc = 1 
-    nnode = 1
-    
+    nnode = 1    
     if comm is not None:
         nproc = comm.size
         nnode = nproc//args.camera_procs
-    
-    if rank==0 :
-        log.debug("number of cameras = {}".format(ncamera))
-        log.debug("number of expids  = {}".format(nexp))
-        log.debug("number of tasks   = {}".format(ntask))
-        log.debug("number of procs   = {}".format(nproc))
-        log.debug("number of nodes   = {}".format(nnode))
+        if rank==0 :
+            log.debug("number of procs   = {}".format(nproc))
+            log.debug("number of nodes   = {}".format(nnode))
     
     comm_group = comm
     group = 0 # we want to have a group = a node
@@ -201,52 +227,17 @@ def main(args, comm=None):
     # splitting tasks on procs according to the node they belong to
     mytasks  = np.array_split(np.arange(ntask,dtype=np.int32),nnode)[group]
      
-    if comm is not None and group_rank == 0 :
+    if comm is not None : # and group_rank == 0 :
             log.debug("group {} size {} tasks {}".format(group,comm_group.size,mytasks))
     
     
     # now we loop on the exposures and cameras that each group has to do
     for task in mytasks :
 
-        # from the task index, find which exposure and camera it corresponds to
-        # we do first each camera of exposure before going to the next
-        camera_index   = task%ncamera
-        exposure_index = task//ncamera
-        seed           = seeds[task]
-        
-        #if comm is not None:
-        #    log.debug("rank {} task {} exposure_index {} camera_index {}".format(rank,task,exposure_index,camera_index))
-        
-        expid  = expids[exposure_index]
-        camera = cams[camera_index]
-        night = exp_to_night[expid]
-        
-        
-        
-        # Is this task already finished?
-        # checking if already done
-        
-        # path to raw file
-        simspecfile = simio.findfile('simspec', night, expid)
-        rawfile = specio.findfile('raw', night, expid)
-        rawfile = os.path.join(os.path.dirname(simspecfile), rawfile)
-        pixfile = specio.findfile('pix', night=night, expid=expid, camera=camera)
-
-        if comm_group is not None : comm_group.barrier()
-        
-        done = True        
-        if group_rank == 0:
-            done &= os.path.isfile(rawfile)
-            if args.preproc: 
-                done &= os.path.isfile(pixfile)
-        if comm_group is not None:
-            done = comm_group.bcast(done, root=0)
-        
-        if done and not args.overwrite :
-            if group_rank == 0:
-                log.info("group {} skipping completed night {} expid {} camera {}".format(group,night,expid,camera))
-                sys.stdout.flush()
-            continue
+        expid  = task_expid[task]
+        camera = task_camera[task]
+        night  = exp_to_night[expid]
+        seed   = seeds[task]
         
         if comm is not None and group_rank == 0 :
             log.debug("group {} doing night {} expid {} camera {}".format(group,night,expid,camera))
@@ -255,7 +246,7 @@ def main(args, comm=None):
         
         # Write per-process logs to a separate directory,
         # since there are so many of them.
-        tasklog = pixfile.replace(".fits",".log")
+        tasklog = specio.findfile('pix', night=night, expid=expid, camera=camera).replace(".fits",".log")
         with stdouterr_redirected(to=tasklog, comm=comm_group):
             
             try:
@@ -268,9 +259,10 @@ def main(args, comm=None):
                 options["camera_procs"] = args.camera_procs
                 options["verbose"] = args.verbose
                 options["preproc"] = args.preproc
+                options["io-per-camera"] = io_per_camera
                 
-                #log.debug("group {} running pixsim {}".format(group,options))
-                #sys.stdout.flush()
+                log.debug("rank {} group {} group_rank {} running pixsim {}".format(rank,group,group_rank,options))
+                sys.stdout.flush()
                 
                 optarray = option_list(options)
                 pixargs = pixsim.parse(optarray)
