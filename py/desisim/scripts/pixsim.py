@@ -297,13 +297,13 @@ def main(args, comm=None):
         group_rank = comm.rank%args.camera_procs
         comm_group = comm.Split(color=group, key=group_rank)
     
-    if comm is not None :
-        log.debug("rank {} group {} group size {} group_rank {}".format(comm.rank,group,comm_group.size,group_rank))
+    #if comm is not None :
+    #    log.debug("rank {} group {} group size {} group_rank {}".format(comm.rank,group,comm_group.size,group_rank))
     
     sys.stdout.flush()
     
     mycameras = np.array_split(np.arange(ncamera, dtype=np.int32), nnode)[group]
-    if group_rank==0 :
+    if comm is not None and group_rank==0 :
         log.debug("group {} cameras {}".format(group,mycameras))
     
     

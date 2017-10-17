@@ -177,21 +177,23 @@ def main(args, comm=None):
         for expid in expids :
             night = exp_to_night[expid]
             for camera in cams :
-                simspecfile = simio.findfile('simspec', night, expid)
-                rawfile = specio.findfile('raw', night, expid)
-                rawfile = os.path.join(os.path.dirname(simspecfile), rawfile)                
                 
-                if io_per_camera :
-                    simspecfile = pixsim.file_per_camera(simspecfile,camera)
-                    rawfile = pixsim.file_per_camera(rawfile,camera)
-                
-                done = os.path.isfile(rawfile)
-                if args.preproc:
-                    pixfile = specio.findfile('pix', night=night, expid=expid, camera=camera) 
-                    done &= os.path.isfile(pixfile)
-                if done : 
-                    log.info("skipping completed night {} expid {} camera {}".format(night,expid,camera))
-                    continue
+                if not args.overwrite :
+                    simspecfile = simio.findfile('simspec', night, expid)
+                    rawfile = specio.findfile('raw', night, expid)
+                    rawfile = os.path.join(os.path.dirname(simspecfile), rawfile)                
+
+                    if io_per_camera :
+                        simspecfile = pixsim.file_per_camera(simspecfile,camera)
+                        rawfile = pixsim.file_per_camera(rawfile,camera)
+
+                    done = os.path.isfile(rawfile)
+                    if args.preproc:
+                        pixfile = specio.findfile('pix', night=night, expid=expid, camera=camera) 
+                        done &= os.path.isfile(pixfile)
+                    if done : 
+                        log.info("skipping completed night {} expid {} camera {}".format(night,expid,camera))
+                        continue
                 
                 task_expid.append(expid)
                 task_camera.append(camera)
@@ -260,6 +262,7 @@ def main(args, comm=None):
                 options["verbose"] = args.verbose
                 options["preproc"] = args.preproc
                 options["io-per-camera"] = io_per_camera
+                options["overwrite"] = args.overwrite
                 
                 log.debug("rank {} group {} group_rank {} running pixsim {}".format(rank,group,group_rank,options))
                 sys.stdout.flush()
