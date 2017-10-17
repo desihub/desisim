@@ -272,4 +272,6 @@ def main(args, comm=None):
                 lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
                 print("".join(lines), flush=True)
 
-
+    # end of simulations
+    # we should merge things now
+    
