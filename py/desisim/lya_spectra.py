@@ -122,4 +122,4 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
 
     h.close()
 
-    return flux, wave, meta
+    return 1e17 * flux, wave, meta
