@@ -206,7 +206,16 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, outdir=None, filename
     #- TRUTH HDU: table with truth metadata
     if truth is not None:
         assert len(truth) == nspec
-        truthhdu = fits.table_to_hdu(Table(truth))
+        try:
+            truthhdu = fits.table_to_hdu(Table(truth))
+        except TypeError:
+            import astropy
+            print('DEBUGING TRAVIS...')
+            print('ASTROPY VERSION IS {}'.format(astropy.__version__))
+            print('NUMPY VERSION IS {}'.format(np.__version__))
+            print(truth.dtype.names)
+            print(Table(truth)[0:3])
+
         truthhdu.header['EXTNAME'] = 'TRUTH'
         hx.append(truthhdu)
 
