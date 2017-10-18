@@ -13,12 +13,14 @@ import argparse
 import traceback
 
 import numpy as np
+import shutil
 
 from desispec.util import option_list
 from desiutil.log import get_logger
 from desispec.parallel import stdouterr_redirected
 
 import desispec.io as specio
+import astropy.io.fits as fits
 
 from .. import io as simio
 
@@ -181,13 +183,10 @@ def main(args, comm=None):
                 if not args.overwrite :
                     simspecfile = simio.findfile('simspec', night, expid)
                     rawfile = specio.findfile('raw', night, expid)
-                    rawfile = os.path.join(os.path.dirname(simspecfile), rawfile)                
-
-                    if io_per_camera :
-                        simspecfile = pixsim.file_per_camera(simspecfile,camera)
-                        rawfile = pixsim.file_per_camera(rawfile,camera)
-
+                    rawfile = os.path.join(os.path.dirname(simspecfile), rawfile)                                    
                     done = os.path.isfile(rawfile)
+                    if io_per_camera :
+                        done |= os.path.isfile(pixsim.file_per_camera(rawfile,camera))
                     if args.preproc:
                         pixfile = specio.findfile('pix', night=night, expid=expid, camera=camera) 
                         done &= os.path.isfile(pixfile)
@@ -276,5 +275,63 @@ def main(args, comm=None):
                 print("".join(lines), flush=True)
 
     # end of simulations
-    # we should merge things now
-    
+
+    if io_per_camera :
+        # we should merge things now
+        if comm is not None : 
+            comm.barrier()
+
+        if rank==0 :
+            for expid in expids :
+                night = exp_to_night[expid]
+                simdir = os.path.dirname(simio.findfile('simspec', night, expid))
+                rawfile = os.path.join(simdir,specio.findfile('raw', night, expid))
+                simpixfile = simio.findfile('simpix', night=night, expid=expid,outdir=simdir)
+                #log.debug("rawfile= {}".format(rawfile))
+                #log.debug("simpixfile= {}".format(simpixfile))
+                
+                for filename in [simpixfile , rawfile] :
+
+                    new_files = False
+                    for camera in cams :                    
+                        filename_per_cam = pixsim.file_per_camera(filename,camera)
+                        if os.path.isfile(filename_per_cam) :
+                            new_files = True
+                            break                    
+                    if not new_files : 
+                        continue
+                    
+
+                    tempfilename  = "{}.tmp".format(filename)
+                    hdulist = None
+                    modified = False
+                    if  os.path.isfile(filename) :
+                        shutil.copy(filename,tempfilename)
+                        hdulist = fits.open(tempfilename, mode='append', memmap=False)
+                    
+                    for camera in cams :                    
+                        filename_per_cam = pixsim.file_per_camera(filename,camera)
+                        if os.path.isfile(filename_per_cam) :
+                            modified = True
+                            if hdulist is None : 
+                                shutil.copy(filename_per_cam,tempfilename)
+                                hdulist = fits.open(tempfilename, mode='append', memmap=False)
+                                log.debug("creating {} with {}".format(filename,camera))
+                            else :
+                                hdus = fits.open(filename_per_cam)
+                                if camera in hdulist :
+                                    log.debug("replacing {} in {}".format(camera,filename))
+                                    hdulist[camera].data=hdus[camera].data
+                                else :
+                                    log.debug("adding {} to {}".format(camera,filename))
+                                    hdulist.append(hdus[camera])
+                    
+                    if hdulist is not None :
+                        hdulist.writeto(tempfilename,overwrite=True)
+                        os.rename(tempfilename, filename)
+                        log.debug("wrote {}".format(filename))
+                        for camera in cams :                    
+                            filename_per_cam = pixsim.file_per_camera(filename,camera)
+                            if os.path.isfile(filename_per_cam) :
+                                log.debug("deleting {}".format(filename_per_cam))
+                                os.unlink(filename_per_cam)
