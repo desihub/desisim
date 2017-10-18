@@ -73,7 +73,7 @@ env:
         - DESIHUB_PIP_DEPENDENCIES="desiutil=${DESIUTIL_VERSION}"
         - DESIHUB_PIP_ALL_DEPENDENCIES="desiutil=${DESIUTIL_VERSION} desimodel=${DESIMODEL_VERSION} specter=${SPECTER_VERSION} desispec=${DESISPEC_VERSION} desitarget=${DESITARGET_VERSION} specsim=${SPECSIM_VERSION}"
         # Debug the Travis install process.
-        - DEBUG=True
+        - DEBUG=False
     matrix:
         - PYTHON_VERSION=2.7 SETUP_CMD='egg_info'
         - PYTHON_VERSION=3.5 SETUP_CMD='egg_info'
@@ -104,13 +104,13 @@ matrix:
 
         # Try multiple python versions with the latest numpy
         - os: linux
-          env: PYTHON_VERSION=2.7 SETUP_CMD='test --coverage'
+          env: PYTHON_VERSION=2.7 SETUP_CMD='test'
                CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
                PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
                DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES
 
         - os: linux
-          env: PYTHON_VERSION=3.5 SETUP_CMD='test'
+          env: PYTHON_VERSION=3.5 SETUP_CMD='test --coverage'
                CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
                PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
                DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES
