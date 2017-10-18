@@ -18,8 +18,7 @@ log = get_logger()
 desi_templates_available = 'DESI_ROOT' in os.environ
 desi_root_available = 'DESI_ROOT' in os.environ
 
-### class TestQuickgen(unittest.TestCase):
-class TestQuickgen():
+class TestQuickgen(unittest.TestCase):
     def check_env():
         """
         Check required environment variables; raise RuntimeException if missing
