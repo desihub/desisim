@@ -5,7 +5,9 @@ desisim change log
 0.21.1 (unreleased)
 -------------------
 
-* No changes yet
+* Fix a minor units scaling bug in lya_spectra (`PR #264`_).
+
+.. _`PR #264`: https://github.com/desihub/desisim/pull/264
 
 0.21.0 (2017-09-29)
 -------------------
