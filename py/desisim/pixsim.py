@@ -161,9 +161,8 @@ def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
         log.info('Starting {} projection at {}'.format(camera,
             asctime()))
 
-    # The returned true pixel values are for each processes spectra.
-    # Every process is calling this independently, so we disable MPI
-    # parallelization.
+    # The returned true pixel values will only exist on rank 0 in the
+    # MPI case.  Otherwise it will be None.
     truepix = parallel_project(psf, wave, phot, ncpu=ncpu, comm=comm)
 
     if (comm is None) or (comm.rank == 0):
