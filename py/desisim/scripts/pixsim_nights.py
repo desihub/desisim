@@ -130,8 +130,8 @@ def main(args, comm=None):
 
     comm_group = comm
     comm_rank = None
-    group = comm.rank
-    ngroup = comm.size
+    group = 0
+    ngroup = 1
     group_rank = 0
     if comm is not None:
         from mpi4py import MPI
