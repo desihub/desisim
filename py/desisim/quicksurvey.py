@@ -88,7 +88,7 @@ class SimSetup(object):
                 dates.append(year_mm_dd)
 
             #- add pre- and post- dates for date range bookkeeping
-        if dates[0] > min(dateobs[0]):
+        if dates[0] < min(dateobs[0]):
                 dates.insert(0, dateobs[0])
 
         dates.append('9999-99-99')
