@@ -268,6 +268,7 @@ def write_simspec_arc(filename, wave, phot, header, fibermap, overwrite=False):
     hx.writeto(filename, clobber=overwrite)
     return filename
 
+
 class SimSpec(object):
     """Lightweight wrapper object for simspec data.
 
@@ -317,6 +318,176 @@ class SimSpec(object):
         self.fibermap = fibermap
         self.obs = obs
         self.header = header
+
+
+def read_simspec_mpi(filename, comm, spectrographs=None):
+    """
+    Read simspec data from filename and return SimSpec object.
+    """
+    import astropy.table
+
+    # rank 0 opens file and gets the metadata and wavelength
+    # grids, which will be kept on all processes.
+
+    hdr = None
+    flavor = None
+    fibermap = None
+    obs = None
+    wave = dict()
+    totalspec = None
+
+    if comm.rank == 0:
+        fx = fits.open(filename, memmap=True)
+        hdr = fx[0].header.copy()
+        flavor = hdr['FLAVOR']
+        if 'WAVE' in fx:
+            wave['brz'] = native_endian(fx['WAVE'].data.copy())
+        for channel in ('b', 'r', 'z'):
+            hname = 'WAVE_'+channel.upper()
+            wave[channel] = native_endian(fx[hname].data.copy())
+        if 'FIBERMAP' in fx:
+            fibermap = astropy.table.Table(fx['FIBERMAP'].data.copy())
+            totalspec = len(fibermap)
+        else:
+            # Get the number of spectra from one of the photon HDUs
+            totalspec = fx['PHOT_B'].header['NAXIS2']
+        if 'OBSCONDITIONS' in fx:
+            obs = astropy.table.Table(fx['OBSCONDITIONS'].data.copy())[0]
+        fx.close()
+        # Memmap file handle should close here when fx goes out of scope...
+
+    hdr = comm.bcast(hdr, root=0)
+    flavor = comm.bcast(flavor, root=0)
+    obs = comm.bcast(obs, root=0)
+    totalspec = comm.bcast(totalspec, root=0)
+    wave = comm.bcast(wave, root=0)
+    fibermap = comm.bcast(fibermap, root=0)
+
+    # Based on the spectrographs for this process, compute the range of 
+    # spectra we need to store.  The number of spectra per spectrograph (500)
+    # is hard-coded several places in desisim.  This should be put in desimodel
+    # somewhere...
+
+    fibers = None
+    if fibermap is not None:
+        fibers = np.array(fibermap['FIBER'], dtype=np.int32)
+    else:
+        fibers = np.arange(totalspec, dtype=np.int32)
+
+    if spectrographs is None:
+        spectrographs = np.arange(10, dtype=np.int32)
+
+    specslice = np.in1d(fibers//500, spectrographs)
+
+    if fibermap is not None:
+        fibermap = fibermap[specslice]
+
+    # Now read one HDU at a time, broadcast, and every process grabs its slice.
+
+    # Note: this is global scope within the function, so memmap file handle
+    # will not close until the function returns (which is fine).
+    hdus = None
+
+    if comm.rank == 0:
+        hdus = fits.open(filename, memmap=True)
+
+    # Read photons
+
+    phot = dict()
+    for channel in ('b', 'r', 'z'):
+        hname = 'PHOT_'+channel.upper()
+        hdata = None
+        if comm.rank == 0:
+            hdata = native_endian(hdus[hname].data.copy().astype('f8'))
+        hdata = comm.bcast(hdata, root=0)
+        phot[channel] = hdata[specslice].copy()
+        del hdata
+
+    # Read sky photons
+
+    skyphot = dict()
+    for channel in ('b', 'r', 'z'):
+        hname = 'SKYPHOT_'+channel.upper()
+        found = False
+        if comm.rank == 0:
+            if hname in hdus:
+                found = True
+        found = comm.bcast(found, root=0)
+        if found:
+            hdata = None
+            if comm.rank == 0:
+                hdata = native_endian(hdus[hname].data.copy().astype('f8'))
+            hdata = comm.bcast(hdata, root=0)
+            skyphot[channel] = hdata[specslice].copy()
+            del hdata
+        else:
+            skyphot[channel] = np.zeros_like(phot[channel])
+        assert phot[channel].shape == skyphot[channel].shape
+
+    # flux
+
+    flux = None
+    hname = 'FLUX'
+    found = False
+    if comm.rank == 0:
+        if hname in hdus:
+            found = True
+    found = comm.bcast(found, root=0)
+    if found:
+        hdata = None
+        if comm.rank == 0:
+            hdata = native_endian(hdus[hname].data.copy().astype('f8'))
+        hdata = comm.bcast(hdata, root=0)
+        flux = hdata[specslice].copy()
+        del hdata
+
+    # skyflux
+
+    skyflux = None
+    hname = 'SKYFLUX'
+    found = False
+    if comm.rank == 0:
+        if hname in hdus:
+            found = True
+    found = comm.bcast(found, root=0)
+    if found:
+        hdata = None
+        if comm.rank == 0:
+            hdata = native_endian(hdus[hname].data.copy().astype('f8'))
+        hdata = comm.bcast(hdata, root=0)
+        skyflux = hdata[specslice].copy()
+        del hdata
+
+    # metadata / truth
+
+    metadata = None
+    hname = 'TRUTH'
+    found = False
+    if comm.rank == 0:
+        if hname in hdus:
+            found = True
+    found = comm.bcast(found, root=0)
+    if not found:
+        hname = 'METADATA'
+        if comm.rank == 0:
+            if hname in hdus:
+                found = True
+        found = comm.bcast(found, root=0)
+    if found:
+        hdata = None
+        if comm.rank == 0:
+            hdata = astropy.table.Table(hdus[hname].data.copy())
+        hdata = comm.bcast(hdata, root=0)
+        metadata = hdata[specslice].copy()
+        del hdata
+
+    if comm.rank == 0:
+        hdus.close()
+
+    return SimSpec(flavor, wave, phot, flux=flux, skyflux=skyflux,
+        skyphot=skyphot, metadata=metadata, fibermap=fibermap, obs=obs,
+        header=hdr)
+
 
 def read_simspec(filename, nspec=None, firstspec=0):
     """Read simspec data from filename and return SimSpec object.
@@ -388,6 +559,7 @@ def read_simspec(filename, nspec=None, firstspec=0):
     return SimSpec(flavor, wave, phot, flux=flux, skyflux=skyflux,
         skyphot=skyphot, metadata=metadata, fibermap=fibermap, obs=obs,
         header=hdr)
+
 
 def _read_simspec_orig(filename):
     """Read simspec data from filename and return SimSpec object.

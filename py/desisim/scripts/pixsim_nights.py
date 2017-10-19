@@ -102,8 +102,11 @@ def main(args, comm=None):
         cams = args.cameras.split(",")
     else:
         cams = []
-        for band in ['b', 'r', 'z']:
-            for spec in range(10):
+        # Do this in spectrograph order first, so that
+        # later when we distribute cameras each group will have 
+        # the minimal set of spectrographs to store.
+        for spec in range(10):
+            for band in ['b', 'r', 'z']:
                 cams.append('{}{}'.format(band, spec))
 
     # number of cameras
