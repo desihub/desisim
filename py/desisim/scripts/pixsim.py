@@ -52,11 +52,8 @@ def expand_args(args):
         args.simspec = io.findfile('simspec', args.night, args.expid)
 
     if args.fibermap is None:
-        if args.night is None or args.expid is None:
-            msg = 'Must set --fibermap or both --night and --expid'
-            log.error(msg)
-            raise ValueError(msg)
-        args.fibermap = io.findfile('simfibermap', args.night, args.expid)
+        if (args.night is not None) and (args.expid is not None):
+            args.fibermap = io.findfile('simfibermap', args.night, args.expid)
 
     if (args.cameras is None) and (args.spectrographs is None):
         from astropy.io import fits
@@ -255,18 +252,6 @@ def main(args, comm=None):
         from specter.psf import load_psf
         psf = load_psf(args.psf)
 
-    # Read the fibermap
-
-    fibers = None
-    if rank == 0:
-        fibermap = desispec.io.read_fibermap(args.fibermap)
-        fibers = np.array(fibermap['FIBER'], dtype=np.int32)
-    if comm is not None:
-        fibers = comm.bcast(fibers, root=0)
-
-    fs = np.in1d(fibers//500, group_spectro)
-    group_fibers = fibers[fs]
-
     # Read and distribute the simspec data
 
     simspec = None
@@ -275,6 +260,32 @@ def main(args, comm=None):
             spectrographs=group_spectro)
     else:
         simspec = io.read_simspec(args.simspec)
+
+    # Read the fibermap
+
+    fibers = None
+    if rank == 0:
+        if args.fibermap is not None:
+            fibermap = desispec.io.read_fibermap(args.fibermap)
+            fibers = np.array(fibermap['FIBER'], dtype=np.int32)
+        else:
+            # Get the fiber list from the simspec file
+            from astropy.io import fits
+            from astropy.table import Table
+            fx = fits.open(args.simspec, memmap=True)
+            if 'FIBERMAP' in fx:
+                fibermap = Table(fx['FIBERMAP'].data)
+                fibers = np.array(fibermap['FIBER'], dtype=np.int32)
+            else:
+                # Get the number of fibers from one of the photon HDUs
+                fibers = np.arange(fx['PHOT_B'].header['NAXIS2'], 
+                    dtype=np.int32)
+            fx.close()
+    if comm is not None:
+        fibers = comm.bcast(fibers, root=0)
+
+    fs = np.in1d(fibers//500, group_spectro)
+    group_fibers = fibers[fs]
 
     # Use original seed to generate different random seeds for each camera
     np.random.seed(args.seed)
@@ -333,8 +344,11 @@ def main(args, comm=None):
         # fibers.
 
         if group_rank == 0:
+            group_size = 1
+            if comm_group is not None:
+                group_size = comm_group.size
             log.info("Group {} ({} processes) simulating camera "
-                "{}".format(group, comm_group.size, camera))
+                "{}".format(group, group_size, camera))
 
         image[camera], rawpix[camera], truepix[camera] = \
             simulate(camera, simspec, psf, fibers=group_fibers, 

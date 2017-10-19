@@ -148,7 +148,7 @@ class TestPixsim(unittest.TestCase):
         obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
 
         #- run pixsim
-        opts = ['--night', night, '--expid', expid, '--nspec', nspec]
+        opts = ['--night', night, '--expid', expid]
         if ncpu is not None:
             opts.extend( ['--ncpu', ncpu] )
             
