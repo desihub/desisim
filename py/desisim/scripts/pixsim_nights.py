@@ -11,6 +11,7 @@ import os
 import re
 import argparse
 import traceback
+import warnings
 
 import numpy as np
 
@@ -40,8 +41,8 @@ def parse(options=None):
     parser.add_argument("--seed", type=int, default=123456, required=False, help="random number seed")
 
     parser.add_argument("--cameras", type=str, default=None, help="cameras, e.g. b0,r5,z9")
-    parser.add_argument("--camera_procs", type=int, default=1, help="Number "
-        "of MPI processes to use per camera")
+    parser.add_argument("--camera_procs", type=int, default=1, required=True,
+        help="Number of MPI processes to use per camera")
 
     args = None
     if options is None:
@@ -123,8 +124,7 @@ def main(args, comm=None):
     # create a set of reproducible seeds for each exposure
     np.random.seed(args.seed)
     maxexp = np.max(expids)
-    allseeds = np.random.randint(2**32, size=(maxexp+1))
-    seeds = allseeds[-nexp:]
+    seeds = np.random.randint(2**32, size=(maxexp+1))
 
     taskproc = ncamera * args.camera_procs
 
@@ -144,8 +144,25 @@ def main(args, comm=None):
         else:
             comm_group = MPI.COMM_SELF
             comm_rank = comm
+    else:
+        taskproc = 1
 
-    myexpids = np.array_split(expids, ngroup)[group]
+    if ngroup * taskproc != nproc:
+        msg = "Using group size {}, which does not divide evenly into total ({}).  Some processes idle.".format(taskproc, nproc)
+        if rank == 0:
+            warnings.warn(msg, RuntimeWarning)
+
+    nactive = ngroup
+    if len(expids) < ngroup:
+        msg = "There are fewer exposures ({}) than process groups ({}).  Some groups idle.".format(len(expids), ngroup)
+        if rank == 0:
+            warnings.warn(msg, RuntimeWarning)
+        nactive = len(expids)
+
+    if group > nactive - 1:
+        myexpids = np.array([], dtype=np.int32)
+    else:
+        myexpids = np.array_split(expids, nactive)[group]
 
     for ex in myexpids:
         nt = exp_to_night[ex]
@@ -201,5 +218,4 @@ def main(args, comm=None):
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
                 print("".join(lines), flush=True)
-
 
