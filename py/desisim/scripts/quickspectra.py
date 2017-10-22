@@ -258,13 +258,16 @@ def main(args=None):
     
     if isfits :
         log.info("Reading an input FITS file")
-        if not "WAVELENGTH" in hdulist :
+        if 'WAVELENGTH' in hdulist:
+            input_wave = hdulist["WAVELENGTH"].data
+        elif "WAVE" in hdulist:
+            input_wave = hdulist["WAVE"].data
+        else:
             log.error("need an HDU with EXTNAME='WAVELENGTH' with a 1D array/image of wavelength in A in vacuum")
             sys.exit(12)
         if not "FLUX" in hdulist :
             log.error("need an HDU with EXTNAME='FLUX' with a 1D or 2D array/image of flux in units of 10^-17 ergs/s/cm2/A")
             sys.exit(12)
-        input_wave = hdulist["WAVELENGTH"].data
         input_flux = hdulist["FLUX"].data
         if input_wave.size != input_flux.shape[1] :
             log.error("WAVELENGTH size {} != FLUX shape[1] = {} (NAXIS1 in fits)")
