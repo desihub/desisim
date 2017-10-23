@@ -31,7 +31,8 @@ from .simexp import simulate_spectra
 def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
                  nproc=None, seed=None, obsconditions=None, 
                  specify_targets=dict(), testslit=False, exptime=None,
-                 arc_lines_filename=None, flat_spectrum_filename=None):
+                 arc_lines_filename=None, flat_spectrum_filename=None,
+                 outdir=None):
     """
     Create a new exposure and output input simulation files.
     Does not generate pixel-level simulations or noisy spectra.
@@ -54,10 +55,11 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         * testslit : simulate test slit if True, default False; only for arc/flat
         * arc_lines_filename : use alternate arc lines filename (used if program="arc")
         * flat_spectrum_filename : use alternate flat spectrum filename (used if program="flat")
+        * outdir: output directory
 
-    Writes:
-        * $DESI_SPECTRO_SIM/$PIXPROD/{night}/fibermap-{expid}.fits
-        * $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
+    Writes to outdir or $DESI_SPECTRO_SIM/$PIXPROD/{night}/
+        * fibermap-{expid}.fits
+        * simspec-{expid}.fits
 
     Returns:
         * science: sim, fibermap, meta, obsconditions
@@ -95,7 +97,11 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
 
     outsimspec = desisim.io.findfile('simspec', night, expid)
     outfibermap = desisim.io.findfile('simfibermap', night, expid)
-    
+
+    if outdir is not None:
+        outsimspec = os.path.join(outdir, os.path.basename(outsimspec))
+        outfibermap = os.path.join(outdir, os.path.basename(outfibermap))
+
     program = program.lower()
     log.debug('Generating {} targets'.format(nspec))
     
@@ -140,7 +146,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         header['EXPTIME'] = exptime
         header['FLAVOR'] = 'flat'
         desisim.io.write_simspec(sim, truth=None, fibermap=fibermap, obs=None,
-            expid=expid, night=night, header=header)
+            expid=expid, night=night, header=header, filename=outsimspec)
 
         fibermap.meta['NIGHT'] = night
         fibermap.meta['EXPID'] = expid
@@ -178,11 +184,6 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
 
     sim = simulate_spectra(wave, flux, fibermap=fibermap, obsconditions=obsconditions)
 
-    #- Override $DESI_SPECTRO_DATA in order to write to simulation area
-    datadir_orig = os.getenv('DESI_SPECTRO_DATA')
-    simbase = os.path.join(os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'))
-    os.environ['DESI_SPECTRO_DATA'] = simbase
-
     #- Write fibermap
     telera, teledec = io.get_tile_radec(tileid)
     hdr = dict(
@@ -202,20 +203,13 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         )
     hdr['DATE-OBS'] = (time.strftime('%FT%T', dateobs), 'Start of exposure')
 
-    simfile = io.write_simspec(sim, meta, fibermap, obsconditions, expid, night, header=hdr)
+    simfile = io.write_simspec(sim, meta, fibermap, obsconditions,
+        expid, night, header=hdr, filename=outsimspec)
 
-    #- Write fibermap to $DESI_SPECTRO_SIM/$PIXPROD not $DESI_SPECTRO_DATA
-    fiberfile = io.findfile('simfibermap', night, expid)
-    desispec.io.write_fibermap(fiberfile, fibermap, header=hdr)
-    log.info('Wrote '+fiberfile)
+    desispec.io.write_fibermap(outfibermap, fibermap, header=hdr)
+    log.info('Wrote '+outfibermap)
 
     update_obslog(obstype='science', program=program, expid=expid, dateobs=dateobs, tileid=tileid)
-
-    #- Restore $DESI_SPECTRO_DATA
-    if datadir_orig is not None:
-        os.environ['DESI_SPECTRO_DATA'] = datadir_orig
-    else:
-        del os.environ['DESI_SPECTRO_DATA']
 
     return sim, fibermap, meta, obsconditions
 
