@@ -133,8 +133,14 @@ def simflat(flatfile, nspec=5000, nonuniform=False, exptime=10, testslit=False):
 
     #- Trim to DESI wavelength ranges
     #- TODO: is there an easier way to get these parameters?
-    wavemin = desimodel.io.load_throughput('b').wavemin
-    wavemax = desimodel.io.load_throughput('z').wavemax
+    try:
+        params = desimodel.io.load_desiparams()
+        wavemin = params['ccd']['b']['wavemin']
+        wavemax = params['ccd']['z']['wavemax']
+    except KeyError:
+        wavemin = desimodel.io.load_throughput('b').wavemin
+        wavemax = desimodel.io.load_throughput('z').wavemax
+
     ii = (wavemin <= wave) & (wave <= wavemax)
     wave = wave[ii]
     sbflux = sbflux[ii]

@@ -100,9 +100,41 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None, sourc
             raise ValueError('obsconditions {} not in {}'.format(
                 obsconditions.upper(),
                 list(desisim.simexp.reference_conditions.keys())))
-    
-    wavemin = desimodel.io.load_throughput('b').wavemin
-    wavemax = desimodel.io.load_throughput('z').wavemax
+    try:
+        params = desimodel.io.load_desiparams()
+        wavemin = params['ccd']['b']['wavemin']
+        wavemax = params['ccd']['z']['wavemax']
+    except KeyError:
+        wavemin = desimodel.io.load_throughput('b').wavemin
+        wavemax = desimodel.io.load_throughput('z').wavemax
+
+    if wave[0] > wavemin:
+        log.warn('Minimum input wavelength {}>{}; padding with zeros'.format(
+                wave[0], wavemin))
+        dwave = wave[1] - wave[0]
+        npad = int((wave[0] - wavemin)/dwave + 1)
+        wavepad = np.arange(npad) * dwave
+        wavepad += wave[0] - dwave - wavepad[-1]
+        fluxpad = np.zeros((flux.shape[0], len(wavepad)), dtype=flux.dtype)
+        wave = np.concatenate([wavepad, wave])
+        flux = np.hstack([fluxpad, flux])
+        assert flux.shape[1] == len(wave)
+        assert np.allclose(dwave, np.diff(wave))
+        assert wave[0] <= wavemin
+
+    if wave[-1] < wavemax:
+        log.warn('Maximum input wavelength {}<{}; padding with zeros'.format(
+                wave[-1], wavemax))
+        dwave = wave[-1] - wave[-2]
+        npad = int( (wavemax - wave[-1])/dwave + 1 )
+        wavepad = wave[-1] + dwave + np.arange(npad)*dwave
+        fluxpad = np.zeros((flux.shape[0], len(wavepad)), dtype=flux.dtype)
+        wave = np.concatenate([wave, wavepad])
+        flux = np.hstack([flux, fluxpad])
+        assert flux.shape[1] == len(wave)
+        assert np.allclose(dwave, np.diff(wave))
+        assert wavemax <= wave[-1]
+
     ii = (wavemin <= wave) & (wave <= wavemax)
 
     flux_unit = 1e-17 * u.erg / (u.Angstrom * u.s * u.cm ** 2 )
@@ -226,13 +258,16 @@ def main(args=None):
     
     if isfits :
         log.info("Reading an input FITS file")
-        if not "WAVELENGTH" in hdulist :
+        if 'WAVELENGTH' in hdulist:
+            input_wave = hdulist["WAVELENGTH"].data
+        elif "WAVE" in hdulist:
+            input_wave = hdulist["WAVE"].data
+        else:
             log.error("need an HDU with EXTNAME='WAVELENGTH' with a 1D array/image of wavelength in A in vacuum")
             sys.exit(12)
         if not "FLUX" in hdulist :
             log.error("need an HDU with EXTNAME='FLUX' with a 1D or 2D array/image of flux in units of 10^-17 ergs/s/cm2/A")
             sys.exit(12)
-        input_wave = hdulist["WAVELENGTH"].data
         input_flux = hdulist["FLUX"].data
         if input_wave.size != input_flux.shape[1] :
             log.error("WAVELENGTH size {} != FLUX shape[1] = {} (NAXIS1 in fits)")
