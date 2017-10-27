@@ -136,10 +136,11 @@ napoleon_include_private_with_doc = True
 autodoc_mock_imports = ['astropy.constants', 'astropy.cosmology',
                         'astropy.io', 'astropy.stats',
                         'astropy.table', 'astropy.units',
+                        'astropy.time',
                         'desimodel.focalplane', 'desimodel.io',
                         'desispec.cosmics', 'desispec.frame',
                         'desispec.fiberflat', 'desispec.fluxcalibration',
-                        'desispec.image',
+                        'desispec.image', 'desispec.parallel',
                         'desispec.io', 'desispec.io.fibermap', 'desispec.io.util',
                         'desispec.interpolation', 'desispec.log',
                         'desispec.resolution', 'desispec.sky',
@@ -149,7 +150,7 @@ autodoc_mock_imports = ['astropy.constants', 'astropy.cosmology',
                         'matplotlib.backends.backend_pdf', 'matplotlib.gridspec',
                         'numpy', 'scipy', 'scipy.constants',
                         'scipy.interpolate', 'scipy.special',
-                        'specsim.simulator']
+                        'specsim.simulator', 'fitsio']
 
 # -- Options for HTML output ----------------------------------------------
 

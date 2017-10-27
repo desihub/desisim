@@ -14,12 +14,14 @@ _simulators = dict()
 #- simulator back to a reference state before returning it as a cached copy
 _simdefaults = dict()
 
-import desispec.log
-log = desispec.log.get_logger()
+import desiutil.log
+log = desiutil.log.get_logger()
 
 def get_simulator(config='desi', num_fibers=1):
     '''
     returns new or cached specsim.simulator.Simulator object
+
+    Also adds placeholder for BGS fiberloss if that isn't already in the config
     '''
     key = (config, num_fibers)
     if key in _simulators:
@@ -38,6 +40,7 @@ def get_simulator(config='desi', num_fibers=1):
         #- New config; create Simulator object
         import specsim.simulator
         qsim = specsim.simulator.Simulator(config, num_fibers)
+
         #- Cache defaults to reset back to original state later
         defaults = dict()
         defaults['focal_xy'] = qsim.source.focal_xy
@@ -51,3 +54,4 @@ def get_simulator(config='desi', num_fibers=1):
         _simdefaults[key] = defaults
 
     return qsim
+

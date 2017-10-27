@@ -1,0 +1,131 @@
+#!/usr/bin/env python
+
+"""
+MPI wrapper for fastframe
+"""
+
+#- Parse args first to enable --help from login node where MPI would crash
+from __future__ import absolute_import, division, print_function
+import argparse
+parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument('--outdir', type=str, help="output directory")
+parser.add_argument('--clobber', action='store_true', help="overwrite any pre-existing output files")
+parser.add_argument('--dryrun', action='store_true', help="print commands but don't run them")
+parser.add_argument('--mpi', action='store_true', help="use MPI parallelism")
+parser.add_argument('--start', type=str, help="start date YEARMMDD")
+parser.add_argument('--stop', type=str, help="stop date YEARMMDD")
+args = parser.parse_args()
+
+#- Load MPI and establish communication
+if args.mpi:
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+    size = comm.Get_size()
+    rank = comm.Get_rank()
+else:
+    comm = None
+    size = 1
+    rank = 0
+
+#- The proceed with other imports
+import sys, os, glob, time, subprocess
+tstart = time.time()
+import numpy as np
+
+from astropy.io import fits
+import astropy.time
+from astropy.table import Table
+
+import desisim.io
+import desisim.scripts.fastframe
+
+if args.start is None:
+    args.start = '11112233'
+else:
+    args.start = args.start.replace('-', '')
+
+if args.stop is None:
+    args.stop = '99998877'
+else:
+    args.stop = args.stop.replace('-', '')
+
+#- Assemble full list of simspec files; group by flavor to help MPI balancing
+if rank == 0:
+    allfiles = sorted(glob.glob('{}/*/simspec*.fits'.format(desisim.io.simdir())))
+
+    #- TODO: check if outputs already exist
+
+    simspecfiles = list()
+    for filename in allfiles:
+        night = os.path.basename(os.path.split(filename)[0])
+        if (args.start <= night) & (night < args.stop):
+            flavor = fits.getval(filename, 'FLAVOR')
+            simspecfiles.append( (flavor, filename) )
+
+    simspecfiles = sorted(simspecfiles)
+else:
+    simspecfiles = None
+
+if comm is not None:
+    simspecfiles = comm.bcast(simspecfiles, root=0)
+
+#- Proceed with simulating exposures, using all ranks
+
+if rank == 0:
+    print('{} MPI ranks processing {}/{} exposures'.format(size, len(simspecfiles), len(allfiles)))
+
+if rank < len(simspecfiles):
+    for flavor, filename in simspecfiles[rank::size]:
+        cmd = "fastframe --simspec {}".format(filename)
+        if args.outdir:
+            cmd = cmd + " --outdir {}".format(args.outdir)
+        if args.clobber:
+            cmd = cmd + " --clobber"
+        
+        print('Rank {} running {}: {}'.format(rank, flavor, cmd))
+        sys.stdout.flush()
+        if args.dryrun:
+            continue
+
+        try:
+            t0 = time.time()
+            logfile = filename.replace('simspec', 'fastframe').replace('.fits', '.log')
+            assert logfile != filename
+
+            #- Use subprocess.call instead of fastframe.main() to avoid
+            #- potential memory leaks and separate logging; this does incur
+            #- extra python interpreter startup time.
+            ### desisim.scripts.fastframe.main(cmd.split()[1:])
+
+            print('logging to {}'.format(logfile))
+            with open(logfile, 'w') as logx:
+                err = subprocess.call(cmd.split(), stdout=logx, stderr=logx)
+
+            runtime = time.time() - t0
+            if err != 0:
+                print("ERROR: rank {} simspec {} error code {} after {:.1f} sec".format(
+                    rank, os.path.basename(filename), err, runtime))
+                raise RuntimeError
+
+            print("rank {} took {:.1f} seconds for {} frame".format(rank, runtime, flavor))
+            sys.stdout.flush()
+        except:
+            print('Rank {} FAILED {}: {}'.format(rank, flavor, cmd))
+            import traceback
+            traceback.print_exc()
+            sys.stdout.flush()
+
+if comm is not None:
+    comm.barrier()
+
+if rank == 0:
+    import collections
+    nflavor = collections.Counter([x[0] for x in simspecfiles])
+    tottime = time.time() - tstart
+    print('{:.1f} minutes for {} arc, {} flat, {} science exposures'.format(
+        tottime/60, nflavor['arc'], nflavor['flat'], nflavor['science']
+    ))
+
+if comm is not None:
+    MPI.Finalize()
+    

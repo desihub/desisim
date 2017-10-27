@@ -17,7 +17,7 @@ from pkg_resources import resource_filename
 c_cgs = const.c.to('cm/s').value
 
 def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss2010-g',
-                seed=None, rand=None, qso=None, add_dlas=False, debug=False):
+                seed=None, rand=None, qso=None, add_dlas=False, debug=False, ncolorcuts=False):
     """Generate a QSO spectrum which includes Lyman-alpha absorption.
 
     Args:
@@ -41,6 +41,8 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
             (Prochaska et al. 2008, ApJ, 675, 1002)
           Set in calc_lz
           These are *not* inserted according to overdensity along the sightline
+        nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
+          cuts (default False).
 
     Returns:
         flux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra
@@ -107,8 +109,12 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
 
     # Loop on quasars
     for ii, indx in enumerate(templateid):
-        flux1, _, meta1 = qso.make_templates(nmodel=1, redshift=np.array([zqso[ii]]),
-                                             mag=np.array([mag_g[ii]]), seed=templateseed[ii])
+        flux1, _, meta1 = qso.make_templates(nmodel=1, redshift=np.atleast_1d(zqso[ii]), 
+                                             mag=np.atleast_1d(mag_g[ii]), seed=templateseed[ii],
+                                             nocolorcuts=nocolorcuts)
+        flux1 *= 1e-17
+        for col in meta1.colnames:
+            meta[col][ii] = meta1[col][0]
 
         # read lambda and forest transmission
         data = h[indx + 1].read()
@@ -136,8 +142,11 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
         padflux, padwave = normfilt.pad_spectrum(flux1, wave, method='edge')
         normmaggies = np.array(normfilt.get_ab_maggies(padflux, padwave,
                                                        mask_invalid=True)[normfilter])
-        flux1 *= 10**(-0.4 * mag_g[ii]) / normmaggies
 
+        factor = 10**(-0.4 * mag_g[ii]) / normmaggies
+        flux1 *= factor
+        for key in ('FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2'):
+            meta[key][ii] *= factor
         flux[ii, :] = flux1[:]
 
     h.close()
@@ -153,9 +162,9 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
             dla_meta['ID'] = dla_id
         else:
             dla_meta = None
-        return flux, wave, meta, dla_meta
+        return flux*1e17, wave, meta, dla_meta
     else:
-        return flux, wave, meta
+        return flux*1e17, wave, meta
 
 
 def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, debug=False, **kwargs):
@@ -407,3 +416,4 @@ def calculate_lox(model, NHI_min, NHI_max=None, neval=10000, cumul=False):
         cum_sum = np.cumsum(10.**(lgfNX+lgNHI)) * dlgN * np.log(10.)
     # Return
     return lX, cum_sum, lgNHI
+

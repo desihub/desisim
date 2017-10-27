@@ -2,15 +2,79 @@
 desisim change log
 ==================
 
-0.18.3 (unreleased)
+0.21.1 (unreleased)
+-------------------
+
+* Fix a minor units scaling bug in lya_spectra (`PR #264`_).
+
+.. _`PR #264`: https://github.com/desihub/desisim/pull/264
+
+0.21.0 (2017-09-29)
+-------------------
+
+* Major refactor of newexp to add connection to upstream mocks, surveysims,
+  and fiber assignment (`PR #250`_).
+* Support latest (>DR4) data model in the templates metadata table and also
+  scale simulated templates by 1e17 erg/s/cm2/Angstrom (`PR #252`_).
+* Add desi_qa_s2n script (`PR #254`_)
+* Refactor desi_qa_zfind script (`PR #254`_)
+* Refactor redshift QA for new data model (`PR #254`_)
+* Refactor shared QA methods to desisim.spec_qa.utils (`PR #254`_)
+* New plots for S/N of spectra for various objects (ELG, LRG, QSO) (`PR #254`_)
+* Add BGS, MWS to z_find QA
+* Miscellaneous polishing in QA (velocity, clip before RMS, extend [OII] flux, S/N per Ang)
+* Bug fix: correctly select both "bright" and "faint" BGS templates by default
+  (`PR #257`_).  
+* Updates for newexp/fastframe wrappers for end-to-end sims (`PR #258`_).
+
+.. _`PR #250`: https://github.com/desihub/desisim/pull/250
+.. _`PR #252`: https://github.com/desihub/desisim/pull/252
+.. _`PR #254`: https://github.com/desihub/desisim/pull/254
+.. _`PR #257`: https://github.com/desihub/desisim/pull/257
+.. _`PR #258`: https://github.com/desihub/desisim/pull/258
+
+0.20.0 (2017-07-12)
+-------------------
+
+* Adds tutorial on simulating spectra (`PR #244`_).
+* Fixes QSO template wavelength extrapolation (`PR #247`_);
+  requires desispec > 0.15.1.
+* Uses desitarget.cuts.isLRG_colors; requires desitarget >= 0.14.0 (`PR #246`_).
+* Uses desiutil.log instead of desispec.log
+
+.. _`PR #244`: https://github.com/desihub/desisim/pull/244
+.. _`PR #246`: https://github.com/desihub/desisim/pull/246
+.. _`PR #247`: https://github.com/desihub/desisim/pull/247
+
+0.19.0 (2017-06-15)
+-------------------
+
+* "FLAVOR" keyword is arc/flat/science but not dark/bright/bgs/mws/etc to match
+  desispec usage (`PR #243`_).
+* Add ``nocolorcuts`` option for LyA spectra (`PR #242`_).
+* Fixes for ``targets.dat`` to ``targets.yaml`` change (`PR #240`_).
+* Changed refs to ``desispec.brick`` to its new location at :mod:`desiutil.brick` (`PR #241`_).
+* Remove LyA absorption below the LyA limit (`PR #236`_).
+* Refactor and speed-up of QSO templates; add Lya forest on-the-fly (`PR #234`_).
+
+.. _`PR #234`: https://github.com/desihub/desisim/pull/234
+.. _`PR #236`: https://github.com/desihub/desisim/pull/236
+.. _`PR #240`: https://github.com/desihub/desisim/pull/240
+.. _`PR #241`: https://github.com/desihub/desisim/pull/241
+.. _`PR #242`: https://github.com/desihub/desisim/pull/242
+.. _`PR #243`: https://github.com/desihub/desisim/pull/243
+
+0.18.3 (2017-04-13)
 -------------------
 
 * Add DLAs to lya spectra (PR #220)
 * Fix quickgen for specsim v0.8 (`PR #226`_).
 * Add verbose output to templates code (`PR #230`_).
+* Much faster quickcat (`PR #233`_).
 
 .. _`PR #226`: https://github.com/desihub/desisim/pull/226
 .. _`PR #230`: https://github.com/desihub/desisim/pull/230
+.. _`PR #233`: https://github.com/desihub/desisim/pull/233
 
 0.18.2 (2017-03-27)
 -------------------

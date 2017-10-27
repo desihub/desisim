@@ -1,0 +1,21 @@
+#!/usr/bin/env python
+
+"""
+Simulate DESI spectrograph CCD images for one or more nights.
+"""
+from desispec.parallel import use_mpi
+
+comm = None
+if use_mpi:
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+else:
+    print("mpi4py not found, using only one process")
+
+import sys
+from desisim.scripts import pixsim_nights
+
+if __name__ == '__main__':
+    args = pixsim_nights.parse()
+    sys.exit(pixsim_nights.main(args, comm=comm))
+

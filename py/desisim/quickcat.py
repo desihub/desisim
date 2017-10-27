@@ -36,7 +36,7 @@ from desitarget.targets import desi_mask
 from desitarget.targets import bgs_mask
 from desitarget.targets import mws_mask
 
-from desispec.log import get_logger
+from desiutil.log import get_logger
 log = get_logger()
 
 #- redshift errors and zwarn fractions from DESI-1657
@@ -160,16 +160,26 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
     targetid = targets['TARGETID']
     n = len(targetid)
 
+    try:
+        if 'DECAM_FLUX' in targets.colnames:
+            true_gflux = targets['DECAM_FLUX'][:, 1]
+            true_rflux = targets['DECAM_FLUX'][:, 2]
+        else:
+            true_gflux = targets['FLUX_G']
+            true_rflux = targets['FLUX_R']
+    except:
+        raise Exception('Missing photometry needed to estimate redshift efficiency!')
+
+    if (obsconditions is None) and (truth['OIIFLUX'] not in truth.colnames):
+        raise Exception('Missing obsconditions and flux information to estimate redshift efficiency')
+
     if (simtype == 'ELG'):
         # Read the model OII flux threshold (FDR fig 7.12 modified to fit redmonster efficiency on OAK)
         filename = resource_filename('desisim', 'data/quickcat_elg_oii_flux_threshold.txt')
         fdr_z, modified_fdr_oii_flux_threshold = np.loadtxt(filename, unpack=True)
 
         # Get OIIflux from truth
-        try:
-            true_oii_flux = truth['OIIFLUX']
-        except:
-            raise Exception('Missing OII flux information to estimate redshift efficiency for ELGs')
+        true_oii_flux = truth['OIIFLUX']
 
         # Compute OII flux thresholds for truez
         oii_flux_threshold = np.interp(truth['TRUEZ'],fdr_z,modified_fdr_oii_flux_threshold)
@@ -186,11 +196,6 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         magr, magr_eff = np.loadtxt(filename, unpack=True)
 
         # Get Rflux from truth
-        try:
-            true_rflux = targets['DECAM_FLUX'][:,2]
-        except:
-            raise Exception('Missing Rmag information to estimate redshift efficiency for LRGs')
-
         r_mag = 22.5 - 2.5*np.log10(true_rflux)
 
         mean_eff_mag=np.interp(r_mag,magr,magr_eff)
@@ -205,11 +210,8 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         zc, qso_gmag_threshold_vs_z = np.loadtxt(filename, unpack=True)
 
         # Get Gflux from truth
-        try:
-            true_gmag = targets['DECAM_FLUX'][:,1]
-        except:
-            raise Exception('Missing Gmag information to estimate redshift efficiency for QSOs')
-
+        true_gmag = 22.5 - 2.5 * np.log10(true_gflux) 
+            
         # Computes QSO mag thresholds for truez
         qso_gmag_threshold=np.interp(truth['TRUEZ'],zc,qso_gmag_threshold_vs_z)
         assert (qso_gmag_threshold.size == true_gmag.size),"qso_gmag_threshold and true_gmag should have the same size"
@@ -233,9 +235,6 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         log.warning('using default redshift efficiency of {} for {}'.format(default_zeff, simtype))
         simulated_eff = default_zeff * np.ones(n)
 
-    if (obsconditions is None) and (truth['OIIFLUX'] is None) and (targets['DECAM_FLUX'] is None):
-        raise Exception('Missing obsconditions and flux information to estimate redshift efficiency')
-
     #- Get the corrections for observing conditions per tile, then
     #- correct targets on those tiles.  Parameterize in terms of failure
     #- rate instead of success rate to handle bookkeeping of targets that
@@ -247,9 +246,40 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
     zeff_obs = get_zeff_obs(simtype, obsconditions)
     pfail = np.ones(n)
     observed = np.zeros(n, dtype=bool)
+
+    # More efficient alternative for large numbers of tiles + large target
+    # list, but requires pre-computing the sort order of targetids.
+    # Assume targets['TARGETID'] is unique, so not checking this.
+    sort_targetid = np.argsort(targetid)
+
+    # Extract the targets-per-tile lists into one huge list.
+    concat_targets_in_tile  = np.concatenate([targets_in_tile[tileid] for tileid in obsconditions['TILEID']])
+    ntargets_per_tile       = np.array([len(targets_in_tile[tileid])  for tileid in obsconditions['TILEID']])
+
+    # Match entries in each tile list against sorted target list.
+    target_idx    = targetid[sort_targetid].searchsorted(concat_targets_in_tile,side='left')
+    target_idx_r  = targetid[sort_targetid].searchsorted(concat_targets_in_tile,side='right')
+    del(concat_targets_in_tile)
+
+    # Flag targets in tiles that do not appear in the target list (sky,
+    # standards).
+    not_matched = target_idx_r - target_idx == 0
+    target_idx[not_matched] = -1
+    del(target_idx_r,not_matched)
+
+    # Not every tile has 5000 targets, so use individual counts to
+    # construct offset of each tile in target_idx.
+    offset  = np.concatenate([[0],np.cumsum(ntargets_per_tile[:-1])])
+
+    # For each tile, process targets.
     for i, tileid in enumerate(obsconditions['TILEID']):
-        ii = np.in1d(targets['TARGETID'], targets_in_tile[tileid])
-        if np.count_nonzero(ii) > 0:
+        if ntargets_per_tile[i] > 0:
+            # Quickly get all the matched targets on this tile.
+            targets_this_tile  = target_idx[offset[i]:offset[i]+ntargets_per_tile[i]]
+            targets_this_tile  = targets_this_tile[targets_this_tile > 0]
+            # List of indices into sorted target list for each observed
+            # source.
+            ii  = sort_targetid[targets_this_tile]
             tmp = (simulated_eff[ii]*zeff_obs[i]).clip(0, 1)
             pfail[ii] *= (1-tmp)
             observed[ii] = True
@@ -308,9 +338,19 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
         tuple of (zout, zerr, zwarn)
     """
 
-    simtype = get_simtype(truth['TRUETYPE'], targets['DESI_TARGET'], targets['BGS_TARGET'], targets['MWS_TARGET'])
+    simtype = get_simtype(np.char.strip(truth['TRUESPECTYPE']), targets['DESI_TARGET'], targets['BGS_TARGET'], targets['MWS_TARGET'])
     truez = truth['TRUEZ']
     targetid = truth['TARGETID']
+
+    try:
+        if 'DECAM_FLUX' in targets.colnames:
+            true_gflux = targets['DECAM_FLUX'][:, 1]
+            true_rflux = targets['DECAM_FLUX'][:, 2]
+        else:
+            true_gflux = targets['FLUX_G']
+            true_rflux = targets['FLUX_R']
+    except:
+        raise Exception('Missing photometry needed to estimate redshift efficiency!')
 
     zout = truez.copy()
     zerr = np.zeros(len(truez), dtype=np.float32)
@@ -344,10 +384,8 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
             elif (objtype == 'LRG'):
                 redbins=np.linspace(0.55,1.1,5)
                 mag = np.linspace(20.5,23.,50)
-                try:
-                    true_magr=targets['DECAM_FLUX'][ii,2]
-                except:
-                    raise Exception('Missing DECAM r flux information to estimate redshift error for LRGs')
+
+                true_magr = 22.5 - 2.5 * np.log10(true_rflux)
 
                 coefs = [[9.46882282e-05,-1.87022383e-03],[6.14601021e-05,-1.17406643e-03],\
                              [8.85342362e-05,-1.76079966e-03],[6.96202042e-05,-1.38632104e-03]]
@@ -388,10 +426,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
                 redbins = np.linspace(0.5,3.5,7)
                 mag = np.linspace(21.,23.,50)
 
-                try:
-                    true_magg=targets['DECAM_FLUX'][ii,1]
-                except:
-                    raise Exception('Missing DECAM g flux information to estimate redshift error for QSOs')
+                true_magg = 22.5 - 2.5 * np.log10(true_gflux)
 
                 coefs = [[0.000156950059747,-0.00320719603886],[0.000461779391179,-0.00924485142818],\
                              [0.000458672517009,-0.0091254038977],[0.000461427968475,-0.00923812594293],\
@@ -521,17 +556,17 @@ def get_median_obsconditions(tileids):
     from desitarget import obsconditions as obsbits
     obsconditions['MOONFRAC'] = np.zeros(n)
     obsconditions['MOONALT'] = -20.0 * np.ones(n)
-    obsconditions['MOONDIST'] = 180.0 * np.ones(n)
+    obsconditions['MOONSEP'] = 180.0 * np.ones(n)
 
     ii = (tiles['OBSCONDITIONS'] & obsbits.GRAY) != 0
     obsconditions['MOONFRAC'][ii] = 0.1
     obsconditions['MOONALT'][ii] = 10.0
-    obsconditions['MOONDIST'][ii] = 60.0
+    obsconditions['MOONSEP'][ii] = 60.0
 
     ii = (tiles['OBSCONDITIONS'] & obsbits.BRIGHT) != 0
     obsconditions['MOONFRAC'][ii] = 0.7
     obsconditions['MOONALT'][ii] = 60.0
-    obsconditions['MOONDIST'][ii] = 50.0
+    obsconditions['MOONSEP'][ii] = 50.0
 
     return obsconditions
 
@@ -606,7 +641,7 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
         newzcat['BRICKNAME'] = np.zeros(len(truth), dtype=(str, 8))
 
     #- Copy TRUETYPE -> SPECTYPE so that we can change without altering original
-    newzcat['SPECTYPE'] = truth['TRUETYPE'].copy()
+    newzcat['SPECTYPE'] = truth['TRUESPECTYPE'].copy()
 
     #- Add ZERR and ZWARN
     print('{} QC Adding ZERR and ZWARN'.format(asctime()))

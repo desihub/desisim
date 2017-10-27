@@ -5,6 +5,7 @@ import unittest
 import numpy as np
 from astropy.table import Table, Column
 from desisim.templates import ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR, WD
+from desisim import lya_mock_p1d as lyamock
 
 desimodel_data_available = 'DESIMODEL' in os.environ
 desi_templates_available = 'DESI_ROOT' in os.environ
@@ -77,7 +78,7 @@ class TestTemplates(unittest.TestCase):
         for i in range(len(meta)):
             z = meta['REDSHIFT'][i]
             ii = (3722*(1+z) < wave) & (wave < 3736*(1+z))
-            OIIflux = np.sum(flux[i,ii]*np.gradient(wave[ii]))
+            OIIflux = 1e-17 * np.sum(flux[i,ii] * np.gradient(wave[ii]))
             self.assertAlmostEqual(OIIflux, meta['OIIFLUX'][i], 2)
     
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
@@ -95,11 +96,11 @@ class TestTemplates(unittest.TestCase):
             nmodel=10, zrange=(0.05, 0.4),
             logvdisp_meansig=[np.log10(75),0.0], 
             nocolorcuts=True, nocontinuum=True)
-    
+
         for i in range(len(meta)):
             z = meta['REDSHIFT'][i]
             ii = (4854*(1+z) < wave) & (wave < 4868*(1+z))
-            hbetaflux = np.sum(flux[i,ii]*np.gradient(wave[ii]))
+            hbetaflux = 1e-17 * np.sum(flux[i,ii] * np.gradient(wave[ii]))
             self.assertAlmostEqual(hbetaflux, meta['HBETAFLUX'][i], 2)
     
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
@@ -146,7 +147,7 @@ class TestTemplates(unittest.TestCase):
             flux2, wave2, meta2 = Tx.make_templates(input_meta=meta1)
             badkeys = list()
             for key in meta1.colnames:
-                if key in ('DECAM_FLUX', 'WISE_FLUX', 'OIIFLUX', 'HBETAFLUX'):
+                if key in ('FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2', 'OIIFLUX', 'HBETAFLUX'):
                     #- not sure why the tolerances aren't closer
                     if not np.allclose(meta1[key], meta2[key], atol=5e-5):
                         print(meta1['OBJTYPE'][0], key, meta1[key], meta2[key])
@@ -177,7 +178,6 @@ class TestTemplates(unittest.TestCase):
         for T in [STAR]:
             Tx = T(wave=self.wave)
             flux, wave, meta = Tx.make_templates(star_properties=star_properties, seed=self.seed)
-            #import pdb ; pdb.set_trace()
             badkeys = list()
             for key in meta.colnames:
                 if key in star_properties.colnames:
@@ -185,5 +185,16 @@ class TestTemplates(unittest.TestCase):
                         badkeys.append(key)
             self.assertEqual(len(badkeys), 0, 'mismatch for spectral type {} in keys {}'.format(meta['OBJTYPE'][0], badkeys))
 
+    def test_lyamock_seed(self):
+        '''Test that random seed works to get the same results back'''
+        print('In function test_lyamock_seed, seed = {}'.format(self.seed))
+        mock = lyamock.MockMaker()
+        wave1, flux1 = mock.get_lya_skewers(self.nspec, new_seed=1)
+        wave2, flux2 = mock.get_lya_skewers(self.nspec, new_seed=1)
+        wave3, flux3 = mock.get_lya_skewers(self.nspec, new_seed=2)
+        self.assertTrue(np.all(flux1==flux2))
+        self.assertTrue(np.any(flux1!=flux3))
+        self.assertTrue(np.all(wave1==wave2))
+    
 if __name__ == '__main__':
     unittest.main()

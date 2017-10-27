@@ -13,7 +13,7 @@ from desisim import obs
 from desisim import pixsim
 import desisim.scripts.pixsim
 
-from desispec.log import get_logger
+from desiutil.log import get_logger
 log = get_logger()
 
 desi_templates_available = 'DESI_ROOT' in os.environ
@@ -148,12 +148,13 @@ class TestPixsim(unittest.TestCase):
         obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
 
         #- run pixsim
-        opts = ['--night', night, '--expid', expid, '--nspec', nspec]
+        opts = ['--night', night, '--expid', expid]
         if ncpu is not None:
             opts.extend( ['--ncpu', ncpu] )
             
         log.debug('testing pixsim.main({})'.format(opts))
-        desisim.scripts.pixsim.main(opts)
+        pixsimargs = desisim.scripts.pixsim.parse(opts)
+        desisim.scripts.pixsim.main(pixsimargs)
 
         #- verify outputs
         simpixfile = io.findfile('simpix', night, expid)
@@ -196,7 +197,8 @@ class TestPixsim(unittest.TestCase):
             opts.extend( ['--ncpu', ncpu] )
 
         log.debug('testing pixsim.main({})'.format(opts))
-        desisim.scripts.pixsim.main(opts)
+        pixsimargs = desisim.scripts.pixsim.parse(opts)
+        desisim.scripts.pixsim.main(pixsimargs)
         simpixfile = io.findfile('simpix', night, expid+1)
         self.assertTrue(os.path.exists(simpixfile))
         self.assertTrue(os.path.exists(altrawfile))
@@ -265,3 +267,10 @@ class TestPixsim(unittest.TestCase):
 #- This runs all test* functions in any TestCase class in this file
 if __name__ == '__main__':
     unittest.main()
+
+def test_suite():
+    """Allows testing of only this module with the command::
+
+        python setup.py test -m <modulename>
+    """
+    return unittest.defaultTestLoader.loadTestsFromName(__name__)

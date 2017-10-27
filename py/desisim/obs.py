@@ -14,76 +14,71 @@ import fcntl
 import time
 from astropy.io import fits
 from astropy import table
+import astropy.units as u
 
 import desimodel.io
 import desispec.io
 from desispec.interpolation import resample_flux
 
-from desispec.log import get_logger
+from desiutil.log import get_logger
 log = get_logger()
 
 from .targets import get_targets_parallel
 from . import io
+import desisim.simexp
+from .simexp import simulate_spectra
 
-def testslit_fibermap() :
-    # from WBS 1.6 PDR Fiber Slit document
-    # science slit has 20 bundles of 25 fibers
-    # test slit has 1 fiber per bundle except in the middle where it is fully populated
-    nspectro=10
-    testslit_nspec_per_spectro=20
-    testslit_nspec = nspectro*testslit_nspec_per_spectro
-    fibermap = np.zeros(testslit_nspec, dtype=desispec.io.fibermap.fibermap_columns)
-    fibermap['FIBER'] = np.zeros((testslit_nspec)).astype(int)
-    fibermap['SPECTROID'] = np.zeros((testslit_nspec)).astype(int)
-    for spectro in range(nspectro) :
-        fiber_index=testslit_nspec_per_spectro*spectro
-        first_fiber_id=500*spectro
-        for b in range(20) :
-            # Fibers at Top of top block or Bottom of bottom block
-            if b <= 10:
-                fibermap['FIBER'][fiber_index]  = 25*b + first_fiber_id
-            else:
-                fibermap['FIBER'][fiber_index]  = 25*b + 24 + first_fiber_id
-
-            fibermap['SPECTROID'][fiber_index] = spectro
-            fiber_index+=1
-    return fibermap
-
-def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
-                 airmass=1.0, exptime=None, seed=None, testslit=False,
-                 arc_lines_filename=None, flat_spectrum_filename=None):
-
+def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
+                 nproc=None, seed=None, obsconditions=None, 
+                 specify_targets=dict(), testslit=False, exptime=None,
+                 arc_lines_filename=None, flat_spectrum_filename=None,
+                 outdir=None):
     """
     Create a new exposure and output input simulation files.
     Does not generate pixel-level simulations or noisy spectra.
 
     Args:
-        flavor: 'arc', 'flat', 'bright', 'dark', 'bgs', 'mws', ...
+        program: 'arc', 'flat', 'bright', 'dark', 'bgs', 'mws', ...
 
     Options:
-        nspec : integer number of spectra to simulate
-        night : YEARMMDD string
-        expid : positive integer exposure ID
-        tileid : integer tile ID
-        airmass : airmass, default 1.0
-        exptime : exposure time in seconds
-        seed : random seed
-        testslit : simulate test slit if True, default False
-        arc_lines_filename : use alternate arc lines filename (used if flavor="arc")
-        flat_spectrum_filename : use alternate flat spectrum filename (used if flavor="flat")
+        * nspec : integer number of spectra to simulate
+        * night : YEARMMDD string
+        * expid : positive integer exposure ID
+        * tileid : integer tile ID
+        * seed : random seed
+        * obsconditions: str or dict-like; see options below
+        * specify_targets: (dict of dicts)  Define target properties like magnitude and redshift
+                                 for each target class. Each objtype has its own key,value pair
+                                 see simspec.templates.specify_galparams_dict() 
+                                 or simsepc.templates.specify_starparams_dict()
+        * exptime: float exposure time [seconds], overrides obsconditions['EXPTIME']
+        * testslit : simulate test slit if True, default False; only for arc/flat
+        * arc_lines_filename : use alternate arc lines filename (used if program="arc")
+        * flat_spectrum_filename : use alternate flat spectrum filename (used if program="flat")
+        * outdir: output directory
 
-    Writes:
-        $DESI_SPECTRO_SIM/$PIXPROD/{night}/fibermap-{expid}.fits
-        $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
+    Writes to outdir or $DESI_SPECTRO_SIM/$PIXPROD/{night}/
+        * fibermap-{expid}.fits
+        * simspec-{expid}.fits
 
     Returns:
-        fibermap numpy structured array
-        truth dictionary
+        * science: sim, fibermap, meta, obsconditions
 
-    Notes:
-        flavor is used to pick the sky brightness, and is propagated to
-        desisim.targets.sample_objtype() to get the correct distribution of
-        targets for a given flavor, e.g. ELGs, LRGs, QSOs for flavor='dark'.
+    input obsconditions can be a string 'dark', 'gray', 'bright', or dict-like
+    observation metadata with keys SEEING (arcsec), EXPTIME (sec), AIRMASS,
+    MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg).  Output obsconditions is
+    is expanded dict-like structure.
+
+    program is used to pick the sky brightness, and is propagated to
+    desisim.targets.sample_objtype() to get the correct distribution of
+    targets for a given program, e.g. ELGs, LRGs, QSOs for program='dark'.
+
+    if program is 'arc' or 'flat', then `sim` is truth table with keys
+    FLUX and WAVE; and meta=None and obsconditions=None.
+
+    Also see simexp.simarc(), .simflat(), and .simscience(), the last of
+    which simulates a science exposure given surveysim obsconditions input,
+    fiber assignments, and pre-generated mock target spectra.
     """
     if expid is None:
         expid = get_next_expid()
@@ -100,180 +95,94 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
         night = str(night)  #- just in case we got an integer instead of string
         dateobs = time.strptime(night+':22', '%Y%m%d:%H')
 
-    params = desimodel.io.load_desiparams()
-    flavor = flavor.lower()
-    if flavor == 'arc':
+    outsimspec = desisim.io.findfile('simspec', night, expid)
+    outfibermap = desisim.io.findfile('simfibermap', night, expid)
+
+    if outdir is not None:
+        outsimspec = os.path.join(outdir, os.path.basename(outsimspec))
+        outfibermap = os.path.join(outdir, os.path.basename(outfibermap))
+
+    program = program.lower()
+    log.debug('Generating {} targets'.format(nspec))
+    
+    header = dict(NIGHT=night, EXPID=expid, PROGRAM=program)
+    if program in ('arc', 'flat'):
+        header['FLAVOR'] = program
+    else:
+        header['FLAVOR'] = 'science'
+
+    #- ISO 8601 DATE-OBS year-mm-ddThh:mm:ss
+    header['DATE-OBS'] = time.strftime('%FT%T', dateobs)
+    
+    if program == 'arc':
         if arc_lines_filename is None :
             infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.3/arc-lines-average-in-vacuum.fits'
         else :
             infile = arc_lines_filename
-        d, arc_header = fits.getdata(infile, 1, header=True)
-
-        #- v0.3 comment "typical exptime for BOSS=5s" but didn't set EXPTIME
-        if 'EXPTIME' not in arc_header:
-            arc_header['EXPTIME'] = 5.0
-
+        arcdata = fits.getdata(infile, 1)
         if exptime is None:
-            exptime = arc_header['EXPTIME']
+            exptime = 5
+        wave, phot, fibermap = desisim.simexp.simarc(arcdata, nspec=nspec, testslit=testslit)
 
-        keys = d.columns.names
+        header['EXPTIME'] = exptime
+        desisim.io.write_simspec_arc(outsimspec, wave, phot, header, fibermap=fibermap)
 
-        wave=None
-        phot=None
-        elec=None
-
-        if ( 'VACUUM_WAVE' in keys ) :
-            wave = d['VACUUM_WAVE']
-        elif ( 'WAVE' in keys ) :
-            wave = d['WAVE']
-        if ("ELECTRONS" in keys) :
-            elec = d['ELECTRONS']
-        elif ("PHOTONS" in keys) :
-            phot= d['PHOTONS']
-
-        if ( ( phot is None ) and (elec is None) ) or wave is None :
-            log.error("cannot read arc line fits file '%s' (don't know the format)"%infile)
-            raise KeyError("cannot read arc line fits file")
-
-
-        truth = dict(WAVE=wave)
-        meta = None
-        if  testslit :
-            fibermap = testslit_fibermap()
-            if nspec != fibermap.size :
-                log.warning("forcing nspec %d -> %d (testslit sim.)"%(nspec,fibermap.size))
-                nspec=fibermap.size
-        else :
-            fibermap = desispec.io.fibermap.empty_fibermap(nspec)
-
-        fibermap['OBJTYPE'] = 'ARC'
-        for channel in ('B', 'R', 'Z'):
-            thru = desimodel.io.load_throughput(channel)
-            ii = np.where( (thru.wavemin <= wave) & (wave <= thru.wavemax) )[0]
-            truth['WAVE_'+channel] = wave[ii]
-            if phot is not None :
-                elec = phot*np.interp(wave,thru._wave,thru._thru,left=0,right=0)
-
-            elec *= exptime / arc_header['EXPTIME']
-            truth['PHOT_'+channel] = np.tile(elec[ii], nspec).reshape(nspec, len(ii))
-
-    elif flavor == 'flat':
-
+        fibermap.meta['NIGHT'] = night
+        fibermap.meta['EXPID'] = expid
+        fibermap.write(outfibermap)
+        truth = dict(WAVE=wave, PHOT=phot, UNITS='photon')
+        return truth, fibermap, None, None
+    
+    elif program == 'flat':
         if flat_spectrum_filename is None :
             infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.3/flat-3100K-quartz-iodine.fits'
         else :
             infile = flat_spectrum_filename
 
-        flux, flat_header = fits.getdata(infile, 0, header=True)
-        wave = desispec.io.util.header2wave(flat_header)
-
-        #- v0.3 flat doesn't specify EXPTIME;
-        #- we've been treating it as 10 sec to not saturate CCDs
-        if 'EXPTIME' not in flat_header:
-            flat_header['EXPTIME'] = 10.0
-
         if exptime is None:
-            exptime = flat_header['EXPTIME']
+            exptime = 10
+        sim, fibermap = desisim.simexp.simflat(infile, nspec=nspec, exptime=exptime, testslit=testslit)
 
-        #- resample to 0.2 A grid
-        dw = 0.2
-        ww = np.arange(wave[0], wave[-1]+dw/2, dw)
-        flux = resample_flux(ww, wave, flux)
-        wave = ww
+        header['EXPTIME'] = exptime
+        header['FLAVOR'] = 'flat'
+        desisim.io.write_simspec(sim, truth=None, fibermap=fibermap, obs=None,
+            expid=expid, night=night, header=header, filename=outsimspec)
 
-        truth = dict(WAVE=wave, FLUX=flux)
-        meta = None
-        if  testslit :
-            fibermap = testslit_fibermap()
-            if nspec != fibermap.size :
-                log.warning("forcing nspec %d -> %d (testslit sim.)"%(nspec,fibermap.size))
-                nspec=fibermap.size
-        else :
-            fibermap = desispec.io.fibermap.empty_fibermap(nspec)
+        fibermap.meta['NIGHT'] = night
+        fibermap.meta['EXPID'] = expid
+        fibermap.write(outfibermap)
+        # fluxunits = 1e-17 * u.erg / (u.s * u.cm**2 * u.Angstrom)
+        fluxunits = '1e-17 erg/(s * cm2 * Angstrom)'
+        flux = sim.simulated['source_flux'].to(fluxunits)
+        wave = sim.simulated['wavelength'].to('Angstrom')
+        truth = dict(WAVE=wave, FLUX=flux, UNITS=str(fluxunits))
+        return truth, fibermap, None, None
 
-        #- Convert to 2D for projection
-        flux = np.tile(flux, nspec).reshape(nspec, len(wave))
+    #- all other programs
+    fibermap, (flux, wave, meta) = get_targets_parallel(nspec, program,
+        tileid=tileid, nproc=nproc, seed=seed, specify_targets=specify_targets)
 
-        fibermap['OBJTYPE'] = 'FLAT'
-        for channel in ('B', 'R', 'Z'):
-            thru = desimodel.io.load_throughput(channel)
-            ii = (thru.wavemin <= wave) & (wave <= thru.wavemax)
-            phot = thru.photons(wave[ii], flux[:,ii], units=flat_header['BUNIT'],
-                            objtype='CALIB', exptime=exptime)
-
-            truth['WAVE_'+channel] = wave[ii]
-            truth['PHOT_'+channel] = phot
-
-    else: # checked that flavor is valid in newexp-desi
-        log.debug('Generating {} targets'.format(nspec))
-        fibermap, truth = get_targets_parallel(nspec, flavor, tileid=tileid, seed=seed)
-
-        flux = truth['FLUX']
-        wave = truth['WAVE']
-        nwave = len(wave)
-
-        if exptime is None:
-            exptime = params['exptime']
-
-        #- Load sky [Magic knowledge of units 1e-17 erg/s/cm2/A/arcsec2]
-        if flavor in ('bright', 'bgs', 'mws'):
-            skyfile = os.getenv('DESIMODEL')+'/data/spectra/spec-sky-bright.dat'
-        elif flavor in ('gray', 'grey'):
-            skyfile = os.getenv('DESIMODEL')+'/data/spectra/spec-sky-grey.dat'
+    if obsconditions is None:
+        if program in ['dark', 'lrg', 'qso']:
+            obsconditions = desisim.simexp.reference_conditions['DARK']
+        elif program in ['elg', 'gray', 'grey']:
+            obsconditions = desisim.simexp.reference_conditions['GRAY']
+        elif program in ['mws', 'bgs', 'bright']:
+            obsconditions = desisim.simexp.reference_conditions['BRIGHT']
         else:
-            skyfile = os.getenv('DESIMODEL')+'/data/spectra/spec-sky.dat'
+            raise ValueError('unknown program {}'.format(program))
+    elif isinstance(obsconditions, str):
+        try:
+            obsconditions = desisim.simexp.reference_conditions[obsconditions.upper()]
+        except KeyError:
+            raise ValueError('obsconditions {} not in {}'.format(
+                obsconditions.upper(),
+                list(desisim.simexp.reference_conditions.keys())))
 
-        log.info('skyfile '+skyfile)
+    if exptime is not None:
+        obsconditions['EXPTIME'] = exptime
 
-        skywave, skyflux = np.loadtxt(skyfile, unpack=True)
-        skyflux = np.interp(wave, skywave, skyflux)
-        truth['SKYFLUX'] = skyflux
-
-        log.debug('Calculating flux -> photons')
-        for channel in ('B', 'R', 'Z'):
-            thru = desimodel.io.load_throughput(channel)
-
-            ii = np.where( (thru.wavemin <= wave) & (wave <= thru.wavemax) )[0]
-
-            #- Project flux to photons
-            phot = thru.photons(wave[ii], flux[:,ii], units=truth['UNITS'],
-                    objtype=specter_objtype(truth['OBJTYPE']),
-                    exptime=exptime, airmass=airmass)
-
-            truth['PHOT_'+channel] = phot
-            truth['WAVE_'+channel] = wave[ii]
-
-            #- Project sky flux to photons
-            skyphot = thru.photons(wave[ii], skyflux[ii]*airmass,
-                units='1e-17 erg/s/cm2/A/arcsec2',
-                objtype='SKY', exptime=exptime, airmass=airmass)
-
-            #- 2D version
-            ### truth['SKYPHOT_'+channel] = np.tile(skyphot, nspec).reshape((nspec, len(ii)))
-            #- 1D version
-            truth['SKYPHOT_'+channel] = skyphot.astype(np.float32)
-
-        #- NOTE: someday skyflux and skyphot may be 2D instead of 1D
-
-        #- Extract the metadata part of the truth dictionary into a table
-        meta = truth['META']
-
-        #columns = (
-        #    'OBJTYPE',
-        #    'REDSHIFT',
-        #    'TEMPLATEID',
-        #    'D4000',
-        #    'OIIFLUX',
-        #    'VDISP'
-        #)
-        #meta = {key: truth[key] for key in columns}
-
-    #- (end indentation for arc/flat/science flavors)
-
-    #- Override $DESI_SPECTRO_DATA in order to write to simulation area
-    datadir_orig = os.getenv('DESI_SPECTRO_DATA')
-    simbase = os.path.join(os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'))
-    os.environ['DESI_SPECTRO_DATA'] = simbase
+    sim = simulate_spectra(wave, flux, fibermap=fibermap, obsconditions=obsconditions)
 
     #- Write fibermap
     telera, teledec = io.get_tile_radec(tileid)
@@ -281,36 +190,28 @@ def new_exposure(flavor, nspec=5000, night=None, expid=None, tileid=None,
         NIGHT = (night, 'Night of observation YEARMMDD'),
         EXPID = (expid, 'DESI exposure ID'),
         TILEID = (tileid, 'DESI tile ID'),
-        FLAVOR = (flavor, 'Flavor [arc, flat, science, ...]'),
+        PROGRAM = (program, 'program [dark, bright, ...]'),
+        FLAVOR = ('science', 'Flavor [arc, flat, science, zero, ...]'),
         TELRA = (telera, 'Telescope pointing RA [degrees]'),
         TELDEC = (teledec, 'Telescope pointing dec [degrees]'),
+        AIRMASS = (obsconditions['AIRMASS'], 'Airmass at middle of exposure'),
+        EXPTIME = (obsconditions['EXPTIME'], 'Exposure time [sec]'),
+        SEEING = (obsconditions['SEEING'], 'Seeing FWHM [arcsec]'),
+        MOONFRAC = (obsconditions['MOONFRAC'], 'Moon illumination fraction 0-1; 1=full'),
+        MOONALT  = (obsconditions['MOONALT'], 'Moon altitude [degrees]'),
+        MOONSEP  = (obsconditions['MOONSEP'], 'Moon:tile separation angle [degrees]'),
         )
-    #- ISO 8601 DATE-OBS year-mm-ddThh:mm:ss
-    fiberfile = desispec.io.findfile('fibermap', night, expid)
-    desispec.io.write_fibermap(fiberfile, fibermap, header=hdr)
-    log.info('Wrote '+fiberfile)
-
-    #- Write simspec; expand fibermap header
-    hdr['AIRMASS'] = (airmass, 'Airmass at middle of exposure')
-    hdr['EXPTIME'] = (exptime, 'Exposure time [sec]')
     hdr['DATE-OBS'] = (time.strftime('%FT%T', dateobs), 'Start of exposure')
 
-    simfile = io.write_simspec(meta, truth, expid, night, header=hdr)
-    log.info('Wrote '+simfile)
+    simfile = io.write_simspec(sim, meta, fibermap, obsconditions,
+        expid, night, header=hdr, filename=outsimspec)
 
-    #- Update obslog that we succeeded with this exposure
-    if flavor in ('arc', 'flat'):
-        update_obslog(obstype=flavor, program='calib', expid=expid, dateobs=dateobs, tileid=tileid)
-    else:
-        update_obslog(obstype='science', program=flavor, expid=expid, dateobs=dateobs, tileid=tileid)
+    desispec.io.write_fibermap(outfibermap, fibermap, header=hdr)
+    log.info('Wrote '+outfibermap)
 
-    #- Restore $DESI_SPECTRO_DATA
-    if datadir_orig is not None:
-        os.environ['DESI_SPECTRO_DATA'] = datadir_orig
-    else:
-        del os.environ['DESI_SPECTRO_DATA']
+    update_obslog(obstype='science', program=program, expid=expid, dateobs=dateobs, tileid=tileid)
 
-    return fibermap, truth
+    return sim, fibermap, meta, obsconditions
 
 #- Mapping of DESI objtype to things specter knows about
 def specter_objtype(desitype):
@@ -504,56 +405,41 @@ def update_obslog(obstype='science', program='DARK', expid=None, dateobs=None,
         os.makedirs(dbdir)
 
     dbfile = dbdir+'/obslog.sqlite'
-    db = sqlite3.connect(dbfile)
-    db.execute("""\
-    CREATE TABLE IF NOT EXISTS obslog (
-        expid INTEGER PRIMARY KEY,
-        dateobs DATETIME,                   -- seconds since Unix Epoch (1970)
-        night TEXT,                         -- YEARMMDD
-        obstype TEXT DEFAULT "science",
-        program TEXT DEFAULT "DARK",
-        tileid INTEGER DEFAULT -1,
-        ra REAL DEFAULT 0.0,
-        dec REAL DEFAULT 0.0
-    )
-    """)
+    with sqlite3.connect(dbfile, isolation_level="EXCLUSIVE") as db:
+        db.execute("""\
+        CREATE TABLE IF NOT EXISTS obslog (
+            expid INTEGER PRIMARY KEY,
+            dateobs DATETIME,                   -- seconds since Unix Epoch (1970)
+            night TEXT,                         -- YEARMMDD
+            obstype TEXT DEFAULT "science",
+            program TEXT DEFAULT "DARK",
+            tileid INTEGER DEFAULT -1,
+            ra REAL DEFAULT 0.0,
+            dec REAL DEFAULT 0.0
+        )
+        """)
 
-    #- Fill in defaults
-    if expid is None:
-        expid = get_next_expid()
+        #- Fill in defaults
+        if expid is None:
+            expid = get_next_expid()
 
-    if dateobs is None:
-        dateobs = time.localtime()
+        if dateobs is None:
+            dateobs = time.localtime()
 
-    if ra is None:
-        assert (dec is None)
-        if tileid < 0:
-            ra, dec = (0.0, 0.0)
-        else:
-            #- TODO: mod 50k is to convert bright tileids to locations of
-            #- dark tileids; update this when new tiling file exists
-            ra, dec = io.get_tile_radec(tileid % 50000)
+        if ra is None:
+            assert (dec is None)
+            if tileid < 0:
+                ra, dec = (0.0, 0.0)
+            else:
+                ra, dec = io.get_tile_radec(tileid)
 
-    night = get_night(utc=dateobs)
+        night = get_night(utc=dateobs)
 
-    insert = """\
-    INSERT OR REPLACE INTO obslog(expid,dateobs,night,obstype,program,tileid,ra,dec)
-    VALUES (?,?,?,?,?,?,?,?)
-    """
-    db.execute(insert, (expid, time.mktime(dateobs), night, obstype.upper(), program.upper(), tileid, ra, dec))
-    db.commit()
+        insert = """\
+        INSERT OR REPLACE INTO obslog(expid,dateobs,night,obstype,program,tileid,ra,dec)
+        VALUES (?,?,?,?,?,?,?,?)
+        """
+        db.execute(insert, (int(expid), time.mktime(dateobs), str(night), str(obstype.upper()), str(program.upper()), int(tileid), float(ra), float(dec)))
+        db.commit()
 
     return expid, dateobs
-
-#- for the future
-# def ndarray_from_columns(keys, columns):
-#     nrow = len(columns[0])
-#     dtype = list()
-#     for name, col in zip(keys, columns):
-#         dtype.append( (name, col.dtype) )
-#
-#     result = np.zeros(nrow, dtype=dtype)
-#     for name, col in zip(keys, columns):
-#         result[name] = col
-#
-#     return result

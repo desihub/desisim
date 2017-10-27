@@ -8,19 +8,22 @@ from __future__ import absolute_import, division, print_function
 
 import os
 import os.path
-import multiprocessing as mp
+import shutil
+
 import random
 from time import asctime
 
 import numpy as np
 
 import desimodel.io
+from desiutil.log import get_logger
 import desispec.io
+from desispec.parallel import stdouterr_redirected
 
-import desisim
-import desisim.pixsim
-from desisim import obs, io
-from desispec.log import get_logger
+from ..pixsim import simulate
+from ..io import SimSpec
+from .. import obs, io
+
 log = get_logger()
 
 def expand_args(args):
@@ -48,10 +51,20 @@ def expand_args(args):
             raise ValueError(msg)
         args.simspec = io.findfile('simspec', args.night, args.expid)
 
+    if args.fibermap is None:
+        if (args.night is not None) and (args.expid is not None):
+            args.fibermap = io.findfile('simfibermap', args.night, args.expid)
+
     if (args.cameras is None) and (args.spectrographs is None):
         from astropy.io import fits
-        hdr = fits.getheader(args.simspec, 'PHOT_B')
-        nspec = hdr['NAXIS2']
+        try:
+            data = fits.getdata(args.simspec, 'B')
+            nspec = data['PHOT'].shape[1]
+        except KeyError:
+            #- Try old specsim format instead
+            hdr = fits.getheader(args.simspec, 'PHOT_B')
+            nspec = hdr['NAXIS2']
+
         nspectrographs = (nspec-1) // 500 + 1
         args.spectrographs = list(range(nspectrographs))
 
@@ -75,7 +88,6 @@ def expand_args(args):
     else:
         args.cameras = args.cameras.split(',')
 
-
     #- write to same directory as simspec
     if args.rawfile is None:
         rawfile = os.path.basename(desispec.io.findfile('raw', args.night, args.expid))
@@ -88,7 +100,8 @@ def expand_args(args):
     if args.simpixfile is None:
         args.simpixfile = io.findfile(
             'simpix', night=args.night, expid=args.expid,
-            outdir=os.path.dirname(args.rawfile))
+            outdir=os.path.dirname(os.path.abspath(args.rawfile)))
+
 
 #-------------------------------------------------------------------------
 #- Parse options
@@ -123,15 +136,16 @@ def parse(options=None):
     parser.add_argument("--ccd_npix_x", type=int, help="for testing; number of x (columns) to include in output", default=None)
     parser.add_argument("--ccd_npix_y", type=int, help="for testing; number of y (rows) to include in output", default=None)
 
-    # parser.add_argument("--trimxy", action="store_true", help="Trim image to fit spectra")
     parser.add_argument("--verbose", action="store_true", help="Include debug log info")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing raw and simpix files")
     parser.add_argument("--seed", type=int, help="random number seed")
-    parser.add_argument("--nspec", type=int, help="Number of spectra to simulate per camera %(default)s", default=500)
-    parser.add_argument("--mpi", action="store_true", help="Use MPI parallelism")
-    parser.add_argument("--ncpu",  type=int, help="Number of cpu cores per thread to use %(default)s", default=mp.cpu_count() // 2)
-    parser.add_argument("--wavemin",  type=float, help="Minimum wavelength to simulate")
-    parser.add_argument("--wavemax",  type=float, help="Maximum wavelength to simulate")
+
+    parser.add_argument("--ncpu", type=int, help="Number of cpu cores per thread to use", default=0)
+    parser.add_argument("--wavemin", type=float, help="Minimum wavelength to simulate")
+    parser.add_argument("--wavemax", type=float, help="Maximum wavelength to simulate")
+
+    parser.add_argument("--mpi_camera", type=int, default=1, help="Number of "
+        "MPI processes to use per camera")
 
     if options is None:
         args = parser.parse_args()
@@ -142,138 +156,270 @@ def parse(options=None):
     expand_args(args)
     return args
 
-def main(args=None):
-    log.info('Starting pixsim at {}'.format(asctime()))
-    if isinstance(args, (list, tuple, type(None))):
-        args = parse(args)
 
+def main(args, comm=None):
     if args.verbose:
         import logging
         log.setLevel(logging.DEBUG)
 
-    if args.mpi:
-        from mpi4py import MPI
-        mpicomm = MPI.COMM_WORLD
-        log.debug('Using mpi4py MPI communicator')
+    rank = 0
+    nproc = 1
+    if comm is not None:
+        rank = comm.rank
+        nproc = comm.size
     else:
-        from desisim.util import _FakeMPIComm
-        log.debug('Using fake MPI communicator')
-        mpicomm = _FakeMPIComm()
+        if args.ncpu == 0:
+            import multiprocessing as mp
+            args.ncpu = mp.cpu_count() // 2
 
-    log.info('Starting pixsim rank {} at {}'.format(mpicomm.rank, asctime()))
-    log.debug('MPI rank {} size {} / {} {}'.format(
-        mpicomm.rank, mpicomm.size, mpicomm.Get_rank(), mpicomm.Get_size()))
+    if rank == 0:
+        log.info('Starting pixsim at {}'.format(asctime()))
 
     #- Pre-flight check that these cameras haven't been done yet
-    if (mpicomm.rank == 0) and (not args.overwrite) and os.path.exists(args.rawfile):
+    if (rank == 0) and (not args.overwrite) and os.path.exists(args.rawfile):
         log.debug('Checking if cameras are already in output file')
         from astropy.io import fits
         fx = fits.open(args.rawfile)
         oops = False
         for camera in args.cameras:
             if camera.upper() in fx:
-                log.error('Camera {} already in {}'.format(camera, args.rawfile))
+                log.error('Camera {} already in {}'.format(camera, 
+                    args.rawfile))
                 oops = True
-
         fx.close()
         if oops:
             log.fatal('Exiting due to repeat cameras already in output file')
-            mpicomm.Abort()
+            if comm is not None:
+                comm.Abort()
+            else:
+                sys.exit(1)
 
-    ncameras = len(args.cameras)
-    if ncameras % mpicomm.size != 0:
-        log.fatal('Processing cameras {}'.format(args.cameras))
-        log.fatal('Number of cameras {} must be evenly divisible by MPI size {}'.format(ncameras, mpicomm.size))
-        mpicomm.Abort()
+    ncamera = len(args.cameras)
 
-    #- Use original seed to generate different random seeds for each MPI rank
-    np.random.seed(args.seed)
-    while True:
-        seeds = np.random.randint(0, 2**32-1, size=mpicomm.size)
-        if np.unique(seeds).size == mpicomm.size:
-            random.seed(seeds[mpicomm.rank])
-            np.random.seed(seeds[mpicomm.rank])
-            break
+    comm_group = comm
+    comm_rank = None
+    group = 0
+    ngroup = 1
+    group_rank = 0
+    if comm is not None:
+        if args.mpi_camera > 1:
+            ngroup = int(comm.size / args.mpi_camera)
+            group = int(comm.rank / args.mpi_camera)
+            group_rank = comm.rank % args.mpi_camera
+            comm_group = comm.Split(color=group, key=group_rank)
+            comm_rank = comm.Split(color=group_rank, key=group)
+        else:
+            from mpi4py import MPI
+            group = comm.rank
+            ngroup = comm.size
+            comm_group = MPI.COMM_SELF
+            comm_rank = comm
 
+    group_cameras = np.array_split(np.arange(ncamera, dtype=np.int32), 
+        ngroup)[group]
+
+    # Compute which spectrographs our group needs to store based on which
+    # cameras we are processing.
+
+    group_spectro = np.unique(np.array([ int(args.cameras[c][1]) for c in \
+        group_cameras ], dtype=np.int32))
+
+    # Remove outputs and or temp files
+
+    rawtemp = "{}.tmp".format(args.rawfile)
+    simpixtemp = "{}.tmp".format(args.simpixfile)
+
+    if rank == 0:
+        if args.overwrite and os.path.exists(args.rawfile):
+            log.debug('removing {}'.format(args.rawfile))
+            os.remove(args.rawfile)
+
+        if args.overwrite and os.path.exists(args.simpixfile):
+            log.debug('removing {}'.format(args.simpixfile))
+            os.remove(args.simpixfile)
+
+        # cleanup stale temp files
+        if os.path.isfile(rawtemp):
+            os.remove(rawtemp)
+        if os.path.isfile(simpixtemp):
+            os.remove(simpixtemp)
+    
+    if comm is not None:
+        comm.barrier()
+
+    psf = None
     if args.psf is not None:
         from specter.psf import load_psf
         psf = load_psf(args.psf)
 
-    simspec = io.read_simspec(args.simspec)
+    # Read and distribute the simspec data
 
-    if args.fibermap:
-        fibermap = desispec.io.read_fibermap(args.fibermap)
-        fibers = fibermap['FIBER']
+    simspec = None
+    if comm is not None:
+        simspec = io.read_simspec_mpi(args.simspec, comm,
+            spectrographs=group_spectro)
     else:
-        fibers = None
+        simspec = io.read_simspec(args.simspec)
 
-    if args.overwrite and os.path.exists(args.rawfile):
-        log.debug('removing {}'.format(args.rawfile))
-        os.remove(args.rawfile)
+    # Read the fibermap
 
-    if args.overwrite and os.path.exists(args.simpixfile):
-        log.debug('removing {}'.format(args.simpixfile))
-        os.remove(args.simpixfile)
-
-    for i in range(mpicomm.rank, ncameras, mpicomm.size):
-        camera = args.cameras[i]
-        log.debug('Rank {} processing camera {}'.format(mpicomm.rank, camera))
-        channel = camera[0].lower()
-        assert channel in ('b', 'r', 'z'), "Unknown camera {} doesn't start with b,r,z".format(camera)
-
-        #- Read inputs for this camera
-        if args.psf is None:
-            psf = desimodel.io.load_psf(channel)
-            if args.ccd_npix_x is not None:
-                psf.npix_x = args.ccd_npix_x
-            if args.ccd_npix_y is not None:
-                psf.npix_y = args.ccd_npix_y
-
-        if args.cosmics:
-            if args.cosmics_file is None:
-                cosmics_file = io.find_cosmics(camera, simspec.header['EXPTIME'],
-                                               cosmics_dir=args.cosmics_dir)
-                log.info('cosmics templates {}'.format(cosmics_file))
-            else:
-                cosmics_file = args.cosmics_file
-
-            shape = (psf.npix_y, psf.npix_x)
-            cosmics = io.read_cosmics(cosmics_file, args.expid, shape=shape)
+    fibers = None
+    if rank == 0:
+        if args.fibermap is not None:
+            fibermap = desispec.io.read_fibermap(args.fibermap)
+            fibers = np.array(fibermap['FIBER'], dtype=np.int32)
         else:
-            cosmics = None
+            # Get the fiber list from the simspec file
+            from astropy.io import fits
+            from astropy.table import Table
+            fx = fits.open(args.simspec, memmap=True)
+            if 'FIBERMAP' in fx:
+                fibermap = Table(fx['FIBERMAP'].data)
+                fibers = np.array(fibermap['FIBER'], dtype=np.int32)
+            else:
+                # Get the number of fibers from one of the photon HDUs
+                fibers = np.arange(fx['PHOT_B'].header['NAXIS2'], 
+                    dtype=np.int32)
+            fx.close()
+    if comm is not None:
+        fibers = comm.bcast(fibers, root=0)
+
+    fs = np.in1d(fibers//500, group_spectro)
+    group_fibers = fibers[fs]
+
+    # Use original seed to generate different random seeds for each camera
+    np.random.seed(args.seed)
+    seeds = np.random.randint(0, 2**32-1, size=ncamera)
+
+    image = {}
+    rawpix = {}
+    truepix = {}
+
+    lastchannel = None
+    for c in group_cameras:
+        camera = args.cameras[c]
+        if group_rank == 0:
+            log.debug('Processing camera {}'.format(camera))
+        channel = camera[0].lower()
+
+        # Set the seed for this camera (regardless of which process is
+        # performing the simulation).
+        np.random.seed(seeds[c])
+
+        # Get the random cosmic expids.  The actual values will be
+        # remapped internally with the modulus operator.
+        cosexpid = np.random.randint(0, 100, size=1)[0]
+
+        # Read inputs for this camera.  Unfortunately psf
+        # objects are not serializable, so we read it on all
+        # processes.
+        if args.psf is None:
+            if channel != lastchannel:
+                psf = desimodel.io.load_psf(channel)
+                if args.ccd_npix_x is not None:
+                    psf.npix_x = args.ccd_npix_x
+                if args.ccd_npix_y is not None:
+                    psf.npix_y = args.ccd_npix_y
+            lastchannel = channel
+
+        cosmics = None
+        if args.cosmics:
+            if group_rank == 0:
+                if args.cosmics_file is None:
+                    cosmics_file = io.find_cosmics(camera, 
+                        simspec.header['EXPTIME'],
+                        cosmics_dir=args.cosmics_dir)
+                    log.info('cosmics templates {}'.format(cosmics_file))
+                else:
+                    cosmics_file = args.cosmics_file
+
+                shape = (psf.npix_y, psf.npix_x)
+                cosmics = io.read_cosmics(cosmics_file, cosexpid, 
+                    shape=shape)
+            if comm_group is not None:
+                cosmics = comm_group.bcast(cosmics, root=0)
 
         #- Do the actual simulation
-        image, rawpix, truepix = desisim.pixsim.simulate(
-            camera, simspec, psf, fibers=fibers,
-            nspec=args.nspec, ncpu=args.ncpu, cosmics=cosmics,
-            wavemin=args.wavemin, wavemax=args.wavemax, preproc=False)
+        # Each process in the group is responsible for a subset of the
+        # fibers.
 
-        #- Synchronize with other MPI threads before continuing with output
-        mpicomm.Barrier()
+        if group_rank == 0:
+            group_size = 1
+            if comm_group is not None:
+                group_size = comm_group.size
+            log.info("Group {} ({} processes) simulating camera "
+                "{}".format(group, group_size, camera))
 
-        #- Loop over MPI ranks, letting each one take its turn writing output
-        for rank in range(mpicomm.size):
-            if rank == mpicomm.rank:
-                desispec.io.write_raw(args.rawfile, rawpix, camera=camera,
-                    header=image.meta, primary_header=simspec.header)
+        image[camera], rawpix[camera], truepix[camera] = \
+            simulate(camera, simspec, psf, fibers=group_fibers, 
+                ncpu=args.ncpu, cosmics=cosmics, 
+                wavemin=args.wavemin, wavemax=args.wavemax, preproc=False, 
+                comm=comm_group)
+
+        if args.psf is None:
+            del psf
+
+    # Write the cameras in order.  Only the rank zero process in each
+    # group has the data.  If we are appending new cameras to an existing
+    # raw file, then copy the original to the temporary output first.
+    # Move temp files into place
+    if rank == 0:
+        # Copy the original files into place if we are appending
+        if not args.overwrite and os.path.exists(args.rawfile):
+            shutil.copy2(args.rawfile, rawtemp)
+        if not args.overwrite and os.path.exists(args.simpixfile):
+            shutil.copy2(args.simpixfile, simpixtemp)
+    
+    # Wait for all processes to finish their cameras
+    if comm is not None:
+        comm.barrier()
+
+    for c in np.arange(ncamera, dtype=np.int32):
+        camera = args.cameras[c]
+        if c in group_cameras:
+            if group_rank == 0:
+                desispec.io.write_raw(rawtemp, rawpix[camera], 
+                    camera=camera, header=image[camera].meta, 
+                    primary_header=simspec.header)
                 log.info('Wrote {} image to {}'.format(camera, args.rawfile))
-                io.write_simpix(args.simpixfile, truepix, camera=camera,
-                    meta=simspec.header)
-                log.info('Wrote {} image to {}'.format(camera, args.simpixfile))
-                mpicomm.Barrier()
-            else:
-                mpicomm.Barrier()
+                io.write_simpix(simpixtemp, truepix[camera], 
+                    camera=camera, meta=simspec.header)
+                log.info('Wrote {} image to {}'.format(camera, 
+                    args.simpixfile))
+        if comm is not None:
+            comm.barrier()
 
-    #- Call preproc separately from pixsim.simulate to ensure that it is
-    #- done identically to real data.
-    #- Note: This does lose the advantage of parallel preprocessing; we could
-    #- change this if that is problematic
-    if args.preproc and mpicomm.rank == 0:
-        log.info('Preprocessing raw -> pix files')
+    # Move temp files into place
+    if rank == 0:
+        os.rename(simpixtemp, args.simpixfile)
+        os.rename(rawtemp, args.rawfile)
+    if comm is not None:
+        comm.barrier()
+
+    # Apply preprocessing
+    if args.preproc:
+        if rank == 0:
+            log.info('Preprocessing raw -> pix files')
         from desispec.scripts import preproc
-        preproc_opts = ['--infile', args.rawfile, '--outdir', args.preproc_dir]
-        preproc_opts += ['--cameras', ','.join(args.cameras)]
-        preproc.main(preproc.parse(preproc_opts))
+        if len(group_cameras) > 0:
+            if group_rank == 0:
+                for c in group_cameras:
+                    camera = args.cameras[c]
+                    pixfile = desispec.io.findfile('pix', night=args.night,
+                        expid=args.expid, camera=camera)
+                    preproc_opts = ['--infile', args.rawfile, '--outdir',
+                        args.preproc_dir, '--pixfile', pixfile]
+                    preproc_opts += ['--cameras', camera]
+                    preproc.main(preproc.parse(preproc_opts))
 
-    if mpicomm.rank == 0:
+    if comm is not None:
+        comm.barrier()
+    
+    # Python is terrible with garbage collection, but at least
+    # encourage it...
+    del image
+    del rawpix
+    del truepix
+
+    if rank == 0:
         log.info('Finished pixsim {} expid {} at {}'.format(args.night, args.expid, asctime()))

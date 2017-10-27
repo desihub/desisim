@@ -41,29 +41,33 @@ env:
         # to repeat them for all configurations.
         # - NUMPY_VERSION=1.10
         # - SCIPY_VERSION=0.16
-        - ASTROPY_VERSION=1.2.1
-        # - SPHINX_VERSION=1.3
+        - ASTROPY_VERSION=1.3.3
+        - SPHINX_VERSION=1.5
         # - DESIUTIL_VERSION=1.8.0
-        - DESIUTIL_VERSION=1.9.3
-        - DESIMODEL_VERSION=0.6.0
-        - DESIMODEL_DATA=branches/test-0.6.0
+        - DESIUTIL_VERSION=1.9.4
+        # - DESIMODEL_VERSION=0.7.0
+        # - DESIMODEL_DATA=branches/test-0.7.0
+        - DESIMODEL_VERSION=master
+        - DESIMODEL_DATA=trunk
         - DESISIM_TESTDATA_VERSION=0.3.3
         - SPECLITE_VERSION=0.5
-        - SPECSIM_VERSION=v0.8
+        - SPECSIM_VERSION=master
         - SPECTER_VERSION=0.7.0
-        - DESISPEC_VERSION=0.13.1
-        - DESITARGET_VERSION=0.9.0
+        - DESISPEC_VERSION=master
+        - DESITARGET_VERSION=master
         # - DESIMODEL_VERSION=trunk
         - DESI_LOGLEVEL=DEBUG
         - MAIN_CMD='python setup.py'
         # These packages will always be installed.
         - CONDA_DEPENDENCIES="scipy pyyaml"
+        # These packages will only be installed for documentation builds.
+        - CONDA_SPHINX_DEPENDENCIES="scipy pyyaml sphinx==1.5"
         # These packages will only be installed if we really need them.
-        - CONDA_ALL_DEPENDENCIES="scipy matplotlib coverage==3.7.1 pyyaml qt=4"
+        - CONDA_ALL_DEPENDENCIES="scipy matplotlib coverage pyyaml"
         # These packages will always be installed.
         - PIP_DEPENDENCIES=""
         # These packages will only be installed if we really need them.
-        - PIP_ALL_DEPENDENCIES="speclite==${SPECLITE_VERSION} coveralls fitsio"
+        - PIP_ALL_DEPENDENCIES="healpy speclite==${SPECLITE_VERSION} coveralls fitsio"
         # These pip packages need to be installed in a certain order, so we
         # do that separately from the astropy/ci-helpers scripts.
         - DESIHUB_PIP_DEPENDENCIES="desiutil=${DESIUTIL_VERSION}"
@@ -88,6 +92,7 @@ matrix:
         # runs for a long time
         - os: linux
           env: PYTHON_VERSION=3.5 SETUP_CMD='build_sphinx --warning-is-error'
+               CONDA_DEPENDENCIES=$CONDA_SPHINX_DEPENDENCIES
 
           # OPTIONAL_DEPS needed because the plot_directive in sphinx needs them
           # -w is an astropy extension
@@ -99,13 +104,13 @@ matrix:
 
         # Try multiple python versions with the latest numpy
         - os: linux
-          env: PYTHON_VERSION=2.7 SETUP_CMD='test --coverage'
+          env: PYTHON_VERSION=2.7 SETUP_CMD='test'
                CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
                PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
                DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES
 
         - os: linux
-          env: PYTHON_VERSION=3.5 SETUP_CMD='test'
+          env: PYTHON_VERSION=3.5 SETUP_CMD='test --coverage'
                CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
                PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
                DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES

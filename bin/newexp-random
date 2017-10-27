@@ -1,0 +1,12 @@
+#!/usr/bin/env python
+
+"""
+Generate a new DESI science exposure
+"""
+
+import sys
+from desisim.scripts import newexp_random as newexp
+
+if __name__ == '__main__':
+    args = newexp.parse()
+    sys.exit(newexp.main(args))

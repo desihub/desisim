@@ -260,7 +260,10 @@ class GALAXY(object):
           wave (numpy.ndarray): Input/output observed-frame wavelength array,
             overriding the minwave, maxwave, and cdelt arguments (Angstrom).
           colorcuts_function (function name): Function to use to select
-            templates that pass the color-cuts for the specified objtype
+            templates that pass the color-cuts for the specified objtype Note
+            that this argument can also be a tuple of more than one selection
+            function to apply (e.g., desitarget.cuts.isBGS_faint and
+            desitarget.cuts.isBGS_bright) which will be applied in sequence
             (default None).
           normfilter (str): normalize each spectrum to the magnitude in this
             filter bandpass (default 'decam2014-r').
@@ -283,9 +286,10 @@ class GALAXY(object):
             corresponding to BASEFLUX (Angstrom).
           basemeta (astropy.Table): Table of meta-data [nbase] for each base template.
           pixbound (numpy.ndarray): Pixel boundaries of BASEWAVE (Angstrom).
-          rfilt (speclite.filters instance): DECam2014 r-band FilterSequence
-          normfilt (speclite.filters instance): FilterSequence of self.normfilter
-          decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence
+          rfilt (speclite.filters instance): DECam2014 r-band FilterSequence.
+          normfilt (speclite.filters instance): FilterSequence of self.normfilter.
+          decamwise (speclite.filters instance): DECam2014-[g,r,z] and WISE2010-[W1,W2]
+            FilterSequence.
 
         Optional Attributes:
           sne_baseflux (numpy.ndarray): Array [sne_nbase,sne_npix] of the base
@@ -329,7 +333,8 @@ class GALAXY(object):
             sne_baseflux1, sne_basewave, sne_basemeta = read_basis_templates(objtype='SNE')
             sne_baseflux = np.zeros((len(sne_basemeta), len(self.basewave)))
             for ii in range(len(sne_basemeta)):
-                sne_baseflux[ii, :] = resample_flux(self.basewave, sne_basewave, sne_baseflux1[ii,:])
+                sne_baseflux[ii, :] = resample_flux(self.basewave, sne_basewave,
+                                                    sne_baseflux1[ii,:], extrapolate=True)
             self.sne_baseflux = sne_baseflux
             self.sne_basemeta = sne_basemeta
 
@@ -340,7 +345,8 @@ class GALAXY(object):
         # Initialize the filter profiles.
         self.rfilt = filters.load_filters('decam2014-r')
         self.normfilt = filters.load_filters(self.normfilter)
-        self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
+        self.decamwise = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
+                                              'wise2010-W1', 'wise2010-W2')
 
     def _blurmatrix(self, vdisp, log=None):
         """Pre-compute the blur_matrix as a dictionary keyed by each unique value of
@@ -478,10 +484,12 @@ class GALAXY(object):
             templates instead of resampled observer frame.
           verbose (bool, optional): Be verbose!
 
-        Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
-          wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
-          meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
+        Returns (outflux, wave, meta) tuple where:
+
+          * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+            spectra (1e-17 erg/s/cm2/A).
+          * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
+          * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
         Raises:
           ValueError
@@ -662,8 +670,9 @@ class GALAXY(object):
                 snenorm = self.rfilt.get_ab_maggies(sne_restflux, zwave)
 
             for ichunk in range(nchunk):
-                log.debug('Simulating {} template {}/{} in chunk {}/{}'. \
-                          format(self.objtype, ii+1, nmodel, ichunk, nchunk))
+                if ii % 100 == 0 and ii > 0:
+                    log.debug('Simulating {} template {}/{} in chunk {}/{}.'. \
+                              format(self.objtype, ii, nmodel, ichunk+1, nchunk))
                 templateid = alltemplateid_chunk[ichunk][ii, :]
                 nbasechunk = len(templateid)
 
@@ -693,20 +702,31 @@ class GALAXY(object):
                             restflux, zwave, mask_invalid=True)[self.normfilter])
                     magnorm = 10**(-0.4*mag[ii]) / normmaggies
 
-                synthnano = np.zeros((nbasechunk, len(self.decamwise)))
-                for ff, key in enumerate(maggies.columns):
-                    synthnano[:, ff] = 1E9 * maggies[key] * magnorm # nanomaggies
+                synthnano = dict()
+                for key in maggies.columns:
+                    synthnano[key] = 1E9 * maggies[key] * magnorm # nanomaggies
                 zlineflux = normlineflux[templateid] * magnorm
 
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, nbasechunk)
                 else:
-                    colormask = self.colorcuts_function(
-                        gflux=synthnano[:, 1],
-                        rflux=synthnano[:, 2],
-                        zflux=synthnano[:, 4],
-                        w1flux=synthnano[:, 6],
-                        w2flux=synthnano[:, 7])
+                    if isinstance(self.colorcuts_function, (tuple, list)):
+                        _colormask = []
+                        for cf in self.colorcuts_function:
+                            _colormask.append(cf(
+                                gflux=synthnano['decam2014-g'],
+                                rflux=synthnano['decam2014-r'],
+                                zflux=synthnano['decam2014-z'],
+                                w1flux=synthnano['wise2010-W1'],
+                                w2flux=synthnano['wise2010-W2']))
+                        colormask = np.any( np.ma.getdata(np.vstack(_colormask)), axis=0)
+                    else:
+                        colormask = self.colorcuts_function(
+                            gflux=synthnano['decam2014-g'],
+                            rflux=synthnano['decam2014-r'],
+                            zflux=synthnano['decam2014-z'],
+                            w1flux=synthnano['wise2010-W1'],
+                            w2flux=synthnano['wise2010-W2'])
 
                 # If the color-cuts pass then populate the output flux vector
                 # (suitably normalized) and metadata table, convolve with the
@@ -727,12 +747,15 @@ class GALAXY(object):
                     if restframe:
                         outflux[ii, :] = blurflux
                     else:
-                        outflux[ii, :] = resample_flux(self.wave, zwave, blurflux)
+                        outflux[ii, :] = resample_flux(self.wave, zwave, blurflux, extrapolate=True)
 
                     meta['TEMPLATEID'][ii] = tempid
                     meta['D4000'][ii] = d4000[tempid]
-                    meta['DECAM_FLUX'][ii] = synthnano[this, :6]
-                    meta['WISE_FLUX'][ii] = synthnano[this, 6:8]
+                    meta['FLUX_G'][ii] = synthnano['decam2014-g'][this]
+                    meta['FLUX_R'][ii] = synthnano['decam2014-r'][this]
+                    meta['FLUX_Z'][ii] = synthnano['decam2014-z'][this]
+                    meta['FLUX_W1'][ii] = synthnano['wise2010-W1'][this]
+                    meta['FLUX_W2'][ii] = synthnano['wise2010-W2'][this]
 
                     if self.normline is not None:
                         if self.normline == 'OII':
@@ -751,9 +774,9 @@ class GALAXY(object):
                         format(np.sum(success == 0)))
 
         if restframe:
-            return outflux, self.basewave, meta
+            return 1e17 * outflux, self.basewave, meta
         else:
-            return outflux, self.wave, meta
+            return 1e17 * outflux, self.wave, meta
 
 class ELG(GALAXY):
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs)."""
@@ -813,10 +836,12 @@ class ELG(GALAXY):
           minoiiflux (float, optional): Minimum [OII] 3727 flux (default 0.0
             erg/s/cm2).
 
-        Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
-          wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
-          meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
+        Returns (outflux, wave, meta) tuple where:
+
+          * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+            spectra (1e-17 erg/s/cm2/A).
+          * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
+          * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
         Raises:
 
@@ -856,11 +881,9 @@ class BGS(GALAXY):
 
         """
         if colorcuts_function is None:
-            try:
-                from desitarget.cuts import isBGS_bright as colorcuts_function
-            except:
-                from desitarget.cuts import isBGS as colorcuts_function
-                log.warn('You are using on old version of desitarget')
+            from desitarget.cuts import isBGS_bright
+            from desitarget.cuts import isBGS_faint
+            colorcuts_function = (isBGS_bright, isBGS_faint)
 
         super(BGS, self).__init__(objtype='BGS', minwave=minwave, maxwave=maxwave,
                                   cdelt=cdelt, wave=wave, colorcuts_function=colorcuts_function,
@@ -894,15 +917,13 @@ class BGS(GALAXY):
           minhbetaflux (float, optional): Minimum H-beta flux (default 0.0
             erg/s/cm2).
 
-        Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
-          wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
-          meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
+        Returns (outflux, wave, meta) tuple where:
 
-        Raises:
-
+          * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+            spectra (1e-17 erg/s/cm2/A).
+          * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
+          * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
         """
-
         outflux, wave, meta = self.make_galaxy_templates(nmodel=nmodel, zrange=zrange, magrange=rmagrange,
                                                          oiiihbrange=oiiihbrange, logvdisp_meansig=logvdisp_meansig,
                                                          minlineflux=minhbetaflux, redshift=redshift, vdisp=vdisp,
@@ -935,7 +956,7 @@ class LRG(GALAXY):
 
         """
         if colorcuts_function is None:
-            from desitarget.cuts import isLRG as colorcuts_function
+            from desitarget.cuts import isLRG_colors as colorcuts_function
 
         super(LRG, self).__init__(objtype='LRG', minwave=minwave, maxwave=maxwave,
                                   cdelt=cdelt, wave=wave, colorcuts_function=colorcuts_function,
@@ -963,10 +984,12 @@ class LRG(GALAXY):
           agnlike (bool, optional): adopt AGN-like emission-line ratios (not yet
             supported; defaults False).
 
-        Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
-          wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
-          meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
+        Returns (outflux, wave, meta) tuple where:
+
+          * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+            spectra (1e-17 erg/s/cm2/A).
+          * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
+          * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
         Raises:
 
@@ -1024,8 +1047,9 @@ class SUPERSTAR(object):
           basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths
             corresponding to BASEFLUX (Angstrom).
           basemeta (astropy.Table): Table of meta-data [nbase] for each base template.
-          normfilt (speclite.filters instance): FilterSequence of self.normfilter
-          decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence
+          normfilt (speclite.filters instance): FilterSequence of self.normfilter.
+          decamwise (speclite.filters instance): DECam2014-[g,r,z] and WISE2010-[W1,W2]
+            FilterSequence.
 
         """
         from speclite import filters
@@ -1053,7 +1077,8 @@ class SUPERSTAR(object):
 
         # Initialize the filter profiles.
         self.normfilt = filters.load_filters(self.normfilter)
-        self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
+        self.decamwise = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
+                                              'wise2010-W1', 'wise2010-W2')
 
     def make_star_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                             magrange=(18.0, 23.5), seed=None, redshift=None,
@@ -1123,10 +1148,12 @@ class SUPERSTAR(object):
             templates instead of resampled observer frame.
           verbose (bool, optional): Be verbose!
 
-        Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
-          wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
-          meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
+        Returns (outflux, wave, meta) tuple where:
+
+          * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+            spectra (1e-17 erg/s/cm2/A).
+          * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
+          * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
         Raises:
           ValueError
@@ -1242,8 +1269,9 @@ class SUPERSTAR(object):
             zwave = self.basewave.astype(float)*(1.0 + redshift[ii])
 
             for ichunk in range(nchunk):
-                log.debug('Simulating {} template {}/{} in chunk {}/{}'. \
-                          format(self.objtype, ii+1, nmodel, ichunk, nchunk))
+                if ii % 100 == 0 and ii > 0:
+                    log.debug('Simulating {} template {}/{} in chunk {}/{}.'. \
+                              format(self.objtype, ii, nmodel, ichunk+1, nchunk))
                 templateid = alltemplateid_chunk[ichunk][ii, :]
                 nbasechunk = len(templateid)
 
@@ -1259,19 +1287,19 @@ class SUPERSTAR(object):
                         restflux, zwave, mask_invalid=True)[self.normfilter])
                 magnorm = 10**(-0.4*mag[ii]) / normmaggies
 
-                synthnano = np.zeros((nbasechunk, len(self.decamwise)))
-                for ff, key in enumerate(maggies.columns):
-                    synthnano[:, ff] = 1E9 * maggies[key] * magnorm
+                synthnano = dict()
+                for key in maggies.columns:
+                    synthnano[key] = 1E9 * maggies[key] * magnorm
 
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, nbasechunk)
                 else:
                     colormask = self.colorcuts_function(
-                        gflux=synthnano[:, 1],
-                        rflux=synthnano[:, 2],
-                        zflux=synthnano[:, 4],
-                        w1flux=synthnano[:, 6],
-                        w2flux=synthnano[:, 7])
+                        gflux=synthnano['decam2014-g'],
+                        rflux=synthnano['decam2014-r'],
+                        zflux=synthnano['decam2014-z'],
+                        w1flux=synthnano['wise2010-W1'],
+                        w2flux=synthnano['wise2010-W2'])
 
                 # If the color-cuts pass then populate the output flux vector
                 # (suitably normalized) and metadata table and finish up.
@@ -1284,11 +1312,15 @@ class SUPERSTAR(object):
                     if restframe:
                         outflux[ii, :] = restflux[this, :] * magnorm[this]
                     else:
-                        outflux[ii, :] = resample_flux(self.wave, zwave, restflux[this, :]) * magnorm[this]
+                        outflux[ii, :] = resample_flux(self.wave, zwave, restflux[this, :],
+                                                       extrapolate=True) * magnorm[this]
 
                     meta['TEMPLATEID'][ii] = tempid
-                    meta['DECAM_FLUX'][ii] = synthnano[this, :6]
-                    meta['WISE_FLUX'][ii] = synthnano[this, 6:8]
+                    meta['FLUX_G'][ii] = synthnano['decam2014-g'][this]
+                    meta['FLUX_R'][ii] = synthnano['decam2014-r'][this]
+                    meta['FLUX_Z'][ii] = synthnano['decam2014-z'][this]
+                    meta['FLUX_W1'][ii] = synthnano['wise2010-W1'][this]
+                    meta['FLUX_W2'][ii] = synthnano['wise2010-W2'][this]
 
                     if star_properties is None:
                         meta['TEFF'][ii] = self.basemeta['TEFF'][tempid]
@@ -1310,9 +1342,9 @@ class SUPERSTAR(object):
                         format(np.sum(success == 0)))
 
         if restframe:
-            return outflux, self.basewave, meta
+            return 1e17 * outflux, self.basewave, meta
         else:
-            return outflux, self.wave, meta
+            return 1e17 * outflux, self.wave, meta
 
 class STAR(SUPERSTAR):
     """Generate Monte Carlo spectra of generic stars."""
@@ -1354,10 +1386,12 @@ class STAR(SUPERSTAR):
             magnitude range.  Defaults to a uniform distribution between (18,
             23.5).
 
-        Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
-          wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
-          meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
+        Returns (outflux, wave, meta) tuple where:
+
+          * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+            spectra (1e-17 erg/s/cm2/A).
+          * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
+          * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
         Raises:
 
@@ -1413,10 +1447,12 @@ class FSTD(SUPERSTAR):
             magnitude range.  Defaults to a uniform distribution between (16,
             19).
 
-        Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
-          wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
-          meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
+        Returns (outflux, wave, meta) tuple where:
+
+          * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+            spectra (1e-17 erg/s/cm2/A).
+          * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
+          * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
         Raises:
 
@@ -1472,10 +1508,12 @@ class MWS_STAR(SUPERSTAR):
             magnitude range.  Defaults to a uniform distribution between (16,
             20).
 
-        Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
-          wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
-          meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
+        Returns (outflux, wave, meta) tuple where:
+
+          * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+            spectra (1e-17 erg/s/cm2/A).
+          * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
+          * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
         Raises:
 
@@ -1528,10 +1566,12 @@ class WD(SUPERSTAR):
             magnitude range.  Defaults to a uniform distribution between (16,
             19).
 
-        Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
-          wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
-          meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
+        Returns (outflux, wave, meta) tuple where:
+
+          * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+            spectra (1e-17 erg/s/cm2/A).
+          * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
+          * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
         Raises:
           ValueError: If the INPUT_META or STAR_PROPERTIES table contains
@@ -1589,18 +1629,19 @@ class QSO():
         Attributes:
           objtype (str): 'QSO'
           wave (numpy.ndarray): Output wavelength array [Angstrom].
-          baseflux (numpy.ndarray): Array [nbase,npix] of the base rest-frame
-            QSO continuum spectra (erg/s/cm2/A).
-          basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths
-            corresponding to BASEFLUX (Angstrom).
-          basemeta (astropy.Table): Table of meta-data [nbase] for each base template.
-          normfilt (speclite.filters instance): FilterSequence of self.normfilter
-          decamwise (speclite.filters instance): DECam2014-* and WISE2010-* FilterSequence
+          cosmo (astropy.cosmology): Default cosmology object (currently
+            hard-coded to FlatLCDM with H0=70, Omega0=0.3).
+          normfilt (speclite.filters instance): FilterSequence of self.normfilter.
+          decamwise (speclite.filters instance): DECam2014-[g,r,z] and WISE2010-[W1,W2]
+            FilterSequence.
 
         """
+        from astropy.io import fits
+        from astropy import cosmology
         from speclite import filters
         from desisim.io import find_basis_template
         from desiutil.log import get_logger
+        from desisim import lya_mock_p1d as lyamock
 
         log = get_logger()
 
@@ -1613,11 +1654,7 @@ class QSO():
                 log.error('Please upgrade desitarget to get the latest isQSO_colors function.')
                 from desitarget.cuts import isQSO as colorcuts_function
 
-            self.colorcuts_function = colorcuts_function
-
-        log.warning('Color-cuts not yet supported for QSOs!')
-        self.colorcuts_function = None
-
+        self.colorcuts_function = colorcuts_function
         self.normfilter = normfilter
 
         # Initialize the output wavelength array (linear spacing) unless it is
@@ -1627,17 +1664,46 @@ class QSO():
             wave = np.linspace(minwave, maxwave, npix)
         self.wave = wave
 
-        # Find the basis files.
-        self.basis_file = find_basis_template('qso')
+        self.cosmo = cosmology.core.FlatLambdaCDM(70.0, 0.3)
+
+        self.lambda_lylimit = 911.76
+        self.lambda_lyalpha = 1215.67
+
+        # Load the PCA eigenvectors and associated data.
+        infile = find_basis_template('qso')
+        with fits.open(infile) as hdus:
+            hdu_names = [hdus[ii].name for ii in range(len(hdus))]
+            self.boss_pca_coeff = hdus[hdu_names.index('BOSS_PCA')].data
+            self.sdss_pca_coeff = hdus[hdu_names.index('SDSS_PCA')].data
+            self.boss_zQSO = hdus[hdu_names.index('BOSS_Z')].data
+            self.sdss_zQSO = hdus[hdu_names.index('SDSS_Z')].data
+            self.eigenflux = hdus[hdu_names.index('SDSS_EIGEN')].data
+            self.eigenwave = hdus[hdu_names.index('SDSS_EIGEN_WAVE')].data
+
+        self.pca_list = ['PCA0', 'PCA1', 'PCA2', 'PCA3']
+
         self.z_wind = z_wind
+
+        # Iniatilize the Lyman-alpha mock maker.
+        self.lyamock_maker = lyamock.MockMaker()
 
         # Initialize the filter profiles.
         self.normfilt = filters.load_filters(self.normfilter)
-        self.decamwise = filters.load_filters('decam2014-*', 'wise2010-W1', 'wise2010-W2')
+        self.decamwise = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
+                                              'wise2010-W1', 'wise2010-W2')
 
-    def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(21.0, 23.0),
-                       seed=None, redshift=None, mag=None, input_meta=None,
-                       nocolorcuts=False, N_perz=1, verbose=False):
+    def _sample_pcacoeff(self, nsample, coeff, rand):
+        """Draw from the distribution of PCA coefficients."""
+        cdf = np.cumsum(coeff, dtype=float)
+        cdf /= cdf[-1]
+        x = rand.uniform(0.0, 1.0, size=nsample)
+        
+        return coeff[np.interp(x, cdf, np.arange(0, len(coeff), 1)).astype('int')]
+
+    def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(20.0, 22.5),
+                       seed=None, redshift=None, mag=None, input_meta=None, N_perz=40, 
+                       maxiter=20, uniform=False, lyaforest=True, nocolorcuts=False,
+                       verbose=False):
         """Build Monte Carlo QSO spectra/templates.
 
         This function generates QSO spectra on-the-fly using PCA decomposition
@@ -1674,23 +1740,34 @@ class QSO():
             data type for each column.  If this table is passed then all other
             optional inputs (nmodel, redshift, mag, zrange, rmagrange, etc.) are
             ignored.
+          N_perz (int, optional): Number of templates per redshift redshift
+            value to generate (default 20).
+          maxiter (int): maximum number of iterations for findng a non-negative
+            template that also satisfies the color-cuts (default 20).
+          uniform (bool, optional): Draw uniformly from the PCA coefficients
+            (default False).
+          lyaforest (bool, optional): Include Lyman-alpha forest absorption
+            (default True).
           nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
             cuts (default False).
-          N_perz (int, optional): Number of templates per redshift bin or redshift value.
           verbose (bool, optional): Be verbose!
-        Returns:
-          outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra (erg/s/cm2/A).
-          wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
-          meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
+
+        Returns (outflux, wave, meta) tuple where:
+
+          * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
+            spectra (1e-17 erg/s/cm2/A).
+          * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
+          * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
         Raises:
           ValueError
 
         """
-        from astropy import cosmology
         from desispec.interpolation import resample_flux
-        from desisim.qso_template import desi_qso_templ as dqt
         from desiutil.log import get_logger, DEBUG
+
+        if uniform:
+            from desiutil.stats import perc
 
         if verbose:
             log = get_logger(DEBUG)
@@ -1708,6 +1785,8 @@ class QSO():
                 log.fatal('Mag must be an nmodel-length array')
                 raise ValueError
 
+        npix = len(self.eigenwave)
+
         # Optionally unpack a metadata table.
         if input_meta is not None:
             nmodel = len(input_meta)
@@ -1717,7 +1796,7 @@ class QSO():
             mag = input_meta['MAG'].data
 
             meta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
-
+            
         else:
             meta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
 
@@ -1732,67 +1811,146 @@ class QSO():
             if mag is None:
                 mag = rand.uniform(rmagrange[0], rmagrange[1], nmodel).astype('f4')
 
+        # Pre-compute the Lyman-alpha skewers.
+        if lyaforest:
+            for ii in range(nmodel):
+                skewer_wave, skewer_flux1 = self.lyamock_maker.get_lya_skewers(
+                    1, new_seed=templateseed[ii])
+                if ii == 0:
+                    skewer_flux = np.zeros( (nmodel, len(skewer_wave)) )
+                skewer_flux[ii, :] = skewer_flux1
+
         # Populate some of the metadata table.
         meta['TEMPLATEID'] = np.arange(nmodel)
         for key, value in zip(('REDSHIFT', 'MAG', 'SEED'),
                                (redshift, mag, templateseed)):
             meta[key] = value
+        if lyaforest:
+            meta['SUBTYPE'] = 'LYA'
+
+        # Attenuate below the Lyman-limit by the mean free path (MFP) model
+        # measured by Worseck, Prochaska et al. 2014.
+        mfp = np.atleast_1d(37.0 * ( (1 + redshift)/5.0)**(-5.4)) # Physical Mpc
+        pix912 = np.argmin( np.abs(self.eigenwave-self.lambda_lylimit) )
+        zlook = self.cosmo.lookback_distance(redshift)
 
         # Build each spectrum in turn.
-        zwave = self.wave # [observed-frame, Angstrom]
+        PCA_rand = np.zeros( (4, N_perz) )
+        nonegflux = np.zeros(N_perz)
+        flux = np.zeros( (N_perz, npix) )
+
+        zwave = np.outer(self.eigenwave, 1+redshift) # [observed-frame, Angstrom]
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
 
-        # Cosmology
-        cosmo = cosmology.core.FlatLambdaCDM(70., 0.3)
-
         for ii in range(nmodel):
-            log.debug('Simulating {} template {}/{}.'.format(self.objtype, ii+1, nmodel))
+            if ii % 100 == 0 and ii > 0:
+                log.debug('Simulating {} template {}/{}.'.format(self.objtype, ii, nmodel))
 
             templaterand = np.random.RandomState(templateseed[ii])
 
-            _, final_flux, redshifts = dqt.desi_qso_templates(
-                z_wind=self.z_wind, N_perz=N_perz, rstate=templaterand,
-                redshift=redshift[ii], rebin_wave=zwave, no_write=True, cosmo=cosmo, ipad=15)
-            
-            restflux = final_flux.T
-            nmade = np.shape(restflux)[0]
-
-            # Synthesize photometry to determine which models will pass the
-            # color-cuts.  We have to temporarily pad because the spectra don't
-            # go red enough.
-            padflux, padzwave = self.decamwise.pad_spectrum(restflux, zwave, method='edge')
-            maggies = self.decamwise.get_ab_maggies(padflux, padzwave, mask_invalid=True)
-
-            if self.normfilter in self.decamwise.names:
-                normmaggies = np.array(maggies[self.normfilter])
+            # BOSS or SDSS?
+            if redshift[ii] > 2.15:
+                zQSO = self.boss_zQSO
+                pca_coeff = self.boss_pca_coeff
             else:
-                normmaggies = np.array(self.normfilt.get_ab_maggies(
-                    padflux, padzwave, mask_invalid=True)[self.normfilter])
-            magnorm = 10**(-0.4*mag[ii]) / normmaggies
+                zQSO = self.sdss_zQSO
+                pca_coeff = self.sdss_pca_coeff
 
-            synthnano = np.zeros((nmade, len(self.decamwise)))
-            for ff, key in enumerate(maggies.columns):
-                synthnano[:, ff] = 1E9 * maggies[key] * magnorm
+            # Interpolate the Lya forest spectrum.
+            if lyaforest:
+                no_forest = ( skewer_wave > self.lambda_lyalpha * (1 + redshift[ii]) )
+                skewer_flux[ii, no_forest] = 1.0
+                qso_skewer_flux = resample_flux(zwave[:, ii], skewer_wave, skewer_flux[ii, :],
+                                                extrapolate=True)
+                w=zwave[:, ii] > self.lambda_lyalpha * (1 + redshift[ii])
+                qso_skewer_flux[w] = 1.0
 
-            if nocolorcuts or self.colorcuts_function is None:
-                colormask = np.repeat(1, nmade)
-            else:
-                colormask = self.colorcuts_function(
-                    gflux=synthnano[1],
-                    rflux=synthnano[2],
-                    zflux=synthnano[4],
-                    w1flux=synthnano[6],
-                    w2flux=synthnano[7])
+            idx = np.where( (zQSO > redshift[ii]-self.z_wind/2) * (zQSO < redshift[ii]+self.z_wind/2) )[0]
+            if len(idx) == 0:
+                idx = np.where( (zQSO > redshift[ii]-self.z_wind) * (zQSO < redshift[ii]+self.z_wind) )[0]
+                if len(idx) == 0:
+                    log.warning('Redshift {} far from any parent BOSS/SDSS quasars; choosing closest one.')
+                    idx = np.array( np.abs(zQSO-redshift[ii]).argmin() )
 
-            # If the color-cuts pass then populate the output flux vector
-            # (suitably normalized) and metadata table and finish up.
-            if np.any(colormask):
-              this = templaterand.choice(np.where(colormask)[0]) # Pick one randomly.
-              outflux[ii, :] = restflux[this, :] * magnorm[this]
+            # Need these arrays for the MFP, below.
+            if redshift[ii] > 2.39:
+                z912 = zwave[:pix912, ii] / self.lambda_lylimit - 1.0
+                phys_dist = np.fabs( self.cosmo.lookback_distance(z912) - zlook[ii] ) # [Mpc]
+                    
+            # Iterate up to maxiter.
+            makemore, itercount = True, 0
+            while makemore:
 
-              # Temporary hack until the models go redder.
-              meta['DECAM_FLUX'][ii] = synthnano[this, :6]
-              meta['WISE_FLUX'][ii] = synthnano[this, 6:8]
+                # Gather N_perz sets of coefficients.
+                for jj, ipca in enumerate(self.pca_list):
+                    if uniform:
+                        if jj == 0:  # Use bounds for PCA0 [avoids negative values]
+                            xmnx = perc(pca_coeff[ipca][idx], per=95)
+                            PCA_rand[jj, :] = templaterand.uniform(xmnx[0], xmnx[1], N_perz)
+                        else:
+                            mn = np.mean(pca_coeff[ipca][idx])
+                            sig = np.std(pca_coeff[ipca][idx])
+                            PCA_rand[jj, :] = templaterand.uniform( mn - 2*sig, mn + 2*sig, N_perz)
+                    else:
+                        PCA_rand[jj, :] = self._sample_pcacoeff(N_perz, pca_coeff[ipca][idx], templaterand)
+
+                # Instantiate the templates, including attenuation below the
+                # Lyman-limit based on the MFP, and the Lyman-alpha forest.
+                for kk in range(N_perz):
+                    flux[kk, :] = np.dot(self.eigenflux.T, PCA_rand[:, kk]).flatten()
+                    if redshift[ii] > 2.39:
+                         flux[kk, :pix912] *= np.exp(-phys_dist.value / mfp[ii])
+                    if lyaforest:
+                        flux[kk, :] *= qso_skewer_flux
+                    nonegflux[kk] = (np.sum(flux[kk, (zwave[:, ii] > 3000) & (zwave[:, ii] < 1E4)] < 0) == 0) * 1
+
+                # Synthesize photometry to determine which models will pass the
+                # color-cuts.  We have to temporarily pad because the spectra
+                # don't go red enough.
+                padflux, padzwave = self.decamwise.pad_spectrum(flux, zwave[:, ii], method='edge')
+                maggies = self.decamwise.get_ab_maggies(padflux, padzwave, mask_invalid=True)
+
+                if self.normfilter in self.decamwise.names:
+                    normmaggies = np.array(maggies[self.normfilter])
+                else:
+                    normmaggies = np.array(self.normfilt.get_ab_maggies(
+                        padflux, padzwave, mask_invalid=True)[self.normfilter])
+                magnorm = 10**(-0.4*mag[ii]) / normmaggies
+
+                synthnano = dict()
+                for key in maggies.columns:
+                    synthnano[key] = 1E9 * maggies[key] * magnorm
+
+                if nocolorcuts or self.colorcuts_function is None:
+                    colormask = np.repeat(1, N_perz)
+                else:
+                    colormask = self.colorcuts_function(
+                        gflux=synthnano['decam2014-g'],
+                        rflux=synthnano['decam2014-r'],
+                        zflux=synthnano['decam2014-z'],
+                        w1flux=synthnano['wise2010-W1'],
+                        w2flux=synthnano['wise2010-W2'],
+                        optical=True)
+
+                # If the color-cuts pass then populate the output flux vector
+                # (suitably normalized) and metadata table and finish up.
+                if np.any(colormask * nonegflux):
+                    this = templaterand.choice(np.where(colormask * nonegflux)[0]) # Pick one randomly.
+                    outflux[ii, :] = resample_flux(self.wave, zwave[:, ii], flux[this, :],
+                                                   extrapolate=True) * magnorm[this]
+
+                    meta['FLUX_G'][ii] = synthnano['decam2014-g'][this]
+                    meta['FLUX_R'][ii] = synthnano['decam2014-r'][this]
+                    meta['FLUX_Z'][ii] = synthnano['decam2014-z'][this]
+                    meta['FLUX_W1'][ii] = synthnano['wise2010-W1'][this]
+                    meta['FLUX_W2'][ii] = synthnano['wise2010-W2'][this]
+
+                    makemore = False
+
+                itercount += 1
+                if itercount == maxiter:
+                    log.warning('Maximum number of iterations reached on QSO {}, z={:.5f}.'.format(ii, redshift[ii]))
+                    makemore = False
 
         # Check to see if any spectra could not be computed.
         success = (np.sum(outflux, axis=1) > 0)*1
@@ -1800,4 +1958,199 @@ class QSO():
             log.warning('{} spectra could not be computed given the input priors!'.\
                         format(np.sum(success == 0)))
 
-        return outflux, self.wave, meta
+        return 1e17 * outflux, self.wave, meta
+
+
+def specify_galparams_dict(templatetype, zrange=None, magrange=None,
+                            oiiihbrange=None, logvdisp_meansig=None,
+                            minlineflux=None, sne_rfluxratiorange=None,
+                            redshift=None, mag=None, vdisp=None,
+                            nocolorcuts=None, nocontinuum=None,
+                            agnlike=None, novdisp=None, restframe=None):
+    
+    '''
+    Creates a dictionary of keyword variables to be passed to GALAXY.make_templates (or one
+    of GALAXY's child classes). Allows the user to fully define the templated spectra, via
+    defining individual targets or ranges in values. Values already specified in get_targets
+    are not included here. Anything not define or set to None will not be assigned and 
+    CLASS.make_templates will assume the following as defaults:
+        
+        * nmodel=100, zrange=(0.6, 1.6), magrange=(21.0, 23.5),
+        * oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
+        * minlineflux=0.0, sne_rfluxratiorange=(0.01, 0.1),
+        * seed=None, redshift=None, mag=None, vdisp=None,
+        * input_meta=None, nocolorcuts=False, nocontinuum=False,
+        * agnlike=False, novdisp=False, restframe=False, verbose=False
+
+    Args:
+        
+        * nmodel (int, optional): Number of models to generate (default 100).
+        * zrange (float, optional): Minimum and maximum redshift range.  Defaults
+            to a uniform distribution between (0.6, 1.6).
+        * magrange (float, optional): Minimum and maximum magnitude in the
+            bandpass specified by self.normfilter.  Defaults to a uniform
+            distribution between (21, 23.4) in the r-band.
+        * oiiihbrange (float, optional): Minimum and maximum logarithmic
+            [OIII] 5007/H-beta line-ratio.  Defaults to a uniform distribution
+            between (-0.5, 0.2).
+        * logvdisp_meansig (float, optional): Logarithmic mean and sigma values
+            for the (Gaussian) stellar velocity dispersion distribution.
+            Defaults to log10-sigma=1.9+/-0.15 km/s.
+        * minlineflux (float, optional): Minimum emission-line flux in the line
+            specified by self.normline (default 0 erg/s/cm2).
+        * sne_rfluxratiorange (float, optional): r-band flux ratio of the SNeIa
+            spectrum with respect to the underlying galaxy.  Defaults to a
+            uniform distribution between (0.01, 0.1).
+        * seed (int, optional): Input seed for the random numbers.
+        * redshift (float, optional): Input/output template redshifts.  Array
+            size must equal nmodel.  Ignores zrange input.
+        * mag (float, optional): Input/output template magnitudes in the band
+            specified by self.normfilter.  Array size must equal nmodel.
+            Ignores magrange input.
+        * vdisp (float, optional): Input/output velocity dispersions.  Array
+            size must equal nmodel.  Ignores magrange input.
+        * input_meta (astropy.Table): *Input* metadata table with the following
+            required columns: TEMPLATEID, SEED, REDSHIFT, VDISP, MAG (where mag
+            is specified by self.normfilter).  In addition, if add_SNeIa is True
+            then the table must also contain SNE_TEMPLATEID, SNE_EPOCH, and
+            SNE_RFLUXRATIO columns.  See desisim.io.empty_metatable for the
+            required data type for each column.  If this table is passed then
+            all other optional inputs (nmodel, redshift, vdisp, mag, zrange,
+            logvdisp_meansig, etc.) are ignored.
+        * nocolorcuts (bool, optional): Do not apply the color-cuts specified by
+            the self.colorcuts_function function (default False).
+        * nocontinuum (bool, optional): Do not include the stellar continuum in
+            the output spectrum (useful for testing; default False).  Note that
+            this option automatically sets nocolorcuts to True and add_SNeIa to
+            False.
+        * novdisp (bool, optional): Do not velocity-blur the spectrum (default False).
+        * agnlike (bool, optional): Adopt AGN-like emission-line ratios (e.g.,
+            for the LRGs and some BGS galaxies) (default False, meaning we adopt
+            star-formation-like line-ratios).  Option not yet supported.
+        * restframe (bool, optional): If True, return full resolution restframe
+            templates instead of resampled observer frame.
+        * verbose (bool, optional): Be verbose!
+
+    Returns:
+        
+      * fulldef_dict (dict): dictionary containing all of the values passed defined
+                   with variable names as the corresonding key. These are intentionally
+                   identical to those passed to the make_templates classes above
+                   
+    '''
+    
+    fulldef_dict = {}
+    if zrange is not None:
+        fulldef_dict['zrange'] = zrange
+    if magrange is not None:
+        if templatetype == 'LRG':
+            fulldef_dict['zmagrange'] = magrange
+        else:
+            fulldef_dict['rmagrange'] = magrange
+    if oiiihbrange is not None:
+        fulldef_dict['oiiihbrange'] = oiiihbrange
+    if logvdisp_meansig is not None:
+        fulldef_dict['logvdisp_meansig'] = logvdisp_meansig
+    if minlineflux is not None:
+        fulldef_dict['minlineflux'] = minlineflux
+    if sne_rfluxratiorange is not None:
+        fulldef_dict['sne_rfluxratiorange'] = sne_rfluxratiorange
+    if redshift is not None:
+        fulldef_dict['redshift'] = redshift
+    if mag is not None:
+        fulldef_dict['mag'] = mag
+    if vdisp is not None:
+        fulldef_dict['vdisp'] = vdisp
+    if nocolorcuts is not None:
+        fulldef_dict['nocolorcuts'] = nocolorcuts
+    if nocontinuum is not None:
+        fulldef_dict['nocontinuum'] = nocontinuum
+    if agnlike is not None:
+        fulldef_dict['agnlike'] = agnlike
+    if novdisp is not None:
+        fulldef_dict['novdisp'] = novdisp
+    if restframe is not None:
+        fulldef_dict['restframe'] = restframe    
+    return fulldef_dict
+
+def specify_starparams_dict(templatetype,vrad_meansig=None,
+                            magrange=None, redshift=None,
+                            mag=None, input_meta=None, star_properties=None,
+                            nocolorcuts=None, restframe=None):
+    '''
+    Creates a dictionary of keyword variables to be passed to SUPERSTAR.make_templates (or one
+    of SUPERSTAR's child classes). Allows the user to fully define the templated spectra, via
+    defining individual targets or ranges in values. Values already specified in get_targets
+    are not included here. Anything not define or set to None will not be assigned and 
+    CLASS.make_templates will assume the following as defaults:    
+    
+        * nmodel=100, vrad_meansig=(0.0, 200.0),
+        * magrange=(18.0, 23.5), seed=None, redshift=None,
+        * mag=None, input_meta=None, star_properties=None,
+        * nocolorcuts=False, restframe=False, verbose=False 
+        
+    Args:
+        
+        * nmodel (int, optional): Number of models to generate (default 100).
+        * vrad_meansig (float, optional): Mean and sigma (standard deviation) of the
+                    radial velocity "jitter" (in km/s) that should be included in each
+                    spectrum.  Defaults to a normal distribution with a mean of zero and
+                    sigma of 200 km/s.
+        * magrange (float, optional): Minimum and maximum magnitude in the
+                    bandpass specified by self.normfilter.  Defaults to a uniform
+                    distribution between (18, 23.5) in the r-band.
+        * seed (int, optional): input seed for the random numbers.
+        * redshift (float, optional): Input/output (dimensionless) radial
+                    velocity.  Array size must equal nmodel.  Ignores vrad_meansig
+                    input.
+        * mag (float, optional): Input/output template magnitudes in the band
+                   specified by self.normfilter.  Array size must equal nmodel.
+                   Ignores magrange input.
+        * input_meta (astropy.Table): *Input* metadata table with the following
+                   required columns: TEMPLATEID, SEED, REDSHIFT, and MAG 
+                   (where mag is specified by self.normfilter).  
+                   See desisim.io.empty_metatable for the required data type 
+                   for each column.  If this table is passed then all other
+                   optional inputs (nmodel, redshift, mag, vrad_meansig                                                                                                   etc.) are ignored.
+        * star_properties (astropy.Table): *Input* table with the following
+                   required columns: REDSHIFT, MAG, TEFF, LOGG, and FEH (except for
+                   WDs, which don't need to have an FEH column).  Optionally, SEED can
+                   also be included in the table.  When this table is passed, the basis
+                   templates are interpolated to the desired physical values provided,
+                   enabling large numbers of mock stellar spectra to be generated with
+                   physically consistent properties.
+        * nocolorcuts (bool, optional): Do not apply the color-cuts specified by
+                   the self.colorcuts_function function (default False).
+        * restframe (bool, optional): If True, return full resolution restframe
+                   templates instead of resampled observer frame.
+        * verbose (bool, optional): Be verbose!
+      
+    Returns:
+        
+        * fulldef_dict (dict): dictionary containing all of the values passed defined
+                   with variable names as the corresonding key. These are intentionally
+                   identical to those passed to the make_templates classes above
+                   
+    '''
+    
+    fulldef_dict = {}
+    if vrad_meansig is not None:
+        fulldef_dict['vrad_meansig'] = vrad_meansig
+    if magrange is not None:
+        if templatetype=='WD':
+            fulldef_dict['gmagrange'] = magrange
+        else:
+            fulldef_dict['rmagrange'] = magrange
+    if redshift is not None:
+        fulldef_dict['redshift'] = redshift
+    if mag is not None:
+        fulldef_dict['mag'] = mag
+    if input_meta is not None:
+        fulldef_dict['input_meta'] = input_meta
+    if star_properties is not None:
+        fulldef_dict['star_properties'] = star_properties
+    if nocolorcuts is not None:
+        fulldef_dict['nocolorcuts'] = nocolorcuts
+    if restframe is not None:
+        fulldef_dict['restframe'] = restframe
+    return fulldef_dict

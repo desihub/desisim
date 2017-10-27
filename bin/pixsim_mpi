@@ -1,0 +1,22 @@
+#!/usr/bin/env python
+
+"""
+MPI Parallel version of pixsim
+"""
+
+from desispec.parallel import use_mpi
+
+comm = None
+if use_mpi:
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+else:
+    print("mpi4py not found, using only one process")
+
+import sys
+from desisim.scripts import pixsim
+
+if __name__ == '__main__':
+    args = pixsim.parse()
+    sys.exit(pixsim.main(args, comm=comm))
+

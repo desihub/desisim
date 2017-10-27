@@ -7,17 +7,17 @@ This can be run in two distinct modes:
 
 * QUICKGEN MODE
 
-  - must provide simspec and fibermap files via newexp-desi
+  - must provide simspec and fibermap files via newexp script
   - Number of spectra to be simulated can be given as an argument for quickgen,
     but the number of spectra in the simspec file is taken by default
-  - For this option, airmass and exposure time are keywords given to newexp-desi
+  - For this option, airmass and exposure time are keywords given to newexp
   - The keywords provided in the examples are all required, additional keywords
     are provided below
   - Collect a set of templates to simulate as a new exposure::
 
-        newexp-desi --nspec 500 --night 20150915 --expid 0 --flavor dark
+        newexp --nspec 500 --night 20150915 --expid 0 --flavor dark
 
-  - newexp-desi keyword arguments::
+  - newexp keyword arguments::
 
         --flavor : arc/flat/dark/gray/bright/bgs/mws/elg/lrg/qso, type=str, default='dark'
         --tileid : tile id, type=int
@@ -98,11 +98,12 @@ from desispec.frame import Frame
 from desispec.fiberflat import FiberFlat
 from desispec.sky import SkyModel
 from desispec.fluxcalibration import FluxCalib
-from desispec.log import get_logger, DEBUG, INFO
+from desiutil.log import get_logger, DEBUG, INFO
 from desisim.obs import get_night
 from desisim.targets import sample_objtype
 from desisim.specsim import get_simulator
 from desimodel.io import load_desiparams
+from desisim.simexp import get_source_types
 
 def _add_truth(hdus, header, meta, trueflux, sflux, wave, channel):
     """Utility function for adding truth to an output FITS file."""
@@ -138,7 +139,7 @@ def parse(options=None):
     # Brick options
     parser.add_argument('-b','--brickname', type=str, help='unique output brickname suffix', metavar='')
     parser.add_argument('--objtype', type=str,  help='ELG, LRG, QSO, BGS, MWS, WD, DARK_MIX, or BRIGHT_MIX', default='DARK_MIX', metavar='')
-    parser.add_argument('-a','--airmass', type=float,  help='airmass', default=1.25, metavar='') # Science Req. Doc L3.3.2
+    parser.add_argument('-a','--airmass', type=float,  help='airmass', default=None, metavar='') 
     parser.add_argument('-e','--exptime', type=float,  help='exposure time (s)', default=None,metavar='')
     parser.add_argument('-o','--outdir', type=str,  help='output directory', default='.', metavar='')
     parser.add_argument('-v','--verbose', action='store_true', help='toggle on verbose output')
@@ -168,14 +169,10 @@ def parse(options=None):
     if args.simspec:
         args.objtype = None
         if args.fibermap is None:
-            msg = 'If simspec set, must also set fibermap'
-            log.error(msg)
-            raise ValueError(msg)
-        hdr = fits.getheader(args.simspec)
-        night = str(hdr['NIGHT'])
-        expid = int(hdr['EXPID'])
-        args.simspec = desisim.io.findfile('simspec', night, expid)
-        args.fibermap = desispec.io.findfile('fibermap', night, expid)
+            dirname = os.path.dirname(os.path.abspath(args.simspec))
+            filename = os.path.basename(args.simspec).replace('simspec', 'fibermap')
+            args.fibermap = os.path.join(dirname, filename)
+            log.warning('deriving fibermap {} from simspec input filename'.format(args.fibermap))
 
     if args.simspec is None and args.brickname is None:
         msg = 'Must have simspec and fibermap files or provide brick name'
@@ -241,7 +238,7 @@ def main(args):
     if args.fibermap:
         log.info("Reading fibermap file {}".format(args.fibermap))
         fibermap=read_fibermap(args.fibermap)
-        objtype=fibermap['OBJTYPE'].copy()
+        objtype = get_source_types(fibermap)
         stdindx=np.where(objtype=='STD') # match STD with STAR
         mwsindx=np.where(objtype=='MWS_STAR') # match MWS_STAR with STAR
         bgsindx=np.where(objtype=='BGS') # match BGS with LRG
@@ -282,6 +279,13 @@ def main(args):
         simspec = desisim.io.read_simspec(args.simspec)
         nspec = simspec.nspec
         if simspec.flavor == 'arc':
+            #- TODO: do we need quickgen to support arcs?  For full pipeline
+            #- arcs are used to measure PSF but aren't extracted except for
+            #- debugging.
+            #- TODO: if we do need arcs, this needs to be redone.
+            #- conversion from phot to flux doesn't include throughput,
+            #- and arc lines are rebinned to nearest 0.2 A.
+
             # Create full wavelength and flux arrays for arc exposure
             wave_b = np.array(simspec.wave['b'])
             wave_r = np.array(simspec.wave['r'])
@@ -382,7 +386,7 @@ def main(args):
             jj.append(ii.tolist())
 
             # Sanity check on units; templates currently return ergs, not 1e-17 ergs...
-            assert (thisobj == 'SKY') or (np.max(truth['FLUX']) < 1e-6)
+            # assert (thisobj == 'SKY') or (np.max(truth['FLUX']) < 1e-6)
 
         # Sort the metadata table.
         jj = sum(jj,[])
@@ -410,64 +414,67 @@ def main(args):
     if args.simspec is None:
         object_type = objtype
         flavor = None
+    elif simspec.flavor == 'science':
+        object_type = None
+        flavor = simspec.header['PROGRAM']
     else:
         object_type = None
         flavor = simspec.flavor
+        log.warning('Maybe using an outdated simspec file with flavor={}'.format(flavor))
 
-    # Set airmass and exptime
-    if args.simspec:
-        qsim.atmosphere.airmass = simspec.header['AIRMASS']
-        qsim.observation.exposure_time = simspec.header['EXPTIME'] * u.s
-    else:
+    # Set airmass
+    if args.airmass is not None:
         qsim.atmosphere.airmass = args.airmass
-        if args.exptime is None:
-            if objtype in bright_objects:
-                qsim.observation.exposure_time = desiparams['exptime_bright'] * u.s
-            else:
-                qsim.observation.exposure_time = desiparams['exptime_dark'] * u.s
-        else:
-            qsim.observation.exposure_time = args.exptime * u.s
-
-    # Set moon parameters
-    if flavor in bright_objects or object_type in bright_objects:
-        if args.moon_phase is None:
-            qsim.atmosphere.moon.moon_phase = 0.7
-        else:
-            qsim.atmosphere.moon.moon_phase = args.moon_phase
-        if args.moon_angle is None:
-            qsim.atmosphere.moon.separation_angle = 50 * u.deg
-        else:
-            qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
-        if args.moon_zenith is None:
-            qsim.atmosphere.moon.moon_zenith = 30 * u.deg
-        else:
-            qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
-    elif flavor in gray_objects:
-        if args.moon_phase is None:
-            qsim.atmosphere.moon.moon_phase = 0.1
-        else:
-            qsim.atmosphere.moon.moon_phase = args.moon_phase
-        if args.moon_angle is None:
-            qsim.atmosphere.moon.separation_angle = 60 * u.deg
-        else:
-            qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
-        if args.moon_zenith is None:
-            qsim.atmosphere.moon.moon_zenith = 80 * u.deg
-        else:
-            qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
+    elif args.simspec and 'AIRMASS' in simspec.header:
+        qsim.atmosphere.airmass = simspec.header['AIRMASS']
     else:
-        if args.moon_phase is None:
-            qsim.atmosphere.moon.moon_phase = 0.5
-        else:
-            qsim.atmosphere.moon.moon_phase = args.moon_phase
-        if args.moon_angle is None:
-            qsim.atmosphere.moon.separation_angle = 60 * u.deg
-        else:
-            qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
-        if args.moon_zenith is None:
-            qsim.atmosphere.moon.moon_zenith = 100 * u.deg
-        else:
-            qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
+        qsim.atmosphere.airmass =  1.25   # Science Req. Doc L3.3.2
+        
+    # Set exptime
+    if args.exptime is not None:
+        qsim.observation.exposure_time = args.exptime * u.s
+    elif args.simspec and 'EXPTIME' in simspec.header:
+        qsim.observation.exposure_time = simspec.header['EXPTIME'] * u.s
+    elif objtype in bright_objects:
+        qsim.observation.exposure_time = desiparams['exptime_bright'] * u.s
+    else:
+        qsim.observation.exposure_time = desiparams['exptime_dark'] * u.s
+
+    # Set Moon Phase
+    if args.moon_phase is not None:
+        qsim.atmosphere.moon.moon_phase = args.moon_phase
+    elif args.simspec and 'MOONFRAC' in simspec.header:
+        qsim.atmosphere.moon.moon_phase = simspec.header['MOONFRAC']
+    elif flavor in bright_objects or object_type in bright_objects:
+        qsim.atmosphere.moon.moon_phase = 0.7
+    elif flavor in gray_objects:
+        qsim.atmosphere.moon.moon_phase = 0.1
+    else:
+        qsim.atmosphere.moon.moon_phase = 0.5
+        
+    # Set Moon Zenith
+    if args.moon_zenith is not None:
+        qsim.atmosphere.moon.moon_zenith = args.moon_zenith * u.deg
+    elif args.simspec and 'MOONALT' in simspec.header:
+        qsim.atmosphere.moon.moon_zenith = simspec.header['MOONALT'] * u.deg
+    elif flavor in bright_objects or object_type in bright_objects:
+        qsim.atmosphere.moon.moon_zenith = 30 * u.deg
+    elif flavor in gray_objects:
+        qsim.atmosphere.moon.moon_zenith = 80 * u.deg
+    else:
+        qsim.atmosphere.moon.moon_zenith = 100 * u.deg
+
+    # Set Moon - Object Angle
+    if args.moon_angle is not None:
+        qsim.atmosphere.moon.separation_angle = args.moon_angle * u.deg
+    elif args.simspec and 'MOONSEP' in simspec.header:
+        qsim.atmosphere.moon.separation_angle = simspec.header['MOONSEP'] * u.deg
+    elif flavor in bright_objects or object_type in bright_objects:
+        qsim.atmosphere.moon.separation_angle = 50 * u.deg
+    elif flavor in gray_objects:
+        qsim.atmosphere.moon.separation_angle = 60 * u.deg
+    else:
+        qsim.atmosphere.moon.separation_angle = 60 * u.deg
 
     # Initialize per-camera output arrays that will be saved to the brick files.
     waves, trueflux, noisyflux, obsivar, resolution, sflux = {}, {}, {}, {}, {}, {}
@@ -514,7 +521,7 @@ def main(args):
                     np.average(simspec.phot[channel]/dw, axis=0))
                 fiberflat = random_state.normal(loc=1.0,
                     scale=1.0 / np.sqrt(meanspec), size=(nspec, num_pixels))
-                ivar = np.tile(1.0 / meanspec, [nspec, 1])
+                ivar = np.tile(meanspec, [nspec, 1])
                 mask = np.zeros((simspec.nspec, num_pixels), dtype=np.uint32)
 
                 for kk in range((args.nspec+args.nstart-1)//500+1):
@@ -687,7 +694,8 @@ def main(args):
                     # must create desispec.Frame object
                     frame=Frame(waves[channel], frame_flux, frame_ivar,\
                         resolution_data=resol, spectrograph=ii, \
-                        fibermap=fibermap[start:end], meta=dict(CAMERA=camera) )
+                        fibermap=fibermap[start:end], \
+                        meta=dict(CAMERA=camera, FLAVOR=simspec.flavor) )
                     desispec.io.write_frame(framefileName, frame)
 
                     framefilePath=desispec.io.findfile("frame",NIGHT,EXPID,camera)
@@ -704,7 +712,8 @@ def main(args):
                     # must create desispec.Frame object
                     cframe = Frame(waves[channel], cframeFlux, cframeIvar, \
                         resolution_data=resol, spectrograph=ii,
-                        fibermap=fibermap[start:end], meta=dict(CAMERA=camera) )
+                        fibermap=fibermap[start:end],
+                        meta=dict(CAMERA=camera, FLAVOR=simspec.flavor) )
                     desispec.io.frame.write_frame(cframeFileName,cframe)
 
                     cframefilePath=desispec.io.findfile("cframe",NIGHT,EXPID,camera)
