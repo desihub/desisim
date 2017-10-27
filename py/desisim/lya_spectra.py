@@ -4,7 +4,6 @@ desisim.lya_spectra
 
 Function to simulate a QSO spectrum including Lyman-alpha absorption.
 """
-
 from __future__ import division, print_function
 
 import numpy as np
@@ -16,8 +15,9 @@ from pkg_resources import resource_filename
 
 c_cgs = const.c.to('cm/s').value
 
+
 def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss2010-g',
-                seed=None, rand=None, qso=None, add_dlas=False, debug=False, ncolorcuts=False):
+                seed=None, rand=None, qso=None, add_dlas=False, debug=False, nocolorcuts=False):
     """Generate a QSO spectrum which includes Lyman-alpha absorption.
 
     Args:
@@ -210,7 +210,7 @@ def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, debug=False, **kwa
 
     # Generate DLAs
     dlas = []
-    for jj in range(nDLA):
+    for jj in range(nDLA[0]):
         # Random z
         zabs = float(fzdla(rstate.random_sample()))
         # Random NHI
@@ -224,6 +224,7 @@ def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, debug=False, **kwa
 
     # Return
     return dlas, dla_model
+
 
 def dla_spec(wave, dlas):
     """ Generate spectrum absorbed by dlas
@@ -252,6 +253,7 @@ def dla_spec(wave, dlas):
     flux = np.exp(-1.0*tau)
     # Return
     return flux
+
 
 def voigt_tau(wave, par):
     """ Find the optical depth at input wavelengths
@@ -346,6 +348,7 @@ def init_fNHI(slls=False, mix=True):
     # Return
     return fNHI
 
+
 def calc_lz(z, boost=1.6):
     """
     Args:
@@ -358,6 +361,7 @@ def calc_lz(z, boost=1.6):
     """
     lz = boost * 0.6 * np.exp(-7./z**2)  # Prochaska et al. 2008, ApJ, 675, 1002
     return lz
+
 
 def evaluate_fN(model, NHI):
     """ Evaluate an f(N,X) model at a set of NHI values
@@ -378,6 +382,7 @@ def evaluate_fN(model, NHI):
     log_fNX = model.__call__(NHI)
 
     return log_fNX
+
 
 def calculate_lox(model, NHI_min, NHI_max=None, neval=10000, cumul=False):
     """ Calculate l(X) over an N_HI interval
@@ -416,4 +421,3 @@ def calculate_lox(model, NHI_min, NHI_max=None, neval=10000, cumul=False):
         cum_sum = np.cumsum(10.**(lgfNX+lgNHI)) * dlgN * np.log(10.)
     # Return
     return lX, cum_sum, lgNHI
-
