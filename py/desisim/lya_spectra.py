@@ -38,7 +38,7 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
           individual spectra/templates.
         add_dlas (bool): Inject damped Lya systems into the Lya forest
           These are done according to the current best estimates for the incidence dN/dz
-            (Prochaska et al. 2008, ApJ, 675, 1002)
+          (Prochaska et al. 2008, ApJ, 675, 1002)
           Set in calc_lz
           These are *not* inserted according to overdensity along the sightline
         nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
