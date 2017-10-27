@@ -70,4 +70,4 @@ def main(args):
     sim, fibermap, meta, obs = desisim.obs.new_exposure(args.program,
         nspec=args.nspec, night=args.night, expid=args.expid, 
         tileid=args.tileid, nproc=args.nproc, seed=args.seed, 
-        obsconditions=obsconditions)
+        obsconditions=obsconditions, outdir=args.outdir)
