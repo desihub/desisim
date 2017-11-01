@@ -230,9 +230,14 @@ class SimSetup(object):
         # create the MTL file
         print("{} Starting MTL".format(asctime()))
         self.mtl_file = os.path.join(self.tmp_output_path, 'mtl.fits')
-        mtl = desitarget.mtl.make_mtl(targets, zcat)
+        if zcat is None:
+            mtl = desitarget.mtl.make_mtl(targets)
+        else:
+            mtl = desitarget.mtl.make_mtl(targets, zcat)
+            
         mtl.write(self.mtl_file, overwrite=True)
         del mtl
+        gc.collect()
         print("{} Finished MTL".format(asctime()))
                 
         # clean files and prepare fiberasign inputs
@@ -285,6 +290,10 @@ class SimSetup(object):
         print(truth.keys())
         #- Drop columns that aren't needed to save memory while manipulating
         truth.remove_columns(['SEED', 'MAG', 'FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2', 'HBETAFLUX', 'TEFF', 'LOGG', 'FEH'])
+        targets.remove_columns([ 'SHAPEEXP_R', 'SHAPEEXP_E1', 'SHAPEEXP_E2', 'SHAPEDEV_R',
+                                 'SHAPEDEV_E1', 'SHAPEDEV_E2', 'PSFDEPTH_G', 'PSFDEPTH_R', 'PSFDEPTH_Z', 'GALDEPTH_G', 'GALDEPTH_R', 'GALDEPTH_Z',
+                                 'MW_TRANSMISSION_G','MW_TRANSMISSION_R','MW_TRANSMISSION_Z', 'MW_TRANSMISSION_W1', 'MW_TRANSMISSION_W2'])
+        gc.collect()
         if 'MOCKID' in truth.colnames:
             truth.remove_column('MOCKID')
 
