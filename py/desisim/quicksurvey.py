@@ -13,7 +13,7 @@ Directly depends on the following DESI products:
 '''
 
 from __future__ import absolute_import, division, print_function
-
+import gc
 import numpy as np
 import os
 import shutil
@@ -88,7 +88,7 @@ class SimSetup(object):
                 dates.append(year_mm_dd)
 
             #- add pre- and post- dates for date range bookkeeping
-        if dates[0] > min(dateobs[0]):
+        if dates[0] < min(dateobs[0]):
                 dates.insert(0, dateobs[0])
 
         dates.append('9999-99-99')
@@ -127,6 +127,19 @@ class SimSetup(object):
         if os.path.exists(self.tmp_output_path):
             shutil.rmtree(self.tmp_output_path)
 
+    def epoch_data_exists(self, epoch_id=0):
+        """Check epoch directory for zcat.fits and mtl.fits files.
+        """
+        backup_path = os.path.join(self.output_path, '{}'.format(epoch_id))
+        mtl_file = os.path.join(backup_path, 'mtl.fits')
+        zcat_file = os.path.join(backup_path, 'zcat.fits')
+        
+        if os.path.isfile(mtl_file) and os.path.isfile(zcat_file):
+            return True
+        else:
+            return False
+
+        
     def backup_epoch_data(self, epoch_id=0):
         """Deletes files in the temporary output directory
 
@@ -196,7 +209,7 @@ class SimSetup(object):
         print("{} {} tiles to gather in zcat".format(asctime(), len(self.tilefiles)))
 
         
-    def simulate_epoch(self, epoch, truth, targets, perfect=False, mtl=None, zcat=None):
+    def simulate_epoch(self, epoch, truth, targets, perfect=False, zcat=None):
         """Core routine simulating a DESI epoch,
 
         Args:
@@ -206,7 +219,6 @@ class SimSetup(object):
                 False: redshifts include uncertainties.
             truth (Table): Truth data
             targets (Table): Targets data
-            mtl (Table): Merged Targets List data
             zcat (Table): Redshift Catalog Data
         Notes:
             This routine simulates three steps:
@@ -220,8 +232,9 @@ class SimSetup(object):
         self.mtl_file = os.path.join(self.tmp_output_path, 'mtl.fits')
         mtl = desitarget.mtl.make_mtl(targets, zcat)
         mtl.write(self.mtl_file, overwrite=True)
+        del mtl
         print("{} Finished MTL".format(asctime()))
-
+                
         # clean files and prepare fiberasign inputs
         tilefiles = sorted(glob.glob(self.tmp_fiber_path+'/tile*.fits'))
         if tilefiles:
@@ -256,7 +269,9 @@ class SimSetup(object):
         print("{} writing zcat".format(asctime()))
         newzcat.write(self.zcat_file, format='fits', overwrite=True)
         print("{} Finished zcat".format(asctime()))
-        return mtl, newzcat
+        del newzcat
+        gc.collect()
+        return 
 
 
     def simulate(self):
@@ -273,23 +288,31 @@ class SimSetup(object):
         if 'MOCKID' in truth.colnames:
             truth.remove_column('MOCKID')
 
-        if self.start_epoch == 0:
-            mtl = zcat = None
-        else:
-            print('INFO: starting at epoch {}'.format(self.start_epoch))
-            print('INFO: reading mtl and zcat from previous epoch')
-            epochdir = os.path.join(self.output_path, str(self.start_epoch-1))
-            mtl = Table.read(os.path.join(epochdir, 'mtl.fits'))
-            zcat = Table.read(os.path.join(epochdir, 'zcat.fits'))
 
         for epoch in range(self.start_epoch, self.n_epochs):
             print('--- Epoch {} ---'.format(epoch))
+            
+            if not self.epoch_data_exists(epoch_id=epoch):
+                
+                # Initializes mtl and zcat
+                if epoch == 0:
+                    zcat = None
+                else:
+                    print('INFO: Running Epoch {}'.format(epoch))
+                    print('INFO: reading zcat from previous epoch')
+                    epochdir = os.path.join(self.output_path, str(epoch-1))
+                    zcat = Table.read(os.path.join(epochdir, 'zcat.fits'))
 
-            mtl, zcat = self.simulate_epoch(epoch, truth, targets,
-                                            perfect=False, mtl=mtl, zcat=zcat)
+                # Update mtl and zcat
+                self.simulate_epoch(epoch, truth, targets, perfect=False, zcat=zcat)
 
-            self.backup_epoch_data(epoch_id=epoch)
-
+                # copy mtl and zcat to epoch directory
+                self.backup_epoch_data(epoch_id=epoch)
+                del zcat
+                gc.collect()
+            else:
+                print('--- Epoch {} Already Exists ---'.format(epoch))
+                
         self.cleanup_directories()
 
 
