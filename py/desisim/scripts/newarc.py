@@ -22,7 +22,7 @@ def parse(options=None):
 
     if 'DESI_ROOT' in os.environ:
         _default_arcfile = os.path.join(os.getenv('DESI_ROOT'),
-            'spectro', 'templates', 'calib', 'v0.3', 'arc-lines-average-in-vacuum.fits')
+            'spectro', 'templates', 'calib', 'v0.4', 'arc-lines-average-in-vacuum-from-winlight-20170118.fits')
     else:
         _default_arcfile = None
 
