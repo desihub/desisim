@@ -49,7 +49,7 @@ env:
         # - DESIMODEL_DATA=branches/test-0.7.0
         - DESIMODEL_VERSION=master
         - DESIMODEL_DATA=trunk
-        - DESISIM_TESTDATA_VERSION=0.3.3
+        - DESISIM_TESTDATA_VERSION=master
         - SPECLITE_VERSION=0.5
         - SPECSIM_VERSION=master
         - SPECTER_VERSION=0.7.0

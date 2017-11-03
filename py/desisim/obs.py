@@ -116,7 +116,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
     
     if program == 'arc':
         if arc_lines_filename is None :
-            infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.3/arc-lines-average-in-vacuum.fits'
+            infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.4/arc-lines-average-in-vacuum-from-winlight-20170118.fits'
         else :
             infile = arc_lines_filename
         arcdata = fits.getdata(infile, 1)
@@ -135,7 +135,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
     
     elif program == 'flat':
         if flat_spectrum_filename is None :
-            infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.3/flat-3100K-quartz-iodine.fits'
+            infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.4/flat-3100K-quartz-iodine.fits'
         else :
             infile = flat_spectrum_filename
 
