@@ -5,6 +5,7 @@ desisim change log
 0.21.1 (unreleased)
 -------------------
 
+* Scaling updates to wrap-fastframe and wrap-newexp
 * Fix a minor units scaling bug in lya_spectra (`PR #264`_).
 
 .. _`PR #264`: https://github.com/desihub/desisim/pull/264
