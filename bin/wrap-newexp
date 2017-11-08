@@ -192,7 +192,6 @@ if rank < len(todo):
             continue
 
         try:
-            t0 = time.time()
             logfile = desisim.io.findfile(
                 'simspec', night, expid).replace('.fits', '.log')
             print('logging {}-{} {} to {}'.format(night, expid, flavor, logfile))
@@ -200,22 +199,16 @@ if rank < len(todo):
             #- Spawn call to avoid memory leak problems from repeated
             #- desisim.scripts.newexp_mock.main() calls within same interpreter
             with open(logfile, 'w') as logx:
+                t0 = time.time()
                 err = subprocess.call(cmd.split(), stdout=logx, stderr=logx)
-            # if cmd.startswith('newexp'):
-            #     desisim.scripts.newexp_mock.main(cmd.split()[1:])
-            # elif cmd.startswith('newflat'):
-            #     desisim.scripts.newflat.main(cmd.split()[1:])
-            # elif cmd.startswith('newarc'):
-            #     desisim.scripts.newarc.main(cmd.split()[1:])
-            # else:
-            #     print('ERROR: unknown command {}'.format(cmd))
-            if err != 0:
-                print('ERROR: night {} expid {} failed with error {}'.format(
-                    night, expid, err))
-                raise RuntimeError
+                runtime = time.time() - t0
+                if err == 0:
+                    print("SUCCESS: {} night {} expid {} took {:.1f} seconds".format(
+                        cmd.split()[0], night, expid,  runtime))
+                else:
+                    print('FAILED: night {} expid {}; see {}'.format(
+                        night, expid, logfile))
 
-            runtime = time.time() - t0
-            print("{} took {:.1f} seconds".format(cmd.split()[0], runtime))
             sys.stdout.flush()
         except:
             print('FAILED: {}'.format(cmd))
