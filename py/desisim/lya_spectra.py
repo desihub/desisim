@@ -44,13 +44,14 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
         nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
           cuts (default False).
 
-    Returns:
-        flux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra
+    Returns (flux, wave, meta, dla_meta) where:
+
+        * flux (numpy.ndarray): Array [nmodel, npix] of observed-frame spectra
           (erg/s/cm2/A).
-        wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
-        meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum
+        * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
+        * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum
           with columns defined in desisim.io.empty_metatable *plus* RA, DEC.
-        dla_meta (astropy.Table): Table of meta-data [ndla] for the DLAs injected
+        * dla_meta (astropy.Table): Table of meta-data [ndla] for the DLAs injected
           into the spectra.  Only returned if add_dlas=True
 
     """
