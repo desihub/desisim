@@ -90,6 +90,11 @@ if rank == 0:
     else:
         obs = Table.read(args.obslist)
 
+    if 'EXPID' not in obs.colnames:
+        print('WARNING: old obslist format without EXPID column; augmenting with EXPID and arc/flat exposures now')
+        from surveysim.util import add_calibration_exposures
+        obs = add_calibration_exposures(obs)
+
     #- standardize to uppercase columns
     # for col in list(obs.colnames):
     #     obs.rename_column(col, col.upper())
@@ -100,14 +105,15 @@ if rank == 0:
     #         obs[c].unit = 'deg'
     if args.tilefile is not None:
         tilesubset = read_tiles(args.tilefile)
-        ii = np.in1d(obs['TILEID'], tilesubset)
-        if np.any(ii):
-            obs = obs[ii]
+        indesi = np.in1d(obs['TILEID'], tilesubset)
+        calib = obs['PROGRAM'] == 'CALIB'
+        if np.any(indesi | calib):
+            obs = obs[indesi | calib]
         else:
             raise ValueError('no tiles in {} found in {}'.format(args.tilefile, args.obslist))
 
     #- Check that exposures are sorted by MJD
-    assert np.all(np.diff(obs['MJD']) > 0)
+    assert np.all(np.diff(obs['MJD']) >= 0)
 
     #- create list of (flavor, night, expid, obsnum, obsconditions)
     #- where obsnum is row number of input obslist file
@@ -154,7 +160,10 @@ if comm is not None:
 if rank == 0:
     todo = obs[:0].copy()
     for thisobs in obs:
-        simspec = desisim.io.findfile('simspec', obs['NIGHT'], obs['EXPID'])
+        if (thisobs['NIGHT'] < args.start) or (args.stop <= thisobs['NIGHT']):
+            continue
+
+        simspec = desisim.io.findfile('simspec', thisobs['NIGHT'], thisobs['EXPID'])
         if args.force or not os.path.exists(simspec):
             todo.add_row(thisobs)
 
@@ -176,17 +185,17 @@ if rank == 0:
 if rank < len(todo):
     for thisobs in todo[rank::size]:
         assert thisobs['FLAVOR'] in ('science', 'arc', 'flat')
-        if flavor == 'science':
+        if thisobs['FLAVOR'] == 'science':
             cmd = "newexp-mock --obslist {} --fiberassign {} --mockdir {}".format(
                 args.obslist, args.fiberassign, args.mockdir)
             if args.outdir is not None:
                 cmd = cmd + " --outdir {}".format(args.outdir)
             cmd = cmd + " --clobber --expid {} --obsnum {}".format(thisobs['EXPID'], thisobs['EXPID'])
-        elif flavor == 'flat':
+        elif thisobs['FLAVOR'] == 'flat':
             cmd = "newflat --night {} --expid {} --clobber".format(thisobs['NIGHT'], thisobs['EXPID'])
             if args.nonuniform:
                 cmd = cmd + " --nonuniform"
-        elif flavor == 'arc':
+        elif thisobs['FLAVOR'] == 'arc':
             cmd = "newarc --night {} --expid {} --clobber".format(thisobs['NIGHT'], thisobs['EXPID'])
             if args.nonuniform:
                 cmd = cmd + " --nonuniform"
