@@ -54,6 +54,8 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
         * dla_meta (astropy.Table): Table of meta-data [ndla] for the DLAs injected
           into the spectra.  Only returned if add_dlas=True
 
+    Note: `dla_meta` is only included if add_dlas=True.
+
     """
     from scipy.interpolate import interp1d
 
