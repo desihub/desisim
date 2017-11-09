@@ -11,8 +11,6 @@ import argparse
 import subprocess
 import sys
 
-import desisim.io
-
 parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 #- Required
@@ -27,8 +25,8 @@ parser.add_argument('--force', action='store_true', help="force re-processing to
 parser.add_argument('--nonuniform', action='store_true', help="simulate non-uniform calibration screen illumination")
 parser.add_argument('--dryrun', action='store_true', help="print commands but don't run them")
 parser.add_argument('--mpi', action='store_true', help="use MPI parallelism")
-parser.add_argument('--start', type=str, help="start date YEARMMDD")
-parser.add_argument('--stop', type=str, help="stop date YEARMMDD")
+parser.add_argument('--start', metavar='YYYYMMDD', default='19000101', help="Start date (YEARMMDD).")
+parser.add_argument('--stop', metavar='YYYYMMDD', default='21000101', help="Stop date (YEARMMDD).")
 
 args = parser.parse_args()
 
@@ -44,38 +42,17 @@ else:
     rank = 0
 
 #- The proceed with other imports
-import sys, os, time
+import os, time
 tstart = time.time()
 
 import numpy as np
 
 from astropy.table import Table
 
-from desisim.util import dateobs2night
 import desisim.io
-import desisim.scripts.newexp_mock
-import desisim.scripts.newflat
-import desisim.scripts.newarc
 
-def _row2dict(row):
-    result = dict()
-    for key in row.colnames:
-        result[key] = row[key]
-    return result
-
-if args.start is None:
-    args.start = '11112233'
-else:
-    args.start = args.start.replace('-', '')
-
-if args.stop is None:
-    args.stop = '99998877'
-else:
-    args.stop = args.stop.replace('-', '')
-
-#- Number of arc and flat exposures per night
-nflat = 3
-narc = 3
+args.start = args.start.replace('-', '')
+args.stop = args.stop.replace('-', '')
 
 def read_tiles(filename):
     if filename.endswith('.fits'):
@@ -94,66 +71,44 @@ if rank == 0:
     else:
         obs = Table.read(args.obslist)
 
-    #- standardize to uppercase columns
-    for col in list(obs.colnames):
-        obs.rename_column(col, col.upper())
+    if 'EXPID' not in obs.colnames:
+        print('WARNING: old obslist format without EXPID column; augmenting with EXPID and arc/flat exposures now')
+        from surveysim.util import add_calibration_exposures
+        obs = add_calibration_exposures(obs)
 
-    obs['OBSNUM'] = np.arange(len(obs))
     if args.tilefile is not None:
         tilesubset = read_tiles(args.tilefile)
-        ii = np.in1d(obs['TILEID'], tilesubset)
-        if np.any(ii):
-            obs = obs[ii]
+        indesi = np.in1d(obs['TILEID'], tilesubset)
+        calib = obs['PROGRAM'] == 'CALIB'
+        if np.any(indesi | calib):
+            obs = obs[indesi | calib]
         else:
             raise ValueError('no tiles in {} found in {}'.format(args.tilefile, args.obslist))
 
     #- Check that exposures are sorted by MJD
-    assert np.all(np.diff(obs['MJD']) > 0)
-
-    #- create list of (flavor, night, expid, obsnum, obsconditions)
-    #- where obsnum is row number of input obslist file
-    exposures = list()
-    current_night = 1
-    expid = 0
-    for i, mjd in enumerate(obs['MJD']):
-        night = dateobs2night(mjd)
-        if night < args.start:
-            continue
-        if night >= args.stop:
-            break
-            
-        if night != current_night:
-            current_night = night
-            for j in range(nflat):
-                exposures.append(['flat', night, expid, None, None])
-                expid += 1
-            for j in range(narc):
-                exposures.append(['arc', night, expid, None, None])
-                expid += 1
-
-        thisobs = ['science', night, expid, obs['OBSNUM'][i], _row2dict(obs[i])]
-        exposures.append(thisobs)
-        expid += 1
+    assert np.all(np.diff(obs['MJD']) >= 0)
 
 else:
-    exposures = None
+    obs = None
 
 if comm is not None:
-    exposures = comm.bcast(exposures, root=0)
+    obs = comm.bcast(obs, root=0)
 
 #- Check which ones still need to be done
 #- This could be distributed across ranks if needed to spread load
 if rank == 0:
-    todo = list()
-    for thisobs in exposures:
-        (flavor, night, expid, obsnum, obscond) = thisobs
-        simspec = desisim.io.findfile('simspec', night, expid)
+    todo = obs[:0].copy()
+    for thisobs in obs:
+        if (thisobs['NIGHT'] < args.start) or (args.stop <= thisobs['NIGHT']):
+            continue
+
+        simspec = desisim.io.findfile('simspec', thisobs['NIGHT'], thisobs['EXPID'])
         if args.force or not os.path.exists(simspec):
-            todo.append(thisobs)
+            todo.add_row(thisobs)
 
         #- Sort todo by flavor so that one rank doesn't accidentally get a
         #- bunch of fast arcs
-        todo = sorted(todo)
+        todo.sort('FLAVOR')
 else:
     todo = None
 
@@ -163,27 +118,26 @@ if comm is not None:
 #- Proceed with simulating exposures, using all ranks
 
 if rank == 0:
-    print('{} MPI ranks processing {}/{} exposures'.format(size, len(todo), len(exposures)))
+    print('{} MPI ranks processing {}/{} exposures'.format(size, len(todo), len(obs)))
 
 if rank < len(todo):
     for thisobs in todo[rank::size]:
-        (flavor, night, expid, obsnum, obscond) = thisobs
-        assert flavor in ('science', 'arc', 'flat')
-        if flavor == 'science':
+        assert thisobs['FLAVOR'] in ('science', 'arc', 'flat')
+        if thisobs['FLAVOR'] == 'science':
             cmd = "newexp-mock --obslist {} --fiberassign {} --mockdir {}".format(
                 args.obslist, args.fiberassign, args.mockdir)
             if args.outdir is not None:
                 cmd = cmd + " --outdir {}".format(args.outdir)
-            cmd = cmd + " --clobber --expid {} --obsnum {}".format(expid, obsnum)
-        elif flavor == 'flat':
-            cmd = "newflat --night {} --expid {} --clobber".format(night, expid)
+            cmd = cmd + " --clobber --expid {} --obsnum {}".format(thisobs['EXPID'], thisobs['EXPID'])
+        elif thisobs['FLAVOR'] == 'flat':
+            cmd = "newflat --night {} --expid {} --clobber".format(thisobs['NIGHT'], thisobs['EXPID'])
             if args.nonuniform:
                 cmd = cmd + " --nonuniform"
-        elif flavor == 'arc':
-            cmd = "newarc --night {} --expid {} --clobber".format(night, expid)
+        elif thisobs['FLAVOR'] == 'arc':
+            cmd = "newarc --night {} --expid {} --clobber".format(thisobs['NIGHT'], thisobs['EXPID'])
             if args.nonuniform:
                 cmd = cmd + " --nonuniform"
-        
+
         #- TODO: what about logging?  Use desisim.pipe log redirection logic?
 
         print('RUNNING: {}'.format(cmd))
@@ -194,24 +148,16 @@ if rank < len(todo):
         try:
             t0 = time.time()
             logfile = desisim.io.findfile(
-                'simspec', night, expid).replace('.fits', '.log')
-            print('logging {}-{} {} to {}'.format(night, expid, flavor, logfile))
+                'simspec', thisobs['NIGHT'], thisobs['EXPID']).replace('.fits', '.log')
+            print('logging {}-{} {} to {}'.format(thisobs['NIGHT'], thisobs['EXPID'], thisobs['FLAVOR'], logfile))
 
             #- Spawn call to avoid memory leak problems from repeated
             #- desisim.scripts.newexp_mock.main() calls within same interpreter
             with open(logfile, 'w') as logx:
                 err = subprocess.call(cmd.split(), stdout=logx, stderr=logx)
-            # if cmd.startswith('newexp'):
-            #     desisim.scripts.newexp_mock.main(cmd.split()[1:])
-            # elif cmd.startswith('newflat'):
-            #     desisim.scripts.newflat.main(cmd.split()[1:])
-            # elif cmd.startswith('newarc'):
-            #     desisim.scripts.newarc.main(cmd.split()[1:])
-            # else:
-            #     print('ERROR: unknown command {}'.format(cmd))
             if err != 0:
                 print('ERROR: night {} expid {} failed with error {}'.format(
-                    night, expid, err))
+                    thisobs['NIGHT'], thisobs['EXPID'], err))
                 raise RuntimeError
 
             runtime = time.time() - t0
@@ -228,7 +174,7 @@ if comm is not None:
 
 if rank == 0:
     import collections
-    nflavor = collections.Counter([x[0] for x in todo])
+    nflavor = collections.Counter([x['FLAVOR'] for x in todo])
     tottime = time.time() - tstart
     print('{:.1f} minutes for {} arc, {} flat, {} science exposures'.format(
         tottime/60, nflavor['arc'], nflavor['flat'], nflavor['science']
@@ -236,4 +182,3 @@ if rank == 0:
 
 if comm is not None:
     MPI.Finalize()
-
