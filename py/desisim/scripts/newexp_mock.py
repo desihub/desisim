@@ -47,8 +47,9 @@ def main(args=None):
     if isinstance(args, (list, tuple, type(None))):
         args = parse(args)
 
-    if isinstance(args, (list, tuple, type(None))):
-        args = parse(args)
+    # Is there a reason why this was duplicated?
+    # if isinstance(args, (list, tuple, type(None))):
+    #     args = parse(args)
 
     if args.obslist.endswith('.ecsv'):
         obslist = astropy.table.Table.read(args.obslist, format='ascii.ecsv')
@@ -60,26 +61,26 @@ def main(args=None):
     #- twopct.ecsv from 2% survey data challenge.
 
     #- column names should be upper case
-    for col in list(obslist.colnames):
-        obslist.rename_column(col, col.upper())
+    # for col in list(obslist.colnames):
+    #     obslist.rename_column(col, col.upper())
 
     #- MOONDIST -> MOONSEP
-    if 'MOONDIST' in obslist.colnames:
-        obslist.rename_column('MOONDIST', 'MOONSEP')
+    # if 'MOONDIST' in obslist.colnames:
+    #     obslist.rename_column('MOONDIST', 'MOONSEP')
 
     #- NIGHT = YEARMMDD (not YEAR-MM-DD) of sunset, derived from MJD if needed
-    if 'NIGHT' not in obslist.colnames:
-        #- Derive NIGHT from MJD
-        obslist['NIGHT'] = [desisim.util.dateobs2night(x) for x in obslist['MJD']]
-    else:
-        #- strip dashes from NIGHT string to make YEARMMDD
-        obslist['NIGHT'] = np.char.replace(obslist['NIGHT'], '-', '')
+    # if 'NIGHT' not in obslist.colnames:
+    #     #- Derive NIGHT from MJD
+    #     obslist['NIGHT'] = [desisim.util.dateobs2night(x) for x in obslist['MJD']]
+    # else:
+    #     #- strip dashes from NIGHT string to make YEARMMDD
+    #     obslist['NIGHT'] = np.char.replace(obslist['NIGHT'], '-', '')
 
     #- Fragile: derive PROGRAM from PASS
-    if 'PROGRAM' not in obslist.colnames:
-        obslist['PROGRAM'] = 'BRIGHT'
-        obslist['PROGRAM'][obslist['PASS'] < 4] = 'DARK'
-        obslist['PROGRAM'][obslist['PASS'] == 4] = 'GRAY'
+    # if 'PROGRAM' not in obslist.colnames:
+    #     obslist['PROGRAM'] = 'BRIGHT'
+    #     obslist['PROGRAM'][obslist['PASS'] < 4] = 'DARK'
+    #     obslist['PROGRAM'][obslist['PASS'] == 4] = 'GRAY'
 
     #---- end of obslist standardization
 
@@ -91,7 +92,7 @@ def main(args=None):
     if os.path.isdir(args.fiberassign):
         #- TODO: move file location logic to desispec / desitarget / fiberassign
         args.fiberassign = os.path.join(args.fiberassign, 'tile_{:05d}.fits'.format(tileid))
-        
+
     fiberassign = astropy.table.Table.read(args.fiberassign, 'FIBER_ASSIGNMENTS')
 
     if args.outdir is None:

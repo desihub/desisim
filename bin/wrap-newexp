@@ -11,7 +11,8 @@ import argparse
 import subprocess
 import sys
 
-import desisim.io
+# This is duplicated below.
+# import desisim.io
 
 parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
@@ -44,12 +45,14 @@ else:
     rank = 0
 
 #- The proceed with other imports
-import sys, os, time
+# sys is already imported.
+# import sys, os, time
+import os, time
 tstart = time.time()
 
 import numpy as np
 
-from astropy.table import Table
+from astropy.table import Table, Column
 
 from desisim.util import dateobs2night
 import desisim.io
@@ -95,10 +98,13 @@ if rank == 0:
         obs = Table.read(args.obslist)
 
     #- standardize to uppercase columns
-    for col in list(obs.colnames):
-        obs.rename_column(col, col.upper())
+    # for col in list(obs.colnames):
+    #     obs.rename_column(col, col.upper())
 
-    obs['OBSNUM'] = np.arange(len(obs))
+    obs['EXPID'] = np.arange(len(obs), dtype=np.int32)
+    for c in ('RA', 'DEC'):
+        if obs[c].unit is None:
+            obs[c].unit = 'deg'
     if args.tilefile is not None:
         tilesubset = read_tiles(args.tilefile)
         ii = np.in1d(obs['TILEID'], tilesubset)
@@ -112,6 +118,7 @@ if rank == 0:
 
     #- create list of (flavor, night, expid, obsnum, obsconditions)
     #- where obsnum is row number of input obslist file
+    exposures_table = obs[:0].copy()
     exposures = list()
     current_night = 1
     expid = 0
@@ -121,20 +128,26 @@ if rank == 0:
             continue
         if night >= args.stop:
             break
-            
+
         if night != current_night:
             current_night = night
             for j in range(nflat):
+                exposures_table.add_row([-1, -1, 0.0, 0.0, 0.0, night, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 'FLAT', expid])
                 exposures.append(['flat', night, expid, None, None])
                 expid += 1
             for j in range(narc):
+                exposures_table.add_row([-1, -1, 0.0, 0.0, 0.0, night, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 'ARC', expid])
                 exposures.append(['arc', night, expid, None, None])
                 expid += 1
-
-        thisobs = ['science', night, expid, obs['OBSNUM'][i], _row2dict(obs[i])]
-        exposures.append(thisobs)
+        exposures_table.add_row(obs[i])
+        exposures_table['EXPID'][expid] = expid
+        exposures.append(['science', night, expid, obs['EXPID'][i], _row2dict(obs[i])])
         expid += 1
 
+    obslist_dir = os.path.dirname(args.obslist)
+    if not obslist_dir:
+        obslist_dir = os.getcwd()
+    exposures_table.write(os.path.join(obslist_dir, 'all_exposures.fits'))
 else:
     exposures = None
 
@@ -183,7 +196,7 @@ if rank < len(todo):
             cmd = "newarc --night {} --expid {} --clobber".format(night, expid)
             if args.nonuniform:
                 cmd = cmd + " --nonuniform"
-        
+
         #- TODO: what about logging?  Use desisim.pipe log redirection logic?
 
         print('RUNNING: {}'.format(cmd))
@@ -236,4 +249,3 @@ if rank == 0:
 
 if comm is not None:
     MPI.Finalize()
-
