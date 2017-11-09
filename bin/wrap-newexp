@@ -11,9 +11,6 @@ import argparse
 import subprocess
 import sys
 
-# This is duplicated below.
-# import desisim.io
-
 parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 #- Required
@@ -45,8 +42,6 @@ else:
     rank = 0
 
 #- The proceed with other imports
-# sys is already imported.
-# import sys, os, time
 import os, time
 tstart = time.time()
 
@@ -54,24 +49,10 @@ import numpy as np
 
 from astropy.table import Table
 
-# from desisim.util import dateobs2night
 import desisim.io
-# import desisim.scripts.newexp_mock
-# import desisim.scripts.newflat
-# import desisim.scripts.newarc
-
-# def _row2dict(row):
-#     result = dict()
-#     for key in row.colnames:
-#         result[key] = row[key]
-#     return result
 
 args.start = args.start.replace('-', '')
 args.stop = args.stop.replace('-', '')
-
-#- Number of arc and flat exposures per night
-# nflat = 3
-# narc = 3
 
 def read_tiles(filename):
     if filename.endswith('.fits'):
@@ -95,14 +76,6 @@ if rank == 0:
         from surveysim.util import add_calibration_exposures
         obs = add_calibration_exposures(obs)
 
-    #- standardize to uppercase columns
-    # for col in list(obs.colnames):
-    #     obs.rename_column(col, col.upper())
-
-    # obs['EXPID'] = np.arange(len(obs), dtype=np.int32)
-    # for c in ('RA', 'DEC'):
-    #     if obs[c].unit is None:
-    #         obs[c].unit = 'deg'
     if args.tilefile is not None:
         tilesubset = read_tiles(args.tilefile)
         indesi = np.in1d(obs['TILEID'], tilesubset)
@@ -115,43 +88,9 @@ if rank == 0:
     #- Check that exposures are sorted by MJD
     assert np.all(np.diff(obs['MJD']) >= 0)
 
-    #- create list of (flavor, night, expid, obsnum, obsconditions)
-    #- where obsnum is row number of input obslist file
-    # exposures_table = obs[:0].copy()
-    # exposures = list()
-    # current_night = 1
-    # expid = 0
-    # for i, mjd in enumerate(obs['MJD']):
-    #     night = dateobs2night(mjd)
-    #     if night < args.start:
-    #         continue
-    #     if night >= args.stop:
-    #         break
-    #
-    #     if night != current_night:
-    #         current_night = night
-    #         for j in range(nflat):
-    #             exposures_table.add_row([-1, -1, 0.0, 0.0, 0.0, night, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 'FLAT', expid])
-    #             exposures.append(['flat', night, expid, None, None])
-    #             expid += 1
-    #         for j in range(narc):
-    #             exposures_table.add_row([-1, -1, 0.0, 0.0, 0.0, night, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 'ARC', expid])
-    #             exposures.append(['arc', night, expid, None, None])
-    #             expid += 1
-    #     exposures_table.add_row(obs[i])
-    #     exposures_table['EXPID'][expid] = expid
-    #     exposures.append(['science', night, expid, obs['EXPID'][i], _row2dict(obs[i])])
-    #     expid += 1
-    #
-    # obslist_dir = os.path.dirname(args.obslist)
-    # if not obslist_dir:
-    #     obslist_dir = os.getcwd()
-    # exposures_table.write(os.path.join(obslist_dir, 'all_exposures.fits'))
 else:
     obs = None
 
-# if comm is not None:
-#     exposures = comm.bcast(exposures, root=0)
 if comm is not None:
     obs = comm.bcast(obs, root=0)
 
@@ -170,7 +109,6 @@ if rank == 0:
         #- Sort todo by flavor so that one rank doesn't accidentally get a
         #- bunch of fast arcs
         todo.sort('FLAVOR')
-        # todo = sorted(todo)
 else:
     todo = None
 
@@ -217,14 +155,6 @@ if rank < len(todo):
             #- desisim.scripts.newexp_mock.main() calls within same interpreter
             with open(logfile, 'w') as logx:
                 err = subprocess.call(cmd.split(), stdout=logx, stderr=logx)
-            # if cmd.startswith('newexp'):
-            #     desisim.scripts.newexp_mock.main(cmd.split()[1:])
-            # elif cmd.startswith('newflat'):
-            #     desisim.scripts.newflat.main(cmd.split()[1:])
-            # elif cmd.startswith('newarc'):
-            #     desisim.scripts.newarc.main(cmd.split()[1:])
-            # else:
-            #     print('ERROR: unknown command {}'.format(cmd))
             if err != 0:
                 print('ERROR: night {} expid {} failed with error {}'.format(
                     thisobs['NIGHT'], thisobs['EXPID'], err))
