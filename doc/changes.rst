@@ -5,6 +5,7 @@ desisim change log
 0.21.1 (unreleased)
 -------------------
 
+* Scaling updates to wrap-fastframe and wrap-newexp
 * Fix a minor units scaling bug in lya_spectra (`PR #264`_).
 
 .. _`PR #264`: https://github.com/desihub/desisim/pull/264
@@ -67,6 +68,7 @@ desisim change log
 0.18.3 (2017-04-13)
 -------------------
 
+* Add DLAs to lya spectra (PR #220)
 * Fix quickgen for specsim v0.8 (`PR #226`_).
 * Add verbose output to templates code (`PR #230`_).
 * Much faster quickcat (`PR #233`_).
