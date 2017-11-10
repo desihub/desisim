@@ -63,7 +63,7 @@ env:
         # These packages will only be installed for documentation builds.
         - CONDA_SPHINX_DEPENDENCIES="scipy pyyaml sphinx==1.5"
         # These packages will only be installed if we really need them.
-        - CONDA_ALL_DEPENDENCIES="scipy matplotlib coverage pyyaml"
+        - CONDA_ALL_DEPENDENCIES="scipy matplotlib coverage==3.7.1 pyyaml"
         # These packages will always be installed.
         - PIP_DEPENDENCIES=""
         # These packages will only be installed if we really need them.
@@ -77,6 +77,8 @@ env:
     matrix:
         - PYTHON_VERSION=2.7 SETUP_CMD='egg_info'
         - PYTHON_VERSION=3.5 SETUP_CMD='egg_info'
+        - PYTHON_VERSION=2.7 SETUP_CMD='bdist_egg'
+        - PYTHON_VERSION=3.5 SETUP_CMD='bdist_egg'
 
 matrix:
     # Don't wait for allowed failures.
@@ -110,17 +112,17 @@ matrix:
                DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES
 
         - os: linux
-          env: PYTHON_VERSION=3.5 SETUP_CMD='test'
+          env: PYTHON_VERSION=3.5 SETUP_CMD='test --coverage'
                CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
                PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
                DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES
 
-        - os: linux
-          env: PYTHON_VERSION=3.5
-               MAIN_CMD='coverage' SETUP_CMD='run --source=desisim setup.py test'
-               CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
-               PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
-               DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES
+        # - os: linux
+        #   env: PYTHON_VERSION=3.5
+        #        MAIN_CMD='coverage' SETUP_CMD='run setup.py test'
+        #        CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
+        #        PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
+        #        DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES
 
         # - os: linux
         #   env: PYTHON_VERSION=2.7 SETUP_CMD='test'
