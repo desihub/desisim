@@ -200,7 +200,7 @@ def load_z(fibermap_files, zbest_files, outfil=None):
         try:
             zb_hdu = fits.open(zbest_file)
         except FileNotFoundError:
-            log.info("ZBEST FILE NOT FOUND.  I HOPE YOU ARE ONLY TESTING")
+            log.error("zbest file {} not found".format(zbest_file))
         else:
             zb_tabs.append(Table(zb_hdu[1].data))
 
