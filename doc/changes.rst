@@ -2,13 +2,35 @@
 desisim change log
 ==================
 
-0.21.1 (unreleased)
+0.22.1 (unreleased)
 -------------------
 
-* Scaling updates to wrap-fastframe and wrap-newexp
+* No chnages yet.
+
+0.22.0 (unreleased)
+-------------------
+
+* Scaling updates to wrap-fastframe and wrap-newexp (`PR #274`_).
 * Fix a minor units scaling bug in lya_spectra (`PR #264`_).
+* newexp takes exposures list with EXPID and arcs/flats (`PR #275`_).
+* lyman alpha QSOs with optional DLAs (`PR #275`_).
+* Update arc lamp line list (`PR #272`_).
+* Fix MPI pixsim wrappers (`PR #265`_ and `PR #262`_).
+* quicksurvey updats for latest surveysim outputs (`PR #270`_).
+* Adds fastfiber method of fiber input loss calculations (`PR #261`_).
+* Fix quickgen moon input parameters (`PR #263`_).
+* Adds quickspectra script (`PR #259`_).
 
 .. _`PR #264`: https://github.com/desihub/desisim/pull/264
+.. _`PR #274`: https://github.com/desihub/desisim/pull/274
+.. _`PR #275`: https://github.com/desihub/desisim/pull/275
+.. _`PR #272`: https://github.com/desihub/desisim/pull/272
+.. _`PR #265`: https://github.com/desihub/desisim/pull/265
+.. _`PR #270`: https://github.com/desihub/desisim/pull/270
+.. _`PR #261`: https://github.com/desihub/desisim/pull/261
+.. _`PR #262`: https://github.com/desihub/desisim/pull/262
+.. _`PR #263`: https://github.com/desihub/desisim/pull/263
+.. _`PR #259`: https://github.com/desihub/desisim/pull/259
 
 0.21.0 (2017-09-29)
 -------------------
