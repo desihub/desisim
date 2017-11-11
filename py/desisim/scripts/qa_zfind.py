@@ -125,10 +125,15 @@ def main(args):
     # Meta data
     meta = dict(
         DESISIM = desiutil.depend.getdep(simz_tab.meta, 'desisim'),
-        SPECTER = desiutil.depend.getdep(simz_tab.meta, 'specter'),
         SPECPROD = os.getenv('SPECPROD', 'unknown'),
         PIXPROD = os.getenv('PIXPROD', 'unknown'),
         )
+    # Include specter version if it was used to generate input files
+    # (it isn't used for specsim inputs so that dependency may not exist)
+    try:
+        meta['SPECTER'] = desiutil.depend.getdep(simz_tab.meta, 'specter')
+    except KeyError:
+        pass
     
     # Run stats
     log.info("Running stats..")
