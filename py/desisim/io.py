@@ -30,6 +30,7 @@ log = get_logger()
 
 from desisim.util import spline_medfilt2d
 
+
 #-------------------------------------------------------------------------
 def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
     """Return canonical location of where a file should be on disk

@@ -114,35 +114,55 @@ def parse(options=None):
     #- Input files
     parser.add_argument("--psf", type=str, help="PSF filename")
     parser.add_argument("--cosmics", action="store_true", help="Add cosmics")
-    parser.add_argument("--cosmics_dir", type=str, help="Input directory with cosmics templates")
-    parser.add_argument("--cosmics_file", type=str, help="Input file with cosmics templates")
+    parser.add_argument("--cosmics_dir", type=str, 
+        help="Input directory with cosmics templates")
+    parser.add_argument("--cosmics_file", type=str, 
+        help="Input file with cosmics templates")
     parser.add_argument("--simspec", type=str, help="input simspec file")
-    parser.add_argument("--fibermap", type=str, help="fibermap file (optional)")
+    parser.add_argument("--fibermap", type=str, 
+        help="fibermap file (optional)")
 
     #- Output options
     parser.add_argument("--rawfile", type=str, help="output raw data file")
-    parser.add_argument("--simpixfile", type=str, help="output truth image file")
-    parser.add_argument("--preproc", action="store_true", help="preprocess raw -> pix files")
-    parser.add_argument("--preproc_dir", type=str, help="directory for output preprocessed pix files")
+    parser.add_argument("--simpixfile", type=str, 
+        help="output truth image file")
+    parser.add_argument("--preproc", action="store_true", 
+        help="preprocess raw -> pix files")
+    parser.add_argument("--preproc_dir", type=str, 
+        help="directory for output preprocessed pix files")
 
     #- Alternately derive inputs/outputs from night, expid, and cameras
     parser.add_argument("--night", type=str, help="YEARMMDD")
     parser.add_argument("--expid", type=int, help="exposure id")
     parser.add_argument("--cameras", type=str, help="cameras, e.g. b0,r5,z9")
 
-    parser.add_argument("--spectrographs", type=str, help="spectrograph numbers, e.g. 0,1,9")
-    parser.add_argument("--arms", type=str, help="spectrograph arms, e.g. b,r,z", default='b,r,z')
+    parser.add_argument("--spectrographs", type=str, 
+        help="spectrograph numbers, e.g. 0,1,9")
+    parser.add_argument("--arms", type=str, 
+        help="spectrograph arms, e.g. b,r,z", default='b,r,z')
 
-    parser.add_argument("--ccd_npix_x", type=int, help="for testing; number of x (columns) to include in output", default=None)
-    parser.add_argument("--ccd_npix_y", type=int, help="for testing; number of y (rows) to include in output", default=None)
+    parser.add_argument("--ccd_npix_x", type=int, 
+        help="for testing; number of x (columns) to include in output", 
+        default=None)
+    parser.add_argument("--ccd_npix_y", type=int, 
+        help="for testing; number of y (rows) to include in output", 
+        default=None)
 
-    parser.add_argument("--verbose", action="store_true", help="Include debug log info")
-    parser.add_argument("--overwrite", action="store_true", help="Overwrite existing raw and simpix files")
+    parser.add_argument("--verbose", action="store_true", 
+        help="Include debug log info")
+    parser.add_argument("--overwrite", action="store_true", 
+        help="Overwrite existing raw and simpix files")
     parser.add_argument("--seed", type=int, help="random number seed")
 
-    parser.add_argument("--ncpu", type=int, help="Number of cpu cores per thread to use", default=0)
-    parser.add_argument("--wavemin", type=float, help="Minimum wavelength to simulate")
-    parser.add_argument("--wavemax", type=float, help="Maximum wavelength to simulate")
+    parser.add_argument("--ncpu", type=int, 
+        help="Number of cpu cores per thread to use", default=0)
+    parser.add_argument("--wavemin", type=float, 
+        help="Minimum wavelength to simulate")
+    parser.add_argument("--wavemax", type=float, 
+        help="Maximum wavelength to simulate")
+    parser.add_argument("--nspec", type=int, 
+        help="Number of spectra to simulate per camera (500)", 
+        default=500)
 
     parser.add_argument("--mpi_camera", type=int, default=1, help="Number of "
         "MPI processes to use per camera")
@@ -281,6 +301,7 @@ def main(args, comm=None):
                 fibers = np.arange(fx['PHOT_B'].header['NAXIS2'], 
                     dtype=np.int32)
             fx.close()
+        fibers = fibers[0:args.nspec]
     if comm is not None:
         fibers = comm.bcast(fibers, root=0)
 
@@ -352,7 +373,7 @@ def main(args, comm=None):
 
         image[camera], rawpix[camera], truepix[camera] = \
             simulate(camera, simspec, psf, fibers=group_fibers, 
-                ncpu=args.ncpu, cosmics=cosmics, 
+                ncpu=args.ncpu, nspec=args.nspec, cosmics=cosmics, 
                 wavemin=args.wavemin, wavemax=args.wavemax, preproc=False, 
                 comm=comm_group)
 
