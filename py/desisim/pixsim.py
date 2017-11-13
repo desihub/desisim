@@ -156,6 +156,10 @@ def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
         phot = phot[:, ii]
         wave = wave[ii]
 
+    #- check if simulation has less than 500 input spectra
+    if phot.shape[0] < nspec:
+        nspec = phot.shape[0]
+
     #- Project to image and append that to file
     if (comm is None) or (comm.rank == 0):
         log.info('Starting {} projection at {}'.format(camera,
