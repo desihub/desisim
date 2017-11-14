@@ -5,7 +5,7 @@ desisim change log
 0.22.1 (unreleased)
 -------------------
 
-* No chnages yet.
+* Fixed crash in newexp-mock success print message.
 
 0.22.0 (unreleased)
 -------------------

@@ -128,13 +128,16 @@ if rank < len(todo):
                 args.obslist, args.fiberassign, args.mockdir)
             if args.outdir is not None:
                 cmd = cmd + " --outdir {}".format(args.outdir)
-            cmd = cmd + " --clobber --expid {} --obsnum {}".format(thisobs['EXPID'], thisobs['EXPID'])
+            cmd = cmd + " --clobber --expid {} --obsnum {}".format(
+                    thisobs['EXPID'], thisobs['EXPID'])
         elif thisobs['FLAVOR'] == 'flat':
-            cmd = "newflat --night {} --expid {} --clobber".format(thisobs['NIGHT'], thisobs['EXPID'])
+            cmd = "newflat --night {} --expid {} --clobber".format(
+                    thisobs['NIGHT'], thisobs['EXPID'])
             if args.nonuniform:
                 cmd = cmd + " --nonuniform"
         elif thisobs['FLAVOR'] == 'arc':
-            cmd = "newarc --night {} --expid {} --clobber".format(thisobs['NIGHT'], thisobs['EXPID'])
+            cmd = "newarc --night {} --expid {} --clobber".format(
+                    thisobs['NIGHT'], thisobs['EXPID'])
             if args.nonuniform:
                 cmd = cmd + " --nonuniform"
 
@@ -146,9 +149,10 @@ if rank < len(todo):
             continue
 
         try:
-            logfile = desisim.io.findfile(
-                'simspec', thisobs['NIGHT'], thisobs['EXPID']).replace('.fits', '.log')
-            print('logging {}-{} {} to {}'.format(thisobs['NIGHT'], thisobs['EXPID'], thisobs['FLAVOR'], logfile))
+            logfile = desisim.io.findfile('simspec',
+                thisobs['NIGHT'], thisobs['EXPID']).replace('.fits', '.log')
+            print('logging {}-{} {} to {}'.format(
+                thisobs['NIGHT'], thisobs['EXPID'], thisobs['FLAVOR'], logfile))
 
             #- Spawn call to avoid memory leak problems from repeated
             #- desisim.scripts.newexp_mock.main() calls within same interpreter
@@ -158,10 +162,10 @@ if rank < len(todo):
                 runtime = time.time() - t0
                 if err == 0:
                     print("SUCCESS: {} night {} expid {} took {:.1f} seconds".format(
-                        cmd.split()[0], night, expid,  runtime))
+                        cmd.split()[0], thisobs['NIGHT'], thisobs['EXPID'],  runtime))
                 else:
                     print('FAILED: night {} expid {}; see {}'.format(
-                        night, expid, logfile))
+                        thisobs['NIGHT'], thisobs['EXPID'], logfile))
 
             sys.stdout.flush()
         except:
