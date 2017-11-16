@@ -84,7 +84,7 @@ class SimSetup(object):
                 if line.startswith('#') or len(line) < 2:
                     continue
                 yearmmdd = line.replace('-', '')
-                year_mm_dd = yearmmdd[0:4]+'-'+yearmmdd[4:6]+'-'+yearmmdd[6:8]
+                year_mm_dd = yearmmdd[0:4]+yearmmdd[4:6]+yearmmdd[6:8]
                 dates.append(year_mm_dd)
 
             #- add pre- and post- dates for date range bookkeeping
@@ -98,7 +98,7 @@ class SimSetup(object):
 
 
         for i in range(len(dates)-1):
-            ii = (dates[i] <= dateobs) & (dateobs < dates[i+1])
+            ii = (dateobs >= dates[i]) & (dateobs < dates[i+1])
             epoch_tiles = list()
             for tile in self.exposures['TILEID'][ii]:
                 if tile not in epoch_tiles:
@@ -313,7 +313,7 @@ class SimSetup(object):
                     zcat = Table.read(os.path.join(epochdir, 'zcat.fits'))
 
                 # Update mtl and zcat
-                self.simulate_epoch(epoch, truth, targets, perfect=False, zcat=zcat)
+                self.simulate_epoch(epoch, truth, targets, perfect=True, zcat=zcat)
 
                 # copy mtl and zcat to epoch directory
                 self.backup_epoch_data(epoch_id=epoch)
