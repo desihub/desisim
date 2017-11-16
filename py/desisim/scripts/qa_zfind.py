@@ -94,7 +94,7 @@ def main(args):
                 # Skip calib
                 if fibermap_data['OBJTYPE'][0] in ['FLAT','ARC','BIAS']:
                     continue
-                elif fibermap_data['OBJTYPE'][0] in ['SKY','STD','SCIENCE']:
+                elif fibermap_data['OBJTYPE'][0] in ['SKY','STD','SCIENCE','BGS','MWS_STAR','ELG', 'LRG', 'QSO']:
                     pass
                 else:
                     pdb.set_trace()
