@@ -9,11 +9,12 @@ current production
 """
 
 import argparse
+from desisim.spec_qa import __qa_version__
 
 def parse(options=None):
 
 
-    parser = argparse.ArgumentParser(description="Generate S/N QA for a production [v1.0]", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(description="Generate S/N QA for a production [v{:s}]".format(__qa_version__), formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     #parser.add_argument('--reduxdir', type = str, default = None, metavar = 'PATH',
     #                    help = 'Override default path ($DESI_SPECTRO_REDUX) to processed data.')
     #parser.add_argument('--rawdir', type = str, default = None, metavar = 'PATH',
@@ -50,11 +51,13 @@ def main(args):
     nights = desispec.io.get_nights()
 
     # Loop on channel
-    for channel in ['b','r', 'z']:
+    for channel in ['b', 'r', 'z']:
         if channel == 'b':
-            wv_bins = np.arange(3570., 5950., 20.)
+            wv_bins = np.arange(3570., 5700., 20.)
+        elif channel == 'r':
+            wv_bins = np.arange(5750., 7600., 20.)
         elif channel == 'z':
-            wv_bins = np.arange(7000., 11000., 20.)
+            wv_bins = np.arange(7500., 9800., 20.)
             z_bins = np.linspace(1.0, 1.6, 100) # z camera
         else:
             pdb.set_trace()
