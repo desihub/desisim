@@ -22,7 +22,7 @@ def parse(options=None):
 
     if 'DESI_ROOT' in os.environ:
         _default_flatfile = os.path.join(os.getenv('DESI_ROOT'),
-            'spectro', 'templates', 'calib', 'v0.3', 'flat-3100K-quartz-iodine.fits')
+            'spectro', 'templates', 'calib', 'v0.4', 'flat-3100K-quartz-iodine.fits')
     else:
         _default_flatfile = None
 

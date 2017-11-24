@@ -10,6 +10,7 @@ import numpy as np
 import astropy.table
 import astropy.time
 from astropy.io import fits
+import fitsio
 
 import desitarget
 import desispec.io
@@ -132,8 +133,14 @@ def simflat(flatfile, nspec=5000, nonuniform=False, exptime=10, testslit=False):
 
     #- Trim to DESI wavelength ranges
     #- TODO: is there an easier way to get these parameters?
-    wavemin = desimodel.io.load_throughput('b').wavemin
-    wavemax = desimodel.io.load_throughput('z').wavemax
+    try:
+        params = desimodel.io.load_desiparams()
+        wavemin = params['ccd']['b']['wavemin']
+        wavemax = params['ccd']['z']['wavemax']
+    except KeyError:
+        wavemin = desimodel.io.load_throughput('b').wavemin
+        wavemax = desimodel.io.load_throughput('z').wavemax
+
     ii = (wavemin <= wave) & (wave <= wavemax)
     wave = wave[ii]
     sbflux = sbflux[ii]
@@ -290,18 +297,18 @@ def fibermeta2fibermap(fiberassign, meta):
         fibermap[c] = fiberassign[c]
 
     #- MAG and FILTER; ignore warnings from negative flux
-    #- these are deprecated anyway and will be replaced with FLUX_G, FLUX_R, etc.
+    #- these are deprecated anyway and will be replaced with FLUX_G, FLUX_R,
+    #- etc. in the fibermap as well
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
-        ugrizy = 22.5 - 2.5 * np.log10(meta['DECAM_FLUX'].data)
-        wise = 22.5 - 2.5 * np.log10(meta['WISE_FLUX'].data)
 
-    fibermap['FILTER'][:, :5] = ['DECAM_G', 'DECAM_R', 'DECAM_Z', 'WISE_W1', 'WISE_W2']
-    fibermap['MAG'][:, 0] = ugrizy[:, 1]
-    fibermap['MAG'][:, 1] = ugrizy[:, 2]
-    fibermap['MAG'][:, 2] = ugrizy[:, 4]
-    fibermap['MAG'][:, 3] = wise[:, 0]
-    fibermap['MAG'][:, 4] = wise[:, 1]
+        fibermap['FILTER'][:, :5] = \
+            ['DECAM_G', 'DECAM_R', 'DECAM_Z', 'WISE_W1', 'WISE_W2']
+        fibermap['MAG'][:, 0] = 22.5 - 2.5 * np.log10(meta['FLUX_G'].data)
+        fibermap['MAG'][:, 1] = 22.5 - 2.5 * np.log10(meta['FLUX_R'].data)
+        fibermap['MAG'][:, 2] = 22.5 - 2.5 * np.log10(meta['FLUX_Z'].data)
+        fibermap['MAG'][:, 3] = 22.5 - 2.5 * np.log10(meta['FLUX_W1'].data)
+        fibermap['MAG'][:, 4] = 22.5 - 2.5 * np.log10(meta['FLUX_W2'].data)
 
     #- set OBJTYPE
     #- TODO: what about MWS science targets that are also standard stars?
@@ -338,7 +345,8 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, dwave_out=No
 
     Args:
         wave (array): 1D wavelengths in Angstroms
-        flux (array): 2D[nspec,nwave] flux in erg/s/cm2/Angstrom
+        flux (array): 2D[nspec,nwave] flux in 1e-17 erg/s/cm2/Angstrom
+            or astropy Quantity with flux units
 
     Optional:
         fibermap: table from fiberassign or fibermap; uses X/YFOCAL_DESIGN, TARGETID, DESI_TARGET
@@ -362,7 +370,7 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, dwave_out=No
 
     #- Convert to unit-ful quantities for specsim
     if not isinstance(flux, u.Quantity):
-        fluxunits = u.erg / (u.Angstrom * u.s * u.cm**2)
+        fluxunits = 1e-17 * u.erg / (u.Angstrom * u.s * u.cm**2)
         flux = flux * fluxunits
 
     if not isinstance(wave, u.Quantity):
@@ -432,10 +440,95 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, dwave_out=No
     #- Determine source types
     #- TODO: source shapes + galsim instead of fixed types + fiberloss table
     source_types = get_source_types(fibermap)
+    # source types are sky elg lrg qso bgs star , they 
+    # are only used in specsim.fiberloss for the desi.instrument.fiberloss_method="table" method
+    
+    
+    desi.instrument.fiberloss_method = 'fastsim'
 
-    log.debug('running simulation')
-    desi.instrument.fiberloss_method = 'table'
-    desi.simulate(source_fluxes=flux, focal_positions=xy, source_types=source_types)
+    log.debug('running simulation with {} fiber loss method'.format(desi.instrument.fiberloss_method))
+    
+    unique_source_types = set(source_types)
+    comment_line="source types:"
+    for u in set(source_types) :
+        comment_line+=" {} {}".format(np.sum(source_types==u),u)
+    log.debug(comment_line)
+    
+    source_fraction=None
+    source_half_light_radius=None
+    source_minor_major_axis_ratio=None
+    source_position_angle=None
+
+    
+    if desi.instrument.fiberloss_method == 'fastsim' or desi.instrument.fiberloss_method == 'galsim' :
+        # the following parameters are used only with fastsim and galsim methods
+        
+        elgs=(source_types=="elg")
+        lrgs=(source_types=="lrg")
+        bgss=(source_types=="bgs")
+
+        if np.sum(lrgs)>0 or np.sum(elgs)>0 or np.sum(bgss)>0 :
+            log.warning("the half light radii are fixed here (and not magnitude or redshift dependent)")
+
+        # BGS parameters based on SDSS main sample, in g-band
+        # see analysis from J. Moustakas in
+        # https://github.com/desihub/desitarget/blob/bgs-properties/doc/nb/bgs-morphology-properties.ipynb
+        # B/T (bulge-to-total ratio): 0.48 (0.36 - 0.59).
+        # Bulge Sersic n: 2.27 (1.12 - 3.60).
+        # log10 (Bulge Half-light radius): 0.11 (-0.077 - 0.307) arcsec
+        # log10 (Disk Half-light radius): 0.67 (0.54 - 0.82) arcsec
+        # This gives
+        # bulge_fraction = 0.48
+        # disk_fraction  = 0.52
+        # bulge_half_light_radius = 1.3 arcsec
+        # disk_half_light_radius  = 4.7 arcsec
+        # note we use De Vaucouleurs' law , which correspond to a Sersic index n=4
+        
+        # source_fraction[:,0] is DISK profile (exponential) fraction
+        # source_fraction[:,1] is BULGE profile (devaucouleurs) fraction
+        # 1 - np.sum(source_fraction,axis=1) is POINT source profile fraction
+        # see specsim.GalsimFiberlossCalculator.create_source routine
+        source_fraction=np.zeros((nspec,2)) 
+        source_fraction[elgs,0]=1.   # ELG are disk only
+        source_fraction[lrgs,1]=1.   # LRG are bulge only
+        source_fraction[bgss,0]=0.52 # disk comp in BGS
+        source_fraction[bgss,1]=0.48 # bulge comp in BGS
+        
+
+        # source_half_light_radius[:,0] is the half light radius in arcsec for the DISK profile
+        # source_half_light_radius[:,1] is the half light radius in arcsec for the BULGE profile        
+        # see specsim.GalsimFiberlossCalculator.create_source routine
+        source_half_light_radius=np.zeros((nspec,2))
+        source_half_light_radius[elgs,0]=0.45 # ELG are disk only, arcsec
+        source_half_light_radius[lrgs,1]=1.   # LRG are bulge only, arcsec
+        source_half_light_radius[bgss,0]=4.7  # disk comp in BGS, arcsec
+        source_half_light_radius[bgss,1]=1.3  # bulge comp in BGS, arcsec
+       
+        if desi.instrument.fiberloss_method == 'galsim' :
+            # the following parameters are used only with galsim method
+        
+            # source_minor_major_axis_ratio[:,0] is the axis ratio for the DISK profile
+            # source_minor_major_axis_ratio[:,1] is the axis ratio for the BULGE profile
+            # see specsim.GalsimFiberlossCalculator.create_source routine
+            source_minor_major_axis_ratio=np.zeros((nspec,2)) 
+            source_minor_major_axis_ratio[elgs,0]=0.7 
+            source_minor_major_axis_ratio[lrgs,1]=0.7
+            source_minor_major_axis_ratio[bgss,1]=0.7
+            
+            # the source position angle is in degrees
+            # see specsim.GalsimFiberlossCalculator.create_source routine
+            source_position_angle = np.zeros((nspec,2))
+            random_angles = 360.*np.random.uniform(size=nspec)
+            source_position_angle[elgs,0]=random_angles[elgs]
+            source_position_angle[lrgs,1]=random_angles[lrgs]
+            source_position_angle[bgss,1]=random_angles[bgss]
+            
+    
+    desi.simulate(source_fluxes=flux, focal_positions=xy, source_types=source_types,
+                  source_fraction=source_fraction,
+                  source_half_light_radius=source_half_light_radius,
+                  source_minor_major_axis_ratio=source_minor_major_axis_ratio,
+                  source_position_angle=source_position_angle)
 
     return desi
 
@@ -635,37 +728,59 @@ def read_mock_spectra(truthfile, targetids, mockdir=None):
         wave[nwave]: wavelengths in Angstroms
         truth[nspec]: metadata truth table
     '''
-    with fits.open(truthfile, memmap=False) as fx:
-        truth = fx['TRUTH'].data
-        wave = fx['WAVE'].data
-        flux = fx['FLUX'].data
+    if len(targetids) != len(np.unique(targetids)):
+        from desiutil.log import get_logger
+        log = get_logger()
+        log.error("Requested TARGETIDs for {} are not unique".format(
+            os.path.basename(truthfile)))
+
+    #- astropy.io.fits doesn't return a real ndarray, causing problems
+    #- with the reordering downstream so use fitsio instead
+    # with fits.open(truthfile, memmap=False) as fx:
+    #     truth = fx['TRUTH'].data
+    #     wave = fx['WAVE'].data
+    #     flux = fx['FLUX'].data
+    with fitsio.FITS(truthfile) as fx:
+        truth = fx['TRUTH'].read()
+        wave = fx['WAVE'].read()
+        flux = fx['FLUX'].read()
+
+    missing = np.in1d(targetids, truth['TARGETID'], invert=True)
+    if np.any(missing):
+        missingids = targetids[missing]
+        raise ValueError('Targets missing from {}: {}'.format(truthfile, missingids))
 
     #- Trim to just the spectra for these targetids
     ii = np.in1d(truth['TARGETID'], targetids)
-    if np.count_nonzero(ii) != len(targetids):
-        jj = ~np.in1d(targetids, truth['TARGETID'])
-        missingids = targetids[jj]
-        raise ValueError('Targets missing from {}: {}'.format(truthfile, missingids))
-
     flux = flux[ii]
     truth = truth[ii]
 
     assert set(targetids) == set(truth['TARGETID'])
 
     #- sort truth to match order of input targetids
-    #- Sort tiles to match order of tileids
-    i = np.argsort(targetids)
-    j = np.argsort(truth['TARGETID'])
-    k = np.argsort(i)
+    if len(targetids) == len(truth['TARGETID']):
+        i = np.argsort(targetids)
+        j = np.argsort(truth['TARGETID'])
+        k = np.argsort(i)
+        reordered_truth = truth[j[k]]
+        reordered_flux = flux[j[k]]
+    else:
+        #- Slower, but works even with repeated TARGETIDs
+        ii = np.argsort(truth['TARGETID'])
+        sorted_truthids = truth['TARGETID'][ii]
+        reordered_flux = np.empty(shape=(len(targetids), flux.shape[1]), dtype=flux.dtype)
+        reordered_truth = np.empty(shape=(len(targetids),), dtype=truth.dtype)
+        for j, tx in enumerate(targetids):
+            k = np.searchsorted(sorted_truthids, tx)
+            reordered_flux[j] = flux[ii[k]]
+            reordered_truth[j] = truth[ii[k]]
 
-    truth = truth[j[k]]
-    flux = flux[j[k]]
-    assert np.all(truth['TARGETID'] == targetids)
+    assert np.all(reordered_truth['TARGETID'] == targetids)
 
     wave = desispec.io.util.native_endian(wave).astype(np.float64)
-    flux = desispec.io.util.native_endian(flux).astype(np.float64)
+    reordered_flux = desispec.io.util.native_endian(reordered_flux).astype(np.float64)
 
-    return flux, wave, truth
+    return reordered_flux, wave, reordered_truth
 
 def targets2truthfiles(targets, basedir, nside=64):
     '''
@@ -699,7 +814,7 @@ def targets2truthfiles(targets, basedir, nside=64):
         filename = mockio.findfile('truth', nside, ipix, basedir=basedir)
         truthfiles.append(filename)
         ii = (pixels == ipix)
-        targetids.append(targets['TARGETID'][ii])
+        targetids.append(np.asarray(targets['TARGETID'][ii]))
 
     return truthfiles, targetids
 

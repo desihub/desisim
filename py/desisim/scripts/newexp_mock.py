@@ -47,8 +47,9 @@ def main(args=None):
     if isinstance(args, (list, tuple, type(None))):
         args = parse(args)
 
-    if isinstance(args, (list, tuple, type(None))):
-        args = parse(args)
+    # Is there a reason why this was duplicated?
+    # if isinstance(args, (list, tuple, type(None))):
+    #     args = parse(args)
 
     if args.obslist.endswith('.ecsv'):
         obslist = astropy.table.Table.read(args.obslist, format='ascii.ecsv')
@@ -60,26 +61,26 @@ def main(args=None):
     #- twopct.ecsv from 2% survey data challenge.
 
     #- column names should be upper case
-    for col in list(obslist.colnames):
-        obslist.rename_column(col, col.upper())
+    # for col in list(obslist.colnames):
+    #     obslist.rename_column(col, col.upper())
 
     #- MOONDIST -> MOONSEP
-    if 'MOONDIST' in obslist.colnames:
-        obslist.rename_column('MOONDIST', 'MOONSEP')
+    # if 'MOONDIST' in obslist.colnames:
+    #     obslist.rename_column('MOONDIST', 'MOONSEP')
 
     #- NIGHT = YEARMMDD (not YEAR-MM-DD) of sunset, derived from MJD if needed
-    if 'NIGHT' not in obslist.colnames:
-        #- Derive NIGHT from MJD
-        obslist['NIGHT'] = [desisim.util.dateobs2night(x) for x in obslist['MJD']]
-    else:
-        #- strip dashes from NIGHT string to make YEARMMDD
-        obslist['NIGHT'] = np.char.replace(obslist['NIGHT'], '-', '')
+    # if 'NIGHT' not in obslist.colnames:
+    #     #- Derive NIGHT from MJD
+    #     obslist['NIGHT'] = [desisim.util.dateobs2night(x) for x in obslist['MJD']]
+    # else:
+    #     #- strip dashes from NIGHT string to make YEARMMDD
+    #     obslist['NIGHT'] = np.char.replace(obslist['NIGHT'], '-', '')
 
     #- Fragile: derive PROGRAM from PASS
-    if 'PROGRAM' not in obslist.colnames:
-        obslist['PROGRAM'] = 'BRIGHT'
-        obslist['PROGRAM'][obslist['PASS'] < 4] = 'DARK'
-        obslist['PROGRAM'][obslist['PASS'] == 4] = 'GRAY'
+    # if 'PROGRAM' not in obslist.colnames:
+    #     obslist['PROGRAM'] = 'BRIGHT'
+    #     obslist['PROGRAM'][obslist['PASS'] < 4] = 'DARK'
+    #     obslist['PROGRAM'][obslist['PASS'] == 4] = 'GRAY'
 
     #---- end of obslist standardization
 
@@ -91,7 +92,7 @@ def main(args=None):
     if os.path.isdir(args.fiberassign):
         #- TODO: move file location logic to desispec / desitarget / fiberassign
         args.fiberassign = os.path.join(args.fiberassign, 'tile_{:05d}.fits'.format(tileid))
-        
+
     fiberassign = astropy.table.Table.read(args.fiberassign, 'FIBER_ASSIGNMENTS')
 
     if args.outdir is None:
@@ -101,7 +102,12 @@ def main(args=None):
         args.nspec = len(fiberassign)
 
     log.info('Simulating night {} expid {} tile {}'.format(night, args.expid, tileid))
-    flux, wave, meta = get_mock_spectra(fiberassign, mockdir=args.mockdir)
+    try:
+        flux, wave, meta = get_mock_spectra(fiberassign, mockdir=args.mockdir)
+    except Exception as err:
+        log.fatal('Failed obsnum {} fiberassign {} tile {}'.format(args.obsnum, args.fiberassign, tileid))
+        raise err
+
     sim, fibermap = simscience((flux, wave, meta), fiberassign, obsconditions=obs, nspec=args.nspec)
 
     #- TODO: header keyword code is replicated from obs.new_exposure()
@@ -114,17 +120,17 @@ def main(args=None):
         FLAVOR = ('science', 'Flavor [arc, flat, science, zero, ...]'),
         TELRA = (telera, 'Telescope pointing RA [degrees]'),
         TELDEC = (teledec, 'Telescope pointing dec [degrees]'),
-        AIRMASS = (obsconditions['AIRMASS'], 'Airmass at middle of exposure'),
-        EXPTIME = (obsconditions['EXPTIME'], 'Exposure time [sec]'),
-        SEEING = (obsconditions['SEEING'], 'Seeing FWHM [arcsec]'),
-        MOONFRAC = (obsconditions['MOONFRAC'], 'Moon illumination fraction 0-1; 1=full'),
-        MOONALT  = (obsconditions['MOONALT'], 'Moon altitude [degrees]'),
-        MOONSEP  = (obsconditions['MOONSEP'], 'Moon:tile separation angle [degrees]'),
+        AIRMASS = (obs['AIRMASS'], 'Airmass at middle of exposure'),
+        EXPTIME = (obs['EXPTIME'], 'Exposure time [sec]'),
+        SEEING = (obs['SEEING'], 'Seeing FWHM [arcsec]'),
+        MOONFRAC = (obs['MOONFRAC'], 'Moon illumination fraction 0-1; 1=full'),
+        MOONALT  = (obs['MOONALT'], 'Moon altitude [degrees]'),
+        MOONSEP  = (obs['MOONSEP'], 'Moon:tile separation angle [degrees]'),
         )
     header['DATE-OBS'] = (sim.observation.exposure_start.isot, 'Start of exposure')
 
     #- Write fibermap to $DESI_SPECTRO_SIM/$PIXPROD not $DESI_SPECTRO_DATA
-    fibermap.meta.extend(header)
+    fibermap.meta.update(header)
     fibermap.write(desisim.io.findfile('simfibermap', night, args.expid,
         outdir=args.outdir), overwrite=args.clobber)
 

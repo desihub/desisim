@@ -11,8 +11,6 @@ import os
 import sys
 import numpy as np
 
-import astropy.units as u
-
 from desisim.io import empty_metatable
 
 LIGHT = 2.99792458E5  #- speed of light in km/s

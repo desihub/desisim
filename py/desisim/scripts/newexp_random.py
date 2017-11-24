@@ -35,6 +35,7 @@ def parse(options=None):
     parser.add_argument('--nspec', type=int, default=5000, help="number of spectra to include")
     parser.add_argument('--clobber', action='store_true', help="overwrite any pre-existing output files")
     parser.add_argument('--seed', type=int, default=None, help="Random number seed")
+    parser.add_argument('--nproc', type=int, default=None, help="Number of multiprocessing processes")
 
     if options is None:
         args = parser.parse_args()
@@ -43,14 +44,9 @@ def parse(options=None):
 
     return args
 
-def main(args=None):
+def main(args):
 
     log = get_logger()
-    if isinstance(args, (list, tuple, type(None))):
-        args = parse(args)
-
-    if isinstance(args, (list, tuple, type(None))):
-        args = parse(args)
 
     #- Generate obsconditions with args.program, then override as needed
     args.program = args.program.upper()
@@ -72,5 +68,6 @@ def main(args=None):
             obsconditions['MOONSEP'] = args.moonsep
 
     sim, fibermap, meta, obs = desisim.obs.new_exposure(args.program,
-        nspec=args.nspec, night=args.night, expid=args.expid, tileid=args.tileid,
-        seed=args.seed, obsconditions=obsconditions)
+        nspec=args.nspec, night=args.night, expid=args.expid, 
+        tileid=args.tileid, nproc=args.nproc, seed=args.seed, 
+        obsconditions=obsconditions, outdir=args.outdir)

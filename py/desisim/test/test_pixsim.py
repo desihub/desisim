@@ -148,12 +148,13 @@ class TestPixsim(unittest.TestCase):
         obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
 
         #- run pixsim
-        opts = ['--night', night, '--expid', expid, '--nspec', nspec]
+        opts = ['--night', night, '--expid', expid]
         if ncpu is not None:
             opts.extend( ['--ncpu', ncpu] )
             
         log.debug('testing pixsim.main({})'.format(opts))
-        desisim.scripts.pixsim.main(opts)
+        pixsimargs = desisim.scripts.pixsim.parse(opts)
+        desisim.scripts.pixsim.main(pixsimargs)
 
         #- verify outputs
         simpixfile = io.findfile('simpix', night, expid)
@@ -196,7 +197,8 @@ class TestPixsim(unittest.TestCase):
             opts.extend( ['--ncpu', ncpu] )
 
         log.debug('testing pixsim.main({})'.format(opts))
-        desisim.scripts.pixsim.main(opts)
+        pixsimargs = desisim.scripts.pixsim.parse(opts)
+        desisim.scripts.pixsim.main(pixsimargs)
         simpixfile = io.findfile('simpix', night, expid+1)
         self.assertTrue(os.path.exists(simpixfile))
         self.assertTrue(os.path.exists(altrawfile))

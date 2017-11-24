@@ -266,8 +266,13 @@ def get_targets(nspec, program, tileid=None, seed=None, specify_targets=dict(), 
     true_objtype, target_objtype = sample_objtype(nspec, program)
 
     #- Get DESI wavelength coverage
-    wavemin = desimodel.io.load_throughput('b').wavemin
-    wavemax = desimodel.io.load_throughput('z').wavemax
+    try:
+        params = desimodel.io.load_desiparams()
+        wavemin = params['ccd']['b']['wavemin']
+        wavemax = params['ccd']['z']['wavemax']
+    except KeyError:
+        wavemin = desimodel.io.load_throughput('b').wavemin
+        wavemax = desimodel.io.load_throughput('z').wavemax
     dw = 0.2
     wave = np.arange(round(wavemin, 1), wavemax, dw)
     nwave = len(wave)
@@ -437,11 +442,18 @@ def sample_nz(objtype, n):
 
 def _default_wave(wavemin=None, wavemax=None, dw=0.2):
     '''Construct and return the default wavelength vector.'''
-
+    params = desimodel.io.load_desiparams()
     if wavemin is None:
-        wavemin = desimodel.io.load_throughput('b').wavemin
+        try:
+            wavemin = params['ccd']['b']['wavemin']
+        except KeyError:
+            wavemin = desimodel.io.load_throughput('b').wavemin
     if wavemax is None:
-        wavemax = desimodel.io.load_throughput('z').wavemax
+        try:
+            wavemax = params['ccd']['z']['wavemax']
+        except KeyError:
+            wavemax = desimodel.io.load_throughput('z').wavemax
+
     wave = np.arange(round(wavemin, 1), wavemax, dw)
 
     return wave

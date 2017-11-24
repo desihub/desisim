@@ -28,7 +28,7 @@ else:
     rank = 0
 
 #- The proceed with other imports
-import sys, os, glob, time
+import sys, os, glob, time, subprocess
 tstart = time.time()
 import numpy as np
 
@@ -36,6 +36,8 @@ from astropy.io import fits
 import astropy.time
 from astropy.table import Table
 
+import desispec.io
+import desispec.io.meta
 import desisim.io
 import desisim.scripts.fastframe
 
@@ -53,14 +55,35 @@ else:
 if rank == 0:
     allfiles = sorted(glob.glob('{}/*/simspec*.fits'.format(desisim.io.simdir())))
 
-    #- TODO: check if outputs already exist
+    #- Generate list of cameras
+    cameras = list()
+    for spectrograph in range(10):
+        for channel in ('b', 'r', 'z'):
+            cameras.append(channel + str(spectrograph))
 
     simspecfiles = list()
     for filename in allfiles:
         night = os.path.basename(os.path.split(filename)[0])
         if (args.start <= night) & (night < args.stop):
             flavor = fits.getval(filename, 'FLAVOR')
-            simspecfiles.append( (flavor, filename) )
+            expid = fits.getval(filename, 'EXPID')
+            if flavor not in ('flat', 'science'):
+                print('night {} expid {} is {}; skipping'.format(
+                    night, expid, flavor))
+                continue
+
+            #- This precheck could get slow; consider caching differently
+            done = True
+            for camera in cameras:
+                framefile = desispec.io.findfile('frame', night, expid, camera)
+                if not os.path.exists(framefile):
+                    simspecfiles.append( (flavor, filename) )
+                    done = False
+                    break
+
+            if done:
+                print('night {} expid {} already done; skipping'.format(
+                    night, expid))
 
     simspecfiles = sorted(simspecfiles)
 else:
@@ -89,8 +112,24 @@ if rank < len(simspecfiles):
 
         try:
             t0 = time.time()
-            desisim.scripts.fastframe.main(cmd.split()[1:])
+            logfile = filename.replace('simspec', 'fastframe').replace('.fits', '.log')
+            assert logfile != filename
+
+            #- Use subprocess.call instead of fastframe.main() to avoid
+            #- potential memory leaks and separate logging; this does incur
+            #- extra python interpreter startup time.
+            ### desisim.scripts.fastframe.main(cmd.split()[1:])
+
+            print('logging to {}'.format(logfile))
+            with open(logfile, 'w') as logx:
+                err = subprocess.call(cmd.split(), stdout=logx, stderr=logx)
+
             runtime = time.time() - t0
+            if err != 0:
+                print("ERROR: rank {} simspec {} error code {} after {:.1f} sec".format(
+                    rank, os.path.basename(filename), err, runtime))
+                raise RuntimeError
+
             print("rank {} took {:.1f} seconds for {} frame".format(rank, runtime, flavor))
             sys.stdout.flush()
         except:

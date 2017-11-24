@@ -29,8 +29,10 @@ import desisim.simexp
 from .simexp import simulate_spectra
 
 def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
-                 seed=None, obsconditions=None, specify_targets=dict(), testslit=False, exptime=None,
-                 arc_lines_filename=None, flat_spectrum_filename=None):
+                 nproc=None, seed=None, obsconditions=None, 
+                 specify_targets=dict(), testslit=False, exptime=None,
+                 arc_lines_filename=None, flat_spectrum_filename=None,
+                 outdir=None):
     """
     Create a new exposure and output input simulation files.
     Does not generate pixel-level simulations or noisy spectra.
@@ -53,10 +55,11 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         * testslit : simulate test slit if True, default False; only for arc/flat
         * arc_lines_filename : use alternate arc lines filename (used if program="arc")
         * flat_spectrum_filename : use alternate flat spectrum filename (used if program="flat")
+        * outdir: output directory
 
-    Writes:
-        * $DESI_SPECTRO_SIM/$PIXPROD/{night}/fibermap-{expid}.fits
-        * $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
+    Writes to outdir or $DESI_SPECTRO_SIM/$PIXPROD/{night}/
+        * fibermap-{expid}.fits
+        * simspec-{expid}.fits
 
     Returns:
         * science: sim, fibermap, meta, obsconditions
@@ -94,7 +97,11 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
 
     outsimspec = desisim.io.findfile('simspec', night, expid)
     outfibermap = desisim.io.findfile('simfibermap', night, expid)
-    
+
+    if outdir is not None:
+        outsimspec = os.path.join(outdir, os.path.basename(outsimspec))
+        outfibermap = os.path.join(outdir, os.path.basename(outfibermap))
+
     program = program.lower()
     log.debug('Generating {} targets'.format(nspec))
     
@@ -109,7 +116,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
     
     if program == 'arc':
         if arc_lines_filename is None :
-            infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.3/arc-lines-average-in-vacuum.fits'
+            infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.4/arc-lines-average-in-vacuum-from-winlight-20170118.fits'
         else :
             infile = arc_lines_filename
         arcdata = fits.getdata(infile, 1)
@@ -128,7 +135,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
     
     elif program == 'flat':
         if flat_spectrum_filename is None :
-            infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.3/flat-3100K-quartz-iodine.fits'
+            infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.4/flat-3100K-quartz-iodine.fits'
         else :
             infile = flat_spectrum_filename
 
@@ -139,7 +146,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         header['EXPTIME'] = exptime
         header['FLAVOR'] = 'flat'
         desisim.io.write_simspec(sim, truth=None, fibermap=fibermap, obs=None,
-            expid=expid, night=night, header=header)
+            expid=expid, night=night, header=header, filename=outsimspec)
 
         fibermap.meta['NIGHT'] = night
         fibermap.meta['EXPID'] = expid
@@ -152,8 +159,8 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         return truth, fibermap, None, None
 
     #- all other programs
-    fibermap, (flux, wave, meta) = get_targets_parallel(nspec, program, tileid=tileid, \
-                                          seed=seed, specify_targets=specify_targets)
+    fibermap, (flux, wave, meta) = get_targets_parallel(nspec, program,
+        tileid=tileid, nproc=nproc, seed=seed, specify_targets=specify_targets)
 
     if obsconditions is None:
         if program in ['dark', 'lrg', 'qso']:
@@ -175,12 +182,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
     if exptime is not None:
         obsconditions['EXPTIME'] = exptime
 
-    sim = simulate_spectra(wave, 1e-17*flux, fibermap=fibermap, obsconditions=obsconditions)
-
-    #- Override $DESI_SPECTRO_DATA in order to write to simulation area
-    datadir_orig = os.getenv('DESI_SPECTRO_DATA')
-    simbase = os.path.join(os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'))
-    os.environ['DESI_SPECTRO_DATA'] = simbase
+    sim = simulate_spectra(wave, flux, fibermap=fibermap, obsconditions=obsconditions)
 
     #- Write fibermap
     telera, teledec = io.get_tile_radec(tileid)
@@ -201,20 +203,13 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         )
     hdr['DATE-OBS'] = (time.strftime('%FT%T', dateobs), 'Start of exposure')
 
-    simfile = io.write_simspec(sim, meta, fibermap, obsconditions, expid, night, header=hdr)
+    simfile = io.write_simspec(sim, meta, fibermap, obsconditions,
+        expid, night, header=hdr, filename=outsimspec)
 
-    #- Write fibermap to $DESI_SPECTRO_SIM/$PIXPROD not $DESI_SPECTRO_DATA
-    fiberfile = io.findfile('simfibermap', night, expid)
-    desispec.io.write_fibermap(fiberfile, fibermap, header=hdr)
-    log.info('Wrote '+fiberfile)
+    desispec.io.write_fibermap(outfibermap, fibermap, header=hdr)
+    log.info('Wrote '+outfibermap)
 
     update_obslog(obstype='science', program=program, expid=expid, dateobs=dateobs, tileid=tileid)
-
-    #- Restore $DESI_SPECTRO_DATA
-    if datadir_orig is not None:
-        os.environ['DESI_SPECTRO_DATA'] = datadir_orig
-    else:
-        del os.environ['DESI_SPECTRO_DATA']
 
     return sim, fibermap, meta, obsconditions
 
@@ -410,41 +405,41 @@ def update_obslog(obstype='science', program='DARK', expid=None, dateobs=None,
         os.makedirs(dbdir)
 
     dbfile = dbdir+'/obslog.sqlite'
-    db = sqlite3.connect(dbfile)
-    db.execute("""\
-    CREATE TABLE IF NOT EXISTS obslog (
-        expid INTEGER PRIMARY KEY,
-        dateobs DATETIME,                   -- seconds since Unix Epoch (1970)
-        night TEXT,                         -- YEARMMDD
-        obstype TEXT DEFAULT "science",
-        program TEXT DEFAULT "DARK",
-        tileid INTEGER DEFAULT -1,
-        ra REAL DEFAULT 0.0,
-        dec REAL DEFAULT 0.0
-    )
-    """)
+    with sqlite3.connect(dbfile, isolation_level="EXCLUSIVE") as db:
+        db.execute("""\
+        CREATE TABLE IF NOT EXISTS obslog (
+            expid INTEGER PRIMARY KEY,
+            dateobs DATETIME,                   -- seconds since Unix Epoch (1970)
+            night TEXT,                         -- YEARMMDD
+            obstype TEXT DEFAULT "science",
+            program TEXT DEFAULT "DARK",
+            tileid INTEGER DEFAULT -1,
+            ra REAL DEFAULT 0.0,
+            dec REAL DEFAULT 0.0
+        )
+        """)
 
-    #- Fill in defaults
-    if expid is None:
-        expid = get_next_expid()
+        #- Fill in defaults
+        if expid is None:
+            expid = get_next_expid()
 
-    if dateobs is None:
-        dateobs = time.localtime()
+        if dateobs is None:
+            dateobs = time.localtime()
 
-    if ra is None:
-        assert (dec is None)
-        if tileid < 0:
-            ra, dec = (0.0, 0.0)
-        else:
-            ra, dec = io.get_tile_radec(tileid)
+        if ra is None:
+            assert (dec is None)
+            if tileid < 0:
+                ra, dec = (0.0, 0.0)
+            else:
+                ra, dec = io.get_tile_radec(tileid)
 
-    night = get_night(utc=dateobs)
+        night = get_night(utc=dateobs)
 
-    insert = """\
-    INSERT OR REPLACE INTO obslog(expid,dateobs,night,obstype,program,tileid,ra,dec)
-    VALUES (?,?,?,?,?,?,?,?)
-    """
-    db.execute(insert, (expid, time.mktime(dateobs), night, obstype.upper(), program.upper(), tileid, ra, dec))
-    db.commit()
+        insert = """\
+        INSERT OR REPLACE INTO obslog(expid,dateobs,night,obstype,program,tileid,ra,dec)
+        VALUES (?,?,?,?,?,?,?,?)
+        """
+        db.execute(insert, (int(expid), time.mktime(dateobs), str(night), str(obstype.upper()), str(program.upper()), int(tileid), float(ra), float(dec)))
+        db.commit()
 
     return expid, dateobs

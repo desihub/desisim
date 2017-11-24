@@ -12,5 +12,7 @@ from desisim.scripts import pixsim
 
 if __name__ == '__main__':
     args = pixsim.parse()
-    sys.exit(pixsim.main(args))
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+    sys.exit(pixsim.main(args, comm=comm))
 

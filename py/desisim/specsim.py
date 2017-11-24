@@ -41,12 +41,6 @@ def get_simulator(config='desi', num_fibers=1):
         import specsim.simulator
         qsim = specsim.simulator.Simulator(config, num_fibers)
 
-        #- TODO FIXME HACK: desimodel/specsim doesn't have BGS fiberloss yet
-        #- so scale from LRG
-        if 'bgs' not in qsim.instrument.fiber_acceptance_dict.keys():
-            log.warning('Treating BGS fiberloss = 0.5 * LRG fiberloss')
-            qsim.instrument.fiber_acceptance_dict['bgs'] = 0.5 * qsim.instrument.fiber_acceptance_dict['lrg']
-
         #- Cache defaults to reset back to original state later
         defaults = dict()
         defaults['focal_xy'] = qsim.source.focal_xy

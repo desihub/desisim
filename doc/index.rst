@@ -18,6 +18,7 @@ directory and even display their sections.  See `the toctree documentation`_.
 .. toctree::
     :maxdepth: 1
 
+    qa
     changes
     api
 
