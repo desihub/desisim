@@ -14,6 +14,7 @@ parser.add_argument('--dryrun', action='store_true', help="print commands but do
 parser.add_argument('--mpi', action='store_true', help="use MPI parallelism")
 parser.add_argument('--start', type=str, help="start date YEARMMDD")
 parser.add_argument('--stop', type=str, help="stop date YEARMMDD")
+parser.add_argument('--overwrite', action='store_true')
 args = parser.parse_args()
 
 #- Load MPI and establish communication
@@ -38,6 +39,7 @@ from astropy.table import Table
 
 import desisim.io
 import desisim.scripts.fastframe
+import desispec.io
 
 if args.start is None:
     args.start = '11112233'
@@ -52,13 +54,31 @@ else:
 #- Assemble full list of simspec files; group by flavor to help MPI balancing
 if rank == 0:
     allfiles = sorted(glob.glob('{}/*/simspec*.fits'.format(desisim.io.simdir())))
-
-    #- TODO: check if outputs already exist
-
+    
     simspecfiles = list()
     for filename in allfiles:
         night = os.path.basename(os.path.split(filename)[0])
         if (args.start <= night) & (night < args.stop):
+            flavor = fits.getval(filename, 'FLAVOR')
+
+            if not args.overwrite :
+                
+                expid  = fits.getval(filename, 'EXPID')
+                exists=True
+                for spectro in range(10) :
+                    for cam in ["b","r","z"] :
+                        camera="{}{}".format(cam,spectro)
+                        framefilename = desispec.io.findfile('frame', night, expid, camera,
+                                                       outdir=args.outdir)
+                        if not os.path.isfile(framefilename) :
+                            exists=False
+                            break
+                    if not exists: break
+                if exists :
+                    print("night {} expid {} already processed, skipping".format(night,expid))
+                    continue
+            
+            
             flavor = fits.getval(filename, 'FLAVOR')
             simspecfiles.append( (flavor, filename) )
 
