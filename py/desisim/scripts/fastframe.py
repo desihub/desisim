@@ -26,7 +26,9 @@ def parse(options=None):
                         help="first spectrum to simulate")
     parser.add_argument("--nspec", type=int, default=5000,
                         help="number of spectra to simulate")
-
+    parser.add_argument("--cframe", action="store_true",
+                        help="directly write cframe")
+    
     if options is None:
         args = parser.parse_args()
     else:
@@ -87,11 +89,17 @@ def main(args=None):
     for i, results in enumerate(sim.camera_output):
         results = sim.camera_output[i]
         wave = results['wavelength']
-        phot = (results['num_source_electrons'] + \
-                results['num_sky_electrons'] + \
-                results['num_dark_electrons'] + \
-                results['random_noise_electrons']).T
-        ivar = 1.0 / results['variance_electrons'].T
+        scale=1e17
+        if args.cframe :
+            phot = scale*(results['observed_flux'] + results['random_noise_electrons']*results['flux_calibration']).T
+            ivar = 1./scale**2*results['flux_inverse_variance'].T
+        else :
+            phot = (results['num_source_electrons'] + \
+                    results['num_sky_electrons'] + \
+                    results['num_dark_electrons'] + \
+                    results['random_noise_electrons']).T        
+            ivar = 1.0 / results['variance_electrons'].T
+        
         R = Resolution(sim.instrument.cameras[i].get_output_resolution_matrix())
         Rdata = np.tile(R.data.T, nspec).T.reshape(
                         nspec, R.data.shape[0], R.data.shape[1])
@@ -110,7 +118,11 @@ def main(args=None):
             meta['CAMERA'] = camera
             frame = Frame(wave, xphot, xivar, resolution_data=Rdata[0:imax-imin],
                 spectrograph=spectro, fibermap=xfibermap, meta=meta)
-            outfile = desispec.io.findfile('frame', night, expid, camera,
-                                           outdir=args.outdir)
+            if args.cframe :
+                outfile = desispec.io.findfile('cframe', night, expid, camera,
+                                               outdir=args.outdir)
+            else :
+                outfile = desispec.io.findfile('frame', night, expid, camera,
+                                               outdir=args.outdir)
             print('writing {}'.format(outfile))
             desispec.io.write_frame(outfile, frame)
