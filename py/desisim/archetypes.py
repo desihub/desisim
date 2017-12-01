@@ -46,10 +46,10 @@ def compute_chi2(flux, ferr=None):
     for ii in range(nspec):
         if ii % 500 == 0 or ii == 0:
             log.info('Computing chi2 matrix for spectra {}-{} out of {}.'.format(
-                ii*500, np.min(((ii+1)*500, nspec-1)), nspec))
+                (ii % 500) * 500, np.min(((ii+1) * (ii % 500), nspec-1)), nspec))
         xx = flux[ii, :].reshape(1, npix)
         xxerr = ferr[ii, :].reshape(1, npix)
-        amp1, chi21 = mathutils.quick_amplitude(xx, flux, xxerr, ferr)
+        amp1, chi21 = mathutils.quick_amplitude(xx, flux, xxerr, ferr, niter=1)
         chi2[ii, :] = chi21
         amp[ii, :] = amp1
 
