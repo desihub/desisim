@@ -8,6 +8,7 @@ Function to simulate a QSO spectrum including Lyman-alpha absorption.
 from __future__ import division, print_function
 
 import numpy as np
+from desisim.dla import insert_dlas
 
 def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss2010-g',
                 seed=None, rand=None, qso=None, add_dlas=False, debug=False, nocolorcuts=False):
