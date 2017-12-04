@@ -6,7 +6,7 @@ desisim change log
 -------------------
 
 * Fixed crash in newexp-mock success print message.
-* Refactor DLA code into its own module.
+* Refactor DLA code into its own module (`PR #293`_).
 
 .. _`PR #293`: https://github.com/desihub/desisim/pull/293
 
