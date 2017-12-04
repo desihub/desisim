@@ -5,7 +5,9 @@ desisim change log
 0.22.1 (unreleased)
 -------------------
 
-* Fixed crash in newexp-mock success print message.
+* Refactor DLA code into its own module.
+
+.. _`PR #293`: https://github.com/desihub/desisim/pull/293
 
 0.22.0 (unreleased)
 -------------------
