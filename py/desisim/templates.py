@@ -2046,11 +2046,6 @@ class SIMQSO():
         self.lambda_lylimit = 911.76
         self.lambda_lyalpha = 1215.67
 
-        # Initialize the BOSS/DR9 quasar luminosity function object.
-        print('ToDo: Update to LegacySurvey filters!! What is 1450?')
-        self.kcorr = ContinuumKCorr('SDSS-r', 1450)
-        self.qlf = BOSS_DR9_PLEpivot(cosmo=self.cosmo)
-
         # Iniatilize the Lyman-alpha mock maker.
         self.lyamock_maker = lyamock.MockMaker()
 
@@ -2058,6 +2053,19 @@ class SIMQSO():
         self.normfilt = filters.load_filters(self.normfilter)
         self.decamwise = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
                                               'wise2010-W1', 'wise2010-W2')
+
+        # Initialize the BOSS/DR9 quasar luminosity function and k-correction
+        # objects.
+        def _filtname(filt):
+            if filt not in ('decam2014-g', 'decam2014-r', 'decam2014-z'):
+                log.warning('Unrecognized normalization filter {}! Using {}'.format('decam2014-r'))
+                filt = self.normfilter
+            outfilt = 'DECam-{}'.format(filt[-1])
+            return outfilt
+            
+        print('ToDo: Update to LegacySurvey filters!! What is 1450?')
+        self.kcorr = ContinuumKCorr(_filtname(self.normfilter), 1450, effWaveBand='SDSS-r')
+        self.qlf = BOSS_DR9_PLEpivot(cosmo=self.cosmo)
 
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(20.0, 22.5),
                        seed=None, redshift=None, mag=None, input_meta=None, 
@@ -2203,12 +2211,25 @@ class SIMQSO():
 
         itercount = 0
         qsometa_list = list()
-        
+
+        iterseed = rand.randint(2**32, size=maxiter)
         while (len(need) > 0):
+
+            stop
+            
+            from simqso.sqgrids import QsoSimPoints
+            M = AbsMagVar(FixedSampler(linspace(-27,-25,nqso)[::-1]),restWave=1450)
+            z = RedshiftVar(FixedSampler(linspace(2,4,nqso)))
+
+            import pdb ; pdb.set_trace()
+            qsos = QsoSimPoints([mag, redshift], cosmo=self.cosmo, units='flux')
+                        
             # Sample from the QLF, using the input redshifts.
             print('Need to be able to input apparent magnitudes and random seed.')
             qsos = generateQlfPoints(self.qlf, rmagrange, zrange,
-                                     kcorr=self.kcorr, zin=redshift[need])
+                                     kcorr=self.kcorr, zin=redshift[need],
+                                     qlfseed=iterseed[itercount],
+                                     gridseed=iterseed[itercount])
 
             # Add the fiducial quasar SED model from BOSS/DR9 but without IGM
             # absorption. This step adds a fiducial continuum, emission-line
@@ -2216,7 +2237,7 @@ class SIMQSO():
             qsos.addVars(get_BossDr9_model_vars(qsos, self.basewave, 0, noforest=True))
 
             # Define photometry in the SDSS system to calibrate the apparent magnitudes.
-            qsos.loadPhotoMap([('SDSS', 'Legacy')])
+            qsos.loadPhotoMap([('DECam', 'DECaLS'), ('WISE', 'AllWISE')])
 
             # Finally, generate the spectra, iterating in order to converge on the
             # per-object K-correction (typically, after ~two steps the maximum error
