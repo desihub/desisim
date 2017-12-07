@@ -8,10 +8,9 @@ Function to simulate a QSO spectrum including Lyman-alpha absorption.
 from __future__ import division, print_function
 
 import numpy as np
-<<<<<<< HEAD
 import fitsio
 from scipy.special import wofz
-
+from desisim.dla import insert_dlas
 from astropy import constants as const
 
 from pkg_resources import resource_filename
@@ -41,9 +40,9 @@ def apply_lyman_alpha_transmission(qso_wave,qso_flux,trans_wave,trans) :
         output_flux[q] *= np.interp(qso_wave,trans_wave,trans[q],left=0,right=1)
     return output_flux
 
-=======
-from desisim.dla import insert_dlas
->>>>>>> master
+
+
+
 
 def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss2010-g',
                 seed=None, rand=None, qso=None, add_dlas=False, debug=False, nocolorcuts=False):
