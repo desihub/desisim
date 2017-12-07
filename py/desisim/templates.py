@@ -1968,11 +1968,14 @@ class SIMQSO():
         """Read the QSO basis continuum templates, filter profiles and initialize the
            output wavelength array.
 
-        **Uses the DR9 QSO LF.
+        **
 
         Note:
           Only a linearly-spaced output wavelength array is currently supported
           although an arbitrary wavelength array is possible.
+
+          Much of the infrastructure below is hard-coded to use the SDSS/DR9
+          quasar luminosity function (see https://arxiv.org/abs/1210.6389).
 
         Args:
           minwave (float, optional): minimum value of the output wavelength
@@ -2148,14 +2151,7 @@ class SIMQSO():
         if input_meta is not None:
             log.warning('Input metadata table not yet supported!')
             raise ValueError
-            nmodel = len(input_meta)
-
-            templateseed = input_meta['SEED'].data
-            redshift = input_meta['REDSHIFT'].data
-            mag = input_meta['MAG'].data
-
-            meta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
-            
+        
         else:
             meta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
 
@@ -2175,34 +2171,6 @@ class SIMQSO():
         for key, value in zip(('REDSHIFT', 'MAG', 'SEED'),
                                (redshift, mag, templateseed)):
             meta[key] = value
-
-        # Pre-compute the Lyman-alpha skewers.
-        if lyaforest:
-            meta['SUBTYPE'] = 'LYA'
-
-            qso_skewer_flux = np.zeros([nmodel, len(self.basewave)])
-            
-            for ii in range(nmodel):
-                skewer_wave, skewer_flux1 = self.lyamock_maker.get_lya_skewers(
-                    1, new_seed=templateseed[ii])
-                #if ii == 0:
-                #    skewer_flux = np.zeros( (nmodel, len(skewer_wave)) )
-                #skewer_flux[ii, :] = skewer_flux1
-
-                #no_forest = ( skewer_wave > self.lambda_lyalpha * (1 + redshift[ii]) )
-                #skewer_flux[no_forest] = 1.0
-
-                qso_skewer_flux[ii, :] = resample_flux(self.basewave, skewer_wave,
-                                                       np.squeeze(skewer_flux1),
-                                                       extrapolate=True)
-                #skewer_flux[ii, no_forest] = 1.0p
-                #qso_skewer_flux = resample_flux(self.basewave, skewer_wave, skewer_flux[ii, :],
-                #                                extrapolate=True)
-                
-                optthick = self.basewave < ( self.lambda_lylimit * (1 + redshift[ii]) )
-                noforest = self.basewave > ( self.lambda_lyalpha * (1 + redshift[ii]) )
-                qso_skewer_flux[ii, optthick] = 0.0
-                qso_skewer_flux[ii, noforest] = 1.0
 
         # Now, generate the spectra, iterating (up to maxiter) until enough
         # models have passed the color-cuts.
