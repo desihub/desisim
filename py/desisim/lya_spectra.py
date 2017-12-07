@@ -7,6 +7,7 @@ Function to simulate a QSO spectrum including Lyman-alpha absorption.
 from __future__ import division, print_function
 
 import numpy as np
+import fitsio
 from scipy.special import wofz
 
 from astropy import constants as const
@@ -14,6 +15,29 @@ from astropy import constants as const
 from pkg_resources import resource_filename
 
 c_cgs = const.c.to('cm/s').value
+
+def read_lya_skewers(lyafile,indices=None) :
+    # this is the new format set up by Andreu
+    h = fitsio.FITS(lyafile)
+    wave  = h["WAVELENGTH"].read()
+    trans = h["TRANSMISSION"].read().T # now shape is (nqso,nwave)
+    meta  = h["METADATA"].read()
+    if indices is not None :
+        trans = trans[indices]
+        meta=meta[:][indices]
+    return wave,trans,meta
+
+def apply_lyman_alpha_transmission(qso_wave,qso_flux,trans_wave,trans) :
+    # this routine simply apply the transmission
+    # the only thing besides multiplication is a wavelength interpolation
+    # of transmission to the QSO wavelength grid
+    if qso_flux.shape[0] != trans.shape[0] :
+        raise(ValueError("not same number of qso {} {}".format(qso_flux.shape[0],trans.shape[0])))
+    
+    output_flux = qso_flux.copy()
+    for q in range(qso_flux.shape[0]) :
+        output_flux[q] *= np.interp(qso_wave,trans_wave,trans[q],left=0,right=1)
+    return output_flux
 
 
 def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss2010-g',
