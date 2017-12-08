@@ -116,8 +116,15 @@ def main(args=None):
             camera = '{}{}'.format(sim.camera_names[i], spectro)
             meta = simspec.header.copy()
             meta['CAMERA'] = camera
+            if args.cframe :
+                units = '1e-17 erg/(s cm2 A)'
+            else :
+                units = 'photon/bin'
+            if 'BUNIT' in meta :
+                meta['BUNIT']=units
+            
             frame = Frame(wave, xphot, xivar, resolution_data=Rdata[0:imax-imin],
-                spectrograph=spectro, fibermap=xfibermap, meta=meta)
+                          spectrograph=spectro, fibermap=xfibermap, meta=meta)
             if args.cframe :
                 outfile = desispec.io.findfile('cframe', night, expid, camera,
                                                outdir=args.outdir)
@@ -125,4 +132,4 @@ def main(args=None):
                 outfile = desispec.io.findfile('frame', night, expid, camera,
                                                outdir=args.outdir)
             print('writing {}'.format(outfile))
-            desispec.io.write_frame(outfile, frame)
+            desispec.io.write_frame(outfile, frame, units=units)
