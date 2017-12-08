@@ -14,6 +14,7 @@ parser.add_argument('--dryrun', action='store_true', help="print commands but do
 parser.add_argument('--mpi', action='store_true', help="use MPI parallelism")
 parser.add_argument('--start', type=str, help="start date YEARMMDD")
 parser.add_argument('--stop', type=str, help="stop date YEARMMDD")
+parser.add_argument('--cframe',  action='store_true', help="directly write cframe")
 args = parser.parse_args()
 
 #- Load MPI and establish communication
@@ -75,7 +76,10 @@ if rank == 0:
             #- This precheck could get slow; consider caching differently
             done = True
             for camera in cameras:
-                framefile = desispec.io.findfile('frame', night, expid, camera)
+                if args.cframe :
+                    framefile = desispec.io.findfile('cframe', night, expid, camera)
+                else :
+                    framefile = desispec.io.findfile('frame', night, expid, camera)
                 if not os.path.exists(framefile):
                     simspecfiles.append( (flavor, filename) )
                     done = False
@@ -104,6 +108,8 @@ if rank < len(simspecfiles):
             cmd = cmd + " --outdir {}".format(args.outdir)
         if args.clobber:
             cmd = cmd + " --clobber"
+        if args.cframe:
+            cmd = cmd + " --cframe"
         
         print('Rank {} running {}: {}'.format(rank, flavor, cmd))
         sys.stdout.flush()
