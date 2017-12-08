@@ -2171,9 +2171,10 @@ class SIMQSO():
         from desispec.interpolation import resample_flux
         from desiutil.log import get_logger, DEBUG
 
-        from simqso.sqgrids import generateQlfPoints, ConstSampler
-        from simqso.sqmodels import get_BossDr9_model_vars
+        from simqso.sqgrids import generateQlfPoints, ConstSampler, HIAbsorptionVar
+        from simqso.sqmodels import get_BossDr9_model_vars, forestModels
         from simqso.sqrun import buildSpectraBulk
+        from simqso.hiforest import IGMTransmissionGrid
 
         if verbose:
             log = get_logger(DEBUG)
@@ -2210,7 +2211,7 @@ class SIMQSO():
         qsometa = self.empty_qsometa(meta)
 
         outflux = np.zeros([nmodel, len(self.wave)])
-            
+
         # Generate the parameters of the spectra and the spectra themselves,
         # iterating (up to maxiter) until enough models have passed the color
         # cuts.
@@ -2230,25 +2231,30 @@ class SIMQSO():
             # Add the fiducial quasar SED model from BOSS/DR9, optionally
             # without IGM absorption. This step adds a fiducial continuum,
             # emission-line template, and an iron emission-line template.
-            print(itercount)
             
-            iterwave = self.basewave.copy()
-            if np.count_nonzero(self.basewave - iterwave) > 0:
-                raise ValueError('Wavelength array changed!')
+            #iterwave = self.basewave.copy()
+            #if np.count_nonzero(self.basewave - iterwave) > 0:
+            #    raise ValueError('Wavelength array changed!')
 
-            logwave = np.log(iterwave)
-            dloglam = np.diff(logwave)
-            if not np.allclose(dloglam, dloglam[0]):
-                raise ValueError("Must have constant dloglam")
+            #logwave = np.log(iterwave)
+            #dloglam = np.diff(logwave)
+            #if not np.allclose(dloglam, dloglam[0]):
+            #    raise ValueError("Must have constant dloglam")
             
-            #assert(np.all(self.basewave == iterwave) == True)
-            sedVars = get_BossDr9_model_vars(qsos, iterwave, noforest=not lyaforest)
+            sedVars = get_BossDr9_model_vars(qsos, self.basewave, noforest=True)
 
             # Add hot dust.
             self.sublimdust.set_associated_var(sedVars[0])
             self.hotdust.set_associated_var(sedVars[0])
-
             qsos.addVars(sedVars+[self.sublimdust, self.hotdust])
+
+            # Add the Lyman-alpha forest (optionally).
+            if lyaforest:
+                igmGrid = IGMTransmissionGrid(self.basewave,
+                                              forestModels['Worseck&Prochaska2011'],
+                                              len(qsos.z), zmax=qsos.z.max(), voigtcache=False)
+                hiVar = HIAbsorptionVar(igmGrid, subsample=False)
+                qsos.addVar(hiVar)
 
             # Establish the desired (output) photometric system.
             qsos.loadPhotoMap([('DECam', 'DECaLS'), ('WISE', 'AllWISE')])
@@ -2256,7 +2262,7 @@ class SIMQSO():
             # Finally, generate the spectra, iterating in order to converge on the
             # per-object K-correction (typically, after ~two steps the maximum error
             # on the absolute mags is typically <<1%).
-            _, flux = buildSpectraBulk(iterwave, qsos, maxIter=5,
+            _, flux = buildSpectraBulk(self.basewave, qsos, maxIter=5,
                                        procMap=self.procMap, saveSpectra=True,
                                        verbose=False)
             #flux *= qso_skewer_flux[need, :]
