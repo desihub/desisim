@@ -2014,6 +2014,7 @@ class SIMQSO():
 
         from simqso.sqbase import ContinuumKCorr, fixed_R_dispersion
         from simqso.sqmodels import BOSS_DR9_PLEpivot
+        from simqso.sqgrids import ConstSampler, DustBlackbodyVar
 
         log = get_logger()
 
@@ -2050,7 +2051,7 @@ class SIMQSO():
         self.lambda_lyalpha = 1215.67
 
         # Iniatilize the Lyman-alpha mock maker.
-        self.lyamock_maker = lyamock.MockMaker()
+        # self.lyamock_maker = lyamock.MockMaker()
 
         # Initialize the filter profiles.
         self.normfilt = filters.load_filters(self.normfilter)
@@ -2066,33 +2067,77 @@ class SIMQSO():
             outfilt = 'DECam-{}'.format(filt[-1])
             return outfilt
             
-        print('ToDo: Update to LegacySurvey filters!! What is 1450?')
+        # Initialize the K-correction and luminosity function objects.
         self.kcorr = ContinuumKCorr(_filtname(self.normfilter), 1450, effWaveBand='SDSS-r')
         self.qlf = BOSS_DR9_PLEpivot(cosmo=self.cosmo)
 
-    def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(20.0, 22.5),
-                       seed=None, redshift=None, mag=None, input_meta=None, 
-                       maxiter=20, lyaforest=True, nocolorcuts=False, restframe=False,
+        # Initialize the two dust components from Lyu & Rieke 2017, but reduce the
+        # hot dust flux by a factor of two.
+        self.sublimdust = DustBlackbodyVar([ConstSampler(0.05), ConstSampler(1800.)], name='sublimdust')
+        self.hotdust = DustBlackbodyVar([ConstSampler(0.1), ConstSampler(880.0)], name='hotdust')
+
+    def empty_qsometa(self, meta):
+        """Initialize the QSO metadata table."""
+
+        from astropy.table import Table, Column
+
+        #from simqso.sqgrids import AbsMagVar, RedshiftVar, FixedSampler, QsoSimPoints
+        #from simqso.sqbase import fixed_R_dispersion
+        #wave = fixed_R_dispersion(3000, 5000, 1000)
+        #M = AbsMagVar(FixedSampler(np.array([-25, -26])), restWave=1450)
+        #z = RedshiftVar(FixedSampler(np.array([3.0, 3.1])))
+        #qq = QsoSimPoints([M, z], cosmo=self.cosmo, units='luminosity')
+        #qq.addVars(get_BossDr9_model_vars(qq, wave, 0, noforest=False))
+        ##qq.loadPhotoMap([('DECam','DECaLS'),('WISE','AllWISE')])
+        #
+        #_, spectra = buildSpectraBulk(wave, qq)
+        #qdata = qq.data[0]
+
+        nmodel = len(meta)
+
+        qsometa = Table()
+        qsometa.add_column(meta['TEMPLATEID'].copy())
+        qsometa.add_column(Column(name='ABSMAG', length=nmodel, dtype='f4'))
+        qsometa.add_column(Column(name='SLOPES', length=nmodel, dtype='f4',
+                                  shape=(5,)))
+        qsometa.add_column(Column(name='EMLINES', length=nmodel, dtype='f4',
+                                  shape=(62,3)))
+                                  
+        return qsometa
+
+
+    def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(19.0, 23.0),
+                       seed=None, redshift=None, input_meta=None, maxiter=20,
+                       lyaforest=True, nocolorcuts=False, restframe=False,
                        verbose=False):
         """Build Monte Carlo QSO spectra/templates.
 
-        This function generates QSO spectra on-the-fly using simqso.  The
-        default is to generate flat, uncorrelated priors on redshift and
-        apparent magnitude (in the bandpass specified by self.normfilter).
+        * This function generates QSO spectra on-the-fly using @imcgreer's
+          simqso.  The default is to generate flat, uncorrelated priors on
+          redshift, absolute magnitudes based on the SDSS/DR9 QSOLF, and to
+          compute the corresponding apparent magnitudes using the appropriate
+          per-object K-correction.
 
-        However, the user also (optionally) has flexibility over the
-        inputs/outputs and can specify any combination of the redshift and
-        output apparent magnitude.  Alternatively, the user can pass a complete
-        metadata table, in order to easily regenerate spectra on-the-fly (see
-        the documentation for the input_meta argument, below).
+          Alternatively, the redshift can be input and the absolute and apparent
+          magnitudes will again be computed self-consistently from the QSOLF.
+
+          Providing apparent magnitudes on *input* is not supported although it
+          could be if there is need.  However, one can control the apparent
+          brightness of the resulting QSO spectra by specifying rmagrange.
+
+        * The way the code is currently structured could lead to memory problems
+          if one attempts to generate very large numbers of spectra
+          simultaneously (>10^4, perhaps, depending on the machine).  However,
+          it can easily be refactored to generate the appropriate number of
+          templates in chunks at the expense of some computational speed.
 
         Args:
           nmodel (int, optional): Number of models to generate (default 100).
           zrange (float, optional): Minimum and maximum redshift range.  Defaults
             to a uniform distribution between (0.5, 4.0).
           rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
-            magnitude range.  Defaults to a uniform distribution between (21,
-            23.0).
+            magnitude range.  Defaults to a uniform distribution between (19,
+            23).
           seed (int, optional): input seed for the random numbers.
           redshift (float, optional): Input/output template redshifts.  Array
             size must equal nmodel.  Ignores zrange input.
@@ -2127,7 +2172,7 @@ class SIMQSO():
         from desispec.interpolation import resample_flux
         from desiutil.log import get_logger, DEBUG
 
-        from simqso.sqgrids import generateQlfPoints
+        from simqso.sqgrids import generateQlfPoints, ConstSampler
         from simqso.sqmodels import get_BossDr9_model_vars
         from simqso.sqrun import buildSpectraBulk
 
@@ -2141,11 +2186,6 @@ class SIMQSO():
                 log.fatal('Redshift must be an nmodel-length array')
                 raise ValueError
             zrange = (np.min(redshift), np.max(redshift))
-
-        if mag is not None:
-            if len(mag) != nmodel:
-                log.fatal('Mag must be an nmodel-length array')
-                raise ValueError
 
         # Optionally unpack a metadata table.
         if input_meta is not None:
@@ -2162,49 +2202,44 @@ class SIMQSO():
             # Assign redshift and magnitude priors.
             if redshift is None:
                 redshift = rand.uniform(zrange[0], zrange[1], nmodel)
-
-            if mag is None:
-                mag = rand.uniform(rmagrange[0], rmagrange[1], nmodel).astype('f4')
-
+            
         # Populate some of the metadata table.
         meta['TEMPLATEID'] = np.arange(nmodel)
-        for key, value in zip(('REDSHIFT', 'MAG', 'SEED'),
-                               (redshift, mag, templateseed)):
-            meta[key] = value
+        meta['REDSHIFT'] = redshift
+        
+        # Initialize the QSO metadata table and output flux array.
+        qsometa = self.empty_qsometa(meta)
 
-        # Now, generate the spectra, iterating (up to maxiter) until enough
-        # models have passed the color-cuts.
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
+        
+        # Generate the parameters of the spectra and the spectra themselves,
+        # iterating (up to maxiter) until enough models have passed the color
+        # cuts.
         need = np.where( np.sum(outflux, axis=1) == 0 )[0]
 
         itercount = 0
-        qsometa_list = list()
-
         iterseed = rand.randint(2**32, size=maxiter)
+
         while (len(need) > 0):
 
-            stop
-            
-            from simqso.sqgrids import QsoSimPoints
-            M = AbsMagVar(FixedSampler(linspace(-27,-25,nqso)[::-1]),restWave=1450)
-            z = RedshiftVar(FixedSampler(linspace(2,4,nqso)))
-
-            import pdb ; pdb.set_trace()
-            qsos = QsoSimPoints([mag, redshift], cosmo=self.cosmo, units='flux')
-                        
             # Sample from the QLF, using the input redshifts.
-            print('Need to be able to input apparent magnitudes and random seed.')
             qsos = generateQlfPoints(self.qlf, rmagrange, zrange,
                                      kcorr=self.kcorr, zin=redshift[need],
                                      qlfseed=iterseed[itercount],
                                      gridseed=iterseed[itercount])
 
-            # Add the fiducial quasar SED model from BOSS/DR9 but without IGM
-            # absorption. This step adds a fiducial continuum, emission-line
-            # template, and an iron emission-line template.
-            qsos.addVars(get_BossDr9_model_vars(qsos, self.basewave, 0, noforest=True))
+            # Add the fiducial quasar SED model from BOSS/DR9, optionally
+            # without IGM absorption. This step adds a fiducial continuum,
+            # emission-line template, and an iron emission-line template.
+            sedVars = get_BossDr9_model_vars(qsos, self.basewave, 0, noforest=True)#not lyaforest)
 
-            # Define photometry in the SDSS system to calibrate the apparent magnitudes.
+            # Add hot dust.
+            self.sublimdust.set_associated_var(sedVars[0])
+            self.hotdust.set_associated_var(sedVars[0])
+
+            qsos.addVars(sedVars+[self.sublimdust, self.hotdust])
+
+            # Establish the desired (output) photometric system.
             qsos.loadPhotoMap([('DECam', 'DECaLS'), ('WISE', 'AllWISE')])
 
             # Finally, generate the spectra, iterating in order to converge on the
@@ -2213,7 +2248,7 @@ class SIMQSO():
             _, flux = buildSpectraBulk(self.basewave, qsos, maxIter=5,
                                        procMap=self.procMap, saveSpectra=True,
                                        verbose=False)
-            flux *= qso_skewer_flux[need, :]
+            #flux *= qso_skewer_flux[need, :]
 
             # Synthesize photometry to determine which models will pass the
             # color-cuts.
@@ -2224,11 +2259,10 @@ class SIMQSO():
             else:
                 normmaggies = np.array(self.normfilt.get_ab_maggies(
                     flux, self.basewave, mask_invalid=True)[self.normfilter])
-            magnorm = 10**(-0.4*mag[need]) / normmaggies
 
             synthnano = dict()
             for key in maggies.columns:
-                synthnano[key] = 1E9 * maggies[key] * magnorm
+                synthnano[key] = 1E9 * maggies[key]
 
             if nocolorcuts or self.colorcuts_function is None:
                 colormask = np.repeat(1, len(need))
@@ -2241,21 +2275,27 @@ class SIMQSO():
                     w2flux=synthnano['wise2010-W2'],
                     optical=True)
 
-            # If the color-cuts pass then populate the output flux vector
-            # and metadata table and finish up.
+            # For objects that pass the color cuts, populate the output flux
+            # vector, the metadata and qsometadata tables, and finish up.
             these = np.where(colormask)[0]
             if len(these) > 0:
                 for ii in range(len(these)):
-                    outflux[need[these[ii]], :] = resample_flux(self.wave, self.basewave, flux[these[ii], :],
-                                                                extrapolate=True) * magnorm[these[ii]]
+                    outflux[need[these[ii]], :] = resample_flux(
+                        self.wave, self.basewave, flux[these[ii], :],
+                        extrapolate=True
+                        )
 
+                meta['SEED'][need] = iterseed[itercount]
+                meta['MAG'][need[these]] = -2.5 * np.log10(normmaggies[these])
                 meta['FLUX_G'][need[these]] = synthnano['decam2014-g'][these]
                 meta['FLUX_R'][need[these]] = synthnano['decam2014-r'][these]
                 meta['FLUX_Z'][need[these]] = synthnano['decam2014-z'][these]
                 meta['FLUX_W1'][need[these]] = synthnano['wise2010-W1'][these]
                 meta['FLUX_W2'][need[these]] = synthnano['wise2010-W2'][these]
 
-                qsometa_list.append( (need[these], qsos.data[these]) )
+                qsometa['ABSMAG'][need[these]] = qsos.data['absMag'][these].data
+                qsometa['SLOPES'][need[these], :] = qsos.data['slopes'][these, :].data
+                qsometa['EMLINES'][need[these], :, :] = qsos.data['emLines'][these, :, :].data
 
             itercount += 1
             need = np.where( np.sum(outflux, axis=1) == 0 )[0]
@@ -2269,8 +2309,6 @@ class SIMQSO():
             log.warning('{} spectra could not be computed given the input priors!'.\
                         format(np.sum(success == 0)))
 
-        #for indx, _qsometa in qsometa_list:
-                        
         return 1e17 * outflux, self.wave, meta
         #return 1e17 * outflux, self.wave, meta, qsometa
 
