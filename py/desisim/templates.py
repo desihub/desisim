@@ -2105,10 +2105,9 @@ class SIMQSO():
                                   
         return qsometa
 
-
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(19.0, 23.0),
                        seed=None, redshift=None, input_meta=None, maxiter=20,
-                       lyaforest=True, nocolorcuts=False, restframe=False,
+                       lyaforest=True, nocolorcuts=False, return_qsometa=False,
                        verbose=False):
         """Build Monte Carlo QSO spectra/templates.
 
@@ -2210,8 +2209,8 @@ class SIMQSO():
         # Initialize the QSO metadata table and output flux array.
         qsometa = self.empty_qsometa(meta)
 
-        outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
-        
+        outflux = np.zeros([nmodel, len(self.wave)])
+            
         # Generate the parameters of the spectra and the spectra themselves,
         # iterating (up to maxiter) until enough models have passed the color
         # cuts.
@@ -2231,7 +2230,19 @@ class SIMQSO():
             # Add the fiducial quasar SED model from BOSS/DR9, optionally
             # without IGM absorption. This step adds a fiducial continuum,
             # emission-line template, and an iron emission-line template.
-            sedVars = get_BossDr9_model_vars(qsos, self.basewave, 0, noforest=True)#not lyaforest)
+            print(itercount)
+            
+            iterwave = self.basewave.copy()
+            if np.count_nonzero(self.basewave - iterwave) > 0:
+                raise ValueError('Wavelength array changed!')
+
+            logwave = np.log(iterwave)
+            dloglam = np.diff(logwave)
+            if not np.allclose(dloglam, dloglam[0]):
+                raise ValueError("Must have constant dloglam")
+            
+            #assert(np.all(self.basewave == iterwave) == True)
+            sedVars = get_BossDr9_model_vars(qsos, iterwave, noforest=not lyaforest)
 
             # Add hot dust.
             self.sublimdust.set_associated_var(sedVars[0])
@@ -2245,7 +2256,7 @@ class SIMQSO():
             # Finally, generate the spectra, iterating in order to converge on the
             # per-object K-correction (typically, after ~two steps the maximum error
             # on the absolute mags is typically <<1%).
-            _, flux = buildSpectraBulk(self.basewave, qsos, maxIter=5,
+            _, flux = buildSpectraBulk(iterwave, qsos, maxIter=5,
                                        procMap=self.procMap, saveSpectra=True,
                                        verbose=False)
             #flux *= qso_skewer_flux[need, :]
@@ -2272,8 +2283,7 @@ class SIMQSO():
                     rflux=synthnano['decam2014-r'],
                     zflux=synthnano['decam2014-z'],
                     w1flux=synthnano['wise2010-W1'],
-                    w2flux=synthnano['wise2010-W2'],
-                    optical=True)
+                    w2flux=synthnano['wise2010-W2'])
 
             # For objects that pass the color cuts, populate the output flux
             # vector, the metadata and qsometadata tables, and finish up.
@@ -2282,8 +2292,7 @@ class SIMQSO():
                 for ii in range(len(these)):
                     outflux[need[these[ii]], :] = resample_flux(
                         self.wave, self.basewave, flux[these[ii], :],
-                        extrapolate=True
-                        )
+                        extrapolate=True)
 
                 meta['SEED'][need] = iterseed[itercount]
                 meta['MAG'][need[these]] = -2.5 * np.log10(normmaggies[these])
@@ -2309,8 +2318,10 @@ class SIMQSO():
             log.warning('{} spectra could not be computed given the input priors!'.\
                         format(np.sum(success == 0)))
 
-        return 1e17 * outflux, self.wave, meta
-        #return 1e17 * outflux, self.wave, meta, qsometa
+        if return_qsometa:
+            return 1e17 * outflux, self.wave, meta, qsometa
+        else:
+            return 1e17 * outflux, self.wave, meta
 
 def specify_galparams_dict(templatetype, zrange=None, magrange=None,
                             oiiihbrange=None, logvdisp_meansig=None,
