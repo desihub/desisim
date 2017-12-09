@@ -2014,7 +2014,7 @@ class SIMQSO():
 
         from simqso.sqbase import ContinuumKCorr, fixed_R_dispersion
         from simqso.sqmodels import BOSS_DR9_PLEpivot
-        from simqso.sqgrids import ConstSampler, DustBlackbodyVar
+        #from simqso.sqgrids import ConstSampler, DustBlackbodyVar
 
         log = get_logger()
 
@@ -2073,8 +2073,8 @@ class SIMQSO():
 
         # Initialize the two dust components from Lyu & Rieke 2017, but reduce the
         # hot dust flux by a factor of two.
-        self.sublimdust = DustBlackbodyVar([ConstSampler(0.05), ConstSampler(1800.)], name='sublimdust')
-        self.hotdust = DustBlackbodyVar([ConstSampler(0.1), ConstSampler(880.0)], name='hotdust')
+        #self.sublimdust = DustBlackbodyVar([ConstSampler(0.05), ConstSampler(1800.)], name='sublimdust')
+        #self.hotdust = DustBlackbodyVar([ConstSampler(0.1), ConstSampler(880.0)], name='hotdust')
 
     def empty_qsometa(self, meta):
         """Initialize the QSO metadata table."""
@@ -2171,7 +2171,8 @@ class SIMQSO():
         from desispec.interpolation import resample_flux
         from desiutil.log import get_logger, DEBUG
 
-        from simqso.sqgrids import generateQlfPoints, ConstSampler, HIAbsorptionVar
+        from simqso.sqgrids import (generateQlfPoints, ConstSampler,
+                                    HIAbsorptionVar, DustBlackbodyVar)
         from simqso.sqmodels import get_BossDr9_model_vars, forestModels
         from simqso.sqrun import buildSpectraBulk
         from simqso.hiforest import IGMTransmissionGrid
@@ -2231,30 +2232,17 @@ class SIMQSO():
             # Add the fiducial quasar SED model from BOSS/DR9, optionally
             # without IGM absorption. This step adds a fiducial continuum,
             # emission-line template, and an iron emission-line template.
-            
-            #iterwave = self.basewave.copy()
-            #if np.count_nonzero(self.basewave - iterwave) > 0:
-            #    raise ValueError('Wavelength array changed!')
-
-            #logwave = np.log(iterwave)
-            #dloglam = np.diff(logwave)
-            #if not np.allclose(dloglam, dloglam[0]):
-            #    raise ValueError("Must have constant dloglam")
-            
-            sedVars = get_BossDr9_model_vars(qsos, self.basewave, noforest=True)
+            sedVars = get_BossDr9_model_vars(qsos, self.basewave, noforest=not lyaforest)
 
             # Add hot dust.
-            self.sublimdust.set_associated_var(sedVars[0])
-            self.hotdust.set_associated_var(sedVars[0])
-            qsos.addVars(sedVars+[self.sublimdust, self.hotdust])
-
-            # Add the Lyman-alpha forest (optionally).
-            if lyaforest:
-                igmGrid = IGMTransmissionGrid(self.basewave,
-                                              forestModels['Worseck&Prochaska2011'],
-                                              len(qsos.z), zmax=qsos.z.max(), voigtcache=False)
-                hiVar = HIAbsorptionVar(igmGrid, subsample=False)
-                qsos.addVar(hiVar)
+            sublimdust = DustBlackbodyVar([ConstSampler(0.05), ConstSampler(1800.)],
+                                          name='sublimdust')
+            hotdust = DustBlackbodyVar([ConstSampler(0.1), ConstSampler(880.0)],
+                                       name='hotdust')
+            sublimdust.set_associated_var(sedVars[0])
+            hotdust.set_associated_var(sedVars[0])
+            
+            qsos.addVars(sedVars+[sublimdust, hotdust])
 
             # Establish the desired (output) photometric system.
             qsos.loadPhotoMap([('DECam', 'DECaLS'), ('WISE', 'AllWISE')])
@@ -2265,17 +2253,16 @@ class SIMQSO():
             _, flux = buildSpectraBulk(self.basewave, qsos, maxIter=5,
                                        procMap=self.procMap, saveSpectra=True,
                                        verbose=False)
-            #flux *= qso_skewer_flux[need, :]
 
             # Synthesize photometry to determine which models will pass the
             # color-cuts.
-            maggies = self.decamwise.get_ab_maggies(flux, self.basewave, mask_invalid=True)
+            maggies = self.decamwise.get_ab_maggies(flux, self.basewave.copy(), mask_invalid=True)
 
             if self.normfilter in self.decamwise.names:
                 normmaggies = np.array(maggies[self.normfilter])
             else:
                 normmaggies = np.array(self.normfilt.get_ab_maggies(
-                    flux, self.basewave, mask_invalid=True)[self.normfilter])
+                    flux, self.basewave.copy(), mask_invalid=True)[self.normfilter])
 
             synthnano = dict()
             for key in maggies.columns:
