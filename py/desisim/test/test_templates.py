@@ -4,7 +4,7 @@ import os
 import unittest
 import numpy as np
 from astropy.table import Table, Column
-from desisim.templates import ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR, WD
+from desisim.templates import ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR, WD, SIMQSO
 from desisim import lya_mock_p1d as lyamock
 
 desimodel_data_available = 'DESIMODEL' in os.environ
@@ -31,7 +31,7 @@ class TestTemplates(unittest.TestCase):
     def test_simple(self):
         '''Confirm that creating templates works at all'''
         print('In function test_simple, seed = {}'.format(self.seed))
-        for T in [ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR, WD]:
+        for T in [ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR, WD, SIMQSO]:
             template_factory = T(wave=self.wave)
             flux, wave, meta = template_factory.make_templates(self.nspec, seed=self.seed)
             self._check_output_size(flux, wave, meta)
@@ -56,7 +56,7 @@ class TestTemplates(unittest.TestCase):
     def test_random_seed(self):
         '''Test that random seed works to get the same results back'''
         print('In function test_input_random_seed, seed = {}'.format(self.seed))
-        for T in [ELG, QSO, MWS_STAR]:
+        for T in [ELG, QSO, MWS_STAR, SIMQSO]:
             Tx = T(wave=self.wave)
             flux1, wave1, meta1 = Tx.make_templates(self.nspec, seed=1)
             flux2, wave2, meta2 = Tx.make_templates(self.nspec, seed=1)
@@ -108,7 +108,7 @@ class TestTemplates(unittest.TestCase):
         '''Test that we can input the redshift for a representative galaxy and star class.'''
         print('In function test_input_redshift, seed = {}'.format(self.seed))
         zrange = np.array([(0.5, 1.0), (0.5, 4.0), (-0.003, 0.003)])
-        for zminmax, T in zip(zrange, [LRG, QSO, STAR]):
+        for zminmax, T in zip(zrange, [LRG, QSO, STAR, SIMQSO]):
             redshift = np.random.uniform(zminmax[0], zminmax[1], self.nspec)
             Tx = T(wave=self.wave)
             flux, wave, meta = Tx.make_templates(self.nspec, redshift=redshift, seed=self.seed)
@@ -195,6 +195,6 @@ class TestTemplates(unittest.TestCase):
         self.assertTrue(np.all(flux1==flux2))
         self.assertTrue(np.any(flux1!=flux3))
         self.assertTrue(np.all(wave1==wave2))
-    
+
 if __name__ == '__main__':
     unittest.main()

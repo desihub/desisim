@@ -2171,11 +2171,9 @@ class SIMQSO():
         from desispec.interpolation import resample_flux
         from desiutil.log import get_logger, DEBUG
 
-        from simqso.sqgrids import (generateQlfPoints, ConstSampler,
-                                    HIAbsorptionVar, DustBlackbodyVar)
-        from simqso.sqmodels import get_BossDr9_model_vars, forestModels
+        from simqso.sqgrids import generateQlfPoints, ConstSampler, DustBlackbodyVar
+        from simqso.sqmodels import get_BossDr9_model_vars
         from simqso.sqrun import buildSpectraBulk
-        from simqso.hiforest import IGMTransmissionGrid
 
         if verbose:
             log = get_logger(DEBUG)
