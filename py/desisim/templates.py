@@ -1968,8 +1968,6 @@ class SIMQSO():
         """Read the QSO basis continuum templates, filter profiles and initialize the
            output wavelength array.
 
-        **
-
         Note:
           Only a linearly-spaced output wavelength array is currently supported
           although an arbitrary wavelength array is possible.
@@ -2001,9 +1999,6 @@ class SIMQSO():
           decamwise (speclite.filters instance): DECam2014-[g,r,z] and WISE2010-[W1,W2]
             FilterSequence.
 
-        kcorr
-        qlf
-
         """
         from astropy.io import fits
         from astropy import cosmology
@@ -2014,7 +2009,6 @@ class SIMQSO():
 
         from simqso.sqbase import ContinuumKCorr, fixed_R_dispersion
         from simqso.sqmodels import BOSS_DR9_PLEpivot
-        #from simqso.sqgrids import ConstSampler, DustBlackbodyVar
 
         log = get_logger()
 
@@ -2050,9 +2044,6 @@ class SIMQSO():
         self.lambda_lylimit = 911.76
         self.lambda_lyalpha = 1215.67
 
-        # Iniatilize the Lyman-alpha mock maker.
-        # self.lyamock_maker = lyamock.MockMaker()
-
         # Initialize the filter profiles.
         self.normfilt = filters.load_filters(self.normfilter)
         self.decamwise = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
@@ -2071,27 +2062,10 @@ class SIMQSO():
         self.kcorr = ContinuumKCorr(_filtname(self.normfilter), 1450, effWaveBand='SDSS-r')
         self.qlf = BOSS_DR9_PLEpivot(cosmo=self.cosmo)
 
-        # Initialize the two dust components from Lyu & Rieke 2017, but reduce the
-        # hot dust flux by a factor of two.
-        #self.sublimdust = DustBlackbodyVar([ConstSampler(0.05), ConstSampler(1800.)], name='sublimdust')
-        #self.hotdust = DustBlackbodyVar([ConstSampler(0.1), ConstSampler(880.0)], name='hotdust')
-
     def empty_qsometa(self, meta):
         """Initialize the QSO metadata table."""
 
         from astropy.table import Table, Column
-
-        #from simqso.sqgrids import AbsMagVar, RedshiftVar, FixedSampler, QsoSimPoints
-        #from simqso.sqbase import fixed_R_dispersion
-        #wave = fixed_R_dispersion(3000, 5000, 1000)
-        #M = AbsMagVar(FixedSampler(np.array([-25, -26])), restWave=1450)
-        #z = RedshiftVar(FixedSampler(np.array([3.0, 3.1])))
-        #qq = QsoSimPoints([M, z], cosmo=self.cosmo, units='luminosity')
-        #qq.addVars(get_BossDr9_model_vars(qq, wave, 0, noforest=False))
-        ##qq.loadPhotoMap([('DECam','DECaLS'),('WISE','AllWISE')])
-        #
-        #_, spectra = buildSpectraBulk(wave, qq)
-        #qdata = qq.data[0]
 
         nmodel = len(meta)
 
@@ -2230,17 +2204,7 @@ class SIMQSO():
             # Add the fiducial quasar SED model from BOSS/DR9, optionally
             # without IGM absorption. This step adds a fiducial continuum,
             # emission-line template, and an iron emission-line template.
-            sedVars = get_BossDr9_model_vars(qsos, self.basewave, noforest=not lyaforest)
-
-            # Add hot dust.
-            sublimdust = DustBlackbodyVar([ConstSampler(0.05), ConstSampler(1800.)],
-                                          name='sublimdust')
-            hotdust = DustBlackbodyVar([ConstSampler(0.1), ConstSampler(880.0)],
-                                       name='hotdust')
-            sublimdust.set_associated_var(sedVars[0])
-            hotdust.set_associated_var(sedVars[0])
-            
-            qsos.addVars(sedVars+[sublimdust, hotdust])
+            qsos.addVars(get_BossDr9_model_vars(qsos, self.basewave, noforest=not lyaforest))
 
             # Establish the desired (output) photometric system.
             qsos.loadPhotoMap([('DECam', 'DECaLS'), ('WISE', 'AllWISE')])
@@ -2253,7 +2217,7 @@ class SIMQSO():
                                        verbose=False)
 
             # Synthesize photometry to determine which models will pass the
-            # color-cuts.
+            # color cuts.
             maggies = self.decamwise.get_ab_maggies(flux, self.basewave.copy(), mask_invalid=True)
 
             if self.normfilter in self.decamwise.names:
