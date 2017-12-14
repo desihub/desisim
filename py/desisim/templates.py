@@ -2040,7 +2040,7 @@ class SIMQSO():
             wave = np.linspace(minwave, maxwave, npix)
         self.wave = wave
 
-        self.basewave = fixed_R_dispersion(500.0, 20e4, 1000)
+        self.basewave = fixed_R_dispersion(900.0, 6e4, 8000)
         self.cosmo = cosmology.core.FlatLambdaCDM(70.0, 0.3)
 
         self.lambda_lylimit = 911.76
