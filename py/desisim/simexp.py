@@ -522,7 +522,6 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, dwave_out=No
             source_position_angle[elgs,0]=random_angles[elgs]
             source_position_angle[lrgs,1]=random_angles[lrgs]
             source_position_angle[bgss,1]=random_angles[bgss]
-            
     
     desi.simulate(source_fluxes=flux, focal_positions=xy, source_types=source_types,
                   source_fraction=source_fraction,

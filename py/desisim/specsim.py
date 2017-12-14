@@ -14,6 +14,9 @@ _simulators = dict()
 #- simulator back to a reference state before returning it as a cached copy
 _simdefaults = dict()
 
+import numpy as np
+
+from specsim.config import Configuration
 import desiutil.log
 log = desiutil.log.get_logger()
 
@@ -23,9 +26,15 @@ def get_simulator(config='desi', num_fibers=1):
 
     Also adds placeholder for BGS fiberloss if that isn't already in the config
     '''
-    key = (config, num_fibers)
+    if isinstance(config, Configuration):
+        w = config.wavelength
+        wavehash = (np.min(w), np.max(w), len(w))
+        key = (config.name, wavehash, num_fibers)
+    else:
+        key = (config, num_fibers)
+
     if key in _simulators:
-        log.debug('Returning cached {} Simulator'.format(config))
+        log.debug('Returning cached {} Simulator'.format(key))
         qsim = _simulators[key]
         defaults = _simdefaults[key]
         qsim.source.focal_xy = defaults['focal_xy']
@@ -36,7 +45,8 @@ def get_simulator(config='desi', num_fibers=1):
         qsim.atmosphere.moon.moon_zenith = defaults['moon_zenith']
 
     else:
-        log.debug('Creating new {} Simulator'.format(config))
+        log.debug('Creating new {} Simulator'.format(key))
+
         #- New config; create Simulator object
         import specsim.simulator
         qsim = specsim.simulator.Simulator(config, num_fibers)
