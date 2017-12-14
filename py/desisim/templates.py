@@ -2004,13 +2004,15 @@ class SIMQSO():
         from astropy import cosmology
         from speclite import filters
         from desisim.io import find_basis_template
+
         from desiutil.log import get_logger
-        from desisim import lya_mock_p1d as lyamock
-
-        from simqso.sqbase import ContinuumKCorr, fixed_R_dispersion
-        from simqso.sqmodels import BOSS_DR9_PLEpivot
-
         log = get_logger()
+
+        try:
+            from simqso.sqbase import ContinuumKCorr, fixed_R_dispersion
+            from simqso.sqmodels import BOSS_DR9_PLEpivot
+        except ImportError:
+            log.fatal('External dependency simqso not found!')
 
         self.objtype = 'QSO'
 
