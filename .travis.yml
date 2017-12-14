@@ -54,6 +54,7 @@ env:
         - SPECTER_VERSION=0.7.0
         - DESISPEC_VERSION=master
         - DESITARGET_VERSION=master
+        - SIMQSO_VERSION=master
         # - DESIMODEL_VERSION=trunk
         - DESI_LOGLEVEL=DEBUG
         - MAIN_CMD='python setup.py'
@@ -67,6 +68,7 @@ env:
         - PIP_DEPENDENCIES=""
         # These packages will only be installed if we really need them.
         - PIP_ALL_DEPENDENCIES="healpy speclite==${SPECLITE_VERSION} coveralls fitsio"
+        - PIP_SIMQSO_DEPENDENCY="simqso=${SIMQSO_VERSION}"
         # These pip packages need to be installed in a certain order, so we
         # do that separately from the astropy/ci-helpers scripts.
         - DESIHUB_PIP_DEPENDENCIES="desiutil=${DESIUTIL_VERSION}"
@@ -146,6 +148,7 @@ install:
     # egg_info causes the astropy/ci-helpers script to exit before the pip
     # packages are installed, thus desiutil is not installed in that script.
     - for p in $DESIHUB_PIP_DEPENDENCIES; do r=$(echo $p | cut -d= -f1); v=$(echo $p | cut -d= -f2); pip install git+https://github.com/desihub/${r}.git@${v}#egg=${r}; done
+    - for p in $PIP_SIMQSO_DEPENDENCY; do r=$(echo $p | cut -d= -f1); v=$(echo $p | cut -d= -f2); pip install git+https://github.com/imcgreer/${r}.git@${v}#egg=${r}; done
     # Install desimodel and desisim test data
     - if [[ $SETUP_CMD == test* ]]; then source etc/get_testdata.sh; fi
     - df -h
