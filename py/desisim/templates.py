@@ -2081,6 +2081,86 @@ class SIMQSO():
                                   
         return qsometa
 
+    def _make_templates(self, meta, redshift, rmagrange, zrange, seed=None,
+                        lyaforest=True, nocolorcuts=False):
+        """Wrapper function for actually generating the templates.
+
+        """ 
+        from desispec.interpolation import resample_flux
+        from simqso.sqmodels import get_BossDr9_model_vars
+        from simqso.sqrun import buildSpectraBulk
+        from simqso.sqgrids import generateQlfPoints
+
+        ntemp = len(redshift)
+        qsometa = self.empty_qsometa(meta)
+        outflux = np.zeros([ntemp, len(self.wave)])
+
+        # Sample from the QLF, using the input redshifts.
+        qsos = generateQlfPoints(self.qlf, rmagrange, zrange,
+                                 kcorr=self.kcorr, zin=redshift,
+                                 qlfseed=seed, gridseed=seed)
+
+        # Add the fiducial quasar SED model from BOSS/DR9, optionally
+        # without IGM absorption. This step adds a fiducial continuum,
+        # emission-line template, and an iron emission-line template.
+        qsos.addVars(get_BossDr9_model_vars(qsos, self.basewave, noforest=not lyaforest))
+
+        # Establish the desired (output) photometric system.
+        qsos.loadPhotoMap([('DECam', 'DECaLS'), ('WISE', 'AllWISE')])
+
+        # Finally, generate the spectra, iterating in order to converge on the
+        # per-object K-correction (typically, after ~two steps the maximum error
+        # on the absolute mags is typically <<1%).
+        _, flux = buildSpectraBulk(self.basewave, qsos, maxIter=5,
+                                   procMap=self.procMap, saveSpectra=True,
+                                   verbose=False)
+
+        # Synthesize photometry to determine which models will pass the
+        # color cuts.
+        maggies = self.decamwise.get_ab_maggies(flux, self.basewave.copy(), mask_invalid=True)
+
+        if self.normfilter in self.decamwise.names:
+            normmaggies = np.array(maggies[self.normfilter])
+        else:
+            normmaggies = np.array(self.normfilt.get_ab_maggies(
+                flux, self.basewave.copy(), mask_invalid=True)[self.normfilter])
+
+        synthnano = dict()
+        for key in maggies.columns:
+            synthnano[key] = 1E9 * maggies[key]
+
+        if nocolorcuts or self.colorcuts_function is None:
+            colormask = np.repeat(1, len(ntemp))
+        else:
+            colormask = self.colorcuts_function(
+                gflux=synthnano['decam2014-g'],
+                rflux=synthnano['decam2014-r'],
+                zflux=synthnano['decam2014-z'],
+                w1flux=synthnano['wise2010-W1'],
+                w2flux=synthnano['wise2010-W2'])
+
+        # For objects that pass the color cuts, populate the output flux
+        # vector, the metadata and qsometadata tables, and finish up.
+        these = np.where(colormask)[0]
+        if len(these) > 0:
+            for ii in range(len(these)):
+                outflux[these[ii], :] = resample_flux(
+                    self.wave, self.basewave, flux[these[ii], :],
+                    extrapolate=True)
+
+            meta['SEED'][these] = seed
+            meta['MAG'][these] = -2.5 * np.log10(normmaggies[these])
+            for band, filt in zip( ('FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2'),
+                                   ('decam2014-g', 'decam2014-g', 'decam2014-g',
+                                    'wise2010-W1', 'wise2010-W2') ):
+                meta[band][these] = synthnano[filt][these]
+
+            qsometa['ABSMAG'][these] = qsos.data['absMag'][these].data
+            qsometa['SLOPES'][these, :] = qsos.data['slopes'][these, :].data
+            qsometa['EMLINES'][these, :, :] = qsos.data['emLines'][these, :, :].data
+
+        return outflux, meta, qsometa
+
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(19.0, 23.0),
                        seed=None, redshift=None, input_meta=None, maxiter=20,
                        lyaforest=True, nocolorcuts=False, return_qsometa=False,
@@ -2144,12 +2224,7 @@ class SIMQSO():
           ValueError
 
         """
-        from desispec.interpolation import resample_flux
         from desiutil.log import get_logger, DEBUG
-
-        from simqso.sqgrids import generateQlfPoints, ConstSampler, DustBlackbodyVar
-        from simqso.sqmodels import get_BossDr9_model_vars
-        from simqso.sqrun import buildSpectraBulk
 
         if verbose:
             log = get_logger(DEBUG)
@@ -2184,7 +2259,6 @@ class SIMQSO():
         
         # Initialize the QSO metadata table and output flux array.
         qsometa = self.empty_qsometa(meta)
-
         outflux = np.zeros([nmodel, len(self.wave)])
 
         # Generate the parameters of the spectra and the spectra themselves,
@@ -2197,75 +2271,17 @@ class SIMQSO():
 
         while (len(need) > 0):
 
-            # Sample from the QLF, using the input redshifts.
-            qsos = generateQlfPoints(self.qlf, rmagrange, zrange,
-                                     kcorr=self.kcorr, zin=redshift[need],
-                                     qlfseed=iterseed[itercount],
-                                     gridseed=iterseed[itercount])
+            iterflux, itermeta, iterqsometa = self._make_templates(meta[need], 
+                redshift[need], rmagrange, zrange, seed=iterseed[itercount],
+                lyaforest=lyaforest, nocolorcuts=nocolorcuts)
 
-            # Add the fiducial quasar SED model from BOSS/DR9, optionally
-            # without IGM absorption. This step adds a fiducial continuum,
-            # emission-line template, and an iron emission-line template.
-            qsos.addVars(get_BossDr9_model_vars(qsos, self.basewave, noforest=not lyaforest))
+            outflux[need, :] = iterflux
+            meta[need] = itermeta
+            qsometa[need] = iterqsometa
 
-            # Establish the desired (output) photometric system.
-            qsos.loadPhotoMap([('DECam', 'DECaLS'), ('WISE', 'AllWISE')])
-
-            # Finally, generate the spectra, iterating in order to converge on the
-            # per-object K-correction (typically, after ~two steps the maximum error
-            # on the absolute mags is typically <<1%).
-            _, flux = buildSpectraBulk(self.basewave, qsos, maxIter=5,
-                                       procMap=self.procMap, saveSpectra=True,
-                                       verbose=False)
-
-            # Synthesize photometry to determine which models will pass the
-            # color cuts.
-            maggies = self.decamwise.get_ab_maggies(flux, self.basewave.copy(), mask_invalid=True)
-
-            if self.normfilter in self.decamwise.names:
-                normmaggies = np.array(maggies[self.normfilter])
-            else:
-                normmaggies = np.array(self.normfilt.get_ab_maggies(
-                    flux, self.basewave.copy(), mask_invalid=True)[self.normfilter])
-
-            synthnano = dict()
-            for key in maggies.columns:
-                synthnano[key] = 1E9 * maggies[key]
-
-            if nocolorcuts or self.colorcuts_function is None:
-                colormask = np.repeat(1, len(need))
-            else:
-                colormask = self.colorcuts_function(
-                    gflux=synthnano['decam2014-g'],
-                    rflux=synthnano['decam2014-r'],
-                    zflux=synthnano['decam2014-z'],
-                    w1flux=synthnano['wise2010-W1'],
-                    w2flux=synthnano['wise2010-W2'])
-
-            # For objects that pass the color cuts, populate the output flux
-            # vector, the metadata and qsometadata tables, and finish up.
-            these = np.where(colormask)[0]
-            if len(these) > 0:
-                for ii in range(len(these)):
-                    outflux[need[these[ii]], :] = resample_flux(
-                        self.wave, self.basewave, flux[these[ii], :],
-                        extrapolate=True)
-
-                meta['SEED'][need] = iterseed[itercount]
-                meta['MAG'][need[these]] = -2.5 * np.log10(normmaggies[these])
-                meta['FLUX_G'][need[these]] = synthnano['decam2014-g'][these]
-                meta['FLUX_R'][need[these]] = synthnano['decam2014-r'][these]
-                meta['FLUX_Z'][need[these]] = synthnano['decam2014-z'][these]
-                meta['FLUX_W1'][need[these]] = synthnano['wise2010-W1'][these]
-                meta['FLUX_W2'][need[these]] = synthnano['wise2010-W2'][these]
-
-                qsometa['ABSMAG'][need[these]] = qsos.data['absMag'][these].data
-                qsometa['SLOPES'][need[these], :] = qsos.data['slopes'][these, :].data
-                qsometa['EMLINES'][need[these], :, :] = qsos.data['emLines'][these, :, :].data
-
-            itercount += 1
             need = np.where( np.sum(outflux, axis=1) == 0 )[0]
 
+            itercount += 1
             if itercount == maxiter:
                 log.warning('Maximum number of iterations reached.')
                 break
@@ -2279,6 +2295,7 @@ class SIMQSO():
             return 1e17 * outflux, self.wave, meta, qsometa
         else:
             return 1e17 * outflux, self.wave, meta
+
 
 def specify_galparams_dict(templatetype, zrange=None, magrange=None,
                             oiiihbrange=None, logvdisp_meansig=None,
