@@ -2064,42 +2064,63 @@ class SIMQSO():
         self.kcorr = ContinuumKCorr(_filtname(self.normfilter), 1450, effWaveBand='SDSS-r')
         self.qlf = BOSS_DR9_PLEpivot(cosmo=self.cosmo)
 
-    def empty_qsometa(self, meta):
+    def empty_qsometa(self, nmodel):
         """Initialize the QSO metadata table."""
 
         from astropy.table import Table, Column
 
-        nmodel = len(meta)
-
         qsometa = Table()
-        qsometa.add_column(meta['TEMPLATEID'].copy())
+        qsometa.add_column(Column(name='TEMPLATEID', length=nmodel, dtype='i4',
+                                  data=np.zeros(nmodel)-1))
+        qsometa.add_column(Column(name='APPMAG', length=nmodel, dtype='f4'))
         qsometa.add_column(Column(name='ABSMAG', length=nmodel, dtype='f4'))
         qsometa.add_column(Column(name='SLOPES', length=nmodel, dtype='f4',
                                   shape=(5,)))
         qsometa.add_column(Column(name='EMLINES', length=nmodel, dtype='f4',
-                                  shape=(62,3)))
+                                  shape=(62, 3)))
                                   
         return qsometa
 
-    def _make_templates(self, meta, redshift, rmagrange, zrange, seed=None,
-                        lyaforest=True, nocolorcuts=False):
+    def _make_simqso_templates(self, redshift, rmagrange=None, seed=None,
+                               lyaforest=True, nocolorcuts=False,
+                               input_qsometa=None):
         """Wrapper function for actually generating the templates.
 
         """ 
         from desispec.interpolation import resample_flux
         from simqso.sqmodels import get_BossDr9_model_vars
         from simqso.sqrun import buildSpectraBulk
-        from simqso.sqgrids import generateQlfPoints
 
-        ntemp = len(redshift)
-        qsometa = self.empty_qsometa(meta)
-        outflux = np.zeros([ntemp, len(self.wave)])
+        nmodel = len(redshift)
+        zrange = (np.min(redshift), np.max(redshift))
 
-        # Sample from the QLF, using the input redshifts.
-        qsos = generateQlfPoints(self.qlf, rmagrange, zrange,
-                                 kcorr=self.kcorr, zin=redshift,
-                                 qlfseed=seed, gridseed=seed)
+        if lyaforest:
+            subtype = 'LYA'
+        else:
+            subtype = ''
+        meta = empty_metatable(nmodel=nmodel, objtype='QSO', subtype=subtype)
 
+        qsometa = self.empty_qsometa(nmodel)
+        outflux = np.zeros([nmodel, len(self.wave)])
+
+        if input_qsometa is not None:
+            # Regenerate the QSOs table.
+            from simqso.sqgrids import (QsoSimPoints, AbsMagVar, AppMagVar,
+                                        RedshiftVar, FixedSampler)
+            
+            M = AbsMagVar(FixedSampler(input_qsometa['ABSMAG'].data), self.kcorr.restBand)
+            m = AppMagVar(FixedSampler(input_qsometa['APPMAG'].data), self.kcorr.obsBand)
+            z = RedshiftVar(FixedSampler(redshift))
+            qsos = QsoSimPoints([M, m, z], cosmo=self.cosmo, units='flux', seed=seed)
+
+        else:
+            # Sample from the QLF, using the input redshifts.
+            from simqso.sqgrids import generateQlfPoints
+
+            qsos = generateQlfPoints(self.qlf, rmagrange, zrange,
+                                     kcorr=self.kcorr, zin=redshift,
+                                     qlfseed=seed, gridseed=seed)
+            
         # Add the fiducial quasar SED model from BOSS/DR9, optionally
         # without IGM absorption. This step adds a fiducial continuum,
         # emission-line template, and an iron emission-line template.
@@ -2113,7 +2134,7 @@ class SIMQSO():
         # on the absolute mags is typically <<1%).
         _, flux = buildSpectraBulk(self.basewave, qsos, maxIter=5,
                                    procMap=self.procMap, saveSpectra=True,
-                                   verbose=False)
+                                   verbose=10)
 
         # Synthesize photometry to determine which models will pass the
         # color cuts.
@@ -2130,7 +2151,7 @@ class SIMQSO():
             synthnano[key] = 1E9 * maggies[key]
 
         if nocolorcuts or self.colorcuts_function is None:
-            colormask = np.repeat(1, len(ntemp))
+            colormask = np.repeat(1, len(nmodel))
         else:
             colormask = self.colorcuts_function(
                 gflux=synthnano['decam2014-g'],
@@ -2149,12 +2170,14 @@ class SIMQSO():
                     extrapolate=True)
 
             meta['SEED'][these] = seed
+            meta['REDSHIFT'][these] = redshift[these]
             meta['MAG'][these] = -2.5 * np.log10(normmaggies[these])
             for band, filt in zip( ('FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2'),
                                    ('decam2014-g', 'decam2014-g', 'decam2014-g',
                                     'wise2010-W1', 'wise2010-W2') ):
                 meta[band][these] = synthnano[filt][these]
 
+            qsometa['APPMAG'][these] = qsos.data['appMag'][these].data
             qsometa['ABSMAG'][these] = qsos.data['absMag'][these].data
             qsometa['SLOPES'][these, :] = qsos.data['slopes'][these, :].data
             qsometa['EMLINES'][these, :, :] = qsos.data['emLines'][these, :, :].data
@@ -2162,9 +2185,9 @@ class SIMQSO():
         return outflux, meta, qsometa
 
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(19.0, 23.0),
-                       seed=None, redshift=None, input_meta=None, maxiter=20,
-                       lyaforest=True, nocolorcuts=False, return_qsometa=False,
-                       verbose=False):
+                       seed=None, redshift=None, input_meta=None, input_qsometa=None,
+                       maxiter=20, lyaforest=True, nocolorcuts=False,
+                       return_qsometa=False, verbose=False):
         """Build Monte Carlo QSO spectra/templates.
 
         * This function generates QSO spectra on-the-fly using @imcgreer's
@@ -2231,60 +2254,84 @@ class SIMQSO():
         else:
             log = get_logger()
 
-        if redshift is not None:
-            if len(redshift) != nmodel:
-                log.fatal('Redshift must be an nmodel-length array')
-                raise ValueError
-            zrange = (np.min(redshift), np.max(redshift))
+        # Optionally generate spectra from an input metadata table.
+        if input_meta is not None and input_qsometa is not None:
+            nmodel = len(input_meta)
 
-        # Optionally unpack a metadata table.
-        if input_meta is not None:
-            log.warning('Input metadata table not yet supported!')
-            raise ValueError
-        
+            input_seed = input_meta['SEED'].data
+            redshift = input_meta['REDSHIFT'].data
+
+            meta = empty_metatable(nmodel=nmodel, objtype='QSO')                
+            qsometa = self.empty_qsometa(nmodel)
+            
+            outflux = np.zeros([nmodel, len(self.wave)])
+
+            for unique_seed in np.unique(input_seed):
+
+                need = np.where(unique_seed == input_seed)[0]
+
+                iterflux, itermeta, iterqsometa = self._make_simqso_templates(
+                    redshift=redshift[need], input_qsometa=input_qsometa[need],
+                    seed=unique_seed, lyaforest=lyaforest, nocolorcuts=nocolorcuts)
+
+                outflux[need, :] = iterflux
+                meta[need] = itermeta
+                qsometa[need] = iterqsometa
+
+            meta['TEMPLATEID'] = input_meta['TEMPLATEID']
+            qsometa['TEMPLATEID'] = meta['TEMPLATEID']
+
         else:
-            meta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
-
-            # Initialize the random seed.
+            # Initialize the random seed and assign redshift priors.
             rand = np.random.RandomState(seed)
             templateseed = rand.randint(2**32, size=nmodel)
 
-            # Assign redshift and magnitude priors.
             if redshift is None:
                 redshift = rand.uniform(zrange[0], zrange[1], nmodel)
+            else:
+                if len(redshift) != nmodel:
+                    log.warning('Redshift must be an nmodel-length array')
+                    raise ValueError
+
+            # Initialize the template metadata table and the QSO metadata table.
+            meta = empty_metatable(nmodel=nmodel, objtype='QSO')
+            qsometa = self.empty_qsometa(nmodel)
+                
+            # Generate the parameters of the spectra and the spectra themselves,
+            # iterating (up to maxiter) until enough models have passed the
+            # color cuts.
+            outflux = np.zeros([nmodel, len(self.wave)])
+
+            itercount = 0
+            iterseed = rand.randint(2**32, size=maxiter)
+
+            def _need(outflux):
+                return np.where( np.sum(outflux, axis=1) == 0 )[0]
+
+            need = _need(outflux)
             
-        # Populate some of the metadata table.
-        meta['TEMPLATEID'] = np.arange(nmodel)
-        meta['REDSHIFT'] = redshift
-        
-        # Initialize the QSO metadata table and output flux array.
-        qsometa = self.empty_qsometa(meta)
-        outflux = np.zeros([nmodel, len(self.wave)])
+            while (len(need) > 0):
 
-        # Generate the parameters of the spectra and the spectra themselves,
-        # iterating (up to maxiter) until enough models have passed the color
-        # cuts.
-        need = np.where( np.sum(outflux, axis=1) == 0 )[0]
+                iterflux, itermeta, iterqsometa = self._make_simqso_templates(
+                    redshift[need], rmagrange, seed=iterseed[itercount],
+                    lyaforest=lyaforest, nocolorcuts=nocolorcuts)
 
-        itercount = 0
-        iterseed = rand.randint(2**32, size=maxiter)
+                outflux[need, :] = iterflux
+                meta[need] = itermeta
+                qsometa[need] = iterqsometa
 
-        while (len(need) > 0):
+                need = _need(outflux)
 
-            iterflux, itermeta, iterqsometa = self._make_templates(meta[need], 
-                redshift[need], rmagrange, zrange, seed=iterseed[itercount],
-                lyaforest=lyaforest, nocolorcuts=nocolorcuts)
+                itercount += 1
+                if itercount == maxiter:
+                    log.warning('Maximum number of iterations reached.')
+                    break
 
-            outflux[need, :] = iterflux
-            meta[need] = itermeta
-            qsometa[need] = iterqsometa
-
-            need = np.where( np.sum(outflux, axis=1) == 0 )[0]
-
-            itercount += 1
-            if itercount == maxiter:
-                log.warning('Maximum number of iterations reached.')
-                break
+            log.debug('Generated {} templates after {}/{} iterations.'.format(
+                nmodel, itercount, maxiter))
+                
+            meta['TEMPLATEID'] = np.arange(nmodel)
+            qsometa['TEMPLATEID'] = meta['TEMPLATEID'].data
 
         success = (np.sum(outflux, axis=1) > 0)*1
         if ~np.all(success):
