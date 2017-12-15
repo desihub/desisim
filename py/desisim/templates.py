@@ -2134,7 +2134,7 @@ class SIMQSO():
         # on the absolute mags is typically <<1%).
         _, flux = buildSpectraBulk(self.basewave, qsos, maxIter=5,
                                    procMap=self.procMap, saveSpectra=True,
-                                   verbose=10)
+                                   verbose=False)
 
         # Synthesize photometry to determine which models will pass the
         # color cuts.
@@ -2173,7 +2173,7 @@ class SIMQSO():
             meta['REDSHIFT'][these] = redshift[these]
             meta['MAG'][these] = -2.5 * np.log10(normmaggies[these])
             for band, filt in zip( ('FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2'),
-                                   ('decam2014-g', 'decam2014-g', 'decam2014-g',
+                                   ('decam2014-g', 'decam2014-r', 'decam2014-z',
                                     'wise2010-W1', 'wise2010-W2') ):
                 meta[band][these] = synthnano[filt][these]
 
