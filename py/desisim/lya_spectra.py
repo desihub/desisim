@@ -10,6 +10,57 @@ from __future__ import division, print_function
 import numpy as np
 from desisim.dla import insert_dlas
 
+def read_lya_skewers(lyafile,indices=None) :
+    '''
+    Reads Lyman alpha transmission skewers (from CoLoRe, format v2.x.y)
+
+    Args:
+        lyafile: full path to input FITS filename
+
+    Options:
+        indices: indices of input file to sub-select
+
+    Returns (wave[nwave], transmission[nlya, nwave], metadata[nlya])
+
+    Input file must have WAVELENGTH, TRANSMISSION, and METADATA HDUs
+    '''
+    # this is the new format set up by Andreu
+    import fitsio
+    h = fitsio.FITS(lyafile)
+    wave  = h["WAVELENGTH"].read()
+    trans = h["TRANSMISSION"].read().T # now shape is (nqso,nwave)
+    meta  = h["METADATA"].read()
+    if indices is not None :
+        trans = trans[indices]
+        meta=meta[:][indices]
+    return wave,trans,meta
+
+def apply_lya_transmission(qso_wave,qso_flux,trans_wave,trans) :
+    '''
+    Apply transmission to input flux, interpolating if needed
+
+    Args:
+        qso_wave: 1D[nwave] array of QSO wavelengths
+        qso_flux: 2D[nqso, nwave] array of fluxes
+        trans_wave: 1D[ntranswave ] array of transmission wavelength samples
+        trans: 2D[nqso, ntranswave] transmissions [0-1]
+
+    Returns:
+        output_flux[nqso, nwave]
+
+    This routine simply apply the transmission
+    the only thing besides multiplication is a wavelength interpolation
+    of transmission to the QSO wavelength grid
+    '''
+    if qso_flux.shape[0] != trans.shape[0] :
+        raise(ValueError("not same number of qso {} {}".format(qso_flux.shape[0],trans.shape[0])))
+    
+    output_flux = qso_flux.copy()
+    for q in range(qso_flux.shape[0]) :
+        output_flux[q] *= np.interp(qso_wave,trans_wave,trans[q],left=0,right=1)
+    return output_flux
+
+
 def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss2010-g',
                 seed=None, rand=None, qso=None, add_dlas=False, debug=False, nocolorcuts=False):
     """Generate a QSO spectrum which includes Lyman-alpha absorption.

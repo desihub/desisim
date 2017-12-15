@@ -115,11 +115,13 @@ class TestObs(unittest.TestCase):
         "Test different levels of sky brightness"
         night = self.night
         #- programs 'bgs' and 'bright' not yet implemented
-        sim_dark, fibermap, meta, obsconditions = obs.new_exposure('dark', nspec=10, night=night, expid=0, exptime=1000)
-        sim_mws, fibermap, meta, obsconditions  = obs.new_exposure('mws', nspec=10, night=night, expid=1, exptime=1000)
+        sim_dark, fmap_dark, meta_dark, obscond_dark = obs.new_exposure('dark', nspec=10, night=night, expid=0, exptime=1000)
+        dark = sim_dark.simulated.copy()
+        sim_mws, fmap_mws, meta_mws, obscond_mws  = obs.new_exposure('mws', nspec=10, night=night, expid=1, exptime=1000)
+        mws = sim_dark.simulated.copy()
         for channel in ['b', 'r', 'z']:
-            sky_mws = sim_mws.simulated['num_sky_electrons_'+channel]
-            sky_dark = sim_dark.simulated['num_sky_electrons_'+channel]
+            sky_mws = mws['num_sky_electrons_'+channel]
+            sky_dark = dark['num_sky_electrons_'+channel]
             nonzero = (sky_mws != 0.0)
             self.assertTrue(np.all(sky_mws[nonzero] > sky_dark[nonzero]))
 
