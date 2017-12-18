@@ -6,11 +6,13 @@ desisim change log
 -------------------
 
 * Fixed crash in newexp-mock success print message.
-* Refactor DLA code into its own module (`PR #293`_).
+* Use simqso to generate QSO templates (`PR #293`_).
+* Refactor DLA code into its own module (`PR #294`_).
 * Adds reader for LyA skewer v2.x format (`PR #297`_).
 * Removed deprecated brick output from quickgen.
 
 .. _`PR #293`: https://github.com/desihub/desisim/pull/293
+.. _`PR #294`: https://github.com/desihub/desisim/pull/294
 .. _`PR #297`: https://github.com/desihub/desisim/pull/297
 
 0.22.0 (unreleased)
