@@ -2120,7 +2120,7 @@ class SIMQSO():
             qsos = generateQlfPoints(self.qlf, rmagrange, zrange,
                                      kcorr=self.kcorr, zin=redshift,
                                      qlfseed=seed, gridseed=seed)
-            
+
         # Add the fiducial quasar SED model from BOSS/DR9, optionally
         # without IGM absorption. This step adds a fiducial continuum,
         # emission-line template, and an iron emission-line template.
@@ -2134,7 +2134,23 @@ class SIMQSO():
         # on the absolute mags is typically <<1%).
         _, flux = buildSpectraBulk(self.basewave, qsos, maxIter=5,
                                    procMap=self.procMap, saveSpectra=True,
-                                   verbose=False)
+                                   verbose=10)
+
+        just reread from the file and then loop to generate each spectrum in turn.
+
+        see simplespecexample
+
+        qsos = qsosimobjects.read(fromfile)
+
+        for ii in range(nmodel):
+            spec, _ = buildQsoSpectrum(wave, qsos.cosmo,qsos.getVars(SpectralFeatureVar),
+                                       qsos.data[0], save_components=False)
+
+
+        if input_qsometa is not None:
+            print(input_qsometa)
+            print(qsos.data)
+            import pdb ; pdb.set_trace()
 
         # Synthesize photometry to determine which models will pass the
         # color cuts.
@@ -2315,6 +2331,8 @@ class SIMQSO():
                 iterflux, itermeta, iterqsometa = self._make_simqso_templates(
                     redshift[need], rmagrange, seed=iterseed[itercount],
                     lyaforest=lyaforest, nocolorcuts=nocolorcuts)
+
+                import pdb ; pdb.set_trace()
 
                 outflux[need, :] = iterflux
                 meta[need] = itermeta
