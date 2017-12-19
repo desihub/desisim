@@ -2012,7 +2012,9 @@ class SIMQSO():
             from simqso.sqbase import ContinuumKCorr, fixed_R_dispersion
             from simqso.sqmodels import BOSS_DR9_PLEpivot
         except ImportError:
-            log.fatal('External dependency simqso not found!')
+            message = 'Please install https://github.com/imcgreer/simqso'
+            log.error(message)
+            raise(ImportError(message))
 
         self.objtype = 'QSO'
 
