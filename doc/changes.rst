@@ -2,18 +2,30 @@
 desisim change log
 ==================
 
-0.22.1 (unreleased)
+0.23.1 (unreleased)
+-------------------
+
+* No changes yet.
+
+0.23.0 (unreleased)
 -------------------
 
 * Fixed crash in newexp-mock success print message.
-* Refactor DLA code into its own module (`PR #293`_).
+* Refactor DLA code into its own module (`PR #294`_).
 * Adds reader for LyA skewer v2.x format (`PR #297`_).
 * Removed deprecated brick output from quickgen.
+* Preliminary support for simqso based QSO templates (`PR #293`_).
+* fastframe can directly output cframes (`PR #287`_).
+* adds BGS efficiency notebooks (`PR #285`_ and `PR #286`_).
 
+.. _`PR #285`: https://github.com/desihub/desisim/pull/285
+.. _`PR #286`: https://github.com/desihub/desisim/pull/286
+.. _`PR #287`: https://github.com/desihub/desisim/pull/287
+.. _`PR #294`: https://github.com/desihub/desisim/pull/294
 .. _`PR #293`: https://github.com/desihub/desisim/pull/293
 .. _`PR #297`: https://github.com/desihub/desisim/pull/297
 
-0.22.0 (unreleased)
+0.22.0 (2017-11-10)
 -------------------
 
 * Scaling updates to wrap-fastframe and wrap-newexp (`PR #274`_).
