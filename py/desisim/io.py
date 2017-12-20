@@ -1022,35 +1022,43 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
 
     return outflux, outwave, meta
 
-def write_templates(outfile, flux, wave, meta, objtype=None,
-                    comments=None, units=None):
-    """Write out simulated galaxy templates.  (Incomplete documentation...)
+def write_templates(outfile, flux, wave, meta):
+    """Write out simulated galaxy templates.
 
     Args:
         outfile (str): Output file name.
+        flux (numpy.ndarray): Flux vector (1e-17 erg/s/cm2/A)
+        wave (numpy.ndarray): Wavelength vector (Angstrom).
+        meta (astropy.table.Table): metadata table.
+    
     """
     from astropy.io import fits
-    from desispec.io.util import fitsheader, write_bintable, makepath
+    from desispec.io.util import makepath
 
     # Create the path to OUTFILE if necessary.
     outfile = makepath(outfile)
 
-    header = dict(
-        OBJTYPE = (objtype, 'Object type'),
-        CUNIT = ('Angstrom', 'units of wavelength array'),
-        CRPIX1 = (1, 'reference pixel number'),
-        CRVAL1 = (wave[0], 'Starting wavelength [Angstrom]'),
-        CDELT1 = (wave[1]-wave[0], 'Wavelength step [Angstrom]'),
-        LOGLAM = (0, 'linear wavelength steps, not log10'),
-        AIRORVAC = ('vac', 'wavelengths in vacuum (vac) or air'),
-        BUNIT = ('1e-17 erg/(s cm2 Angstrom)', 'spectrum flux units')
-        )
-    hdr = fitsheader(header)
+    hx = fits.HDUList()
+    hdu_wave = fits.PrimaryHDU(wave)
+    hdu_wave.header['EXTNAME'] = 'WAVE'
+    hdu_wave.header['BUNIT'] = 'Angstrom'
+    hdu_wave.header['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
+    hx.append(hdu_wave)    
+    
+    hdu_flux = fits.ImageHDU(flux)
+    hdu_flux.header['EXTNAME'] = 'FLUX'
+    hdu_flux.header['BUNIT'] = str(fluxunits)
+    hx.append(hdu_flux)
+    
+    hdu_meta = fits.table_to_hdu(meta)
+    hdu_meta.header['EXTNAME'] = 'METADATA'
+    hx.append(hdu_meta)
 
-    fits.writeto(outfile,flux.astype(np.float32),header=hdr,clobber=True)
-    write_bintable(outfile, meta, header=hdr, comments=comments,
-                   units=units, extname='METADATA')
-
+    log.info('Writing {}'.format(outfile))
+    try:
+        hx.writeto(outfile, overwrite=True)
+    except:
+        hx.writeto(outfile, clobber=True)
 
 #-------------------------------------------------------------------------
 #- Utility functions
