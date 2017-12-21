@@ -2102,7 +2102,9 @@ class SIMQSO():
             subtype = ''
         meta = empty_metatable(nmodel=nmodel, objtype='QSO', subtype=subtype)
 
-        qsometa = self.empty_qsometa(nmodel)
+        #qsometa = self.empty_qsometa(nmodel)
+        #qsometa = list()
+        
         outflux = np.zeros([nmodel, len(self.wave)])
 
         if input_qsometa is not None:
@@ -2136,23 +2138,21 @@ class SIMQSO():
         # on the absolute mags is typically <<1%).
         _, flux = buildSpectraBulk(self.basewave, qsos, maxIter=5,
                                    procMap=self.procMap, saveSpectra=True,
-                                   verbose=10)
+                                   verbose=0)
 
-        just reread from the file and then loop to generate each spectrum in turn.
+        #just reread from the file and then loop to generate each spectrum in turn.
+        #see simplespecexample
+        #qsos = qsosimobjects.read(fromfile)
 
-        see simplespecexample
-
-        qsos = qsosimobjects.read(fromfile)
-
-        for ii in range(nmodel):
-            spec, _ = buildQsoSpectrum(wave, qsos.cosmo,qsos.getVars(SpectralFeatureVar),
-                                       qsos.data[0], save_components=False)
-
-
-        if input_qsometa is not None:
-            print(input_qsometa)
-            print(qsos.data)
-            import pdb ; pdb.set_trace()
+        #for ii in range(nmodel):
+        #    spec, _ = buildQsoSpectrum(wave, qsos.cosmo,qsos.getVars(SpectralFeatureVar),
+        #                               qsos.data[0], save_components=False)
+        #
+        #
+        #if input_qsometa is not None:
+        #    print(input_qsometa)
+        #    print(qsos.data)
+        #    import pdb ; pdb.set_trace()
 
         # Synthesize photometry to determine which models will pass the
         # color cuts.
@@ -2195,12 +2195,14 @@ class SIMQSO():
                                     'wise2010-W1', 'wise2010-W2') ):
                 meta[band][these] = synthnano[filt][these]
 
-            qsometa['APPMAG'][these] = qsos.data['appMag'][these].data
-            qsometa['ABSMAG'][these] = qsos.data['absMag'][these].data
-            qsometa['SLOPES'][these, :] = qsos.data['slopes'][these, :].data
-            qsometa['EMLINES'][these, :, :] = qsos.data['emLines'][these, :, :].data
+            qsos.data = qsos.data[these]
 
-        return outflux, meta, qsometa
+            #qsometa['APPMAG'][these] = qsos.data['appMag'][these].data
+            #qsometa['ABSMAG'][these] = qsos.data['absMag'][these].data
+            #qsometa['SLOPES'][these, :] = qsos.data['slopes'][these, :].data
+            #qsometa['EMLINES'][these, :, :] = qsos.data['emLines'][these, :, :].data
+
+        return outflux, meta, qsos
 
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(19.0, 23.0),
                        seed=None, redshift=None, input_meta=None, input_qsometa=None,
@@ -2280,6 +2282,9 @@ class SIMQSO():
             redshift = input_meta['REDSHIFT'].data
 
             meta = empty_metatable(nmodel=nmodel, objtype='QSO')                
+
+
+            
             qsometa = self.empty_qsometa(nmodel)
             
             outflux = np.zeros([nmodel, len(self.wave)])
@@ -2313,7 +2318,8 @@ class SIMQSO():
 
             # Initialize the template metadata table and the QSO metadata table.
             meta = empty_metatable(nmodel=nmodel, objtype='QSO')
-            qsometa = self.empty_qsometa(nmodel)
+            #qsometa = self.empty_qsometa(nmodel)
+            qsometa = list()
                 
             # Generate the parameters of the spectra and the spectra themselves,
             # iterating (up to maxiter) until enough models have passed the
@@ -2334,11 +2340,13 @@ class SIMQSO():
                     redshift[need], rmagrange, seed=iterseed[itercount],
                     lyaforest=lyaforest, nocolorcuts=nocolorcuts)
 
-                import pdb ; pdb.set_trace()
-
                 outflux[need, :] = iterflux
                 meta[need] = itermeta
-                qsometa[need] = iterqsometa
+
+                
+
+                #qsometa[need] = iterqsometa
+                qsometa.append(iterqsometa)
 
                 need = _need(outflux)
 
