@@ -1002,12 +1002,6 @@ class LRG(GALAXY):
                                                          novdisp=novdisp, agnlike=agnlike, restframe=restframe,
                                                          verbose=verbose)
 
-        # Pack into the metadata table some additional information.
-        good = np.where(meta['TEMPLATEID'] != -1)[0]
-        if len(good) > 0:
-            meta['ZMETAL'][good] = self.basemeta[meta['TEMPLATEID'][good]]['ZMETAL']
-            meta['AGE'][good] = self.basemeta[meta['TEMPLATEID'][good]]['AGE']
-
         return outflux, wave, meta
 
 class SUPERSTAR(object):

@@ -30,7 +30,6 @@ log = get_logger()
 
 from desisim.util import spline_medfilt2d
 
-
 #-------------------------------------------------------------------------
 def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
     """Return canonical location of where a file should be on disk
@@ -952,7 +951,7 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
         infile = find_basis_template(ltype)
 
     if onlymeta:
-        log.info('Reading {} metadata.'.format(infile))
+        log.debug('Reading {} metadata.'.format(infile))
         meta = Table(fits.getdata(infile, 1))
 
         if (objtype.upper() == 'WD') and (subtype != ''):
@@ -964,7 +963,7 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
 
         return meta
 
-    log.info('Reading {}'.format(infile))
+    log.debug('Reading {}'.format(infile))
 
     if objtype.upper() == 'QSO':
         with fits.open(infile) as fx:
@@ -1129,11 +1128,6 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype='', add_SNeIa=None):
                            data=np.zeros(nmodel)-1, unit='dex'))
     meta.add_column(Column(name='SIIHBETA', length=nmodel, dtype='f4',
                            data=np.zeros(nmodel)-1, unit='dex'))
-
-    meta.add_column(Column(name='ZMETAL', length=nmodel, dtype='f4',
-                           data=np.zeros(nmodel)-1))
-    meta.add_column(Column(name='AGE', length=nmodel, dtype='f4',
-                           data=np.zeros(nmodel)-1, unit='Gyr'))
 
     meta.add_column(Column(name='TEFF', length=nmodel, dtype='f4',
                            data=np.zeros(nmodel)-1, unit='K'))
