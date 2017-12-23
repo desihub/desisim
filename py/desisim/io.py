@@ -908,7 +908,7 @@ def _qso_format_version(filename):
             raise IOError('Unknown QSO basis template format '+filename)
 
 def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
-                         infile=None, onlymeta=False):
+                         infile=None, onlymeta=False, verbose=False):
     """Return the basis (continuum) templates for a given object type.  Optionally
     returns a randomly selected subset of nspec spectra sampled at
     wavelengths outwave.
@@ -927,6 +927,8 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
             over-riding the contents of the $DESI_BASIS_TEMPLATES environment
             variable.
         onlymeta (Bool, optional): read just the metadata table and return
+        verbose: bool
+            Be verbose. (Default: False)
 
     Returns:
         Tuple of (outflux, outwave, meta) where
@@ -941,6 +943,12 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
         IOError: If the basis template file is not found.
 
     """
+    from desiutil.log import get_logger, DEBUG
+    if verbose:
+        log = get_logger(DEBUG)
+    else:
+        log = get_logger()
+
     ltype = objtype.lower()
     if objtype == 'FSTD':
         ltype = 'star'
@@ -951,7 +959,7 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
         infile = find_basis_template(ltype)
 
     if onlymeta:
-        log.debug('Reading {} metadata.'.format(infile))
+        log.info('Reading {} metadata.'.format(infile))
         meta = Table(fits.getdata(infile, 1))
 
         if (objtype.upper() == 'WD') and (subtype != ''):
@@ -963,7 +971,7 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
 
         return meta
 
-    log.debug('Reading {}'.format(infile))
+    log.info('Reading {}'.format(infile))
 
     if objtype.upper() == 'QSO':
         with fits.open(infile) as fx:
