@@ -1137,6 +1137,11 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype='', add_SNeIa=None):
     meta.add_column(Column(name='SIIHBETA', length=nmodel, dtype='f4',
                            data=np.zeros(nmodel)-1, unit='dex'))
 
+    meta.add_column(Column(name='ZMETAL', length=nmodel, dtype='f4',
+                           data=np.zeros(nmodel)-1))
+    meta.add_column(Column(name='AGE', length=nmodel, dtype='f4',
+                           data=np.zeros(nmodel)-1, unit='Gyr'))
+
     meta.add_column(Column(name='TEFF', length=nmodel, dtype='f4',
                            data=np.zeros(nmodel)-1, unit='K'))
     meta.add_column(Column(name='LOGG', length=nmodel, dtype='f4',
