@@ -9,9 +9,11 @@ desisim change log
 * Refactor DLA code into its own module (`PR #293`_).
 * Adds reader for LyA skewer v2.x format (`PR #297`_).
 * Removed deprecated brick output from quickgen.
+* Support new LRG templates (v2.0). (`PR #302`_).
 
 .. _`PR #293`: https://github.com/desihub/desisim/pull/293
 .. _`PR #297`: https://github.com/desihub/desisim/pull/297
+.. _`PR #302`: https://github.com/desihub/desisim/pull/302
 
 0.22.0 (unreleased)
 -------------------
