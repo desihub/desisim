@@ -1002,6 +1002,13 @@ class LRG(GALAXY):
                                                          novdisp=novdisp, agnlike=agnlike, restframe=restframe,
                                                          verbose=verbose)
 
+        # Pre-v2.4 templates:
+        if 'ZMETAL' in self.basemeta.colnames:
+            good = np.where(meta['TEMPLATEID'] != -1)[0]
+            if len(good) > 0:
+                meta['ZMETAL'][good] = self.basemeta[meta['TEMPLATEID'][good]]['ZMETAL']
+                meta['AGE'][good] = self.basemeta[meta['TEMPLATEID'][good]]['AGE']
+
         return outflux, wave, meta
 
 class SUPERSTAR(object):
