@@ -5,7 +5,9 @@ desisim change log
 0.23.1 (unreleased)
 -------------------
 
-* No changes yet.
+* Support new LRG templates (v2.0). (`PR #302`_).
+
+.. _`PR #302`: https://github.com/desihub/desisim/pull/302
 
 0.23.0 (unreleased)
 -------------------

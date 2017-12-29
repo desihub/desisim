@@ -30,7 +30,6 @@ log = get_logger()
 
 from desisim.util import spline_medfilt2d
 
-
 #-------------------------------------------------------------------------
 def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
     """Return canonical location of where a file should be on disk
@@ -909,7 +908,7 @@ def _qso_format_version(filename):
             raise IOError('Unknown QSO basis template format '+filename)
 
 def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
-                         infile=None, onlymeta=False):
+                         infile=None, onlymeta=False, verbose=False):
     """Return the basis (continuum) templates for a given object type.  Optionally
     returns a randomly selected subset of nspec spectra sampled at
     wavelengths outwave.
@@ -928,6 +927,8 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
             over-riding the contents of the $DESI_BASIS_TEMPLATES environment
             variable.
         onlymeta (Bool, optional): read just the metadata table and return
+        verbose: bool
+            Be verbose. (Default: False)
 
     Returns:
         Tuple of (outflux, outwave, meta) where
@@ -942,6 +943,12 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
         IOError: If the basis template file is not found.
 
     """
+    from desiutil.log import get_logger, DEBUG
+    if verbose:
+        log = get_logger(DEBUG)
+    else:
+        log = get_logger()
+
     ltype = objtype.lower()
     if objtype == 'FSTD':
         ltype = 'star'
