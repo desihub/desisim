@@ -2068,20 +2068,18 @@ class SIMQSO():
         self.qlf = BOSS_DR9_PLEpivot(cosmo=self.cosmo)
 
     def empty_qsometa(self, nmodel):
-        """Initialize the QSO metadata table."""
+        """Initialize an empty QsoSimPoints objects, which contains all the metadata
+        needed to regenerate simqso spectra.
+        
+        """
+        from simqso.sqgrids import (QsoSimPoints, AbsMagVar, AppMagVar,
+                                    RedshiftVar, FixedSampler)
+        
+        M = AbsMagVar(FixedSampler(np.repeat(-22, nmodel)), self.kcorr.restBand)
+        m = AppMagVar(FixedSampler(np.repeat(22, nmodel)), self.kcorr.obsBand)
+        z = RedshiftVar(FixedSampler(np.repeat(2.0, nmodel)))
+        qsometa = QsoSimPoints([M, m, z], cosmo=self.cosmo)
 
-        from astropy.table import Table, Column
-
-        qsometa = Table()
-        qsometa.add_column(Column(name='TEMPLATEID', length=nmodel, dtype='i4',
-                                  data=np.zeros(nmodel)-1))
-        qsometa.add_column(Column(name='APPMAG', length=nmodel, dtype='f4'))
-        qsometa.add_column(Column(name='ABSMAG', length=nmodel, dtype='f4'))
-        qsometa.add_column(Column(name='SLOPES', length=nmodel, dtype='f4',
-                                  shape=(5,)))
-        qsometa.add_column(Column(name='EMLINES', length=nmodel, dtype='f4',
-                                  shape=(62, 3)))
-                                  
         return qsometa
 
     def _make_simqso_templates(self, redshift, rmagrange=None, seed=None,
@@ -2103,9 +2101,6 @@ class SIMQSO():
             subtype = ''
         meta = empty_metatable(nmodel=nmodel, objtype='QSO', subtype=subtype)
 
-        #qsometa = self.empty_qsometa(nmodel)
-        #qsometa = list()
-        
         outflux = np.zeros([nmodel, len(self.wave)])
 
         if input_qsometa is not None:
@@ -2140,20 +2135,6 @@ class SIMQSO():
         _, flux = buildSpectraBulk(self.basewave, qsos, maxIter=5,
                                    procMap=self.procMap, saveSpectra=True,
                                    verbose=0)
-
-        #just reread from the file and then loop to generate each spectrum in turn.
-        #see simplespecexample
-        #qsos = qsosimobjects.read(fromfile)
-
-        #for ii in range(nmodel):
-        #    spec, _ = buildQsoSpectrum(wave, qsos.cosmo,qsos.getVars(SpectralFeatureVar),
-        #                               qsos.data[0], save_components=False)
-        #
-        #
-        #if input_qsometa is not None:
-        #    print(input_qsometa)
-        #    print(qsos.data)
-        #    import pdb ; pdb.set_trace()
 
         # Synthesize photometry to determine which models will pass the
         # color cuts.
@@ -2196,8 +2177,7 @@ class SIMQSO():
                                     'wise2010-W1', 'wise2010-W2') ):
                 meta[band][these] = synthnano[filt][these]
 
-            qsos.data = qsos.data[these]
-
+            #qsos.data = qsos.data[these]
             #qsometa['APPMAG'][these] = qsos.data['appMag'][these].data
             #qsometa['ABSMAG'][these] = qsos.data['absMag'][these].data
             #qsometa['SLOPES'][these, :] = qsos.data['slopes'][these, :].data
@@ -2275,40 +2255,30 @@ class SIMQSO():
         else:
             log = get_logger()
 
-        # Optionally generate spectra from an input metadata table.
-        if input_meta is not None and input_qsometa is not None:
-            nmodel = len(input_meta)
+        # Optionally generate spectra from an input file or
+        # simqso.sqgrids.QsoSimPoints object.
+        if input_qsometa is not None:
 
-            input_seed = input_meta['SEED'].data
-            redshift = input_meta['REDSHIFT'].data
+            log.warning('input_qsometa not yet supported!')
+            raise ValueError
 
-            meta = empty_metatable(nmodel=nmodel, objtype='QSO')                
+            #just reread from the file and then loop to generate each spectrum in turn.
+            #see simplespecexample
+            #qsos = qsosimobjects.read(fromfile)
 
-
-            
-            qsometa = self.empty_qsometa(nmodel)
-            
-            outflux = np.zeros([nmodel, len(self.wave)])
-
-            for unique_seed in np.unique(input_seed):
-
-                need = np.where(unique_seed == input_seed)[0]
-
-                iterflux, itermeta, iterqsometa = self._make_simqso_templates(
-                    redshift=redshift[need], input_qsometa=input_qsometa[need],
-                    seed=unique_seed, lyaforest=lyaforest, nocolorcuts=nocolorcuts)
-
-                outflux[need, :] = iterflux
-                meta[need] = itermeta
-                qsometa[need] = iterqsometa
-
-            meta['TEMPLATEID'] = input_meta['TEMPLATEID']
-            qsometa['TEMPLATEID'] = meta['TEMPLATEID']
+            #for ii in range(nmodel):
+            #    spec, _ = buildQsoSpectrum(wave, qsos.cosmo,qsos.getVars(SpectralFeatureVar),
+            #                               qsos.data[0], save_components=False)
+            #
+            #
+            #if input_qsometa is not None:
+            #    print(input_qsometa)
+            #    print(qsos.data)
+            #    import pdb ; pdb.set_trace()
 
         else:
             # Initialize the random seed and assign redshift priors.
             rand = np.random.RandomState(seed)
-            templateseed = rand.randint(2**32, size=nmodel)
 
             if redshift is None:
                 redshift = rand.uniform(zrange[0], zrange[1], nmodel)
@@ -2319,8 +2289,7 @@ class SIMQSO():
 
             # Initialize the template metadata table and the QSO metadata table.
             meta = empty_metatable(nmodel=nmodel, objtype='QSO')
-            #qsometa = self.empty_qsometa(nmodel)
-            qsometa = list()
+            qsometa = self.empty_qsometa(nmodel)
                 
             # Generate the parameters of the spectra and the spectra themselves,
             # iterating (up to maxiter) until enough models have passed the
@@ -2343,11 +2312,7 @@ class SIMQSO():
 
                 outflux[need, :] = iterflux
                 meta[need] = itermeta
-
-                
-
-                #qsometa[need] = iterqsometa
-                qsometa.append(iterqsometa)
+                qsometa.data[need] = iterqsometa.data
 
                 need = _need(outflux)
 
@@ -2358,9 +2323,11 @@ class SIMQSO():
 
             log.debug('Generated {} templates after {}/{} iterations.'.format(
                 nmodel, itercount, maxiter))
-                
+
             meta['TEMPLATEID'] = np.arange(nmodel)
             qsometa['TEMPLATEID'] = meta['TEMPLATEID'].data
+
+            import pdb ; pdb.set_trace()
 
         success = (np.sum(outflux, axis=1) > 0)*1
         if ~np.all(success):
