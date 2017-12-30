@@ -2109,7 +2109,7 @@ class SIMQSO():
 
         if input_qsometa:
             from simqso.sqrun import buildQsoSpectrum
-            from simqso.sqgrids import QsoSimObjects, SpectralFeatureVar
+            from simqso.sqgrids import SpectralFeatureVar
 
             flux = np.zeros([nmodel, len(self.basewave)])
 
@@ -2185,12 +2185,6 @@ class SIMQSO():
                                    ('decam2014-g', 'decam2014-r', 'decam2014-z',
                                     'wise2010-W1', 'wise2010-W2') ):
                 meta[band][these] = synthnano[filt][these]
-
-            #qsos.data = qsos.data[these]
-            #qsometa['APPMAG'][these] = qsos.data['appMag'][these].data
-            #qsometa['ABSMAG'][these] = qsos.data['absMag'][these].data
-            #qsometa['SLOPES'][these, :] = qsos.data['slopes'][these, :].data
-            #qsometa['EMLINES'][these, :, :] = qsos.data['emLines'][these, :, :].data
 
         return outflux, meta, qsos
 
@@ -2272,6 +2266,7 @@ class SIMQSO():
             if isinstance(input_qsometa, QsoSimObjects):
                 qsos = input_qsometa
             else:
+                log.debug('Reading QSOMETA extension from {}'.format(input_qsometa))
                 qsos = input_qsometa.read(input_qsometa, extname='QSOMETA')
                 
             outflux, meta, qsometa = self._make_simqso_templates(
