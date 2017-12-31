@@ -2287,8 +2287,6 @@ class SIMQSO():
 
             # Initialize the template metadata table and flux vector. 
             meta = empty_metatable(nmodel=nmodel, objtype='QSO')
-            meta['TEMPLATEID'] = np.arange(nmodel)
-
             qsometa = None
 
             outflux = np.zeros([nmodel, len(self.wave)])
@@ -2336,6 +2334,8 @@ class SIMQSO():
         if ~np.all(success):
             log.warning('{} spectra could not be computed given the input priors!'.\
                         format(np.sum(success == 0)))
+
+        meta['TEMPLATEID'] = np.arange(nmodel)
 
         if return_qsometa:
             return 1e17 * outflux, self.wave, meta, qsometa
