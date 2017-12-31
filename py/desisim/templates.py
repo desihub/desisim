@@ -2160,7 +2160,7 @@ class SIMQSO():
             synthnano[key] = 1E9 * maggies[key]
 
         if nocolorcuts or self.colorcuts_function is None:
-            colormask = np.repeat(1, len(nmodel))
+            colormask = np.repeat(1, nmodel)
         else:
             colormask = self.colorcuts_function(
                 gflux=synthnano['decam2014-g'],
