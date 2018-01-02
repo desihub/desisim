@@ -2115,9 +2115,9 @@ class SIMQSO():
 
             specFeatures = input_qsometa.getVars(SpectralFeatureVar)
             for ii in range(nmodel):
-                flux1, _ = buildQsoSpectrum(self.basewave, input_qsometa.cosmo,
-                                            specFeatures, input_qsometa.data[ii])
-                flux[ii, :] = flux1
+                flux1 = buildQsoSpectrum(self.basewave, input_qsometa.cosmo,
+                                         specFeatures, input_qsometa.data[ii])
+                flux[ii, :] = flux1.f_lambda
 
         else:
             from simqso.sqmodels import get_BossDr9_model_vars
@@ -2126,22 +2126,22 @@ class SIMQSO():
 
             # Sample from the QLF, using the input redshifts.
             zrange = (np.min(redshift), np.max(redshift))
-            qsos = generateQlfPoints(self.qlf, rmagrange, zrange,
-                                     kcorr=self.kcorr, zin=redshift,
-                                     qlfseed=seed, gridseed=seed)
+            qsometa = generateQlfPoints(self.qlf, rmagrange, zrange,
+                                        kcorr=self.kcorr, zin=redshift,
+                                        qlfseed=seed, gridseed=seed)
 
             # Add the fiducial quasar SED model from BOSS/DR9, optionally
             # without IGM absorption. This step adds a fiducial continuum,
             # emission-line template, and an iron emission-line template.
-            qsos.addVars(get_BossDr9_model_vars(qsos, self.basewave, noforest=not lyaforest))
+            qsometa.addVars(get_BossDr9_model_vars(qsometa, self.basewave, noforest=not lyaforest))
 
             # Establish the desired (output) photometric system.
-            qsos.loadPhotoMap([('DECam', 'DECaLS'), ('WISE', 'AllWISE')])
+            qsometa.loadPhotoMap([('DECam', 'DECaLS'), ('WISE', 'AllWISE')])
 
             # Finally, generate the spectra, iterating in order to converge on the
             # per-object K-correction (typically, after ~two steps the maximum error
             # on the absolute mags is typically <<1%).
-            _, flux = buildSpectraBulk(self.basewave, qsos, maxIter=5,
+            _, flux = buildSpectraBulk(self.basewave, qsometa, maxIter=5,
                                        procMap=self.procMap, saveSpectra=True,
                                        verbose=0)
 
@@ -2178,15 +2178,23 @@ class SIMQSO():
                     self.wave, self.basewave, flux[these[ii], :],
                     extrapolate=True)
 
-            meta['SEED'][these] = seed
-            meta['REDSHIFT'][these] = redshift[these]
+            if input_qsometa:
+                meta['SEED'][these] = input_qsometa.seed
+                meta['REDSHIFT'][these] = input_qsometa.z
+            else:
+                meta['SEED'][these] = seed
+                meta['REDSHIFT'][these] = redshift[these]
+                
             meta['MAG'][these] = -2.5 * np.log10(normmaggies[these])
             for band, filt in zip( ('FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2'),
                                    ('decam2014-g', 'decam2014-r', 'decam2014-z',
                                     'wise2010-W1', 'wise2010-W2') ):
                 meta[band][these] = synthnano[filt][these]
 
-        return outflux, meta, qsos
+        if input_qsometa:
+            return outflux, meta, input_qsometa
+        else:
+            return outflux, meta, qsometa
 
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(19.0, 23.0),
                        seed=None, redshift=None, input_meta=None, input_qsometa=None,
@@ -2269,6 +2277,7 @@ class SIMQSO():
                 log.debug('Reading QSOMETA extension from {}'.format(input_qsometa))
                 qsos = input_qsometa.read(input_qsometa, extname='QSOMETA')
                 
+            nmodel = len(input_qsometa.data)
             outflux, meta, qsometa = self._make_simqso_templates(
                 input_qsometa=qsos, lyaforest=lyaforest,
                 nocolorcuts=nocolorcuts)
