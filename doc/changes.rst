@@ -6,8 +6,11 @@ desisim change log
 -------------------
 
 * Support new LRG templates (v2.0). (`PR #302`_).
+* Bug fixes and additional features added to SIMQSO template maker. (`PR
+  #303`_).
 
 .. _`PR #302`: https://github.com/desihub/desisim/pull/302
+.. _`PR #303`: https://github.com/desihub/desisim/pull/303
 
 0.23.0 (unreleased)
 -------------------
