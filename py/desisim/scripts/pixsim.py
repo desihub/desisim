@@ -6,7 +6,7 @@ This is a module.
 """
 from __future__ import absolute_import, division, print_function
 
-import os
+import os,sys
 import os.path
 import shutil
 
@@ -161,8 +161,8 @@ def parse(options=None):
     parser.add_argument("--wavemax", type=float, 
         help="Maximum wavelength to simulate")
     parser.add_argument("--nspec", type=int, 
-        help="Number of spectra to simulate per camera (500)", 
-        default=500)
+        help="Number of spectra to simulate per camera", 
+                        default=0)
 
     parser.add_argument("--mpi_camera", type=int, default=1, help="Number of "
         "MPI processes to use per camera")
@@ -301,7 +301,8 @@ def main(args, comm=None):
                 fibers = np.arange(fx['PHOT_B'].header['NAXIS2'], 
                     dtype=np.int32)
             fx.close()
-        fibers = fibers[0:args.nspec]
+        if args.nspec>0 :
+            fibers = fibers[0:args.nspec]
     if comm is not None:
         fibers = comm.bcast(fibers, root=0)
 
