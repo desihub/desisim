@@ -126,8 +126,6 @@ def simflat(flatfile, nspec=5000, nonuniform=False, exptime=10, testslit=False):
     from desiutil.log import get_logger
     log = get_logger()
 
-    random_state = np.random.RandomState(seed)
-
     log.info('Reading flat lamp spectrum from {}'.format(flatfile))
     sbflux, hdr = fits.getdata(flatfile, header=True)
     wave = desispec.io.util.header2wave(hdr)
@@ -369,6 +367,8 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None,
 
     from desiutil.log import get_logger
     log = get_logger('DEBUG')
+
+    random_state = np.random.RandomState(seed)
 
     nspec, nwave = flux.shape
 
