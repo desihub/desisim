@@ -8,11 +8,13 @@ desisim change log
 * Support new LRG templates (v2.0). (`PR #302`_).
 * Bug fixes and additional features added to SIMQSO template maker. (`PR
   #303`_).
+* Fixes quickspectra (broken by desispec change)
+* Fixes quickspectra random seed (never worked?)
 
 .. _`PR #302`: https://github.com/desihub/desisim/pull/302
 .. _`PR #303`: https://github.com/desihub/desisim/pull/303
 
-0.23.0 (unreleased)
+0.23.0 (2017-12-20)
 -------------------
 
 * Fixed crash in newexp-mock success print message.
