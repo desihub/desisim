@@ -15,9 +15,10 @@ import desisim.io
 import desisim.util
 from desiutil.log import get_logger
 import desispec.io
+import desispec.io.util
 import desimodel.io
 import desitarget
-from desispec.spectra import Spectra,spectra_dtype
+from desispec.spectra import Spectra
 from desispec.resolution import Resolution
 import matplotlib.pyplot as plt
 
@@ -76,13 +77,17 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None, sourc
     frame_fibermap['TARGETID']=np.arange(nspec).astype(int)
          
     # spectra fibermap has two extra fields : night and expid
-    spectra_fibermap = np.zeros(shape=(nspec,), dtype=spectra_dtype())
+    # This would be cleaner if desispec would provide the spectra equivalent
+    # of desispec.io.empty_fibermap()
+    spectra_fibermap = desispec.io.empty_fibermap(nspec)
+    spectra_fibermap = desispec.io.util.add_columns(spectra_fibermap,
+                       ['NIGHT', 'EXPID', 'TILEID'],
+                       [np.int32(night), np.int32(expid), np.int32(tileid)],
+                       )
+
     for s in range(nspec):
         for tp in frame_fibermap.dtype.fields:
             spectra_fibermap[s][tp] = frame_fibermap[s][tp]
-    spectra_fibermap[:]['EXPID'] = expid # needed by spectra
-    spectra_fibermap[:]['NIGHT'] = night # needed by spectra
-    
     
     if obsconditions is None:
         if program in ['dark', 'lrg', 'qso']:
@@ -109,7 +114,7 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None, sourc
         wavemax = desimodel.io.load_throughput('z').wavemax
 
     if wave[0] > wavemin:
-        log.warn('Minimum input wavelength {}>{}; padding with zeros'.format(
+        log.warning('Minimum input wavelength {}>{}; padding with zeros'.format(
                 wave[0], wavemin))
         dwave = wave[1] - wave[0]
         npad = int((wave[0] - wavemin)/dwave + 1)
@@ -123,7 +128,7 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None, sourc
         assert wave[0] <= wavemin
 
     if wave[-1] < wavemax:
-        log.warn('Maximum input wavelength {}<{}; padding with zeros'.format(
+        log.warning('Maximum input wavelength {}<{}; padding with zeros'.format(
                 wave[-1], wavemax))
         dwave = wave[-1] - wave[-2]
         npad = int( (wavemax - wave[-1])/dwave + 1 )
@@ -142,11 +147,12 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None, sourc
     wave = wave[ii]*u.Angstrom
     flux = flux[:,ii]*flux_unit
 
+    sim = desisim.simexp.simulate_spectra(wave, flux, fibermap=frame_fibermap,
+        obsconditions=obsconditions, seed=seed)
+
     random_state = np.random.RandomState(seed)
-    
-    sim = desisim.simexp.simulate_spectra(wave, flux, fibermap=frame_fibermap, obsconditions=obsconditions)
     sim.generate_random_noise(random_state)
-    
+
     scale=1e17
     specdata = None
 

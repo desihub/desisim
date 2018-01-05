@@ -339,7 +339,8 @@ def fibermeta2fibermap(fiberassign, meta):
 #-------------------------------------------------------------------------
 #- specsim related routines
 
-def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, dwave_out=None):
+def simulate_spectra(wave, flux, fibermap=None, obsconditions=None,
+    dwave_out=None, seed=None):
     '''
     Simulates an exposure without reading/writing data files
 
@@ -353,6 +354,7 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, dwave_out=No
         obsconditions: (dict-like) observation metadata including
             SEEING (arcsec), EXPTIME (sec), AIRMASS,
             MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
+        seed: (int) random seed
 
     TODO: galsim support
 
@@ -365,6 +367,8 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, dwave_out=No
 
     from desiutil.log import get_logger
     log = get_logger('DEBUG')
+
+    random_state = np.random.RandomState(seed)
 
     nspec, nwave = flux.shape
 
@@ -518,16 +522,22 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, dwave_out=No
             # the source position angle is in degrees
             # see specsim.GalsimFiberlossCalculator.create_source routine
             source_position_angle = np.zeros((nspec,2))
-            random_angles = 360.*np.random.uniform(size=nspec)
+            random_angles = 360.*random_state.uniform(size=nspec)
             source_position_angle[elgs,0]=random_angles[elgs]
             source_position_angle[lrgs,1]=random_angles[lrgs]
             source_position_angle[bgss,1]=random_angles[bgss]
-    
+
+    #- Work around randomness in specsim quickfiberloss calculations
+    #- while not impacting global random state.
+    #- See https://github.com/desihub/specsim/issues/83
+    randstate = np.random.get_state()
+    np.random.seed(seed)
     desi.simulate(source_fluxes=flux, focal_positions=xy, source_types=source_types,
                   source_fraction=source_fraction,
                   source_half_light_radius=source_half_light_radius,
                   source_minor_major_axis_ratio=source_minor_major_axis_ratio,
                   source_position_angle=source_position_angle)
+    np.random.set_state(randstate)
 
     return desi
 
