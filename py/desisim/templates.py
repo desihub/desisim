@@ -2203,8 +2203,8 @@ class SIMQSO():
             return outflux, meta, qsometa
 
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(19.0, 23.0),
-                       seed=None, redshift=None, input_meta=None, input_qsometa=None,
-                       maxiter=20, lyaforest=True, nocolorcuts=False, noresample=False,
+                       seed=None, redshift=None, input_qsometa=None, maxiter=20,
+                       lyaforest=True, nocolorcuts=False, noresample=False,
                        return_qsometa=False, verbose=False):
         """Build Monte Carlo QSO spectra/templates.
 
@@ -2240,20 +2240,24 @@ class SIMQSO():
           mag (float, optional): Input/output template magnitudes in the band
             specified by self.normfilter.  Array size must equal nmodel.
             Ignores rmagrange input.
-          input_meta (astropy.Table): *Input* metadata table with the following
-            required columns: SEED, REDSHIFT, and MAG (where mag is specified by
-            self.normfilter).  See desisim.io.empty_metatable for the required
-            data type for each column.  If this table is passed then all other
-            optional inputs (nmodel, redshift, mag, zrange, rmagrange, etc.) are
-            ignored.
+          input_qsometa (simqso.sqgrids.QsoSimPoints or FITS filename): *Input*
+            QsoSimPoints object or FITS filename (with a 'QSOMETA' HDU) from
+            which to (re)generate the QSO spectra.  All other inputs are ignored
+            when this optional input is present.
           maxiter (int): maximum number of iterations for findng a template that
             satisfies the color-cuts (default 20).
           lyaforest (bool, optional): Include Lyman-alpha forest absorption
             (default True).
-          noresample (bool, optional): Do not resample the QSO spectra in
-            wavelength (default False).
           nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
             cuts (default False).
+          noresample (bool, optional): Do not resample the QSO spectra in
+            wavelength (default False).
+          return_qsometa (bool, optional): Optionally return the full
+            simqso.sqgrids.QsoSimPoints object, which contains all the data
+            necessary to regenerate the QSO spectra.  In particular, the data
+            attribute is an astropy.Table object which contains lots of useful
+            info.  This object can be written to disk with the
+            simqso.sqgrids.QsoSimObjects.write method.
           verbose (bool, optional): Be verbose!
 
         Returns (outflux, wave, meta) tuple where:
