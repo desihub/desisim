@@ -9,11 +9,12 @@ desisim change log
 * Bug fixes and additional features added to SIMQSO template maker. (`PR
   #303`_).
 * Fixes quickspectra (broken by desispec change) (`PR #306`_).
-* Fixes quickspectra random seed (never worked?) (`PR #306`_).
+* Optionally do not wavelength resample simqso templates (`PR #310`_).
 
 .. _`PR #302`: https://github.com/desihub/desisim/pull/302
 .. _`PR #303`: https://github.com/desihub/desisim/pull/303
 .. _`PR #306`: https://github.com/desihub/desisim/pull/306
+.. _`PR #310`: https://github.com/desihub/desisim/pull/310
 
 0.23.0 (2017-12-20)
 -------------------
