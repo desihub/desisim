@@ -57,7 +57,7 @@ def apply_lya_transmission(qso_wave,qso_flux,trans_wave,trans) :
     
     output_flux = qso_flux.copy()
     for q in range(qso_flux.shape[0]) :
-        output_flux[q] *= np.interp(qso_wave,trans_wave,trans[q],left=0,right=1)
+        output_flux[q, :] *= np.interp(qso_wave,trans_wave,trans[q, :],left=0,right=1)
     return output_flux
 
 
@@ -117,7 +117,7 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
         templateid = np.arange(nqso)
     else:
         templateid = np.asarray(templateid)
-        nqso = len(templateid)
+        nqso = len(np.atleast_1d(templateid))
 
     if rand is None:
         rand = np.random.RandomState(seed)
