@@ -166,7 +166,7 @@ def main(args):
     #outfile = args.qafig_root+'_summ_fig.png'
     #dsqa_z.summ_fig(simz_tab, summ_dict, meta, outfile=outfile)
     for objtype in ['BGS', 'MWS', 'ELG','LRG', 'QSO_T', 'QSO_L']:
-        outfile = args.qafig_path+'QA_zfind_{:s}.png'.format(objtype)
+        outfile = qafig_path+'QA_zfind_{:s}.png'.format(objtype)
         desispec.io.util.makepath(outfile)
         dsqa_z.obj_fig(simz_tab, objtype, summ_dict, outfile=outfile)
 
