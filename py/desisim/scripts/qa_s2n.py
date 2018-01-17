@@ -42,12 +42,8 @@ def main(args):
     else:
         specprod_dir = args.reduxdir
 
-    #
-
-    log = get_logger()
-
     if args.qafig_path is not None:
-        qafig_path = args.qafig_root
+        qafig_path = args.qafig_path
     else:
         qafig_path = specprod_dir+'/QA/'
     # Generate the path

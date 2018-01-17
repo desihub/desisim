@@ -24,7 +24,7 @@ def parse(options=None):
                         help = 'Override default path ($DESI_SPECTRO_REDUX/$SPECPROD) to processed data.')
     parser.add_argument('--qafile', type = str, default = None, required=False,
                         help = 'path of QA file.')
-    parser.add_argument('--qafig_root', type=str, default=None, help = 'Root name (and path) of QA figure files')
+    parser.add_argument('--qafig_path', type=str, default=None, help = 'Path to where QA figure files are generated.  Default is specprod_dir+/QA')
     parser.add_argument('--write_simz_table', type=str, default=None, help = 'Write simz to this filename')
 
     if options is None:
@@ -51,6 +51,17 @@ def main(args):
     from desimodel.footprint import radec2pix
 
     log = get_logger()
+
+    # Initialize
+    if args.reduxdir is None:
+        specprod_dir = desispec.io.meta.specprod_root()
+    else:
+        specprod_dir = args.reduxdir
+
+    if args.qafig_path is not None:
+        qafig_path = args.qafig_path
+    else:
+        qafig_path = specprod_dir+'/QA/'
 
 
     if args.load_simz_table is not None:
@@ -142,21 +153,22 @@ def main(args):
         log.info("Generating yaml file: {:s}".format(args.qafile))
         # yamlify
         # Write yaml
+        desispec.io.util.makepath(args.qafile)
         with open(args.qafile, 'w') as outfile:
             outfile.write(yaml.dump(yamlify(meta), default_flow_style=False))
             outfile.write(yaml.dump(yamlify(summ_dict), default_flow_style=False))
 
-    if args.qafig_root is not None:
-        log.info("Generating QA files")
-        # Summary for dz of all types
-        outfile = args.qafig_root+'_dzsumm.png'
-        #dsqa_z.dz_summ(simz_tab, outfile=outfile)
-        # Summary of individual types
-        #outfile = args.qafig_root+'_summ_fig.png'
-        #dsqa_z.summ_fig(simz_tab, summ_dict, meta, outfile=outfile)
-        for objtype in ['BGS', 'MWS', 'ELG','LRG', 'QSO_T', 'QSO_L']:
-            outfile = args.qafig_root+'_zfind_{:s}.png'.format(objtype)
-            dsqa_z.obj_fig(simz_tab, objtype, summ_dict, outfile=outfile)
+    log.info("Generating QA files")
+    # Summary for dz of all types
+    #outfile = args.qafig_root+'_dzsumm.png'
+    #dsqa_z.dz_summ(simz_tab, outfile=outfile)
+    # Summary of individual types
+    #outfile = args.qafig_root+'_summ_fig.png'
+    #dsqa_z.summ_fig(simz_tab, summ_dict, meta, outfile=outfile)
+    for objtype in ['BGS', 'MWS', 'ELG','LRG', 'QSO_T', 'QSO_L']:
+        outfile = args.qafig_path+'QA_zfind_{:s}.png'.format(objtype)
+        desispec.io.util.makepath(outfile)
+        dsqa_z.obj_fig(simz_tab, objtype, summ_dict, outfile=outfile)
 
 if __name__ == '__main__':
     main()
