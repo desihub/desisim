@@ -162,6 +162,7 @@ def main(args):
     log.info("Generating QA files")
     # Summary for dz of all types
     outfile = qafig_path+'QA_dzsumm.png'
+    desispec.io.util.makepath(outfile)
     dsqa_z.dz_summ(simz_tab, outfile=outfile)
     # Summary of individual types
     #outfile = args.qafig_root+'_summ_fig.png'
