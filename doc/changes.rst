@@ -11,6 +11,7 @@ desisim change log
 * Fixes quickspectra (broken by desispec change) (`PR #306`_).
 * Optionally do not wavelength resample simqso templates (`PR #310`_).
 * Default to basis templates v2.4 instead of 2.3
+* Minor edits to QA scripts and doc
 
 .. _`PR #302`: https://github.com/desihub/desisim/pull/302
 .. _`PR #303`: https://github.com/desihub/desisim/pull/303

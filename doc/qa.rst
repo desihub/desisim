@@ -23,8 +23,10 @@ vs. RedRock outputs.
 usage
 -----
 
+Here is the usage::
+
     usage: desi_qa_zfind [-h] [--verbose] [--load_simz_table LOAD_SIMZ_TABLE]
-                         [--reduxdir PATH] [--rawdir PATH] [--qafile QAFILE]
+                         [--reduxdir PATH] [--rawdir PATH] [--yaml_file YAML_FILE]
                          [--qafig_path QAFIG_PATH]
                          [--write_simz_table WRITE_SIMZ_TABLE]
 
@@ -41,7 +43,8 @@ usage
                             to processed data. (default: None)
       --rawdir PATH         Override default path ($DESI_SPECTRO_REDUX/$SPECPROD)
                             to processed data. (default: None)
-      --qafile QAFILE       path of QA file. (default: None)
+      --yaml_file YAML_FILE
+                            YAML file for debugging (primarily). (default: None)
       --qafig_path QAFIG_PATH
                             Path to where QA figure files are generated. Default
                             is specprod_dir+/QA (default: None)
