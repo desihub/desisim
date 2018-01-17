@@ -908,4 +908,5 @@ def dz_summ(simz_tab, outfile=None, pdict=None, min_count=20):
 
     if outfile is not None:
         plt.savefig(outfile, dpi=700)
+        print("Wrote: {:s}".format(outfile))
     plt.close()

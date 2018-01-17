@@ -15,11 +15,11 @@ def parse(options=None):
 
 
     parser = argparse.ArgumentParser(description="Generate S/N QA for a production [v{:s}]".format(__qa_version__), formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    #parser.add_argument('--reduxdir', type = str, default = None, metavar = 'PATH',
-    #                    help = 'Override default path ($DESI_SPECTRO_REDUX) to processed data.')
+    parser.add_argument('--reduxdir', type = str, default = None, metavar = 'PATH',
+                        help = 'Override default path ($DESI_SPECTRO_REDUX) to processed data.')
     #parser.add_argument('--rawdir', type = str, default = None, metavar = 'PATH',
     #                    help = 'Override default path ($DESI_SPECTRO_DATA) to processed data.')
-    parser.add_argument('--qafig_root', type=str, default=None, help = 'Root name (and path) of QA figure files')
+    parser.add_argument('--qafig_path', type=str, default=None, help = 'Path to where QA figure files are generated.  Default is specprod_dir+/QA')
 
     if options is None:
         args = parser.parse_args()
@@ -36,17 +36,17 @@ def main(args):
     from desiutil.log import get_logger
     from desisim.spec_qa.s2n import load_s2n_values, obj_s2n_wave, obj_s2n_z
 
-
-    log = get_logger()
-
-    prod = os.getenv('SPECPROD')
-    if prod is None:
-        log.fatal("Must set $SPECPROD")
-
-    if args.qafig_root is not None:
-        qafig_root = args.qafig_root
+    # Initialize
+    if args.reduxdir is None:
+        specprod_dir = desispec.io.meta.specprod_root()
     else:
-        qafig_root = prod
+        specprod_dir = args.reduxdir
+
+    if args.qafig_path is not None:
+        qafig_path = args.qafig_path
+    else:
+        qafig_path = specprod_dir+'/QA/'
+    # Generate the path
     # Grab nights
     nights = desispec.io.get_nights()
 
@@ -73,11 +73,13 @@ def main(args):
             # Load
             s2n_values = load_s2n_values(objtype, nights, channel)#, sub_exposures=exposures)
             # Plot
-            outfile = qafig_root+'_s2n_{:s}_{:s}.png'.format(objtype, channel)
+            outfile = qafig_path+'QA_s2n_{:s}_{:s}.png'.format(objtype, channel)
+            desispec.io.util.makepath(outfile)
             obj_s2n_wave(s2n_values, wv_bins, flux_bins, objtype, outfile=outfile)
             # S/N vs. z for ELG
             if (channel == 'z') & (objtype=='ELG'):
-                outfile = qafig_root+'_s2n_{:s}_{:s}_redshift.png'.format(objtype,channel)
+                outfile = qafig_path+'QA_s2n_{:s}_{:s}_redshift.png'.format(objtype,channel)
+                desispec.io.util.makepath(outfile)
                 obj_s2n_z(s2n_values, z_bins, oii_bins, objtype, outfile=outfile)
 
 
