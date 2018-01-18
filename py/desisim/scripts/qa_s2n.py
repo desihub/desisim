@@ -15,11 +15,9 @@ def parse(options=None):
 
 
     parser = argparse.ArgumentParser(description="Generate S/N QA for a production [v{:s}]".format(__qa_version__), formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--reduxdir', type = str, default = None, metavar = 'PATH',
-                        help = 'Override default path ($DESI_SPECTRO_REDUX) to processed data.')
     #parser.add_argument('--rawdir', type = str, default = None, metavar = 'PATH',
     #                    help = 'Override default path ($DESI_SPECTRO_DATA) to processed data.')
-    parser.add_argument('--qafig_path', type=str, default=None, help = 'Path to where QA figure files are generated.  Default is specprod_dir+/QA')
+    parser.add_argument('--qafig_path', type=str, default=None, help = 'Path to where QA figure files are generated.  Default is qaprod_dir')
 
     if options is None:
         args = parser.parse_args()
@@ -37,15 +35,10 @@ def main(args):
     from desisim.spec_qa.s2n import load_s2n_values, obj_s2n_wave, obj_s2n_z
 
     # Initialize
-    if args.reduxdir is None:
-        specprod_dir = desispec.io.meta.specprod_root()
-    else:
-        specprod_dir = args.reduxdir
-
     if args.qafig_path is not None:
         qafig_path = args.qafig_path
     else:
-        qafig_path = specprod_dir+'/QA/'
+        qafig_path = desispec.io.meta.qaprod_root()
     # Generate the path
     # Grab nights
     nights = desispec.io.get_nights()
