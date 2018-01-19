@@ -402,23 +402,72 @@ def read_simspec_mpi(filename, comm, channel, spectrographs=None):
     #it looks a little silly but it's better than trying to convert from a python 
     #dictionary back to a numpy array later
 
+<<<<<<< HEAD
     #preallocate shape_dict
     shape_dict=dict()
+=======
+    #preallocate shape_list
+    shape_list=[]
+
+    #photons, b
+    hname = 'PHOT_'+'b'.upper()
+    if comm.rank == 0:
+        photb_hdata=np.empty(1,dtype=np.float64)
+        photb_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
+        shape_list.append(hdus[hname].shape)
+    del hname
+
+    #photons, r
+    hname = 'PHOT_'+'r'.upper()
+    if comm.rank == 0:
+        photr_hdata=np.empty(1,dtype=np.float64)
+        photr_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
+        shape_list.append(hdus[hname].shape)
+    del hname
+>>>>>>> changes so that fits file is only opened by rank 0
 
     #photons
     hname = 'PHOT_'+channel.upper()
     if comm.rank == 0:
+<<<<<<< HEAD
         phot_hdata=np.empty(1,dtype=np.float64)
         phot_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
         shape_dict[hname]=hdus[hname].shape
+=======
+        photz_hdata=np.empty(1,dtype=np.float64)
+        photz_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
+        shape_list.append(hdus[hname].shape)
+>>>>>>> changes so that fits file is only opened by rank 0
     del hname
 
     #sky photons
     hname = 'SKYPHOT_'+channel.upper()
     if comm.rank ==0:
+<<<<<<< HEAD
         sky_hdata=np.empty(1,dtype=np.float64)
         sky_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
         shape_dict[hname]=hdus[hname].shape
+=======
+        skyb_hdata=np.empty(1,dtype=np.float64)
+        skyb_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
+        shape_list.append(hdus[hname].shape)
+    del hname
+
+    #sky photons, r
+    hname = 'SKYPHOT_'+'r'.upper()
+    if comm.rank ==0:
+        skyr_hdata=np.empty(1,dtype=np.float64)
+        skyr_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
+        shape_list.append(hdus[hname].shape)
+    del hname
+
+    #sky photons, z
+    hname = 'SKYPHOT_'+'z'.upper()
+    if comm.rank ==0:
+        skyz_hdata=np.empty(1,dtype=np.float64)
+        skyz_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
+        shape_list.append(hdus[hname].shape)
+>>>>>>> changes so that fits file is only opened by rank 0
     del hname
 
     #flux
@@ -426,7 +475,11 @@ def read_simspec_mpi(filename, comm, channel, spectrographs=None):
     if comm.rank == 0:
         flux_hdata=np.empty(1,dtype=np.float64)
         flux_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
+<<<<<<< HEAD
         shape_dict[hname]=hdus[hname].shape
+=======
+        shape_list.append(hdus[hname].shape)
+>>>>>>> changes so that fits file is only opened by rank 0
     del hname
 
     #skyflux
@@ -434,6 +487,7 @@ def read_simspec_mpi(filename, comm, channel, spectrographs=None):
     if comm.rank ==0:
         skyflux_hdata=np.empty(1,dtype=np.float64)
         skyflux_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
+<<<<<<< HEAD
         shape_dict[hname]=hdus[hname].shape
     del hname
 
@@ -454,6 +508,39 @@ def read_simspec_mpi(filename, comm, channel, spectrographs=None):
     comm.Bcast([hdata,MPI.DOUBLE],root=0)
     phot[channel] = hdata[specslice].copy()
     del hdata
+=======
+        shape_list.append(hdus[hname].shape)
+    del hname
+
+    #now put shape tuples into a list so we can broadcast them
+    #one broadcast is more efficienct than many broadcasts
+    #this allows the ranks to know what size to preallocate
+    shape_list= comm.bcast(shape_list, root=0)
+    #add a barrier so we can make sure these data have been broadcast 
+    #to all ranks before we start the next process
+    comm.Barrier()
+    
+    # Read photons
+    phot = dict()
+    for channel in ('b', 'r', 'z'):
+        if comm.rank == 0:
+            if channel == 'b':
+                hdata=photb_hdata
+            if channel == 'r':
+                hdata=photr_hdata
+            if channel == 'z':
+                hdata=photz_hdata
+        elif comm.rank != 0:
+            if channel == 'b':
+                 hdata=np.empty(shape_list[0],dtype=np.float64)
+            if channel == 'r':
+                 hdata=np.empty(shape_list[1],dtype=np.float64)
+            if channel == 'z': 
+                 hdata=np.empty(shape_list[2],dtype=np.float64)
+        comm.Bcast([hdata,MPI.DOUBLE],root=0)
+        phot[channel] = hdata[specslice].copy()
+        del hdata
+>>>>>>> changes so that fits file is only opened by rank 0
 
     # Read sky photons
     skyphot = dict()
@@ -465,6 +552,7 @@ def read_simspec_mpi(filename, comm, channel, spectrographs=None):
     found = comm.bcast(found, root=0)
     if found:
         if comm.rank == 0:
+<<<<<<< HEAD
             hdata = sky_hdata
         elif comm.rank != 0:
             hdata=np.empty(shape_dict['SKYPHOT_'+channel.upper()],dtype=np.float64)
@@ -474,6 +562,32 @@ def read_simspec_mpi(filename, comm, channel, spectrographs=None):
     else:
         skyphot[channel] = np.zeros_like(phot[channel])
     assert phot[channel].shape == skyphot[channel].shape
+=======
+            if hname in hdus:
+                found = True
+        found = comm.bcast(found, root=0)
+        if found:
+            if comm.rank == 0:
+                if channel == 'b':
+                    hdata = skyb_hdata
+                if channel == 'r':
+                    hdata = skyr_hdata
+                if channel == 'z':
+                    hdata = skyz_hdata
+            elif comm.rank != 0:
+                if channel == 'b':
+                    hdata=np.empty(shape_list[3],dtype=np.float64)
+                if channel == 'r':
+                    hdata=np.empty(shape_list[4],dtype=np.float64)
+                if channel == 'z':
+                    hdata=np.empty(shape_list[5],dtype=np.float64)
+            comm.Bcast([hdata,MPI.DOUBLE],root=0)
+            skyphot[channel] = hdata[specslice].copy()
+            del hdata
+        else:
+            skyphot[channel] = np.zeros_like(phot[channel])
+        assert phot[channel].shape == skyphot[channel].shape
+>>>>>>> changes so that fits file is only opened by rank 0
 
     # flux
 
@@ -488,7 +602,11 @@ def read_simspec_mpi(filename, comm, channel, spectrographs=None):
         if comm.rank == 0:
             hdata = flux_hdata
         elif comm.rank != 0:
+<<<<<<< HEAD
             hdata=np.empty(shape_dict['FLUX'],dtype=np.float64)
+=======
+            hdata=np.empty(shape_list[6],dtype=np.float64)
+>>>>>>> changes so that fits file is only opened by rank 0
         comm.Bcast([hdata,MPI.DOUBLE],root=0)
         flux = hdata[specslice].copy()
         del hdata
@@ -506,7 +624,11 @@ def read_simspec_mpi(filename, comm, channel, spectrographs=None):
         if comm.rank == 0:
             hdata = skyflux_hdata
         elif comm.rank != 0:
+<<<<<<< HEAD
             hdata=np.empty(shape_dict['SKYFLUX'],dtype=np.float64)
+=======
+            hdata=np.empty(shape_list[7],dtype=np.float64)
+>>>>>>> changes so that fits file is only opened by rank 0
         comm.Bcast([hdata,MPI.DOUBLE],root=0)
         skyflux = hdata[specslice].copy()
         del hdata
