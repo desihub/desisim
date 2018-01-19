@@ -2087,7 +2087,7 @@ class SIMQSO():
         return qsometa
 
     def _make_simqso_templates(self, redshift=None, rmagrange=None, seed=None,
-                               lyaforest=True, nocolorcuts=False,
+                               lyaforest=True, nocolorcuts=False, noresample=False,
                                input_qsometa=None):
         """Wrapper function for actually generating the templates.
 
@@ -2105,7 +2105,10 @@ class SIMQSO():
             nmodel = len(redshift)
             
         meta = empty_metatable(nmodel=nmodel, objtype='QSO', subtype=subtype)
-        outflux = np.zeros([nmodel, len(self.wave)])
+        if noresample:
+            outflux = np.zeros([nmodel, len(self.basewave)])
+        else:
+            outflux = np.zeros([nmodel, len(self.wave)])
 
         if input_qsometa:
             from simqso.sqrun import buildQsoSpectrum
@@ -2174,9 +2177,12 @@ class SIMQSO():
         these = np.where(colormask)[0]
         if len(these) > 0:
             for ii in range(len(these)):
-                outflux[these[ii], :] = resample_flux(
-                    self.wave, self.basewave, flux[these[ii], :],
-                    extrapolate=True)
+                if noresample:
+                    outflux[these[ii], :] = flux[these[ii], :]
+                else:
+                    outflux[these[ii], :] = resample_flux(
+                        self.wave, self.basewave, flux[these[ii], :],
+                        extrapolate=True)
 
             if input_qsometa:
                 meta['SEED'][these] = input_qsometa.seed
@@ -2197,8 +2203,8 @@ class SIMQSO():
             return outflux, meta, qsometa
 
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(19.0, 23.0),
-                       seed=None, redshift=None, input_meta=None, input_qsometa=None,
-                       maxiter=20, lyaforest=True, nocolorcuts=False,
+                       seed=None, redshift=None, input_qsometa=None, maxiter=20,
+                       lyaforest=True, nocolorcuts=False, noresample=False,
                        return_qsometa=False, verbose=False):
         """Build Monte Carlo QSO spectra/templates.
 
@@ -2234,18 +2240,24 @@ class SIMQSO():
           mag (float, optional): Input/output template magnitudes in the band
             specified by self.normfilter.  Array size must equal nmodel.
             Ignores rmagrange input.
-          input_meta (astropy.Table): *Input* metadata table with the following
-            required columns: SEED, REDSHIFT, and MAG (where mag is specified by
-            self.normfilter).  See desisim.io.empty_metatable for the required
-            data type for each column.  If this table is passed then all other
-            optional inputs (nmodel, redshift, mag, zrange, rmagrange, etc.) are
-            ignored.
+          input_qsometa (simqso.sqgrids.QsoSimPoints or FITS filename): *Input*
+            QsoSimPoints object or FITS filename (with a 'QSOMETA' HDU) from
+            which to (re)generate the QSO spectra.  All other inputs are ignored
+            when this optional input is present.
           maxiter (int): maximum number of iterations for findng a template that
             satisfies the color-cuts (default 20).
           lyaforest (bool, optional): Include Lyman-alpha forest absorption
             (default True).
           nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
             cuts (default False).
+          noresample (bool, optional): Do not resample the QSO spectra in
+            wavelength (default False).
+          return_qsometa (bool, optional): Optionally return the full
+            simqso.sqgrids.QsoSimPoints object, which contains all the data
+            necessary to regenerate the QSO spectra.  In particular, the data
+            attribute is an astropy.Table object which contains lots of useful
+            info.  This object can be written to disk with the
+            simqso.sqgrids.QsoSimObjects.write method.
           verbose (bool, optional): Be verbose!
 
         Returns (outflux, wave, meta) tuple where:
@@ -2279,7 +2291,7 @@ class SIMQSO():
                 
             nmodel = len(input_qsometa.data)
             outflux, meta, qsometa = self._make_simqso_templates(
-                input_qsometa=qsos, lyaforest=lyaforest,
+                input_qsometa=qsos, lyaforest=lyaforest, noresample=noresample,
                 nocolorcuts=nocolorcuts)
 
             log.debug('Generated {} templates from an input qso metadata table.'.format(
@@ -2298,7 +2310,10 @@ class SIMQSO():
             meta = empty_metatable(nmodel=nmodel, objtype='QSO')
             qsometa = None
 
-            outflux = np.zeros([nmodel, len(self.wave)])
+            if noresample:
+                outflux = np.zeros([nmodel, len(self.basewave)])
+            else:
+                outflux = np.zeros([nmodel, len(self.wave)])
 
             # Iterate (up to maxiter) until enough spectra pass the color cuts.
             itercount = 0
@@ -2318,7 +2333,8 @@ class SIMQSO():
 
                 iterflux, itermeta, iterqsometa = self._make_simqso_templates(
                     zin, rmagrange, seed=iterseed[itercount],
-                    lyaforest=lyaforest, nocolorcuts=nocolorcuts)
+                    lyaforest=lyaforest, nocolorcuts=nocolorcuts,
+                    noresample=noresample)
 
                 outflux[need, :] = iterflux
                 meta[need] = itermeta
@@ -2346,10 +2362,15 @@ class SIMQSO():
 
         meta['TEMPLATEID'] = np.arange(nmodel)
 
-        if return_qsometa:
-            return 1e17 * outflux, self.wave, meta, qsometa
+        if noresample:
+            outwave = self.basewave
         else:
-            return 1e17 * outflux, self.wave, meta
+            outwave = self.wave
+
+        if return_qsometa:
+            return 1e17 * outflux, outwave, meta, qsometa
+        else:
+            return 1e17 * outflux, outwave, meta
 
 def specify_galparams_dict(templatetype, zrange=None, magrange=None,
                             oiiihbrange=None, logvdisp_meansig=None,
