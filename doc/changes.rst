@@ -45,20 +45,18 @@ Requires desitarget < 0.19.0
 * Fixes quickspectra (broken by desispec change) (`PR #306`_).
 * Fixes quickspectra random seed (never worked?) (`PR #306`_).
 * Improves pixsim_mpi performance (`PR #312`_).
+<<<<<<< HEAD
 * Optionally do not wavelength resample simqso templates (`PR #310`_).
 * Default to basis templates v2.4 instead of 2.3
 * Minor edits to QA scripts and doc (`PR #311`_).
 * Adds quickspectra --skyerr option (`PR #313`_).
 * Correct fastframe output BUNIT (`PR #317`_).
-
-.. _`PR #302`: https://github.com/desihub/desisim/pull/302
-.. _`PR #303`: https://github.com/desihub/desisim/pull/303
-.. _`PR #306`: https://github.com/desihub/desisim/pull/306
-.. _`PR #312`: https://github.com/desihub/desisim/pull/312
+=======
 .. _`PR #310`: https://github.com/desihub/desisim/pull/310
 .. _`PR #311`: https://github.com/desihub/desisim/pull/311
 .. _`PR #313`: https://github.com/desihub/desisim/pull/313
 .. _`PR #317`: https://github.com/desihub/desisim/pull/317
+=======
 
 0.23.0 (2017-12-20)
 -------------------
