@@ -398,15 +398,15 @@ def read_simspec_mpi(filename, comm, spectrographs=None):
     #it looks a little silly but it's better than trying to convert from a python 
     #dictionary back to a numpy array later
 
-    #preallocate shape_list
-    shape_list=[]
+    #preallocate shape_dict
+    shape_dict=dict()
 
     #photons, b
     hname = 'PHOT_'+'b'.upper()
     if comm.rank == 0:
         photb_hdata=np.empty(1,dtype=np.float64)
         photb_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
-        shape_list.append(hdus[hname].shape)
+        shape_dict[hname]=hdus[hname].shape
     del hname
 
     #photons, r
@@ -414,7 +414,7 @@ def read_simspec_mpi(filename, comm, spectrographs=None):
     if comm.rank == 0:
         photr_hdata=np.empty(1,dtype=np.float64)
         photr_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
-        shape_list.append(hdus[hname].shape)
+        shape_dict[hname]=hdus[hname].shape
     del hname
 
     #photons, z
@@ -422,7 +422,7 @@ def read_simspec_mpi(filename, comm, spectrographs=None):
     if comm.rank == 0:
         photz_hdata=np.empty(1,dtype=np.float64)
         photz_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
-        shape_list.append(hdus[hname].shape)
+        shape_dict[hname]=hdus[hname].shape
     del hname
 
     #sky photons, b
@@ -430,7 +430,7 @@ def read_simspec_mpi(filename, comm, spectrographs=None):
     if comm.rank ==0:
         skyb_hdata=np.empty(1,dtype=np.float64)
         skyb_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
-        shape_list.append(hdus[hname].shape)
+        shape_dict[hname]=hdus[hname].shape
     del hname
 
     #sky photons, r
@@ -438,7 +438,7 @@ def read_simspec_mpi(filename, comm, spectrographs=None):
     if comm.rank ==0:
         skyr_hdata=np.empty(1,dtype=np.float64)
         skyr_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
-        shape_list.append(hdus[hname].shape)
+        shape_dict[hname]=hdus[hname].shape
     del hname
 
     #sky photons, z
@@ -446,7 +446,7 @@ def read_simspec_mpi(filename, comm, spectrographs=None):
     if comm.rank ==0:
         skyz_hdata=np.empty(1,dtype=np.float64)
         skyz_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
-        shape_list.append(hdus[hname].shape)
+        shape_dict[hname]=hdus[hname].shape
     del hname
 
     #flux
@@ -454,7 +454,7 @@ def read_simspec_mpi(filename, comm, spectrographs=None):
     if comm.rank == 0:
         flux_hdata=np.empty(1,dtype=np.float64)
         flux_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
-        shape_list.append(hdus[hname].shape)
+        shape_dict[hname]=hdus[hname].shape
     del hname
 
     #skyflux
@@ -462,13 +462,13 @@ def read_simspec_mpi(filename, comm, spectrographs=None):
     if comm.rank ==0:
         skyflux_hdata=np.empty(1,dtype=np.float64)
         skyflux_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
-        shape_list.append(hdus[hname].shape)
+        shape_dict[hname]=hdus[hname].shape
     del hname
 
-    #now put shape tuples into a list so we can broadcast them
+    #now put shape tuples into a dict so we can broadcast them
     #one broadcast is more efficienct than many broadcasts
     #this allows the ranks to know what size to preallocate
-    shape_list= comm.bcast(shape_list, root=0)
+    shape_dict= comm.bcast(shape_dict, root=0)
     #add a barrier so we can make sure these data have been broadcast 
     #to all ranks before we start the next process
     comm.Barrier()
@@ -485,11 +485,11 @@ def read_simspec_mpi(filename, comm, spectrographs=None):
                 hdata=photz_hdata
         elif comm.rank != 0:
             if channel == 'b':
-                 hdata=np.empty(shape_list[0],dtype=np.float64)
+                 hdata=np.empty(shape_dict['PHOT_B'],dtype=np.float64)
             if channel == 'r':
-                 hdata=np.empty(shape_list[1],dtype=np.float64)
+                 hdata=np.empty(shape_dict['PHOT_R'],dtype=np.float64)
             if channel == 'z': 
-                 hdata=np.empty(shape_list[2],dtype=np.float64)
+                 hdata=np.empty(shape_dict['PHOT_Z'],dtype=np.float64)
         comm.Bcast([hdata,MPI.DOUBLE],root=0)
         phot[channel] = hdata[specslice].copy()
         del hdata
@@ -513,11 +513,11 @@ def read_simspec_mpi(filename, comm, spectrographs=None):
                     hdata = skyz_hdata
             elif comm.rank != 0:
                 if channel == 'b':
-                    hdata=np.empty(shape_list[3],dtype=np.float64)
+                    hdata=np.empty(shape_dict['SKYPHOT_B'],dtype=np.float64)
                 if channel == 'r':
-                    hdata=np.empty(shape_list[4],dtype=np.float64)
+                    hdata=np.empty(shape_dict['SKYPHOT_R'],dtype=np.float64)
                 if channel == 'z':
-                    hdata=np.empty(shape_list[5],dtype=np.float64)
+                    hdata=np.empty(shape_dict['SKYPHOT_Z'],dtype=np.float64)
             comm.Bcast([hdata,MPI.DOUBLE],root=0)
             skyphot[channel] = hdata[specslice].copy()
             del hdata
@@ -538,7 +538,7 @@ def read_simspec_mpi(filename, comm, spectrographs=None):
         if comm.rank == 0:
             hdata = flux_hdata
         elif comm.rank != 0:
-            hdata=np.empty(shape_list[6],dtype=np.float64)
+            hdata=np.empty(shape_dict['FLUX'],dtype=np.float64)
         comm.Bcast([hdata,MPI.DOUBLE],root=0)
         flux = hdata[specslice].copy()
         del hdata
@@ -556,7 +556,7 @@ def read_simspec_mpi(filename, comm, spectrographs=None):
         if comm.rank == 0:
             hdata = skyflux_hdata
         elif comm.rank != 0:
-            hdata=np.empty(shape_list[7],dtype=np.float64)
+            hdata=np.empty(shape_dict['SKYFLUX'],dtype=np.float64)
         comm.Bcast([hdata,MPI.DOUBLE],root=0)
         skyflux = hdata[specslice].copy()
         del hdata
