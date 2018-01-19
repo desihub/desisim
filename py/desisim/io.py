@@ -333,6 +333,9 @@ def read_simspec_mpi(filename, comm, channel, spectrographs=None):
     # rank 0 opens file and gets the metadata and wavelength
     # grids, which will be kept on all processes.
 
+    # set a counter so we only open files and store data one time
+    counter=0
+
     hdr = None
     flavor = None
     fibermap = None
