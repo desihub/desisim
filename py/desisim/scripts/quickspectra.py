@@ -22,7 +22,8 @@ from desispec.spectra import Spectra
 from desispec.resolution import Resolution
 import matplotlib.pyplot as plt
 
-def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None, sourcetype=None, expid=0, seed=0):
+def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
+    sourcetype=None, expid=0, seed=0, skyerr=0.0):
     """
     Simulate spectra from an input set of wavelength and flux and writes a FITS file in the Spectra format that can
     be used as input to the redshift fitter.
@@ -32,12 +33,15 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None, sourc
         flux : 1D or 2D np.array. 1D array must have same size as wave, 2D array must have shape[1]=wave.size
                flux has to be in units of 10^-17 ergs/s/cm2/A
         spectra_filename : path to output FITS file in the Spectra format
+        program : dark, lrg, qso, gray, grey, elg, bright, mws, bgs
+            ignored if obsconditions is not None
     
     Optional:
         obsconditions : dictionnary of observation conditions with SEEING EXPTIME AIRMASS MOONFRAC MOONALT MOONSEP
         sourcetype : list of string, allowed values are (sky,elg,lrg,qso,bgs,star), type of sources, used for fiber aperture loss , default is star
         expid : this expid number will be saved in the Spectra fibermap
-        seed : random seed       
+        seed : random seed
+        skyerr : fractional sky subtraction error
     """
     log = get_logger()
     
@@ -160,11 +164,16 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None, sourc
     for camera in sim.instrument.cameras:
         R = Resolution(camera.get_output_resolution_matrix())
         resolution[camera.name] = np.tile(R.to_fits_array(), [nspec, 1, 1])
+
+    skyscale = skyerr * random_state.normal(size=sim.num_fibers)
         
     for table in sim.camera_output :
         
         wave = table['wavelength'].astype(float)
         flux = (table['observed_flux']+table['random_noise_electrons']*table['flux_calibration']).T.astype(float)
+        if np.any(skyscale):
+            flux += ((table['num_sky_electrons']*skyscale)*table['flux_calibration']).T.astype(float)
+
         ivar = table['flux_inverse_variance'].T.astype(float)
         
         band  = table.meta['name'].strip()[0]
@@ -210,8 +219,8 @@ def parse(options=None):
     parser.add_argument('--moonsep', type=float, default=None, help="Moon separation to tile [degrees]")
     parser.add_argument('--seed', type=int, default=0, help="Random seed")
     parser.add_argument('--source-type', type=str, default=None, help="Source type (for fiber loss), among sky,elg,lrg,qso,bgs,star")
-    
-    
+    parser.add_argument('--skyerr', type=float, default=0.0, help="Fractional sky subtraction error")
+
     if options is None:
         args = parser.parse_args()
     else:
@@ -239,7 +248,7 @@ def main(args=None):
         exptime = 1000. # sec
     
     #- Generate obsconditions with args.program, then override as needed
-    obsconditions = desisim.simexp.reference_conditions[args.program]
+    obsconditions = desisim.simexp.reference_conditions[args.program.upper()]
     if args.airmass is not None:
         obsconditions['AIRMASS'] = args.airmass
     if args.seeing is not None:
@@ -305,5 +314,7 @@ def main(args=None):
         nspec=input_flux.shape[0]
         sourcetype=np.array([sourcetype for i in range(nspec)])
     
-    sim_spectra(input_wave, input_flux, args.program, obsconditions=obsconditions,spectra_filename=args.out_spectra,seed=args.seed,sourcetype=sourcetype)
+    sim_spectra(input_wave, input_flux, args.program, obsconditions=obsconditions,
+        spectra_filename=args.out_spectra,seed=args.seed,sourcetype=sourcetype,
+        skyerr=args.skyerr)
     
