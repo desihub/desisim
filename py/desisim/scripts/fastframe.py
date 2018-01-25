@@ -118,19 +118,18 @@ def main(args=None):
             meta = simspec.header.copy()
             meta['CAMERA'] = camera
             if args.cframe :
-                units = '1e-17 erg/(s cm2 A)'
+                units = '1e-17 erg/(s cm2 Angstrom)'
             else :
                 #units = 'photon/bin'
                 
                 # we want to save electrons per angstrom and not electrons per bin
                 # to be consistent with the extraction code (specter.extract.ex2d)
-                units = 'electrons/Angstrom'
+                units = 'electron/Angstrom'
                 dwave=np.gradient(wave)
                 xphot /= dwave
                 xivar *= dwave**2
             
-            if 'BUNIT' in meta :
-                meta['BUNIT']=units
+            meta['BUNIT']=units
             
             frame = Frame(wave, xphot, xivar, resolution_data=Rdata[0:imax-imin],
                           spectrograph=spectro, fibermap=xfibermap, meta=meta)
