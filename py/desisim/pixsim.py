@@ -401,10 +401,32 @@ def parallel_project(psf, wave, phot, specmin=0, ncpu=None, comm=None):
         from mpi4py import MPI
         specs = np.arange(phot.shape[0], dtype=np.int32)
         myspecs = np.array_split(specs, comm.size)[comm.rank]
-        myimg = psf.project(wave, phot[myspecs], specmin=(specmin+myspecs[0]))
+        nspec = phot.shape[0]
+        iispec = np.linspace(specmin, nspec, int(comm.size+1)).astype(int)
+
+        args = list()
         if comm.rank == 0:
-            img = np.zeros_like(myimg)
-        comm.Reduce(myimg, img, op=MPI.SUM, root=0)
+            for i in range(comm.size):
+                if iispec[i+1] > iispec[i]: 
+                    args.append( [psf, wave, phot[iispec[i]:iispec[i+1]], iispec[i]] )
+
+        args=comm.scatter(args,root=0)
+        #now that all ranks have args, we can call _project
+        xy_subimg=_project(args)
+        #_project calls project calls spotgrid etc        
+
+        xy_subimg=comm.gather(xy_subimg,root=0)
+
+        if comm.rank ==0:
+            #now all the data should be back at rank 0        
+            #we can use the same technique as multiprocessing to add the data back together
+            img = np.zeros( (psf.npix_y, psf.npix_x) )
+            for xyrange, subimg in xy_subimg:
+                xmin, xmax, ymin, ymax = xyrange
+                img[ymin:ymax, xmin:xmax] += subimg
+
+    #end of mpi section
+
     else:
         import multiprocessing as mp
         if ncpu is None:
@@ -429,6 +451,11 @@ def parallel_project(psf, wave, phot, specmin=0, ncpu=None, comm=None):
             #- xyrange, subimg = _project( [psf, wave, phot, specmin] )
             pool = mp.Pool(ncpu)
             xy_subimg = pool.map(_project, args)
+
+            #print("xy_subimg from pool")
+            #print(xy_subimg)
+            #print(len(xy_subimg))
+
             img = np.zeros( (psf.npix_y, psf.npix_x) )
             for xyrange, subimg in xy_subimg:
                 xmin, xmax, ymin, ymax = xyrange

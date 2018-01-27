@@ -536,6 +536,10 @@ def read_simspec_mpi(filename, comm, channel, spectrographs=None):
     if comm.rank == 0:
         hdus.close()
 
+
+    #weird things are happening, try deleting
+    del shape_dict
+
     return SimSpec(flavor, wave, phot, flux=flux, skyflux=skyflux,
         skyphot=skyphot, metadata=metadata, fibermap=fibermap, obs=obs,
         header=hdr)
