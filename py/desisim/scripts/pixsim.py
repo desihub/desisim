@@ -272,7 +272,7 @@ def main(args, comm=None):
         psf = load_psf(args.psf)
 
     # Read and distribute the simspec data
-    # use collections library to create list of tuples
+    # create list of tuples
     camera_channel_list=[]
     if comm is not None:
         if rank == 0:
