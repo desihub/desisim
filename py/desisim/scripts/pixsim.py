@@ -382,7 +382,7 @@ def main(args, comm=None):
     
             #try passing in current camera so we don't hit a key error
             image[camera], rawpix[camera], truepix[camera] = \
-                simulate(camera, channel, simspec, psf, fibers=group_fibers, 
+                simulate(camera, simspec, psf, fibers=group_fibers, 
                     ncpu=args.ncpu, nspec=args.nspec, cosmics=cosmics, 
                     wavemin=args.wavemin, wavemax=args.wavemax, preproc=False,
                     comm=comm_group)
@@ -452,7 +452,7 @@ def main(args, comm=None):
                     "{}".format(group, group_size, camera))
 
             image[camera], rawpix[camera], truepix[camera] = \
-                simulate(camera, channel, simspec, psf, fibers=group_fibers, 
+                simulate(camera, simspec, psf, fibers=group_fibers, 
                     ncpu=args.ncpu, nspec=args.nspec, cosmics=cosmics, 
                     wavemin=args.wavemin, wavemax=args.wavemax, preproc=False,
                     comm=comm_group)

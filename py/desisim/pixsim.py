@@ -81,7 +81,7 @@ def simulate_frame(night, expid, camera, ccdshape=None, **kwargs):
     desispec.io.write_image(pixfile, image)
 
 
-def simulate(camera, channel, simspec, psf, fibers=None, nspec=None, ncpu=None,
+def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
     cosmics=None, wavemin=None, wavemax=None, preproc=True, comm=None):
     """Run pixel-level simulation of input spectra
 
@@ -107,8 +107,7 @@ def simulate(camera, channel, simspec, psf, fibers=None, nspec=None, ncpu=None,
         log.info('Starting pixsim.simulate camera {} at {}'.format(camera,
             asctime()))
     #- parse camera name into channel and spectrograph number
-    #channel = camera[0].lower()
-    #instead feed current channel as input   
+    channel = camera[0].lower()
 
     ispec = int(camera[1])
     assert channel in 'brz', 'unrecognized channel {} camera {}'.format(channel, camera)
