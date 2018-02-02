@@ -66,7 +66,7 @@ def main(args):
             # Load
             s2n_values = load_s2n_values(objtype, nights, channel)#, sub_exposures=exposures)
             # Plot
-            outfile = qafig_path+'QA_s2n_{:s}_{:s}.png'.format(objtype, channel)
+            outfile = qafig_path+'/QA_s2n_{:s}_{:s}.png'.format(objtype, channel)
             desispec.io.util.makepath(outfile)
             obj_s2n_wave(s2n_values, wv_bins, flux_bins, objtype, outfile=outfile)
             # S/N vs. z for ELG
