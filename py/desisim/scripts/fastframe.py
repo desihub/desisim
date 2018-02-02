@@ -28,6 +28,7 @@ def parse(options=None):
                         help="number of spectra to simulate")
     parser.add_argument("--cframe", action="store_true",
                         help="directly write cframe")
+    parser.add_argument("--dwave", type=float, default=0.8, help="output wavelength step, in Angstrom")
     
     if options is None:
         args = parser.parse_args()
@@ -66,14 +67,14 @@ def main(args=None):
     ii = slice(firstspec, firstspec+nspec)
     if simspec.flavor == 'science':
         sim = desisim.simexp.simulate_spectra(wave, flux[ii],
-                fibermap=fibermap[ii], obsconditions=obs, dwave_out=1.0)
+                fibermap=fibermap[ii], obsconditions=obs, dwave_out=args.dwave)
     elif simspec.flavor in ['arc', 'flat', 'calib']:
         x = fibermap['X_TARGET']
         y = fibermap['Y_TARGET']
         fiber_area = desisim.simexp.fiber_area_arcsec2(
                 fibermap['X_TARGET'], fibermap['Y_TARGET'])
         surface_brightness = (flux.T / fiber_area).T
-        config = desisim.simexp._specsim_config_for_wave(wave, dwave_out=1.0)
+        config = desisim.simexp._specsim_config_for_wave(wave, dwave_out=args.dwave)
         # sim = specsim.simulator.Simulator(config, num_fibers=nspec)
         sim = desisim.specsim.get_simulator(config, num_fibers=nspec)
         sim.observation.exposure_time = simspec.header['EXPTIME'] * u.s
@@ -117,11 +118,18 @@ def main(args=None):
             meta = simspec.header.copy()
             meta['CAMERA'] = camera
             if args.cframe :
-                units = '1e-17 erg/(s cm2 A)'
+                units = '1e-17 erg/(s cm2 Angstrom)'
             else :
-                units = 'photon/bin'
-            if 'BUNIT' in meta :
-                meta['BUNIT']=units
+                #units = 'photon/bin'
+                
+                # we want to save electrons per angstrom and not electrons per bin
+                # to be consistent with the extraction code (specter.extract.ex2d)
+                units = 'electron/Angstrom'
+                dwave=np.gradient(wave)
+                xphot /= dwave
+                xivar *= dwave**2
+            
+            meta['BUNIT']=units
             
             frame = Frame(wave, xphot, xivar, resolution_data=Rdata[0:imax-imin],
                           spectrograph=spectro, fibermap=xfibermap, meta=meta)

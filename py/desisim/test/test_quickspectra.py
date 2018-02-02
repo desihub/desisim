@@ -75,6 +75,15 @@ class TestQuickSpectra(unittest.TestCase):
         sp2 = desispec.io.read_spectra(self.outspec2)
         self._check_spectra_match(sp1, sp2)
 
+        #- Test skyerr option
+        cmd = 'quickspectra -i {} -o {} --seed 1 --skyerr 0.1'.format(
+            self.inspec_fits, self.outspec2)
+        opts = quickspectra.parse(cmd.split()[1:])
+        quickspectra.main(opts)
+        self.assertTrue(os.path.exists(self.outspec2))
+        sp2 = desispec.io.read_spectra(self.outspec2)
+        self.assertGreater(np.std(sp2.flux['r']), np.std(sp1.flux['r']))
+
         #- Different seed should result in different spectra
         cmd = 'quickspectra -i {} -o {} --seed 2'.format(self.inspec_fits, self.outspec2)
         opts = quickspectra.parse(cmd.split()[1:])
@@ -91,7 +100,7 @@ class TestQuickSpectra(unittest.TestCase):
         sp2 = desispec.io.read_spectra(self.outspec2)
         self._check_spectra_match(sp1, sp2)
 
-        #- Changing moon paramters should change spectra
+        #- Changing moon parameters should change spectra
         cmd = 'quickspectra -i {} -o {} --seed 1'.format(self.inspec_fits, self.outspec2)
         cmd += ' --moonfrac 0.9 --moonalt 80 --moonsep 10'
         opts = quickspectra.parse(cmd.split()[1:])
