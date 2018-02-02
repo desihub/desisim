@@ -5,7 +5,7 @@ desisim change log
 0.24.1 (unreleased)
 -------------------
 
-* No changes yet.
+* Fix double PSF convolution in pixsims.
 
 0.24.0 (2018-01-30)
 -------------------
