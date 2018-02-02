@@ -5,7 +5,11 @@ desisim change log
 0.24.1 (unreleased)
 -------------------
 
-* Additional edits to QA scripts and doc to run with mini Notebook
+* Additional edits to QA scripts and doc to run with mini Notebook (`PR #322`_).
+* Fix double PSF convolution in pixsims (`PR #320`_).
+
+.. _`PR #322`: https://github.com/desihub/desisim/pull/322
+.. _`PR #320`: https://github.com/desihub/desisim/pull/320
 
 0.24.0 (2018-01-30)
 -------------------

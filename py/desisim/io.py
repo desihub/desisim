@@ -184,9 +184,9 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, outdir=None, filename
     hx.append(hdu_skyflux)
 
     #- DEPRECATE?  per-camera photons (derivable from flux and throughput)
-    for i, camera in enumerate(sorted(sim.camera_names)):
-        wavemin = sim.camera_output[i]['wavelength'][0]
-        wavemax = sim.camera_output[i]['wavelength'][-1]
+    for i, camera in enumerate(sim.camera_names):
+        wavemin = sim.instrument.cameras[i].wavelength_min.to('Angstrom').value
+        wavemax = sim.instrument.cameras[i].wavelength_max.to('Angstrom').value
         ii = (wavemin <= wave) & (wave <= wavemax)
         hx.append(fits.ImageHDU(wave[ii], name='WAVE_'+camera.upper()))
 
