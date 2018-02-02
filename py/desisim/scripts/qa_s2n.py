@@ -71,7 +71,7 @@ def main(args):
             obj_s2n_wave(s2n_values, wv_bins, flux_bins, objtype, outfile=outfile)
             # S/N vs. z for ELG
             if (channel == 'z') & (objtype=='ELG'):
-                outfile = qafig_path+'QA_s2n_{:s}_{:s}_redshift.png'.format(objtype,channel)
+                outfile = qafig_path+'/QA_s2n_{:s}_{:s}_redshift.png'.format(objtype,channel)
                 desispec.io.util.makepath(outfile)
                 obj_s2n_z(s2n_values, z_bins, oii_bins, objtype, outfile=outfile)
 
