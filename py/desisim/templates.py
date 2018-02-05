@@ -1703,8 +1703,8 @@ class QSO():
 
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(20.0, 22.5),
                        seed=None, redshift=None, mag=None, input_meta=None, N_perz=40, 
-                       maxiter=20, uniform=False, lyaforest=True, nocolorcuts=False,
-                       verbose=False):
+                       maxiter=20, uniform=False, bal=False, balprob=0.12, 
+	               lyaforest=True, nocolorcuts=False, verbose=False):
         """Build Monte Carlo QSO spectra/templates.
 
         This function generates QSO spectra on-the-fly using PCA decomposition
@@ -1747,6 +1747,10 @@ class QSO():
             template that also satisfies the color-cuts (default 20).
           uniform (bool, optional): Draw uniformly from the PCA coefficients
             (default False).
+          bal (bool, optional): Include broad absorption line (BAL) features
+            (default False).
+          balprob (float, optional): Probability than a QSO is a BAL 
+            (default 0.12).
           lyaforest (bool, optional): Include Lyman-alpha forest absorption
             (default True).
           nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
@@ -1766,6 +1770,7 @@ class QSO():
         """
         from desispec.interpolation import resample_flux
         from desiutil.log import get_logger, DEBUG
+        from bal import readbaltemplates, isbal, getbaltemplate
 
         if uniform:
             from desiutil.stats import perc
@@ -1811,6 +1816,10 @@ class QSO():
 
             if mag is None:
                 mag = rand.uniform(rmagrange[0], rmagrange[1], nmodel).astype('f4')
+	# Read in the BAL templates if needed. 
+        if bal: 
+            baltemplatefile = "/global/project/projectdirs/desi/spectro/templates/basis_templates/basis_templates_svn/trunk/BAL-templates-v0.1.fits" 
+            balwave, baltemplates = readbaltemplates(baltemplatefile)
 
         # Pre-compute the Lyman-alpha skewers.
         if lyaforest:
@@ -1826,8 +1835,13 @@ class QSO():
         for key, value in zip(('REDSHIFT', 'MAG', 'SEED'),
                                (redshift, mag, templateseed)):
             meta[key] = value
-        if lyaforest:
+        if lyaforest: 
             meta['SUBTYPE'] = 'LYA'
+        if bal: 
+            if lyaforest: 
+                meta['SUBTYPE'] = 'LYA+BAL'
+            else: 
+                meta['SUBTYPE'] = 'BAL'
 
         # Attenuate below the Lyman-limit by the mean free path (MFP) model
         # measured by Worseck, Prochaska et al. 2014.
@@ -1839,6 +1853,7 @@ class QSO():
         PCA_rand = np.zeros( (4, N_perz) )
         nonegflux = np.zeros(N_perz)
         flux = np.zeros( (N_perz, npix) )
+        balindex = -1*np.ones(N_perz, dtype=int)  # = -1 if is no BAL applied 
 
         zwave = np.outer(self.eigenwave, 1+redshift) # [observed-frame, Angstrom]
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
@@ -1901,6 +1916,10 @@ class QSO():
                     flux[kk, :] = np.dot(self.eigenflux.T, PCA_rand[:, kk]).flatten()
                     if redshift[ii] > 2.39:
                          flux[kk, :pix912] *= np.exp(-phys_dist.value / mfp[ii])
+                    if bal: 
+                        if isbal(balprob): 
+                            baltemplate, balindex[kk] = getbaltemplate(zwave[:,ii], redshift[ii], balwave, baltemplates)
+                            flux[kk, :] *= baltemplate
                     if lyaforest:
                         flux[kk, :] *= qso_skewer_flux
                     nonegflux[kk] = (np.sum(flux[kk, (zwave[:, ii] > 3000) & (zwave[:, ii] < 1E4)] < 0) == 0) * 1
