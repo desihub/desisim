@@ -1770,7 +1770,7 @@ class QSO():
         """
         from desispec.interpolation import resample_flux
         from desiutil.log import get_logger, DEBUG
-        from bal import readbaltemplates, isbal, getbaltemplate
+        from desisim import bal 
 
         if uniform:
             from desiutil.stats import perc
@@ -1819,7 +1819,7 @@ class QSO():
 	# Read in the BAL templates if needed. 
         if bal: 
             baltemplatefile = "/global/project/projectdirs/desi/spectro/templates/basis_templates/basis_templates_svn/trunk/BAL-templates-v0.1.fits" 
-            balwave, baltemplates = readbaltemplates(baltemplatefile)
+            balwave, baltemplates = bal.readbaltemplates(baltemplatefile)
 
         # Pre-compute the Lyman-alpha skewers.
         if lyaforest:
@@ -1917,8 +1917,8 @@ class QSO():
                     if redshift[ii] > 2.39:
                          flux[kk, :pix912] *= np.exp(-phys_dist.value / mfp[ii])
                     if bal: 
-                        if isbal(balprob): 
-                            baltemplate, balindex[kk] = getbaltemplate(zwave[:,ii], redshift[ii], balwave, baltemplates)
+                        if bal.isbal(balprob): 
+                            baltemplate, balindex[kk] = bal.getbaltemplate(zwave[:,ii], redshift[ii], balwave, baltemplates)
                             flux[kk, :] *= baltemplate
                     if lyaforest:
                         flux[kk, :] *= qso_skewer_flux
