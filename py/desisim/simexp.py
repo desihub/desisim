@@ -105,7 +105,8 @@ def simarc(arcdata, nspec=5000, nonuniform=False, testslit=False):
 
     return wave, phot, fibermap
 
-def simflat(flatfile, nspec=5000, nonuniform=False, exptime=10, testslit=False):
+def simflat(flatfile, nspec=5000, nonuniform=False, exptime=10, testslit=False,
+    camera_output=True):
     '''
     Simulates a flat lamp calibration exposure
 
@@ -116,6 +117,8 @@ def simflat(flatfile, nspec=5000, nonuniform=False, exptime=10, testslit=False):
         nspec: (int) number of spectra to simulate
         nonuniform: (bool) include calibration screen non-uniformity
         exptime: (float) exposure time in seconds
+        camera_output: (bool) passed to simspec.simulator.Simulator.
+            if True, convolve with PSF and include per-camera outputs
 
     Returns: (sim, fibermap)
         sim: specsim Simulator object
@@ -177,7 +180,8 @@ def simflat(flatfile, nspec=5000, nonuniform=False, exptime=10, testslit=False):
     config = _specsim_config_for_wave(wave)
     log.debug('Creating specsim simulator for {} spectra'.format(nspec))
     # sim = specsim.simulator.Simulator(config, num_fibers=nspec)
-    sim = desisim.specsim.get_simulator(config, num_fibers=nspec)
+    sim = desisim.specsim.get_simulator(config, num_fibers=nspec,
+        camera_output=camera_output)
     sim.observation.exposure_time = exptime * u.s
     log.debug('Simulating')
     sim.simulate(calibration_surface_brightness=sbflux, focal_positions=xy)
@@ -340,7 +344,7 @@ def fibermeta2fibermap(fiberassign, meta):
 #- specsim related routines
 
 def simulate_spectra(wave, flux, fibermap=None, obsconditions=None,
-    dwave_out=None, seed=None):
+    dwave_out=None, seed=None, camera_output=True):
     '''
     Simulates an exposure without reading/writing data files
 
@@ -355,6 +359,8 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None,
             SEEING (arcsec), EXPTIME (sec), AIRMASS,
             MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
         seed: (int) random seed
+        camera_output: (bool) passed to simspec.simulator.Simulator.
+            if True, convolve with PSF and include per-camera outputs
 
     TODO: galsim support
 
@@ -386,7 +392,8 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None,
     #- Create simulator
     log.debug('creating specsim desi simulator')
     # desi = specsim.simulator.Simulator(config, num_fibers=nspec)
-    desi = desisim.specsim.get_simulator(config, num_fibers=nspec)
+    desi = desisim.specsim.get_simulator(config, num_fibers=nspec,
+        camera_output=camera_output)
 
     if obsconditions is None:
         log.warning('Assuming DARK conditions')
