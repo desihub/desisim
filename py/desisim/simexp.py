@@ -106,7 +106,7 @@ def simarc(arcdata, nspec=5000, nonuniform=False, testslit=False):
     return wave, phot, fibermap
 
 def simflat(flatfile, nspec=5000, nonuniform=False, exptime=10, testslit=False,
-    camera_output=True):
+            camera_output=True,specsim_config_file="desi"):
     '''
     Simulates a flat lamp calibration exposure
 
@@ -177,7 +177,7 @@ def simflat(flatfile, nspec=5000, nonuniform=False, exptime=10, testslit=False,
         log.info('Adjusting for calibration screen non-uniformity {:.4f}'.format(tmp))
 
     log.debug('Creating specsim configuration')
-    config = _specsim_config_for_wave(wave)
+    config = _specsim_config_for_wave(wave,specsim_config_file)
     log.debug('Creating specsim simulator for {} spectra'.format(nspec))
     # sim = specsim.simulator.Simulator(config, num_fibers=nspec)
     sim = desisim.specsim.get_simulator(config, num_fibers=nspec,
@@ -344,7 +344,7 @@ def fibermeta2fibermap(fiberassign, meta):
 #- specsim related routines
 
 def simulate_spectra(wave, flux, fibermap=None, obsconditions=None,
-    dwave_out=None, seed=None, camera_output=True):
+                     dwave_out=None, seed=None, camera_output=True,specsim_config_file = "desi"):
     '''
     Simulates an exposure without reading/writing data files
 
@@ -386,8 +386,8 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None,
     if not isinstance(wave, u.Quantity):
         wave = wave * u.Angstrom
 
-    log.debug('loading specsim desi config')
-    config = _specsim_config_for_wave(wave.to('Angstrom').value, dwave_out=dwave_out)
+    log.debug('loading specsim desi config {}'.format(specsim_config_file))
+    config = _specsim_config_for_wave(wave.to('Angstrom').value, dwave_out=dwave_out, specsim_config_file=specsim_config_file)
 
     #- Create simulator
     log.debug('creating specsim desi simulator')
@@ -548,7 +548,7 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None,
 
     return desi
 
-def _specsim_config_for_wave(wave, dwave_out=None):
+def _specsim_config_for_wave(wave, dwave_out=None, specsim_config_file = "desi"):
     '''
     Generate specsim config object for a given wavelength grid
 
@@ -564,7 +564,7 @@ def _specsim_config_for_wave(wave, dwave_out=None):
     dwave = round(np.mean(np.diff(wave)), 3)
     assert np.allclose(dwave, np.diff(wave), rtol=1e-6, atol=1e-3)
 
-    config = specsim.config.load_config('desi')
+    config = specsim.config.load_config(specsim_config_file)
     config.wavelength_grid.min = wave[0]
     config.wavelength_grid.max = wave[-1] + dwave/2.0
     config.wavelength_grid.step = dwave
