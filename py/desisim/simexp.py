@@ -119,7 +119,8 @@ def simflat(flatfile, nspec=5000, nonuniform=False, exptime=10, testslit=False,
         exptime: (float) exposure time in seconds
         camera_output: (bool) passed to simspec.simulator.Simulator.
             if True, convolve with PSF and include per-camera outputs
-
+        specsim_config_file: (str) path to DESI instrument config file.
+            default is desi config in specsim package.
     Returns: (sim, fibermap)
         sim: specsim Simulator object
         fibermap: fibermap Table
@@ -361,7 +362,8 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None,
         seed: (int) random seed
         camera_output: (bool) passed to simspec.simulator.Simulator.
             if True, convolve with PSF and include per-camera outputs
-
+        specsim_config_file: (str) path to DESI instrument config file.
+            default is desi config in specsim package.
     TODO: galsim support
 
     Returns a specsim.simulator.Simulator object
@@ -554,7 +556,10 @@ def _specsim_config_for_wave(wave, dwave_out=None, specsim_config_file = "desi")
 
     Args:
         wave: array of linearly spaced wavelengths in Angstroms
-
+    
+    Options:
+        specsim_config_file: (str) path to DESI instrument config file.
+            default is desi config in specsim package.
     Returns:
         specsim Configuration object with wavelength parameters set to match
         this input wavelength grid
