@@ -178,7 +178,7 @@ def simflat(flatfile, nspec=5000, nonuniform=False, exptime=10, testslit=False,
         log.info('Adjusting for calibration screen non-uniformity {:.4f}'.format(tmp))
 
     log.debug('Creating specsim configuration')
-    config = _specsim_config_for_wave(wave,specsim_config_file)
+    config = _specsim_config_for_wave(wave,specsim_config_file=specsim_config_file)
     log.debug('Creating specsim simulator for {} spectra'.format(nspec))
     # sim = specsim.simulator.Simulator(config, num_fibers=nspec)
     sim = desisim.specsim.get_simulator(config, num_fibers=nspec,
