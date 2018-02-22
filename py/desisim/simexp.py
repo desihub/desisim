@@ -450,6 +450,11 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None,
             xy[unassigned,0] = np.asarray(fiberpos['X'][unassigned], dtype=xy.dtype) * u.mm
             xy[unassigned,1] = np.asarray(fiberpos['Y'][unassigned], dtype=xy.dtype) * u.mm
 
+    if 'REDSHIFT' not in fibermap.dtype.names:
+        source_redshift = None
+    else:
+        source_redshift = fibermap['REDSHIFT']
+        
     #- Determine source types
     #- TODO: source shapes + galsim instead of fixed types + fiberloss table
     source_types = get_source_types(fibermap)
@@ -480,9 +485,11 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None,
         lrgs=(source_types=="lrg")
         bgss=(source_types=="bgs")
 
-        if np.sum(lrgs)>0 or np.sum(elgs)>0 or np.sum(bgss)>0 :
-            log.warning("the half light radii are fixed here (and not magnitude or redshift dependent)")
-
+        if np.sum(lrgs)>0 or np.sum(elgs)>0:
+            log.warning("the half light radii are fixed here for LRGs and ELGs (and not magnitude or redshift dependent)")
+        if np.sum(bgss)>0 and source_redshift is None:
+            log.warning("the half light radii are fixed here for BGS (as redshifts weren't supplied)")
+            
         # BGS parameters based on SDSS main sample, in g-band
         # see analysis from J. Moustakas in
         # https://github.com/desihub/desitarget/blob/bgs-properties/doc/nb/bgs-morphology-properties.ipynb
@@ -505,8 +512,7 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None,
         source_fraction[elgs,0]=1.   # ELG are disk only
         source_fraction[lrgs,1]=1.   # LRG are bulge only
         source_fraction[bgss,0]=0.52 # disk comp in BGS
-        source_fraction[bgss,1]=0.48 # bulge comp in BGS
-        
+        source_fraction[bgss,1]=0.48 # bulge comp in BGS       
 
         # source_half_light_radius[:,0] is the half light radius in arcsec for the DISK profile
         # source_half_light_radius[:,1] is the half light radius in arcsec for the BULGE profile        
@@ -514,9 +520,24 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None,
         source_half_light_radius=np.zeros((nspec,2))
         source_half_light_radius[elgs,0]=0.45 # ELG are disk only, arcsec
         source_half_light_radius[lrgs,1]=1.   # LRG are bulge only, arcsec
-        source_half_light_radius[bgss,0]=4.7  # disk comp in BGS, arcsec
-        source_half_light_radius[bgss,1]=1.3  # bulge comp in BGS, arcsec
-       
+
+        # 4.7 is angular size of z=0.1 disk, and 1.3 is angular size of z=0.1 bulge
+        bgs_disk_z01 = 4.7
+        bgs_bulge_z01 = 1.3
+        
+        # Input cosmology to calculate the angular diameter distance of the galaxy's redshift
+        from astropy.cosmology import Planck15 as LCDM
+        ang_diam_dist = LCDM.angular_diameter_distance
+        
+        # Convert to angular size of the objects in this sample with given redshifts
+        if source_redshift is None:
+            angscales = np.ones(np.sum(bgss))
+        else:
+            angscales = ( ang_diam_dist(0.1) / ang_diam_dist(source_redshift[bgss]) ).to(1).value
+            
+        source_half_light_radius[bgss,0]= bgs_disk_z01 * angscales # disk comp in BGS, arcsec
+        source_half_light_radius[bgss,1]= bgs_bulge_z01 * angscales  # bulge comp in BGS, arcsec
+        
         if desi.instrument.fiberloss_method == 'galsim' :
             # the following parameters are used only with galsim method
         

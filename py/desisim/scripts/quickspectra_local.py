@@ -9,10 +9,10 @@ import astropy.time
 import astropy.units as u
 import astropy.io.fits as pyfits
 
-import desisim.simexp
-import desisim.obs
-import desisim.io
-import desisim.util
+from .. import simexp as desisim_simexp
+from .. import obs as desisim_obs
+from .. import io as desisim_io
+from .. import util as desisim_util
 from desiutil.log import get_logger
 import desispec.io
 import desispec.io.util
@@ -52,23 +52,22 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
     nspec=flux.shape[0]
     
     log.info("Starting simulation of {} spectra".format(nspec))
-    
-    if sourcetype is None :        
-        sourcetype = np.array(["star" for i in range(nspec)])
-    log.debug("sourcetype = {}".format(sourcetype))
-    
+ 
     tileid  = 0
     telera  = 0
     teledec = 0    
     dateobs = time.gmtime()
-    night   = desisim.obs.get_night(utc=dateobs)
+    night   = desisim_obs.get_night(utc=dateobs)
     program = program.lower()
-        
-       
+           
     frame_fibermap = desispec.io.fibermap.empty_fibermap(nspec)    
     frame_fibermap.meta["FLAVOR"]="custom"
     frame_fibermap.meta["NIGHT"]=night
     frame_fibermap.meta["EXPID"]=expid
+    
+    if sourcetype is None :        
+        sourcetype = np.array(["star" for i in range(nspec)])
+    log.debug("sourcetype = {}".format(sourcetype))
     
     # add DESI_TARGET 
     tm = desitarget.desi_mask    
@@ -84,7 +83,7 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
         
     # add TARGETID
     frame_fibermap['TARGETID'] = targetid
-         
+
     # spectra fibermap has two extra fields : night and expid
     # This would be cleaner if desispec would provide the spectra equivalent
     # of desispec.io.empty_fibermap()
@@ -97,28 +96,28 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
     for s in range(nspec):
         for tp in frame_fibermap.dtype.fields:
             spectra_fibermap[s][tp] = frame_fibermap[s][tp]
-
+    
     # Now that we've transfered the relevant columns of frame_fibermap for spectra, 
     # lets add redshifts to the frame_fibermap for simexp
     if redshift is not None:
         frame_fibermap['REDSHIFT'] = redshift
-            
+        
     if obsconditions is None:
         if program in ['dark', 'lrg', 'qso']:
-            obsconditions = desisim.simexp.reference_conditions['DARK']
+            obsconditions = desisim_simexp.reference_conditions['DARK']
         elif program in ['elg', 'gray', 'grey']:
-            obsconditions = desisim.simexp.reference_conditions['GRAY']
+            obsconditions = desisim_simexp.reference_conditions['GRAY']
         elif program in ['mws', 'bgs', 'bright']:
-            obsconditions = desisim.simexp.reference_conditions['BRIGHT']
+            obsconditions = desisim_simexp.reference_conditions['BRIGHT']
         else:
             raise ValueError('unknown program {}'.format(program))
     elif isinstance(obsconditions, str):
         try:
-            obsconditions = desisim.simexp.reference_conditions[obsconditions.upper()]
+            obsconditions = desisim_simexp.reference_conditions[obsconditions.upper()]
         except KeyError:
             raise ValueError('obsconditions {} not in {}'.format(
                 obsconditions.upper(),
-                list(desisim.simexp.reference_conditions.keys())))
+                list(desisim_simexp.reference_conditions.keys())))
     try:
         params = desimodel.io.load_desiparams()
         wavemin = params['ccd']['b']['wavemin']
@@ -161,7 +160,7 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
     wave = wave[ii]*u.Angstrom
     flux = flux[:,ii]*flux_unit
 
-    sim = desisim.simexp.simulate_spectra(wave, flux, fibermap=frame_fibermap,
+    sim = desisim_simexp.simulate_spectra(wave, flux, fibermap=frame_fibermap,
         obsconditions=obsconditions, seed=seed)
 
     random_state = np.random.RandomState(seed)
@@ -258,7 +257,7 @@ def main(args=None):
         exptime = 1000. # sec
     
     #- Generate obsconditions with args.program, then override as needed
-    obsconditions = desisim.simexp.reference_conditions[args.program.upper()]
+    obsconditions = desisim_simexp.reference_conditions[args.program.upper()]
     if args.airmass is not None:
         obsconditions['AIRMASS'] = args.airmass
     if args.seeing is not None:
