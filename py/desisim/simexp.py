@@ -377,6 +377,11 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, redshift=Non
     from desiutil.log import get_logger
     log = get_logger('DEBUG')
 
+    # Input cosmology to calculate the angular diameter distance of the galaxy's redshift
+    from astropy.cosmology import FlatLambdaCDM
+    LCDM = FlatLambdaCDM(H0=70, Om0=0.3)
+    ang_diam_dist = LCDM.angular_diameter_distance
+    
     random_state = np.random.RandomState(seed)
 
     nspec, nwave = flux.shape
@@ -471,7 +476,6 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, redshift=Non
     source_half_light_radius=None
     source_minor_major_axis_ratio=None
     source_position_angle=None
-
     
     if desi.instrument.fiberloss_method == 'fastsim' or desi.instrument.fiberloss_method == 'galsim' :
         # the following parameters are used only with fastsim and galsim methods
@@ -517,19 +521,18 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, redshift=Non
         source_half_light_radius[lrgs,1]=1.   # LRG are bulge only, arcsec
 
         # 4.7 is angular size of z=0.1 disk, and 1.3 is angular size of z=0.1 bulge
-        bgs_disk_z01 = 4.7
-        bgs_bulge_z01 = 1.3
-        
-        # Input cosmology to calculate the angular diameter distance of the galaxy's redshift
-        from astropy.cosmology import Planck15 as LCDM
-        ang_diam_dist = LCDM.angular_diameter_distance
+        bgs_disk_z01 = 4.7  # in arcsec
+        bgs_bulge_z01 = 1.3 # in arcsec
         
         # Convert to angular size of the objects in this sample with given redshifts
         if redshift is None:
             angscales = np.ones(np.sum(bgss))
         else:
-            angscales = ( ang_diam_dist(0.1) / ang_diam_dist(redshift[bgss]) ).to(1).value
-            
+            bgs_redshifts = redshift[bgss]
+            # Avoid infinities
+            if np.any(bgs_redshifts == 0.):
+                bgs_redshifts[bgs_redshifts==0.] = 0.0001
+            angscales = ( ang_diam_dist(0.1) / ang_diam_dist(bgs_redshifts) ).value
         source_half_light_radius[bgss,0]= bgs_disk_z01 * angscales # disk comp in BGS, arcsec
         source_half_light_radius[bgss,1]= bgs_bulge_z01 * angscales  # bulge comp in BGS, arcsec
         
