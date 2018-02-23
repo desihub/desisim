@@ -2,14 +2,21 @@
 desisim change log
 ==================
 
-0.24.1 (unreleased)
+0.25.1 (unreleased)
 -------------------
 
-* Additional edits to QA scripts and doc to run with mini Notebook (`PR #322`_).
-* Fix double PSF convolution in pixsims (`PR #320`_).
+* No changes yet.
 
-.. _`PR #322`: https://github.com/desihub/desisim/pull/322
+0.25.0 (2018-02-23)
+-------------------
+
+* Fix double PSF convolution in pixsims (`PR #320`_).
+* Additional edits to QA scripts and doc to run with mini Notebook (`PR #322`_).
+* Optional specsim config for simulating spectra (`PR #325`_)
+
 .. _`PR #320`: https://github.com/desihub/desisim/pull/320
+.. _`PR #322`: https://github.com/desihub/desisim/pull/322
+.. _`PR #325`: https://github.com/desihub/desisim/pull/325
 
 0.24.0 (2018-01-30)
 -------------------
