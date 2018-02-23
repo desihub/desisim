@@ -487,7 +487,7 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, redshift=Non
             
         # BGS parameters based on SDSS main sample, in g-band
         # see analysis from J. Moustakas in
-        # https://github.com/desihub/desitarget/blob/bgs-properties/doc/nb/bgs-morphology-properties.ipynb
+        # https://github.com/desihub/desitarget/blob/master/doc/nb/bgs-morphology-properties.ipynb 
         # B/T (bulge-to-total ratio): 0.48 (0.36 - 0.59).
         # Bulge Sersic n: 2.27 (1.12 - 3.60).
         # log10 (Bulge Half-light radius): 0.11 (-0.077 - 0.307) arcsec
