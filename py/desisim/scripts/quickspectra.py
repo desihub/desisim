@@ -97,11 +97,6 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
     for s in range(nspec):
         for tp in frame_fibermap.dtype.fields:
             spectra_fibermap[s][tp] = frame_fibermap[s][tp]
-
-    # Now that we've transfered the relevant columns of frame_fibermap for spectra, 
-    # lets add redshifts to the frame_fibermap for simexp
-    if redshift is not None:
-        frame_fibermap['REDSHIFT'] = redshift
             
     if obsconditions is None:
         if program in ['dark', 'lrg', 'qso']:
@@ -162,7 +157,7 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
     flux = flux[:,ii]*flux_unit
 
     sim = desisim.simexp.simulate_spectra(wave, flux, fibermap=frame_fibermap,
-        obsconditions=obsconditions, seed=seed)
+        obsconditions=obsconditions, redshift=redshift, seed=seed)
 
     random_state = np.random.RandomState(seed)
     sim.generate_random_noise(random_state)

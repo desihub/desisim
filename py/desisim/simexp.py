@@ -344,7 +344,7 @@ def fibermeta2fibermap(fiberassign, meta):
 #-------------------------------------------------------------------------
 #- specsim related routines
 
-def simulate_spectra(wave, flux, fibermap=None, obsconditions=None,
+def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, redshift=None,
                      dwave_out=None, seed=None, camera_output=True,specsim_config_file = "desi"):
     '''
     Simulates an exposure without reading/writing data files
@@ -359,6 +359,7 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None,
         obsconditions: (dict-like) observation metadata including
             SEEING (arcsec), EXPTIME (sec), AIRMASS,
             MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
+        redshift : list/array with each index being the redshifts for that target
         seed: (int) random seed
         camera_output: (bool) passed to simspec.simulator.Simulator.
             if True, convolve with PSF and include per-camera outputs
@@ -449,18 +450,12 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None,
             #- for the units -> array -> units trick
             xy[unassigned,0] = np.asarray(fiberpos['X'][unassigned], dtype=xy.dtype) * u.mm
             xy[unassigned,1] = np.asarray(fiberpos['Y'][unassigned], dtype=xy.dtype) * u.mm
-
-    if 'REDSHIFT' not in fibermap.dtype.names:
-        source_redshift = None
-    else:
-        source_redshift = fibermap['REDSHIFT']
         
     #- Determine source types
     #- TODO: source shapes + galsim instead of fixed types + fiberloss table
     source_types = get_source_types(fibermap)
     # source types are sky elg lrg qso bgs star , they 
     # are only used in specsim.fiberloss for the desi.instrument.fiberloss_method="table" method
-    
     
     desi.instrument.fiberloss_method = 'fastsim'
 
@@ -487,7 +482,7 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None,
 
         if np.sum(lrgs)>0 or np.sum(elgs)>0:
             log.warning("the half light radii are fixed here for LRGs and ELGs (and not magnitude or redshift dependent)")
-        if np.sum(bgss)>0 and source_redshift is None:
+        if np.sum(bgss)>0 and redshift is None:
             log.warning("the half light radii are fixed here for BGS (as redshifts weren't supplied)")
             
         # BGS parameters based on SDSS main sample, in g-band
@@ -530,10 +525,10 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None,
         ang_diam_dist = LCDM.angular_diameter_distance
         
         # Convert to angular size of the objects in this sample with given redshifts
-        if source_redshift is None:
+        if redshift is None:
             angscales = np.ones(np.sum(bgss))
         else:
-            angscales = ( ang_diam_dist(0.1) / ang_diam_dist(source_redshift[bgss]) ).to(1).value
+            angscales = ( ang_diam_dist(0.1) / ang_diam_dist(redshift[bgss]) ).to(1).value
             
         source_half_light_radius[bgss,0]= bgs_disk_z01 * angscales # disk comp in BGS, arcsec
         source_half_light_radius[bgss,1]= bgs_bulge_z01 * angscales  # bulge comp in BGS, arcsec
