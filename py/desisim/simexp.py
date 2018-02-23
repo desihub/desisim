@@ -531,7 +531,7 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, redshift=Non
             bgs_redshifts = redshift[bgss]
             # Avoid infinities
             if np.any(bgs_redshifts == 0.):
-                bgs_redshifts[bgs_redshifts==0.] = 0.0001
+                bgs_redshifts[bgs_redshifts <= 0.] = 0.0001
             angscales = ( ang_diam_dist(0.1) / ang_diam_dist(bgs_redshifts) ).value
         source_half_light_radius[bgss,0]= bgs_disk_z01 * angscales # disk comp in BGS, arcsec
         source_half_light_radius[bgss,1]= bgs_bulge_z01 * angscales  # bulge comp in BGS, arcsec
