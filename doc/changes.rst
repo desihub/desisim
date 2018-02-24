@@ -2,10 +2,15 @@
 desisim change log
 ==================
 
-0.25.1 (unreleased)
+0.25.2 (unreleased)
 -------------------
 
 * No changes yet.
+
+0.25.1 (2018-02-23)
+-------------------
+
+* Fix set_xscale(...) nonposy -> nonposx for qa_zfind
 
 0.25.0 (2018-02-23)
 -------------------
