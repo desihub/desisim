@@ -487,7 +487,7 @@ def obj_fig(simz_tab, objtype, summ_stats, outfile=None):
                     xval = xval[gdy]
                     yval = yval[gdy]
                     xmin,xmax=0.5,20
-                    ax.set_xscale("log", nonposy='clip')
+                    ax.set_xscale("log", nonposx='clip')
                 else:
                     lbl = '{:s} (Mag)'.format(gdz_tab[0]['FILTER'][0])
                     xval = gdz_tab['MAG'][:,0]
