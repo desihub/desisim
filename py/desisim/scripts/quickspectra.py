@@ -23,7 +23,7 @@ from desispec.resolution import Resolution
 import matplotlib.pyplot as plt
 
 def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
-    sourcetype=None, expid=0, seed=0, skyerr=0.0):
+    sourcetype=None, targetid=None, redshift=None, expid=0, seed=0, skyerr=0.0):
     """
     Simulate spectra from an input set of wavelength and flux and writes a FITS file in the Spectra format that can
     be used as input to the redshift fitter.
@@ -39,6 +39,8 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
     Optional:
         obsconditions : dictionnary of observation conditions with SEEING EXPTIME AIRMASS MOONFRAC MOONALT MOONSEP
         sourcetype : list of string, allowed values are (sky,elg,lrg,qso,bgs,star), type of sources, used for fiber aperture loss , default is star
+        targetid : list of targetids for each target. default of None has them generated as str(range(nspec))
+        redshift : list/array with each index being the redshifts for that target
         expid : this expid number will be saved in the Spectra fibermap
         seed : random seed
         skyerr : fractional sky subtraction error
@@ -77,8 +79,11 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
     frame_fibermap['DESI_TARGET'][sourcetype=="sky"]=tm.SKY
     frame_fibermap['DESI_TARGET'][sourcetype=="bgs"]=tm.BGS_ANY
     
-    # add dummy TARGETID
-    frame_fibermap['TARGETID']=np.arange(nspec).astype(int)
+    if targetid is None:
+        targetid = np.arange(nspec).astype(int)
+        
+    # add TARGETID
+    frame_fibermap['TARGETID'] = targetid
          
     # spectra fibermap has two extra fields : night and expid
     # This would be cleaner if desispec would provide the spectra equivalent
@@ -92,7 +97,7 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
     for s in range(nspec):
         for tp in frame_fibermap.dtype.fields:
             spectra_fibermap[s][tp] = frame_fibermap[s][tp]
-    
+            
     if obsconditions is None:
         if program in ['dark', 'lrg', 'qso']:
             obsconditions = desisim.simexp.reference_conditions['DARK']
@@ -152,7 +157,7 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
     flux = flux[:,ii]*flux_unit
 
     sim = desisim.simexp.simulate_spectra(wave, flux, fibermap=frame_fibermap,
-        obsconditions=obsconditions, seed=seed)
+        obsconditions=obsconditions, redshift=redshift, seed=seed)
 
     random_state = np.random.RandomState(seed)
     sim.generate_random_noise(random_state)
