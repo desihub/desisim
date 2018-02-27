@@ -27,7 +27,7 @@ import fitsio
 import desitarget.mtl
 from desisim.quickcat import quickcat
 from astropy.table import join
-from desitarget.targets import desi_mask
+from desitarget.targetmask import desi_mask
 
 class SimSetup(object):
     """Setup to simulate the DESI survey

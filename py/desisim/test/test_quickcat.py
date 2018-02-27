@@ -4,7 +4,7 @@ import unittest
 from astropy.table import Table, Column
 from astropy.io import fits
 from desisim.quickcat import quickcat
-from desitarget import desi_mask, bgs_mask, mws_mask
+from desitarget.targetmask import desi_mask, bgs_mask, mws_mask
 import desimodel.io
 
 class TestQuickCat(unittest.TestCase):
