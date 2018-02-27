@@ -46,16 +46,15 @@ env:
         - DESIUTIL_VERSION=1.9.9
         # - DESIMODEL_VERSION=0.7.0
         # - DESIMODEL_DATA=branches/test-0.7.0
-        - DESIMODEL_VERSION=master
-        - DESIMODEL_DATA=trunk
-        - DESISIM_TESTDATA_VERSION=master
+        - DESIMODEL_VERSION=0.9.1
+        - DESIMODEL_DATA=branches/test-0.9
+        - DESISIM_TESTDATA_VERSION=0.4.0
         - SPECLITE_VERSION=0.7
-        - SPECSIM_VERSION=master
-        - SPECTER_VERSION=0.7.0
-        - DESISPEC_VERSION=master
-        - DESITARGET_VERSION=master
+        - SPECSIM_VERSION=v0.11
+        - SPECTER_VERSION=0.8.3
+        - DESISPEC_VERSION=0.18.0
+        - DESITARGET_VERSION=0.19.0
         - SIMQSO_VERSION=v1.2.1
-        # - DESIMODEL_VERSION=trunk
         - DESI_LOGLEVEL=DEBUG
         - MAIN_CMD='python setup.py'
         # These packages will always be installed.
