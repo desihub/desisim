@@ -2,13 +2,21 @@
 desisim change log
 ==================
 
-0.25.2 (unreleased)
+0.26.0 (unreleased)
 -------------------
 
-* No changes yet.
+Requires desitarget >= 0.19.0
+
+* Update BGS fiber acceptance vs. z (`PR #326`_)
+* Update desitarget imports for desitarget/0.19.0 (`PR #328`_)
+
+.. _`PR #326`: https://github.com/desihub/desisim/pull/326
+.. _`PR #328`: https://github.com/desihub/desisim/pull/328
 
 0.25.1 (2018-02-23)
 -------------------
+
+Requires desitarget < 0.19.0
 
 * Fix set_xscale(...) nonposy -> nonposx for qa_zfind
 
