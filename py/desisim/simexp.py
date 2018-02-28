@@ -13,6 +13,7 @@ from astropy.io import fits
 import fitsio
 
 import desitarget
+import desitarget.targetmask
 import desispec.io
 import desispec.io.util
 import desimodel.io
@@ -293,7 +294,7 @@ def fibermeta2fibermap(fiberassign, meta):
     A future refactor will standardize the column names of fiber assignment,
     target catalogs, and fibermaps, but in the meantime this is needed.
     '''
-    from desitarget import desi_mask
+    from desitarget.targetmask import desi_mask
 
     #- Copy column names in common
     fibermap = desispec.io.empty_fibermap(len(fiberassign))
@@ -629,7 +630,7 @@ def get_source_types(fibermap):
     source_type = np.zeros(len(fibermap), dtype='U4')
     assert np.all(source_type == '')
 
-    tm = desitarget.desi_mask
+    tm = desitarget.targetmask.desi_mask
     if 'TARGETID' in fibermap.dtype.names:
         unassigned = fibermap['TARGETID'] == -1
         source_type[unassigned] = 'sky'
@@ -722,7 +723,7 @@ def get_mock_spectra(fiberassign, mockdir=None):
     meta = None
     wave = None
 
-    issky = (fiberassign['DESI_TARGET'] & desitarget.desi_mask.SKY) != 0
+    issky = (fiberassign['DESI_TARGET'] & desitarget.targetmask.desi_mask.SKY) != 0
     skyids = fiberassign['TARGETID'][issky]
 
     for truthfile, targetids in zip(*targets2truthfiles(fiberassign, basedir=mockdir)):

@@ -80,7 +80,7 @@ def match_otype(tbl, objtype):
     :param objtype: str
     :return: targets: bool mask
     """
-    from desitarget import desi_mask
+    from desitarget.targetmask import desi_mask
     if objtype in ['BGS']:
         targets = (tbl['DESI_TARGET'] & desi_mask['BGS_ANY']) != 0
     elif objtype in ['MWS']:

@@ -71,7 +71,7 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
     frame_fibermap.meta["EXPID"]=expid
     
     # add DESI_TARGET 
-    tm = desitarget.desi_mask    
+    tm = desitarget.targetmask.desi_mask
     frame_fibermap['DESI_TARGET'][sourcetype=="star"]=tm.STD_FSTAR
     frame_fibermap['DESI_TARGET'][sourcetype=="lrg"]=tm.LRG
     frame_fibermap['DESI_TARGET'][sourcetype=="elg"]=tm.ELG
