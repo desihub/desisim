@@ -5,6 +5,11 @@ desisim change log
 0.26.0 (unreleased)
 -------------------
 
+* No changes yet.
+
+0.26.0 (2018-02-27)
+-------------------
+
 Requires desitarget >= 0.19.0
 
 * Update BGS fiber acceptance vs. z (`PR #326`_)
