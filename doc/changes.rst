@@ -45,7 +45,6 @@ Requires desitarget < 0.19.0
 * Fixes quickspectra (broken by desispec change) (`PR #306`_).
 * Fixes quickspectra random seed (never worked?) (`PR #306`_).
 * Improves pixsim_mpi performance (`PR #312`_).
-<<<<<<< HEAD
 * Optionally do not wavelength resample simqso templates (`PR #310`_).
 * Default to basis templates v2.4 instead of 2.3
 * Minor edits to QA scripts and doc (`PR #311`_).
