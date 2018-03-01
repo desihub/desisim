@@ -51,6 +51,10 @@ Requires desitarget < 0.19.0
 * Adds quickspectra --skyerr option (`PR #313`_).
 * Correct fastframe output BUNIT (`PR #317`_).
 
+.. _`PR #302`: https://github.com/desihub/desisim/pull/302
+.. _`PR #303`: https://github.com/desihub/desisim/pull/303
+.. _`PR #306`: https://github.com/desihub/desisim/pull/306
+.. _`PR #312`: https://github.com/desihub/desisim/pull/312
 .. _`PR #310`: https://github.com/desihub/desisim/pull/310
 .. _`PR #311`: https://github.com/desihub/desisim/pull/311
 .. _`PR #313`: https://github.com/desihub/desisim/pull/313
