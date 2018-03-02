@@ -332,7 +332,6 @@ def main(args, comm=None):
             channel=entry[0]
             #keep consistent definintion of camera
             camera = entry[0]+entry[1]
-            sys.stdout.flush()
 
             simspec = io.read_simspec_mpi(args.simspec, comm, channel,
                       spectrographs=group_spectro)
@@ -370,17 +369,15 @@ def main(args, comm=None):
                         cosmics_file = args.cosmics_file
     
                     shape = (psf.npix_y, psf.npix_x)
-                    cosmics = io.read_cosmics(cosmics_file, cosexpid, 
-                        shape=shape)
-                    cosmics = comm_group.bcast(cosmics, root=0)
-                  
-            #in different places we have different definitions of camera
+                    cosmics = io.read_cosmics(cosmics_file, cosexpid, shape=shape)
+                #must broadcast on all ranks
+                cosmics = comm_group.bcast(cosmics, root=0)
+
             if group_rank == 0:
                 group_size = comm_group.size
                 log.info("Group {} ({} processes) simulating camera "
                     "{}".format(group, group_size, camera))
     
-            #try passing in current camera so we don't hit a key error
             image[camera], rawpix[camera], truepix[camera] = \
                 simulate(camera, simspec, psf, fibers=group_fibers, 
                     ncpu=args.ncpu, nspec=args.nspec, cosmics=cosmics, 
