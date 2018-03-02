@@ -2,10 +2,12 @@
 desisim change log
 ==================
 
-0.26.0 (unreleased)
+0.26.1 (unreleased)
 -------------------
 
-* No changes yet.
+* Fix pixsim_mpi; make it faster with scatter/gather (`PR #329`_).
+
+.. _`PR #329`: https://github.com/desihub/desisim/pull/329
 
 0.26.0 (2018-02-27)
 -------------------
