@@ -105,10 +105,12 @@ def main(args=None):
     try:
         flux, wave, meta = get_mock_spectra(fiberassign, mockdir=args.mockdir)
     except Exception as err:
-        log.fatal('Failed obsnum {} fiberassign {} tile {}'.format(args.obsnum, args.fiberassign, tileid))
+        log.fatal('Failed obsnum {} fiberassign {} tile {}'.format(
+            args.obsnum, args.fiberassign, tileid))
         raise err
 
-    sim, fibermap = simscience((flux, wave, meta), fiberassign, obsconditions=obs, nspec=args.nspec)
+    sim, fibermap = simscience((flux, wave, meta), fiberassign, obsconditions=obs,
+        nspec=args.nspec, psfconvolve=False)
 
     #- TODO: header keyword code is replicated from obs.new_exposure()
     telera, teledec = desisim.io.get_tile_radec(tileid)

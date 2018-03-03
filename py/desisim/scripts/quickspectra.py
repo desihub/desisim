@@ -157,7 +157,8 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
     flux = flux[:,ii]*flux_unit
 
     sim = desisim.simexp.simulate_spectra(wave, flux, fibermap=frame_fibermap,
-        obsconditions=obsconditions, redshift=redshift, seed=seed)
+        obsconditions=obsconditions, redshift=redshift, seed=seed,
+        psfconvolve=True)
 
     random_state = np.random.RandomState(seed)
     sim.generate_random_noise(random_state)
