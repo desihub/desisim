@@ -404,7 +404,15 @@ def read_simspec_mpi(filename, comm, channel, spectrographs=None):
     #preallocate shape_dict
     shape_dict=dict()
 
-    #photons
+    #have to check in a different way than read_simspec since we don't
+    #have fx availble on all ranks
+
+    #we will sort according to flavor in the mpi version
+    #flavor = flat has phot and flux
+    #flavor = arc has phot
+    #flavor = science has phot, flux, skyphot, and skyflux
+
+    #all flavors have photons
     hname = 'PHOT_'+channel.upper()
     if comm.rank == 0:
         phot_hdata=np.empty(1,dtype=np.float64)
@@ -412,28 +420,31 @@ def read_simspec_mpi(filename, comm, channel, spectrographs=None):
         shape_dict[hname]=hdus[hname].shape
     del hname
 
-    #sky photons
-    hname = 'SKYPHOT_'+channel.upper()
-    if comm.rank ==0:
-        sky_hdata=np.empty(1,dtype=np.float64)
-        sky_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
-        shape_dict[hname]=hdus[hname].shape
-    del hname
-
-    #flux
+    #flavors=science and flat have flux
     hname = 'FLUX'
     if comm.rank == 0:
         flux_hdata=np.empty(1,dtype=np.float64)
-        flux_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
-        shape_dict[hname]=hdus[hname].shape
+        if (flavor == 'science') or (flavor == 'flat'):
+            flux_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
+            shape_dict[hname]=hdus[hname].shape
     del hname
 
-    #skyflux
+    #only flavor=science has skyphot
+    hname = 'SKYPHOT_'+channel.upper()
+    if comm.rank ==0:
+        sky_hdata=np.empty(1,dtype=np.float64)
+        if flavor == 'science':
+            sky_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
+            shape_dict[hname]=hdus[hname].shape
+    del hname
+
+    #only flavor=science has skyflux
     hname = 'SKYFLUX'
     if comm.rank ==0:
         skyflux_hdata=np.empty(1,dtype=np.float64)
-        skyflux_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
-        shape_dict[hname]=hdus[hname].shape
+        if flavor == 'science':
+            skyflux_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
+            shape_dict[hname]=hdus[hname].shape
     del hname
 
     #now put shape tuples into a dict so we can broadcast them
@@ -443,8 +454,14 @@ def read_simspec_mpi(filename, comm, channel, spectrographs=None):
     #add a barrier so we can make sure these data have been broadcast 
     #to all ranks before we start the next process
     comm.Barrier()
-
+  
+    #we will sort according to flavor in the mpi version
+    #flavor = flat has phot and flux
+    #flavor = arc has phot
+    #flavor = science has phot, flux, skyphot, and skyflux
+ 
     # Read photons
+    # all flavors have photons
     phot = dict()
     if comm.rank == 0:
         hdata=phot_hdata
@@ -454,15 +471,24 @@ def read_simspec_mpi(filename, comm, channel, spectrographs=None):
     phot[channel] = hdata[specslice].copy()
     del hdata
 
+    # Read flux
+    #flavors science and flat have flux
+    flux = np.empty(1,dtype=np.float64)
+    hname = 'FLUX'
+    if (flavor == 'science') or (flavor == 'flat'):
+        if comm.rank == 0:
+            hdata = flux_hdata
+        elif comm.rank != 0:
+            hdata=np.empty(shape_dict['FLUX'],dtype=np.float64)
+        comm.Bcast([hdata,MPI.DOUBLE],root=0)
+        flux = hdata[specslice].copy()
+        del hdata
+
     # Read sky photons
+    #only flavor=science has skyphot
     skyphot = dict()
     hname = 'SKYPHOT_'+channel.upper()
-    found = False
-    if comm.rank == 0:
-        if hname in hdus:
-            found = True
-    found = comm.bcast(found, root=0)
-    if found:
+    if flavor == 'science':
         if comm.rank == 0:
             hdata = sky_hdata
         elif comm.rank != 0:
@@ -474,34 +500,11 @@ def read_simspec_mpi(filename, comm, channel, spectrographs=None):
         skyphot[channel] = np.zeros_like(phot[channel])
     assert phot[channel].shape == skyphot[channel].shape
 
-    # flux
-
-    flux = np.empty(1,dtype=np.float64)
-    hname = 'FLUX'
-    found = False
-    if comm.rank == 0:
-        if hname in hdus:
-            found = True
-    found = comm.bcast(found, root=0)
-    if found:
-        if comm.rank == 0:
-            hdata = flux_hdata
-        elif comm.rank != 0:
-            hdata=np.empty(shape_dict['FLUX'],dtype=np.float64)
-        comm.Bcast([hdata,MPI.DOUBLE],root=0)
-        flux = hdata[specslice].copy()
-        del hdata
-
-    # skyflux
-
+    # Read skyflux
+    #only flavor science has skyflux
     skyflux = np.empty(1,dtype=np.float64)
     hname = 'SKYFLUX'
-    found = False
-    if comm.rank == 0:
-        if hname in hdus:
-            found = True
-    found = comm.bcast(found, root=0)
-    if found:
+    if flavor == 'science':
         if comm.rank == 0:
             hdata = skyflux_hdata
         elif comm.rank != 0:
@@ -511,7 +514,6 @@ def read_simspec_mpi(filename, comm, channel, spectrographs=None):
         del hdata
 
     # metadata / truth
-
     metadata = None
     hname = 'TRUTH'
     found = False
@@ -533,8 +535,8 @@ def read_simspec_mpi(filename, comm, channel, spectrographs=None):
         metadata = hdata[specslice].copy()
         del hdata
 
-    if comm.rank == 0:
-        hdus.close()
+        if comm.rank == 0:
+            hdus.close()
 
     return SimSpec(flavor, wave, phot, flux=flux, skyflux=skyflux,
         skyphot=skyphot, metadata=metadata, fibermap=fibermap, obs=obs,
