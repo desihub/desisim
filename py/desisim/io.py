@@ -435,7 +435,7 @@ def read_simspec_mpi(filename, comm, channel, spectrographs=None):
         sky_hdata=np.empty(1,dtype=np.float64)
         if flavor == 'science':
             sky_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
-            shape_dict[hname]=hdus[hZZname].shape
+            shape_dict[hname]=hdus[hname].shape
     del hname
 
     #only flavor=science has skyflux
