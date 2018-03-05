@@ -67,7 +67,8 @@ def main(args=None):
     ii = slice(firstspec, firstspec+nspec)
     if simspec.flavor == 'science':
         sim = desisim.simexp.simulate_spectra(wave, flux[ii],
-                fibermap=fibermap[ii], obsconditions=obs, dwave_out=args.dwave)
+                fibermap=fibermap[ii], obsconditions=obs, dwave_out=args.dwave,
+                psfconvolve=True)
     elif simspec.flavor in ['arc', 'flat', 'calib']:
         x = fibermap['X_TARGET']
         y = fibermap['Y_TARGET']
@@ -76,7 +77,8 @@ def main(args=None):
         surface_brightness = (flux.T / fiber_area).T
         config = desisim.simexp._specsim_config_for_wave(wave, dwave_out=args.dwave)
         # sim = specsim.simulator.Simulator(config, num_fibers=nspec)
-        sim = desisim.specsim.get_simulator(config, num_fibers=nspec)
+        sim = desisim.specsim.get_simulator(config, num_fibers=nspec,
+                                            camera_output=True)
         sim.observation.exposure_time = simspec.header['EXPTIME'] * u.s
         sbunit = 1e-17 * u.erg / (u.Angstrom * u.s * u.cm ** 2 * u.arcsec ** 2)
         xy = np.vstack([x, y]).T * u.mm

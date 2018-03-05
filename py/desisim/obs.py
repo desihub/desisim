@@ -142,7 +142,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         if exptime is None:
             exptime = 10
         sim, fibermap = desisim.simexp.simflat(infile, nspec=nspec,
-            exptime=exptime, testslit=testslit, camera_output=False)
+            exptime=exptime, testslit=testslit, psfconvolve=False)
 
         header['EXPTIME'] = exptime
         header['FLAVOR'] = 'flat'
@@ -184,7 +184,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         obsconditions['EXPTIME'] = exptime
 
     sim = simulate_spectra(wave, flux, fibermap=fibermap,
-        obsconditions=obsconditions, camera_output=False)
+        obsconditions=obsconditions, psfconvolve=False)
 
     #- Write fibermap
     telera, teledec = io.get_tile_radec(tileid)
