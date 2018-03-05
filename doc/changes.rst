@@ -2,10 +2,12 @@
 desisim change log
 ==================
 
-0.26.0 (unreleased)
+0.26.1 (unreleased)
 -------------------
 
-* No changes yet.
+* Fix PSF convolution for newexp_mock (`PR #331`_).
+
+.. _`PR #331`: https://github.com/desihub/desisim/pull/331
 
 0.26.0 (2018-02-27)
 -------------------
