@@ -17,7 +17,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import sys
 import os
 import os.path
-
+from importlib import import_module
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
@@ -47,7 +47,7 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
-    napoleon_extension
+    'sphinx.ext.napoleon'
 ]
 
 # Configuration for intersphinx, copied from astropy.
@@ -133,24 +133,13 @@ napoleon_include_private_with_doc = True
 # This value contains a list of modules to be mocked up. This is useful when
 # some external dependencies are not met at build time and break the
 # building process.
-autodoc_mock_imports = ['astropy.constants', 'astropy.cosmology',
-                        'astropy.io', 'astropy.stats',
-                        'astropy.table', 'astropy.units',
-                        'astropy.time',
-                        'desimodel.focalplane', 'desimodel.io',
-                        'desispec.cosmics', 'desispec.frame',
-                        'desispec.fiberflat', 'desispec.fluxcalibration',
-                        'desispec.image', 'desispec.parallel',
-                        'desispec.io', 'desispec.io.fibermap', 'desispec.io.util',
-                        'desispec.interpolation', 'desispec.log',
-                        'desispec.resolution', 'desispec.sky',
-                        'desitarget.mtl', 'desitarget.targets',
-                        'desitarget.targetmask',
-                        'matplotlib', 'matplotlib.backends',
-                        'matplotlib.backends.backend_pdf', 'matplotlib.gridspec',
-                        'numpy', 'scipy', 'scipy.constants',
-                        'scipy.interpolate', 'scipy.special',
-                        'specsim.simulator', 'specsim.config', 'fitsio']
+autodoc_mock_imports = []
+for missing in ('astropy', 'desimodel', 'desiutil', 'desispec', 'desitarget',
+                'matplotlib', 'numpy', 'scipy', 'specsim', 'fitsio'):
+    try:
+        foo = import_module(missing)
+    except ImportError:
+        autodoc_mock_imports.append(missing)
 
 # -- Options for HTML output ----------------------------------------------
 
