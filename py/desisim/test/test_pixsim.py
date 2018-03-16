@@ -1,4 +1,4 @@
-import unittest, os
+import unittest, os, sys
 import tempfile
 from uuid import uuid1
 from shutil import rmtree
@@ -19,6 +19,11 @@ log = get_logger()
 
 desi_templates_available = 'DESI_ROOT' in os.environ
 desi_root_available = 'DESI_ROOT' in os.environ
+
+#- Travis tests hang when some of these tests are called with
+#- python 2.7, but not others.  Works away from Travis on py2.7.
+#- Skip for now.
+travis27 = (sys.version_info.major==2) and ('TRAVIS' in os.environ)
 
 class TestPixsim(unittest.TestCase):
     #- Create test subdirectory
@@ -145,10 +150,7 @@ class TestPixsim(unittest.TestCase):
         self.assertEqual(image.pix.shape[0], rawpix.shape[0])
         self.assertLess(image.pix.shape[1], rawpix.shape[1])  #- raw has overscan
 
-    #- Travis tests hang when writing coverage when both test_main* were
-    #- called, though the tests work on other systems.
-    #- Disabling multiprocessing also "fixed" this for unknown reasons.
-    @unittest.skipIf(True, 'Skip test that is causing coverage tests to hang.')
+    @unittest.skipIf(travis27, 'Skip test that is causing Travis to hang on py2.7')
     def test_main_defaults(self):
         night = self.night
         expid = self.expid
@@ -182,7 +184,7 @@ class TestPixsim(unittest.TestCase):
         os.remove(simpixfile)
         os.remove(rawfile)
 
-    @unittest.skipIf(True, 'Skip test that is causing coverage tests to hang.')
+    @unittest.skipIf(travis27, 'Skip test that is causing Travis to hang on py2.7')
     def test_main_override(self):
         night = self.night
         expid = self.expid
