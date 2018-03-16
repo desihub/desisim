@@ -182,7 +182,7 @@ class TestPixsim(unittest.TestCase):
         os.remove(simpixfile)
         os.remove(rawfile)
 
-    @unittest.skipIf(False, 'Skip test that is causing coverage tests to hang.')
+    @unittest.skipIf(True, 'Skip test that is causing coverage tests to hang.')
     def test_main_override(self):
         night = self.night
         expid = self.expid
