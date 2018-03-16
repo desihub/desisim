@@ -76,7 +76,8 @@ class TestPixsim(unittest.TestCase):
         for expid in (self.expid, self.expid+1):
             pixfile = desispec.io.findfile('pix', self.night, expid, camera='b0')
             pixdir = os.path.dirname(pixfile)
-            os.makedirs(pixdir, exist_ok=True)
+            if not os.path.isdir(pixdir):
+                os.makedirs(pixdir)
 
     def tearDown(self):
         rawfile = desispec.io.findfile('raw', self.night, self.expid)
