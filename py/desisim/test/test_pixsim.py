@@ -1,4 +1,5 @@
 import unittest, os
+import tempfile
 from uuid import uuid1
 from shutil import rmtree
 
@@ -25,16 +26,20 @@ class TestPixsim(unittest.TestCase):
     def setUpClass(cls):
         global desi_templates_available
         cls.testfile = 'test-{uuid}/test-{uuid}.fits'.format(uuid=uuid1())
-        cls.testDir = os.path.join(os.environ['HOME'],'desi_test_io')
+        cls.testdir = tempfile.mkdtemp()
         cls.origEnv = dict(
             PIXPROD = None,
+            SPECPROD = None,
             DESI_SPECTRO_SIM = None,
             DESI_SPECTRO_DATA = None,
+            DESI_SPECTRO_REDUX = None,
         )
         cls.testEnv = dict(
             PIXPROD = 'test',
-            DESI_SPECTRO_SIM = os.path.join(cls.testDir,'spectro','sim'),
-            DESI_SPECTRO_DATA = os.path.join(cls.testDir,'spectro','sim', 'test'),
+            SPECPROD = 'test',
+            DESI_SPECTRO_SIM = os.path.join(cls.testdir,'spectro','sim'),
+            DESI_SPECTRO_DATA = os.path.join(cls.testdir,'spectro','sim', 'test'),
+            DESI_SPECTRO_REDUX = os.path.join(cls.testdir,'spectro','redux'),
             )
         for e in cls.origEnv:
             if e in os.environ:
@@ -62,12 +67,16 @@ class TestPixsim(unittest.TestCase):
                 del os.environ[e]
             else:
                 os.environ[e] = cls.origEnv[e]
-        if os.path.exists(cls.testDir):
-            rmtree(cls.testDir)
+        if os.path.exists(cls.testdir):
+            rmtree(cls.testdir)
 
     def setUp(self):
         self.night = '20150105'
         self.expid = 124
+        for expid in (self.expid, self.expid+1):
+            pixfile = desispec.io.findfile('pix', self.night, expid, camera='b0')
+            pixdir = os.path.dirname(pixfile)
+            os.makedirs(pixdir, exist_ok=True)
 
     def tearDown(self):
         rawfile = desispec.io.findfile('raw', self.night, self.expid)
