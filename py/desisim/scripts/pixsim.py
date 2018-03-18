@@ -525,6 +525,9 @@ def main(args, comm=None):
                     camera = args.cameras[c]
                     pixfile = desispec.io.findfile('pix', night=args.night,
                         expid=args.expid, camera=camera)
+                    pixdir = os.path.dirname(pixfile)
+                    if not os.path.isdir(pixdir):
+                        os.makedirs(pixdir)
                     preproc_opts = ['--infile', args.rawfile, '--outdir',
                         args.preproc_dir, '--pixfile', pixfile]
                     preproc_opts += ['--cameras', camera]
