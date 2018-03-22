@@ -79,7 +79,7 @@ class TestPixsim(unittest.TestCase):
         self.night = '20150105'
         self.expid = 124
         for expid in (self.expid, self.expid+1):
-            pixfile = desispec.io.findfile('pix', self.night, expid, camera='b0')
+            pixfile = desispec.io.findfile('preproc', self.night, expid, camera='b0')
             pixdir = os.path.dirname(pixfile)
             if not os.path.isdir(pixdir):
                 os.makedirs(pixdir)
@@ -95,7 +95,7 @@ class TestPixsim(unittest.TestCase):
         if os.path.exists(simspecfile):
             os.remove(simspecfile)
         for camera in ('b0', 'r0', 'z0'):
-            pixfile = desispec.io.findfile('pix', self.night, self.expid, camera=camera)
+            pixfile = desispec.io.findfile('preproc', self.night, self.expid, camera=camera)
             if os.path.exists(pixfile):
                 os.remove(pixfile)
             simpixfile = io.findfile('simpix', self.night, self.expid, camera=camera)
@@ -115,7 +115,6 @@ class TestPixsim(unittest.TestCase):
         self.assertTrue(os.path.exists(io.findfile('simspec', night, expid)))
         simspec = io.read_simspec(io.findfile('simspec', night, expid))
         self.assertTrue(os.path.exists(io.findfile('simpix', night, expid, camera)))
-        self.assertTrue(os.path.exists(io.findfile('pix', night, expid, camera)))
 
     @unittest.skipUnless(desi_templates_available, 'The DESI templates directory ($DESI_ROOT/spectro/templates) was not detected.')
     def test_pixsim_cosmics(self):
@@ -128,7 +127,6 @@ class TestPixsim(unittest.TestCase):
         self.assertTrue(os.path.exists(io.findfile('simspec', night, expid)))
         simspec = io.read_simspec(io.findfile('simspec', night, expid))
         self.assertTrue(os.path.exists(io.findfile('simpix', night, expid, camera)))
-        self.assertTrue(os.path.exists(io.findfile('pix', night, expid, camera)))
 
     def test_simulate(self):
         import desispec.image
