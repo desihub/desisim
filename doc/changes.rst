@@ -2,16 +2,18 @@
 desisim change log
 ==================
 
-0.26.1 (unreleased)
+0.27.0 (unreleased)
 -------------------
 
 * Fix pixsim_mpi; make it faster with scatter/gather
   (`PR #329`_ and `PR #332`_).
 * Fix PSF convolution for newexp_mock (`PR #331`_).
+* Match desispec renaming and relocating of of pix -> preproc (`PR #339`).
 
 .. _`PR #329`: https://github.com/desihub/desisim/pull/329
 .. _`PR #331`: https://github.com/desihub/desisim/pull/331
 .. _`PR #332`: https://github.com/desihub/desisim/pull/332
+.. _`PR #339`: https://github.com/desihub/desisim/pull/339
 
 0.26.0 (2018-02-27)
 -------------------
