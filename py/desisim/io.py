@@ -35,7 +35,7 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
     """Return canonical location of where a file should be on disk
 
     Args:
-        filetype (str): file type, e.g. 'pix' or 'pixsim'
+        filetype (str): file type, e.g. 'preproc' or 'simpix'
         night (str): YEARMMDD string
         expid (int): exposure id integer
         camera (str): e.g. 'b0', 'r1', 'z9'
@@ -58,7 +58,6 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
         simspec = '{outdir:s}/simspec-{expid:08d}.fits',
         simpix = '{outdir:s}/simpix-{expid:08d}.fits',
         simfibermap = '{outdir:s}/fibermap-{expid:08d}.fits',
-        pix = '{outdir:s}/pix-{camera:s}-{expid:08d}.fits',
         fastframelog = '{outdir:s}/fastframe-{expid:08d}.log',
         newexplog = '{outdir:s}/newexp-{expid:08d}.log',
     )
@@ -68,8 +67,8 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
         raise ValueError("Unknown filetype {}; known types are {}".format(filetype, list(location.keys())))
 
     #- Some but not all filetypes require camera
-    if filetype == 'pix' and camera is None:
-        raise ValueError('camera is required for filetype '+filetype)
+    # if filetype == 'preproc' and camera is None:
+    #     raise ValueError('camera is required for filetype '+filetype)
 
     #- get outfile location and cleanup extraneous // from path
     outfile = location[filetype].format(
@@ -1139,7 +1138,7 @@ def _parse_filename(filename):
     camera=None if the filename isn't camera specific
 
     e.g. /blat/foo/simspec-00000003.fits -> ('simspec', None, 3)
-    e.g. /blat/foo/pix-r2-00000003.fits -> ('pix', 'r2', 3)
+    e.g. /blat/foo/preproc-r2-00000003.fits -> ('preproc', 'r2', 3)
     """
     base = os.path.basename(os.path.splitext(filename)[0])
     x = base.split('-')

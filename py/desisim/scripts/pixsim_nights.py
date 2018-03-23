@@ -179,7 +179,7 @@ def main(args, comm=None):
                 done = False
             if args.preproc:
                 for c in cams:
-                    pixfile = specio.findfile('pix', night=nt,
+                    pixfile = specio.findfile('preproc', night=nt,
                         expid=ex, camera=c)
                     if not os.path.isfile(pixfile):
                         done = False

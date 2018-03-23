@@ -10,9 +10,10 @@ desisim change log
 * Fix PSF convolution for newexp-mock (`PR #331`_).
 * BGS redshift bug fix (`PR #333`_).
 * Astropy 2 compatibility (`PR #334`_).
-* preprocessed images changed name and location (`PR #337`_ and `PR #339`_).
 * Fix newexp-mock --nspec option (`PR #340`_).
 * Fix fibermap EXTNAME (`PR #340`_).
+* Fix PSF convolution for newexp_mock (`PR #331`_).
+* Match desispec renaming and relocating of of pix -> preproc (`PR #337`_ and `PR #339`).
 
 .. _`PR #329`: https://github.com/desihub/desisim/pull/329
 .. _`PR #331`: https://github.com/desihub/desisim/pull/331
