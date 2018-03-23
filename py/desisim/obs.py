@@ -129,7 +129,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
 
         fibermap.meta['NIGHT'] = night
         fibermap.meta['EXPID'] = expid
-        fibermap.write(outfibermap)
+        desispec.io.write_fibermap(outfibermap, fibermap)
         truth = dict(WAVE=wave, PHOT=phot, UNITS='photon')
         return truth, fibermap, None, None
 
@@ -151,7 +151,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
 
         fibermap.meta['NIGHT'] = night
         fibermap.meta['EXPID'] = expid
-        fibermap.write(outfibermap)
+        desispec.io.write_fibermap(outfibermap, fibermap)
         # fluxunits = 1e-17 * u.erg / (u.s * u.cm**2 * u.Angstrom)
         fluxunits = '1e-17 erg/(s * cm2 * Angstrom)'
         flux = sim.simulated['source_flux'].to(fluxunits)
@@ -208,7 +208,8 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
     simfile = io.write_simspec(sim, meta, fibermap, obsconditions,
         expid, night, header=hdr, filename=outsimspec)
 
-    desispec.io.write_fibermap(outfibermap, fibermap, header=hdr)
+    fibermap.meta.update(hdr)
+    desispec.io.write_fibermap(outfibermap, fibermap)
     log.info('Wrote '+outfibermap)
 
     update_obslog(obstype='science', program=program, expid=expid, dateobs=dateobs, tileid=tileid)

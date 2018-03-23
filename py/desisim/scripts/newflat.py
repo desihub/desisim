@@ -77,6 +77,7 @@ def main(args=None):
     log.info('Writing {}'.format(args.fibermap))
     fibermap.meta['NIGHT'] = args.night
     fibermap.meta['EXPID'] = args.expid
+    fibermap.meta['EXTNAME'] = 'FIBERMAP'
     fibermap.write(args.fibermap, overwrite=args.clobber)
 
     header = fits.Header()

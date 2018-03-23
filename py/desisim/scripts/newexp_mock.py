@@ -100,6 +100,12 @@ def main(args=None):
 
     if args.nspec is None:
         args.nspec = len(fiberassign)
+    elif args.nspec <= len(fiberassign):
+        fiberassign = fiberassign[0:args.nspec]
+    else:
+        log.error('args.nspec {} > len(fiberassign) {}'.format(
+            args.nspec, len(fiberassign)))
+        sys.exit(1)
 
     log.info('Simulating night {} expid {} tile {}'.format(night, args.expid, tileid))
     try:
@@ -109,8 +115,8 @@ def main(args=None):
             args.obsnum, args.fiberassign, tileid))
         raise err
 
-    sim, fibermap = simscience((flux, wave, meta), fiberassign, obsconditions=obs,
-        nspec=args.nspec, psfconvolve=False)
+    sim, fibermap = simscience((flux, wave, meta), fiberassign,
+        obsconditions=obs, psfconvolve=False)
 
     #- TODO: header keyword code is replicated from obs.new_exposure()
     telera, teledec = desisim.io.get_tile_radec(tileid)
@@ -133,6 +139,7 @@ def main(args=None):
 
     #- Write fibermap to $DESI_SPECTRO_SIM/$PIXPROD not $DESI_SPECTRO_DATA
     fibermap.meta.update(header)
+    fibermap.meta['EXTNAME'] = 'FIBERMAP'
     fibermap.write(desisim.io.findfile('simfibermap', night, args.expid,
         outdir=args.outdir), overwrite=args.clobber)
 
