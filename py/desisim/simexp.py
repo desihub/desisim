@@ -653,6 +653,11 @@ def get_source_types(fibermap):
     starmask = tm.STD_FSTAR | tm.STD_WD | tm.STD_BRIGHT | tm.MWS_ANY
     source_type[(fibermap['DESI_TARGET'] & starmask) != 0] = 'star'
 
+    #- Simulate unassigned fibers as sky
+    ## TODO: when fiberassign and desitarget are updated, use
+    ## desitarget.targetmask.desi_mask.NO_TARGET to identify these
+    source_type[fibermap['TARGETID'] < 0] = 'sky'
+
     assert not np.any(source_type == '')
 
     for name in sorted(np.unique(source_type)):
@@ -734,7 +739,14 @@ def get_mock_spectra(fiberassign, mockdir=None):
     issky = (fiberassign['DESI_TARGET'] & desitarget.targetmask.desi_mask.SKY) != 0
     skyids = fiberassign['TARGETID'][issky]
 
-    for truthfile, targetids in zip(*targets2truthfiles(fiberassign, basedir=mockdir)):
+    #- check several ways in which an unassigned fiber might appear
+    unassigned = np.isnan(fiberassign['RA'])
+    unassigned |= np.isnan(fiberassign['DEC'])
+    unassigned |= (fiberassign['TARGETID'] < 0)
+    ## TODO: check desi_mask.NO_TARGET once that bit exists
+
+    for truthfile, targetids in zip(*targets2truthfiles(
+                        fiberassign[~unassigned], basedir=mockdir)):
 
         #- Sky fibers aren't in the truth files
         ok = ~np.in1d(targetids, skyids)
@@ -756,8 +768,7 @@ def get_mock_spectra(fiberassign, mockdir=None):
     #- Set meta['TARGETID'] for sky fibers
     #- TODO: other things to set?
     meta['TARGETID'][issky] = skyids
-
-    set(fiberassign['TARGETID']) == set(meta['TARGETID'])
+    meta['TARGETID'][unassigned] = fiberassign['TARGETID'][unassigned]
 
     assert np.all(fiberassign['TARGETID'] == meta['TARGETID'])
 
