@@ -246,8 +246,11 @@ def simscience(targets, fiberassign, obsconditions='DARK', expid=None,
 
     if nspec is not None:
         fiberassign = fiberassign[0:nspec]
+        flux = flux[0:nspec]
+        meta = meta[0:nspec]
 
     assert np.all(fiberassign['TARGETID'] == meta['TARGETID'])
+
     fibermap = fibermeta2fibermap(fiberassign, meta)
 
     #- Parse multiple options for obsconditions
