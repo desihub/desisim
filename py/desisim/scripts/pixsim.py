@@ -180,6 +180,11 @@ def main(args, comm=None):
     if args.verbose:
         import logging
         log.setLevel(logging.DEBUG)
+    #we do this so we can use operator.itemgetter
+    import operator
+    #we do this so we can use socket.hostname
+    import socket
+    import time
 
     rank = 0
     nproc = 1
@@ -215,7 +220,7 @@ def main(args, comm=None):
                 sys.exit(1)
 
     ncamera = len(args.cameras)
-
+    #assign communicators, groups, etc, used for both mpi and multiprocessing
     comm_group = comm
     comm_rank = None
     group = 0
@@ -237,6 +242,7 @@ def main(args, comm=None):
     group_cameras = np.array_split(np.arange(ncamera, dtype=np.int32), 
         ngroup)[group]
    
+
     # Compute which spectrographs our group needs to store based on which
     # cameras we are processing.
 
@@ -266,24 +272,38 @@ def main(args, comm=None):
     if comm is not None:
         comm.barrier()
 
+    #load psf for both mpi and multiprocessing
     psf = None
     if args.psf is not None:
         from specter.psf import load_psf
         psf = load_psf(args.psf)
 
-    # Read and distribute the simspec data
     # create list of tuples
+    camera_channel_args=[]
     camera_channel_list=[]
     if comm is not None:
-        if rank == 0:
-        #need to parse these together so we preserve the order
-            for item in args.cameras:
-                #0th element is camera (b,r,z)
-                #1st element is channel (0-9)
-                camera_channel_list.append((item[0],item[1]))
-        camera_channel_list=comm.bcast(camera_channel_list,root=0)    
-        comm.Barrier()
+    #need to parse these together so we preserve the order
+        for item in args.cameras:
+            #0th element is camera (b,r,z)
+            #1st element is channel (0-9)
+            camera_channel_args.append((item[0],item[1]))
+            #divide cameras among nodes
+            #first sort so zs get distributed first 
+            #reverse the order so z comes first
+            #sort in reverse order so we get z first
+            camera_channel_list=np.asarray(sorted(camera_channel_args, key=operator.itemgetter(0), reverse=True))
 
+    #if mpi and N>1, divide cameras between nodes
+    if comm is not None: 
+        if ngroup > 1:
+            node_cameras=None
+            #mpi_camera is the number of processes to use per mpi camera
+            for i in range(ngroup):
+                if i == group: 
+                    node_cameras=camera_channel_list[i::ngroup]
+        if ngroup == 1:
+            node_cameras=camera_channel_list
+   
     #preallocate things needed by both mpi and non mpi
     simspec = None
     cosmics = None
@@ -293,7 +313,7 @@ def main(args, comm=None):
     lastcamera = None
 
     # Read the fibermap
-
+    #this is cheap, do here both mpi non mpi
     fibers = None
     if rank == 0:
         if args.fibermap is not None:
@@ -319,7 +339,7 @@ def main(args, comm=None):
 
     fs = np.in1d(fibers//500, group_spectro)
     group_fibers = fibers[fs]
-    
+
     # Use original seed to generate different random seeds for each camera
     np.random.seed(args.seed)
     seeds = np.random.randint(0, 2**32-1, size=ncamera)
@@ -328,13 +348,24 @@ def main(args, comm=None):
     #regroup and put all mpi broadcasting together! 
     #no mpi version is below
     if comm is not None:
-        for entry in camera_channel_list: #split up channels for mpi Bcast speed
-            channel=entry[0]
-            #keep consistent definintion of camera
-            camera = entry[0]+entry[1]
+        #now that each communicator (group) knows which cameras it
+        #is supposed to process, we can get started
+        previous_camera='a' #need to initialize
+        for i in range(len(node_cameras)): #may be different in each group
+            if i > 1:
+                #keep track in case we can avoid re-broadcasting stuff
+                previous_camera=node_cameras[i-1]
+            current_camera=node_cameras[i]
+            camera=current_camera[0] + current_camera[1]
+            channel=current_camera[0]
 
-            simspec = io.read_simspec_mpi(args.simspec, comm, channel,
-                      spectrographs=group_spectro)
+            #since we clear, we need to pre-allocate every time
+            rawpix={}
+            image={}
+            truepix={}
+ 
+            simspec = io.read_simspec_mpi(args.simspec, comm_group, channel,
+                          spectrographs=group_spectro)
 
             if group_rank == 0:
                 log.debug('Processing camera {}'.format(camera))
@@ -357,42 +388,66 @@ def main(args, comm=None):
                     psf.npix_x = args.ccd_npix_x
                 if args.ccd_npix_y is not None:
                     psf.npix_y = args.ccd_npix_y
-    
+            
+            #if we have already loaded the right cosmics camera, don't bcast again
             if args.cosmics:
-                if group_rank == 0:
-                    if args.cosmics_file is None:
-                        cosmics_file = io.find_cosmics(camera, 
-                            simspec.header['EXPTIME'],
-                            cosmics_dir=args.cosmics_dir)
-                        log.info('cosmics templates {}'.format(cosmics_file))
-                    else:
-                        cosmics_file = args.cosmics_file
+                if current_camera[0] != previous_camera[0]:
+                    if group_rank == 0:
+                        if args.cosmics_file is None:
+                            cosmics_file = io.find_cosmics(camera, 
+                                simspec.header['EXPTIME'],
+                                cosmics_dir=args.cosmics_dir)
+                            log.info('cosmics templates {}'.format(cosmics_file))
+                        else:
+                            cosmics_file = args.cosmics_file
     
-                    shape = (psf.npix_y, psf.npix_x)
-                    cosmics = io.read_cosmics(cosmics_file, cosexpid, shape=shape)
-                #must broadcast on all ranks
-                cosmics = comm_group.bcast(cosmics, root=0)
+                        shape = (psf.npix_y, psf.npix_x)
+                        cosmics = io.read_cosmics(cosmics_file, cosexpid, shape=shape)
+                
+                    cosmics = comm_group.bcast(cosmics, root=0)
 
             if group_rank == 0:
                 group_size = comm_group.size
                 log.info("Group {} ({} processes) simulating camera "
                     "{}".format(group, group_size, camera))
-    
+
             image[camera], rawpix[camera], truepix[camera] = \
-                simulate(camera, simspec, psf, fibers=group_fibers, 
-                    ncpu=args.ncpu, nspec=args.nspec, cosmics=cosmics, 
+                simulate(camera, simspec, psf, fibers=group_fibers,
+                    ncpu=args.ncpu, nspec=args.nspec, cosmics=cosmics,
                     wavemin=args.wavemin, wavemax=args.wavemax, preproc=False,
                     comm=comm_group)
-    
+
+            #to avoid overflowing the memory let's write after each instance of simulate
+            #the data are already at rank 0 in each communicator
+            #then have each communicator open and write to the file 
+            #one at a time
+            for i in range(ngroup):#number of total communicators
+                if group == i:#only one group at a time should open/write/close
+                    if group_rank == 0: #write only from rank 0 where the data are
+                        #write the raw file using desispec write_raw in raw.py
+                        desispec.io.write_raw(rawtemp, rawpix[camera],
+                           camera=camera, header=image[camera].meta,
+                           primary_header=simspec.header)
+                        log.info('Wrote {} image to {} at time {}'.format(camera, args.rawfile, time.asctime()))
+                        #write the simpix file using desisim write_simpix in io.py 
+                        io.write_simpix(simpixtemp, truepix[camera],camera=camera, meta=simspec.header)
+                        log.info('Wrote {} image to {} at time {}'.format(camera, args.simpixfile, time.asctime()))
+                        #delete for each group after we have written the output files
+                    del rawpix, image, truepix
+                #to avoid bugs this barrier statement must align with if group==i!! 
+                comm.Barrier()#all ranks should be done writing
+
+
             if args.psf is None:
                 del psf
-            
+           
             #iterate random number counter
-            seed_counter=seed_counter+1      
+            seed_counter=seed_counter+1  
 
-         
-    #no mpi (multiprocessing) version                  
-    else:
+    #make sure we are done simulating before we move on   
+    comm.Barrier()
+
+    if comm is None:
         simspec = io.read_simspec(args.simspec)
 
         for c in group_cameras:
@@ -458,10 +513,9 @@ def main(args, comm=None):
                 del psf
             
     #end of split mpi/no-mpi section#        
+    #make sure we are all caught up
+    comm.Barrier()
 
-    # Write the cameras in order.  Only the rank zero process in each
-    # group has the data.  If we are appending new cameras to an existing
-    # raw file, then copy the original to the temporary output first.
     # Move temp files into place
     if rank == 0:
         # Copy the original files into place if we are appending
@@ -488,24 +542,7 @@ def main(args, comm=None):
                         camera=camera, meta=simspec.header)
                     log.info('Wrote {} image to {}'.format(camera, 
                         args.simpixfile))
-
-    #otherwise write MPI data (easier to handle seperately)
-    if comm is not None: 
-        if comm.rank == 0:
-            for entry in camera_channel_list:
-                #keep consistent definition of channel
-                channel=entry[0]
-                camera=entry[0]+entry[1] #keep consistent definition of camera 
-                desispec.io.write_raw(rawtemp, rawpix[camera], 
-                camera=camera, header=image[camera].meta, 
-                primary_header=simspec.header)
-                log.info('Wrote {} image to {}'.format(camera, args.rawfile))
-                io.write_simpix(simpixtemp, truepix[camera], 
-                    camera=camera, meta=simspec.header)
-                log.info('Wrote {} image to {}'.format(camera, 
-                    args.simpixfile))
-
-        comm.barrier()
+  
 
     # Move temp files into place
     if rank == 0:
@@ -535,9 +572,11 @@ def main(args, comm=None):
     
     # Python is terrible with garbage collection, but at least
     # encourage it...
-    del image
-    del rawpix
-    del truepix
+    if comm is None:
+        del image
+        del rawpix
+        del truepix
+    #have already deleted these for the mpi case
 
     if rank == 0:
         log.info('Finished pixsim {} expid {} at {}'.format(args.night, args.expid, asctime()))
