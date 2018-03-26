@@ -10,6 +10,7 @@ from __future__ import division, print_function
 import os
 import sys
 import numpy as np
+import multiprocessing
 
 from desisim.io import empty_metatable
 
