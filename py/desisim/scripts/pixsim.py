@@ -239,16 +239,6 @@ def main(args, comm=None):
             comm_group = MPI.COMM_SELF
             comm_rank = comm
 
-    group_cameras = np.array_split(np.arange(ncamera, dtype=np.int32), 
-        ngroup)[group]
-   
-
-    # Compute which spectrographs our group needs to store based on which
-    # cameras we are processing.
-
-    group_spectro = np.unique(np.array([ int(args.cameras[c][1]) for c in \
-        group_cameras ], dtype=np.int32))
-
     # Remove outputs and or temp files
 
     rawtemp = "{}.tmp".format(args.rawfile)
@@ -292,6 +282,11 @@ def main(args, comm=None):
             #reverse the order so z comes first
             #sort in reverse order so we get z first
             camera_channel_list=np.asarray(sorted(camera_channel_args, key=operator.itemgetter(0), reverse=True))
+    #also handle multiprocessing case
+    if comm is None:
+        camera_channel_list=[]
+        for item in args.cameras:
+            camera_channel_list.append((item[0],item[1]))
 
     #if mpi and N>1, divide cameras between nodes
     if comm is not None: 
@@ -303,14 +298,29 @@ def main(args, comm=None):
                     node_cameras=camera_channel_list[i::ngroup]
         if ngroup == 1:
             node_cameras=camera_channel_list
-   
-    #preallocate things needed by both mpi and non mpi
-    simspec = None
-    cosmics = None
-    image = {}
-    rawpix = {}
-    truepix = {}
-    lastcamera = None
+    #also handle multiprocessing case
+    if comm is None:
+        node_cameras=camera_channel_list
+
+    # Compute which spectrographs our group needs to store based on which
+    # cameras we are processing.
+
+    #group_cameras = np.array_split(np.arange(ncamera, dtype=np.int32), ngroup)[group]
+
+    #replace group_spectro 
+    #group_spectro = np.unique(np.array([ int(args.cameras[c][1]) for c in group_cameras ], dtype=np.int32))
+    group_spectro = np.array([ int(c[1]) for c in node_cameras ], dtype=np.int32)
+    #print("group_spectro is %s" %(group_spectro))   
+
+
+    #preallocate things needed for non mpi (we handle mpi later)
+    if comm is None:
+        simspec = None
+        cosmics = None
+        image = {}
+        rawpix = {}
+        truepix = {}
+        lastcamera = None
 
     # Read the fibermap
     #this is cheap, do here both mpi non mpi
@@ -337,9 +347,11 @@ def main(args, comm=None):
     if comm is not None:
         fibers = comm.bcast(fibers, root=0)
 
-    fs = np.in1d(fibers//500, group_spectro)
-    group_fibers = fibers[fs]
-
+    #do multiprocessing fibers now, handle mpi inside the loop
+    if comm is None:
+        fs = np.in1d(fibers//500, group_spectro)
+        group_fibers = fibers[fs]
+    
     # Use original seed to generate different random seeds for each camera
     np.random.seed(args.seed)
     seeds = np.random.randint(0, 2**32-1, size=ncamera)
@@ -360,12 +372,14 @@ def main(args, comm=None):
             channel=current_camera[0]
 
             #since we clear, we need to pre-allocate every time
-            rawpix={}
-            image={}
-            truepix={}
- 
+            simspec = None
+            image = {}
+            rawpix = {}
+            truepix = {}
+
+            #since we handle only one spectra at a time, just load the one we need 
             simspec = io.read_simspec_mpi(args.simspec, comm_group, channel,
-                          spectrographs=group_spectro)
+                          spectrographs=group_spectro[i])
 
             if group_rank == 0:
                 log.debug('Processing camera {}'.format(camera))
@@ -392,6 +406,7 @@ def main(args, comm=None):
             #if we have already loaded the right cosmics camera, don't bcast again
             if args.cosmics:
                 if current_camera[0] != previous_camera[0]:
+                    cosmics=None
                     if group_rank == 0:
                         if args.cosmics_file is None:
                             cosmics_file = io.find_cosmics(camera, 
@@ -410,6 +425,13 @@ def main(args, comm=None):
                 group_size = comm_group.size
                 log.info("Group {} ({} processes) simulating camera "
                     "{}".format(group, group_size, camera))
+
+            #calc group_fibers inside the loop
+            fs = np.in1d(fibers//500, group_spectro[i])
+            group_fibers = fibers[fs]
+
+            #print("fs is %s" %(fs))
+            #print("group_fibers is %s" %(group_fibers))
 
             image[camera], rawpix[camera], truepix[camera] = \
                 simulate(camera, simspec, psf, fibers=group_fibers,
@@ -433,7 +455,7 @@ def main(args, comm=None):
                         io.write_simpix(simpixtemp, truepix[camera],camera=camera, meta=simspec.header)
                         log.info('Wrote {} image to {} at time {}'.format(camera, args.simpixfile, time.asctime()))
                         #delete for each group after we have written the output files
-                    del rawpix, image, truepix
+                    del rawpix, image, truepix, simspec
                 #to avoid bugs this barrier statement must align with if group==i!! 
                 comm.Barrier()#all ranks should be done writing
 
@@ -444,24 +466,25 @@ def main(args, comm=None):
             #iterate random number counter
             seed_counter=seed_counter+1  
 
-    #make sure we are done simulating before we move on   
-    comm.Barrier()
-
+    #print("group %s rank %s reached here at %s" %(group, group_rank, time.asctime()))
+    #initalize random number seeds
+    seed_counter=0 #need to initialize counter
     if comm is None:
         simspec = io.read_simspec(args.simspec)
+        previous_camera='a'
+        for i in range(len(node_cameras)):
 
-        for c in group_cameras:
-            #define camera differently for multiprocessing than mpi
-            camera = args.cameras[c]
+            current_camera=node_cameras[i]
+            camera=current_camera[0] + current_camera[1]
+            channel=current_camera[0]
 
             if group_rank == 0:
                 log.debug('Processing camera {}'.format(camera))
-            channel = camera[0].lower()
-    
+  
             # Set the seed for this camera (regardless of which process is
             # performing the simulation).
-            np.random.seed(seeds[c])
-    
+            np.random.seed(seeds[(seed_counter)])
+      
             # Get the random cosmic expids.  The actual values will be
             # remapped internally with the modulus operator.
             cosexpid = np.random.randint(0, 100, size=1)[0]
@@ -471,13 +494,13 @@ def main(args, comm=None):
             # processes.
             if args.psf is None:
                 #add this so that it won't fail if we enter two repeated channels
-                if camera != lastcamera:
+                if camera != previous_camera:
                     psf = desimodel.io.load_psf(channel)
                     if args.ccd_npix_x is not None:
                         psf.npix_x = args.ccd_npix_x
                     if args.ccd_npix_y is not None:
                         psf.npix_y = args.ccd_npix_y
-                lastcamera = camera
+                previous_camera = camera
    
             if args.cosmics:
                 if group_rank == 0:
@@ -509,43 +532,37 @@ def main(args, comm=None):
                     wavemin=args.wavemin, wavemax=args.wavemax, preproc=False,
                     comm=comm_group)
 
+            #like we did in mpi, move the write in here so we don't have to 
+            #keep accumulating all the data
+            if group_rank == 0:
+                desispec.io.write_raw(rawtemp, rawpix[camera],
+                    camera=camera, header=image[camera].meta,
+                    primary_header=simspec.header)
+                log.info('Wrote {} image to {}'.format(camera, args.rawfile))
+                io.write_simpix(simpixtemp, truepix[camera],
+                    camera=camera, meta=simspec.header)
+                log.info('Wrote {} image to {}'.format(camera,
+                    args.simpixfile))
+
+
             if args.psf is None:
                 del psf
-            
-    #end of split mpi/no-mpi section#        
-    #make sure we are all caught up
-    comm.Barrier()
+    
+            #iterate random number counter
+            seed_counter=seed_counter+1
 
+    #done with both mpi and multiprocessing
+        
     # Move temp files into place
-    if rank == 0:
+    if group_rank == 0:
         # Copy the original files into place if we are appending
         if not args.overwrite and os.path.exists(args.rawfile):
             shutil.copy2(args.rawfile, rawtemp)
         if not args.overwrite and os.path.exists(args.simpixfile):
             shutil.copy2(args.simpixfile, simpixtemp)
     
-    # Wait for all processes to finish their cameras
-    if comm is not None:
-        comm.barrier()
-
-    #first write non-mpi data    
-    if comm is None:
-        for c in np.arange(ncamera, dtype=np.int32):
-            camera = args.cameras[c]
-            if c in group_cameras:
-                if group_rank == 0:
-                    desispec.io.write_raw(rawtemp, rawpix[camera], 
-                        camera=camera, header=image[camera].meta, 
-                        primary_header=simspec.header)
-                    log.info('Wrote {} image to {}'.format(camera, args.rawfile))
-                    io.write_simpix(simpixtemp, truepix[camera], 
-                        camera=camera, meta=simspec.header)
-                    log.info('Wrote {} image to {}'.format(camera, 
-                        args.simpixfile))
-  
-
     # Move temp files into place
-    if rank == 0:
+    if group_rank == 0:
         os.rename(simpixtemp, args.simpixfile)
         os.rename(rawtemp, args.rawfile)
     if comm is not None:
@@ -553,12 +570,12 @@ def main(args, comm=None):
 
     # Apply preprocessing
     if args.preproc:
-        if rank == 0:
+        if group_rank == 0:
             log.info('Preprocessing raw -> pix files')
         from desispec.scripts import preproc
-        if len(group_cameras) > 0:
+        if len(node_cameras) > 0:
             if group_rank == 0:
-                for c in group_cameras:
+                for c in node_cameras:
                     camera = args.cameras[c]
                     pixfile = desispec.io.findfile('pix', night=args.night,
                         expid=args.expid, camera=camera)
@@ -567,9 +584,6 @@ def main(args, comm=None):
                     preproc_opts += ['--cameras', camera]
                     preproc.main(preproc.parse(preproc_opts))
 
-    if comm is not None:
-        comm.barrier()
-    
     # Python is terrible with garbage collection, but at least
     # encourage it...
     if comm is None:
