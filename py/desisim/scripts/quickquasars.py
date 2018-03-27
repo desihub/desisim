@@ -46,6 +46,7 @@ def parse(options=None):
     parser.add_argument('--dwave', type=float, default=0.2,help="Internal wavelength step (don't change this)")
     parser.add_argument('--nproc', type=int, default=1,help="number of processors to run faster")
     parser.add_argument('--zbest', action = "store_true" ,help="add a zbest file per spectrum with the truth")
+    parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
     
     if options is None:
         args = parser.parse_args()
@@ -112,6 +113,11 @@ def main(args=None):
             
             ofilename = os.path.join(args.outdir,"{}/{}/spectra-{}-{}.fits".format(healpix//100,healpix,nside,healpix))
         
+        if not args.overwrite :
+            if os.path.isfile(ofilename) :
+                log.info("skip existing {}".format(ofilename))
+                continue
+
         log.info("Read skewers in {}".format(ifilename))
         trans_wave, transmission, metadata = read_lya_skewers(ifilename)
         ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
@@ -129,7 +135,7 @@ def main(args=None):
             indices = np.where(np.random.uniform(size=nqso)<args.downsampling)[0]
             if indices.size == 0 : 
                 log.warning("Down sampling from {} to 0 (by chance I presume)".format(nqso))
-                return
+                continue
             transmission = transmission[indices]
             metadata = metadata[:][indices]
             nqso = transmission.shape[0]
