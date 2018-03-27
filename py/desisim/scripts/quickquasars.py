@@ -4,8 +4,11 @@ import argparse
 import time
 
 import numpy as np
-from desiutil.log import get_logger
+from astropy.table import Table
 
+from desiutil.log import get_logger
+from desispec.io.util import write_bintable
+from desispec.io.fibermap import read_fibermap
 from desisim.simexp import reference_conditions
 from desisim.templates import SIMQSO
 from desisim.scripts.quickspectra import sim_spectra
@@ -42,6 +45,7 @@ def parse(options=None):
     parser.add_argument('--wmax', type=float, default=10000,help="Max wavelength (obs. frame)")
     parser.add_argument('--dwave', type=float, default=0.2,help="Internal wavelength step (don't change this)")
     parser.add_argument('--nproc', type=int, default=1,help="number of processors to run faster")
+    parser.add_argument('--zbest', action = "store_true" ,help="add a zbest file per spectrum with the truth")
     
     if options is None:
         args = parser.parse_args()
@@ -106,7 +110,7 @@ def main(args=None):
             except ValueError:
                 raise ValueError("Cannot guess nside and healpix from filename {}".format(ifilename))
             
-            ofilename = os.path.join(args.outdir,"spectra-{}-{}.fits".format(nside,healpix))
+            ofilename = os.path.join(args.outdir,"{}/{}/spectra-{}-{}.fits".format(healpix//100,healpix,nside,healpix))
         
         log.info("Read skewers in {}".format(ifilename))
         trans_wave, transmission, metadata = read_lya_skewers(ifilename)
@@ -158,10 +162,53 @@ def main(args=None):
         #for q in range(nqso) :
         #    plt.plot(qso_wave,qso_flux[q])
         #plt.show()
-
+        
         log.info("Simulate DESI observation and write output file")
-        sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,seed=args.seed,sourcetype="qso", skyerr=args.skyerr)
-
-
+        pixdir = os.path.dirname(ofilename)
+        if not os.path.isdir(pixdir) :
+            log.info("Creating dir {}".format(pixdir))
+            os.makedirs(pixdir)
+        
+        if "MOCKID" in metadata.dtype.names :
+            #log.warning("Using MOCKID as TARGETID")
+            targetid=np.array(metadata["MOCKID"]).astype(int)
+        elif "ID" in metadata.dtype.names :
+            log.warning("Using ID as TARGETID")
+            targetid=np.array(metadata["ID"]).astype(int)
+        else :
+            log.warning("No TARGETID")
+            targetid=None
+        
+        sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,seed=args.seed,sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid)
+        
+        if args.zbest :
+            log.info("Read fibermap to get target ids")
+            fibermap = read_fibermap(ofilename)
+            
+            zbest_filename = os.path.join(pixdir,"zbest-{}-{}.fits".format(nside,healpix))
+            log.info("Writing a zbest file {}".format(zbest_filename))
+            columns = [
+                ('CHI2', 'f8'),
+                ('COEFF', 'f8' , (4,)),
+                ('Z', 'f8'),
+                ('ZERR', 'f8'),
+                ('ZWARN', 'i8'),
+                ('SPECTYPE', (str,96)),
+                ('SUBTYPE', (str,16)),
+                ('TARGETID', 'i8'),
+                ('DELTACHI2', 'f8'),
+                ('BRICKNAME', (str,8))]
+            zbest = Table(np.zeros(nqso, dtype=columns))
+            zbest["CHI2"][:]      = 0.
+            zbest["Z"]            = metadata['Z']
+            zbest["ZERR"][:]      = 0.
+            zbest["ZWARN"][:]     = 0
+            zbest["SPECTYPE"][:]  = "QSO"
+            zbest["SUBTYPE"][:]   = ""
+            zbest["TARGETID"]     = fibermap["TARGETID"]
+            zbest["DELTACHI2"][:] = 25.
+            write_bintable(zbest_filename, zbest,extname="ZBEST", clobber=True)
+            
+            
 
 
