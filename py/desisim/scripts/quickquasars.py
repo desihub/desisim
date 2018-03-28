@@ -19,8 +19,8 @@ import matplotlib.pyplot as plt
 
 def parse(options=None):
     parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-                                   description="""Fast simulation of spectra into the final DESI format (Spectra class) that can be directly used as
-                                   an input to the redshift fitter (redrock). The input file is an ASCII file with first column the wavelength in A (in vacuum, redshifted), the other columns are treated as spectral flux densities in units of 10^-17 ergs/s/cm2/A.""")
+                                   description="""Fast simulation of QSO Lya spectra into the final DESI format (Spectra class) that can be directly used as
+                                   an input to the redshift fitter (redrock) or correlation function code (picca). The input file is a Lya transmission skewer fits file which format is described in https://desi.lbl.gov/trac/wiki/LymanAlphaWG/LyaSpecSim.""")
 
     #- Required
     parser.add_argument('-i','--infile', type=str, nargs= "*", required=True, help="Input skewer healpix fits file(s)")
@@ -38,7 +38,7 @@ def parse(options=None):
     parser.add_argument('--seed', type=int, default=0, help="Random seed")
     parser.add_argument('--skyerr', type=float, default=0.0, help="Fractional sky subtraction error")
     parser.add_argument('--norm-filter', type=str, default="decam2014-g", help="Broadband filter for normalization")
-    parser.add_argument('--nmax', type=int, default=None, help="Max number of QSO per input file")
+    parser.add_argument('--nmax', type=int, default=None, help="Max number of QSO per input file, for debugging")
     parser.add_argument('--downsampling', type=float, default=None,help="fractional random down-sampling (value between 0 and 1)")
     parser.add_argument('--zmin', type=float, default=0,help="Min redshift")
     parser.add_argument('--zmax', type=float, default=10,help="Max redshift")
@@ -48,7 +48,7 @@ def parse(options=None):
     parser.add_argument('--nproc', type=int, default=1,help="number of processors to run faster")
     parser.add_argument('--zbest', action = "store_true" ,help="add a zbest file per spectrum with the truth")
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
-    parser.add_argument('--target-selection', action = "store_true" ,help="apply target selection to the simulated quasars")
+    parser.add_argument('--target-selection', action = "store_true" ,help="apply QSO target selection cuts to the simulated quasars")
     
     if options is None:
         args = parser.parse_args()
