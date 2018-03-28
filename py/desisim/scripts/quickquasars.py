@@ -48,6 +48,7 @@ def parse(options=None):
     parser.add_argument('--nproc', type=int, default=1,help="number of processors to run faster")
     parser.add_argument('--zbest', action = "store_true" ,help="add a zbest file per spectrum with the truth")
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
+    parser.add_argument('--target-selection', action = "store_true" ,help="apply target selection to the simulated quasars")
     
     if options is None:
         args = parser.parse_args()
@@ -95,6 +96,16 @@ def main(args=None):
     log.info("Load SIMQSO model")
     model=SIMQSO(normfilter=args.norm_filter,nproc=args.nproc)
 
+    
+    if args.target_selection :
+        log.info("Load DeCAM and WISE filters for target selection sim.")
+        
+        from speclite import filters
+        from desitarget.cuts import isQSO_colors
+
+        decam_and_wise_filters = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
+                                         'wise2010-W1', 'wise2010-W2')
+        
 
     for ifilename in args.infile : 
 
@@ -155,22 +166,34 @@ def main(args=None):
         tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(
             nmodel=nqso, redshift=metadata['Z'], seed=args.seed,
             lyaforest=False, nocolorcuts=True, noresample=True)
+ 
+        log.info("Apply lya")
+        tmp_qso_flux = apply_lya_transmission(tmp_qso_wave,tmp_qso_flux,trans_wave,transmission)
 
+        if args.target_selection :
+            log.info("Compute QSO magnitudes for target selection")
+            maggies = decam_and_wise_filters.get_ab_maggies(
+                1e-17 * tmp_qso_flux, tmp_qso_wave.copy(), mask_invalid=True)
+            for band, filt in zip( ('FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2'),
+                                   ('decam2014-g', 'decam2014-r', 'decam2014-z',
+                                    'wise2010-W1', 'wise2010-W2') ):
+                meta[band] = np.ma.getdata(1e9 * maggies[filt]) # nanomaggies
+            isqso = isQSO_colors(gflux=meta['FLUX_G'], rflux=meta['FLUX_R'], zflux=meta['FLUX_Z'],
+                               w1flux=meta['FLUX_W1'], w2flux=meta['FLUX_W2'])
+            log.info("Target selection: {}/{} QSOs selected".format(np.sum(isqso),nqso))
+            selection=np.where(isqso)[0]
+            if selection.size==0 : continue
+            tmp_qso_flux = tmp_qso_flux[selection]
+            metadata     = metadata[:][selection]
+            meta         = meta[:][selection]
+            nqso         = selection.size
+        
         log.info("Resample to a linear wavelength grid (needed by DESI sim.)")
         qso_wave=np.linspace(args.wmin,args.wmax,int((args.wmax-args.wmin)/args.dwave)+1)
         qso_flux=np.zeros((tmp_qso_flux.shape[0],qso_wave.size))
         for q in range(tmp_qso_flux.shape[0]) :
             qso_flux[q]=np.interp(qso_wave,tmp_qso_wave,tmp_qso_flux[q])
-
-
-        log.info("Apply lya")
-        qso_flux = apply_lya_transmission(qso_wave,qso_flux,trans_wave,transmission)
-
-        #print("Redshifts=",metadata['Z'][:nqso])
-        #for q in range(nqso) :
-        #    plt.plot(qso_wave,qso_flux[q])
-        #plt.show()
-        
+            
         log.info("Simulate DESI observation and write output file")
         pixdir = os.path.dirname(ofilename)
         if not os.path.isdir(pixdir) :
