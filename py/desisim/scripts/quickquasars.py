@@ -5,6 +5,7 @@ import time
 
 import numpy as np
 from astropy.table import Table
+import astropy.io.fits as pyfits
 
 from desiutil.log import get_logger
 from desispec.io.util import write_bintable
@@ -96,21 +97,22 @@ def main(args=None):
 
 
     for ifilename in args.infile : 
+
+        healpix=0
+        nside=0
+        vals = os.path.basename(ifilename).split(".")[0].split("-")
+        if len(vals)<3 :
+            log.error("Cannot guess nside and healpix from filename {}".format(ifilename))
+            raise ValueError("Cannot guess nside and healpix from filename {}".format(ifilename))
+        try :
+            healpix=int(vals[-1])
+            nside=int(vals[-2])
+        except ValueError:
+            raise ValueError("Cannot guess nside and healpix from filename {}".format(ifilename))
         
         if args.outfile :
             ofilename = args.outfile
         else :
-
-            vals = os.path.basename(ifilename).split(".")[0].split("-")
-            if len(vals)<3 :
-                log.error("Cannot guess nside and healpix from filename {}".format(ifilename))
-                raise ValueError("Cannot guess nside and healpix from filename {}".format(ifilename))
-            try :
-                healpix=int(vals[-1])
-                nside=int(vals[-2])
-            except ValueError:
-                raise ValueError("Cannot guess nside and healpix from filename {}".format(ifilename))
-            
             ofilename = os.path.join(args.outdir,"{}/{}/spectra-{}-{}.fits".format(healpix//100,healpix,nside,healpix))
         
         if not args.overwrite :
@@ -188,10 +190,11 @@ def main(args=None):
         sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,seed=args.seed,sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid)
         
         if args.zbest :
-            log.info("Read fibermap to get target ids")
+            log.info("Read fibermap")
             fibermap = read_fibermap(ofilename)
             
             zbest_filename = os.path.join(pixdir,"zbest-{}-{}.fits".format(nside,healpix))
+            
             log.info("Writing a zbest file {}".format(zbest_filename))
             columns = [
                 ('CHI2', 'f8'),
@@ -213,8 +216,12 @@ def main(args=None):
             zbest["SUBTYPE"][:]   = ""
             zbest["TARGETID"]     = fibermap["TARGETID"]
             zbest["DELTACHI2"][:] = 25.
-            write_bintable(zbest_filename, zbest,extname="ZBEST", clobber=True)
+
+            hzbest = pyfits.convenience.table_to_hdu(zbest); hzbest.name="ZBEST"
+            hfmap  = pyfits.convenience.table_to_hdu(fibermap);  hfmap.name="FIBERMAP"
             
+            hdulist =pyfits.HDUList([pyfits.PrimaryHDU(),hzbest,hfmap])
+            hdulist.writeto(zbest_filename, clobber=True)
             
 
 
