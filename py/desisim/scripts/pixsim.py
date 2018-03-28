@@ -182,8 +182,7 @@ def main(args, comm=None):
         log.setLevel(logging.DEBUG)
     #we do this so we can use operator.itemgetter
     import operator
-    #we do this so we can use socket.hostname
-    import socket
+    #we do this so our print statements can have timestamps
     import time
 
     rank = 0
@@ -219,8 +218,8 @@ def main(args, comm=None):
             else:
                 sys.exit(1)
 
-    ncamera = len(args.cameras)
     #assign communicators, groups, etc, used for both mpi and multiprocessing
+    ncamera = len(args.cameras)
     comm_group = comm
     comm_rank = None
     group = 0
@@ -239,8 +238,18 @@ def main(args, comm=None):
             comm_group = MPI.COMM_SELF
             comm_rank = comm
 
-    # Remove outputs and or temp files
+    #check to make sure that the number of frames is evenly divisible by nubmer of nodes
+    #if not, abort and provide a helpful error message
+    #otherwise due to barrier logic the program will hang
+    if comm is not None:
+        if comm.rank == 0:
+            if ncamera % ngroup != 0:
+                msg = 'Number of frames (ncamera) must be evenly divisible by number of nodes (N)'
+                log.error(msg)
+                raise ValueError(msg)
+                comm.Abort()
 
+    # Remove outputs and or temp files
     rawtemp = "{}.tmp".format(args.rawfile)
     simpixtemp = "{}.tmp".format(args.simpixfile)
 
@@ -292,7 +301,6 @@ def main(args, comm=None):
     if comm is not None: 
         if ngroup > 1:
             node_cameras=None
-            #mpi_camera is the number of processes to use per mpi camera
             for i in range(ngroup):
                 if i == group: 
                     node_cameras=camera_channel_list[i::ngroup]
@@ -302,18 +310,9 @@ def main(args, comm=None):
     if comm is None:
         node_cameras=camera_channel_list
 
-    # Compute which spectrographs our group needs to store based on which
-    # cameras we are processing.
-
-    #group_cameras = np.array_split(np.arange(ncamera, dtype=np.int32), ngroup)[group]
-
-    #replace group_spectro 
-    #group_spectro = np.unique(np.array([ int(args.cameras[c][1]) for c in group_cameras ], dtype=np.int32))
     group_spectro = np.array([ int(c[1]) for c in node_cameras ], dtype=np.int32)
-    #print("group_spectro is %s" %(group_spectro))   
 
-
-    #preallocate things needed for non mpi (we handle mpi later)
+    #preallocate things needed for multiprocessing (we handle mpi later)
     if comm is None:
         simspec = None
         cosmics = None
@@ -357,8 +356,7 @@ def main(args, comm=None):
     seeds = np.random.randint(0, 2**32-1, size=ncamera)
     seed_counter=0 #need to initialize counter
 
-    #regroup and put all mpi broadcasting together! 
-    #no mpi version is below
+    #this loop handles the mpi case
     if comm is not None:
         #now that each communicator (group) knows which cameras it
         #is supposed to process, we can get started
@@ -430,9 +428,6 @@ def main(args, comm=None):
             fs = np.in1d(fibers//500, group_spectro[i])
             group_fibers = fibers[fs]
 
-            #print("fs is %s" %(fs))
-            #print("group_fibers is %s" %(group_fibers))
-
             image[camera], rawpix[camera], truepix[camera] = \
                 simulate(camera, simspec, psf, fibers=group_fibers,
                     ncpu=args.ncpu, nspec=args.nspec, cosmics=cosmics,
@@ -441,8 +436,9 @@ def main(args, comm=None):
 
             #to avoid overflowing the memory let's write after each instance of simulate
             #the data are already at rank 0 in each communicator
-            #then have each communicator open and write to the file 
-            #one at a time
+            #then have each communicator open and write to the file one at a time
+            #this is the part that will fail if the number of nodes divided by number of frames 
+            #is not evenly divisible (hence the check above)
             for i in range(ngroup):#number of total communicators
                 if group == i:#only one group at a time should open/write/close
                     if group_rank == 0: #write only from rank 0 where the data are
@@ -466,7 +462,6 @@ def main(args, comm=None):
             #iterate random number counter
             seed_counter=seed_counter+1  
 
-    #print("group %s rank %s reached here at %s" %(group, group_rank, time.asctime()))
     #initalize random number seeds
     seed_counter=0 #need to initialize counter
     if comm is None:
@@ -554,15 +549,14 @@ def main(args, comm=None):
     #done with both mpi and multiprocessing
         
     # Move temp files into place
-    if group_rank == 0:
+    if rank == 0:
         # Copy the original files into place if we are appending
         if not args.overwrite and os.path.exists(args.rawfile):
             shutil.copy2(args.rawfile, rawtemp)
         if not args.overwrite and os.path.exists(args.simpixfile):
             shutil.copy2(args.simpixfile, simpixtemp)
-    
-    # Move temp files into place
-    if group_rank == 0:
+
+    if rank == 0:
         os.rename(simpixtemp, args.simpixfile)
         os.rename(rawtemp, args.rawfile)
     if comm is not None:
@@ -570,7 +564,7 @@ def main(args, comm=None):
 
     # Apply preprocessing
     if args.preproc:
-        if group_rank == 0:
+        if rank == 0:
             log.info('Preprocessing raw -> pix files')
         from desispec.scripts import preproc
         if len(node_cameras) > 0:
