@@ -378,25 +378,15 @@ def read_simspec_mpi(filename, comm, channel, spectrographs=None):
     else:
         fibers = np.arange(totalspec, dtype=np.int32)
 
-    #print("fibers %s on rank %s" %(fibers,comm.rank))
-
     #this comes in as an input, spectrographs=group_spectra[i]
     #just simulate and write one spectrograph at a time
     if spectrographs is None:
         spectrographs = np.arange(10, dtype=np.int32)
 
-
-    #print("spectrographs")
-    #print(spectrographs)
-
     specslice = np.in1d(fibers//500, spectrographs)
-
-    #print("specslice %s on rank %s" %(specslice,comm.rank))
 
     if fibermap is not None:
         fibermap = fibermap[specslice]
-
-    #print("fibermap %s on rank %s" %(fibermap,comm.rank))
 
     # Now read one HDU at a time, broadcast, and every process grabs its slice.
 
