@@ -402,6 +402,7 @@ def main(args, comm=None):
                     psf.npix_y = args.ccd_npix_y
             
             #if we have already loaded the right cosmics camera, don't bcast again
+            cosmics=None
             if args.cosmics:
                 if current_camera[0] != previous_camera[0]:
                     cosmics=None

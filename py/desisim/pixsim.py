@@ -208,10 +208,10 @@ def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
             header['RDNOISE4'] = readnoise
 
         if (comm is None) or (comm.rank == 0):
-            log.info('RDNOISE1 {}'.format(header['RDNOISE1']))
-            log.info('RDNOISE2 {}'.format(header['RDNOISE2']))
-            log.info('RDNOISE3 {}'.format(header['RDNOISE3']))
-            log.info('RDNOISE4 {}'.format(header['RDNOISE4']))
+            log.debug('RDNOISE1 {}'.format(header['RDNOISE1']))
+            log.debug('RDNOISE2 {}'.format(header['RDNOISE2']))
+            log.debug('RDNOISE3 {}'.format(header['RDNOISE3']))
+            log.debug('RDNOISE4 {}'.format(header['RDNOISE4']))
 
         #- data already has noise if cosmics were added
         noisydata = (cosmics is not None)
