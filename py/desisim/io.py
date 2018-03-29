@@ -35,7 +35,7 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
     """Return canonical location of where a file should be on disk
 
     Args:
-        filetype (str): file type, e.g. 'pix' or 'pixsim'
+        filetype (str): file type, e.g. 'preproc' or 'simpix'
         night (str): YEARMMDD string
         expid (int): exposure id integer
         camera (str): e.g. 'b0', 'r1', 'z9'
@@ -58,7 +58,6 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
         simspec = '{outdir:s}/simspec-{expid:08d}.fits',
         simpix = '{outdir:s}/simpix-{expid:08d}.fits',
         simfibermap = '{outdir:s}/fibermap-{expid:08d}.fits',
-        pix = '{outdir:s}/pix-{camera:s}-{expid:08d}.fits',
         fastframelog = '{outdir:s}/fastframe-{expid:08d}.log',
         newexplog = '{outdir:s}/newexp-{expid:08d}.log',
     )
@@ -68,8 +67,8 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
         raise ValueError("Unknown filetype {}; known types are {}".format(filetype, list(location.keys())))
 
     #- Some but not all filetypes require camera
-    if filetype == 'pix' and camera is None:
-        raise ValueError('camera is required for filetype '+filetype)
+    # if filetype == 'preproc' and camera is None:
+    #     raise ValueError('camera is required for filetype '+filetype)
 
     #- get outfile location and cleanup extraneous // from path
     outfile = location[filetype].format(
@@ -93,23 +92,21 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, outdir=None, filename
     Write a simspec file
 
     Args:
-        sim: specsim Simulator object
-        truth: truth metadata Table
-        fibermap: fibermap Table
-        obs: dict-like observation conditions with keys
+        sim (Simulator): specsim Simulator object
+        truth (Table): truth metadata Table
+        fibermap (Table): fibermap Table
+        obs (dict-like): dict-like observation conditions with keys
             SEEING (arcsec), EXPTIME (sec), AIRMASS,
             MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
-        expid: integer exposure ID
-        night: YEARMMDD string
+        expid (int): integer exposure ID
+        night (str): YEARMMDD string
+        outdir (str, optional): output directory
+        filename (str, optional): if None, auto-derive from envvars, night, expid, and outdir
+        header (dict-like): header to include in HDU0
+        overwrite (bool, optional): overwrite pre-existing files
 
-    Options:
-        outdir: output directory
-        filename: if None, auto-derive from envvars, night, expid, and outdir
-        header: dict-like header to include in HDU0
-        overwrite: overwrite pre-existing files
-    
     Notes:
-        calibration exposures can use truth=None and obs=None
+        Calibration exposures can use ``truth=None`` and ``obs=None``.
     '''
     import astropy.table
     import astropy.units as u
@@ -302,7 +299,7 @@ class SimSpec(object):
         #change to a new testing procedure since channel is now an input
         for channel in phot.keys():
             nspec=phot[channel].shape[0]
- 
+
         for channel in phot.keys():
             assert phot[channel].shape[0]==nspec
 
@@ -367,7 +364,7 @@ def read_simspec_mpi(filename, comm, channel, spectrographs=None):
     wave = comm.bcast(wave, root=0)
     fibermap = comm.bcast(fibermap, root=0)
 
-    # Based on the spectrographs for this process, compute the range of 
+    # Based on the spectrographs for this process, compute the range of
     # spectra we need to store.  The number of spectra per spectrograph (500)
     # is hard-coded several places in desisim.  This should be put in desimodel
     # somewhere...
@@ -400,7 +397,7 @@ def read_simspec_mpi(filename, comm, channel, spectrographs=None):
     #in these next blocks, we fix the endian-ness of the data for each type
     #we also extract the data for later broadcast if comm.rank == 0
     #and we store the shape of the data to allocate numpy arrays if comm_rank !=0
-    #it looks a little silly but it's better than trying to convert from a python 
+    #it looks a little silly but it's better than trying to convert from a python
     #dictionary back to a numpy array later
 
     #preallocate shape_dict
@@ -453,15 +450,15 @@ def read_simspec_mpi(filename, comm, channel, spectrographs=None):
     #one broadcast is more efficienct than many broadcasts
     #this allows the ranks to know what size to preallocate
     shape_dict= comm.bcast(shape_dict, root=0)
-    #add a barrier so we can make sure these data have been broadcast 
+    #add a barrier so we can make sure these data have been broadcast
     #to all ranks before we start the next process
     comm.Barrier()
-  
+
     #we will sort according to flavor in the mpi version
     #flavor = flat has phot and flux
     #flavor = arc has phot
     #flavor = science has phot, flux, skyphot, and skyflux
- 
+
     # Read photons
     # all flavors have photons
     phot = dict()
@@ -1076,7 +1073,7 @@ def write_templates(outfile, flux, wave, meta):
         flux (numpy.ndarray): Flux vector (1e-17 erg/s/cm2/A)
         wave (numpy.ndarray): Wavelength vector (Angstrom).
         meta (astropy.table.Table): metadata table.
-    
+
     """
     from astropy.io import fits
     from desispec.io.util import makepath
@@ -1089,13 +1086,13 @@ def write_templates(outfile, flux, wave, meta):
     hdu_wave.header['EXTNAME'] = 'WAVE'
     hdu_wave.header['BUNIT'] = 'Angstrom'
     hdu_wave.header['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
-    hx.append(hdu_wave)    
-    
+    hx.append(hdu_wave)
+
     hdu_flux = fits.ImageHDU(flux)
     hdu_flux.header['EXTNAME'] = 'FLUX'
     hdu_flux.header['BUNIT'] = str(fluxunits)
     hx.append(hdu_flux)
-    
+
     hdu_meta = fits.table_to_hdu(meta)
     hdu_meta.header['EXTNAME'] = 'METADATA'
     hx.append(hdu_meta)
@@ -1127,7 +1124,7 @@ def _parse_filename(filename):
     camera=None if the filename isn't camera specific
 
     e.g. /blat/foo/simspec-00000003.fits -> ('simspec', None, 3)
-    e.g. /blat/foo/pix-r2-00000003.fits -> ('pix', 'r2', 3)
+    e.g. /blat/foo/preproc-r2-00000003.fits -> ('preproc', 'r2', 3)
     """
     base = os.path.basename(os.path.splitext(filename)[0])
     x = base.split('-')
@@ -1176,13 +1173,13 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype='', add_SNeIa=None):
                            data=np.zeros(nmodel)-1, unit='km/s'))
     meta.add_column(Column(name='OIIDOUBLET', length=nmodel, dtype='f4', data=np.zeros(nmodel)-1))
     meta.add_column(Column(name='OIIIHBETA', length=nmodel, dtype='f4',
-                           data=np.zeros(nmodel)-1, unit='dex'))
+                           data=np.zeros(nmodel)-1, unit='Dex'))
     meta.add_column(Column(name='OIIHBETA', length=nmodel, dtype='f4',
-                           data=np.zeros(nmodel)-1, unit='dex'))
+                           data=np.zeros(nmodel)-1, unit='Dex'))
     meta.add_column(Column(name='NIIHBETA', length=nmodel, dtype='f4',
-                           data=np.zeros(nmodel)-1, unit='dex'))
+                           data=np.zeros(nmodel)-1, unit='Dex'))
     meta.add_column(Column(name='SIIHBETA', length=nmodel, dtype='f4',
-                           data=np.zeros(nmodel)-1, unit='dex'))
+                           data=np.zeros(nmodel)-1, unit='Dex'))
 
     meta.add_column(Column(name='ZMETAL', length=nmodel, dtype='f4',
                            data=np.zeros(nmodel)-1))

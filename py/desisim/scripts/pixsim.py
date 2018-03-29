@@ -93,10 +93,6 @@ def expand_args(args):
         rawfile = os.path.basename(desispec.io.findfile('raw', args.night, args.expid))
         args.rawfile = os.path.join(os.path.dirname(args.simspec), rawfile)
 
-    if args.preproc:
-        if args.preproc_dir is None:
-            args.preproc_dir = os.path.dirname(args.rawfile)
-
     if args.simpixfile is None:
         args.simpixfile = io.findfile(
             'simpix', night=args.night, expid=args.expid,
@@ -574,9 +570,17 @@ def main(args, comm=None):
                     camera=current_camera[0] + current_camera[1]
                     pixfile = desispec.io.findfile('pix', night=args.night,
                         expid=args.expid, camera=camera)
-                    preproc_opts = ['--infile', args.rawfile, '--outdir',
-                        args.preproc_dir, '--pixfile', pixfile]
-                    preproc_opts += ['--cameras', camera]
+                    if args.preproc_dir:
+                        pixfile = os.path.join(args.preproc_dir, os.path.basename(pixfile))
+
+                    pixdir = os.path.dirname(pixfile)
+                    if not os.path.isdir(pixdir):
+                        os.makedirs(pixdir)
+                    preproc_opts = [
+                        '--infile', args.rawfile,
+                        '--outfile', pixfile,
+                        '--cameras', camera
+                    ]
                     preproc.main(preproc.parse(preproc_opts))
 
     # Python is terrible with garbage collection, but at least

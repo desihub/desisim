@@ -1,4 +1,5 @@
-import unittest, os
+import unittest, os, sys
+import tempfile
 from uuid import uuid1
 from shutil import rmtree
 
@@ -19,22 +20,31 @@ log = get_logger()
 desi_templates_available = 'DESI_ROOT' in os.environ
 desi_root_available = 'DESI_ROOT' in os.environ
 
+#- Travis tests hang when some of these tests are called with
+#- python 2.7, but not others.  Works away from Travis on py2.7.
+#- Skip for now.
+travis27 = (sys.version_info.major==2) and ('TRAVIS' in os.environ)
+
 class TestPixsim(unittest.TestCase):
     #- Create test subdirectory
     @classmethod
     def setUpClass(cls):
         global desi_templates_available
         cls.testfile = 'test-{uuid}/test-{uuid}.fits'.format(uuid=uuid1())
-        cls.testDir = os.path.join(os.environ['HOME'],'desi_test_io')
+        cls.testdir = tempfile.mkdtemp()
         cls.origEnv = dict(
             PIXPROD = None,
+            SPECPROD = None,
             DESI_SPECTRO_SIM = None,
             DESI_SPECTRO_DATA = None,
+            DESI_SPECTRO_REDUX = None,
         )
         cls.testEnv = dict(
             PIXPROD = 'test',
-            DESI_SPECTRO_SIM = os.path.join(cls.testDir,'spectro','sim'),
-            DESI_SPECTRO_DATA = os.path.join(cls.testDir,'spectro','sim', 'test'),
+            SPECPROD = 'test',
+            DESI_SPECTRO_SIM = os.path.join(cls.testdir,'spectro','sim'),
+            DESI_SPECTRO_DATA = os.path.join(cls.testdir,'spectro','sim', 'test'),
+            DESI_SPECTRO_REDUX = os.path.join(cls.testdir,'spectro','redux'),
             )
         for e in cls.origEnv:
             if e in os.environ:
@@ -62,12 +72,17 @@ class TestPixsim(unittest.TestCase):
                 del os.environ[e]
             else:
                 os.environ[e] = cls.origEnv[e]
-        if os.path.exists(cls.testDir):
-            rmtree(cls.testDir)
+        if os.path.exists(cls.testdir):
+            rmtree(cls.testdir)
 
     def setUp(self):
         self.night = '20150105'
         self.expid = 124
+        for expid in (self.expid, self.expid+1):
+            pixfile = desispec.io.findfile('preproc', self.night, expid, camera='b0')
+            pixdir = os.path.dirname(pixfile)
+            if not os.path.isdir(pixdir):
+                os.makedirs(pixdir)
 
     def tearDown(self):
         rawfile = desispec.io.findfile('raw', self.night, self.expid)
@@ -80,7 +95,7 @@ class TestPixsim(unittest.TestCase):
         if os.path.exists(simspecfile):
             os.remove(simspecfile)
         for camera in ('b0', 'r0', 'z0'):
-            pixfile = desispec.io.findfile('pix', self.night, self.expid, camera=camera)
+            pixfile = desispec.io.findfile('preproc', self.night, self.expid, camera=camera)
             if os.path.exists(pixfile):
                 os.remove(pixfile)
             simpixfile = io.findfile('simpix', self.night, self.expid, camera=camera)
@@ -100,7 +115,6 @@ class TestPixsim(unittest.TestCase):
         self.assertTrue(os.path.exists(io.findfile('simspec', night, expid)))
         simspec = io.read_simspec(io.findfile('simspec', night, expid))
         self.assertTrue(os.path.exists(io.findfile('simpix', night, expid, camera)))
-        self.assertTrue(os.path.exists(io.findfile('pix', night, expid, camera)))
 
     @unittest.skipUnless(desi_templates_available, 'The DESI templates directory ($DESI_ROOT/spectro/templates) was not detected.')
     def test_pixsim_cosmics(self):
@@ -113,7 +127,6 @@ class TestPixsim(unittest.TestCase):
         self.assertTrue(os.path.exists(io.findfile('simspec', night, expid)))
         simspec = io.read_simspec(io.findfile('simspec', night, expid))
         self.assertTrue(os.path.exists(io.findfile('simpix', night, expid, camera)))
-        self.assertTrue(os.path.exists(io.findfile('pix', night, expid, camera)))
 
     def test_simulate(self):
         import desispec.image
@@ -135,10 +148,7 @@ class TestPixsim(unittest.TestCase):
         self.assertEqual(image.pix.shape[0], rawpix.shape[0])
         self.assertLess(image.pix.shape[1], rawpix.shape[1])  #- raw has overscan
 
-    #- Travis tests hang when writing coverage when both test_main* were
-    #- called, though the tests work on other systems.
-    #- Disabling multiprocessing also "fixed" this for unknown reasons.
-    @unittest.skipIf(False, 'Skip test that is causing coverage tests to hang.')
+    @unittest.skipIf(travis27, 'Skip test that is causing Travis to hang on py2.7')
     def test_main_defaults(self):
         night = self.night
         expid = self.expid
@@ -172,7 +182,7 @@ class TestPixsim(unittest.TestCase):
         os.remove(simpixfile)
         os.remove(rawfile)
 
-    @unittest.skipIf(False, 'Skip test that is causing coverage tests to hang.')
+    @unittest.skipIf(travis27, 'Skip test that is causing Travis to hang on py2.7')
     def test_main_override(self):
         night = self.night
         expid = self.expid
