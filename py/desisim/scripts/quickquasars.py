@@ -6,6 +6,7 @@ import time
 import numpy as np
 from astropy.table import Table
 import astropy.io.fits as pyfits
+import multiprocessing
 
 from desiutil.log import get_logger
 from desispec.io.util import write_bintable
@@ -58,6 +59,167 @@ def parse(options=None):
 
     return args
 
+def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters) :
+    
+    log = get_logger()
+    
+    healpix=0
+    nside=0
+    vals = os.path.basename(ifilename).split(".")[0].split("-")
+    if len(vals)<3 :
+        log.error("Cannot guess nside and healpix from filename {}".format(ifilename))
+        raise ValueError("Cannot guess nside and healpix from filename {}".format(ifilename))
+    try :
+        healpix=int(vals[-1])
+        nside=int(vals[-2])
+    except ValueError:
+        raise ValueError("Cannot guess nside and healpix from filename {}".format(ifilename))
+
+    if args.outfile :
+        ofilename = args.outfile
+    else :
+        ofilename = os.path.join(args.outdir,"{}/{}/spectra-{}-{}.fits".format(healpix//100,healpix,nside,healpix))
+
+    if not args.overwrite :
+        if os.path.isfile(ofilename) :
+            log.info("skip existing {}".format(ofilename))
+            return
+
+    log.info("Read skewers in {}".format(ifilename))
+    trans_wave, transmission, metadata = read_lya_skewers(ifilename)
+    ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
+    transmission = transmission[ok]
+    metadata = metadata[:][ok]
+
+    # set seed now in case we are downsampling
+    np.random.seed(args.seed)
+
+    # create quasars
+    nqso=transmission.shape[0]
+    if args.downsampling is not None :
+        if args.downsampling <= 0 or  args.downsampling > 1 :
+           log.error("Down sampling fraction={} must be between 0 and 1".format(args.downsampling))
+           raise ValueError("Down sampling fraction={} must be between 0 and 1".format(args.downsampling))
+        indices = np.where(np.random.uniform(size=nqso)<args.downsampling)[0]
+        if indices.size == 0 : 
+            log.warning("Down sampling from {} to 0 (by chance I presume)".format(nqso))
+            return
+        transmission = transmission[indices]
+        metadata = metadata[:][indices]
+        nqso = transmission.shape[0]
+
+    if args.nmax is not None :
+        if args.nmax < nqso :
+            log.info("Limit number of QSOs from {} to nmax={} (random subsample)".format(nqso,args.nmax))
+            # take a random subsample
+            indices = (np.random.uniform(size=args.nmax)*nqso).astype(int)
+            transmission = transmission[indices]
+            metadata = metadata[:][indices]
+            nqso = args.nmax
+
+    log.info("Simulate {} QSOs".format(nqso))
+    tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(
+        nmodel=nqso, redshift=metadata['Z'], seed=args.seed,
+        lyaforest=False, nocolorcuts=True, noresample=True)
+
+    log.info("Resample to transmission wavelength grid")
+    # because we don't want to alter the transmission field with resampling here
+    qso_flux=np.zeros((tmp_qso_flux.shape[0],trans_wave.size))
+    for q in range(tmp_qso_flux.shape[0]) :
+        qso_flux[q]=np.interp(trans_wave,tmp_qso_wave,tmp_qso_flux[q])
+        log.info("".format(nqso))
+    tmp_qso_flux = qso_flux
+    tmp_qso_wave = trans_wave
+
+    log.info("Apply lya")
+    tmp_qso_flux = apply_lya_transmission(tmp_qso_wave,tmp_qso_flux,trans_wave,transmission)
+
+    if args.target_selection :
+        log.info("Compute QSO magnitudes for target selection")
+        maggies = decam_and_wise_filters.get_ab_maggies(
+            1e-17 * tmp_qso_flux, tmp_qso_wave.copy(), mask_invalid=True)
+        for band, filt in zip( ('FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2'),
+                               ('decam2014-g', 'decam2014-r', 'decam2014-z',
+                                'wise2010-W1', 'wise2010-W2') ):
+            meta[band] = np.ma.getdata(1e9 * maggies[filt]) # nanomaggies
+        isqso = isQSO_colors(gflux=meta['FLUX_G'], rflux=meta['FLUX_R'], zflux=meta['FLUX_Z'],
+                           w1flux=meta['FLUX_W1'], w2flux=meta['FLUX_W2'])
+        log.info("Target selection: {}/{} QSOs selected".format(np.sum(isqso),nqso))
+        selection=np.where(isqso)[0]
+        if selection.size==0 : return
+        tmp_qso_flux = tmp_qso_flux[selection]
+        metadata     = metadata[:][selection]
+        meta         = meta[:][selection]
+        nqso         = selection.size
+
+    log.info("Resample to a linear wavelength grid (needed by DESI sim.)")
+    # we need a linear grid. for this resampling we take care of integrating in bins
+    # we do not do a simple interpolation
+    qso_wave=np.linspace(args.wmin,args.wmax,int((args.wmax-args.wmin)/args.dwave)+1)
+    qso_flux=np.zeros((tmp_qso_flux.shape[0],qso_wave.size))
+    for q in range(tmp_qso_flux.shape[0]) :
+        qso_flux[q]=resample_flux(qso_wave,tmp_qso_wave,tmp_qso_flux[q])
+
+    log.info("Simulate DESI observation and write output file")
+    pixdir = os.path.dirname(ofilename)
+    if not os.path.isdir(pixdir) :
+        log.info("Creating dir {}".format(pixdir))
+        os.makedirs(pixdir)
+
+    if "MOCKID" in metadata.dtype.names :
+        #log.warning("Using MOCKID as TARGETID")
+        targetid=np.array(metadata["MOCKID"]).astype(int)
+    elif "ID" in metadata.dtype.names :
+        log.warning("Using ID as TARGETID")
+        targetid=np.array(metadata["ID"]).astype(int)
+    else :
+        log.warning("No TARGETID")
+        targetid=None
+
+    sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,seed=args.seed,sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid)
+
+    if args.zbest :
+        log.info("Read fibermap")
+        fibermap = read_fibermap(ofilename)
+
+        zbest_filename = os.path.join(pixdir,"zbest-{}-{}.fits".format(nside,healpix))
+
+        log.info("Writing a zbest file {}".format(zbest_filename))
+        columns = [
+            ('CHI2', 'f8'),
+            ('COEFF', 'f8' , (4,)),
+            ('Z', 'f8'),
+            ('ZERR', 'f8'),
+            ('ZWARN', 'i8'),
+            ('SPECTYPE', (str,96)),
+            ('SUBTYPE', (str,16)),
+            ('TARGETID', 'i8'),
+            ('DELTACHI2', 'f8'),
+            ('BRICKNAME', (str,8))]
+        zbest = Table(np.zeros(nqso, dtype=columns))
+        zbest["CHI2"][:]      = 0.
+        zbest["Z"]            = metadata['Z']
+        zbest["ZERR"][:]      = 0.
+        zbest["ZWARN"][:]     = 0
+        zbest["SPECTYPE"][:]  = "QSO"
+        zbest["SUBTYPE"][:]   = ""
+        zbest["TARGETID"]     = fibermap["TARGETID"]
+        zbest["DELTACHI2"][:] = 25.
+
+        hzbest = pyfits.convenience.table_to_hdu(zbest); hzbest.name="ZBEST"
+        hfmap  = pyfits.convenience.table_to_hdu(fibermap);  hfmap.name="FIBERMAP"
+
+        hdulist =pyfits.HDUList([pyfits.PrimaryHDU(),hzbest,hfmap])
+        hdulist.writeto(zbest_filename, clobber=True)
+
+
+
+
+
+def _func(arg) :
+    """ Used for multiprocessing.Pool """
+    return simulate_one_healpix(**arg)
+
 def main(args=None):
 
     log = get_logger()
@@ -95,9 +257,9 @@ def main(args=None):
         obsconditions['MOONSEP'] = args.moonsep
     
     log.info("Load SIMQSO model")
-    model=SIMQSO(normfilter=args.norm_filter,nproc=args.nproc)
-
+    model=SIMQSO(normfilter=args.norm_filter,nproc=1)
     
+    decam_and_wise_filters = None
     if args.target_selection :
         log.info("Load DeCAM and WISE filters for target selection sim.")
         
@@ -107,157 +269,13 @@ def main(args=None):
         decam_and_wise_filters = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
                                          'wise2010-W1', 'wise2010-W2')
         
-
-    for ifilename in args.infile : 
-
-        healpix=0
-        nside=0
-        vals = os.path.basename(ifilename).split(".")[0].split("-")
-        if len(vals)<3 :
-            log.error("Cannot guess nside and healpix from filename {}".format(ifilename))
-            raise ValueError("Cannot guess nside and healpix from filename {}".format(ifilename))
-        try :
-            healpix=int(vals[-1])
-            nside=int(vals[-2])
-        except ValueError:
-            raise ValueError("Cannot guess nside and healpix from filename {}".format(ifilename))
+    
+    if args.nproc > 1 :
+        func_args = [ {"ifilename":filename , "args":args, "model":model , "obsconditions":obsconditions , "decam_and_wise_filters": decam_and_wise_filters} for filename in args.infile ]
+        pool = multiprocessing.Pool(args.nproc)
+        pool.map(_func, func_args)
+    else :
+        for ifilename in args.infile : 
+            simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters)
+    
         
-        if args.outfile :
-            ofilename = args.outfile
-        else :
-            ofilename = os.path.join(args.outdir,"{}/{}/spectra-{}-{}.fits".format(healpix//100,healpix,nside,healpix))
-        
-        if not args.overwrite :
-            if os.path.isfile(ofilename) :
-                log.info("skip existing {}".format(ofilename))
-                continue
-
-        log.info("Read skewers in {}".format(ifilename))
-        trans_wave, transmission, metadata = read_lya_skewers(ifilename)
-        ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
-        transmission = transmission[ok]
-        metadata = metadata[:][ok]
-
-        # set seed now in case we are downsampling
-        np.random.seed(args.seed)
-
-        # create quasars
-        nqso=transmission.shape[0]
-        if args.downsampling is not None :
-            if args.downsampling <= 0 or  args.downsampling > 1 :
-               log.error("Down sampling fraction={} must be between 0 and 1".format(args.downsampling))
-               raise ValueError("Down sampling fraction={} must be between 0 and 1".format(args.downsampling))
-            indices = np.where(np.random.uniform(size=nqso)<args.downsampling)[0]
-            if indices.size == 0 : 
-                log.warning("Down sampling from {} to 0 (by chance I presume)".format(nqso))
-                continue
-            transmission = transmission[indices]
-            metadata = metadata[:][indices]
-            nqso = transmission.shape[0]
-
-        if args.nmax is not None :
-            if args.nmax < nqso :
-                log.info("Limit number of QSOs from {} to nmax={} (random subsample)".format(nqso,args.nmax))
-                # take a random subsample
-                indices = (np.random.uniform(size=args.nmax)*nqso).astype(int)
-                transmission = transmission[indices]
-                metadata = metadata[:][indices]
-                nqso = args.nmax
-
-        log.info("Simulate {} QSOs".format(nqso))
-        tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(
-            nmodel=nqso, redshift=metadata['Z'], seed=args.seed,
-            lyaforest=False, nocolorcuts=True, noresample=True)
-        
-        log.info("Resample to transmission wavelength grid")
-        # because we don't want to alter the transmission field with resampling here
-        qso_flux=np.zeros((tmp_qso_flux.shape[0],trans_wave.size))
-        for q in range(tmp_qso_flux.shape[0]) :
-            qso_flux[q]=np.interp(trans_wave,tmp_qso_wave,tmp_qso_flux[q])
-            log.info("".format(nqso))
-        tmp_qso_flux = qso_flux
-        tmp_qso_wave = trans_wave
-        
-        log.info("Apply lya")
-        tmp_qso_flux = apply_lya_transmission(tmp_qso_wave,tmp_qso_flux,trans_wave,transmission)
-
-        if args.target_selection :
-            log.info("Compute QSO magnitudes for target selection")
-            maggies = decam_and_wise_filters.get_ab_maggies(
-                1e-17 * tmp_qso_flux, tmp_qso_wave.copy(), mask_invalid=True)
-            for band, filt in zip( ('FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2'),
-                                   ('decam2014-g', 'decam2014-r', 'decam2014-z',
-                                    'wise2010-W1', 'wise2010-W2') ):
-                meta[band] = np.ma.getdata(1e9 * maggies[filt]) # nanomaggies
-            isqso = isQSO_colors(gflux=meta['FLUX_G'], rflux=meta['FLUX_R'], zflux=meta['FLUX_Z'],
-                               w1flux=meta['FLUX_W1'], w2flux=meta['FLUX_W2'])
-            log.info("Target selection: {}/{} QSOs selected".format(np.sum(isqso),nqso))
-            selection=np.where(isqso)[0]
-            if selection.size==0 : continue
-            tmp_qso_flux = tmp_qso_flux[selection]
-            metadata     = metadata[:][selection]
-            meta         = meta[:][selection]
-            nqso         = selection.size
-        
-        log.info("Resample to a linear wavelength grid (needed by DESI sim.)")
-        # we need a linear grid. for this resampling we take care of integrating in bins
-        # we do not do a simple interpolation
-        qso_wave=np.linspace(args.wmin,args.wmax,int((args.wmax-args.wmin)/args.dwave)+1)
-        qso_flux=np.zeros((tmp_qso_flux.shape[0],qso_wave.size))
-        for q in range(tmp_qso_flux.shape[0]) :
-            qso_flux[q]=resample_flux(qso_wave,tmp_qso_wave,tmp_qso_flux[q])
-        
-        log.info("Simulate DESI observation and write output file")
-        pixdir = os.path.dirname(ofilename)
-        if not os.path.isdir(pixdir) :
-            log.info("Creating dir {}".format(pixdir))
-            os.makedirs(pixdir)
-        
-        if "MOCKID" in metadata.dtype.names :
-            #log.warning("Using MOCKID as TARGETID")
-            targetid=np.array(metadata["MOCKID"]).astype(int)
-        elif "ID" in metadata.dtype.names :
-            log.warning("Using ID as TARGETID")
-            targetid=np.array(metadata["ID"]).astype(int)
-        else :
-            log.warning("No TARGETID")
-            targetid=None
-        
-        sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,seed=args.seed,sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid)
-        
-        if args.zbest :
-            log.info("Read fibermap")
-            fibermap = read_fibermap(ofilename)
-            
-            zbest_filename = os.path.join(pixdir,"zbest-{}-{}.fits".format(nside,healpix))
-            
-            log.info("Writing a zbest file {}".format(zbest_filename))
-            columns = [
-                ('CHI2', 'f8'),
-                ('COEFF', 'f8' , (4,)),
-                ('Z', 'f8'),
-                ('ZERR', 'f8'),
-                ('ZWARN', 'i8'),
-                ('SPECTYPE', (str,96)),
-                ('SUBTYPE', (str,16)),
-                ('TARGETID', 'i8'),
-                ('DELTACHI2', 'f8'),
-                ('BRICKNAME', (str,8))]
-            zbest = Table(np.zeros(nqso, dtype=columns))
-            zbest["CHI2"][:]      = 0.
-            zbest["Z"]            = metadata['Z']
-            zbest["ZERR"][:]      = 0.
-            zbest["ZWARN"][:]     = 0
-            zbest["SPECTYPE"][:]  = "QSO"
-            zbest["SUBTYPE"][:]   = ""
-            zbest["TARGETID"]     = fibermap["TARGETID"]
-            zbest["DELTACHI2"][:] = 25.
-
-            hzbest = pyfits.convenience.table_to_hdu(zbest); hzbest.name="ZBEST"
-            hfmap  = pyfits.convenience.table_to_hdu(fibermap);  hfmap.name="FIBERMAP"
-            
-            hdulist =pyfits.HDUList([pyfits.PrimaryHDU(),hzbest,hfmap])
-            hdulist.writeto(zbest_filename, clobber=True)
-            
-
-
