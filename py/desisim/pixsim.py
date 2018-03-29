@@ -45,10 +45,12 @@ def simulate_frame(night, expid, camera, ccdshape=None, **kwargs):
     Writes:
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/simpix-{camera}-{expid}.fits
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/desi-{expid}.fits
-        $DESI_SPECTRO_SIM/$PIXPROD/{night}/pix-{camera}-{expid}.fits
 
     For a lower-level pixel simulation interface that doesn't perform I/O,
     see pixsim.simulate()
+
+    Note: call desi_preproc or desispec.preproc.preproc to pre-process the
+    output desi*.fits file for overscan subtraction, noise estimation, etc.
     """
     #- night, expid, camera -> input file names
     simspecfile = io.findfile('simspec', night=night, expid=expid)
@@ -75,11 +77,6 @@ def simulate_frame(night, expid, camera, ccdshape=None, **kwargs):
     rawfile = desispec.io.findfile('desi', night=night, expid=expid)
     rawfile = os.path.join(simdir, os.path.basename(rawfile))
     desispec.io.write_raw(rawfile, rawpix, image.meta, camera=camera)
-
-    pixfile = desispec.io.findfile('pix', night=night, expid=expid, camera=camera)
-    pixfile = os.path.join(simdir, os.path.basename(pixfile))
-    desispec.io.write_image(pixfile, image)
-
 
 def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
     cosmics=None, wavemin=None, wavemax=None, preproc=True, comm=None):
@@ -207,11 +204,11 @@ def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
             header['RDNOISE3'] = readnoise
             header['RDNOISE4'] = readnoise
 
-        if (comm is None) or (comm.rank == 0):
-            log.debug('RDNOISE1 {}'.format(header['RDNOISE1']))
-            log.debug('RDNOISE2 {}'.format(header['RDNOISE2']))
-            log.debug('RDNOISE3 {}'.format(header['RDNOISE3']))
-            log.debug('RDNOISE4 {}'.format(header['RDNOISE4']))
+        # if (comm is None) or (comm.rank == 0):
+        #     log.info('RDNOISE1 {}'.format(header['RDNOISE1']))
+        #     log.info('RDNOISE2 {}'.format(header['RDNOISE2']))
+        #     log.info('RDNOISE3 {}'.format(header['RDNOISE3']))
+        #     log.info('RDNOISE4 {}'.format(header['RDNOISE4']))
 
         #- data already has noise if cosmics were added
         noisydata = (cosmics is not None)

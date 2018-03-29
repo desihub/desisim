@@ -1,6 +1,6 @@
 """
 desisim.scripts.pixsim_nights
-======================
+=============================
 
 Entry point for simulating multiple nights.
 """
@@ -104,7 +104,7 @@ def main(args, comm=None):
     else:
         cams = []
         # Do this in spectrograph order first, so that
-        # later when we distribute cameras each group will have 
+        # later when we distribute cameras each group will have
         # the minimal set of spectrographs to store.
         for spec in range(10):
             for band in ['b', 'r', 'z']:
@@ -166,12 +166,12 @@ def main(args, comm=None):
 
     for ex in myexpids:
         nt = exp_to_night[ex]
-        
+
         # path to raw file
         simspecfile = simio.findfile('simspec', nt, ex)
         rawfile = specio.findfile('raw', nt, ex)
         rawfile = os.path.join(os.path.dirname(simspecfile), rawfile)
-        
+
         # Is this exposure already finished?
         done = True
         if group_rank == 0:
@@ -179,7 +179,7 @@ def main(args, comm=None):
                 done = False
             if args.preproc:
                 for c in cams:
-                    pixfile = specio.findfile('pix', night=nt,
+                    pixfile = specio.findfile('preproc', night=nt,
                         expid=ex, camera=c)
                     if not os.path.isfile(pixfile):
                         done = False
@@ -218,4 +218,3 @@ def main(args, comm=None):
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
                 print("".join(lines), flush=True)
-

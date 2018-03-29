@@ -60,13 +60,9 @@ class TestIO(unittest.TestCase):
         camera = 'z3'
         filepath = io.findfile('simspec', night, expid)
         filepath = io.findfile('simpix', night, expid, camera)
-        filepath = io.findfile('pix', night, expid, camera)
         outdir = '/blat/foo/bar'
         filepath = io.findfile('simpix', night, expid, camera, outdir=outdir, mkdir=False)
         self.assertTrue(filepath.startswith(outdir))
-
-        with self.assertRaises(ValueError):
-            io.findfile('pix', night, expid)  #- missing camera
 
         with self.assertRaises(ValueError):
             io.findfile('blat', night, expid, camera)  #- bad filetype
@@ -141,8 +137,8 @@ class TestIO(unittest.TestCase):
         self.assertEqual(prefix, 'simspec')
         self.assertEqual(camera, None)
         self.assertEqual(expid, 2)
-        prefix, camera, expid = io._parse_filename('/blat/foo/pix-r2-00000003.fits')
-        self.assertEqual(prefix, 'pix')
+        prefix, camera, expid = io._parse_filename('/blat/foo/preproc-r2-00000003.fits')
+        self.assertEqual(prefix, 'preproc')
         self.assertEqual(camera, 'r2')
         self.assertEqual(expid, 3)
 
