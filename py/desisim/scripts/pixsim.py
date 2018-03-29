@@ -569,8 +569,9 @@ def main(args, comm=None):
         from desispec.scripts import preproc
         if len(node_cameras) > 0:
             if group_rank == 0:
-                for c in node_cameras:
-                    camera = args.cameras[c]
+                for i in range(len(node_cameras)):
+                    current_camera=node_cameras[i]
+                    camera=current_camera[0] + current_camera[1]
                     pixfile = desispec.io.findfile('pix', night=args.night,
                         expid=args.expid, camera=camera)
                     preproc_opts = ['--infile', args.rawfile, '--outdir',
