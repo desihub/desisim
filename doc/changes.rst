@@ -6,7 +6,7 @@ desisim change log
 -------------------
 
 * Fix pixsim_mpi; make it faster with scatter/gather
-  (`PR #329`_ and `PR #332`_).
+  (`PR #329`_, `PR #332`_, and `PR #344`_).
 * Fix PSF convolution for newexp-mock (`PR #331`_).
 * BGS redshift bug fix (`PR #333`_).
 * Astropy 2 compatibility (`PR #334`_).
@@ -15,6 +15,7 @@ desisim change log
 * Fix PSF convolution for newexp_mock (`PR #331`_).
 * Match desispec renaming and relocating of of pix -> preproc
   (`PR #337`_ and `PR #339`_).
+* More robust handling of unassigned fiber inputs (`PR #341`_).
 
 .. _`PR #329`: https://github.com/desihub/desisim/pull/329
 .. _`PR #331`: https://github.com/desihub/desisim/pull/331
@@ -24,6 +25,8 @@ desisim change log
 .. _`PR #337`: https://github.com/desihub/desisim/pull/337
 .. _`PR #339`: https://github.com/desihub/desisim/pull/339
 .. _`PR #340`: https://github.com/desihub/desisim/pull/340
+.. _`PR #341`: https://github.com/desihub/desisim/pull/341
+.. _`PR #344`: https://github.com/desihub/desisim/pull/344
 
 0.26.0 (2018-02-27)
 -------------------
