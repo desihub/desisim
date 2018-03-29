@@ -569,7 +569,8 @@ def main(args, comm=None):
                 for i in range(len(node_cameras)):
                     current_camera=node_cameras[i]
                     camera=current_camera[0] + current_camera[1]
-                    pixfile = desispec.io.findfile('pix', night=args.night,
+                    #file should be preproc instead of pix
+                    pixfile = desispec.io.findfile('preproc', night=args.night,
                         expid=args.expid, camera=camera)
                     if args.preproc_dir:
                         pixfile = os.path.join(args.preproc_dir, os.path.basename(pixfile))
