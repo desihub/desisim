@@ -2,7 +2,12 @@
 desisim change log
 ==================
 
-0.27.0 (unreleased)
+0.27.1 (unreleased)
+-------------------
+
+* No changes yet
+
+0.27.0 (2018-03-29)
 -------------------
 
 * Fix pixsim_mpi; make it faster with scatter/gather
