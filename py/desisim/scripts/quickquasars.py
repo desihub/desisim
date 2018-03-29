@@ -14,6 +14,7 @@ from desisim.simexp import reference_conditions
 from desisim.templates import SIMQSO
 from desisim.scripts.quickspectra import sim_spectra
 from desisim.lya_spectra import read_lya_skewers , apply_lya_transmission
+from desispec.interpolation import resample_flux
 
 import matplotlib.pyplot as plt
 
@@ -137,7 +138,8 @@ def main(args=None):
         transmission = transmission[ok]
         metadata = metadata[:][ok]
 
-
+        # set seed now in case we are downsampling
+        np.random.seed(args.seed)
 
         # create quasars
         nqso=transmission.shape[0]
@@ -166,7 +168,16 @@ def main(args=None):
         tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(
             nmodel=nqso, redshift=metadata['Z'], seed=args.seed,
             lyaforest=False, nocolorcuts=True, noresample=True)
- 
+        
+        log.info("Resample to transmission wavelength grid")
+        # because we don't want to alter the transmission field with resampling here
+        qso_flux=np.zeros((tmp_qso_flux.shape[0],trans_wave.size))
+        for q in range(tmp_qso_flux.shape[0]) :
+            qso_flux[q]=np.interp(trans_wave,tmp_qso_wave,tmp_qso_flux[q])
+            log.info("".format(nqso))
+        tmp_qso_flux = qso_flux
+        tmp_qso_wave = trans_wave
+        
         log.info("Apply lya")
         tmp_qso_flux = apply_lya_transmission(tmp_qso_wave,tmp_qso_flux,trans_wave,transmission)
 
@@ -189,11 +200,13 @@ def main(args=None):
             nqso         = selection.size
         
         log.info("Resample to a linear wavelength grid (needed by DESI sim.)")
+        # we need a linear grid. for this resampling we take care of integrating in bins
+        # we do not do a simple interpolation
         qso_wave=np.linspace(args.wmin,args.wmax,int((args.wmax-args.wmin)/args.dwave)+1)
         qso_flux=np.zeros((tmp_qso_flux.shape[0],qso_wave.size))
         for q in range(tmp_qso_flux.shape[0]) :
-            qso_flux[q]=np.interp(qso_wave,tmp_qso_wave,tmp_qso_flux[q])
-            
+            qso_flux[q]=resample_flux(qso_wave,tmp_qso_wave,tmp_qso_flux[q])
+        
         log.info("Simulate DESI observation and write output file")
         pixdir = os.path.dirname(ofilename)
         if not os.path.isdir(pixdir) :
