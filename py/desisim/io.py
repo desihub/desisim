@@ -375,6 +375,8 @@ def read_simspec_mpi(filename, comm, channel, spectrographs=None):
     else:
         fibers = np.arange(totalspec, dtype=np.int32)
 
+    #this comes in as an input, spectrographs=group_spectra[i]
+    #just simulate and write one spectrograph at a time
     if spectrographs is None:
         spectrographs = np.arange(10, dtype=np.int32)
 
@@ -461,38 +463,25 @@ def read_simspec_mpi(filename, comm, channel, spectrographs=None):
     # all flavors have photons
     phot = dict()
     if comm.rank == 0:
-        hdata=phot_hdata
-    elif comm.rank != 0:
-        hdata=np.empty(shape_dict['PHOT_'+channel.upper()],dtype=np.float64)
-    comm.Bcast([hdata,MPI.DOUBLE],root=0)
-    phot[channel] = hdata[specslice].copy()
-    del hdata
+        #hdata=phot_hdata
+        phot[channel]=phot_hdata[specslice]
+    phot = comm.bcast(phot, root=0)
 
     # Read flux
     #flavors science and flat have flux
-    flux = np.empty(1,dtype=np.float64)
-    hname = 'FLUX'
+    flux = dict()
     if (flavor == 'science') or (flavor == 'flat'):
         if comm.rank == 0:
-            hdata = flux_hdata
-        elif comm.rank != 0:
-            hdata=np.empty(shape_dict['FLUX'],dtype=np.float64)
-        comm.Bcast([hdata,MPI.DOUBLE],root=0)
-        flux = hdata[specslice].copy()
-        del hdata
+            flux[channel]  = flux_hdata[specslice]
+        flux = comm.bcast(flux, root=0)
 
     # Read sky photons
     #only flavor=science has skyphot
     skyphot = dict()
-    hname = 'SKYPHOT_'+channel.upper()
     if flavor == 'science':
         if comm.rank == 0:
-            hdata = sky_hdata
-        elif comm.rank != 0:
-            hdata=np.empty(shape_dict['SKYPHOT_'+channel.upper()],dtype=np.float64)
-        comm.Bcast([hdata,MPI.DOUBLE],root=0)
-        skyphot[channel] = hdata[specslice].copy()
-        del hdata
+            skyphot[channel] = sky_hdata[specslice]
+        skyphot = comm.bcast(skyphot,root=0)
     else:
         skyphot[channel] = np.zeros_like(phot[channel])
     assert phot[channel].shape == skyphot[channel].shape
@@ -500,15 +489,12 @@ def read_simspec_mpi(filename, comm, channel, spectrographs=None):
     # Read skyflux
     #only flavor science has skyflux
     skyflux = np.empty(1,dtype=np.float64)
-    hname = 'SKYFLUX'
     if flavor == 'science':
         if comm.rank == 0:
-            hdata = skyflux_hdata
+            skyflux=skyflux_hdata[specslice]
         elif comm.rank != 0:
-            hdata=np.empty(shape_dict['SKYFLUX'],dtype=np.float64)
-        comm.Bcast([hdata,MPI.DOUBLE],root=0)
-        skyflux = hdata[specslice].copy()
-        del hdata
+            skyflux=np.empty(shape_dict['SKYFLUX'],dtype=np.float64)[specslice]
+        comm.Bcast([skyflux,MPI.DOUBLE],root=0)
 
     # metadata / truth
     metadata = None
