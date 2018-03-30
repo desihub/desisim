@@ -9,6 +9,7 @@ import astropy.time
 import astropy.units as u
 import astropy.io.fits as pyfits
 
+import desisim.specsim
 import desisim.simexp
 import desisim.obs
 import desisim.io
@@ -216,6 +217,11 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
     desispec.io.write_spectra(spectra_filename, specdata)        
     log.info('Wrote '+spectra_filename)
     
+    # need to clear the simulation buffers that keeps growing otherwise
+    # because of a different number of fibers each time ...
+    desisim.specsim._simulators.clear()
+    desisim.specsim._simdefaults.clear()
+
 
 def parse(options=None):
     parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
