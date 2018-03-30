@@ -74,16 +74,26 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         nside=int(vals[-2])
     except ValueError:
         raise ValueError("Cannot guess nside and healpix from filename {}".format(ifilename))
-
+    
+    zbest_filename = None
     if args.outfile :
         ofilename = args.outfile
     else :
         ofilename = os.path.join(args.outdir,"{}/{}/spectra-{}-{}.fits".format(healpix//100,healpix,nside,healpix))
-
+    pixdir = os.path.dirname(ofilename)
+        
     if not args.overwrite :
-        if os.path.isfile(ofilename) :
-            log.info("skip existing {}".format(ofilename))
-            return
+        # check whether output exists or not
+        
+        if args.zbest :
+            zbest_filename = os.path.join(pixdir,"zbest-{}-{}.fits".format(nside,healpix))
+            if os.path.isfile(ofilename) and os.path.isfile(zbest_filename) :
+                log.info("skip existing {} and {}".format(ofilename,zbest_filename))
+                return
+        else : # only test spectra file
+            if os.path.isfile(ofilename) :
+                log.info("skip existing {}".format(ofilename))
+                return
 
     log.info("Read skewers in {}".format(ifilename))
     trans_wave, transmission, metadata = read_lya_skewers(ifilename)
@@ -127,7 +137,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     qso_flux=np.zeros((tmp_qso_flux.shape[0],trans_wave.size))
     for q in range(tmp_qso_flux.shape[0]) :
         qso_flux[q]=np.interp(trans_wave,tmp_qso_wave,tmp_qso_flux[q])
-        log.info("".format(nqso))
     tmp_qso_flux = qso_flux
     tmp_qso_wave = trans_wave
 
@@ -182,7 +191,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         log.info("Read fibermap")
         fibermap = read_fibermap(ofilename)
 
-        zbest_filename = os.path.join(pixdir,"zbest-{}-{}.fits".format(nside,healpix))
+        
 
         log.info("Writing a zbest file {}".format(zbest_filename))
         columns = [
@@ -211,7 +220,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
         hdulist =pyfits.HDUList([pyfits.PrimaryHDU(),hzbest,hfmap])
         hdulist.writeto(zbest_filename, clobber=True)
-
+        hdulist.close() # see if this helps with memory issue
 
 
 
