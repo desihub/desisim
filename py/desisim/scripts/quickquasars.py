@@ -16,6 +16,8 @@ from desisim.templates import SIMQSO
 from desisim.scripts.quickspectra import sim_spectra
 from desisim.lya_spectra import read_lya_skewers , apply_lya_transmission
 from desispec.interpolation import resample_flux
+from desimodel.io import load_pixweight
+from desimodel import footprint
 
 import matplotlib.pyplot as plt
 
@@ -51,6 +53,7 @@ def parse(options=None):
     parser.add_argument('--zbest', action = "store_true" ,help="add a zbest file per spectrum with the truth")
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
     parser.add_argument('--target-selection', action = "store_true" ,help="apply QSO target selection cuts to the simulated quasars")
+    parser.add_argument('--desi-footprint', action = "store_true" ,help="select QSOs in DESI footprint")
     
     if options is None:
         args = parser.parse_args()
@@ -59,7 +62,7 @@ def parse(options=None):
 
     return args
 
-def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters) :
+def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside) :
     
     log = get_logger()
     
@@ -105,6 +108,18 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     np.random.seed(args.seed)
 
     # create quasars
+    
+    if args.desi_footprint :
+        footprint_healpix = footprint.radec2pix(footprint_healpix_nside, metadata["RA"], metadata["DEC"])
+        selection = np.where(footprint_healpix_weight[footprint_healpix]>0.99)[0]
+        log.info("Select QSOs in DESI footprint {} -> {}".format(transmission.shape[0],selection.size))
+        if selection.size == 0 :
+            log.warning("No intersection with DESI footprint")
+            return
+        transmission = transmission[selection]
+        metadata = metadata[:][selection]
+    
+
     nqso=transmission.shape[0]
     if args.downsampling is not None :
         if args.downsampling <= 0 or  args.downsampling > 1 :
@@ -278,13 +293,32 @@ def main(args=None):
         decam_and_wise_filters = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
                                          'wise2010-W1', 'wise2010-W2')
         
-    
+    footprint_healpix_weight = None
+    footprint_healpix_nside  = None
+    if args.desi_footprint :
+        if not 'DESIMODEL' in os.environ :
+            log.error("To apply DESI footprint, I need the DESIMODEL variable to find the file $DESIMODEL/data/footprint/desi-healpix-weights.fits")
+            sys.exit(1)
+        footprint_filename=os.path.join(os.environ['DESIMODEL'],'data','footprint','desi-healpix-weights.fits')
+        if not os.path.isfile(footprint_filename): 
+            log.error("Cannot find $DESIMODEL/data/footprint/desi-healpix-weights.fits")
+            sys.exit(1)
+        pixmap=pyfits.open(footprint_filename)[0].data
+        footprint_healpix_nside=256 # same resolution as original map so we don't loose anything
+        footprint_healpix_weight = load_pixweight(footprint_healpix_nside, pixmap=pixmap)
+        
     if args.nproc > 1 :
-        func_args = [ {"ifilename":filename , "args":args, "model":model , "obsconditions":obsconditions , "decam_and_wise_filters": decam_and_wise_filters} for filename in args.infile ]
+        func_args = [ {"ifilename":filename , \
+                       "args":args, "model":model , \
+                       "obsconditions":obsconditions , \
+                       "decam_and_wise_filters": decam_and_wise_filters , \
+                       "footprint_healpix_weight": footprint_healpix_weight , \
+                       "footprint_healpix_nside": footprint_healpix_nside \
+                   } for filename in args.infile ]
         pool = multiprocessing.Pool(args.nproc)
         pool.map(_func, func_args)
     else :
         for ifilename in args.infile : 
-            simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters)
+            simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside)
     
         
