@@ -1,0 +1,9 @@
+#!/usr/bin/env python
+
+"""
+Generate a spectra file
+"""
+
+import sys
+from desisim.scripts.quickquasars import main
+sys.exit(main())

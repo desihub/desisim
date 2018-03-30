@@ -9,6 +9,7 @@ import astropy.time
 import astropy.units as u
 import astropy.io.fits as pyfits
 
+import desisim.specsim
 import desisim.simexp
 import desisim.obs
 import desisim.io
@@ -23,7 +24,7 @@ from desispec.resolution import Resolution
 import matplotlib.pyplot as plt
 
 def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
-    sourcetype=None, targetid=None, redshift=None, expid=0, seed=0, skyerr=0.0):
+                sourcetype=None, targetid=None, redshift=None, expid=0, seed=0, skyerr=0.0, ra=None, dec=None):
     """
     Simulate spectra from an input set of wavelength and flux and writes a FITS file in the Spectra format that can
     be used as input to the redshift fitter.
@@ -44,6 +45,9 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
         expid : this expid number will be saved in the Spectra fibermap
         seed : random seed
         skyerr : fractional sky subtraction error
+        ra : numpy array with targets RA (deg)
+        dec : numpy array with targets Dec (deg)
+
     """
     log = get_logger()
     
@@ -79,6 +83,9 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
     frame_fibermap['DESI_TARGET'][sourcetype=="sky"]=tm.SKY
     frame_fibermap['DESI_TARGET'][sourcetype=="bgs"]=tm.BGS_ANY
     
+    
+
+    
     if targetid is None:
         targetid = np.arange(nspec).astype(int)
         
@@ -93,10 +100,17 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
                        ['NIGHT', 'EXPID', 'TILEID'],
                        [np.int32(night), np.int32(expid), np.int32(tileid)],
                        )
-
+           
     for s in range(nspec):
         for tp in frame_fibermap.dtype.fields:
             spectra_fibermap[s][tp] = frame_fibermap[s][tp]
+ 
+    if ra is not None :
+        spectra_fibermap["RA_TARGET"] = ra
+        spectra_fibermap["RA_OBS"]    = ra
+    if dec is not None :
+        spectra_fibermap["DEC_TARGET"] = dec
+        spectra_fibermap["DEC_OBS"]    = dec
             
     if obsconditions is None:
         if program in ['dark', 'lrg', 'qso']:
@@ -203,6 +217,11 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
     desispec.io.write_spectra(spectra_filename, specdata)        
     log.info('Wrote '+spectra_filename)
     
+    # need to clear the simulation buffers that keeps growing otherwise
+    # because of a different number of fibers each time ...
+    desisim.specsim._simulators.clear()
+    desisim.specsim._simdefaults.clear()
+
 
 def parse(options=None):
     parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,

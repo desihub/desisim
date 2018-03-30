@@ -9,6 +9,7 @@ from __future__ import division, print_function
 
 import numpy as np
 from desisim.dla import insert_dlas
+from desiutil.log import get_logger
 
 def read_lya_skewers(lyafile,indices=None) :
     '''
@@ -24,12 +25,38 @@ def read_lya_skewers(lyafile,indices=None) :
 
     Input file must have WAVELENGTH, TRANSMISSION, and METADATA HDUs
     '''
+
+
     # this is the new format set up by Andreu
+    log = get_logger()
+
     import fitsio
     h = fitsio.FITS(lyafile)
-    wave  = h["WAVELENGTH"].read()
-    trans = h["TRANSMISSION"].read().T # now shape is (nqso,nwave)
-    meta  = h["METADATA"].read()
+    if "WAVELENGTH" in h :
+        wave  = h["WAVELENGTH"].read()
+    else :
+        log.warning("I assume WAVELENGTH is HDU 2")
+        wave  = h[2].read()
+    
+    if "TRANSMISSION" in h :
+        trans = h["TRANSMISSION"].read()
+    else :
+        log.warning("I assume TRANSMISSION is HDU 3")
+        trans = h[3].read()
+        
+    if trans.shape[1] != wave.size :
+        if trans.shape[0] == wave.size :
+            trans = trans.T  # now shape is (nqso,nwave)
+        else :
+            log.error("shape of wavelength={} and transmission={} don't match".format(wave.shape,trans.shape))
+            raise ValueError("shape of wavelength={} and transmission={} don't match".format(wave.shape,trans.shape))
+
+    if "METADATA" in h :
+        meta  = h["METADATA"].read()
+    else :
+        log.warning("I assume METADATA is HDU 1")
+        meta = h[1].read()
+
     if indices is not None :
         trans = trans[indices]
         meta=meta[:][indices]
