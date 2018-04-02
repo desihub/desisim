@@ -24,7 +24,7 @@ from desispec.resolution import Resolution
 import matplotlib.pyplot as plt
 
 def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
-                sourcetype=None, targetid=None, redshift=None, expid=0, seed=0, skyerr=0.0, ra=None, dec=None):
+                sourcetype=None, targetid=None, redshift=None, expid=0, seed=0, skyerr=0.0, ra=None, dec=None, meta=None):
     """
     Simulate spectra from an input set of wavelength and flux and writes a FITS file in the Spectra format that can
     be used as input to the redshift fitter.
@@ -47,6 +47,7 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
         skyerr : fractional sky subtraction error
         ra : numpy array with targets RA (deg)
         dec : numpy array with targets Dec (deg)
+        meta : dictionnary, saved in primary fits header of the spectra file 
 
     """
     log = get_logger()
@@ -206,7 +207,7 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
                        resolution_data={band : resolution[band]}, 
                        mask={band : mask}, 
                        fibermap=spectra_fibermap, 
-                       meta=None,
+                       meta=meta,
                        single=True)
         
         if specdata is None :
