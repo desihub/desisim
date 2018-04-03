@@ -186,10 +186,11 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     log.info("Simulate DESI observation and write output file")
     pixdir = os.path.dirname(ofilename)
-    if not os.path.isdir(pixdir) :
-        log.info("Creating dir {}".format(pixdir))
-        os.makedirs(pixdir)
-
+    if len(pixdir)>0 :
+        if not os.path.isdir(pixdir) :
+            log.info("Creating dir {}".format(pixdir))
+            os.makedirs(pixdir)
+    
     if "MOCKID" in metadata.dtype.names :
         #log.warning("Using MOCKID as TARGETID")
         targetid=np.array(metadata["MOCKID"]).astype(int)
@@ -200,7 +201,10 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         log.warning("No TARGETID")
         targetid=None
 
-    sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,seed=args.seed,sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid)
+    log.warning("Assuming the healpix scheme is 'NESTED'")
+    meta={"HPXNSIDE":nside,"HPXPIXEL":healpix, "HPXNEST":True}
+    
+    sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,seed=args.seed,sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,meta=meta)
 
     if args.zbest :
         log.info("Read fibermap")
