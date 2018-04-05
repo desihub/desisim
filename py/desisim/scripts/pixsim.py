@@ -93,10 +93,6 @@ def expand_args(args):
         rawfile = os.path.basename(desispec.io.findfile('raw', args.night, args.expid))
         args.rawfile = os.path.join(os.path.dirname(args.simspec), rawfile)
 
-    if args.preproc:
-        if args.preproc_dir is None:
-            args.preproc_dir = os.path.dirname(args.rawfile)
-
     if args.simpixfile is None:
         args.simpixfile = io.findfile(
             'simpix', night=args.night, expid=args.expid,
@@ -402,6 +398,7 @@ def main(args, comm=None):
                     psf.npix_y = args.ccd_npix_y
             
             #if we have already loaded the right cosmics camera, don't bcast again
+            cosmics=None
             if args.cosmics:
                 if current_camera[0] != previous_camera[0]:
                     cosmics=None
@@ -569,13 +566,23 @@ def main(args, comm=None):
         from desispec.scripts import preproc
         if len(node_cameras) > 0:
             if group_rank == 0:
-                for c in node_cameras:
-                    camera = args.cameras[c]
-                    pixfile = desispec.io.findfile('pix', night=args.night,
+                for i in range(len(node_cameras)):
+                    current_camera=node_cameras[i]
+                    camera=current_camera[0] + current_camera[1]
+                    #file should be preproc instead of pix
+                    pixfile = desispec.io.findfile('preproc', night=args.night,
                         expid=args.expid, camera=camera)
-                    preproc_opts = ['--infile', args.rawfile, '--outdir',
-                        args.preproc_dir, '--pixfile', pixfile]
-                    preproc_opts += ['--cameras', camera]
+                    if args.preproc_dir:
+                        pixfile = os.path.join(args.preproc_dir, os.path.basename(pixfile))
+
+                    pixdir = os.path.dirname(pixfile)
+                    if not os.path.isdir(pixdir):
+                        os.makedirs(pixdir)
+                    preproc_opts = [
+                        '--infile', args.rawfile,
+                        '--outfile', pixfile,
+                        '--cameras', camera
+                    ]
                     preproc.main(preproc.parse(preproc_opts))
 
     # Python is terrible with garbage collection, but at least
