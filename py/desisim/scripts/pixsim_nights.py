@@ -225,25 +225,10 @@ def main(args, comm=None):
                     'simpix', night=node_exposures[j][0], expid=node_exposures[j][1],
                     outdir=os.path.dirname(os.path.abspath(args.rawfile)))
 
-            #clean up files before we start
-            # Remove outputs and or temp files
+            #establish temp files
+            #be careful here because we don't clean them up
             rawtemp = "{}.tmp".format(args.rawfile)
             simpixtemp = "{}.tmp".format(args.simpixfile)
-
-            if group_rank == 0:
-                if args.overwrite and os.path.exists(args.rawfile):
-                    log.debug('removing {}'.format(args.rawfile))
-                    os.remove(args.rawfile)
-
-                if args.overwrite and os.path.exists(args.simpixfile):
-                    log.debug('removing {}'.format(args.simpixfile))
-                    os.remove(args.simpixfile)
-
-                # cleanup stale temp files
-                if os.path.isfile(rawtemp):
-                    os.remove(rawtemp)
-                if os.path.isfile(simpixtemp):
-                    os.remove(simpixtemp)
 
             #since we handle only one spectra at a time, just load the one we need 
             simspec = io.read_simspec_mpi(args.simspec, comm_group, channel,
@@ -339,13 +324,15 @@ def main(args, comm=None):
                 #to avoid bugs this barrier statement must align with if group==i!! 
                 comm.Barrier()#all ranks should be done writing
 
-            if group_rank == 0:
-                os.rename(simpixtemp, args.simpixfile)
-                os.rename(rawtemp, args.rawfile)
-
             #iterate random number counter
             seed_counter=seed_counter+1
             #end of inner loop
+
+        #in outerloop, rename files once for each exposure
+        if group_rank == 0:
+            os.rename(simpixtemp, args.simpixfile)
+            os.rename(rawtemp, args.rawfile)
+        comm.Barrier()        
 
     comm.Barrier()
 
