@@ -135,6 +135,14 @@ class TestPixsim(unittest.TestCase):
         self.assertEqual(image.pix.shape[0], rawpix.shape[0])
         self.assertLess(image.pix.shape[1], rawpix.shape[1])  #- raw has overscan
 
+    def test_get_nodes_per_exp(self):
+        #nodes_per_comm_exp, ranks_per_frame = get_nodes_per_exp(nnodes, nexposures, ncameras)
+        nnodes = 6
+        nexposures = 2
+        ncameras = 30
+        nodes_per_comm_exp, ranks_per_frame = get_nodes_per_exp(nnodes, nexposures, ncameras)
+        self.assertEqual(nodes_per_comm_exp, 6)
+
     #- Travis tests hang when writing coverage when both test_main* were
     #- called, though the tests work on other systems.
     #- Disabling multiprocessing also "fixed" this for unknown reasons.
