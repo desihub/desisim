@@ -466,3 +466,61 @@ def parallel_project(psf, wave, phot, specmin=0, ncpu=None, comm=None):
             pool.join()
 
     return img
+
+
+def get_nodes_per_exp(nnodes,nexposures,ncameras,ranks_per_frame=None,user_nodes_per_comm_exp=None):
+ 
+    from math import gcd
+    import desiutil.log as logging
+    log = logging.get_logger()
+    log.setLevel(logging.INFO)
+
+    #assign ranks per processor if not specified
+    if ranks_per_frame is None:
+        #should be 32 for haswell, 64 (or 68?) for knl
+        import multiprocessing as mp
+        ranks_per_frame = mp.cpu_count() // 2
+    
+    #check if nframes is evenly divisible by nnodes
+    nframes = ncameras*nexposures
+    if nframes % nnodes !=0:
+        msg=("nframes {} must be evenly divisible by nnodes {}, try again".format(nframes, nnodes))
+        raise ValueError(msg)
+    else:
+        log.debug("nframes {} is evenly divisible by nnodes {}, check passed".format(nframes, nnodes))
+    
+    #find greatest common divisor between nnodes and ncameras
+    #greatest common divisor = greatest common factor    
+    #we use python's built in gcd
+    greatest_common_factor=gcd(nnodes,ncameras) 
+    #the greatest common factor must be greater than one
+    if greatest_common_factor == 1:
+         msg=("greatest common factor {} between nnodes {} and nframes {} must be larger than one, try again".format(greatest_common_factor, nnodes, nframes))
+         raise ValueError(msg)
+    else:
+        log.debug("greatest common factor {} between nnodes {} and nframes {} is greater than one, check passed".format(greatest_common_factor, nnodes, nframes))
+        
+    #check to make sure the user hasn't specified a really asinine value of user_nodes_per_comm_exp    
+    if user_nodes_per_comm_exp is not None:
+        if greatest_common_factor % user_nodes_per_comm_exp !=0:
+            msg=("user-specified value of user_nodes_per_comm_exp {} is bad, try again".format(user_nodes_per_comm_exp))
+            raise ValueError(msg)
+        else:
+            log.debug("user-specified value of user_nodes_per_comm_exp {} is good, check passed".format(user_nodes_per_comm_exp))
+            n_exp_comm=nodes_per_comm_exp
+    #if the user didn't specify anything, use the greatest common factor
+    if user_nodes_per_comm_exp is None:
+        nodes_per_comm_exp=greatest_common_factor        
+            
+    #finally check to make sure exposures*gcf/nnodes is an integer to avoid inefficient node use
+    if (nexposures*nodes_per_comm_exp) % nnodes != 0:
+        msg=("nexposures {} * nodes_per_comm_exp {} does not divide evenly into nnodes {}, try again".format(nexposures, nodes_per_comm_exp, nnodes))
+        raise ValueError(msg)
+    else:
+        log.debug("nexposures {} * nodes_per_comm_exp {} divides evenly into nnodes {}, check passed".format(nexposures, nodes_per_comm_exp, nnodes))
+        
+ 
+    return nodes_per_comm_exp, ranks_per_frame
+
+
+
