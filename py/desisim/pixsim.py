@@ -496,7 +496,7 @@ def get_nodes_per_exp(nnodes,nexposures,ncameras,ranks_per_frame=None,user_nodes
     #the greatest common factor must be greater than one
     if greatest_common_factor == 1:
         msg=("greatest common factor {} between nnodes {} and nframes {} must be larger than one, try again".format(greatest_common_factor, nnodes, nframes))
-         raise ValueError(msg)
+        raise ValueError(msg)
     else:
         log.debug("greatest common factor {} between nnodes {} and nframes {} is greater than one, check passed".format(greatest_common_factor, nnodes, nframes))
         
