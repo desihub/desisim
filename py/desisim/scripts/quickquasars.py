@@ -39,7 +39,7 @@ def parse(options=None):
     parser.add_argument('--moonfrac', type=float, default=None, help="Moon illumination fraction; 1=full")
     parser.add_argument('--moonalt', type=float, default=None, help="Moon altitude [degrees]")
     parser.add_argument('--moonsep', type=float, default=None, help="Moon separation to tile [degrees]")
-    parser.add_argument('--seed', type=int, default=0, help="Random seed")
+    parser.add_argument('--seed', type=int, default=None, required = False, help="Random seed")
     parser.add_argument('--skyerr', type=float, default=0.0, help="Fractional sky subtraction error")
     parser.add_argument('--norm-filter', type=str, default="decam2014-g", help="Broadband filter for normalization")
     parser.add_argument('--nmax', type=int, default=None, help="Max number of QSO per input file, for debugging")
@@ -104,9 +104,11 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     transmission = transmission[ok]
     metadata = metadata[:][ok]
 
-    # set seed now in case we are downsampling
-    np.random.seed(args.seed)
-
+    
+    if args.seed is not None :
+        # set seed now in case we are downsampling
+        np.random.seed(args.seed)
+    
     # create quasars
     
     if args.desi_footprint :
