@@ -75,6 +75,7 @@ def get_sty_otype():
         QSO_T={'color':'cyan', 'lbl':'QSO z<2.1', 'pcolor':'GnBu'})
     return sty_otype
 
+
 def match_otype(tbl, objtype):
     """ Generate a mask for the input objtype
     :param tbl:
@@ -94,27 +95,4 @@ def match_otype(tbl, objtype):
     # Return
     return targets
 
-def add_desitarget(tbl):
-    """  Add a DESI_TARGET column to the input table based on the TEMPLATETYPE strings
-    This is a somewhat painful FOR loop..
-    :param tbl: astropy.Table
-    :return:
-    """
-    desi_targ = []
-    for row in tbl:
-        if 'LRG' in row['TEMPLATETYPE']:
-            desi_targ.append(desi_mask['LRG'])
-        elif 'BGS' in row['TEMPLATETYPE']:
-            desi_targ.append(desi_mask['BGS_ANY'])
-        elif 'QSO' in row['TEMPLATETYPE']:
-            desi_targ.append(desi_mask['QSO'])
-        elif 'ELG' in row['TEMPLATETYPE']:
-            desi_targ.append(desi_mask['ELG'])
-        elif 'STAR' in row['TEMPLATETYPE']:
-            desi_targ.append(desi_mask['MWS_ANY'])
-        elif 'WD' in row['TEMPLATETYPE']:
-            desi_targ.append(desi_mask['STD_WD'])
-        else:
-            desi_targ.append(-1)
-    tbl['DESI_TARGET'] = desi_targ
-    return
+
