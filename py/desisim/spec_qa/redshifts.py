@@ -63,9 +63,9 @@ def calc_stats(simz_tab, objtype, flux_lim=True):
     obj_tab = slice_simz(simz_tab, objtype=objtype)
     stat_dict['NTARG'] = len(obj_tab)
 
-    # Number of objects with RedMonster
+    # Number of objects with Redshift Analysis
     zobj_tab = slice_simz(simz_tab,objtype=objtype,redm=True)
-    stat_dict['N_RM'] = len(zobj_tab)
+    stat_dict['N_zA'] = len(zobj_tab)
 
 
     # Redshift measured (includes catastrophics)
@@ -133,26 +133,6 @@ def find_zbest_files(fibermap_data):
         zbest_files.append(desispec.io.findfile('zbest', groupname=uni_pix, nside=64))
     # Return
     return zbest_files
-
-'''
-    # Search for zbest files
-    fibermap_data = desispec.io.read_fibermap(fibermap_path)
-    flavor = fibermap_data.meta['FLAVOR']
-    if flavor.lower() in ('arc', 'flat', 'bias'):
-        log.debug('Skipping calibration {} exposure {:08d}'.format(flavor, exposure))
-        continue
-
-    brick_names = set(fibermap_data['BRICKNAME'])
-    import pdb; pdb.set_trace()
-    for brick in brick_names:
-        zbest_path=desispec.io.findfile('zbest', groupname=brick, specprod_dir=args.reduxdir)
-        if os.path.exists(zbest_path):
-            log.debug('Found {}'.format(os.path.basename(zbest_path)))
-            zbest_files.append(zbest_path)
-        else:
-            log.warn('Missing {}'.format(os.path.basename(zbest_path)))
-            #pdb.set_trace()
-'''
 
 
 def load_z(fibermap_files, zbest_files=None, outfil=None):
@@ -696,7 +676,7 @@ def summ_fig(simz_tab, summ_tab, meta, outfile=None):
 
 
 
-def summ_stats(simz_tab, outfil=None):
+def summ_stats(simz_tab):
     '''Generate summary stats
 
     Parameters
@@ -712,7 +692,22 @@ def summ_stats(simz_tab, outfil=None):
     otypes = ['ELG','LRG', 'QSO_L', 'QSO_T', 'BGS', 'MWS']  # WILL HAVE TO DEAL WITH QSO_TRACER vs QSO_LYA
     summ_dict = {}
 
-    rows = []
+    summ_dict['A_Legend'] = {}
+    summ_dict['A_Legend']['CAT_RATE'] = 'Catastrohic Redshift failure rate'
+    summ_dict['A_Legend']['EFF'] = 'Redshift Effeciency'
+    summ_dict['A_Legend']['MEAN_DZ'] = 'Average redshift offset between measured and truth'
+    summ_dict['A_Legend']['MEDIAN_DZ'] = 'Median redshift offset between measured and truth'
+    summ_dict['A_Legend']['RMS_DZ'] = 'RMS of the redshift offsets'
+    summ_dict['A_Legend']['NCAT'] = 'Number of Catastropic failures'
+    summ_dict['A_Legend']['NTARG'] = 'Number of targets of the object type'
+    summ_dict['A_Legend']['N_GDZ'] = 'Number of targets with a correct redshift (within tolerance)'
+    summ_dict['A_Legend']['N_zA'] = 'Number of targets analyzed by the redshift code'
+    summ_dict['A_Legend']['N_SURVEY'] = 'Number of targets included in the survey (ELGs with sufficient [OII] flux)'
+    summ_dict['A_Legend']['N_ZWARN0'] = 'Number of redshifts with ZWARN == 0'
+    summ_dict['A_Legend']['PURITY'] = 'Fraction of redshifts with ZWARN == 0 that are correct'
+    summ_dict['A_Legend']['REQ_FINAL'] = 'Did the reduction pass all Requirements?'
+    summ_dict['A_Legend']['REQ_INDIV'] = 'Did the reduction pass these individual requirements?'
+
     for otype in otypes:
         # Calculate stats
         stat_dict = calc_stats(simz_tab, otype)
@@ -721,12 +716,8 @@ def summ_stats(simz_tab, outfil=None):
         summ_dict[otype]['REQ_INDIV'], passf = obj_requirements(stat_dict,otype)
         summ_dict[otype]['REQ_FINAL'] = passf
 
-    # Generate Table
-    #stat_tab = Table(rows=rows)
-
     # Return
     return summ_dict
-    #return stat_tab
 
 
 def plot_slices(x, y, ok, bad, x_lo, x_hi, y_cut, num_slices=5, min_count=100,
