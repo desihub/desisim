@@ -125,7 +125,7 @@ def main(args):
         # yamlify
         # Write yaml
         desispec.io.util.makepath(args.yaml_file)
-        with open(args.yaml_qafile, 'w') as outfile:
+        with open(args.yaml_file, 'w') as outfile:
             outfile.write(yaml.dump(yamlify(meta), default_flow_style=False))
             outfile.write(yaml.dump(yamlify(summ_dict), default_flow_style=False))
 
