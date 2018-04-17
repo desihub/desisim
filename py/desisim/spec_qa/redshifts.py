@@ -253,14 +253,11 @@ def load_z(fibermap_files, zbest_files=None, outfil=None):
 
 def match_truth_z(simz_tab, zb_tab, mini_read=False, outfil=None):
     """ Match truth and zbest tables
-    :param simz_tab: astropy.Table
-      Either generated from load_z() or read from disk via 'truth.fits'
-    :param zb_tab: astropy.Table
-      Either generated from load_z() or read from disk via 'zcatalog-mini.fits'
-    :param mini_read: bool, optional
-      Tables were read from the summary tables written to disk
+    :param simz_tab: astropy.Table; Either generated from load_z() or read from disk via 'truth.fits'
+    :param zb_tab: astropy.Table; Either generated from load_z() or read from disk via 'zcatalog-mini.fits'
+    :param mini_read: bool, optional; Tables were read from the summary tables written to disk
     :param outfil: str, optional
-    :return: simz_tab is modified in place
+    :return: simz_tab:  modified in place
     """
 
     nsim = len(simz_tab)
