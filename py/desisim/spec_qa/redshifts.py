@@ -20,6 +20,7 @@ import matplotlib.gridspec as gridspec
 from astropy.io import fits
 from astropy.table import Table, vstack, hstack, MaskedColumn, join
 
+import desispec.io
 from .utils import elg_flux_lim, get_sty_otype, catastrophic_dv, match_otype
 
 from desiutil.log import get_logger, DEBUG
@@ -116,15 +117,53 @@ def calc_stats(simz_tab, objtype, flux_lim=True):
     return stat_dict
 
 
-def load_z(fibermap_files, zbest_files, outfil=None):
+def find_zbest_files(fibermap_data):
+
+    from desimodel.footprint import radec2pix
+    # Init
+    zbest_files = []
+    # Search for zbest files with healpy
+    ra_targ = fibermap_data['RA_TARGET'].data
+    dec_targ = fibermap_data['DEC_TARGET'].data
+    # Getting some NAN in RA/DEC
+    good = np.isfinite(ra_targ) & np.isfinite(dec_targ)
+    pixels = radec2pix(64, ra_targ[good], dec_targ[good])
+    uni_pixels = np.unique(pixels)
+    for uni_pix in uni_pixels:
+        zbest_files.append(desispec.io.findfile('zbest', groupname=uni_pix, nside=64))
+    # Return
+    return zbest_files
+
+'''
+    # Search for zbest files
+    fibermap_data = desispec.io.read_fibermap(fibermap_path)
+    flavor = fibermap_data.meta['FLAVOR']
+    if flavor.lower() in ('arc', 'flat', 'bias'):
+        log.debug('Skipping calibration {} exposure {:08d}'.format(flavor, exposure))
+        continue
+
+    brick_names = set(fibermap_data['BRICKNAME'])
+    import pdb; pdb.set_trace()
+    for brick in brick_names:
+        zbest_path=desispec.io.findfile('zbest', groupname=brick, specprod_dir=args.reduxdir)
+        if os.path.exists(zbest_path):
+            log.debug('Found {}'.format(os.path.basename(zbest_path)))
+            zbest_files.append(zbest_path)
+        else:
+            log.warn('Missing {}'.format(os.path.basename(zbest_path)))
+            #pdb.set_trace()
+'''
+
+def load_z(fibermap_files, zbest_files=None, outfil=None):
     '''Load input and output redshift values for a set of exposures
 
     Parameters
     ----------
     fibermap_files: list
-      List of fibermap files
-    zbest_files: list
-      List of zbest output files from Redmonster
+      List of fibermap files;  None of these should be calibration..
+    zbest_files: list, optional
+      List of zbest output files
+      Slurped from fibermap info if not provided
     outfil: str, optional
       Output file for the table
 
@@ -137,18 +176,20 @@ def load_z(fibermap_files, zbest_files, outfil=None):
     log = get_logger()
 
     # Init
-
+    if zbest_files is None:
+        flag_load_zbest = True
+        zbest_files = []
+    else:
+        flag_load_zbest = False
     # Load up fibermap and simspec tables
     fbm_tabs = []
     sps_tabs = []
     for fibermap_file in fibermap_files:
-        fbm_hdu = fits.open(fibermap_file)
 
-        # skip calibration exposures
-        flavor = fbm_hdu[1].header['FLAVOR']
-        fbm_hdu.close()
-        if flavor in ('arc', 'flat', 'bias'):
-            continue
+        # zbest?
+        if flag_load_zbest:
+            fibermap_data = desispec.io.read_fibermap(fibermap_file)
+            zbest_files += find_zbest_files(fibermap_data)
 
         log.info('Reading: {:s}'.format(fibermap_file))
         # Load simspec (for fibermap too!)
