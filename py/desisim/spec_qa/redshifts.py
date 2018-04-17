@@ -154,6 +154,7 @@ def find_zbest_files(fibermap_data):
             #pdb.set_trace()
 '''
 
+
 def load_z(fibermap_files, zbest_files=None, outfil=None):
     '''Load input and output redshift values for a set of exposures
 
@@ -169,8 +170,10 @@ def load_z(fibermap_files, zbest_files=None, outfil=None):
 
     Returns
     -------
-    Table
-      Table of target info including Redmonster redshifts
+    simz_tab: astropy.Table
+      Merged table of simpsec data
+    zb_tab: astropy.Table
+      Merged table of zbest output
     '''
     # imports
     log = get_logger()
