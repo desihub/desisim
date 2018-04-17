@@ -407,7 +407,7 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
             # Update
             survey_mask[elg[~elg_mask]] = False
         else:
-            import pdb; pdb.set_trace()
+            pass
     else:
         survey_mask = np.array([True]*nrow)
     # Catastrophic/Good (This gets messy...)
