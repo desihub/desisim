@@ -15,6 +15,7 @@ from astropy.io import fits
 from astropy.table import Table, vstack, hstack, MaskedColumn, join
 
 from desiutil.log import get_logger, DEBUG
+from desitarget.targetmask import desi_mask
 
 
 def elg_flux_lim(z, oii_flux):
@@ -74,13 +75,13 @@ def get_sty_otype():
         QSO_T={'color':'cyan', 'lbl':'QSO z<2.1', 'pcolor':'GnBu'})
     return sty_otype
 
+
 def match_otype(tbl, objtype):
     """ Generate a mask for the input objtype
     :param tbl:
     :param objtype: str
     :return: targets: bool mask
     """
-    from desitarget.targetmask import desi_mask
     if objtype in ['BGS']:
         targets = (tbl['DESI_TARGET'] & desi_mask['BGS_ANY']) != 0
     elif objtype in ['MWS']:
@@ -93,3 +94,5 @@ def match_otype(tbl, objtype):
         targets = (tbl['DESI_TARGET'] & desi_mask[objtype]) != 0
     # Return
     return targets
+
+

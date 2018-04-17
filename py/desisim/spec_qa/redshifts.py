@@ -20,6 +20,7 @@ import matplotlib.gridspec as gridspec
 from astropy.io import fits
 from astropy.table import Table, vstack, hstack, MaskedColumn, join
 
+import desispec.io
 from .utils import elg_flux_lim, get_sty_otype, catastrophic_dv, match_otype
 
 from desiutil.log import get_logger, DEBUG
@@ -62,9 +63,9 @@ def calc_stats(simz_tab, objtype, flux_lim=True):
     obj_tab = slice_simz(simz_tab, objtype=objtype)
     stat_dict['NTARG'] = len(obj_tab)
 
-    # Number of objects with RedMonster
+    # Number of objects with Redshift Analysis
     zobj_tab = slice_simz(simz_tab,objtype=objtype,redm=True)
-    stat_dict['N_RM'] = len(zobj_tab)
+    stat_dict['N_zA'] = len(zobj_tab)
 
 
     # Redshift measured (includes catastrophics)
@@ -116,39 +117,62 @@ def calc_stats(simz_tab, objtype, flux_lim=True):
     return stat_dict
 
 
-def load_z(fibermap_files, zbest_files, outfil=None):
+def find_zbest_files(fibermap_data):
+
+    from desimodel.footprint import radec2pix
+    # Init
+    zbest_files = []
+    # Search for zbest files with healpy
+    ra_targ = fibermap_data['RA_TARGET'].data
+    dec_targ = fibermap_data['DEC_TARGET'].data
+    # Getting some NAN in RA/DEC
+    good = np.isfinite(ra_targ) & np.isfinite(dec_targ)
+    pixels = radec2pix(64, ra_targ[good], dec_targ[good])
+    uni_pixels = np.unique(pixels)
+    for uni_pix in uni_pixels:
+        zbest_files.append(desispec.io.findfile('zbest', groupname=uni_pix, nside=64))
+    # Return
+    return zbest_files
+
+
+def load_z(fibermap_files, zbest_files=None, outfil=None):
     '''Load input and output redshift values for a set of exposures
 
     Parameters
     ----------
     fibermap_files: list
-      List of fibermap files
-    zbest_files: list
-      List of zbest output files from Redmonster
+      List of fibermap files;  None of these should be calibration..
+    zbest_files: list, optional
+      List of zbest output files
+      Slurped from fibermap info if not provided
     outfil: str, optional
       Output file for the table
 
     Returns
     -------
-    Table
-      Table of target info including Redmonster redshifts
+    simz_tab: astropy.Table
+      Merged table of simpsec data
+    zb_tab: astropy.Table
+      Merged table of zbest output
     '''
     # imports
     log = get_logger()
 
     # Init
-
+    if zbest_files is None:
+        flag_load_zbest = True
+        zbest_files = []
+    else:
+        flag_load_zbest = False
     # Load up fibermap and simspec tables
     fbm_tabs = []
     sps_tabs = []
     for fibermap_file in fibermap_files:
-        fbm_hdu = fits.open(fibermap_file)
 
-        # skip calibration exposures
-        flavor = fbm_hdu[1].header['FLAVOR']
-        fbm_hdu.close()
-        if flavor in ('arc', 'flat', 'bias'):
-            continue
+        # zbest?
+        if flag_load_zbest:
+            fibermap_data = desispec.io.read_fibermap(fibermap_file)
+            zbest_files += find_zbest_files(fibermap_data)
 
         log.info('Reading: {:s}'.format(fibermap_file))
         # Load simspec (for fibermap too!)
@@ -180,18 +204,15 @@ def load_z(fibermap_files, zbest_files, outfil=None):
     sps_tab.remove_column('MAG')  # It occurs in both tables
     simz_tab = hstack([fbm_tab,sps_tab],join_type='exact')
     simz_tab.sort('TARGETID')
-    nsim = len(simz_tab)
 
     # Cleanup some names
     #simz_tab.rename_column('OBJTYPE_1', 'OBJTYPE')
     #simz_tab.rename_column('OBJTYPE_2', 'TRUETYPE')
 
-    # Rename QSO
-    qsol = np.where( match_otype(simz_tab, 'QSO') &
-        (simz_tab['TRUEZ'] >= 2.1))[0]
+    # Update QSO naming
+    qsol = np.where( match_otype(simz_tab, 'QSO') & (simz_tab['TRUEZ'] >= 2.1))[0]
     simz_tab['TEMPLATETYPE'][qsol] = 'QSO_L'
-    qsot = np.where( match_otype(simz_tab, 'QSO') &
-        (simz_tab['TRUEZ'] < 2.1))[0]
+    qsot = np.where( match_otype(simz_tab, 'QSO') & (simz_tab['TRUEZ'] < 2.1))[0]
     simz_tab['TEMPLATETYPE'][qsot] = 'QSO_T'
 
     # Load up zbest files
@@ -209,6 +230,20 @@ def load_z(fibermap_files, zbest_files, outfil=None):
     univ, uni_idx = np.unique(np.array(zb_tab['TARGETID']),return_index=True)
     zb_tab = zb_tab[uni_idx]
 
+    # Return
+    return simz_tab, zb_tab
+
+
+def match_truth_z(simz_tab, zb_tab, mini_read=False, outfil=None):
+    """ Match truth and zbest tables
+    :param simz_tab: astropy.Table; Either generated from load_z() or read from disk via 'truth.fits'
+    :param zb_tab: astropy.Table; Either generated from load_z() or read from disk via 'zcatalog-mini.fits'
+    :param mini_read: bool, optional; Tables were read from the summary tables written to disk
+    :param outfil: str, optional
+    :return: simz_tab:  modified in place
+    """
+
+    nsim = len(simz_tab)
     # Match up
     sim_id = np.array(simz_tab['TARGETID'])
     z_id = np.array(zb_tab['TARGETID'])
@@ -221,6 +256,17 @@ def load_z(fibermap_files, zbest_files, outfil=None):
 
     # Fill up
     ztags = ['Z','ZERR','ZWARN','SPECTYPE']
+
+    # This is for truth and zcat tables read from disk as opposed to the fibermap files
+    if mini_read:
+        ztags += ['DESI_TARGET']
+        # And clean up the QSO names
+        qsol = np.where((simz_tab['TEMPLATETYPE'] == 'QSO') & (simz_tab['TRUEZ'] >= 2.1))[0]
+        simz_tab['TEMPLATETYPE'][qsol] = 'QSO_L'
+        qsot = np.where((simz_tab['TEMPLATETYPE'] == 'QSO') & (simz_tab['TRUEZ'] < 2.1))[0]
+        simz_tab['TEMPLATETYPE'][qsot] = 'QSO_T'
+
+    # Generate the new columns
     new_clms = []
     mask = np.array([True]*nsim)
     mask[sim_idx] = False
@@ -233,14 +279,12 @@ def load_z(fibermap_files, zbest_files, outfil=None):
         # Append
         new_clms.append(new_clm)
     # Add columns
-
     simz_tab.add_columns(new_clms)
 
     # Write?
     if outfil is not None:
         simz_tab.write(outfil,overwrite=True)
-    # Return
-    return simz_tab # Masked Table
+    return
 
 
 def obj_requirements(zstats, objtype):
@@ -337,10 +381,13 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
         survey_mask = (simz_tab['Z'].mask == False)
         # Flux limit
         elg = np.where(match_otype(simz_tab, 'ELG') & survey_mask)[0]
-        elg_mask = elg_flux_lim(simz_tab['TRUEZ'][elg],
-            simz_tab['OIIFLUX'][elg])
-        # Update
-        survey_mask[elg[~elg_mask]] = False
+        if len(elg) > 0:
+            elg_mask = elg_flux_lim(simz_tab['TRUEZ'][elg],
+                simz_tab['OIIFLUX'][elg])
+            # Update
+            survey_mask[elg[~elg_mask]] = False
+        else:
+            pass
     else:
         survey_mask = np.array([True]*nrow)
     # Catastrophic/Good (This gets messy...)
@@ -629,7 +676,7 @@ def summ_fig(simz_tab, summ_tab, meta, outfile=None):
 
 
 
-def summ_stats(simz_tab, outfil=None):
+def summ_stats(simz_tab):
     '''Generate summary stats
 
     Parameters
@@ -645,7 +692,22 @@ def summ_stats(simz_tab, outfil=None):
     otypes = ['ELG','LRG', 'QSO_L', 'QSO_T', 'BGS', 'MWS']  # WILL HAVE TO DEAL WITH QSO_TRACER vs QSO_LYA
     summ_dict = {}
 
-    rows = []
+    summ_dict['A_Legend'] = {}
+    summ_dict['A_Legend']['CAT_RATE'] = 'Catastrohic Redshift failure rate'
+    summ_dict['A_Legend']['EFF'] = 'Redshift Effeciency'
+    summ_dict['A_Legend']['MEAN_DZ'] = 'Average redshift offset between measured and truth'
+    summ_dict['A_Legend']['MEDIAN_DZ'] = 'Median redshift offset between measured and truth'
+    summ_dict['A_Legend']['RMS_DZ'] = 'RMS of the redshift offsets'
+    summ_dict['A_Legend']['NCAT'] = 'Number of Catastropic failures'
+    summ_dict['A_Legend']['NTARG'] = 'Number of targets of the object type'
+    summ_dict['A_Legend']['N_GDZ'] = 'Number of targets with a correct redshift (within tolerance)'
+    summ_dict['A_Legend']['N_zA'] = 'Number of targets analyzed by the redshift code'
+    summ_dict['A_Legend']['N_SURVEY'] = 'Number of targets included in the survey (ELGs with sufficient [OII] flux)'
+    summ_dict['A_Legend']['N_ZWARN0'] = 'Number of redshifts with ZWARN == 0'
+    summ_dict['A_Legend']['PURITY'] = 'Fraction of redshifts with ZWARN == 0 that are correct'
+    summ_dict['A_Legend']['REQ_FINAL'] = 'Did the reduction pass all Requirements?'
+    summ_dict['A_Legend']['REQ_INDIV'] = 'Did the reduction pass these individual requirements?'
+
     for otype in otypes:
         # Calculate stats
         stat_dict = calc_stats(simz_tab, otype)
@@ -654,12 +716,8 @@ def summ_stats(simz_tab, outfil=None):
         summ_dict[otype]['REQ_INDIV'], passf = obj_requirements(stat_dict,otype)
         summ_dict[otype]['REQ_FINAL'] = passf
 
-    # Generate Table
-    #stat_tab = Table(rows=rows)
-
     # Return
     return summ_dict
-    #return stat_tab
 
 
 def plot_slices(x, y, ok, bad, x_lo, x_hi, y_cut, num_slices=5, min_count=100,
