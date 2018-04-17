@@ -15,6 +15,7 @@ from astropy.io import fits
 from astropy.table import Table, vstack, hstack, MaskedColumn, join
 
 from desiutil.log import get_logger, DEBUG
+from desitarget.targetmask import desi_mask
 
 
 def elg_flux_lim(z, oii_flux):
@@ -80,7 +81,6 @@ def match_otype(tbl, objtype):
     :param objtype: str
     :return: targets: bool mask
     """
-    from desitarget.targetmask import desi_mask
     if objtype in ['BGS']:
         targets = (tbl['DESI_TARGET'] & desi_mask['BGS_ANY']) != 0
     elif objtype in ['MWS']:
@@ -93,3 +93,28 @@ def match_otype(tbl, objtype):
         targets = (tbl['DESI_TARGET'] & desi_mask[objtype]) != 0
     # Return
     return targets
+
+def add_desitarget(tbl):
+    """  Add a DESI_TARGET column to the input table based on the TEMPLATETYPE strings
+    This is a somewhat painful FOR loop..
+    :param tbl: astropy.Table
+    :return:
+    """
+    desi_targ = []
+    for row in tbl:
+        if 'LRG' in row['TEMPLATETYPE']:
+            desi_targ.append(desi_mask['LRG'])
+        elif 'BGS' in row['TEMPLATETYPE']:
+            desi_targ.append(desi_mask['BGS_ANY'])
+        elif 'QSO' in row['TEMPLATETYPE']:
+            desi_targ.append(desi_mask['QSO'])
+        elif 'ELG' in row['TEMPLATETYPE']:
+            desi_targ.append(desi_mask['ELG'])
+        elif 'STAR' in row['TEMPLATETYPE']:
+            desi_targ.append(desi_mask['MWS_ANY'])
+        elif 'WD' in row['TEMPLATETYPE']:
+            desi_targ.append(desi_mask['STD_WD'])
+        else:
+            desi_targ.append(-1)
+    tbl['DESI_TARGET'] = desi_targ
+    return

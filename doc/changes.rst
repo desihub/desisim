@@ -5,7 +5,7 @@ desisim change log
 0.27.1 (unreleased)
 -------------------
 
-* No changes yet
+* Enable redshift QA using input summary catalogs of truth and redshifts
 
 0.27.0 (2018-03-29)
 -------------------

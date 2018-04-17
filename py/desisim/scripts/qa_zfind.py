@@ -100,7 +100,8 @@ def main(args):
             sys.exit(1)
 
         # Write? Table
-        simz_tab = dsqa_z.load_z(fibermap_files, zbest_files=zbest_files)
+        simz_tab, zbtab = dsqa_z.load_z(fibermap_files, zbest_files=zbest_files)
+        dsqa_z.match_truth_z(simz_tab, zbtab)
         if args.write_simz_table is not None:
             simz_tab.write(args.write_simz_table, overwrite=True)
 

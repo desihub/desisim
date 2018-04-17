@@ -221,18 +221,15 @@ def load_z(fibermap_files, zbest_files=None, outfil=None):
     sps_tab.remove_column('MAG')  # It occurs in both tables
     simz_tab = hstack([fbm_tab,sps_tab],join_type='exact')
     simz_tab.sort('TARGETID')
-    nsim = len(simz_tab)
 
     # Cleanup some names
     #simz_tab.rename_column('OBJTYPE_1', 'OBJTYPE')
     #simz_tab.rename_column('OBJTYPE_2', 'TRUETYPE')
 
-    # Rename QSO
-    qsol = np.where( match_otype(simz_tab, 'QSO') &
-        (simz_tab['TRUEZ'] >= 2.1))[0]
+    # Update QSO naming
+    qsol = np.where( match_otype(simz_tab, 'QSO') & (simz_tab['TRUEZ'] >= 2.1))[0]
     simz_tab['TEMPLATETYPE'][qsol] = 'QSO_L'
-    qsot = np.where( match_otype(simz_tab, 'QSO') &
-        (simz_tab['TRUEZ'] < 2.1))[0]
+    qsot = np.where( match_otype(simz_tab, 'QSO') & (simz_tab['TRUEZ'] < 2.1))[0]
     simz_tab['TEMPLATETYPE'][qsot] = 'QSO_T'
 
     # Load up zbest files
@@ -250,6 +247,23 @@ def load_z(fibermap_files, zbest_files=None, outfil=None):
     univ, uni_idx = np.unique(np.array(zb_tab['TARGETID']),return_index=True)
     zb_tab = zb_tab[uni_idx]
 
+    # Return
+    return simz_tab, zb_tab
+
+
+def match_truth_z(simz_tab, zb_tab, mini_read=False, outfil=None):
+    """ Match truth and zbest tables
+    :param simz_tab: astropy.Table
+      Either generated from load_z() or read from disk via 'truth.fits'
+    :param zb_tab: astropy.Table
+      Either generated from load_z() or read from disk via 'zcatalog-mini.fits'
+    :param mini_read: bool, optional
+      Tables were read from the summary tables written to disk
+    :param outfil: str, optional
+    :return: simz_tab is modified in place
+    """
+
+    nsim = len(simz_tab)
     # Match up
     sim_id = np.array(simz_tab['TARGETID'])
     z_id = np.array(zb_tab['TARGETID'])
@@ -262,6 +276,17 @@ def load_z(fibermap_files, zbest_files=None, outfil=None):
 
     # Fill up
     ztags = ['Z','ZERR','ZWARN','SPECTYPE']
+
+    # This is for truth and zcat tables read from disk as opposed to the fibermap files
+    if mini_read:
+        ztags += ['DESI_TARGET']
+        # And clean up the QSO names
+        qsol = np.where((simz_tab['TEMPLATETYPE'] == 'QSO') & (simz_tab['TRUEZ'] >= 2.1))[0]
+        simz_tab['TEMPLATETYPE'][qsol] = 'QSO_L'
+        qsot = np.where((simz_tab['TEMPLATETYPE'] == 'QSO') & (simz_tab['TRUEZ'] < 2.1))[0]
+        simz_tab['TEMPLATETYPE'][qsot] = 'QSO_T'
+
+    # Generate the new columns
     new_clms = []
     mask = np.array([True]*nsim)
     mask[sim_idx] = False
@@ -274,14 +299,12 @@ def load_z(fibermap_files, zbest_files=None, outfil=None):
         # Append
         new_clms.append(new_clm)
     # Add columns
-
     simz_tab.add_columns(new_clms)
 
     # Write?
     if outfil is not None:
         simz_tab.write(outfil,overwrite=True)
-    # Return
-    return simz_tab # Masked Table
+    return
 
 
 def obj_requirements(zstats, objtype):
@@ -378,10 +401,13 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
         survey_mask = (simz_tab['Z'].mask == False)
         # Flux limit
         elg = np.where(match_otype(simz_tab, 'ELG') & survey_mask)[0]
-        elg_mask = elg_flux_lim(simz_tab['TRUEZ'][elg],
-            simz_tab['OIIFLUX'][elg])
-        # Update
-        survey_mask[elg[~elg_mask]] = False
+        if len(elg) > 0:
+            elg_mask = elg_flux_lim(simz_tab['TRUEZ'][elg],
+                simz_tab['OIIFLUX'][elg])
+            # Update
+            survey_mask[elg[~elg_mask]] = False
+        else:
+            import pdb; pdb.set_trace()
     else:
         survey_mask = np.array([True]*nrow)
     # Catastrophic/Good (This gets messy...)
