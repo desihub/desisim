@@ -367,12 +367,12 @@ def zstats(simz_tab, objtype=None, dvlimit=None, count=False, survey=False):
     objtype_mask, z_mask, survey_mask, dv_mask, zwarn_mask = criteria(
         simz_tab, dvlimit=dvlimit, objtype=objtype)
     # Score-card
-    good = zwarn_mask & dv_mask & objtype_mask
-    cat = zwarn_mask & (~dv_mask) & objtype_mask
-    miss = (~zwarn_mask) & dv_mask & objtype_mask
-    lost = (~zwarn_mask) & (~dv_mask) & objtype_mask
+    good = zwarn_mask & dv_mask & objtype_mask & z_mask
+    cat = zwarn_mask & (~dv_mask) & objtype_mask & z_mask
+    miss = (~zwarn_mask) & dv_mask & objtype_mask & z_mask
+    lost = (~zwarn_mask) & (~dv_mask) & objtype_mask & z_mask
     # Restrict to the Survey design?
-    tot_msk = objtype_mask
+    tot_msk = objtype_mask & z_mask
     if survey:
         good &= survey_mask
         cat &= survey_mask
@@ -426,10 +426,10 @@ def criteria(simz_tab, objtype=None, dvlimit=None):
     if objtype is None:
         objtype_mask = np.array([True]*nrow)
     else:
-        try:
-            objtype_mask = match_otype(simz_tab, objtype)  # Use DESI_TARGET when possible
-        except KeyError:
+        if objtype in ['STAR', 'WD', 'QSO']:
             objtype_mask = stypes == objtype
+        else:
+            objtype_mask = match_otype(simz_tab, objtype)  # Use DESI_TARGET when possible
     # Redshift analysis
     z_mask = simz_tab['Z'].mask == False  # Not masked in Table
     # Survey
