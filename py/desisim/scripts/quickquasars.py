@@ -92,12 +92,13 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     else :
         ofilename = os.path.join(args.outdir,"{}/{}/spectra-{}-{}.fits".format(healpix//100,healpix,nside,healpix))
     pixdir = os.path.dirname(ofilename)
-        
+    
+    if args.zbest :
+        zbest_filename = os.path.join(pixdir,"zbest-{}-{}.fits".format(nside,healpix))
+ 
     if not args.overwrite :
         # check whether output exists or not
-        
         if args.zbest :
-            zbest_filename = os.path.join(pixdir,"zbest-{}-{}.fits".format(nside,healpix))
             if os.path.isfile(ofilename) and os.path.isfile(zbest_filename) :
                 log.info("skip existing {} and {}".format(ofilename,zbest_filename))
                 return
