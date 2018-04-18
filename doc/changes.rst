@@ -5,7 +5,11 @@ desisim change log
 0.27.1 (unreleased)
 -------------------
 
-* Enable redshift QA using input summary catalogs of truth and redshifts
+* Add zstats-like QA method from desitest mini Notebook and refactor previous code to enable it
+* Update QA to use qaprod_dir
+* Enable redshift QA using input summary catalogs of truth and redshifts (`PR #349`_)
+
+.. _`PR #349`: https://github.com/desihub/desisim/pull/349
 
 0.27.0 (2018-03-29)
 -------------------
