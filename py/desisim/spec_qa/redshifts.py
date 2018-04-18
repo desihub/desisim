@@ -260,9 +260,10 @@ def match_truth_z(simz_tab, zb_tab, mini_read=False, outfil=None):
     if mini_read:
         ztags += ['DESI_TARGET']
         # And clean up the QSO names
-        qsol = np.where((simz_tab['TEMPLATETYPE'] == 'QSO') & (simz_tab['TRUEZ'] >= 2.1))[0]
+        stypes = np.char.rstrip(simz_tab['TEMPLATETYPE'])
+        qsol = np.where((stypes == 'QSO') & (simz_tab['TRUEZ'] >= 2.1))[0]
         simz_tab['TEMPLATETYPE'][qsol] = 'QSO_L'
-        qsot = np.where((simz_tab['TEMPLATETYPE'] == 'QSO') & (simz_tab['TRUEZ'] < 2.1))[0]
+        qsot = np.where((stypes == 'QSO') & (simz_tab['TRUEZ'] < 2.1))[0]
         simz_tab['TEMPLATETYPE'][qsot] = 'QSO_T'
 
     # Generate the new columns
@@ -419,12 +420,16 @@ def criteria(simz_tab, objtype=None, dvlimit=None):
     """
     # Init
     nrow = len(simz_tab)
+    stypes = np.char.rstrip(simz_tab['TEMPLATETYPE'])
 
     # Object type
     if objtype is None:
         objtype_mask = np.array([True]*nrow)
     else:
-        objtype_mask = match_otype(simz_tab, objtype)  # simz_tab['TEMPLATETYPE'] == objtype
+        try:
+            objtype_mask = match_otype(simz_tab, objtype)  # Use DESI_TARGET when possible
+        except KeyError:
+            objtype_mask = stypes == objtype
     # Redshift analysis
     z_mask = simz_tab['Z'].mask == False  # Not masked in Table
     # Survey
@@ -441,17 +446,21 @@ def criteria(simz_tab, objtype=None, dvlimit=None):
     zwarn_mask[idx] = True
     # Catastrophic/Good (This gets a bit more messy...)
     dv_mask = np.array([True]*nrow)
-    if dvlimit is None:
-        for obj in ['ELG','LRG','QSO_L','QSO_T']:
-            dv = catastrophic_dv(obj) # km/s
+    for obj in np.unique(stypes):
+        if obj in ['ELG','LRG','QSO_L','QSO_T', 'BGS', 'MWS']:  # Use DESI_TARGET when possible
             omask = np.where(match_otype(simz_tab, obj))[0] # & (simz_tab['ZWARN']==0))[0]
-            dz = calc_dz(simz_tab[omask]) # dz/1+z
-            cat = np.where(np.abs(dz)*3e5 > dv)[0]
-            dv_mask[omask[cat]] = False
         else:
-            dz = calc_dz(simz_tab) # dz/1+z
-            cat = np.where(np.abs(dz)*3e5 > dv)[0]
-            dv_mask[cat] = False
+            omask = np.where(stypes == obj)[0]
+        if dvlimit is None:
+            try:
+                dv = catastrophic_dv(obj) # km/s
+            except:
+                dv = 1000.
+        else:
+            dv = dvlimit
+        dz = calc_dz(simz_tab[omask]) # dz/1+z
+        cat = np.where(np.abs(dz)*3e5 > dv)[0]
+        dv_mask[omask[cat]] = False
     # Return
     return objtype_mask, z_mask, survey_mask, dv_mask, zwarn_mask
 

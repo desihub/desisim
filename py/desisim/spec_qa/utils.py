@@ -59,7 +59,7 @@ def catastrophic_dv(objtype):
     objtype : str
       Object type, e.g. 'ELG', 'LRG'
     '''
-    cat_dict = dict(ELG=1000., LRG=1000., QSO_L=1000., QSO_T=1000.)
+    cat_dict = dict(ELG=1000., LRG=1000., QSO_L=1000., QSO_T=1000., STAR=1000., WD=1000.)
     #
     return cat_dict[objtype]
 
