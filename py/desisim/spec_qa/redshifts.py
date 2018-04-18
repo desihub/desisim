@@ -42,7 +42,7 @@ def calc_dzsig(simz_tab):
     return dzsig
 
 
-def calc_stats(simz_tab, objtype, flux_lim=True):
+def calc_obj_stats(simz_tab, objtype):
     """Calculate redshift statistics for a given objtype
 
     Parameters
@@ -51,60 +51,59 @@ def calc_stats(simz_tab, objtype, flux_lim=True):
         This parameter is not documented.
     objtype : str
         Object type, e.g. 'ELG', 'LRG'
-    flux_lim : bool, optional
-        Impose the flux limit for ELGs? [True]
+
+    Returns
+    -------
+    stat_dict : dict
+        Survey results for a given object type
     """
-    # Cut on targets that were analyzed by RedMonster
+    # zstats
+    ngood, nfail, nmiss, nlost = zstats(simz_tab, objtype=objtype, count=True, survey=True)
+    ntot = ngood+nfail+nmiss+nlost
+
+    # Grab the masks
+    objtype_mask, z_mask, survey_mask, dv_mask, zwarn_mask = criteria(simz_tab, objtype=objtype)
 
     # Init
     stat_dict = {} #dict(OBJTYPE=objtype)
 
-    # N targets
-    obj_tab = slice_simz(simz_tab, objtype=objtype)
-    stat_dict['NTARG'] = len(obj_tab)
+    # N targets (irrespective of the Survey)
+    stat_dict['N_TARG'] = ntot
 
     # Number of objects with Redshift Analysis
-    zobj_tab = slice_simz(simz_tab,objtype=objtype,z_analy=True)
-    stat_dict['N_zA'] = len(zobj_tab)
-
+    stat_dict['N_zA'] = np.count_nonzero(z_mask & objtype_mask)
 
     # Redshift measured (includes catastrophics)
     #   For ELGs, cut on OII_Flux too
-    survey_tab = slice_simz(simz_tab,objtype=objtype,survey=True)
-    stat_dict['N_SURVEY'] = len(survey_tab)
+    stat_dict['N_SURVEY'] = np.count_nonzero(survey_mask & objtype_mask & z_mask)
 
-    # Catastrophic failures
-    cat_tab = slice_simz(simz_tab,objtype=objtype,
-        survey=True,catastrophic=True)
-    stat_dict['NCAT'] = len(cat_tab)
+    # Catastrophic failures in the survey
+    stat_dict['N_CAT'] = nfail
     if stat_dict['N_SURVEY'] > 0:
-        stat_dict['CAT_RATE'] = len(cat_tab)/stat_dict['N_SURVEY']
+        stat_dict['CAT_RATE'] = float(nfail)/stat_dict['N_SURVEY']
     else:
         stat_dict['CAT_RATE'] = 0
 
-    # Good redshifts
-    gdz_tab = slice_simz(simz_tab,objtype=objtype,
-        survey=True,good=True)
-    stat_dict['N_GDZ'] = len(gdz_tab)
+    # Good redshifts in the survey
+    stat_dict['N_GOODZ'] = ngood
 
-    # Redshift with ZWARN=0
-    zwarn0_tab = slice_simz(simz_tab,objtype=objtype,
-                         survey=True,all_zwarn0=True,good=True)
-    stat_dict['N_ZWARN0'] = len(zwarn0_tab)
+    # Redshift with ZWARN=0 in the survey
+    stat_dict['N_ZWARN0'] = ngood+nfail
 
-    # Efficiency
+    # Survey Efficiency
     if stat_dict['N_SURVEY'] > 0:
-        stat_dict['EFF'] = float(len(gdz_tab))/float(stat_dict['N_SURVEY'])
+        stat_dict['EFF'] = float(ngood)/float(stat_dict['N_SURVEY'])
     else:
         stat_dict['EFF'] = 1.
 
     # Purity
     if stat_dict['N_ZWARN0'] > 0:
-        stat_dict['PURITY'] = float(len(gdz_tab))/float(stat_dict['N_ZWARN0'])
+        stat_dict['PURITY'] = float(ngood)/float(stat_dict['N_ZWARN0'])
     else:
         stat_dict['PURITY'] = 1.
 
     # delta z
+    gdz_tab = slice_simz(simz_tab, objtype=objtype, survey=True, goodz=True, all_zwarn0=True, z_analy=True)
     dz = calc_dz(gdz_tab)
     if len(dz) == 0:
         dz = np.zeros(1)
@@ -344,7 +343,7 @@ def obj_requirements(zstats, objtype):
     return pf_dict, passf
 
 
-def zstats(simz_tab, objtype=None, dvlimit=None, count=False):
+def zstats(simz_tab, objtype=None, dvlimit=None, count=False, survey=False):
     """ Perform statistics on the input truth+z table
     good = Satisfies dv criteria and ZWARN==0
     cat = Fails dv criteria with ZWARN==0
@@ -356,6 +355,7 @@ def zstats(simz_tab, objtype=None, dvlimit=None, count=False):
         objtype:
         dvlimit: float, optional -- Over-rides object specific dv limits
         count: bool, optional
+        survey: bool, optional -- Restrict to targets meeting the Survey criteria (e.g. ELG flux)
 
     Returns:
         if count=True: just the raw counts of each category :: ngood, nfail, nmiss, nlost
@@ -370,12 +370,20 @@ def zstats(simz_tab, objtype=None, dvlimit=None, count=False):
     cat = zwarn_mask & (~dv_mask) & objtype_mask
     miss = (~zwarn_mask) & dv_mask & objtype_mask
     lost = (~zwarn_mask) & (~dv_mask) & objtype_mask
+    # Restrict to the Survey design?
+    tot_msk = objtype_mask
+    if survey:
+        good &= survey_mask
+        cat &= survey_mask
+        miss &= survey_mask
+        lost &= survey_mask
+        tot_msk &= survey_mask
     #
     ngood = np.count_nonzero(good)
     nfail = np.count_nonzero(cat)
     nmiss = np.count_nonzero(miss)
     nlost = np.count_nonzero(lost)
-    ntot = np.count_nonzero(objtype_mask)
+    ntot = np.count_nonzero(tot_msk)
     # Check
     assert(ntot == ngood+nfail+nmiss+nlost)
     # Return
@@ -449,7 +457,7 @@ def criteria(simz_tab, objtype=None, dvlimit=None):
 
 
 def slice_simz(simz_tab, objtype=None, z_analy=False, survey=False,
-    catastrophic=False, good=False, all_zwarn0=False, **kwargs):
+    catastrophic=False, goodz=False, all_zwarn0=False, **kwargs):
     """Slice input simz_tab in one of many ways
 
     Parameters
@@ -464,7 +472,7 @@ def slice_simz(simz_tab, objtype=None, z_analy=False, survey=False,
       e.g. ELGs with sufficient OII_flux
     catastrophic : bool, optional
       Restrict to catastropic failures
-    good : bool, optional
+    goodz : bool, optional
       Restrict to good redshifts
     all_zwarn0 : bool, optional
       Restrict to ZWARN=0 cases
@@ -486,8 +494,10 @@ def slice_simz(simz_tab, objtype=None, z_analy=False, survey=False,
         final_mask &= survey_mask
     if catastrophic:
         final_mask &= (~dv_mask)
-    if good:
+        final_mask &= zwarn_mask  # Must also have ZWARN=0
+    if goodz:
         final_mask &= dv_mask
+        final_mask &= zwarn_mask
     if all_zwarn0:
         final_mask &= zwarn_mask
 
@@ -500,9 +510,9 @@ def obj_fig(simz_tab, objtype, summ_stats, outfile=None):
     """
     from astropy.stats import sigma_clip
     logs = get_logger()
-    gdz_tab = slice_simz(simz_tab,objtype=objtype, survey=True,good=True)
+    gdz_tab = slice_simz(simz_tab,objtype=objtype, survey=True,goodz=True, all_zwarn0=True)
     if objtype == 'ELG':
-        allgd_tab = slice_simz(simz_tab,objtype=objtype, survey=False,good=True)
+        allgd_tab = slice_simz(simz_tab,objtype=objtype, survey=False,goodz=True, all_zwarn0=True)
 
     if len(gdz_tab) <= 1:
         logs.info("Not enough objects of type {:s} for QA".format(objtype))
@@ -667,8 +677,8 @@ def summ_fig(simz_tab, summ_tab, meta, outfile=None):
     fig = plt.figure(figsize=(8, 5.0))
     gs = gridspec.GridSpec(3,2)
 
-    # RedMonster objects
-    zobj_tab = slice_simz(simz_tab,z_analy=True)
+    # Redshifts analyzed
+    zobj_tab = slice_simz(simz_tab, z_analy=True)
     otypes = ['ELG','LRG','QSO_L','QSO_T']
 
     # z vs. z plot
@@ -676,7 +686,7 @@ def summ_fig(simz_tab, summ_tab, meta, outfile=None):
     ax= plt.subplot(gs[0:2,jj])
 
     # Catastrophic
-    cat_tab = slice_simz(simz_tab,survey=True, catastrophic=True)
+    cat_tab = slice_simz(simz_tab, survey=True, catastrophic=True)
     ax.scatter(cat_tab['TRUEZ'], cat_tab['Z'],
         marker='x', s=9, label='CAT', color='red')
 
@@ -765,7 +775,7 @@ def summ_stats(simz_tab):
 
     Returns
     -------
-    list
+    lis
       List of summary stat dicts
     '''
     otypes = ['ELG','LRG', 'QSO_L', 'QSO_T', 'BGS', 'MWS']  # WILL HAVE TO DEAL WITH QSO_TRACER vs QSO_LYA
@@ -777,11 +787,11 @@ def summ_stats(simz_tab):
     summ_dict['A_Legend']['MEAN_DZ'] = 'Average redshift offset between measured and truth'
     summ_dict['A_Legend']['MEDIAN_DZ'] = 'Median redshift offset between measured and truth'
     summ_dict['A_Legend']['RMS_DZ'] = 'RMS of the redshift offsets'
-    summ_dict['A_Legend']['NCAT'] = 'Number of Catastropic failures'
-    summ_dict['A_Legend']['NTARG'] = 'Number of targets of the object type'
-    summ_dict['A_Legend']['N_GDZ'] = 'Number of targets with a correct redshift (within tolerance)'
+    summ_dict['A_Legend']['N_CAT'] = 'Number of Catastropic failures (bad z and ZWARN=0)'
+    summ_dict['A_Legend']['N_GOODZ'] = 'Number of targets with a correct redshift (within tolerance, in survey, and ZWARN=0)'
     summ_dict['A_Legend']['N_zA'] = 'Number of targets analyzed by the redshift code'
     summ_dict['A_Legend']['N_SURVEY'] = 'Number of targets included in the survey (ELGs with sufficient [OII] flux)'
+    summ_dict['A_Legend']['N_TARG'] = 'Number of targets of the object type (irrespective of Survey design)'
     summ_dict['A_Legend']['N_ZWARN0'] = 'Number of redshifts with ZWARN == 0'
     summ_dict['A_Legend']['PURITY'] = 'Fraction of redshifts with ZWARN == 0 that are correct'
     summ_dict['A_Legend']['REQ_FINAL'] = 'Did the reduction pass all Requirements?'
@@ -789,7 +799,7 @@ def summ_stats(simz_tab):
 
     for otype in otypes:
         # Calculate stats
-        stat_dict = calc_stats(simz_tab, otype)
+        stat_dict = calc_obj_stats(simz_tab, otype)
         summ_dict[otype] = stat_dict
         # Check requirements
         summ_dict[otype]['REQ_INDIV'], passf = obj_requirements(stat_dict,otype)
