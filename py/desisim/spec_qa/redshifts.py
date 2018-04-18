@@ -64,7 +64,7 @@ def calc_stats(simz_tab, objtype, flux_lim=True):
     stat_dict['NTARG'] = len(obj_tab)
 
     # Number of objects with Redshift Analysis
-    zobj_tab = slice_simz(simz_tab,objtype=objtype,redm=True)
+    zobj_tab = slice_simz(simz_tab,objtype=objtype,z_analy=True)
     stat_dict['N_zA'] = len(zobj_tab)
 
 
@@ -344,25 +344,70 @@ def obj_requirements(zstats, objtype):
     return pf_dict, passf
 
 
-def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
-    catastrophic=False, good=False, all_zwarn0=False):
-    '''Slice input simz_tab in one of many ways
+def zstats(simz_tab, objtype=None, dvlimit=None, count=False):
+    """ Perform statistics on the input truth+z table
+    good = Satisfies dv criteria and ZWARN==0
+    cat = Fails dv criteria with ZWARN==0
+    miss = Fails dv criteria but ZWARN!=0
+    lost = Fails dv criteria and ZWARN!=0
+
+    Args:
+        simz_tab:
+        objtype:
+        dvlimit: float, optional -- Over-rides object specific dv limits
+        count: bool, optional
+
+    Returns:
+        if count=True: just the raw counts of each category :: ngood, nfail, nmiss, nlost
+        else: precentile of each relative to ntot
+
+    """
+    # Grab the masks
+    objtype_mask, z_mask, survey_mask, dv_mask, zwarn_mask = criteria(
+        simz_tab, dvlimit=dvlimit, objtype=objtype)
+    # Score-card
+    good = zwarn_mask & dv_mask & objtype_mask
+    cat = zwarn_mask & (~dv_mask) & objtype_mask
+    miss = (~zwarn_mask) & dv_mask & objtype_mask
+    lost = (~zwarn_mask) & (~dv_mask) & objtype_mask
+    #
+    ngood = np.count_nonzero(good)
+    nfail = np.count_nonzero(cat)
+    nmiss = np.count_nonzero(miss)
+    nlost = np.count_nonzero(lost)
+    ntot = len(good)
+    assert(ntot == ngood+nfail+nmiss+nlost)
+    # Return
+    if count:
+        return ngood, nfail, nmiss, nlost
+    elif ntot == 0:
+        return (np.nan, np.nan, np.nan, np.nan)
+    else:
+        return 100*ngood/ntot, 100*nfail/ntot, 100*nmiss/ntot, 100*nlost/ntot
+
+
+def criteria(simz_tab, objtype=None, dvlimit=None):
+    """Analyze the input table for various criteria
 
     Parameters
     ----------
-    redm : bool, optional
-      RedMonster analysis required?
-    all_zwarn0 : bool, optional
-      Ignores catastrophic failures in the slicing to return
-      all sources with ZWARN==0
-    survey : bool, optional
-      Only include objects that satisfy the Survey requirements
-      e.g. ELGs with sufficient OII_flux
+    simz_tab : Table
+    objtype : str, optional -- Restrict analysis to a specific object type
 
     Returns
     -------
-    simz_table : Table cut by input parameters
-    '''
+    objtype_mask : ndarray
+      Match to input objtype (if any given)
+    z_mask : ndarray
+      Analyzed by the redshift analysis software
+    survey_mask : ndarray
+      Part of the DESI survey (not filler)
+    dv_mask : ndarray
+      Satisfies the dv criterion;  Either specific to each objtype
+      or using an input dvlimit
+    zwarn_mask : ndarray
+      ZWARN=0
+    """
     # Init
     nrow = len(simz_tab)
 
@@ -371,50 +416,83 @@ def slice_simz(simz_tab, objtype=None, redm=False, survey=False,
         objtype_mask = np.array([True]*nrow)
     else:
         objtype_mask = match_otype(simz_tab, objtype)  # simz_tab['TEMPLATETYPE'] == objtype
-    # RedMonster analysis
-    if redm:
-        redm_mask = simz_tab['Z'].mask == False  # Not masked in Table
-    else:
-        redm_mask = np.array([True]*nrow)
+    # Redshift analysis
+    z_mask = simz_tab['Z'].mask == False  # Not masked in Table
     # Survey
-    if survey:
-        survey_mask = (simz_tab['Z'].mask == False)
-        # Flux limit
-        elg = np.where(match_otype(simz_tab, 'ELG') & survey_mask)[0]
-        if len(elg) > 0:
-            elg_mask = elg_flux_lim(simz_tab['TRUEZ'][elg],
-                simz_tab['OIIFLUX'][elg])
-            # Update
-            survey_mask[elg[~elg_mask]] = False
-        else:
-            pass
-    else:
-        survey_mask = np.array([True]*nrow)
-    # Catastrophic/Good (This gets messy...)
-    if (catastrophic or good):
-        if catastrophic:
-            catgd_mask = np.array([False]*nrow)
-        else:
-            catgd_mask = simz_tab['ZWARN']==0
+    survey_mask = (simz_tab['Z'].mask == False)
+    elg = np.where(match_otype(simz_tab, 'ELG') & survey_mask)[0]
+    if len(elg) > 0:
+        elg_mask = elg_flux_lim(simz_tab['TRUEZ'][elg],
+                                simz_tab['OIIFLUX'][elg])
+        # Update
+        survey_mask[elg[~elg_mask]] = False
+    # zwarn -- Masked array
+    zwarn_mask = np.array([False]*nrow)
+    idx = np.where((simz_tab['ZWARN'] == 0) & (simz_tab['ZWARN'].mask == False))[0]
+    zwarn_mask[idx] = True
+    # Catastrophic/Good (This gets a bit more messy...)
+    dv_mask = np.array([True]*nrow)
+    if dvlimit is None:
         for obj in ['ELG','LRG','QSO_L','QSO_T']:
             dv = catastrophic_dv(obj) # km/s
-            omask = np.where(match_otype(simz_tab, objtype) & (simz_tab['ZWARN']==0))[0]
+            omask = np.where(match_otype(simz_tab, obj))[0] # & (simz_tab['ZWARN']==0))[0]
             dz = calc_dz(simz_tab[omask]) # dz/1+z
             cat = np.where(np.abs(dz)*3e5 > dv)[0]
-            # Update
-            if catastrophic:
-                catgd_mask[omask[cat]] = True
-            else:
-                if not all_zwarn0:
-                    catgd_mask[omask[cat]] = False
-    else:
-        catgd_mask = np.array([True]*nrow)
+            dv_mask[omask[cat]] = False
+        else:
+            dz = calc_dz(simz_tab) # dz/1+z
+            cat = np.where(np.abs(dz)*3e5 > dv)[0]
+            dv_mask[cat] = False
+    # Return
+    return objtype_mask, z_mask, survey_mask, dv_mask, zwarn_mask
 
-    # Final mask
-    mask = objtype_mask & redm_mask & survey_mask & catgd_mask
+
+def slice_simz(simz_tab, objtype=None, z_analy=False, survey=False,
+    catastrophic=False, good=False, all_zwarn0=False, **kwargs):
+    """Slice input simz_tab in one of many ways
+
+    Parameters
+    ----------
+    z_analy : bool, optional
+      redshift analysis required?
+    all_zwarn0 : bool, optional
+      Ignores catastrophic failures in the slicing to return
+      all sources with ZWARN==0
+    survey : bool, optional
+      Only include objects that satisfy the Survey requirements
+      e.g. ELGs with sufficient OII_flux
+    catastrophic : bool, optional
+      Restrict to catastropic failures
+    good : bool, optional
+      Restrict to good redshifts
+    all_zwarn0 : bool, optional
+      Restrict to ZWARN=0 cases
+    **kwargs : passed to criteria
+
+    Returns
+    -------
+    simz_table : Table cut by input parameters
+    """
+    # Grab the masks
+    objtype_mask, z_mask, survey_mask, dv_mask, zwarn_mask = criteria(
+        simz_tab, objtype=objtype, **kwargs)
+
+    # Slice me
+    final_mask = objtype_mask
+    if z_analy:
+        final_mask &= z_mask
+    if survey:
+        final_mask &= survey_mask
+    if catastrophic:
+        final_mask &= (~dv_mask)
+    if good:
+        final_mask &= dv_mask
+    if all_zwarn0:
+        final_mask &= zwarn_mask
 
     # Return
-    return simz_tab[mask]
+    return simz_tab[final_mask]
+
 
 def obj_fig(simz_tab, objtype, summ_stats, outfile=None):
     """Generate QA plot for a given object type
@@ -589,7 +667,7 @@ def summ_fig(simz_tab, summ_tab, meta, outfile=None):
     gs = gridspec.GridSpec(3,2)
 
     # RedMonster objects
-    zobj_tab = slice_simz(simz_tab,redm=True)
+    zobj_tab = slice_simz(simz_tab,z_analy=True)
     otypes = ['ELG','LRG','QSO_L','QSO_T']
 
     # z vs. z plot
@@ -884,7 +962,7 @@ def dz_summ(simz_tab, outfile=None, pdict=None, min_count=20):
                 ptype = fluxes[i]
 
             # Grab the set of measurements
-            survey = slice_simz(simz_tab, objtype=otype, redm=True, survey=True)
+            survey = slice_simz(simz_tab, objtype=otype, z_analy=True, survey=True)
 
             # Simple stats
             ok = survey['ZWARN'] == 0
