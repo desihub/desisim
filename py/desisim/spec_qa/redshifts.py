@@ -375,7 +375,8 @@ def zstats(simz_tab, objtype=None, dvlimit=None, count=False):
     nfail = np.count_nonzero(cat)
     nmiss = np.count_nonzero(miss)
     nlost = np.count_nonzero(lost)
-    ntot = len(good)
+    ntot = np.count_nonzero(objtype_mask)
+    # Check
     assert(ntot == ngood+nfail+nmiss+nlost)
     # Return
     if count:
