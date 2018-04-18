@@ -39,7 +39,7 @@ def parse(options=None):
     parser.add_argument('--moonfrac', type=float, default=None, help="Moon illumination fraction; 1=full")
     parser.add_argument('--moonalt', type=float, default=None, help="Moon altitude [degrees]")
     parser.add_argument('--moonsep', type=float, default=None, help="Moon separation to tile [degrees]")
-    parser.add_argument('--seed', type=int, default=0, help="Random seed")
+    parser.add_argument('--seed', type=int, default=None, required = False, help="Random seed")
     parser.add_argument('--skyerr', type=float, default=0.0, help="Fractional sky subtraction error")
     parser.add_argument('--norm-filter', type=str, default="decam2014-g", help="Broadband filter for normalization")
     parser.add_argument('--nmax', type=int, default=None, help="Max number of QSO per input file, for debugging")
@@ -62,9 +62,14 @@ def parse(options=None):
 
     return args
 
-def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside) :
+def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed) :
     
     log = get_logger()
+
+    # set seed now
+    # we need a seed per healpix because
+    # the spectra simulator REQUIRES a seed
+    np.random.seed(seed)
     
     healpix=0
     nside=0
@@ -98,15 +103,12 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                 log.info("skip existing {}".format(ofilename))
                 return
 
-    log.info("Read skewers in {}".format(ifilename))
+    log.info("Read skewers in {}, random seed = {}".format(ifilename,seed))
     trans_wave, transmission, metadata = read_lya_skewers(ifilename)
     ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
     transmission = transmission[ok]
     metadata = metadata[:][ok]
-
-    # set seed now in case we are downsampling
-    np.random.seed(args.seed)
-
+    
     # create quasars
     
     if args.desi_footprint :
@@ -144,8 +146,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     log.info("Simulate {} QSOs".format(nqso))
     tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(
-        nmodel=nqso, redshift=metadata['Z'], seed=args.seed,
-        lyaforest=False, nocolorcuts=True, noresample=True)
+        nmodel=nqso, redshift=metadata['Z'], 
+        lyaforest=False, nocolorcuts=True, noresample=True, seed = seed)
 
     log.info("Resample to transmission wavelength grid")
     # because we don't want to alter the transmission field with resampling here
@@ -204,7 +206,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     log.warning("Assuming the healpix scheme is 'NESTED'")
     meta={"HPXNSIDE":nside,"HPXPIXEL":healpix, "HPXNEST":True}
     
-    sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,seed=args.seed,sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,meta=meta)
+    sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,meta=meta,seed=seed)
 
     if args.zbest :
         log.info("Read fibermap")
@@ -311,18 +313,25 @@ def main(args=None):
         footprint_healpix_nside=256 # same resolution as original map so we don't loose anything
         footprint_healpix_weight = load_pixweight(footprint_healpix_nside, pixmap=pixmap)
         
+    if args.seed is not None :
+        np.random.seed(args.seed)
+    
+    # seeds for each healpix are themselves random numbers
+    seeds = np.random.randint(2**32, size=len(args.infile))
+    
     if args.nproc > 1 :
         func_args = [ {"ifilename":filename , \
                        "args":args, "model":model , \
                        "obsconditions":obsconditions , \
                        "decam_and_wise_filters": decam_and_wise_filters , \
                        "footprint_healpix_weight": footprint_healpix_weight , \
-                       "footprint_healpix_nside": footprint_healpix_nside \
-                   } for filename in args.infile ]
+                       "footprint_healpix_nside": footprint_healpix_nside , \
+                       "seed":seeds[i]
+                   } for i,filename in enumerate(args.infile) ]
         pool = multiprocessing.Pool(args.nproc)
         pool.map(_func, func_args)
     else :
-        for ifilename in args.infile : 
-            simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside)
+        for i,ifilename in enumerate(args.infile) : 
+            simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed=seeds[i])
     
         
