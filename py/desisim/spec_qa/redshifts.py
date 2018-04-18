@@ -360,7 +360,7 @@ def zstats(simz_tab, objtype=None, dvlimit=None, count=False, survey=False):
 
     Returns:
         if count=True: just the raw counts of each category :: ngood, nfail, nmiss, nlost
-        else: precentile of each relative to ntot
+        else: precentile of each relative to ntot and ntot
 
     """
     # Grab the masks
@@ -393,7 +393,7 @@ def zstats(simz_tab, objtype=None, dvlimit=None, count=False, survey=False):
     elif ntot == 0:
         return (np.nan, np.nan, np.nan, np.nan)
     else:
-        return 100*ngood/ntot, 100*nfail/ntot, 100*nmiss/ntot, 100*nlost/ntot
+        return 100*ngood/ntot, 100*nfail/ntot, 100*nmiss/ntot, 100*nlost/ntot, ntot
 
 
 def criteria(simz_tab, objtype=None, dvlimit=None):
