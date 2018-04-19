@@ -24,7 +24,7 @@ from desispec.resolution import Resolution
 import matplotlib.pyplot as plt
 
 def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
-                sourcetype=None, targetid=None, redshift=None, expid=0, seed=0, skyerr=0.0, ra=None, dec=None, meta=None, scores=None):
+                sourcetype=None, targetid=None, redshift=None, expid=0, seed=0, skyerr=0.0, ra=None, dec=None, meta=None, fibermap_columns=None):
     """
     Simulate spectra from an input set of wavelength and flux and writes a FITS file in the Spectra format that can
     be used as input to the redshift fitter.
@@ -48,7 +48,7 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
         ra : numpy array with targets RA (deg)
         dec : numpy array with targets Dec (deg)
         meta : dictionnary, saved in primary fits header of the spectra file 
-        scores : saved as binary table in SCORES hdu of the spectra file 
+        fibermap_columns : add these columns to the fibermap
     
     """
     log = get_logger()
@@ -86,8 +86,10 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
     frame_fibermap['DESI_TARGET'][sourcetype=="bgs"]=tm.BGS_ANY
     
     
-
-    
+    if fibermap_columns is not None :
+        for k in fibermap_columns.keys() :
+            frame_fibermap[k] = fibermap_columns[k]
+        
     if targetid is None:
         targetid = np.arange(nspec).astype(int)
         
@@ -209,7 +211,6 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
                        mask={band : mask}, 
                        fibermap=spectra_fibermap, 
                        meta=meta,
-                       scores=scores,
                        single=True)
         
         if specdata is None :

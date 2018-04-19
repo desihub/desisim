@@ -55,7 +55,7 @@ def parse(options=None):
     parser.add_argument('--zbest', action = "store_true" ,help="add a zbest file per spectrum with the truth")
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
     parser.add_argument('--target-selection', action = "store_true" ,help="apply QSO target selection cuts to the simulated quasars")
-    parser.add_argument('--mags', action = "store_true" ,help="compute broadband mags (actually fluxes) and save them in the 'SCORES' HDU of the spectra files")
+    parser.add_argument('--mags', action = "store_true" ,help="compute and write the QSO mags in the fibermap")
     parser.add_argument('--desi-footprint', action = "store_true" ,help="select QSOs in DESI footprint")
     
     if options is None:
@@ -190,10 +190,10 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     log.info("Apply lya")
     tmp_qso_flux = apply_lya_transmission(tmp_qso_wave,tmp_qso_flux,trans_wave,transmission)
 
-    scores=None
+    bbflux=None
     if args.target_selection or args.mags :
         bands=['FLUX_G','FLUX_R','FLUX_Z', 'FLUX_W1', 'FLUX_W2']
-        scores=Table()
+        bbflux=dict()
         # need to recompute the magnitudes to account for lya transmission
         log.info("Compute QSO magnitudes")
         maggies = decam_and_wise_filters.get_ab_maggies(
@@ -201,20 +201,21 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         for band, filt in zip( bands,
                             [ 'decam2014-g', 'decam2014-r', 'decam2014-z',
                               'wise2010-W1', 'wise2010-W2']  ):
-            scores[band] = np.ma.getdata(1e9 * maggies[filt]) # nanomaggies
-        
-        
+            
+            bbflux[band] = np.ma.getdata(1e9 * maggies[filt]) # nanomaggies
+    
     if args.target_selection :
         log.info("Apply target selection")
-        isqso = isQSO_colors(gflux=scores['FLUX_G'], rflux=scores['FLUX_R'], zflux=scores['FLUX_Z'],
-                           w1flux=scores['FLUX_W1'], w2flux=scores['FLUX_W2'])
+        isqso = isQSO_colors(gflux=bbflux['FLUX_G'], rflux=bbflux['FLUX_R'], zflux=bbflux['FLUX_Z'],
+                             w1flux=bbflux['FLUX_W1'], w2flux=bbflux['FLUX_W2'])
         log.info("Target selection: {}/{} QSOs selected".format(np.sum(isqso),nqso))
         selection=np.where(isqso)[0]
         if selection.size==0 : return
         tmp_qso_flux = tmp_qso_flux[selection]
         metadata     = metadata[:][selection]
         meta         = meta[:][selection]
-        scores       = scores[:][selection]
+        for band in bands : 
+            bbflux[band] = bbflux[band][selection]
         nqso         = selection.size
     
     log.info("Resample to a linear wavelength grid (needed by DESI sim.)")
@@ -245,9 +246,15 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     
     log.warning("Assuming the healpix scheme is 'NESTED'")
     meta={"HPXNSIDE":nside,"HPXPIXEL":healpix, "HPXNEST":True}
+     
+    # today we write mags because that's what is in the fibermap
+    mags=np.zeros((qso_flux.shape[0],5))
+    for i,band in enumerate(bands) :
+        jj=(bbflux[band]>0)
+        mags[jj,i] = 22.5-2.5*np.log10(bbflux[band][jj]) # AB magnitudes
     
-    sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,meta=meta,seed=seed,scores=scores)
-
+    sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,meta=meta,seed=seed,fibermap_columns={"MAG":mags})
+    
     if args.zbest :
         log.info("Read fibermap")
         fibermap = read_fibermap(ofilename)
