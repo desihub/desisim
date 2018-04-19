@@ -208,6 +208,9 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
     simfile = io.write_simspec(sim, meta, fibermap, obsconditions,
         expid, night, header=hdr, filename=outsimspec)
 
+    if not isinstance(fibermap, table.Table):
+        fibermap = table.Table(fibermap)
+
     fibermap.meta.update(hdr)
     desispec.io.write_fibermap(outfibermap, fibermap)
     log.info('Wrote '+outfibermap)

@@ -47,14 +47,14 @@ def main(args=None):
         args = parse(args)
     
     print('Reading files')
-    simspec = desisim.io.read_simspec(args.simspec)
+    simspec = desisim.io.read_simspec(args.simspec, readphot=False)
 
     if simspec.flavor == 'arc':
         print('arc exposure; no frames to output')
         return
 
     fibermap = simspec.fibermap
-    obs = simspec.obs
+    obs = simspec.obsconditions
     night = simspec.header['NIGHT']
     expid = simspec.header['EXPID']
 
@@ -62,7 +62,7 @@ def main(args=None):
     nspec = min(args.nspec, len(fibermap)-firstspec)
 
     print('Simulating spectra {}-{}'.format(firstspec, firstspec+nspec))
-    wave = simspec.wave['brz']
+    wave = simspec.wave
     flux = simspec.flux
     ii = slice(firstspec, firstspec+nspec)
     if simspec.flavor == 'science':

@@ -372,8 +372,7 @@ def main(args, comm=None):
             truepix = {}
 
             #since we handle only one spectra at a time, just load the one we need 
-            simspec = io.read_simspec_mpi(args.simspec, comm_group, channel,
-                          spectrographs=group_spectro[i])
+            simspec = io.read_simspec(args.simspec, camera, comm=comm_group)
 
             if group_rank == 0:
                 log.debug('Processing camera {}'.format(camera))
@@ -426,7 +425,7 @@ def main(args, comm=None):
             group_fibers = fibers[fs]
 
             image[camera], rawpix[camera], truepix[camera] = \
-                simulate(camera, simspec, psf, fibers=group_fibers,
+                simulate(camera, simspec, psf,
                     ncpu=args.ncpu, nspec=args.nspec, cosmics=cosmics,
                     wavemin=args.wavemin, wavemax=args.wavemax, preproc=False,
                     comm=comm_group)
@@ -462,12 +461,11 @@ def main(args, comm=None):
     #initalize random number seeds
     seed_counter=0 #need to initialize counter
     if comm is None:
-        simspec = io.read_simspec(args.simspec)
         previous_camera='a'
         for i in range(len(node_cameras)):
-
             current_camera=node_cameras[i]
             camera=current_camera[0] + current_camera[1]
+            simspec = io.read_simspec(args.simspec, camera)
             channel=current_camera[0]
 
             if group_rank == 0:
@@ -519,7 +517,7 @@ def main(args, comm=None):
                     "{}".format(group, group_size, camera))
 
             image[camera], rawpix[camera], truepix[camera] = \
-                simulate(camera, simspec, psf, fibers=group_fibers, 
+                simulate(camera, simspec, psf,
                     ncpu=args.ncpu, nspec=args.nspec, cosmics=cosmics, 
                     wavemin=args.wavemin, wavemax=args.wavemax, preproc=False,
                     comm=comm_group)

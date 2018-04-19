@@ -26,7 +26,7 @@ def parse(options=None):
     parser.add_argument('--yaml_file', type = str, default = None, required=False,
                         help = 'YAML file for debugging (primarily).')
     parser.add_argument('--write_simz_table', type=str, default=None, help = 'Write simz to this filename')
-    parser.add_argument('--qafig_path', type=str, default=None, help = 'Path to where QA figure files are generated.  Default is specprod_dir+/QA')
+    parser.add_argument('--qaprod_dir', type=str, default=None, help = 'Path to where QA figure files are generated.  Default is specprod_dir+/QA')
 
     if options is None:
         args = parser.parse_args()
@@ -53,12 +53,10 @@ def main(args):
     log = get_logger()
 
     # Initialize
-    specprod_dir = desispec.io.meta.specprod_root()
-
-    if args.qafig_path is not None:
-        qafig_path = args.qafig_path
+    if args.qaprod_dir is not None:
+        qaprod_dir = args.qaprod_dir
     else:
-        qafig_path = desispec.io.meta.qaprod_root()
+        qaprod_dir = desispec.io.meta.qaprod_root()
 
 
     if args.load_simz_table is not None:
@@ -132,14 +130,14 @@ def main(args):
 
     log.info("Generating QA files")
     # Summary for dz of all types
-    outfile = qafig_path+'/QA_dzsumm.png'
+    outfile = qaprod_dir+'/QA_dzsumm.png'
     desispec.io.util.makepath(outfile)
     dsqa_z.dz_summ(simz_tab, outfile=outfile)
     # Summary of individual types
     #outfile = args.qafig_root+'_summ_fig.png'
     #dsqa_z.summ_fig(simz_tab, summ_dict, meta, outfile=outfile)
     for objtype in ['BGS', 'MWS', 'ELG','LRG', 'QSO_T', 'QSO_L']:
-        outfile = qafig_path+'/QA_zfind_{:s}.png'.format(objtype)
+        outfile = qaprod_dir+'/QA_zfind_{:s}.png'.format(objtype)
         desispec.io.util.makepath(outfile)
         dsqa_z.obj_fig(simz_tab, objtype, summ_dict, outfile=outfile)
 
