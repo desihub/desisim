@@ -4,7 +4,7 @@ import argparse
 import time
 
 import numpy as np
-from astropy.table import Table
+from astropy.table import Table,Column
 import astropy.io.fits as pyfits
 import multiprocessing
 
@@ -18,6 +18,8 @@ from desisim.lya_spectra import read_lya_skewers , apply_lya_transmission
 from desispec.interpolation import resample_flux
 from desimodel.io import load_pixweight
 from desimodel import footprint
+from speclite import filters
+from desitarget.cuts import isQSO_colors
 
 import matplotlib.pyplot as plt
 
@@ -53,6 +55,7 @@ def parse(options=None):
     parser.add_argument('--zbest', action = "store_true" ,help="add a zbest file per spectrum with the truth")
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
     parser.add_argument('--target-selection', action = "store_true" ,help="apply QSO target selection cuts to the simulated quasars")
+    parser.add_argument('--mags', action = "store_true" ,help="compute and write the QSO mags in the fibermap")
     parser.add_argument('--desi-footprint', action = "store_true" ,help="select QSOs in DESI footprint")
     
     if options is None:
@@ -89,12 +92,13 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     else :
         ofilename = os.path.join(args.outdir,"{}/{}/spectra-{}-{}.fits".format(healpix//100,healpix,nside,healpix))
     pixdir = os.path.dirname(ofilename)
-        
+    
+    if args.zbest :
+        zbest_filename = os.path.join(pixdir,"zbest-{}-{}.fits".format(nside,healpix))
+ 
     if not args.overwrite :
         # check whether output exists or not
-        
         if args.zbest :
-            zbest_filename = os.path.join(pixdir,"zbest-{}-{}.fits".format(nside,healpix))
             if os.path.isfile(ofilename) and os.path.isfile(zbest_filename) :
                 log.info("skip existing {} and {}".format(ofilename,zbest_filename))
                 return
@@ -120,7 +124,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             return
         transmission = transmission[selection]
         metadata = metadata[:][selection]
-    
 
     nqso=transmission.shape[0]
     if args.downsampling is not None :
@@ -144,6 +147,33 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             metadata = metadata[:][indices]
             nqso = args.nmax
 
+            
+    if args.target_selection or args.mags :
+        wanted_min_wave = 3329. # needed to compute magnitudes for decam2014-r (one could have trimmed the transmission file ...)
+        wanted_max_wave = 55501. # needed to compute magnitudes for wise2010-W2
+        
+        if trans_wave[0]>wanted_min_wave :
+            log.info("Increase wavelength range from {}:{} to {}:{} to compute magnitudes".format(int(trans_wave[0]),int(trans_wave[-1]),int(wanted_min_wave),int(trans_wave[-1])))
+            # pad with zeros at short wavelength because we assume transmission = 0
+            # and we don't need any wavelength resolution here
+            new_trans_wave = np.append([wanted_min_wave,trans_wave[0]-0.01],trans_wave)
+            new_transmission = np.zeros((transmission.shape[0],new_trans_wave.size))
+            new_transmission[:,2:] = transmission
+            trans_wave   = new_trans_wave
+            transmission = new_transmission
+                    
+        if trans_wave[-1]<wanted_max_wave :
+            log.info("Increase wavelength range from {}:{} to {}:{} to compute magnitudes".format(int(trans_wave[0]),int(trans_wave[-1]),int(trans_wave[0]),int(wanted_max_wave)))
+            # pad with ones at long wavelength because we assume transmission = 1
+            coarse_dwave = 2. # we don't care about resolution, we just need a decent QSO spectrum, there is no IGM transmission in this range
+            n = int((wanted_max_wave-trans_wave[-1])/coarse_dwave)+1
+            new_trans_wave = np.append(trans_wave,np.linspace(trans_wave[-1]+coarse_dwave,trans_wave[-1]+coarse_dwave*(n+1),n))
+            new_transmission = np.ones((transmission.shape[0],new_trans_wave.size))
+            new_transmission[:,:trans_wave.size] = transmission
+            trans_wave   = new_trans_wave
+            transmission = new_transmission
+            
+            
     log.info("Simulate {} QSOs".format(nqso))
     tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(
         nmodel=nqso, redshift=metadata['Z'], 
@@ -156,28 +186,38 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         qso_flux[q]=np.interp(trans_wave,tmp_qso_wave,tmp_qso_flux[q])
     tmp_qso_flux = qso_flux
     tmp_qso_wave = trans_wave
-
+        
     log.info("Apply lya")
     tmp_qso_flux = apply_lya_transmission(tmp_qso_wave,tmp_qso_flux,trans_wave,transmission)
 
-    if args.target_selection :
-        log.info("Compute QSO magnitudes for target selection")
+    bbflux=None
+    if args.target_selection or args.mags :
+        bands=['FLUX_G','FLUX_R','FLUX_Z', 'FLUX_W1', 'FLUX_W2']
+        bbflux=dict()
+        # need to recompute the magnitudes to account for lya transmission
+        log.info("Compute QSO magnitudes")
         maggies = decam_and_wise_filters.get_ab_maggies(
-            1e-17 * tmp_qso_flux, tmp_qso_wave.copy(), mask_invalid=True)
-        for band, filt in zip( ('FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2'),
-                               ('decam2014-g', 'decam2014-r', 'decam2014-z',
-                                'wise2010-W1', 'wise2010-W2') ):
-            meta[band] = np.ma.getdata(1e9 * maggies[filt]) # nanomaggies
-        isqso = isQSO_colors(gflux=meta['FLUX_G'], rflux=meta['FLUX_R'], zflux=meta['FLUX_Z'],
-                           w1flux=meta['FLUX_W1'], w2flux=meta['FLUX_W2'])
+            1e-17 * tmp_qso_flux, tmp_qso_wave)
+        for band, filt in zip( bands,
+                            [ 'decam2014-g', 'decam2014-r', 'decam2014-z',
+                              'wise2010-W1', 'wise2010-W2']  ):
+            
+            bbflux[band] = np.ma.getdata(1e9 * maggies[filt]) # nanomaggies
+    
+    if args.target_selection :
+        log.info("Apply target selection")
+        isqso = isQSO_colors(gflux=bbflux['FLUX_G'], rflux=bbflux['FLUX_R'], zflux=bbflux['FLUX_Z'],
+                             w1flux=bbflux['FLUX_W1'], w2flux=bbflux['FLUX_W2'])
         log.info("Target selection: {}/{} QSOs selected".format(np.sum(isqso),nqso))
         selection=np.where(isqso)[0]
         if selection.size==0 : return
         tmp_qso_flux = tmp_qso_flux[selection]
         metadata     = metadata[:][selection]
         meta         = meta[:][selection]
+        for band in bands : 
+            bbflux[band] = bbflux[band][selection]
         nqso         = selection.size
-
+    
     log.info("Resample to a linear wavelength grid (needed by DESI sim.)")
     # we need a linear grid. for this resampling we take care of integrating in bins
     # we do not do a simple interpolation
@@ -203,11 +243,18 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         log.warning("No TARGETID")
         targetid=None
 
+    
     log.warning("Assuming the healpix scheme is 'NESTED'")
     meta={"HPXNSIDE":nside,"HPXPIXEL":healpix, "HPXNEST":True}
+     
+    # today we write mags because that's what is in the fibermap
+    mags=np.zeros((qso_flux.shape[0],5))
+    for i,band in enumerate(bands) :
+        jj=(bbflux[band]>0)
+        mags[jj,i] = 22.5-2.5*np.log10(bbflux[band][jj]) # AB magnitudes
     
-    sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,meta=meta,seed=seed)
-
+    sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,meta=meta,seed=seed,fibermap_columns={"MAG":mags})
+    
     if args.zbest :
         log.info("Read fibermap")
         fibermap = read_fibermap(ofilename)
@@ -290,14 +337,10 @@ def main(args=None):
     model=SIMQSO(normfilter=args.norm_filter,nproc=1)
     
     decam_and_wise_filters = None
-    if args.target_selection :
+    if args.target_selection or args.mags :
         log.info("Load DeCAM and WISE filters for target selection sim.")
-        
-        from speclite import filters
-        from desitarget.cuts import isQSO_colors
-
         decam_and_wise_filters = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
-                                         'wise2010-W1', 'wise2010-W2')
+                                                      'wise2010-W1', 'wise2010-W2')
         
     footprint_healpix_weight = None
     footprint_healpix_nside  = None
