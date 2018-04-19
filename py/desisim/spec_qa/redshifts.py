@@ -347,9 +347,9 @@ def obj_requirements(zstats, objtype):
 def zstats(simz_tab, objtype=None, dvlimit=None, count=False, survey=False):
     """ Perform statistics on the input truth+z table
     good = Satisfies dv criteria and ZWARN==0
-    cat = Fails dv criteria with ZWARN==0
-    miss = Fails dv criteria but ZWARN!=0
-    lost = Fails dv criteria and ZWARN!=0
+    fail = Fails dv criteria with ZWARN==0 (catastrophic failures)
+    miss = Satisfies dv criteria but ZWARN!=0 (missed opportunities)
+    lost = Fails dv criteria and ZWARN!=0 (lost, but at least we knew it)
 
     Args:
         simz_tab:
@@ -360,7 +360,7 @@ def zstats(simz_tab, objtype=None, dvlimit=None, count=False, survey=False):
 
     Returns:
         if count=True: just the raw counts of each category :: ngood, nfail, nmiss, nlost
-        else: precentile of each relative to ntot and ntot
+        else: percentile of each relative to ntot, and ntot
 
     """
     # Grab the masks

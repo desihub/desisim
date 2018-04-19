@@ -236,36 +236,10 @@ def main(args):
         simspec = desisim.io.read_simspec(args.simspec)
         nspec = simspec.nspec
         if simspec.flavor == 'arc':
-            #- TODO: do we need quickgen to support arcs?  For full pipeline
-            #- arcs are used to measure PSF but aren't extracted except for
-            #- debugging.
-            #- TODO: if we do need arcs, this needs to be redone.
-            #- conversion from phot to flux doesn't include throughput,
-            #- and arc lines are rebinned to nearest 0.2 A.
-
-            # Create full wavelength and flux arrays for arc exposure
-            wave_b = np.array(simspec.wave['b'])
-            wave_r = np.array(simspec.wave['r'])
-            wave_z = np.array(simspec.wave['z'])
-            phot_b = np.array(simspec.phot['b'][0])
-            phot_r = np.array(simspec.phot['r'][0])
-            phot_z = np.array(simspec.phot['z'][0])
-            sim_wave = np.concatenate((wave_b,wave_r,wave_z))
-            sim_phot = np.concatenate((phot_b,phot_r,phot_z))
-            wavelengths = np.arange(3533.,9913.1,0.2)
-            phot = np.zeros(len(wavelengths))
-            for i in range(len(sim_wave)):
-                wavelength = sim_wave[i]
-                flux_index = np.argmin(abs(wavelength-wavelengths))
-                phot[flux_index] = sim_phot[i]
-            # Convert photons to flux: following specter conversion method
-            dw = np.gradient(wavelengths)
-            exptime = 5. # typical BOSS exposure time in s
-            fibarea = const.pi*(1.07e-2/2)**2 # cross-sectional fiber area in cm^2
-            hc = 1.e17*const.h*const.c # convert to erg A
-            spectra = (hc*exptime*fibarea*dw*phot)/wavelengths
+            log.warning("quickgen doesn't generate flavor=arc outputs")
+            return
         else:
-            wavelengths = simspec.wave['brz']
+            wavelengths = simspec.wave
             spectra = simspec.flux
         if nspec < args.nspec:
             log.info("Only {} spectra in input file".format(nspec))
@@ -459,7 +433,13 @@ def main(args):
         noisyflux[camera.name] = np.empty((args.nspec, nwave)) # observed flux with noise
         obsivar[camera.name] = np.empty((args.nspec, nwave)) # inverse variance of flux
         if args.simspec:
-            dw = np.gradient(simspec.wave[camera.name])
+            for i in range(10):
+                cn = camera.name + str(i)
+                if cn in simspec.cameras:
+                    dw = np.gradient(simspec.cameras[cn].wave)
+                    break
+            else:
+                raise RuntimeError('Unable to find a {} camera in input simspec'.format(camera))
         else:
             sflux = np.empty((args.nspec, npix))
 
@@ -469,13 +449,26 @@ def main(args):
         if simspec.flavor == 'flat':
             log.info("Simulating flat lamp exposure")
             for i,camera in enumerate(qsim.instrument.cameras):
-                channel = camera.name
+                channel = camera.name   #- from simspec, b/r/z not b0/r1/z9
                 assert camera.output_wavelength.unit == u.Angstrom
                 num_pixels = len(waves[channel])
-                dw = np.gradient(simspec.wave[channel])
+
+                phot = list()
+                for j in range(10):
+                    cn = camera.name + str(j)
+                    if cn in simspec.cameras:
+                        camwave = simspec.cameras[cn].wave
+                        dw = np.gradient(camwave)
+                        phot.append(simspec.cameras[cn].phot)
+
+                if len(phot) == 0:
+                    raise RuntimeError('Unable to find a {} camera in input simspec'.format(camera))
+                else:
+                    phot = np.vstack(phot)
+
                 meanspec = resample_flux(
-                    waves[channel], simspec.wave[channel],
-                    np.average(simspec.phot[channel]/dw, axis=0))
+                    waves[channel], camwave, np.average(phot/dw, axis=0))
+
                 fiberflat = random_state.normal(loc=1.0,
                     scale=1.0 / np.sqrt(meanspec), size=(nspec, num_pixels))
                 ivar = np.tile(meanspec, [nspec, 1])
