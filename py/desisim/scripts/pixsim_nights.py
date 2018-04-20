@@ -1,6 +1,6 @@
 """
-desisim.scripts.pixsim
-======================
+desisim.scripts.pixsim_nights
+=============================
 
 This is a module.
 """

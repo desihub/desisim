@@ -45,17 +45,19 @@ def simulate_frame(night, expid, camera, ccdshape=None, **kwargs):
     Writes:
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/simpix-{camera}-{expid}.fits
         $DESI_SPECTRO_SIM/$PIXPROD/{night}/desi-{expid}.fits
-        $DESI_SPECTRO_SIM/$PIXPROD/{night}/pix-{camera}-{expid}.fits
 
     For a lower-level pixel simulation interface that doesn't perform I/O,
     see pixsim.simulate()
+
+    Note: call desi_preproc or desispec.preproc.preproc to pre-process the
+    output desi*.fits file for overscan subtraction, noise estimation, etc.
     """
     #- night, expid, camera -> input file names
     simspecfile = io.findfile('simspec', night=night, expid=expid)
 
     #- Read inputs
     psf = desimodel.io.load_psf(camera[0])
-    simspec = io.read_simspec(simspecfile)
+    simspec = io.read_simspec(simspecfile, camera, readflux=False)
 
     #- Trim effective CCD size; mainly to limit memory for testing
     if ccdshape is not None:
@@ -76,12 +78,7 @@ def simulate_frame(night, expid, camera, ccdshape=None, **kwargs):
     rawfile = os.path.join(simdir, os.path.basename(rawfile))
     desispec.io.write_raw(rawfile, rawpix, image.meta, camera=camera)
 
-    pixfile = desispec.io.findfile('pix', night=night, expid=expid, camera=camera)
-    pixfile = os.path.join(simdir, os.path.basename(pixfile))
-    desispec.io.write_image(pixfile, image)
-
-
-def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
+def simulate(camera, simspec, psf, nspec=None, ncpu=None,
     cosmics=None, wavemin=None, wavemax=None, preproc=True, comm=None):
     """Run pixel-level simulation of input spectra
 
@@ -89,7 +86,6 @@ def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
         camera (string) : b0, r1, .. z9
         simspec : desispec.io.SimSpec object e.g. from desispec.io.read_simspec()
         psf : subclass of specter.psf.psf.PSF, e.g. from desimodel.io.load_psf()
-        fibers (array_like, optional):  fibers included in this simspec
         nspec (int, optional) : number of spectra to simulate
         ncpu (int, optional) : number of CPU cores to use in parallel
         cosmics (optional): desispec.image.Image object from desisim.io.read_cosmics()
@@ -120,35 +116,17 @@ def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
     #- this is not necessarily true, the truth in is the fibermap
     nfibers = params['spectro']['nfibers']
 
-    if fibers is not None:
-        fibers = np.asarray(fibers)
-        allphot = simspec.phot[channel] + simspec.skyphot[channel]
+    phot = simspec.cameras[camera].phot
+    if simspec.cameras[camera].skyphot is not None:
+        phot += simspec.cameras[camera].skyphot
 
-        #- Trim to just fibers on this spectrograph
-        ii = np.where(fibers//500 == ispec)[0]
-        fibers = fibers[ii]
-
-        phot = np.zeros((nfibers, allphot.shape[1]))
-        phot[fibers%500] = allphot[ii]
+    if nspec is not None:
+        phot = phot[0:nspec]
     else:
-        if ispec*nfibers >= simspec.nspec:
-            msg = "camera {} not covered by simspec with {} spectra".format(
-                camera, simspec.nspec)
-            log.error(msg)
-            raise ValueError(msg)
+        nspec = phot.shape[0]
 
-        phot = simspec.phot[channel] + simspec.skyphot[channel]
-
-        #- Trim to just the fibers for this spectrograph
-        if nspec is None:
-            ii = slice(nfibers*ispec, nfibers*(ispec+1))
-        else:
-            ii = slice(nfibers*ispec, nfibers*ispec + nspec)
-
-        phot = phot[ii]
-
-    #- Trim wavelenths if needed
-    wave = simspec.wave[channel]
+    #- Trim wavelengths if needed
+    wave = simspec.cameras[camera].wave
     if wavemin is not None:
         ii = (wave >= wavemin)
         phot = phot[:, ii]
@@ -157,10 +135,6 @@ def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
         ii = (wave <= wavemax)
         phot = phot[:, ii]
         wave = wave[ii]
-
-    #- check if simulation has less than 500 input spectra
-    if phot.shape[0] < nspec:
-        nspec = phot.shape[0]
 
     #- Project to image and append that to file
     if (comm is None) or (comm.rank == 0):
@@ -207,11 +181,11 @@ def simulate(camera, simspec, psf, fibers=None, nspec=None, ncpu=None,
             header['RDNOISE3'] = readnoise
             header['RDNOISE4'] = readnoise
 
-        if (comm is None) or (comm.rank == 0):
-            log.info('RDNOISE1 {}'.format(header['RDNOISE1']))
-            log.info('RDNOISE2 {}'.format(header['RDNOISE2']))
-            log.info('RDNOISE3 {}'.format(header['RDNOISE3']))
-            log.info('RDNOISE4 {}'.format(header['RDNOISE4']))
+        # if (comm is None) or (comm.rank == 0):
+        #     log.info('RDNOISE1 {}'.format(header['RDNOISE1']))
+        #     log.info('RDNOISE2 {}'.format(header['RDNOISE2']))
+        #     log.info('RDNOISE3 {}'.format(header['RDNOISE3']))
+        #     log.info('RDNOISE4 {}'.format(header['RDNOISE4']))
 
         #- data already has noise if cosmics were added
         noisydata = (cosmics is not None)

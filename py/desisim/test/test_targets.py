@@ -48,7 +48,7 @@ class TestObs(unittest.TestCase):
         self.assertEqual(ndec, nspec)
 
     def test_random(self):
-        for nspec in (15, 30):
+        for nspec in (5,):
             fibermap1, (flux1, wave1, meta1) = desisim.targets.get_targets_parallel(nspec, 'DARK', seed=nspec+1)
             fibermap2a, (flux2a, wave2a, meta2a) = desisim.targets.get_targets_parallel(nspec, 'DARK', seed=nspec+2)
             fibermap2b, (flux2b, wave2b, meta2b) = desisim.targets.get_targets_parallel(nspec, 'DARK', seed=nspec+2)

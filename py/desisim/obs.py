@@ -29,7 +29,7 @@ import desisim.simexp
 from .simexp import simulate_spectra
 
 def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
-                 nproc=None, seed=None, obsconditions=None, 
+                 nproc=None, seed=None, obsconditions=None,
                  specify_targets=dict(), testslit=False, exptime=None,
                  arc_lines_filename=None, flat_spectrum_filename=None,
                  outdir=None):
@@ -38,31 +38,31 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
     Does not generate pixel-level simulations or noisy spectra.
 
     Args:
-        program: 'arc', 'flat', 'bright', 'dark', 'bgs', 'mws', ...
-
-    Options:
-        * nspec : integer number of spectra to simulate
-        * night : YEARMMDD string
-        * expid : positive integer exposure ID
-        * tileid : integer tile ID
-        * seed : random seed
-        * obsconditions: str or dict-like; see options below
-        * specify_targets: (dict of dicts)  Define target properties like magnitude and redshift
-                                 for each target class. Each objtype has its own key,value pair
-                                 see simspec.templates.specify_galparams_dict() 
-                                 or simsepc.templates.specify_starparams_dict()
-        * exptime: float exposure time [seconds], overrides obsconditions['EXPTIME']
-        * testslit : simulate test slit if True, default False; only for arc/flat
-        * arc_lines_filename : use alternate arc lines filename (used if program="arc")
-        * flat_spectrum_filename : use alternate flat spectrum filename (used if program="flat")
-        * outdir: output directory
-
-    Writes to outdir or $DESI_SPECTRO_SIM/$PIXPROD/{night}/
-        * fibermap-{expid}.fits
-        * simspec-{expid}.fits
+        program (str): 'arc', 'flat', 'bright', 'dark', 'bgs', 'mws', ...
+        nspec (int, optional): number of spectra to simulate
+        night (str, optional): YEARMMDD string
+        expid (int, optional): positive integer exposure ID
+        tileid (int, optional): integer tile ID
+        nproc (object, optional): What does this do?
+        seed (int, optional): random seed
+        obsconditions (str or dict-like, optional): see options below
+        specify_targets (dict of dicts, optional): Define target properties like magnitude and redshift
+            for each target class. Each objtype has its own key,value pair
+            see simspec.templates.specify_galparams_dict()
+            or simsepc.templates.specify_starparams_dict()
+        testslit (bool, optional): simulate test slit if True, default False; only for arc/flat
+        exptime (float, optional): exposure time [seconds], overrides obsconditions['EXPTIME']
+        arc_lines_filename (str, optional): use alternate arc lines filename (used if program="arc")
+        flat_spectrum_filename (str, optional): use alternate flat spectrum filename (used if program="flat")
+        outdir (str, optional): output directory
 
     Returns:
-        * science: sim, fibermap, meta, obsconditions
+        science: sim, fibermap, meta, obsconditions
+
+    Writes to outdir or $DESI_SPECTRO_SIM/$PIXPROD/{night}/
+
+        * fibermap-{expid}.fits
+        * simspec-{expid}.fits
 
     input obsconditions can be a string 'dark', 'gray', 'bright', or dict-like
     observation metadata with keys SEEING (arcsec), EXPTIME (sec), AIRMASS,
@@ -104,7 +104,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
 
     program = program.lower()
     log.debug('Generating {} targets'.format(nspec))
-    
+
     header = dict(NIGHT=night, EXPID=expid, PROGRAM=program)
     if program in ('arc', 'flat'):
         header['FLAVOR'] = program
@@ -113,7 +113,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
 
     #- ISO 8601 DATE-OBS year-mm-ddThh:mm:ss
     header['DATE-OBS'] = time.strftime('%FT%T', dateobs)
-    
+
     if program == 'arc':
         if arc_lines_filename is None :
             infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.4/arc-lines-average-in-vacuum-from-winlight-20170118.fits'
@@ -129,10 +129,10 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
 
         fibermap.meta['NIGHT'] = night
         fibermap.meta['EXPID'] = expid
-        fibermap.write(outfibermap)
+        desispec.io.write_fibermap(outfibermap, fibermap)
         truth = dict(WAVE=wave, PHOT=phot, UNITS='photon')
         return truth, fibermap, None, None
-    
+
     elif program == 'flat':
         if flat_spectrum_filename is None :
             infile = os.getenv('DESI_ROOT')+'/spectro/templates/calib/v0.4/flat-3100K-quartz-iodine.fits'
@@ -151,7 +151,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
 
         fibermap.meta['NIGHT'] = night
         fibermap.meta['EXPID'] = expid
-        fibermap.write(outfibermap)
+        desispec.io.write_fibermap(outfibermap, fibermap)
         # fluxunits = 1e-17 * u.erg / (u.s * u.cm**2 * u.Angstrom)
         fluxunits = '1e-17 erg/(s * cm2 * Angstrom)'
         flux = sim.simulated['source_flux'].to(fluxunits)
@@ -208,7 +208,11 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
     simfile = io.write_simspec(sim, meta, fibermap, obsconditions,
         expid, night, header=hdr, filename=outsimspec)
 
-    desispec.io.write_fibermap(outfibermap, fibermap, header=hdr)
+    if not isinstance(fibermap, table.Table):
+        fibermap = table.Table(fibermap)
+
+    fibermap.meta.update(hdr)
+    desispec.io.write_fibermap(outfibermap, fibermap)
     log.info('Wrote '+outfibermap)
 
     update_obslog(obstype='science', program=program, expid=expid, dateobs=dateobs, tileid=tileid)
