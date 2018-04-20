@@ -442,18 +442,12 @@ def parallel_project(psf, wave, phot, specmin=0, ncpu=None, comm=None):
     return img
 
 
-def get_nodes_per_exp(nnodes,nexposures,ncameras,ranks_per_frame=None,user_nodes_per_comm_exp=None):
+def get_nodes_per_exp(nnodes,nexposures,ncameras,user_nodes_per_comm_exp=None):
  
     from math import gcd
     import desiutil.log as logging
     log = logging.get_logger()
     log.setLevel(logging.INFO)
-
-    #assign ranks per processor if not specified
-    if ranks_per_frame is None:
-        #should be 32 for haswell, 64 (or 68?) for knl
-        import multiprocessing as mp
-        ranks_per_frame = mp.cpu_count() // 2
     
     #check if nframes is evenly divisible by nnodes
     nframes = ncameras*nexposures
@@ -494,7 +488,7 @@ def get_nodes_per_exp(nnodes,nexposures,ncameras,ranks_per_frame=None,user_nodes
         log.debug("nexposures {} * nodes_per_comm_exp {} divides evenly into nnodes {}, check passed".format(nexposures, nodes_per_comm_exp, nnodes))
         
  
-    return nodes_per_comm_exp, ranks_per_frame
+    return nodes_per_comm_exp
 
 
 

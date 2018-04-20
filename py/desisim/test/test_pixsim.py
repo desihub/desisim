@@ -149,12 +149,18 @@ class TestPixsim(unittest.TestCase):
         self.assertLess(image.pix.shape[1], rawpix.shape[1])  #- raw has overscan
 
     def test_get_nodes_per_exp(self):
-        #nodes_per_comm_exp, ranks_per_frame = get_nodes_per_exp(nnodes, nexposures, ncameras)
-        nnodes = 6
-        nexposures = 2
-        ncameras = 30
-        nodes_per_comm_exp, ranks_per_frame = get_nodes_per_exp(nnodes, nexposures, ncameras)
-        self.assertEqual(nodes_per_comm_exp, 6)
+        # nodes_per_comm_exp = get_nodes_per_exp(nnodes, nexposures, ncameras)
+
+        self.assertEqual(pixsim.get_nodes_per_exp(6,2,30), 6)
+        self.assertEqual(pixsim.get_nodes_per_exp(30,2,30), 30)
+        self.assertEqual(pixsim.get_nodes_per_exp(9,3,21), 3)
+        self.assertEqual(pixsim.get_nodes_per_exp(17,3,17), 17)
+        self.assertEqual(pixsim.get_nodes_per_exp(12,12,6), 6)
+
+        with self.assertRaises(ValueError):
+            pixsim.get_nodes_per_exp(34,3,17)   #- 3*17 % 34 != 0
+
+        #- TODO: add more failure cases
 
     #- Travis tests hang when writing coverage when both test_main* were
     #- called, though the tests work on other systems.
