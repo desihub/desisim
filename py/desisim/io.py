@@ -392,6 +392,14 @@ def read_simspec(filename, camera=None, comm=None, readflux=True, readphot=True)
 
     if camera is None:
         #- Build the potential cameras list based upon the fibermap
+        if comm is None:
+            fibermap = fits.getdata(filename, 'FIBERMAP')
+        else:
+            fibermap = None
+            if rank == 0:
+                fibermap = fits.getdata(filename, 'FIBERMAP')
+            fibermap = comm.bcast(fibermap, root=0)
+
         cameras = list()
         minfiber = np.min(fibermap['FIBER'])
         maxfiber = np.max(fibermap['FIBER'])
