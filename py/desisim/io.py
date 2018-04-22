@@ -386,7 +386,7 @@ def read_simspec(filename, camera=None, comm=None, readflux=True, readphot=True)
         readphot: if True (default), include per-camera photons
     """
     if comm is not None:
-        rank, size == comm.rank, comm.size
+        rank, size = comm.rank, comm.size
     else:
         rank, size = 0, 1
 
@@ -447,9 +447,9 @@ def read_simspec(filename, camera=None, comm=None, readflux=True, readphot=True)
         fibermap = comm.bcast(fibermap, root=0)
         obsconditions = comm.bcast(obsconditions, root=0)
 
-        wave = comm.Bcast(wave, root=0)
-        flux = comm.Bcast(flux, root=0)
-        skyflux = comm.Bcast(skyflux, root=0)
+        wave = comm.bcast(wave, root=0)
+        flux = comm.bcast(flux, root=0)
+        skyflux = comm.bcast(skyflux, root=0)
 
     #- Trim arrays to match camera
     #- Note: we do this after the MPI broadcast because rank 0 doesn't know
@@ -492,7 +492,8 @@ def read_simspec(filename, camera=None, comm=None, readflux=True, readphot=True)
             #- Split MPI communicator by camera
             #- read and broadcast each camera
             if comm is not None:
-                camcomm = comm.split(color=camera)
+                tmp = 'b0 r0 z0 b1 r1 z1 b2 r2 z2 b3 r3 z3 b4 r4 z4 b5 r5 z5 b6 r6 z6 b7 r7 z7 b8 r8 z8 b9 r9 z9'.split()
+                camcomm = comm.Split(color=tmp.index(camera))
                 camrank = camcomm.rank
             else:
                 camcomm = None
@@ -509,9 +510,9 @@ def read_simspec(filename, camera=None, comm=None, readflux=True, readphot=True)
                         skyphot = None
 
             if camcomm is not None:
-                wave = camcomm.Bcast(wave, root=0)
-                phot = camcomm.Bcast(phot, root=0)
-                skyphot = camcomm.Bcast(skyphot, root=0)
+                wave = camcomm.bcast(wave, root=0)
+                phot = camcomm.bcast(phot, root=0)
+                skyphot = camcomm.bcast(skyphot, root=0)
 
             simspec.add_camera(camera, wave, phot, skyphot)
 
