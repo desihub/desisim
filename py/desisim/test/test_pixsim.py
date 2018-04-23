@@ -104,10 +104,14 @@ class TestPixsim(unittest.TestCase):
         expid = self.expid
         camera = 'r0'
         obs.new_exposure('arc', night=night, expid=expid, nspec=3)
-        pixsim.simulate_frame(night, expid, camera, nspec=3,
+        self.assertTrue(os.path.exists(io.findfile('simspec', night, expid)))
+
+        simspecfile = io.findfile('simspec', night, expid)
+        rawfile = desispec.io.findfile('desi', night, expid)
+
+        pixsim.simulate_exposure(simspecfile, rawfile, camera, nspec=3,
             wavemin=6000, wavemax=6100, ccdshape=self.ccdshape)
 
-        self.assertTrue(os.path.exists(io.findfile('simspec', night, expid)))
         simspec = io.read_simspec(io.findfile('simspec', night, expid))
         self.assertTrue(os.path.exists(io.findfile('simpix', night, expid, camera)))
 

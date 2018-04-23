@@ -20,9 +20,8 @@ from desiutil.log import get_logger
 import desispec.io
 from desispec.parallel import stdouterr_redirected
 
-from ..pixsim import simulate
-from ..io import SimSpec
-from .. import obs, io
+from ..pixsim import simulate_exposure
+from .. import io
 
 log = get_logger()
 
@@ -51,41 +50,32 @@ def expand_args(args):
             raise ValueError(msg)
         args.simspec = io.findfile('simspec', args.night, args.expid)
 
-    if args.fibermap is None:
-        if (args.night is not None) and (args.expid is not None):
-            args.fibermap = io.findfile('simfibermap', args.night, args.expid)
+    # if (args.cameras is None) and (args.spectrographs is None):
+    #     from astropy.io import fits
+    #     try:
+    #         data = fits.getdata(args.simspec, 'B')
+    #         nspec = data['PHOT'].shape[1]
+    #     except KeyError:
+    #         #- Try old specsim format instead
+    #         hdr = fits.getheader(args.simspec, 'PHOT_B')
+    #         nspec = hdr['NAXIS2']
+    #
+    #     nspectrographs = (nspec-1) // 500 + 1
+    #     args.spectrographs = list(range(nspectrographs))
 
-    if (args.cameras is None) and (args.spectrographs is None):
-        from astropy.io import fits
-        try:
-            data = fits.getdata(args.simspec, 'B')
-            nspec = data['PHOT'].shape[1]
-        except KeyError:
-            #- Try old specsim format instead
-            hdr = fits.getheader(args.simspec, 'PHOT_B')
-            nspec = hdr['NAXIS2']
+    # if (args.night is None) or (args.expid is None):
+    #     from astropy.io import fits
+    #     hdr = fits.getheader(args.simspec)
+    #     if args.night is None:
+    #         args.night = str(hdr['NIGHT'])
+    #     if args.expid is None:
+    #         args.expid = int(hdr['EXPID'])
 
-        nspectrographs = (nspec-1) // 500 + 1
-        args.spectrographs = list(range(nspectrographs))
-
-    if (args.night is None) or (args.expid is None):
-        from astropy.io import fits
-        hdr = fits.getheader(args.simspec)
-        if args.night is None:
-            args.night = str(hdr['NIGHT'])
-        if args.expid is None:
-            args.expid = int(hdr['EXPID'])
-
-    if isinstance(args.spectrographs, str):
-        args.spectrographs = [int(x) for x in args.spectrographs.split(',')]
+    # if isinstance(args.spectrographs, str):
+    #     args.spectrographs = [int(x) for x in args.spectrographs.split(',')]
 
     #- expand camera list
-    if args.cameras is None:
-        args.cameras = list()
-        for arm in args.arms.split(','):
-            for ispec in args.spectrographs:
-                args.cameras.append(arm+str(ispec))
-    else:
+    if args.cameras is not None:
         args.cameras = args.cameras.split(',')
 
     #- write to same directory as simspec
@@ -115,17 +105,11 @@ def parse(options=None):
     parser.add_argument("--cosmics_file", type=str, 
         help="Input file with cosmics templates")
     parser.add_argument("--simspec", type=str, help="input simspec file")
-    parser.add_argument("--fibermap", type=str, 
-        help="fibermap file (optional)")
 
 
     parser.add_argument("--rawfile", type=str, help="output raw data file")
     parser.add_argument("--simpixfile", type=str, 
         help="output truth image file")
-    parser.add_argument("--preproc", action="store_true", 
-        help="preprocess raw -> pix files")
-    parser.add_argument("--preproc_dir", type=str, 
-        help="directory for output preprocessed pix files")
 
     #- Alternately derive inputs/outputs from night, expid, and cameras
     parser.add_argument("--night", type=str, help="YEARMMDD")
@@ -160,8 +144,8 @@ def parse(options=None):
         help="Number of spectra to simulate per camera", 
                         default=0)
 
-    parser.add_argument("--mpi_camera", type=int, default=1, help="Number of "
-        "MPI processes to use per camera")
+    # parser.add_argument("--mpi_camera", type=int, default=1, help="Number of "
+    #     "MPI processes to use per camera")
 
     if options is None:
         args = parser.parse_args()
@@ -173,6 +157,21 @@ def parse(options=None):
     return args
 
 def main(args, comm=None):
+    if args.verbose:
+        import logging
+        log.setLevel(logging.DEBUG)
+
+    if (comm is None or comm.rank == 0) and args.overwrite and os.path.exists(args.rawfile):
+        log.debug('Removing {}'.format(args.rawfile))
+        os.remove(args.rawfile)
+
+    simulate_exposure(args.simspec, args.rawfile, cameras=args.cameras, comm=comm)
+
+        # ncpu=args.ncpu, nspec=args.nspec, cosmics=cosmics,
+        #     wavemin=args.wavemin, wavemax=args.wavemax,
+        #     comm=comm_group)
+
+def _main(args, comm=None):
     if args.verbose:
         import logging
         log.setLevel(logging.DEBUG)
