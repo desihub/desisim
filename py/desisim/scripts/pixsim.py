@@ -97,16 +97,16 @@ def parse(options=None):
         description = 'Generates simulated DESI pixel-level raw data',
         )
 
-    #- Input files
+    #- Inputs
+    parser.add_argument("--simspec", type=str, help="input simspec file")
     parser.add_argument("--psf", type=str, help="PSF filename")
     parser.add_argument("--cosmics", action="store_true", help="Add cosmics")
-    parser.add_argument("--cosmics_dir", type=str, 
-        help="Input directory with cosmics templates")
-    parser.add_argument("--cosmics_file", type=str, 
-        help="Input file with cosmics templates")
-    parser.add_argument("--simspec", type=str, help="input simspec file")
+    # parser.add_argument("--cosmics_dir", type=str, 
+    #     help="Input directory with cosmics templates")
+    # parser.add_argument("--cosmics_file", type=str, 
+    #     help="Input file with cosmics templates")
 
-
+    #- Outputs
     parser.add_argument("--rawfile", type=str, help="output raw data file")
     parser.add_argument("--simpixfile", type=str, 
         help="output truth image file")
@@ -116,10 +116,10 @@ def parse(options=None):
     parser.add_argument("--expid", type=int, help="exposure id")
     parser.add_argument("--cameras", type=str, help="cameras, e.g. b0,r5,z9")
 
-    parser.add_argument("--spectrographs", type=str, 
-        help="spectrograph numbers, e.g. 0,1,9")
-    parser.add_argument("--arms", type=str, 
-        help="spectrograph arms, e.g. b,r,z", default='b,r,z')
+    # parser.add_argument("--spectrographs", type=str, 
+    #     help="spectrograph numbers, e.g. 0,1,9")
+    # parser.add_argument("--arms", type=str, 
+    #     help="spectrograph arms, e.g. b,r,z", default='b,r,z')
 
     parser.add_argument("--ccd_npix_x", type=int, 
         help="for testing; number of x (columns) to include in output", 
@@ -142,7 +142,7 @@ def parse(options=None):
         help="Maximum wavelength to simulate")
     parser.add_argument("--nspec", type=int, 
         help="Number of spectra to simulate per camera", 
-                        default=0)
+        default=0)
 
     # parser.add_argument("--mpi_camera", type=int, default=1, help="Number of "
     #     "MPI processes to use per camera")
@@ -165,7 +165,8 @@ def main(args, comm=None):
         log.debug('Removing {}'.format(args.rawfile))
         os.remove(args.rawfile)
 
-    simulate_exposure(args.simspec, args.rawfile, cameras=args.cameras, comm=comm)
+    simulate_exposure(args.simspec, args.rawfile, cameras=args.cameras,
+        simpixfile=args.simpixfile, comm=comm)
 
         # ncpu=args.ncpu, nspec=args.nspec, cosmics=cosmics,
         #     wavemin=args.wavemin, wavemax=args.wavemax,

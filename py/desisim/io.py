@@ -377,11 +377,9 @@ def fibers2cameras(fibers):
     Return a list of cameras covered by an input array of fiber IDs
     """
     cameras = list()
-    minfiber = np.min(fibers)
-    maxfiber = np.max(fibers)
     for spectrograph in range(10):
-        fibers = np.arange(500) + spectrograph*500
-        if np.any(np.in1d(fibers, fibermap['FIBER'])):
+        ii = np.arange(500) + spectrograph*500
+        if np.any(np.in1d(ii, fibers)):
             for channel in ['b', 'r', 'z']:
                 cameras.append(channel + str(spectrograph))
     return cameras

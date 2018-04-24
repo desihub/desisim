@@ -89,13 +89,13 @@ class TestPixsim(unittest.TestCase):
         simspecfile = io.findfile('simspec', self.night, self.expid)
         if os.path.exists(simspecfile):
             os.remove(simspecfile)
+        simpixfile = io.findfile('simpix', self.night, self.expid)
+        if os.path.exists(simpixfile):
+            os.remove(simpixfile)
         for camera in ('b0', 'r0', 'z0'):
             pixfile = desispec.io.findfile('preproc', self.night, self.expid, camera=camera)
             if os.path.exists(pixfile):
                 os.remove(pixfile)
-            simpixfile = io.findfile('simpix', self.night, self.expid, camera=camera)
-            if os.path.exists(simpixfile):
-                os.remove(simpixfile)
 
 
     @unittest.skipUnless(desi_root_available, '$DESI_ROOT not set')
@@ -108,12 +108,17 @@ class TestPixsim(unittest.TestCase):
 
         simspecfile = io.findfile('simspec', night, expid)
         rawfile = desispec.io.findfile('desi', night, expid)
+        simpixfile = io.findfile('simpix', night, expid)
+
+        self.assertFalse(os.path.exists(simpixfile))
+        self.assertFalse(os.path.exists(rawfile))
 
         pixsim.simulate_exposure(simspecfile, rawfile, camera, nspec=3,
-            wavemin=6000, wavemax=6100, ccdshape=self.ccdshape)
+            wavemin=6000, wavemax=6050, ccdshape=self.ccdshape,
+            addcosmics=False, simpixfile=simpixfile)
 
-        simspec = io.read_simspec(io.findfile('simspec', night, expid))
-        self.assertTrue(os.path.exists(io.findfile('simpix', night, expid, camera)))
+        self.assertTrue(os.path.exists(simpixfile))
+        self.assertTrue(os.path.exists(rawfile))
 
     @unittest.skipUnless(desi_templates_available, 'The DESI templates directory ($DESI_ROOT/spectro/templates) was not detected.')
     def test_pixsim_cosmics(self):
@@ -121,11 +126,21 @@ class TestPixsim(unittest.TestCase):
         expid = self.expid
         camera = 'r0'
         obs.new_exposure('arc', night=night, expid=expid, nspec=3)
-        pixsim.simulate_frame(night, expid, camera, nspec=3, cosmics=self.cosmics, ccdshape=self.ccdshape)
+        simspecfile = io.findfile('simspec', night, expid)
+        rawfile = desispec.io.findfile('desi', night, expid)
+        simpixfile = io.findfile('simpix', night, expid, camera)
 
-        self.assertTrue(os.path.exists(io.findfile('simspec', night, expid)))
-        simspec = io.read_simspec(io.findfile('simspec', night, expid))
-        self.assertTrue(os.path.exists(io.findfile('simpix', night, expid, camera)))
+        self.assertFalse(os.path.exists(simpixfile))
+        self.assertFalse(os.path.exists(rawfile))
+
+        pixsim.simulate_exposure(simspecfile, rawfile, camera, nspec=3,
+                wavemin=6000, wavemax=6050,
+                addcosmics=True, ccdshape=self.ccdshape)
+
+        self.assertTrue(os.path.exists(rawfile))
+
+        #- No simpixfile option, shouldn't exist
+        self.assertFalse(os.path.exists(simpixfile))
 
     def test_simulate(self):
         import desispec.image
@@ -214,7 +229,6 @@ class TestPixsim(unittest.TestCase):
             '--expid', expid+1,
             '--rawfile', altrawfile,
             '--cameras', 'b0,r0',
-            '--preproc',
             '--wavemin', 5000, '--wavemax', 7000.0,
             '--ccd_npix_x', 2000,
             ]
@@ -255,39 +269,16 @@ class TestPixsim(unittest.TestCase):
     def test_parse(self):
         night = self.night
         expid = self.expid
-        opts = ['--psf', 'blat.fits', '--night', night, '--expid', expid]
-        opts += ['--spectrographs', '0,3']
+
+        opts = ['--night', night, '--expid', expid, '--cameras', 'b0,r1']
         args = desisim.scripts.pixsim.parse(opts)
-        self.assertEqual(args.psf, 'blat.fits')
-        self.assertEqual(args.night, night)
-        self.assertEqual(args.expid, expid)
-        self.assertEqual(args.spectrographs, [0,3])
-        self.assertEqual(args.cameras, ['b0', 'b3', 'r0', 'r3', 'z0', 'z3'])
+        self.assertEqual(args.rawfile, desispec.io.findfile('raw', night, expid))
+        self.assertEqual(args.simspec, io.findfile('simspec', night, expid))
+        self.assertEqual(args.cameras, ['b0','r1'])
 
         with self.assertRaises(ValueError):
             desisim.scripts.pixsim.parse([])
 
-    def test_expand_args(self):
-        night = self.night
-        expid = self.expid
-
-        opts = ['--night', night, '--expid', expid, '--spectrographs', '0']
-        args = desisim.scripts.pixsim.parse(opts)
-        self.assertEqual(args.rawfile, desispec.io.findfile('raw', night, expid))
-        self.assertEqual(args.cameras, ['b0','r0','z0'])
-
-        opts = ['--night', night, '--expid', expid, '--spectrographs', '0,1',
-            '--arms', 'b,z']
-        args = desisim.scripts.pixsim.parse(opts)
-        self.assertEqual(args.cameras, ['b0', 'b1', 'z0', 'z1'])
-
-        opts = ['--cameras', 'b0', '--night', night, '--expid', expid]
-        args = desisim.scripts.pixsim.parse(opts)
-        self.assertEqual(args.cameras, ['b0'])
-
-        opts = ['--cameras', 'b0,r1', '--night', night, '--expid', expid]
-        args = desisim.scripts.pixsim.parse(opts)
-        self.assertEqual(args.cameras, ['b0','r1'])
 
 #- This runs all test* functions in any TestCase class in this file
 if __name__ == '__main__':

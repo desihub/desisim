@@ -72,19 +72,8 @@ def mpi_split_by_node(comm, nodes_per_communicator=1):
 
 #-------------------------------------------------------------------------
 
-def fibers2cameras(fibers):
-    """TODO: document"""
-    cameras = list()
-    for i in range(10):
-        ii = np.in1d(fibers, np.arange(i*500, (i+1)*500))
-        if np.any(ii):
-            for channel in ['b', 'r', 'z']:
-                cameras.append(channel + str(i))
-
-    return cameras
-
 def simulate_exposure(simspecfile, rawfile, cameras=None, comm=None, ccdshape=None,
-                        **kwargs):
+                        simpixfile=None, addcosmics=True, **kwargs):
     """
     Simulate frames from an exposure, including I/O
 
@@ -132,7 +121,7 @@ def simulate_exposure(simspecfile, rawfile, cameras=None, comm=None, ccdshape=No
         if rank == 0:
             from astropy.io import fits
             fibermap = fits.getdata(simspecfile, 'FIBERMAP')
-            cameras = fibers2cameras(fibermap['FIBER'])
+            cameras = io.fibers2cameras(fibermap['FIBER'])
             log.debug('Found cameras {} in input simspec file'.format(cameras))
             if len(cameras) % num_nodes != 0:
                 raise ValueError('Number of cameras {} should be evenly divisible by number of nodes {}'.format(
@@ -140,6 +129,9 @@ def simulate_exposure(simspecfile, rawfile, cameras=None, comm=None, ccdshape=No
 
         if comm is not None:
             cameras = comm.bcast(cameras, root=0)
+
+    elif isinstance(cameras, str):
+        cameras = [cameras,]
 
     #- Fail early if camera alreaady in output file
     if rank == 0 and os.path.exists(rawfile):
@@ -174,22 +166,32 @@ def simulate_exposure(simspecfile, rawfile, cameras=None, comm=None, ccdshape=No
 
         psf = psfs[channel]
 
-        image, rawpix, truepix = simulate(camera, simspec, psf, comm=comm_node,
-            preproc=False, **kwargs)
+        cosmics=None
+        if addcosmics and node_rank == 0:
+            cosmics_file = io.find_cosmics(camera, simspec.header['EXPTIME'])
+            log.info('cosmics templates {}'.format(cosmics_file))
+            shape = (psf.npix_y, psf.npix_x)
+            cosmics = io.read_cosmics(cosmics_file, expid, shape=shape)
 
-        simpixfile = io.findfile('simpix', night=night, expid=expid)
+        if comm_node is not None:
+            cosmics = comm_node.bcast(cosmics, root=0)
+
+        image, rawpix, truepix = simulate(camera, simspec, psf, comm=comm_node,
+            preproc=False, cosmics=cosmics, **kwargs)
 
         #- Use input communicator as barrier since multiple sub-communicators
         #- will write to the same output file
         if comm is not None:
             for i in range(comm.size):
                 if (i == comm.rank) and (comm_node.rank == 0):
-                    io.write_simpix(simpixfile, truepix, camera=camera, meta=image.meta)
                     desispec.io.write_raw(rawfile, rawpix, image.meta, camera=camera)
+                    if simpixfile is not None:
+                        io.write_simpix(simpixfile, truepix, camera=camera, meta=image.meta)
                 comm.barrier()
         else:
-            io.write_simpix(simpixfile, truepix, camera=camera, meta=image.meta)
             desispec.io.write_raw(rawfile, rawpix, image.meta, camera=camera)
+            if simpixfile is not None:
+                io.write_simpix(simpixfile, truepix, camera=camera, meta=image.meta)
 
 
 def simulate(camera, simspec, psf, nspec=None, ncpu=None,
