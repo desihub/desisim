@@ -161,12 +161,14 @@ def main(args, comm=None):
         import logging
         log.setLevel(logging.DEBUG)
 
-    if (comm is None or comm.rank == 0) and args.overwrite and os.path.exists(args.rawfile):
-        log.debug('Removing {}'.format(args.rawfile))
-        os.remove(args.rawfile)
+    if comm is None or comm.rank == 0:
+        log.info('Starting pixsim at {}'.format(asctime()))
+        if args.overwrite and os.path.exists(args.rawfile):
+           log.debug('Removing {}'.format(args.rawfile))
+           os.remove(args.rawfile)
 
     simulate_exposure(args.simspec, args.rawfile, cameras=args.cameras,
-        simpixfile=args.simpixfile, comm=comm)
+        simpixfile=args.simpixfile, addcosmics=args.cosmics, comm=comm)
 
         # ncpu=args.ncpu, nspec=args.nspec, cosmics=cosmics,
         #     wavemin=args.wavemin, wavemax=args.wavemax,

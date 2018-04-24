@@ -72,8 +72,8 @@ def mpi_split_by_node(comm, nodes_per_communicator=1):
 
 #-------------------------------------------------------------------------
 
-def simulate_exposure(simspecfile, rawfile, cameras=None, comm=None, ccdshape=None,
-                        simpixfile=None, addcosmics=True, **kwargs):
+def simulate_exposure(simspecfile, rawfile, cameras=None, comm=None,
+        ccdshape=None, simpixfile=None, addcosmics=True, **kwargs):
     """
     Simulate frames from an exposure, including I/O
 
@@ -117,6 +117,9 @@ def simulate_exposure(simspecfile, rawfile, cameras=None, comm=None, ccdshape=No
         node_rank = 0
         node_size = 1
 
+    if rank == 0:
+        log.debug('Starting simulate_exposure at {}'.format(asctime()))
+
     if cameras is None:
         if rank == 0:
             from astropy.io import fits
@@ -146,11 +149,19 @@ def simulate_exposure(simspecfile, rawfile, cameras=None, comm=None, ccdshape=No
             raise ValueError('Some cameras already in output file')
 
     #- Read simspec input; I/O layer handles MPI broadcasting
+    if rank == 0:
+        log.debug('Reading simspec at {}'.format(asctime()))
+
     mycameras = cameras[node_index::num_nodes]
+    if node_rank == 0:
+        log.debug('Node {} cameras {}'.format(node_index, mycameras))
     simspec = io.read_simspec(simspecfile, cameras=mycameras,
         readflux=False, comm=comm)
     night = simspec.header['NIGHT']
     expid = simspec.header['EXPID']
+
+    if rank == 0:
+        log.debug('Reading PSFs at {}'.format(asctime()))
 
     psfs = dict()
     for camera in mycameras:
@@ -181,18 +192,26 @@ def simulate_exposure(simspecfile, rawfile, cameras=None, comm=None, ccdshape=No
 
         #- Use input communicator as barrier since multiple sub-communicators
         #- will write to the same output file
+        if rank == 0:
+            log.debug('Writing outputs at {}'.format(asctime()))
+
         if comm is not None:
             for i in range(comm.size):
                 if (i == comm.rank) and (comm_node.rank == 0):
-                    desispec.io.write_raw(rawfile, rawpix, image.meta, camera=camera)
+                    desispec.io.write_raw(rawfile, rawpix, image.meta,
+                                          camera=camera)
                     if simpixfile is not None:
-                        io.write_simpix(simpixfile, truepix, camera=camera, meta=image.meta)
+                        io.write_simpix(simpixfile, truepix, camera=camera,
+                                        meta=image.meta)
                 comm.barrier()
         else:
             desispec.io.write_raw(rawfile, rawpix, image.meta, camera=camera)
             if simpixfile is not None:
-                io.write_simpix(simpixfile, truepix, camera=camera, meta=image.meta)
+                io.write_simpix(simpixfile, truepix, camera=camera,
+                                meta=image.meta)
 
+        if rank == 0:
+            log.debug('done at {}'.format(asctime()))
 
 def simulate(camera, simspec, psf, nspec=None, ncpu=None,
     cosmics=None, wavemin=None, wavemax=None, preproc=True, comm=None):
@@ -200,16 +219,19 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
 
     Args:
         camera (string) : b0, r1, .. z9
-        simspec : desispec.io.SimSpec object e.g. from desispec.io.read_simspec()
+        simspec : desispec.io.SimSpec object from desispec.io.read_simspec()
         psf : subclass of specter.psf.psf.PSF, e.g. from desimodel.io.load_psf()
-        nspec (int, optional) : number of spectra to simulate
-        ncpu (int, optional) : number of CPU cores to use in parallel
-        cosmics (optional): desispec.image.Image object from desisim.io.read_cosmics()
-        wavemin, wavemax (float, optional) : min/max wavelength range to simulate
+
+    Options:
+        nspec (int): number of spectra to simulate
+        ncpu (int): number of CPU cores to use in parallel
+        cosmics (desispec.image.Image): e.g. from desisim.io.read_cosmics()
+        wavemin (float): minimum wavelength range to simulate
+        wavemax (float): maximum wavelength range to simulate
         preproc (boolean, optional) : also preprocess raw data (default True)
 
     Returns:
-        (image, rawpix, truepix) tuple, where image is the preprocessed Image object
+        (image, rawpix, truepix) tuple, where image is the preproc Image object
             (only header is meaningful if preproc=False), rawpix is a 2D
             ndarray of unprocessed raw pixel data, and truepix is a 2D ndarray
             of truth for image.pix
@@ -222,9 +244,12 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
     channel = camera[0].lower()
 
     ispec = int(camera[1])
-    assert channel in 'brz', 'unrecognized channel {} camera {}'.format(channel, camera)
-    assert 0 <= ispec < 10, 'unrecognized spectrograph {} camera {}'.format(ispec, camera)
-    assert len(camera) == 2, 'unrecognized camera {}'.format(camera)
+    assert channel in 'brz', \
+        'unrecognized channel {} camera {}'.format(channel, camera)
+    assert 0 <= ispec < 10, \
+        'unrecognized spectrograph {} camera {}'.format(ispec, camera)
+    assert len(camera) == 2, \
+        'unrecognized camera {}'.format(camera)
 
     #- Load DESI parameters
     params = desimodel.io.load_desiparams()
@@ -254,8 +279,7 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
 
     #- Project to image and append that to file
     if (comm is None) or (comm.rank == 0):
-        log.info('Starting {} projection at {}'.format(camera,
-            asctime()))
+        log.info('Starting {} projection at {}'.format(camera, asctime()))
 
     # The returned true pixel values will only exist on rank 0 in the
     # MPI case.  Otherwise it will be None.
@@ -348,7 +372,8 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
             e.g. xyslice2header(np.s_[0:10, 5:20]) -> '[6:20,1:10]'
             '''
             yy, xx = xyslice
-            value = '[{}:{},{}:{}]'.format(xx.start+1, xx.stop, yy.start+1, yy.stop)
+            value = '[{}:{},{}:{}]'.format(xx.start+1, xx.stop,
+                                           yy.start+1, yy.stop)
             return value
 
         #- Amp order from DESI-1964
@@ -396,15 +421,17 @@ def photpix2raw(phot, gain=1.0, readnoise=3.0, offset=None,
 
     Args:
         phot: 2D float array of mean input photons per pixel
-        gain (float, optional): electrons/ADU
-        readnoise (float, optional): CCD readnoise in electrons
-        offset (float, optional): bias offset to add
-        nprescan (int, optional): number of prescan pixels to add
-        noverscan (int, optional): number of overscan pixels to add
-        readorder (str, optional): 'lr' or 'rl' to indicate readout order
+
+    Options:
+        gain (float): electrons/ADU
+        readnoise (float): CCD readnoise in electrons
+        offset (float): bias offset to add
+        nprescan (int): number of prescan pixels to add
+        noverscan (int): number of overscan pixels to add
+        readorder (str): 'lr' or 'rl' to indicate readout order
             'lr' : add prescan on left and overscan on right of image
             'rl' : add prescan on right and overscan on left of image
-        noisydata (boolean, optional) : if True, don't add noise to the signal region,
+        noisydata (boolean) : if True, don't add noise to the signal region,
             e.g. because input signal already had noise from a cosmics image
 
     Returns 2D integer ndarray:
@@ -488,7 +515,6 @@ def parallel_project(psf, wave, phot, specmin=0, ncpu=None, comm=None):
     img = None
     if comm is not None:
         # MPI version
-        from mpi4py import MPI
         specs = np.arange(phot.shape[0], dtype=np.int32)
         myspecs = np.array_split(specs, comm.size)[comm.rank]
         nspec = phot.shape[0]
@@ -509,7 +535,7 @@ def parallel_project(psf, wave, phot, specmin=0, ncpu=None, comm=None):
 
         if comm.rank ==0:
             #now all the data should be back at rank 0        
-            #we can use the same technique as multiprocessing to add the data back together
+            # use same technique as multiprocessing to recombine the data
             img = np.zeros( (psf.npix_y, psf.npix_x) )
             for xyrange, subimg in xy_subimg:
                 xmin, xmax, ymin, ymax = xyrange
