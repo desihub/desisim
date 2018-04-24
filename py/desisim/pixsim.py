@@ -25,74 +25,24 @@ from . import obs, io
 from desiutil.log import get_logger
 log = get_logger()
 
-#-------------------------------------------------------------------------
-#- MPI utility functions
-
-def mpi_count_nodes(comm):
-    '''
-    Return the number of nodes in this communicator
-    '''
-    nodenames = comm.gather(socket.gethostname(), root=0)
-    if comm.rank == 0:
-        num_nodes = len(set(nodenames))
-    else:
-        num_nodes = None
-    num_nodes = comm.bcast(num_nodes, root=0)
-    return num_nodes
-
-def mpi_split_by_node(comm, nodes_per_communicator=1):
-    '''
-    Split an MPI communicator into sub-communicators by nodes
-
-    Args:
-        comm: MPI communicator
-
-    Options:
-        nodes_per_communicator: number of nodes per sub-communicator
-
-    Returns:
-        MPI sub-communicator
-
-    Note: total number of nodes in original communicator must be an integer
-    multiple of nodes_per_communicator
-    '''
-    num_nodes = mpi_count_nodes(comm)
-
-    if comm.size % num_nodes != 0:
-        raise ValueError('Variable number of ranks per node')
-    if num_nodes % nodes_per_communicator != 0:
-        raise ValueError('Input number of nodes {} must be divisible by nodes_per_communicator {}'.format(
-            num_nodes, nodes_per_communicator))
-
-    ranks_per_communicator = comm.size // (num_nodes // nodes_per_communicator)
-    node_index = comm.rank // ranks_per_communicator
-    comm_node = comm.Split(color = node_index)
-
-    return comm_node, node_index, num_nodes
-
-#-------------------------------------------------------------------------
-
-def simulate_exposure(simspecfile, rawfile, cameras=None, comm=None,
-        ccdshape=None, simpixfile=None, addcosmics=True, **kwargs):
+def simulate_exposure(simspecfile, rawfile, cameras=None,
+        ccdshape=None, simpixfile=None, addcosmics=True, comm=None,
+        **kwargs):
     """
     Simulate frames from an exposure, including I/O
 
     Args:
-        night: YEARMMDD string
-        expid: integer exposure ID
-        camera: str or list of str, e.g. b0, r1, .. z9
+        simspecfile: input simspec format file with spectra
+        rawfile: output raw data file to write
 
     Options:
-        ccdshape = (npix_y, npix_x) primarily used to limit memory while testing
+        cameras: str or list of str, e.g. b0, r1, .. z9
+        ccdshape: (npix_y, npix_x) primarily used to limit memory while testing
+        simpixfile: output file for noiseless truth pixels
+        addcosmics: if True (default), add cosmics from real data
+        comm: MPI communicator object
 
     Additional keyword args are passed to pixsim.simulate()
-
-    Reads:
-        $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
-
-    Writes:
-        $DESI_SPECTRO_SIM/$PIXPROD/{night}/simpix-{camera}-{expid}.fits
-        $DESI_SPECTRO_SIM/$PIXPROD/{night}/desi-{expid}.fits
 
     For a lower-level pixel simulation interface that doesn't perform I/O,
     see pixsim.simulate()
@@ -211,6 +161,7 @@ def simulate_exposure(simspecfile, rawfile, cameras=None, comm=None,
                                 meta=image.meta)
 
         if rank == 0:
+            log.info('Wrote {}'.format(rawfile))
             log.debug('done at {}'.format(asctime()))
 
 def simulate(camera, simspec, psf, nspec=None, ncpu=None,
@@ -515,6 +466,15 @@ def parallel_project(psf, wave, phot, specmin=0, ncpu=None, comm=None):
     img = None
     if comm is not None:
         # MPI version
+
+        # Get a smaller communicator if not enough spectra
+        nspec = phot.shape[0]
+        if nspec < comm.size:
+            keep = int(comm.rank < nspec)
+            comm = comm.Split(color=keep)
+            if not keep:
+                return None
+
         specs = np.arange(phot.shape[0], dtype=np.int32)
         myspecs = np.array_split(specs, comm.size)[comm.rank]
         nspec = phot.shape[0]
@@ -631,6 +591,51 @@ def get_nodes_per_exp(nnodes,nexposures,ncameras,user_nodes_per_comm_exp=None):
         
  
     return nodes_per_comm_exp
+
+#-------------------------------------------------------------------------
+#- MPI utility functions
+
+def mpi_count_nodes(comm):
+    '''
+    Return the number of nodes in this communicator
+    '''
+    nodenames = comm.gather(socket.gethostname(), root=0)
+    if comm.rank == 0:
+        num_nodes = len(set(nodenames))
+    else:
+        num_nodes = None
+    num_nodes = comm.bcast(num_nodes, root=0)
+    return num_nodes
+
+def mpi_split_by_node(comm, nodes_per_communicator=1):
+    '''
+    Split an MPI communicator into sub-communicators by nodes
+
+    Args:
+        comm: MPI communicator
+
+    Options:
+        nodes_per_communicator: number of nodes per sub-communicator
+
+    Returns:
+        MPI sub-communicator
+
+    Note: total number of nodes in original communicator must be an integer
+    multiple of nodes_per_communicator
+    '''
+    num_nodes = mpi_count_nodes(comm)
+
+    if comm.size % num_nodes != 0:
+        raise ValueError('Variable number of ranks per node')
+    if num_nodes % nodes_per_communicator != 0:
+        raise ValueError('Input number of nodes {} must be divisible by nodes_per_communicator {}'.format(
+            num_nodes, nodes_per_communicator))
+
+    ranks_per_communicator = comm.size // (num_nodes // nodes_per_communicator)
+    node_index = comm.rank // ranks_per_communicator
+    comm_node = comm.Split(color = node_index)
+
+    return comm_node, node_index, num_nodes
 
 
 
