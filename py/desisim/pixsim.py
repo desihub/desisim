@@ -12,6 +12,7 @@ import os
 import os.path
 import random
 from time import asctime
+import socket
 
 import numpy as np
 
@@ -24,27 +25,24 @@ from . import obs, io
 from desiutil.log import get_logger
 log = get_logger()
 
-
-def simulate_frame(night, expid, camera, ccdshape=None, **kwargs):
+def simulate_exposure(simspecfile, rawfile, cameras=None,
+        ccdshape=None, simpixfile=None, addcosmics=True, comm=None,
+        **kwargs):
     """
-    Simulate a single frame, including I/O
+    Simulate frames from an exposure, including I/O
 
     Args:
-        night: YEARMMDD string
-        expid: integer exposure ID
-        camera: b0, r1, .. z9
+        simspecfile: input simspec format file with spectra
+        rawfile: output raw data file to write
 
     Options:
-        ccdshape = (npix_y, npix_x) primarily used to limit memory while testing
+        cameras: str or list of str, e.g. b0, r1, .. z9
+        ccdshape: (npix_y, npix_x) primarily used to limit memory while testing
+        simpixfile: output file for noiseless truth pixels
+        addcosmics: if True (default), add cosmics from real data
+        comm: MPI communicator object
 
     Additional keyword args are passed to pixsim.simulate()
-
-    Reads:
-        $DESI_SPECTRO_SIM/$PIXPROD/{night}/simspec-{expid}.fits
-
-    Writes:
-        $DESI_SPECTRO_SIM/$PIXPROD/{night}/simpix-{camera}-{expid}.fits
-        $DESI_SPECTRO_SIM/$PIXPROD/{night}/desi-{expid}.fits
 
     For a lower-level pixel simulation interface that doesn't perform I/O,
     see pixsim.simulate()
@@ -52,31 +50,119 @@ def simulate_frame(night, expid, camera, ccdshape=None, **kwargs):
     Note: call desi_preproc or desispec.preproc.preproc to pre-process the
     output desi*.fits file for overscan subtraction, noise estimation, etc.
     """
-    #- night, expid, camera -> input file names
-    simspecfile = io.findfile('simspec', night=night, expid=expid)
+    #- Split communicator by nodes; each node processes N frames
+    #- Assumes / requires equal number of ranks per node
+    if comm is not None:
+        rank, size = comm.rank, comm.size
+        num_nodes = mpi_count_nodes(comm)
+        comm_node, node_index, num_nodes = mpi_split_by_node(comm, 1)
+        node_rank = comm_node.rank
+        node_size = comm_node.size
+    else:
+        log.debug('Not using MPI')
+        rank, size = 0, 1
+        comm_node = None
+        node_index = 0
+        num_nodes = 1
+        node_rank = 0
+        node_size = 1
 
-    #- Read inputs
-    psf = desimodel.io.load_psf(camera[0])
-    simspec = io.read_simspec(simspecfile, camera, readflux=False)
+    if rank == 0:
+        log.debug('Starting simulate_exposure at {}'.format(asctime()))
 
-    #- Trim effective CCD size; mainly to limit memory for testing
-    if ccdshape is not None:
-        psf.npix_y, psf.npix_x = ccdshape
+    if cameras is None:
+        if rank == 0:
+            from astropy.io import fits
+            fibermap = fits.getdata(simspecfile, 'FIBERMAP')
+            cameras = io.fibers2cameras(fibermap['FIBER'])
+            log.debug('Found cameras {} in input simspec file'.format(cameras))
+            if len(cameras) % num_nodes != 0:
+                raise ValueError('Number of cameras {} should be evenly divisible by number of nodes {}'.format(
+                    len(cameras), num_nodes))
 
-    if 'cosmics' in kwargs:
-        shape = (psf.npix_y, psf.npix_x)
-        kwargs['cosmics'] = io.read_cosmics(kwargs['cosmics'], expid, shape=shape)
+        if comm is not None:
+            cameras = comm.bcast(cameras, root=0)
 
-    image, rawpix, truepix = simulate(camera, simspec, psf, **kwargs)
+    elif isinstance(cameras, str):
+        cameras = [cameras,]
 
-    #- Outputs; force "real" data files into simulation directory
-    simpixfile = io.findfile('simpix', night=night, expid=expid, camera=camera)
-    io.write_simpix(simpixfile, truepix, camera=camera, meta=image.meta)
+    #- Fail early if camera alreaady in output file
+    if rank == 0 and os.path.exists(rawfile):
+        from astropy.io import fits
+        err = False
+        fx = fits.open(rawfile)
+        for camera in cameras:
+            if camera in fx:
+                log.error('Camera {} already in {}'.format(camera, rawfile))
+                err = True
+        if err:
+            raise ValueError('Some cameras already in output file')
 
-    simdir = io.simdir(night=night)
-    rawfile = desispec.io.findfile('desi', night=night, expid=expid)
-    rawfile = os.path.join(simdir, os.path.basename(rawfile))
-    desispec.io.write_raw(rawfile, rawpix, image.meta, camera=camera)
+    #- Read simspec input; I/O layer handles MPI broadcasting
+    if rank == 0:
+        log.debug('Reading simspec at {}'.format(asctime()))
+
+    mycameras = cameras[node_index::num_nodes]
+    if node_rank == 0:
+        log.debug('Node {} cameras {}'.format(node_index, mycameras))
+    simspec = io.read_simspec(simspecfile, cameras=mycameras,
+        readflux=False, comm=comm)
+    night = simspec.header['NIGHT']
+    expid = simspec.header['EXPID']
+
+    if rank == 0:
+        log.debug('Reading PSFs at {}'.format(asctime()))
+
+    psfs = dict()
+    for camera in mycameras:
+        #- Note: current PSF object can't be pickled and thus every
+        #- rank must read it instead of rank 0 read + bcast
+        channel = camera[0]
+        if channel not in psfs:
+            psfs[channel] = desimodel.io.load_psf(channel)
+
+            #- Trim effective CCD size; mainly to limit memory for testing
+            if ccdshape is not None:
+                psfs[channel].npix_y, psfs[channel].npix_x = ccdshape
+
+        psf = psfs[channel]
+
+        cosmics=None
+        if addcosmics and node_rank == 0:
+            cosmics_file = io.find_cosmics(camera, simspec.header['EXPTIME'])
+            log.info('cosmics templates {}'.format(cosmics_file))
+            shape = (psf.npix_y, psf.npix_x)
+            cosmics = io.read_cosmics(cosmics_file, expid, shape=shape)
+
+        if comm_node is not None:
+            cosmics = comm_node.bcast(cosmics, root=0)
+
+        image, rawpix, truepix = simulate(camera, simspec, psf, comm=comm_node,
+            preproc=False, cosmics=cosmics, **kwargs)
+
+        #- Use input communicator as barrier since multiple sub-communicators
+        #- will write to the same output file
+        if rank == 0:
+            log.debug('Writing outputs at {}'.format(asctime()))
+
+        if comm is not None:
+            for i in range(comm.size):
+                if (i == comm.rank) and (comm_node.rank == 0):
+                    desispec.io.write_raw(rawfile, rawpix, image.meta,
+                                          camera=camera)
+                    if simpixfile is not None:
+                        io.write_simpix(simpixfile, truepix, camera=camera,
+                                        meta=image.meta)
+                comm.barrier()
+        else:
+            desispec.io.write_raw(rawfile, rawpix, image.meta, camera=camera)
+            if simpixfile is not None:
+                io.write_simpix(simpixfile, truepix, camera=camera,
+                                meta=image.meta)
+
+        if rank == 0:
+            log.info('Wrote {}'.format(rawfile))
+            log.debug('done at {}'.format(asctime()))
 
 def simulate(camera, simspec, psf, nspec=None, ncpu=None,
     cosmics=None, wavemin=None, wavemax=None, preproc=True, comm=None):
@@ -84,16 +170,19 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
 
     Args:
         camera (string) : b0, r1, .. z9
-        simspec : desispec.io.SimSpec object e.g. from desispec.io.read_simspec()
+        simspec : desispec.io.SimSpec object from desispec.io.read_simspec()
         psf : subclass of specter.psf.psf.PSF, e.g. from desimodel.io.load_psf()
-        nspec (int, optional) : number of spectra to simulate
-        ncpu (int, optional) : number of CPU cores to use in parallel
-        cosmics (optional): desispec.image.Image object from desisim.io.read_cosmics()
-        wavemin, wavemax (float, optional) : min/max wavelength range to simulate
+
+    Options:
+        nspec (int): number of spectra to simulate
+        ncpu (int): number of CPU cores to use in parallel
+        cosmics (desispec.image.Image): e.g. from desisim.io.read_cosmics()
+        wavemin (float): minimum wavelength range to simulate
+        wavemax (float): maximum wavelength range to simulate
         preproc (boolean, optional) : also preprocess raw data (default True)
 
     Returns:
-        (image, rawpix, truepix) tuple, where image is the preprocessed Image object
+        (image, rawpix, truepix) tuple, where image is the preproc Image object
             (only header is meaningful if preproc=False), rawpix is a 2D
             ndarray of unprocessed raw pixel data, and truepix is a 2D ndarray
             of truth for image.pix
@@ -106,9 +195,12 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
     channel = camera[0].lower()
 
     ispec = int(camera[1])
-    assert channel in 'brz', 'unrecognized channel {} camera {}'.format(channel, camera)
-    assert 0 <= ispec < 10, 'unrecognized spectrograph {} camera {}'.format(ispec, camera)
-    assert len(camera) == 2, 'unrecognized camera {}'.format(camera)
+    assert channel in 'brz', \
+        'unrecognized channel {} camera {}'.format(channel, camera)
+    assert 0 <= ispec < 10, \
+        'unrecognized spectrograph {} camera {}'.format(ispec, camera)
+    assert len(camera) == 2, \
+        'unrecognized camera {}'.format(camera)
 
     #- Load DESI parameters
     params = desimodel.io.load_desiparams()
@@ -138,8 +230,7 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
 
     #- Project to image and append that to file
     if (comm is None) or (comm.rank == 0):
-        log.info('Starting {} projection at {}'.format(camera,
-            asctime()))
+        log.info('Starting {} projection at {}'.format(camera, asctime()))
 
     # The returned true pixel values will only exist on rank 0 in the
     # MPI case.  Otherwise it will be None.
@@ -232,7 +323,8 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
             e.g. xyslice2header(np.s_[0:10, 5:20]) -> '[6:20,1:10]'
             '''
             yy, xx = xyslice
-            value = '[{}:{},{}:{}]'.format(xx.start+1, xx.stop, yy.start+1, yy.stop)
+            value = '[{}:{},{}:{}]'.format(xx.start+1, xx.stop,
+                                           yy.start+1, yy.stop)
             return value
 
         #- Amp order from DESI-1964
@@ -288,7 +380,7 @@ def photpix2raw(phot, gain=1.0, readnoise=3.0, offset=None,
         readorder (str, optional): 'lr' or 'rl' to indicate readout order
             'lr' : add prescan on left and overscan on right of image
             'rl' : add prescan on right and overscan on left of image
-        noisydata (boolean, optional) : if True, don't add noise to the signal region,
+        noisydata (boolean, optional) : if True, don't add noise,
             e.g. because input signal already had noise from a cosmics image
 
     Returns 2D integer ndarray:
@@ -372,7 +464,15 @@ def parallel_project(psf, wave, phot, specmin=0, ncpu=None, comm=None):
     img = None
     if comm is not None:
         # MPI version
-        from mpi4py import MPI
+
+        # Get a smaller communicator if not enough spectra
+        nspec = phot.shape[0]
+        if nspec < comm.size:
+            keep = int(comm.rank < nspec)
+            comm = comm.Split(color=keep)
+            if not keep:
+                return None
+
         specs = np.arange(phot.shape[0], dtype=np.int32)
         myspecs = np.array_split(specs, comm.size)[comm.rank]
         nspec = phot.shape[0]
@@ -393,7 +493,7 @@ def parallel_project(psf, wave, phot, specmin=0, ncpu=None, comm=None):
 
         if comm.rank ==0:
             #now all the data should be back at rank 0        
-            #we can use the same technique as multiprocessing to add the data back together
+            # use same technique as multiprocessing to recombine the data
             img = np.zeros( (psf.npix_y, psf.npix_x) )
             for xyrange, subimg in xy_subimg:
                 xmin, xmax, ymin, ymax = xyrange
@@ -440,3 +540,129 @@ def parallel_project(psf, wave, phot, specmin=0, ncpu=None, comm=None):
             pool.join()
 
     return img
+
+
+def get_nodes_per_exp(nnodes,nexposures,ncameras,user_nodes_per_comm_exp=None):
+    """
+    Calculate how many nodes to use per exposure
+
+    Args:
+        nnodes: number of nodes in MPI COMM_WORLD (not number of ranks)
+        nexposures: number of exposures to process
+        ncameras: number of cameras per exposure
+        user_nodes_per_comm_exp (int, optional): user override of number of
+            nodes to use; used to check requirements
+
+    Returns number of nodes to include in sub-communicators used to process
+    individual exposures
+
+    Notes:
+        * Uses the largest number of nodes per exposure that will still
+          result in efficient node usage
+        * requires that (nexposures*ncameras) / nnodes = int
+        * the derived nodes_per_comm_exp * nexposures / nodes = int
+        * See desisim.test.test_pixsim.test_get_nodes_per_exp() for examples
+        * if user_nodes_per_comm_exp is given, requires that
+          GreatestCommonDivisor(nnodes, ncameras) / user_nodes_per_comm_exp = int
+    """
+ 
+    from math import gcd
+    import desiutil.log as logging
+    log = logging.get_logger()
+    log.setLevel(logging.INFO)
+    
+    #check if nframes is evenly divisible by nnodes
+    nframes = ncameras*nexposures
+    if nframes % nnodes !=0:
+        msg=("nframes {} must be evenly divisible by nnodes {}, try again".format(nframes, nnodes))
+        raise ValueError(msg)
+    else:
+        log.debug("nframes {} is evenly divisible by nnodes {}, check passed".format(nframes, nnodes))
+    
+    #find greatest common divisor between nnodes and ncameras
+    #greatest common divisor = greatest common factor    
+    #we use python's built in gcd
+    greatest_common_factor=gcd(nnodes,ncameras) 
+    #the greatest common factor must be greater than one
+    if greatest_common_factor == 1:
+        msg=("greatest common factor {} between nnodes {} and nframes {} must be larger than one, try again".format(greatest_common_factor, nnodes, nframes))
+        raise ValueError(msg)
+    else:
+        log.debug("greatest common factor {} between nnodes {} and nframes {} is greater than one, check passed".format(greatest_common_factor, nnodes, nframes))
+        
+    #check to make sure the user hasn't specified a really asinine value of user_nodes_per_comm_exp    
+    if user_nodes_per_comm_exp is not None:
+        if greatest_common_factor % user_nodes_per_comm_exp !=0:
+            msg=("user-specified value of user_nodes_per_comm_exp {} is bad, try again".format(user_nodes_per_comm_exp))
+            raise ValueError(msg)
+        else:
+            log.debug("user-specified value of user_nodes_per_comm_exp {} is good, check passed".format(user_nodes_per_comm_exp))
+            n_exp_comm=nodes_per_comm_exp
+    #if the user didn't specify anything, use the greatest common factor
+    if user_nodes_per_comm_exp is None:
+        nodes_per_comm_exp=greatest_common_factor        
+            
+    #finally check to make sure exposures*gcf/nnodes is an integer to avoid inefficient node use
+    if (nexposures*nodes_per_comm_exp) % nnodes != 0:
+        msg=("nexposures {} * nodes_per_comm_exp {} does not divide evenly into nnodes {}, try again".format(nexposures, nodes_per_comm_exp, nnodes))
+        raise ValueError(msg)
+    else:
+        log.debug("nexposures {} * nodes_per_comm_exp {} divides evenly into nnodes {}, check passed".format(nexposures, nodes_per_comm_exp, nnodes))
+        
+ 
+    return nodes_per_comm_exp
+
+#-------------------------------------------------------------------------
+#- MPI utility functions
+#- These functions assist with splitting a communicator across node boundaries.
+#- That constraint isn't required by MPI, but can be convenient for humans
+#- thinking about "I want to process one camera with one node" or "I want to
+#- process 6 exposures with 20 nodes using 10 nodes per exposure"
+
+def mpi_count_nodes(comm):
+    '''
+    Return the number of nodes in this communicator
+    '''
+    nodenames = comm.gather(socket.gethostname(), root=0)
+    if comm.rank == 0:
+        num_nodes = len(set(nodenames))
+    else:
+        num_nodes = None
+    num_nodes = comm.bcast(num_nodes, root=0)
+    return num_nodes
+
+def mpi_split_by_node(comm, nodes_per_communicator):
+    '''
+    Split an MPI communicator into sub-communicators with integer numbers
+    of nodes per communicator
+
+    Args:
+        comm: MPI communicator
+        nodes_per_communicator: number of nodes per sub-communicator
+
+    Returns:
+        MPI sub-communicator, node_index, total_num_nodes
+
+    Notes:
+      * total number of nodes in original communicator must be an integer
+        multiple of nodes_per_communicator
+      * if comm is split into N sub-communicators, node_index is the index
+        of which of the N is returned for this rank
+      * total_num_nodes = number of nodes in original communicator
+    '''
+    num_nodes = mpi_count_nodes(comm)
+
+    if comm.size % num_nodes != 0:
+        raise ValueError('Variable number of ranks per node')
+    if num_nodes % nodes_per_communicator != 0:
+        raise ValueError('Input number of nodes {} must be divisible by nodes_per_communicator {}'.format(
+            num_nodes, nodes_per_communicator))
+
+    ranks_per_communicator = comm.size // (num_nodes // nodes_per_communicator)
+    node_index = comm.rank // ranks_per_communicator
+    comm_node = comm.Split(color = node_index)
+
+    return comm_node, node_index, num_nodes
+
+
+

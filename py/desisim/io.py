@@ -372,7 +372,19 @@ class SimSpec(object):
         """
         self.cameras[camera] = SimSpecCamera(camera, wave, phot, skyphot)
 
-def read_simspec(filename, camera=None, comm=None, readflux=True, readphot=True):
+def fibers2cameras(fibers):
+    """
+    Return a list of cameras covered by an input array of fiber IDs
+    """
+    cameras = list()
+    for spectrograph in range(10):
+        ii = np.arange(500) + spectrograph*500
+        if np.any(np.in1d(ii, fibers)):
+            for channel in ['b', 'r', 'z']:
+                cameras.append(channel + str(spectrograph))
+    return cameras
+
+def read_simspec(filename, cameras=None, comm=None, readflux=True, readphot=True):
     """
     Read a simspec file and return a SimSpec object
 
@@ -380,39 +392,27 @@ def read_simspec(filename, camera=None, comm=None, readflux=True, readphot=True)
         filename: input simspec file name
 
     Options:
-        camera: camera name or list of names, e.g. b0, r1, z9
+        cameras: camera name or list of names, e.g. b0, r1, z9
         comm: MPI communicator
         readflux: if True (default), include flux
         readphot: if True (default), include per-camera photons
     """
     if comm is not None:
-        rank, size == comm.rank, comm.size
+        rank, size = comm.rank, comm.size
     else:
         rank, size = 0, 1
 
-    if camera is None:
+    if cameras is None:
         #- Build the potential cameras list based upon the fibermap
-        if comm is None:
+        if rank == 0:
             fibermap = fits.getdata(filename, 'FIBERMAP')
-        else:
-            fibermap = None
-            if rank == 0:
-                fibermap = fits.getdata(filename, 'FIBERMAP')
-            fibermap = comm.bcast(fibermap, root=0)
+            cameras = fibers2cameras(fibermap['FIBER'])
 
-        cameras = list()
-        minfiber = np.min(fibermap['FIBER'])
-        maxfiber = np.max(fibermap['FIBER'])
-        for spectrograph in range(10):
-            fibers = np.arange(500) + spectrograph*500
-            if np.any(np.in1d(fibers, fibermap['FIBER'])):
-                for channel in ['b', 'r', 'z']:
-                    cameras.append(channel + str(spectrograph))
+        if comm is not None:
+            cameras = comm.bcast(cameras, root=0)
 
-    elif isinstance(camera, str):
-        cameras = [camera,]
-    else:
-        cameras = camera
+    elif isinstance(cameras, str):
+        cameras = [cameras,]
 
     #- Read and broadcast data that are common across cameras
     header = flavor = truth = fibermap = obsconditions = None
@@ -447,9 +447,9 @@ def read_simspec(filename, camera=None, comm=None, readflux=True, readphot=True)
         fibermap = comm.bcast(fibermap, root=0)
         obsconditions = comm.bcast(obsconditions, root=0)
 
-        wave = comm.Bcast(wave, root=0)
-        flux = comm.Bcast(flux, root=0)
-        skyflux = comm.Bcast(skyflux, root=0)
+        wave = comm.bcast(wave, root=0)
+        flux = comm.bcast(flux, root=0)
+        skyflux = comm.bcast(skyflux, root=0)
 
     #- Trim arrays to match camera
     #- Note: we do this after the MPI broadcast because rank 0 doesn't know
@@ -464,6 +464,7 @@ def read_simspec(filename, camera=None, comm=None, readflux=True, readphot=True)
 
     assert np.any(ii), "input simspec doesn't cover cameras {}".format(cameras)
 
+    full_fibermap = fibermap
     fibermap = fibermap[ii]
     if flux is not None:
         flux = flux[ii]
@@ -484,7 +485,7 @@ def read_simspec(filename, camera=None, comm=None, readflux=True, readphot=True)
         for camera in cameras:
             channel = camera[0].upper()
             spectrograph = int(camera[1])
-            fiber = fibermap['FIBER']
+            fiber = full_fibermap['FIBER']
             ii = (spectrograph*500 <= fiber) & (fiber < (spectrograph+1)*500)
             assert np.any(ii), 'Camera {} is not in fibers {}-{}'.format(
                                             camera, np.min(fiber), np.max(fiber) )
@@ -492,7 +493,8 @@ def read_simspec(filename, camera=None, comm=None, readflux=True, readphot=True)
             #- Split MPI communicator by camera
             #- read and broadcast each camera
             if comm is not None:
-                camcomm = comm.split(color=camera)
+                tmp = 'b0 r0 z0 b1 r1 z1 b2 r2 z2 b3 r3 z3 b4 r4 z4 b5 r5 z5 b6 r6 z6 b7 r7 z7 b8 r8 z8 b9 r9 z9'.split()
+                camcomm = comm.Split(color=tmp.index(camera))
                 camrank = camcomm.rank
             else:
                 camcomm = None
@@ -509,9 +511,9 @@ def read_simspec(filename, camera=None, comm=None, readflux=True, readphot=True)
                         skyphot = None
 
             if camcomm is not None:
-                wave = camcomm.Bcast(wave, root=0)
-                phot = camcomm.Bcast(phot, root=0)
-                skyphot = camcomm.Bcast(skyphot, root=0)
+                wave = camcomm.bcast(wave, root=0)
+                phot = camcomm.bcast(phot, root=0)
+                skyphot = camcomm.bcast(skyphot, root=0)
 
             simspec.add_camera(camera, wave, phot, skyphot)
 

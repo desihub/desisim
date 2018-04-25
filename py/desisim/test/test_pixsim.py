@@ -20,11 +20,6 @@ log = get_logger()
 desi_templates_available = 'DESI_ROOT' in os.environ
 desi_root_available = 'DESI_ROOT' in os.environ
 
-#- Travis tests hang when some of these tests are called with
-#- python 2.7, but not others.  Works away from Travis on py2.7.
-#- Skip for now.
-travis27 = (sys.version_info.major==2) and ('TRAVIS' in os.environ)
-
 class TestPixsim(unittest.TestCase):
     #- Create test subdirectory
     @classmethod
@@ -94,13 +89,13 @@ class TestPixsim(unittest.TestCase):
         simspecfile = io.findfile('simspec', self.night, self.expid)
         if os.path.exists(simspecfile):
             os.remove(simspecfile)
+        simpixfile = io.findfile('simpix', self.night, self.expid)
+        if os.path.exists(simpixfile):
+            os.remove(simpixfile)
         for camera in ('b0', 'r0', 'z0'):
             pixfile = desispec.io.findfile('preproc', self.night, self.expid, camera=camera)
             if os.path.exists(pixfile):
                 os.remove(pixfile)
-            simpixfile = io.findfile('simpix', self.night, self.expid, camera=camera)
-            if os.path.exists(simpixfile):
-                os.remove(simpixfile)
 
 
     @unittest.skipUnless(desi_root_available, '$DESI_ROOT not set')
@@ -109,12 +104,21 @@ class TestPixsim(unittest.TestCase):
         expid = self.expid
         camera = 'r0'
         obs.new_exposure('arc', night=night, expid=expid, nspec=3)
-        pixsim.simulate_frame(night, expid, camera, nspec=3,
-            wavemin=6000, wavemax=6100, ccdshape=self.ccdshape)
-
         self.assertTrue(os.path.exists(io.findfile('simspec', night, expid)))
-        simspec = io.read_simspec(io.findfile('simspec', night, expid))
-        self.assertTrue(os.path.exists(io.findfile('simpix', night, expid, camera)))
+
+        simspecfile = io.findfile('simspec', night, expid)
+        rawfile = desispec.io.findfile('desi', night, expid)
+        simpixfile = io.findfile('simpix', night, expid)
+
+        self.assertFalse(os.path.exists(simpixfile))
+        self.assertFalse(os.path.exists(rawfile))
+
+        pixsim.simulate_exposure(simspecfile, rawfile, camera, nspec=3,
+            wavemin=6000, wavemax=6050, ccdshape=self.ccdshape,
+            addcosmics=False, simpixfile=simpixfile)
+
+        self.assertTrue(os.path.exists(simpixfile))
+        self.assertTrue(os.path.exists(rawfile))
 
     @unittest.skipUnless(desi_templates_available, 'The DESI templates directory ($DESI_ROOT/spectro/templates) was not detected.')
     def test_pixsim_cosmics(self):
@@ -122,11 +126,21 @@ class TestPixsim(unittest.TestCase):
         expid = self.expid
         camera = 'r0'
         obs.new_exposure('arc', night=night, expid=expid, nspec=3)
-        pixsim.simulate_frame(night, expid, camera, nspec=3, cosmics=self.cosmics, ccdshape=self.ccdshape)
+        simspecfile = io.findfile('simspec', night, expid)
+        rawfile = desispec.io.findfile('desi', night, expid)
+        simpixfile = io.findfile('simpix', night, expid, camera)
 
-        self.assertTrue(os.path.exists(io.findfile('simspec', night, expid)))
-        simspec = io.read_simspec(io.findfile('simspec', night, expid))
-        self.assertTrue(os.path.exists(io.findfile('simpix', night, expid, camera)))
+        self.assertFalse(os.path.exists(simpixfile))
+        self.assertFalse(os.path.exists(rawfile))
+
+        pixsim.simulate_exposure(simspecfile, rawfile, camera, nspec=3,
+                wavemin=6000, wavemax=6050,
+                addcosmics=True, ccdshape=self.ccdshape)
+
+        self.assertTrue(os.path.exists(rawfile))
+
+        #- No simpixfile option, shouldn't exist
+        self.assertFalse(os.path.exists(simpixfile))
 
     def test_simulate(self):
         import desispec.image
@@ -148,7 +162,24 @@ class TestPixsim(unittest.TestCase):
         self.assertEqual(image.pix.shape[0], rawpix.shape[0])
         self.assertLess(image.pix.shape[1], rawpix.shape[1])  #- raw has overscan
 
-    @unittest.skipIf(travis27, 'Skip test that is causing Travis to hang on py2.7')
+    def test_get_nodes_per_exp(self):
+        # nodes_per_comm_exp = get_nodes_per_exp(nnodes, nexposures, ncameras)
+
+        self.assertEqual(pixsim.get_nodes_per_exp(6,2,30), 6)
+        self.assertEqual(pixsim.get_nodes_per_exp(30,2,30), 30)
+        self.assertEqual(pixsim.get_nodes_per_exp(9,3,21), 3)
+        self.assertEqual(pixsim.get_nodes_per_exp(17,3,17), 17)
+        self.assertEqual(pixsim.get_nodes_per_exp(12,12,6), 6)
+
+        with self.assertRaises(ValueError):
+            pixsim.get_nodes_per_exp(34,3,17)   #- 3*17 % 34 != 0
+
+        #- TODO: add more failure cases
+
+    #- Travis tests hang when writing coverage when both test_main* were
+    #- called, though the tests work on other systems.
+    #- Disabling multiprocessing also "fixed" this for unknown reasons.
+    @unittest.skipIf(False, 'Skip test that is causing coverage tests to hang.')
     def test_main_defaults(self):
         night = self.night
         expid = self.expid
@@ -182,7 +213,6 @@ class TestPixsim(unittest.TestCase):
         os.remove(simpixfile)
         os.remove(rawfile)
 
-    @unittest.skipIf(travis27, 'Skip test that is causing Travis to hang on py2.7')
     def test_main_override(self):
         night = self.night
         expid = self.expid
@@ -199,7 +229,6 @@ class TestPixsim(unittest.TestCase):
             '--expid', expid+1,
             '--rawfile', altrawfile,
             '--cameras', 'b0,r0',
-            '--preproc',
             '--wavemin', 5000, '--wavemax', 7000.0,
             '--ccd_npix_x', 2000,
             ]
@@ -240,39 +269,16 @@ class TestPixsim(unittest.TestCase):
     def test_parse(self):
         night = self.night
         expid = self.expid
-        opts = ['--psf', 'blat.fits', '--night', night, '--expid', expid]
-        opts += ['--spectrographs', '0,3']
+
+        opts = ['--night', night, '--expid', expid, '--cameras', 'b0,r1']
         args = desisim.scripts.pixsim.parse(opts)
-        self.assertEqual(args.psf, 'blat.fits')
-        self.assertEqual(args.night, night)
-        self.assertEqual(args.expid, expid)
-        self.assertEqual(args.spectrographs, [0,3])
-        self.assertEqual(args.cameras, ['b0', 'b3', 'r0', 'r3', 'z0', 'z3'])
+        self.assertEqual(args.rawfile, desispec.io.findfile('raw', night, expid))
+        self.assertEqual(args.simspec, io.findfile('simspec', night, expid))
+        self.assertEqual(args.cameras, ['b0','r1'])
 
         with self.assertRaises(ValueError):
             desisim.scripts.pixsim.parse([])
 
-    def test_expand_args(self):
-        night = self.night
-        expid = self.expid
-
-        opts = ['--night', night, '--expid', expid, '--spectrographs', '0']
-        args = desisim.scripts.pixsim.parse(opts)
-        self.assertEqual(args.rawfile, desispec.io.findfile('raw', night, expid))
-        self.assertEqual(args.cameras, ['b0','r0','z0'])
-
-        opts = ['--night', night, '--expid', expid, '--spectrographs', '0,1',
-            '--arms', 'b,z']
-        args = desisim.scripts.pixsim.parse(opts)
-        self.assertEqual(args.cameras, ['b0', 'b1', 'z0', 'z1'])
-
-        opts = ['--cameras', 'b0', '--night', night, '--expid', expid]
-        args = desisim.scripts.pixsim.parse(opts)
-        self.assertEqual(args.cameras, ['b0'])
-
-        opts = ['--cameras', 'b0,r1', '--night', night, '--expid', expid]
-        args = desisim.scripts.pixsim.parse(opts)
-        self.assertEqual(args.cameras, ['b0','r1'])
 
 #- This runs all test* functions in any TestCase class in this file
 if __name__ == '__main__':
