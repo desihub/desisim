@@ -372,17 +372,15 @@ def photpix2raw(phot, gain=1.0, readnoise=3.0, offset=None,
 
     Args:
         phot: 2D float array of mean input photons per pixel
-
-    Options:
-        gain (float): electrons/ADU
-        readnoise (float): CCD readnoise in electrons
-        offset (float): bias offset to add
-        nprescan (int): number of prescan pixels to add
-        noverscan (int): number of overscan pixels to add
-        readorder (str): 'lr' or 'rl' to indicate readout order
+        gain (float, optional): electrons/ADU
+        readnoise (float, optional): CCD readnoise in electrons
+        offset (float, optional): bias offset to add
+        nprescan (int, optional): number of prescan pixels to add
+        noverscan (int, optional): number of overscan pixels to add
+        readorder (str, optional): 'lr' or 'rl' to indicate readout order
             'lr' : add prescan on left and overscan on right of image
             'rl' : add prescan on right and overscan on left of image
-        noisydata (boolean) : if True, don't add noise to the signal region,
+        noisydata (boolean, optional) : if True, don't add noise,
             e.g. because input signal already had noise from a cosmics image
 
     Returns 2D integer ndarray:
@@ -545,6 +543,28 @@ def parallel_project(psf, wave, phot, specmin=0, ncpu=None, comm=None):
 
 
 def get_nodes_per_exp(nnodes,nexposures,ncameras,user_nodes_per_comm_exp=None):
+    """
+    Calculate how many nodes to use per exposure
+
+    Args:
+        nnodes: number of nodes in MPI COMM_WORLD (not number of ranks)
+        nexposures: number of exposures to process
+        ncameras: number of cameras per exposure
+        user_nodes_per_comm_exp (int, optional): user override of number of
+            nodes to use; used to check requirements
+
+    Returns number of nodes to include in sub-communicators used to process
+    individual exposures
+
+    Notes:
+        * Uses the largest number of nodes per exposure that will still
+          result in efficient node usage
+        * requires that (nexposures*ncameras) / nnodes = int
+        * the derived nodes_per_comm_exp * nexposures / nodes = int
+        * See desisim.test.test_pixsim.test_get_nodes_per_exp() for examples
+        * if user_nodes_per_comm_exp is given, requires that
+          GreatestCommonDivisor(nnodes, ncameras) / user_nodes_per_comm_exp = int
+    """
  
     from math import gcd
     import desiutil.log as logging
@@ -594,6 +614,10 @@ def get_nodes_per_exp(nnodes,nexposures,ncameras,user_nodes_per_comm_exp=None):
 
 #-------------------------------------------------------------------------
 #- MPI utility functions
+#- These functions assist with splitting a communicator across node boundaries.
+#- That constraint isn't required by MPI, but can be convenient for humans
+#- thinking about "I want to process one camera with one node" or "I want to
+#- process 6 exposures with 20 nodes using 10 nodes per exposure"
 
 def mpi_count_nodes(comm):
     '''
@@ -607,21 +631,24 @@ def mpi_count_nodes(comm):
     num_nodes = comm.bcast(num_nodes, root=0)
     return num_nodes
 
-def mpi_split_by_node(comm, nodes_per_communicator=1):
+def mpi_split_by_node(comm, nodes_per_communicator):
     '''
-    Split an MPI communicator into sub-communicators by nodes
+    Split an MPI communicator into sub-communicators with integer numbers
+    of nodes per communicator
 
     Args:
         comm: MPI communicator
-
-    Options:
         nodes_per_communicator: number of nodes per sub-communicator
 
     Returns:
-        MPI sub-communicator
+        MPI sub-communicator, node_index, total_num_nodes
 
-    Note: total number of nodes in original communicator must be an integer
-    multiple of nodes_per_communicator
+    Notes:
+      * total number of nodes in original communicator must be an integer
+        multiple of nodes_per_communicator
+      * if comm is split into N sub-communicators, node_index is the index
+        of which of the N is returned for this rank
+      * total_num_nodes = number of nodes in original communicator
     '''
     num_nodes = mpi_count_nodes(comm)
 
