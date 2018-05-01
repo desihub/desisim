@@ -247,13 +247,17 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     log.warning("Assuming the healpix scheme is 'NESTED'")
     meta={"HPXNSIDE":nside,"HPXPIXEL":healpix, "HPXNEST":True}
      
-    # today we write mags because that's what is in the fibermap
-    mags=np.zeros((qso_flux.shape[0],5))
-    for i,band in enumerate(bands) :
-        jj=(bbflux[band]>0)
-        mags[jj,i] = 22.5-2.5*np.log10(bbflux[band][jj]) # AB magnitudes
+    if args.target_selection or args.mags :
+        # today we write mags because that's what is in the fibermap
+        mags=np.zeros((qso_flux.shape[0],5))
+        for i,band in enumerate(bands) :
+            jj=(bbflux[band]>0)
+            mags[jj,i] = 22.5-2.5*np.log10(bbflux[band][jj]) # AB magnitudes
+        fibermap_columns={"MAG":mags}
+    else :
+        fibermap_columns=None
     
-    sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,meta=meta,seed=seed,fibermap_columns={"MAG":mags})
+    sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,meta=meta,seed=seed,fibermap_columns=fibermap_columns)
     
     if args.zbest :
         log.info("Read fibermap")
