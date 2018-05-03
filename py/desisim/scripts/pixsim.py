@@ -97,8 +97,7 @@ def parse(options=None):
     parser.add_argument("--wavemax", type=float, 
         help="Maximum wavelength to simulate")
     parser.add_argument("--nspec", type=int, 
-        help="Number of spectra to simulate per camera", 
-        default=0)
+        help="Number of spectra to simulate per camera")
 
     if options is None:
         args = parser.parse_args()
