@@ -200,7 +200,6 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
             asctime()))
     #- parse camera name into channel and spectrograph number
     channel = camera[0].lower()
-
     ispec = int(camera[1])
     assert channel in 'brz', \
         'unrecognized channel {} camera {}'.format(channel, camera)
@@ -590,12 +589,13 @@ def get_nodes_per_exp(nnodes,nexposures,ncameras,user_nodes_per_comm_exp=None):
     #greatest common divisor = greatest common factor    
     #we use python's built in gcd
     greatest_common_factor=gcd(nnodes,ncameras) 
-    #the greatest common factor must be greater than one
-    if greatest_common_factor == 1:
-        msg=("greatest common factor {} between nnodes {} and nframes {} must be larger than one, try again".format(greatest_common_factor, nnodes, nframes))
-        raise ValueError(msg)
-    else:
-        log.debug("greatest common factor {} between nnodes {} and nframes {} is greater than one, check passed".format(greatest_common_factor, nnodes, nframes))
+    #the greatest common factor must be greater than one UNLESS we are on one node
+    if nnodes > 1:
+        if greatest_common_factor == 1:
+            msg=("greatest common factor {} between nnodes {} and nframes {} must be larger than one, try again".format(greatest_common_factor, nnodes, nframes))
+            raise ValueError(msg)
+        else:
+            log.debug("greatest common factor {} between nnodes {} and nframes {} is greater than one, check passed".format(greatest_common_factor, nnodes, nframes))
         
     #check to make sure the user hasn't specified a really asinine value of user_nodes_per_comm_exp    
     if user_nodes_per_comm_exp is not None:
