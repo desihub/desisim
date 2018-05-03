@@ -26,7 +26,7 @@ from desiutil.log import get_logger
 log = get_logger()
 
 def simulate_exposure(simspecfile, rawfile, cameras=None,
-        ccdshape=None, simpixfile=None, addcosmics=True, comm=None,
+        ccdshape=None, simpixfile=None, addcosmics=None, comm=None,
         **kwargs):
     """
     Simulate frames from an exposure, including I/O
@@ -39,7 +39,7 @@ def simulate_exposure(simspecfile, rawfile, cameras=None,
         cameras: str or list of str, e.g. b0, r1, .. z9
         ccdshape: (npix_y, npix_x) primarily used to limit memory while testing
         simpixfile: output file for noiseless truth pixels
-        addcosmics: if True (default), add cosmics from real data
+        addcosmics: if True (must be specified via command input), add cosmics from real data
         comm: MPI communicator object
 
     Additional keyword args are passed to pixsim.simulate()
@@ -66,7 +66,7 @@ def simulate_exposure(simspecfile, rawfile, cameras=None,
         num_nodes = 1
         node_rank = 0
         node_size = 1
-
+    
     if rank == 0:
         log.debug('Starting simulate_exposure at {}'.format(asctime()))
 
@@ -80,11 +80,8 @@ def simulate_exposure(simspecfile, rawfile, cameras=None,
                 raise ValueError('Number of cameras {} should be evenly divisible by number of nodes {}'.format(
                     len(cameras), num_nodes))
 
-        if comm is not None:
-            cameras = comm.bcast(cameras, root=0)
-
-    elif isinstance(cameras, str):
-        cameras = [cameras,]
+    if comm is not None:
+        cameras = comm.bcast(cameras, root=0)
 
     #- Fail early if camera alreaady in output file
     if rank == 0 and os.path.exists(rawfile):
@@ -104,7 +101,8 @@ def simulate_exposure(simspecfile, rawfile, cameras=None,
 
     mycameras = cameras[node_index::num_nodes]
     if node_rank == 0:
-        log.debug('Node {} cameras {}'.format(node_index, mycameras))
+        log.info("Assigning cameras {} to comm_exp node {}".format(mycameras, node_index))
+
     simspec = io.read_simspec(simspecfile, cameras=mycameras,
         readflux=False, comm=comm)
     night = simspec.header['NIGHT']
@@ -114,6 +112,8 @@ def simulate_exposure(simspecfile, rawfile, cameras=None,
         log.debug('Reading PSFs at {}'.format(asctime()))
 
     psfs = dict()
+    #need to initialize previous channel
+    previous_channel = 'a'
     for camera in mycameras:
         #- Note: current PSF object can't be pickled and thus every
         #- rank must read it instead of rank 0 read + bcast
@@ -128,17 +128,21 @@ def simulate_exposure(simspecfile, rawfile, cameras=None,
         psf = psfs[channel]
 
         cosmics=None
-        if addcosmics and node_rank == 0:
-            cosmics_file = io.find_cosmics(camera, simspec.header['EXPTIME'])
-            log.info('cosmics templates {}'.format(cosmics_file))
-            shape = (psf.npix_y, psf.npix_x)
-            cosmics = io.read_cosmics(cosmics_file, expid, shape=shape)
+        #avoid re-broadcasting cosmics if we can
+        if previous_channel != channel:
+            if (addcosmics is True) and (node_rank == 0):
+                cosmics_file = io.find_cosmics(camera, simspec.header['EXPTIME'])
+                log.info('cosmics templates {}'.format(cosmics_file))
+                shape = (psf.npix_y, psf.npix_x)
+                cosmics = io.read_cosmics(cosmics_file, expid, shape=shape)
+            if (addcosmics is True) and (comm_node is not None):
+                cosmics = comm_node.bcast(cosmics, root=0)
+            else:
+                log.debug("Cosmics not requested")
 
-        if comm_node is not None:
-            cosmics = comm_node.bcast(cosmics, root=0)
-
-        image, rawpix, truepix = simulate(camera, simspec, psf, comm=comm_node,
-            preproc=False, cosmics=cosmics, **kwargs)
+        if node_rank == 0: 
+            log.info("Starting simulate for camera {} on node {}".format(camera,node_index)) 
+        image, rawpix, truepix = simulate(camera, simspec, psf, comm=comm_node, preproc=False, cosmics=cosmics, **kwargs)
 
         #- Use input communicator as barrier since multiple sub-communicators
         #- will write to the same output file
@@ -163,6 +167,8 @@ def simulate_exposure(simspecfile, rawfile, cameras=None,
         if rank == 0:
             log.info('Wrote {}'.format(rawfile))
             log.debug('done at {}'.format(asctime()))
+
+        previous_channel = channel
 
 def simulate(camera, simspec, psf, nspec=None, ncpu=None,
     cosmics=None, wavemin=None, wavemax=None, preproc=True, comm=None):
@@ -193,7 +199,6 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
             asctime()))
     #- parse camera name into channel and spectrograph number
     channel = camera[0].lower()
-
     ispec = int(camera[1])
     assert channel in 'brz', \
         'unrecognized channel {} camera {}'.format(channel, camera)
@@ -583,12 +588,13 @@ def get_nodes_per_exp(nnodes,nexposures,ncameras,user_nodes_per_comm_exp=None):
     #greatest common divisor = greatest common factor    
     #we use python's built in gcd
     greatest_common_factor=gcd(nnodes,ncameras) 
-    #the greatest common factor must be greater than one
-    if greatest_common_factor == 1:
-        msg=("greatest common factor {} between nnodes {} and nframes {} must be larger than one, try again".format(greatest_common_factor, nnodes, nframes))
-        raise ValueError(msg)
-    else:
-        log.debug("greatest common factor {} between nnodes {} and nframes {} is greater than one, check passed".format(greatest_common_factor, nnodes, nframes))
+    #the greatest common factor must be greater than one UNLESS we are on one node
+    if nnodes > 1:
+        if greatest_common_factor == 1:
+            msg=("greatest common factor {} between nnodes {} and nframes {} must be larger than one, try again".format(greatest_common_factor, nnodes, nframes))
+            raise ValueError(msg)
+        else:
+            log.debug("greatest common factor {} between nnodes {} and nframes {} is greater than one, check passed".format(greatest_common_factor, nnodes, nframes))
         
     #check to make sure the user hasn't specified a really asinine value of user_nodes_per_comm_exp    
     if user_nodes_per_comm_exp is not None:
@@ -597,7 +603,7 @@ def get_nodes_per_exp(nnodes,nexposures,ncameras,user_nodes_per_comm_exp=None):
             raise ValueError(msg)
         else:
             log.debug("user-specified value of user_nodes_per_comm_exp {} is good, check passed".format(user_nodes_per_comm_exp))
-            n_exp_comm=nodes_per_comm_exp
+            nodes_per_comm_exp=user_nodes_per_comm_exp
     #if the user didn't specify anything, use the greatest common factor
     if user_nodes_per_comm_exp is None:
         nodes_per_comm_exp=greatest_common_factor        
@@ -623,12 +629,8 @@ def mpi_count_nodes(comm):
     '''
     Return the number of nodes in this communicator
     '''
-    nodenames = comm.gather(socket.gethostname(), root=0)
-    if comm.rank == 0:
-        num_nodes = len(set(nodenames))
-    else:
-        num_nodes = None
-    num_nodes = comm.bcast(num_nodes, root=0)
+    nodenames = comm.allgather(socket.gethostname())
+    num_nodes=len(set(nodenames))
     return num_nodes
 
 def mpi_split_by_node(comm, nodes_per_communicator):
