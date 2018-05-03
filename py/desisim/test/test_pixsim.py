@@ -102,7 +102,7 @@ class TestPixsim(unittest.TestCase):
     def test_pixsim(self):
         night = self.night
         expid = self.expid
-        cameras = 'r0'
+        cameras = ['r0']
         obs.new_exposure('arc', night=night, expid=expid, nspec=3)
         self.assertTrue(os.path.exists(io.findfile('simspec', night, expid)))
 
@@ -124,7 +124,7 @@ class TestPixsim(unittest.TestCase):
     def test_pixsim_cosmics(self):
         night = self.night
         expid = self.expid
-        cameras = 'r0'
+        cameras = ['r0']
         obs.new_exposure('arc', night=night, expid=expid, nspec=3)
         simspecfile = io.findfile('simspec', night, expid)
         rawfile = desispec.io.findfile('desi', night, expid)
@@ -134,8 +134,7 @@ class TestPixsim(unittest.TestCase):
         self.assertFalse(os.path.exists(rawfile))
 
         pixsim.simulate_exposure(simspecfile, rawfile, cameras,
-                addcosmics=True, ccdshape=self.ccdshape,
-                simpixfile=simpixfile)
+                addcosmics=True, ccdshape=self.ccdshape)
 
         self.assertTrue(os.path.exists(rawfile))
 
