@@ -80,8 +80,8 @@ def simulate_exposure(simspecfile, rawfile, cameras=None,
                 raise ValueError('Number of cameras {} should be evenly divisible by number of nodes {}'.format(
                     len(cameras), num_nodes))
 
-        if comm is not None:
-            cameras = comm.bcast(cameras, root=0)
+    if comm is not None:
+        cameras = comm.bcast(cameras, root=0)
 
     #- Fail early if camera alreaady in output file
     if rank == 0 and os.path.exists(rawfile):
@@ -142,8 +142,7 @@ def simulate_exposure(simspecfile, rawfile, cameras=None,
 
         if node_rank == 0: 
             log.info("Starting simulate for camera {} on node {}".format(camera,node_index)) 
-        image, rawpix, truepix = simulate(camera, simspec, psf, comm=comm_node,
-            preproc=False, cosmics=cosmics, **kwargs)
+        image, rawpix, truepix = simulate(camera, simspec, psf, comm=comm_node, preproc=False, cosmics=cosmics, **kwargs)
 
         #- Use input communicator as barrier since multiple sub-communicators
         #- will write to the same output file
