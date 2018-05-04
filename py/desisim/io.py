@@ -35,7 +35,7 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
     """Return canonical location of where a file should be on disk
 
     Args:
-        filetype (str): file type, e.g. 'pix' or 'pixsim'
+        filetype (str): file type, e.g. 'preproc' or 'simpix'
         night (str): YEARMMDD string
         expid (int): exposure id integer
         camera (str): e.g. 'b0', 'r1', 'z9'
@@ -58,7 +58,6 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
         simspec = '{outdir:s}/simspec-{expid:08d}.fits',
         simpix = '{outdir:s}/simpix-{expid:08d}.fits',
         simfibermap = '{outdir:s}/fibermap-{expid:08d}.fits',
-        pix = '{outdir:s}/pix-{camera:s}-{expid:08d}.fits',
         fastframelog = '{outdir:s}/fastframe-{expid:08d}.log',
         newexplog = '{outdir:s}/newexp-{expid:08d}.log',
     )
@@ -68,8 +67,8 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
         raise ValueError("Unknown filetype {}; known types are {}".format(filetype, list(location.keys())))
 
     #- Some but not all filetypes require camera
-    if filetype == 'pix' and camera is None:
-        raise ValueError('camera is required for filetype '+filetype)
+    # if filetype == 'preproc' and camera is None:
+    #     raise ValueError('camera is required for filetype '+filetype)
 
     #- get outfile location and cleanup extraneous // from path
     outfile = location[filetype].format(
@@ -93,23 +92,21 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, outdir=None, filename
     Write a simspec file
 
     Args:
-        sim: specsim Simulator object
-        truth: truth metadata Table
-        fibermap: fibermap Table
-        obs: dict-like observation conditions with keys
+        sim (Simulator): specsim Simulator object
+        truth (Table): truth metadata Table
+        fibermap (Table): fibermap Table
+        obs (dict-like): dict-like observation conditions with keys
             SEEING (arcsec), EXPTIME (sec), AIRMASS,
             MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
-        expid: integer exposure ID
-        night: YEARMMDD string
+        expid (int): integer exposure ID
+        night (str): YEARMMDD string
+        outdir (str, optional): output directory
+        filename (str, optional): if None, auto-derive from envvars, night, expid, and outdir
+        header (dict-like): header to include in HDU0
+        overwrite (bool, optional): overwrite pre-existing files
 
-    Options:
-        outdir: output directory
-        filename: if None, auto-derive from envvars, night, expid, and outdir
-        header: dict-like header to include in HDU0
-        overwrite: overwrite pre-existing files
-    
     Notes:
-        calibration exposures can use truth=None and obs=None
+        Calibration exposures can use ``truth=None`` and ``obs=None``.
     '''
     import astropy.table
     import astropy.units as u
@@ -268,395 +265,262 @@ def write_simspec_arc(filename, wave, phot, header, fibermap, overwrite=False):
     hx.writeto(filename, clobber=overwrite)
     return filename
 
+class SimSpecCamera(object):
+    """Wrapper of per-camera photon data from a simspec file"""
+    def __init__(self, camera, wave, phot, skyphot=None):
+        """
+        Create a SimSpecCamera object
 
-class SimSpec(object):
-    """Lightweight wrapper object for simspec data.
+        Args:
+            camera: camera name, e.g. b0, r1, z9
+            wave: 1D[nwave] array of wavelengths [Angstrom]
+            phot: 2D[nspec, nwave] photon counts per bin (not per Angstrom)
 
-    Args:
-        flavor (str): e.g. 'arc', 'flat', 'dark', 'mws', ...
-        wave : dictionary with per-channel wavelength grids, keyed by
-            'b', 'r', 'z'.  Optionally also has 'brz' key for channel
-            independent wavelength grid
-        phot : dictionary with per-channel photon counts per bin
+        Options:
+            skyphot: 2D[nspec, nwave] sky photon counts per bin
+        """
+        #- Check inputs
+        assert camera in [
+            'b0', 'r0', 'z0', 'b1', 'r1', 'z1',
+            'b2', 'r2', 'z2', 'b3', 'r3', 'z3',
+            'b4', 'r4', 'z4', 'b5', 'r5', 'z5',
+            'b6', 'r6', 'z6', 'b7', 'r7', 'z7',
+            'b8', 'r8', 'z8', 'b9', 'r9', 'z9',
+        ]
+        assert wave.ndim == 1, 'wave.ndim should be 1 not {}'.format(wave.ndim)
+        assert phot.ndim == 2, 'phot.ndim should be 2 not {}'.format(phot.ndim)
+        assert phot.shape[1] == wave.shape[0]
+        if skyphot is not None:
+            assert skyphot.ndim == 2, \
+                'skyphot.ndim should be 2 not {}'.format(skyphot.ndim)
+            assert skyphot.shape == phot.shape, \
+                'skyphot.shape {} != phot.shape {}'.format(skyphot.shape, phot.shape)
 
-    Optional:
-        flux : channel-independent flux [erg/s/cm^2/A]
-        skyflux : channel-indepenent sky flux [erg/s/cm^2/A/arcsec^2]
-        skyphot : dictionary with per-channel sky photon counts per bin
-        metadata : table of metadata information about these spectra
-        header : FITS header from HDU0
-        fibermap : fibermap Table
-        obs : (dict-like) observing conditions; see keys in notes below
-
-    Notes:
-      * input arguments become attributes
-      * wave[channel] is the wavelength grid for phot[channel] and
-            skyphot[channel] where channel = 'b', 'r', or 'z'
-      * wave['brz'] is the wavelength grid for flux and skyflux
-      * obsconditions keys SEEING (arcsec), EXPTIME (sec), AIRMASS,
-        MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
-    """
-    def __init__(self, flavor, wave, phot, flux=None, skyflux=None,
-                 skyphot=None, metadata=None, fibermap=None, obs=None, header=None):
-
-        #change to a new testing procedure since channel is now an input
-        for channel in phot.keys():
-            nspec=phot[channel].shape[0]
- 
-        for channel in phot.keys():
-            assert phot[channel].shape[0]==nspec
-
-        #commented in the case that channel is fed as an input, one at a time
-        #assert phot['b'].shape[0] == phot['r'].shape[0] == phot['z'].shape[0]
-
-        self.flavor = flavor
-        self.nspec = nspec
+        self.camera = camera
         self.wave = wave
         self.phot = phot
-
-        #- Optional items; may be None
         self.skyphot = skyphot
+
+class SimSpec(object):
+    """Lightweight wrapper object for simspec data
+
+    Object has properties flavor, nspec, wave, flux, skyflux, fibermap, truth,
+    obsconditions, header, cameras.
+
+    cameras is dict, keyed by camera name, of SimSpecCameras objects with
+    properies wave, phot, skyphot.
+
+    """
+    def __init__(self, flavor, wave, flux, skyflux, fibermap,
+                 truth, obsconditions, header):
+        """
+        Create a SimSpec object
+
+        Args:
+            flavor (str): e.g. 'arc', 'flat', 'science'
+            wave : 1D[nwave] array of wavelengths in Angstroms
+            flux : 2D[nspec, nwave] flux in 1e-17 erg/s/cm2/Angstrom
+            skyflux : 2D[nspec, nwave] flux in 1e-17 erg/s/cm2/Angstrom
+            fibermap: fibermap table
+            truth: table of truth metadata information about these spectra
+            obsconditions (dict-like): observing conditions; see notes below
+            header : FITS header from HDU0
+
+        Notes:
+          * all inputs must be specified but can be None, depending upon flavor,
+            e.g. arc and flat don't have skyflux or obsconditions
+          * obsconditions keys SEEING (arcsec), EXPTIME (sec), AIRMASS,
+            MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
+          * use self.add_camera to add per-camera photons
+        """
+
+        if wave is not None and flux is not None:
+            assert wave.ndim == 1, 'wave.ndim should be 1 not {}'.format(wave.ndim)
+            assert flux.ndim == 2, 'flux.ndim should be 2 not {}'.format(flux.ndim)
+            assert flux.shape[1] == wave.shape[0]
+        if skyflux is not None:
+            assert wave is not None
+            assert flux is not None
+            assert skyflux.ndim == 2, \
+                'skyflux.ndim should be 2 not {}'.format(skyflux.ndim)
+            assert skyflux.shape == flux.shape, \
+                'skyflux.shape {} != flux.shape {}'.format(skyflux.shape, flux.shape)
+
+        self.flavor = flavor
+        self.nspec = len(fibermap)
+        self.wave = wave
         self.flux = flux
         self.skyflux = skyflux
-        self.metadata = metadata
         self.fibermap = fibermap
-        self.obs = obs
+        self.truth = truth
+        self.obsconditions = obsconditions
         self.header = header
 
-def read_simspec_mpi(filename, comm, channel, spectrographs=None):
+        self.cameras = dict()
+
+    def add_camera(self, camera, wave, phot, skyphot=None):
+        """
+        Add per-camera photons to this SimSpec object, using SimSpecCamera
+
+        Args:
+            camera: camera name, e.g. b0, r1, z9
+            wave: 1D[nwave] array of wavelengths
+            phot: 2D[nspec, nwave] array of photons per bin (not per Angstrom)
+
+        Optional:
+            skyphot: 2D[nspec, nwave] array of sky photons per bin
+        """
+        self.cameras[camera] = SimSpecCamera(camera, wave, phot, skyphot)
+
+def fibers2cameras(fibers):
     """
-    Read simspec data from filename and return SimSpec object.
+    Return a list of cameras covered by an input array of fiber IDs
     """
-    import astropy.table
-    from mpi4py import MPI #need to reimport this so MPI.DOUBLE can be used
+    cameras = list()
+    for spectrograph in range(10):
+        ii = np.arange(500) + spectrograph*500
+        if np.any(np.in1d(ii, fibers)):
+            for channel in ['b', 'r', 'z']:
+                cameras.append(channel + str(spectrograph))
+    return cameras
 
-    # rank 0 opens file and gets the metadata and wavelength
-    # grids, which will be kept on all processes.
+def read_simspec(filename, cameras=None, comm=None, readflux=True, readphot=True):
+    """
+    Read a simspec file and return a SimSpec object
 
-    hdr = None
-    flavor = None
-    fibermap = None
-    obs = None
-    wave = dict()
-    totalspec = None
+    Args:
+        filename: input simspec file name
 
-    if comm.rank == 0:
-        fx = fits.open(filename, memmap=True)
-        hdr = fx[0].header.copy()
-        flavor = hdr['FLAVOR']
-        if 'WAVE' in fx:
-            wave['brz'] = native_endian(fx['WAVE'].data.copy())
-        #for channel in ('b', 'r', 'z'):
-        hname = 'WAVE_'+channel.upper()
-        wave[channel] = native_endian(fx[hname].data.copy())
-        if 'FIBERMAP' in fx:
-            fibermap = astropy.table.Table(fx['FIBERMAP'].data.copy())
-            totalspec = len(fibermap)
-        else:
-            # Get the number of spectra from one of the photon HDUs
-            totalspec = fx['PHOT_B'].header['NAXIS2']
-        if 'OBSCONDITIONS' in fx:
-            obs = astropy.table.Table(fx['OBSCONDITIONS'].data.copy())[0]
-        fx.close()
-        # Memmap file handle should close here when fx goes out of scope...
-
-    hdr = comm.bcast(hdr, root=0)
-    flavor = comm.bcast(flavor, root=0)
-    obs = comm.bcast(obs, root=0)
-    totalspec = comm.bcast(totalspec, root=0)
-    wave = comm.bcast(wave, root=0)
-    fibermap = comm.bcast(fibermap, root=0)
-
-    # Based on the spectrographs for this process, compute the range of 
-    # spectra we need to store.  The number of spectra per spectrograph (500)
-    # is hard-coded several places in desisim.  This should be put in desimodel
-    # somewhere...
-
-    fibers = None
-    if fibermap is not None:
-        fibers = np.array(fibermap['FIBER'], dtype=np.int32)
+    Options:
+        cameras: camera name or list of names, e.g. b0, r1, z9
+        comm: MPI communicator
+        readflux: if True (default), include flux
+        readphot: if True (default), include per-camera photons
+    """
+    if comm is not None:
+        rank, size = comm.rank, comm.size
     else:
-        fibers = np.arange(totalspec, dtype=np.int32)
+        rank, size = 0, 1
 
-    if spectrographs is None:
-        spectrographs = np.arange(10, dtype=np.int32)
+    if cameras is None:
+        #- Build the potential cameras list based upon the fibermap
+        if rank == 0:
+            fibermap = fits.getdata(filename, 'FIBERMAP')
+            cameras = fibers2cameras(fibermap['FIBER'])
 
-    specslice = np.in1d(fibers//500, spectrographs)
+        if comm is not None:
+            cameras = comm.bcast(cameras, root=0)
 
-    if fibermap is not None:
-        fibermap = fibermap[specslice]
+    elif isinstance(cameras, str):
+        cameras = [cameras,]
 
-    # Now read one HDU at a time, broadcast, and every process grabs its slice.
+    #- Read and broadcast data that are common across cameras
+    header = flavor = truth = fibermap = obsconditions = None
+    wave = flux = skyflux = None
+    if rank == 0:
+        with fits.open(filename, memmap=False) as fx:
+            header = fx[0].header.copy()
+            flavor = header['FLAVOR']
 
-    # Note: this is global scope within the function, so memmap file handle
-    # will not close until the function returns (which is fine).
-    # only want to open file for rank 0 to cut down on I/O
-    if comm.rank ==0:
-        hdus = None
-        hdus = fits.open(filename, memmap=True)
+            if 'WAVE' in fx and readflux:
+                wave = native_endian(fx['WAVE'].data.copy())
 
-    #in these next blocks, we fix the endian-ness of the data for each type
-    #we also extract the data for later broadcast if comm.rank == 0
-    #and we store the shape of the data to allocate numpy arrays if comm_rank !=0
-    #it looks a little silly but it's better than trying to convert from a python 
-    #dictionary back to a numpy array later
+            if 'FLUX' in fx and readflux:
+                flux = native_endian(fx['FLUX'].data.astype('f8'))
 
-    #preallocate shape_dict
-    shape_dict=dict()
+            if 'SKYFLUX' in fx and readflux:
+                skyflux = native_endian(fx['SKYFLUX'].data.astype('f8'))
 
-    #photons
-    hname = 'PHOT_'+channel.upper()
-    if comm.rank == 0:
-        phot_hdata=np.empty(1,dtype=np.float64)
-        phot_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
-        shape_dict[hname]=hdus[hname].shape
-    del hname
+            if 'TRUTH' in fx:
+                truth = Table(fx['TRUTH'].data)
 
-    #sky photons
-    hname = 'SKYPHOT_'+channel.upper()
-    if comm.rank ==0:
-        sky_hdata=np.empty(1,dtype=np.float64)
-        sky_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
-        shape_dict[hname]=hdus[hname].shape
-    del hname
+            if 'FIBERMAP' in fx:
+                fibermap = Table(fx['FIBERMAP'].data)
 
-    #flux
-    hname = 'FLUX'
-    if comm.rank == 0:
-        flux_hdata=np.empty(1,dtype=np.float64)
-        flux_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
-        shape_dict[hname]=hdus[hname].shape
-    del hname
+            if 'OBSCONDITIONS' in fx:
+                obsconditions = Table(fx['OBSCONDITIONS'].data)[0]
 
-    #skyflux
-    hname = 'SKYFLUX'
-    if comm.rank ==0:
-        skyflux_hdata=np.empty(1,dtype=np.float64)
-        skyflux_hdata=native_endian(hdus[hname].data.copy().astype('f8'))
-        shape_dict[hname]=hdus[hname].shape
-    del hname
+    if comm is not None:
+        header = comm.bcast(header, root=0)
+        flavor = comm.bcast(flavor, root=0)
+        truth = comm.bcast(truth, root=0)
+        fibermap = comm.bcast(fibermap, root=0)
+        obsconditions = comm.bcast(obsconditions, root=0)
 
-    #now put shape tuples into a dict so we can broadcast them
-    #one broadcast is more efficienct than many broadcasts
-    #this allows the ranks to know what size to preallocate
-    shape_dict= comm.bcast(shape_dict, root=0)
-    #add a barrier so we can make sure these data have been broadcast 
-    #to all ranks before we start the next process
-    comm.Barrier()
+        wave = comm.bcast(wave, root=0)
+        flux = comm.bcast(flux, root=0)
+        skyflux = comm.bcast(skyflux, root=0)
 
-    # Read photons
-    phot = dict()
-    if comm.rank == 0:
-        hdata=phot_hdata
-    elif comm.rank != 0:
-        hdata=np.empty(shape_dict['PHOT_'+channel.upper()],dtype=np.float64)
-    comm.Bcast([hdata,MPI.DOUBLE],root=0)
-    phot[channel] = hdata[specslice].copy()
-    del hdata
+    #- Trim arrays to match camera
+    #- Note: we do this after the MPI broadcast because rank 0 doesn't know
+    #- which ranks need which cameras.  Although inefficient, in practice
+    #- this doesn't matter (yet?) because the place we use parallelism is
+    #- pixsim which uses readflux=False and thus doesn't broadcast flux anyway
+    ii = np.zeros(len(fibermap), dtype=bool)
+    for camera in cameras:
+        spectrograph = int(camera[1])   #- e.g. b0
+        fibers = np.arange(500, dtype=int) + spectrograph*500
+        ii |= np.in1d(fibermap['FIBER'], fibers)
 
-    # Read sky photons
-    skyphot = dict()
-    hname = 'SKYPHOT_'+channel.upper()
-    found = False
-    if comm.rank == 0:
-        if hname in hdus:
-            found = True
-    found = comm.bcast(found, root=0)
-    if found:
-        if comm.rank == 0:
-            hdata = sky_hdata
-        elif comm.rank != 0:
-            hdata=np.empty(shape_dict['SKYPHOT_'+channel.upper()],dtype=np.float64)
-        comm.Bcast([hdata,MPI.DOUBLE],root=0)
-        skyphot[channel] = hdata[specslice].copy()
-        del hdata
-    else:
-        skyphot[channel] = np.zeros_like(phot[channel])
-    assert phot[channel].shape == skyphot[channel].shape
+    assert np.any(ii), "input simspec doesn't cover cameras {}".format(cameras)
 
-    # flux
+    full_fibermap = fibermap
+    fibermap = fibermap[ii]
+    if flux is not None:
+        flux = flux[ii]
+    if skyflux is not None:
+        skyflux = skyflux[ii]
+    if truth is not None:
+        truth = truth[ii]
 
-    flux = np.empty(1,dtype=np.float64)
-    hname = 'FLUX'
-    found = False
-    if comm.rank == 0:
-        if hname in hdus:
-            found = True
-    found = comm.bcast(found, root=0)
-    if found:
-        if comm.rank == 0:
-            hdata = flux_hdata
-        elif comm.rank != 0:
-            hdata=np.empty(shape_dict['FLUX'],dtype=np.float64)
-        comm.Bcast([hdata,MPI.DOUBLE],root=0)
-        flux = hdata[specslice].copy()
-        del hdata
+    simspec = SimSpec(flavor, wave, flux, skyflux,
+                fibermap, truth, obsconditions, header)
 
-    # skyflux
+    #- Now read individual camera photons
+    #- NOTE: this is somewhat inefficient since the same PHOT_B/R/Z HDUs
+    #- are read multiple times by different nodes for different cameras,
+    #- though at least only one reader per camera (node) not per rank.
+    #- If this is slow, this would be an area for optimization.
+    if readphot:
+        for camera in cameras:
+            channel = camera[0].upper()
+            spectrograph = int(camera[1])
+            fiber = full_fibermap['FIBER']
+            ii = (spectrograph*500 <= fiber) & (fiber < (spectrograph+1)*500)
+            assert np.any(ii), 'Camera {} is not in fibers {}-{}'.format(
+                                            camera, np.min(fiber), np.max(fiber) )
 
-    skyflux = np.empty(1,dtype=np.float64)
-    hname = 'SKYFLUX'
-    found = False
-    if comm.rank == 0:
-        if hname in hdus:
-            found = True
-    found = comm.bcast(found, root=0)
-    if found:
-        if comm.rank == 0:
-            hdata = skyflux_hdata
-        elif comm.rank != 0:
-            hdata=np.empty(shape_dict['SKYFLUX'],dtype=np.float64)
-        comm.Bcast([hdata,MPI.DOUBLE],root=0)
-        skyflux = hdata[specslice].copy()
-        del hdata
-
-    # metadata / truth
-
-    metadata = None
-    hname = 'TRUTH'
-    found = False
-    if comm.rank == 0:
-        if hname in hdus:
-            found = True
-    found = comm.bcast(found, root=0)
-    if not found:
-        hname = 'METADATA'
-        if comm.rank == 0:
-            if hname in hdus:
-                found = True
-        found = comm.bcast(found, root=0)
-    if found:
-        hdata = None
-        if comm.rank == 0:
-            hdata = astropy.table.Table(hdus[hname].data.copy())
-        hdata = comm.bcast(hdata, root=0) #leaving this call alone because hdata is not a numpy array
-        metadata = hdata[specslice].copy()
-        del hdata
-
-    if comm.rank == 0:
-        hdus.close()
-
-    return SimSpec(flavor, wave, phot, flux=flux, skyflux=skyflux,
-        skyphot=skyphot, metadata=metadata, fibermap=fibermap, obs=obs,
-        header=hdr)
-
-def read_simspec(filename, nspec=None, firstspec=0):
-    """Read simspec data from filename and return SimSpec object.
-    """
-    import astropy.table
-    with fits.open(filename, memmap=False) as fx:
-        hdr = fx[0].header
-        flavor = hdr['FLAVOR']
-
-        #- All flavors have photons
-        wave = dict()
-        phot = dict()
-        skyphot = dict()
-        for channel in ('b', 'r', 'z'):
-            wave[channel] = native_endian(fx['WAVE_'+channel.upper()].data)
-            phot[channel] = native_endian(fx['PHOT_'+channel.upper()].data.astype('f8'))
-
-            skyext = 'SKYPHOT_'+channel.upper()
-            if skyext in fx:
-                skyphot[channel] = native_endian(fx[skyext].data.astype('f8'))
+            #- Split MPI communicator by camera
+            #- read and broadcast each camera
+            if comm is not None:
+                tmp = 'b0 r0 z0 b1 r1 z1 b2 r2 z2 b3 r3 z3 b4 r4 z4 b5 r5 z5 b6 r6 z6 b7 r7 z7 b8 r8 z8 b9 r9 z9'.split()
+                camcomm = comm.Split(color=tmp.index(camera))
+                camrank = camcomm.rank
             else:
-                skyphot[channel] = np.zeros_like(phot[channel])
+                camcomm = None
+                camrank = 0
 
-            assert phot[channel].shape == skyphot[channel].shape
+            wave = phot = skyphot = None
+            if camrank == 0:
+                with fits.open(filename, memmap=False) as fx:
+                    wave = native_endian(fx['WAVE_'+channel].data.copy())
+                    phot = native_endian(fx['PHOT_'+channel].data[ii].astype('f8'))
+                    if 'SKYPHOT_'+channel in fx:
+                        skyphot = native_endian(fx['SKYPHOT_'+channel].data[ii].astype('f8'))
+                    else:
+                        skyphot = None
 
-        #- Check for flux, skyflux, and metadata
-        flux = None
-        skyflux = None
-        if 'WAVE' in fx:
-            wave['brz'] = native_endian(fx['WAVE'].data)
-        if 'FLUX' in fx:
-            flux = native_endian(fx['FLUX'].data.astype('f8'))
-        if 'SKYFLUX' in fx:
-            skyflux = native_endian(fx['SKYFLUX'].data.astype('f8'))
+            if camcomm is not None:
+                wave = camcomm.bcast(wave, root=0)
+                phot = camcomm.bcast(phot, root=0)
+                skyphot = camcomm.bcast(skyphot, root=0)
 
-        if 'TRUTH' in fx:
-            metadata = astropy.table.Table(fx['TRUTH'].data)
-        #- For backwards compatibility
-        elif 'METADATA' in fx:
-            metadata = astropy.table.Table(fx['METADATA'].data)
-        else:
-            metadata = None
+            simspec.add_camera(camera, wave, phot, skyphot)
 
-        if 'FIBERMAP' in fx:
-            fibermap = astropy.table.Table(fx['FIBERMAP'].data)
-        else:
-            fibermap = None
+    return simspec
 
-        if 'OBSCONDITIONS' in fx:
-            obs = astropy.table.Table(fx['OBSCONDITIONS'].data)[0]
-        else:
-            obs = None
-
-    #- Trim down if requested
-    if nspec is None:
-        nspec = phot['b'].shape[0]
-
-    if firstspec > 0 or firstspec+nspec<phot['b'].shape[0]:
-        for channel in ('b', 'r', 'z'):
-            phot[channel] = phot[channel][firstspec:firstspec+nspec]
-            skyphot[channel] = skyphot[channel][firstspec:firstspec+nspec]
-        if flux is not None:
-            flux = flux[firstspec:firstspec+nspec]
-        if skyflux is not None:
-            skyflux = skyflux[firstspec:firstspec+nspec]
-        if metadata is not None:
-            metadata = metadata[firstspec:firstspec+nspec]
-
-    return SimSpec(flavor, wave, phot, flux=flux, skyflux=skyflux,
-        skyphot=skyphot, metadata=metadata, fibermap=fibermap, obs=obs,
-        header=hdr)
-
-
-def _read_simspec_orig(filename):
-    """Read simspec data from filename and return SimSpec object.
-    """
-
-    fx = fits.open(filename)
-    hdr = fx[0].header
-    flavor = hdr['FLAVOR']
-
-    #- All flavors have photons
-    wave = dict()
-    phot = dict()
-    skyphot = dict()
-    for channel in ('b', 'r', 'z'):
-        wave[channel] = fx['WAVE_'+channel.upper()].data
-        phot[channel] = fx['PHOT_'+channel.upper()].data
-        skyext = 'SKYPHOT_'+channel.upper()
-        if skyext in fx:
-            skyphot[channel] = fx[skyext].data
-        else:
-            skyphot[channel] = np.zeros_like(phot[channel])
-
-    if flavor == 'arc':
-        fx.close()
-        return SimSpec(flavor, wave, phot, skyphot=skyphot, header=hdr)
-
-    elif flavor == 'flat':
-        wave['brz'] = fx['WAVE'].data
-        flux = fx['FLUX'].data
-        fx.close()
-        return SimSpec(flavor, wave, phot, skyphot=skyphot, flux=flux, header=hdr)
-
-    else:  #- multiple science flavors: dark, bright, bgs, mws, etc.
-        wave['brz'] = fx['WAVE'].data
-        flux = fx['FLUX'].data
-        metadata = fx['METADATA'].data
-        skyflux = fx['SKYFLUX'].data
-        skyphot = dict()
-        for channel in ('b', 'r', 'z'):
-            extname = 'SKYPHOT_'+channel.upper()
-            skyphot[channel] = fx[extname].data
-
-        fx.close()
-        return SimSpec(flavor, wave, phot, flux=flux, skyflux=skyflux,
-            skyphot=skyphot, metadata=metadata, header=hdr)
-
+#-------------------------------------------------------------------------
+#- simpix
 
 def write_simpix(outfile, image, camera, meta):
     """Write simpix data to outfile.
@@ -1088,7 +952,7 @@ def write_templates(outfile, flux, wave, meta):
         flux (numpy.ndarray): Flux vector (1e-17 erg/s/cm2/A)
         wave (numpy.ndarray): Wavelength vector (Angstrom).
         meta (astropy.table.Table): metadata table.
-    
+
     """
     from astropy.io import fits
     from desispec.io.util import makepath
@@ -1101,13 +965,13 @@ def write_templates(outfile, flux, wave, meta):
     hdu_wave.header['EXTNAME'] = 'WAVE'
     hdu_wave.header['BUNIT'] = 'Angstrom'
     hdu_wave.header['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
-    hx.append(hdu_wave)    
-    
+    hx.append(hdu_wave)
+
     hdu_flux = fits.ImageHDU(flux)
     hdu_flux.header['EXTNAME'] = 'FLUX'
     hdu_flux.header['BUNIT'] = str(fluxunits)
     hx.append(hdu_flux)
-    
+
     hdu_meta = fits.table_to_hdu(meta)
     hdu_meta.header['EXTNAME'] = 'METADATA'
     hx.append(hdu_meta)
@@ -1139,7 +1003,7 @@ def _parse_filename(filename):
     camera=None if the filename isn't camera specific
 
     e.g. /blat/foo/simspec-00000003.fits -> ('simspec', None, 3)
-    e.g. /blat/foo/pix-r2-00000003.fits -> ('pix', 'r2', 3)
+    e.g. /blat/foo/preproc-r2-00000003.fits -> ('preproc', 'r2', 3)
     """
     base = os.path.basename(os.path.splitext(filename)[0])
     x = base.split('-')
@@ -1188,13 +1052,13 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype='', add_SNeIa=None):
                            data=np.zeros(nmodel)-1, unit='km/s'))
     meta.add_column(Column(name='OIIDOUBLET', length=nmodel, dtype='f4', data=np.zeros(nmodel)-1))
     meta.add_column(Column(name='OIIIHBETA', length=nmodel, dtype='f4',
-                           data=np.zeros(nmodel)-1, unit='dex'))
+                           data=np.zeros(nmodel)-1, unit='Dex'))
     meta.add_column(Column(name='OIIHBETA', length=nmodel, dtype='f4',
-                           data=np.zeros(nmodel)-1, unit='dex'))
+                           data=np.zeros(nmodel)-1, unit='Dex'))
     meta.add_column(Column(name='NIIHBETA', length=nmodel, dtype='f4',
-                           data=np.zeros(nmodel)-1, unit='dex'))
+                           data=np.zeros(nmodel)-1, unit='Dex'))
     meta.add_column(Column(name='SIIHBETA', length=nmodel, dtype='f4',
-                           data=np.zeros(nmodel)-1, unit='dex'))
+                           data=np.zeros(nmodel)-1, unit='Dex'))
 
     meta.add_column(Column(name='ZMETAL', length=nmodel, dtype='f4',
                            data=np.zeros(nmodel)-1))

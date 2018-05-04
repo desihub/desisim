@@ -1,31 +1,42 @@
 """
 desisim.scripts.pixsim_nights
-======================
+=============================
 
-Entry point for simulating multiple nights.
+This is a module.
 """
 from __future__ import absolute_import, division, print_function
 
-import sys
-import os
-import re
-import argparse
-import traceback
-import warnings
+import os,sys
+import os.path
+import shutil
+
+import random
+from time import asctime
 
 import numpy as np
 
-from desispec.util import option_list
-
+import desimodel.io
+from desiutil.log import get_logger
+import desispec.io
 from desispec.parallel import stdouterr_redirected
+
+from . import pixsim
+
+from ..pixsim import simulate_exposure
+from ..pixsim import get_nodes_per_exp
+from ..pixsim import mpi_count_nodes
+from ..pixsim import mpi_split_by_node
+
+from ..io import SimSpec
+from .. import obs, io
+
+import argparse
 
 import desispec.io as specio
 
 from .. import io as simio
 
-from ..io import SimSpec
-
-from . import pixsim
+log = get_logger()
 
 
 def parse(options=None):
@@ -36,13 +47,15 @@ def parse(options=None):
     parser.add_argument("--nights", type=str, default=None, required=False, help="YEARMMDD,YEARMMDD,YEARMMDD")
     parser.add_argument("--verbose", action="store_true", help="Include debug log info")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing raw and simpix files")
-    parser.add_argument("--cosmics", action="store_true", help="Add simulated cosmics")
-    parser.add_argument("--preproc", action="store_true", help="Run the preprocessing")
+    parser.add_argument("--cosmics", default=None, action="store_true", required=False, help="Add simulated cosmics")
     parser.add_argument("--seed", type=int, default=123456, required=False, help="random number seed")
 
+    parser.add_argument("--ncpu", type=int, help="Number of cpu cores per thread to use", default=0)
+    parser.add_argument("--nspec", type=int, help="Number of spectra to simulate per camera", default=0)
+    parser.add_argument("--wavemin", type=float, help="Minimum wavelength to simulate")
+    parser.add_argument("--wavemax", type=float, help="Maximum wavelength to simulate")
     parser.add_argument("--cameras", type=str, default=None, help="cameras, e.g. b0,r5,z9")
-    parser.add_argument("--camera_procs", type=int, default=1, required=True,
-        help="Number of MPI processes to use per camera")
+    parser.add_argument("--user_nodes_per_comm_exp", type=int, default=None, help="user specified value of nnodes per exposure communicator")
 
     args = None
     if options is None:
@@ -53,169 +66,131 @@ def parse(options=None):
 
     return args
 
-
 def main(args, comm=None):
+    if args.verbose:
+        import logging
+        log.setLevel(logging.DEBUG)
+    #we do this so we can use operator.itemgetter
+    import operator
+    #we do this so our print statements can have timestamps
+    import time
+
     rank = 0
     nproc = 1
     if comm is not None:
+        import mpi4py
         rank = comm.rank
         nproc = comm.size
+
+    if rank == 0:
+        log.info('Starting pixsim at {}'.format(asctime()))
+
+    #no preflight check here, too complicated.   
+    #we'll assume the user knows what he or she is doing...
 
     # Determine which nights we are using
     nights = None
     if args.nights is not None:
         nights = args.nights.split(",")
     else:
-        if rank == 0:
-            rawdir = os.path.abspath(specio.rawdata_root())
-            nights = []
-            nightpat = re.compile(r"\d{8}")
-            for root, dirs, files in os.walk(rawdir, topdown=True):
-                for d in dirs:
-                    nightmat = nightpat.match(d)
-                    if nightmat is not None:
-                        nights.append(d)
-                break
-        if comm is not None:
-            nights = comm.bcast(nights, root=0)
+        rawdir = os.path.abspath(specio.rawdata_root())
+        nights = []
+        nightpat = re.compile(r"\d{8}")
+        for root, dirs, files in os.walk(rawdir, topdown=True):
+            for d in dirs:
+                nightmat = nightpat.match(d)
+                if nightmat is not None:
+                    nights.append(d)
 
     # Get the list of exposures for each night
     night_expid = {}
     all_expid = []
     exp_to_night = {}
-    if rank == 0:
-        for nt in nights:
-            night_expid[nt] = specio.get_exposures(nt, raw=True)
-            all_expid.extend(night_expid[nt])
-            for ex in night_expid[nt]:
-                exp_to_night[ex] = nt
-    if comm is not None:
-        night_expid = comm.bcast(night_expid, root=0)
-        all_expid = comm.bcast(all_expid, root=0)
-        exp_to_night = comm.bcast(exp_to_night, root=0)
+    for nt in nights:
+        night_expid[nt] = specio.get_exposures(nt, raw=True)
 
-    expids = np.array(all_expid, dtype=np.int32)
-    nexp = len(expids)
+    #get a list of tuples of (night,expid) that we can evenly divide between communicators
+    night_exposure_list=list()
+    for nt in nights:
+        for exp in night_expid[nt]:
+            night_exposure_list.append([nt,exp])              
 
-    # Get the list of cameras
-    cams = None
+    # Get the list of cameras and make sure it's in the right format
+    cams = []
     if args.cameras is not None:
-        cams = args.cameras.split(",")
+        entry = args.cameras.split(',')
+        for i in entry:
+            cams.append(i)
     else:
-        cams = []
-        # Do this in spectrograph order first, so that
-        # later when we distribute cameras each group will have 
-        # the minimal set of spectrographs to store.
-        for spec in range(10):
-            for band in ['b', 'r', 'z']:
-                cams.append('{}{}'.format(band, spec))
+        #do this with band first so we can avoid re-broadcasting cosmics
+        for band in ['b', 'r', 'z']:
+            for spec in range(10):
+                cams.append('{}{}'.format(band, spec)) 
 
-    # number of cameras
-    ncamera = len(cams)
-
-    # check that our communicator is an appropriate size
-
-    if comm is not None:
-        if ncamera * args.camera_procs > comm.size:
-            if comm.rank == 0:
-                print("Communicator size ({}) too small for {} cameras each with {} procs".format(comm.size, ncamera, args.camera_procs), flush=True)
-                comm.Abort()
-
-    # create a set of reproducible seeds for each exposure
-    np.random.seed(args.seed)
-    maxexp = np.max(expids)
-    seeds = np.random.randint(2**32, size=(maxexp+1))
-
-    taskproc = ncamera * args.camera_procs
-
-    comm_group = comm
-    comm_rank = None
-    group = 0
-    ngroup = 1
-    group_rank = 0
-    if comm is not None:
-        from mpi4py import MPI
-        if taskproc > 1:
-            ngroup = int(comm.size / taskproc)
-            group = int(comm.rank / taskproc)
-            group_rank = comm.rank % taskproc
-            comm_group = comm.Split(color=group, key=group_rank)
-            comm_rank = comm.Split(color=group_rank, key=group)
-        else:
-            comm_group = MPI.COMM_SELF
-            comm_rank = comm
+    #are we using cosmics?
+    if args.cosmics is not None:
+        addcosmics = True
     else:
-        taskproc = 1
+        addcosmics = False
 
-    if ngroup * taskproc != nproc:
-        msg = "Using group size {}, which does not divide evenly into total ({}).  Some processes idle.".format(taskproc, nproc)
-        if rank == 0:
-            warnings.warn(msg, RuntimeWarning)
+    ncameras=len(cams)
+    nexposures=len(night_exposure_list)
+    #call ultity function to figure out how many nodes we have
+    nnodes=mpi_count_nodes(comm)
 
-    nactive = ngroup
-    if len(expids) < ngroup:
-        msg = "There are fewer exposures ({}) than process groups ({}).  Some groups idle.".format(len(expids), ngroup)
-        if rank == 0:
-            warnings.warn(msg, RuntimeWarning)
-        nactive = len(expids)
-
-    if group > nactive - 1:
-        myexpids = np.array([], dtype=np.int32)
+    #call utility functions to divide our workload
+    if args.user_nodes_per_comm_exp is not None:
+        user_specified_nodes=args.user_nodes_per_comm_exp
     else:
-        myexpids = np.array_split(expids, nactive)[group]
+        user_specified_nodes=None
 
-    for ex in myexpids:
-        nt = exp_to_night[ex]
-        
-        # path to raw file
-        simspecfile = simio.findfile('simspec', nt, ex)
-        rawfile = specio.findfile('raw', nt, ex)
-        rawfile = os.path.join(os.path.dirname(simspecfile), rawfile)
-        
-        # Is this exposure already finished?
-        done = True
-        if group_rank == 0:
-            if not os.path.isfile(rawfile):
-                done = False
-            if args.preproc:
-                for c in cams:
-                    pixfile = specio.findfile('pix', night=nt,
-                        expid=ex, camera=c)
-                    if not os.path.isfile(pixfile):
-                        done = False
-        if comm_group is not None:
-            done = comm_group.bcast(done, root=0)
-        if done and not args.overwrite:
-            if group_rank == 0:
-                print("Skipping completed exposure {:08d} on night {}".format(ex, nt))
-            continue
+    nodes_per_comm_exp=get_nodes_per_exp(nnodes,nexposures,ncameras,user_specified_nodes)    
+    #also figure out how many exposure communicators we have
+    num_exp_comm = nnodes // nodes_per_comm_exp 
+ 
+    #split the communicator into exposure communicators
+    comm_exp, node_index_exp, num_nodes_exp = mpi_split_by_node(comm, nodes_per_comm_exp)
+    #further splitting will happen automatically in simulate_exposure
 
-        # Write per-process logs to a separate directory,
-        # since there are so many of them.
-        logdir = "{}_logs".format(rawfile)
-        if group_rank == 0:
-            if not os.path.isdir(logdir):
-                os.makedirs(logdir)
-        if comm_group is not None:
-            comm_group.barrier()
-        tasklog = os.path.join(logdir, "pixsim")
+    #based on this, figure out which simspecfiles and rawfiles are assigned to each communicator
+    #find all specfiles
+    #find all rawfiles
+    rawfile_list=[]
+    simspecfile_list=[]
+    night_list=[]
+    expid_list=[]
+    for i in range(len(night_exposure_list)):
+        night_list.append(night_exposure_list[i][0])
+        expid_list.append(night_exposure_list[i][1])
+        rawfile_list.append(desispec.io.findfile('raw', night_list[i], expid_list[i]))
+        simspecfile_list.append(io.findfile('simspec', night_list[i], expid_list[i]))
+ 
+    #now divy the rawfiles and specfiles between node communicators
+    #there is onerawfile and one specfile for each exposure
+    rawfile_comm_exp=[]
+    simspecfile_comm_exp=[]
+    for i in range(num_exp_comm):
+        if node_index_exp == i: #assign rawfile, simspec file to one communicator at a time
+            rawfile_comm_exp=rawfile_list[i::num_exp_comm]
+            simspecfile_comm_exp=simspecfile_list[i::num_exp_comm] 
+            night_comm_exp=night_list[i::num_exp_comm]
+            expid_comm_exp=expid_list[i::num_exp_comm]
+    
+    comm.Barrier()
 
-        with stdouterr_redirected(to=tasklog, comm=comm_group):
-            try:
-                options = {}
-                options["night"] = nt
-                options["expid"] = int(ex)
-                options["cosmics"] = args.cosmics
-                options["seed"] = seeds[ex]
-                options["cameras"] = ",".join(cams)
-                options["mpi_camera"] = args.camera_procs
-                options["verbose"] = args.verbose
-                options["preproc"] = args.preproc
-                optarray = option_list(options)
-                pixargs = pixsim.parse(optarray)
-                pixsim.main(pixargs, comm_group)
-            except:
-                exc_type, exc_value, exc_traceback = sys.exc_info()
-                lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
-                print("".join(lines), flush=True)
+    #now wrap pixsim.simulate_exposure for each exposure (in desisim.pixsim)
+    if comm_exp.rank == 0:
+        log.info("Starting simulate_exposure for night {} expid {}".format(night_comm_exp, expid_comm_exp))
+    for i in range(len(rawfile_comm_exp)):
+        simulate_exposure(simspecfile_comm_exp[i], rawfile_comm_exp[i], cameras=cams,
+            ccdshape=None, simpixfile=None, addcosmics=addcosmics, comm=comm_exp)
+
+
+    comm.Barrier()
+
+    if rank == 0:
+        log.info('Finished pixsim nights {}'.format(args.nights, asctime()))
+
+
+
 

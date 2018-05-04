@@ -32,9 +32,7 @@ from desisim.targets import get_simtype
 import astropy.constants
 c = astropy.constants.c.to('km/s').value
 
-from desitarget.targets import desi_mask
-from desitarget.targets import bgs_mask
-from desitarget.targets import mws_mask
+from desitarget.targetmask import desi_mask, bgs_mask, mws_mask
 
 from desiutil.log import get_logger
 log = get_logger()
@@ -553,7 +551,7 @@ def get_median_obsconditions(tileids):
     obsconditions['SEEING'] = np.ones(n) * 1.1
 
     #- Add lunar conditions, defaulting to dark time
-    from desitarget import obsconditions as obsbits
+    from desitarget.targetmask import obsconditions as obsbits
     obsconditions['MOONFRAC'] = np.zeros(n)
     obsconditions['MOONALT'] = -20.0 * np.ones(n)
     obsconditions['MOONSEP'] = 180.0 * np.ones(n)

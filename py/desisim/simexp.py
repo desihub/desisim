@@ -13,6 +13,7 @@ from astropy.io import fits
 import fitsio
 
 import desitarget
+import desitarget.targetmask
 import desispec.io
 import desispec.io.util
 import desimodel.io
@@ -55,11 +56,10 @@ def simarc(arcdata, nspec=5000, nonuniform=False, testslit=False):
     Simulates an arc lamp exposure
 
     Args:
-        arcdata: Table with columns VACUUM_WAVE and ELECTRONS
-
-    Options:
-        nspec: (int) number of spectra to simulate
-        nonuniform: (bool) include calibration screen non-uniformity
+        arcdata (Table): Table with columns VACUUM_WAVE and ELECTRONS
+        nspec (int, optional) number of spectra to simulate
+        nonuniform (bool, optional): include calibration screen non-uniformity
+        testslit (bool, optional): this argument is undocumented.
 
     Returns: (wave, phot, fibermap)
         wave: 1D[nwave] wavelengths in Angstroms
@@ -73,6 +73,7 @@ def simarc(arcdata, nspec=5000, nonuniform=False, testslit=False):
     TODO:
         * add exptime support
         * update inputs to surface brightness and DESI lamp lines (DESI-2674)
+        * add psfconvolve option
     '''
     wave = arcdata['VACUUM_WAVE']
     phot = arcdata['ELECTRONS']
@@ -106,19 +107,19 @@ def simarc(arcdata, nspec=5000, nonuniform=False, testslit=False):
     return wave, phot, fibermap
 
 def simflat(flatfile, nspec=5000, nonuniform=False, exptime=10, testslit=False,
-    camera_output=True):
+            psfconvolve=True, specsim_config_file="desi"):
     '''
     Simulates a flat lamp calibration exposure
 
     Args:
-        flatfile: filename with flat lamp spectrum data
-
-    Options:
-        nspec: (int) number of spectra to simulate
-        nonuniform: (bool) include calibration screen non-uniformity
-        exptime: (float) exposure time in seconds
-        camera_output: (bool) passed to simspec.simulator.Simulator.
+        flatfile (str): filename with flat lamp spectrum data
+        nspec (int, optional): number of spectra to simulate
+        nonuniform (bool, optional): include calibration screen non-uniformity
+        exptime (float, optional): exposure time in seconds
+        psfconvolve (bool, optional): passed to simspec.simulator.Simulator camera_output.
             if True, convolve with PSF and include per-camera outputs
+        specsim_config_file (str, optional): path to DESI instrument config file.
+            default is desi config in specsim package.
 
     Returns: (sim, fibermap)
         sim: specsim Simulator object
@@ -177,11 +178,11 @@ def simflat(flatfile, nspec=5000, nonuniform=False, exptime=10, testslit=False,
         log.info('Adjusting for calibration screen non-uniformity {:.4f}'.format(tmp))
 
     log.debug('Creating specsim configuration')
-    config = _specsim_config_for_wave(wave)
+    config = _specsim_config_for_wave(wave,specsim_config_file=specsim_config_file)
     log.debug('Creating specsim simulator for {} spectra'.format(nspec))
     # sim = specsim.simulator.Simulator(config, num_fibers=nspec)
     sim = desisim.specsim.get_simulator(config, num_fibers=nspec,
-        camera_output=camera_output)
+        camera_output=psfconvolve)
     sim.observation.exposure_time = exptime * u.s
     log.debug('Simulating')
     sim.simulate(calibration_surface_brightness=sbflux, focal_positions=xy)
@@ -206,26 +207,31 @@ def _calib_screen_uniformity(theta=None, radius=None):
     else:
         raise ValueError('must provide theta or radius')
 
-def simscience(targets, fiberassign, obsconditions='DARK', expid=None, nspec=None):
+def simscience(targets, fiberassign, obsconditions='DARK', expid=None,
+    nspec=None, psfconvolve=True):
     '''
     Simulates a new DESI exposure from surveysim+fiberassign+mock spectra
 
     Args:
-        targets: tuple of (flux[nspec,nwave], wave[nwave], meta[nspec])
-        fiberassign: fiber assignments table
+        targets (tuple): tuple of (flux[nspec,nwave], wave[nwave], meta[nspec])
+        fiberassign (Table): fiber assignments table
+        obsconditions (object, optional): observation metadata as
 
-    Options:
-        obsconditions: observation metadata as
             str: DARK (default) or GRAY or BRIGHT
-            dict or row of Table with keys
+
+            dict or row of Table with keys::
+
                 SEEING (arcsec), EXPTIME (sec), AIRMASS,
                 MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
+
             Table including EXPID for subselection of which row to use
             filename with obsconditions Table; expid must also be set
-        expid: (int) exposure ID
-        nspec: (int) number of spectra to simulate
+        expid (int, optional): exposure ID
+        nspec (int, optional): number of spectra to simulate
+        psfconvolve (bool, optional): passed to simspec.simulator.Simulator camera_output.
+            if True, convolve with PSF and include per-camera outputs
 
-    Returns sim, fibermap, meta
+    Returns: (sim, fibermap, meta)
         sim: specsim.simulate.Simulator object
         fibermap: Table
         meta: target metadata truth table
@@ -240,8 +246,11 @@ def simscience(targets, fiberassign, obsconditions='DARK', expid=None, nspec=Non
 
     if nspec is not None:
         fiberassign = fiberassign[0:nspec]
+        flux = flux[0:nspec]
+        meta = meta[0:nspec]
 
     assert np.all(fiberassign['TARGETID'] == meta['TARGETID'])
+
     fibermap = fibermeta2fibermap(fiberassign, meta)
 
     #- Parse multiple options for obsconditions
@@ -281,7 +290,8 @@ def simscience(targets, fiberassign, obsconditions='DARK', expid=None, nspec=Non
     if len(missing_keys) > 0:
         raise ValueError('obsconditions missing keys {}'.format(missing_keys))
 
-    sim = simulate_spectra(wave, flux, fibermap=fibermap, obsconditions=obsconditions)
+    sim = simulate_spectra(wave, flux, fibermap=fibermap,
+        obsconditions=obsconditions, psfconvolve=psfconvolve)
 
     return sim, fibermap
 
@@ -292,7 +302,7 @@ def fibermeta2fibermap(fiberassign, meta):
     A future refactor will standardize the column names of fiber assignment,
     target catalogs, and fibermaps, but in the meantime this is needed.
     '''
-    from desitarget import desi_mask
+    from desitarget.targetmask import desi_mask
 
     #- Copy column names in common
     fibermap = desispec.io.empty_fibermap(len(fiberassign))
@@ -343,8 +353,9 @@ def fibermeta2fibermap(fiberassign, meta):
 #-------------------------------------------------------------------------
 #- specsim related routines
 
-def simulate_spectra(wave, flux, fibermap=None, obsconditions=None,
-    dwave_out=None, seed=None, camera_output=True):
+def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, redshift=None,
+                     dwave_out=None, seed=None, psfconvolve=True,
+                     specsim_config_file = "desi"):
     '''
     Simulates an exposure without reading/writing data files
 
@@ -352,19 +363,22 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None,
         wave (array): 1D wavelengths in Angstroms
         flux (array): 2D[nspec,nwave] flux in 1e-17 erg/s/cm2/Angstrom
             or astropy Quantity with flux units
-
-    Optional:
-        fibermap: table from fiberassign or fibermap; uses X/YFOCAL_DESIGN, TARGETID, DESI_TARGET
-        obsconditions: (dict-like) observation metadata including
+        fibermap (Table, optional): table from fiberassign or fibermap; uses X/YFOCAL_DESIGN, TARGETID, DESI_TARGET
+        obsconditions(dict-like, optional): observation metadata including
             SEEING (arcsec), EXPTIME (sec), AIRMASS,
             MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
-        seed: (int) random seed
-        camera_output: (bool) passed to simspec.simulator.Simulator.
+        redshift (array-like, optional): list/array with each index being the redshifts for that target
+        seed (int, optional): random seed
+        psfconvolve (bool, optional): passed to simspec.simulator.Simulator camera_output.
             if True, convolve with PSF and include per-camera outputs
+        specsim_config_file (str, optional): path to DESI instrument config file.
+            default is desi config in specsim package.
+
+    Returns:
+        A specsim.simulator.Simulator object
 
     TODO: galsim support
 
-    Returns a specsim.simulator.Simulator object
     '''
     import specsim.simulator
     import specsim.config
@@ -373,6 +387,11 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None,
 
     from desiutil.log import get_logger
     log = get_logger('DEBUG')
+
+    # Input cosmology to calculate the angular diameter distance of the galaxy's redshift
+    from astropy.cosmology import FlatLambdaCDM
+    LCDM = FlatLambdaCDM(H0=70, Om0=0.3)
+    ang_diam_dist = LCDM.angular_diameter_distance
 
     random_state = np.random.RandomState(seed)
 
@@ -386,14 +405,14 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None,
     if not isinstance(wave, u.Quantity):
         wave = wave * u.Angstrom
 
-    log.debug('loading specsim desi config')
-    config = _specsim_config_for_wave(wave.to('Angstrom').value, dwave_out=dwave_out)
+    log.debug('loading specsim desi config {}'.format(specsim_config_file))
+    config = _specsim_config_for_wave(wave.to('Angstrom').value, dwave_out=dwave_out, specsim_config_file=specsim_config_file)
 
     #- Create simulator
     log.debug('creating specsim desi simulator')
     # desi = specsim.simulator.Simulator(config, num_fibers=nspec)
     desi = desisim.specsim.get_simulator(config, num_fibers=nspec,
-        camera_output=camera_output)
+        camera_output=psfconvolve)
 
     if obsconditions is None:
         log.warning('Assuming DARK conditions')
@@ -451,39 +470,39 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None,
     #- Determine source types
     #- TODO: source shapes + galsim instead of fixed types + fiberloss table
     source_types = get_source_types(fibermap)
-    # source types are sky elg lrg qso bgs star , they 
+    # source types are sky elg lrg qso bgs star , they
     # are only used in specsim.fiberloss for the desi.instrument.fiberloss_method="table" method
-    
-    
+
     desi.instrument.fiberloss_method = 'fastsim'
 
     log.debug('running simulation with {} fiber loss method'.format(desi.instrument.fiberloss_method))
-    
+
     unique_source_types = set(source_types)
     comment_line="source types:"
     for u in set(source_types) :
         comment_line+=" {} {}".format(np.sum(source_types==u),u)
     log.debug(comment_line)
-    
+
     source_fraction=None
     source_half_light_radius=None
     source_minor_major_axis_ratio=None
     source_position_angle=None
 
-    
     if desi.instrument.fiberloss_method == 'fastsim' or desi.instrument.fiberloss_method == 'galsim' :
         # the following parameters are used only with fastsim and galsim methods
-        
+
         elgs=(source_types=="elg")
         lrgs=(source_types=="lrg")
         bgss=(source_types=="bgs")
 
-        if np.sum(lrgs)>0 or np.sum(elgs)>0 or np.sum(bgss)>0 :
-            log.warning("the half light radii are fixed here (and not magnitude or redshift dependent)")
+        if np.sum(lrgs)>0 or np.sum(elgs)>0:
+            log.warning("the half light radii are fixed here for LRGs and ELGs (and not magnitude or redshift dependent)")
+        if np.sum(bgss)>0 and redshift is None:
+            log.warning("the half light radii are fixed here for BGS (as redshifts weren't supplied)")
 
         # BGS parameters based on SDSS main sample, in g-band
         # see analysis from J. Moustakas in
-        # https://github.com/desihub/desitarget/blob/bgs-properties/doc/nb/bgs-morphology-properties.ipynb
+        # https://github.com/desihub/desitarget/blob/master/doc/nb/bgs-morphology-properties.ipynb
         # B/T (bulge-to-total ratio): 0.48 (0.36 - 0.59).
         # Bulge Sersic n: 2.27 (1.12 - 3.60).
         # log10 (Bulge Half-light radius): 0.11 (-0.077 - 0.307) arcsec
@@ -494,38 +513,51 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None,
         # bulge_half_light_radius = 1.3 arcsec
         # disk_half_light_radius  = 4.7 arcsec
         # note we use De Vaucouleurs' law , which correspond to a Sersic index n=4
-        
+
         # source_fraction[:,0] is DISK profile (exponential) fraction
         # source_fraction[:,1] is BULGE profile (devaucouleurs) fraction
         # 1 - np.sum(source_fraction,axis=1) is POINT source profile fraction
         # see specsim.GalsimFiberlossCalculator.create_source routine
-        source_fraction=np.zeros((nspec,2)) 
+        source_fraction=np.zeros((nspec,2))
         source_fraction[elgs,0]=1.   # ELG are disk only
         source_fraction[lrgs,1]=1.   # LRG are bulge only
         source_fraction[bgss,0]=0.52 # disk comp in BGS
         source_fraction[bgss,1]=0.48 # bulge comp in BGS
-        
 
         # source_half_light_radius[:,0] is the half light radius in arcsec for the DISK profile
-        # source_half_light_radius[:,1] is the half light radius in arcsec for the BULGE profile        
+        # source_half_light_radius[:,1] is the half light radius in arcsec for the BULGE profile
         # see specsim.GalsimFiberlossCalculator.create_source routine
         source_half_light_radius=np.zeros((nspec,2))
         source_half_light_radius[elgs,0]=0.45 # ELG are disk only, arcsec
         source_half_light_radius[lrgs,1]=1.   # LRG are bulge only, arcsec
-        source_half_light_radius[bgss,0]=4.7  # disk comp in BGS, arcsec
-        source_half_light_radius[bgss,1]=1.3  # bulge comp in BGS, arcsec
-       
+
+        # 4.7 is angular size of z=0.1 disk, and 1.3 is angular size of z=0.1 bulge
+        bgs_disk_z01 = 4.7  # in arcsec
+        bgs_bulge_z01 = 1.3 # in arcsec
+
+        # Convert to angular size of the objects in this sample with given redshifts
+        if redshift is None:
+            angscales = np.ones(np.sum(bgss))
+        else:
+            bgs_redshifts = redshift[bgss]
+            # Avoid infinities
+            if np.any(bgs_redshifts <= 0.):
+                bgs_redshifts[bgs_redshifts <= 0.] = 0.0001
+            angscales = ( ang_diam_dist(0.1) / ang_diam_dist(bgs_redshifts) ).value
+        source_half_light_radius[bgss,0]= bgs_disk_z01 * angscales # disk comp in BGS, arcsec
+        source_half_light_radius[bgss,1]= bgs_bulge_z01 * angscales  # bulge comp in BGS, arcsec
+
         if desi.instrument.fiberloss_method == 'galsim' :
             # the following parameters are used only with galsim method
-        
+
             # source_minor_major_axis_ratio[:,0] is the axis ratio for the DISK profile
             # source_minor_major_axis_ratio[:,1] is the axis ratio for the BULGE profile
             # see specsim.GalsimFiberlossCalculator.create_source routine
-            source_minor_major_axis_ratio=np.zeros((nspec,2)) 
-            source_minor_major_axis_ratio[elgs,0]=0.7 
+            source_minor_major_axis_ratio=np.zeros((nspec,2))
+            source_minor_major_axis_ratio[elgs,0]=0.7
             source_minor_major_axis_ratio[lrgs,1]=0.7
             source_minor_major_axis_ratio[bgss,1]=0.7
-            
+
             # the source position angle is in degrees
             # see specsim.GalsimFiberlossCalculator.create_source routine
             source_position_angle = np.zeros((nspec,2))
@@ -548,12 +580,16 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None,
 
     return desi
 
-def _specsim_config_for_wave(wave, dwave_out=None):
+def _specsim_config_for_wave(wave, dwave_out=None, specsim_config_file = "desi"):
     '''
     Generate specsim config object for a given wavelength grid
 
     Args:
         wave: array of linearly spaced wavelengths in Angstroms
+
+    Options:
+        specsim_config_file: (str) path to DESI instrument config file.
+            default is desi config in specsim package.
 
     Returns:
         specsim Configuration object with wavelength parameters set to match
@@ -564,7 +600,7 @@ def _specsim_config_for_wave(wave, dwave_out=None):
     dwave = round(np.mean(np.diff(wave)), 3)
     assert np.allclose(dwave, np.diff(wave), rtol=1e-6, atol=1e-3)
 
-    config = specsim.config.load_config('desi')
+    config = specsim.config.load_config(specsim_config_file)
     config.wavelength_grid.min = wave[0]
     config.wavelength_grid.max = wave[-1] + dwave/2.0
     config.wavelength_grid.step = dwave
@@ -605,7 +641,7 @@ def get_source_types(fibermap):
     source_type = np.zeros(len(fibermap), dtype='U4')
     assert np.all(source_type == '')
 
-    tm = desitarget.desi_mask
+    tm = desitarget.targetmask.desi_mask
     if 'TARGETID' in fibermap.dtype.names:
         unassigned = fibermap['TARGETID'] == -1
         source_type[unassigned] = 'sky'
@@ -619,6 +655,11 @@ def get_source_types(fibermap):
     source_type[(fibermap['DESI_TARGET'] & tm.BGS_ANY) != 0] = 'bgs'
     starmask = tm.STD_FSTAR | tm.STD_WD | tm.STD_BRIGHT | tm.MWS_ANY
     source_type[(fibermap['DESI_TARGET'] & starmask) != 0] = 'star'
+
+    #- Simulate unassigned fibers as sky
+    ## TODO: when fiberassign and desitarget are updated, use
+    ## desitarget.targetmask.desi_mask.NO_TARGET to identify these
+    source_type[fibermap['TARGETID'] < 0] = 'sky'
 
     assert not np.any(source_type == '')
 
@@ -698,10 +739,17 @@ def get_mock_spectra(fiberassign, mockdir=None):
     meta = None
     wave = None
 
-    issky = (fiberassign['DESI_TARGET'] & desitarget.desi_mask.SKY) != 0
+    issky = (fiberassign['DESI_TARGET'] & desitarget.targetmask.desi_mask.SKY) != 0
     skyids = fiberassign['TARGETID'][issky]
 
-    for truthfile, targetids in zip(*targets2truthfiles(fiberassign, basedir=mockdir)):
+    #- check several ways in which an unassigned fiber might appear
+    unassigned = np.isnan(fiberassign['RA'])
+    unassigned |= np.isnan(fiberassign['DEC'])
+    unassigned |= (fiberassign['TARGETID'] < 0)
+    ## TODO: check desi_mask.NO_TARGET once that bit exists
+
+    for truthfile, targetids in zip(*targets2truthfiles(
+                        fiberassign[~unassigned], basedir=mockdir)):
 
         #- Sky fibers aren't in the truth files
         ok = ~np.in1d(targetids, skyids)
@@ -723,8 +771,7 @@ def get_mock_spectra(fiberassign, mockdir=None):
     #- Set meta['TARGETID'] for sky fibers
     #- TODO: other things to set?
     meta['TARGETID'][issky] = skyids
-
-    set(fiberassign['TARGETID']) == set(meta['TARGETID'])
+    meta['TARGETID'][unassigned] = fiberassign['TARGETID'][unassigned]
 
     assert np.all(fiberassign['TARGETID'] == meta['TARGETID'])
 
@@ -833,4 +880,3 @@ def targets2truthfiles(targets, basedir, nside=64):
         targetids.append(np.asarray(targets['TARGETID'][ii]))
 
     return truthfiles, targetids
-

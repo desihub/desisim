@@ -2,14 +2,72 @@
 desisim change log
 ==================
 
-0.24.1 (unreleased)
+0.27.1 (unreleased)
 -------------------
 
-* Additional edits to QA scripts and doc to run with mini Notebook (`PR #322`_).
-* Fix double PSF convolution in pixsims (`PR #320`_).
+* Add zstats-like good/fail/miss/list QA method from desitest mini
+  Notebook and refactor previous code to enable it (`PR #351`_).
+* Update QA to use qaprod_dir
+* Enable redshift QA using input summary catalogs of truth and redshifts
+  (`PR #349`_)
 
-.. _`PR #322`: https://github.com/desihub/desisim/pull/322
+.. _`PR #349`: https://github.com/desihub/desisim/pull/349
+.. _`PR #351`: https://github.com/desihub/desisim/pull/351
+
+0.27.0 (2018-03-29)
+-------------------
+
+* Fix pixsim_mpi; make it faster with scatter/gather
+  (`PR #329`_, `PR #332`_, and `PR #344`_).
+* Fix PSF convolution for newexp-mock (`PR #331`_).
+* BGS redshift bug fix (`PR #333`_).
+* Astropy 2 compatibility (`PR #334`_).
+* Fix newexp-mock --nspec option (`PR #340`_).
+* Fix fibermap EXTNAME (`PR #340`_).
+* Fix PSF convolution for newexp_mock (`PR #331`_).
+* Match desispec renaming and relocating of of pix -> preproc
+  (`PR #337`_ and `PR #339`_).
+* More robust handling of unassigned fiber inputs (`PR #341`_).
+
+.. _`PR #329`: https://github.com/desihub/desisim/pull/329
+.. _`PR #331`: https://github.com/desihub/desisim/pull/331
+.. _`PR #332`: https://github.com/desihub/desisim/pull/332
+.. _`PR #333`: https://github.com/desihub/desisim/pull/333
+.. _`PR #334`: https://github.com/desihub/desisim/pull/334
+.. _`PR #337`: https://github.com/desihub/desisim/pull/337
+.. _`PR #339`: https://github.com/desihub/desisim/pull/339
+.. _`PR #340`: https://github.com/desihub/desisim/pull/340
+.. _`PR #341`: https://github.com/desihub/desisim/pull/341
+.. _`PR #344`: https://github.com/desihub/desisim/pull/344
+
+0.26.0 (2018-02-27)
+-------------------
+
+Requires desitarget >= 0.19.0
+
+* Update BGS fiber acceptance vs. z (`PR #326`_)
+* Update desitarget imports for desitarget/0.19.0 (`PR #328`_)
+
+.. _`PR #326`: https://github.com/desihub/desisim/pull/326
+.. _`PR #328`: https://github.com/desihub/desisim/pull/328
+
+0.25.1 (2018-02-23)
+-------------------
+
+Requires desitarget < 0.19.0
+
+* Fix set_xscale(...) nonposy -> nonposx for qa_zfind
+
+0.25.0 (2018-02-23)
+-------------------
+
+* Fix double PSF convolution in pixsims (`PR #320`_).
+* Additional edits to QA scripts and doc to run with mini Notebook (`PR #322`_).
+* Optional specsim config for simulating spectra (`PR #325`_)
+
 .. _`PR #320`: https://github.com/desihub/desisim/pull/320
+.. _`PR #322`: https://github.com/desihub/desisim/pull/322
+.. _`PR #325`: https://github.com/desihub/desisim/pull/325
 
 0.24.0 (2018-01-30)
 -------------------
@@ -51,7 +109,6 @@ desisim change log
 .. _`PR #287`: https://github.com/desihub/desisim/pull/287
 .. _`PR #294`: https://github.com/desihub/desisim/pull/294
 .. _`PR #293`: https://github.com/desihub/desisim/pull/293
-.. _`PR #294`: https://github.com/desihub/desisim/pull/294
 .. _`PR #297`: https://github.com/desihub/desisim/pull/297
 
 0.22.0 (2017-11-10)
@@ -109,8 +166,9 @@ desisim change log
 * Adds tutorial on simulating spectra (`PR #244`_).
 * Fixes QSO template wavelength extrapolation (`PR #247`_);
   requires desispec > 0.15.1.
-* Uses desitarget.cuts.isLRG_colors; requires desitarget >= 0.14.0 (`PR #246`_).
-* Uses desiutil.log instead of desispec.log
+* Uses ``desitarget.cuts.isLRG_colors``; requires desitarget >= 0.14.0
+  (`PR #246`_).
+* Uses ``desiutil.log`` instead of ``desispec.log``.
 
 .. _`PR #244`: https://github.com/desihub/desisim/pull/244
 .. _`PR #246`: https://github.com/desihub/desisim/pull/246
@@ -137,7 +195,7 @@ desisim change log
 0.18.3 (2017-04-13)
 -------------------
 
-* Add DLAs to lya spectra (PR #220)
+* Add DLAs to lya spectra (`PR #220`_)
 * Fix quickgen for specsim v0.8 (`PR #226`_).
 * Add verbose output to templates code (`PR #230`_).
 * Much faster quickcat (`PR #233`_).
@@ -145,17 +203,19 @@ desisim change log
 .. _`PR #226`: https://github.com/desihub/desisim/pull/226
 .. _`PR #230`: https://github.com/desihub/desisim/pull/230
 .. _`PR #233`: https://github.com/desihub/desisim/pull/233
+.. _`PR #220`: https://github.com/desihub/desisim/pull/220
 
 0.18.2 (2017-03-27)
 -------------------
 
 * Fixed a number of documentation errors (`PR #224`_).
 * Removed unneeded Travis scripts in ``etc/``.
-* Fixed N^2 scaling of ``QSO.make_templates``
-* Speed up desisim.templates.GALAXY by factor of 8-12 by caching velocity
-  dispersions (PR #229)
+* Fixed N^2 scaling of :meth:`desisim.templates.QSO.make_templates`.
+* Speed up :class:`desisim.templates.GALAXY` by factor of
+  8-12 by caching velocity dispersions (`PR #229`_)
 
 .. _`PR #224`: https://github.com/desihub/desisim/pull/224
+.. _`PR #229`: https://github.com/desihub/desisim/pull/229
 
 0.18.1 (2016-03-05)
 -------------------

@@ -75,13 +75,14 @@ class TestObs(unittest.TestCase):
                 self.assertEqual(simspec.flavor, 'science')
 
             #- Check that photons are in a reasonable range
-            for channel in ('b', 'r', 'z'):
-                maxphot = simspec.phot[channel].max()
+            self.assertGreater(len(simspec.cameras), 0)
+            for camera in simspec.cameras.values():
+                maxphot = camera.phot.max()
                 self.assertTrue(maxphot > 1, 'suspiciously few {} photons ({}); wrong units?'.format(program, maxphot))
                 self.assertTrue(maxphot < 1e6, 'suspiciously many {} photons ({}); wrong units?'.format(program, maxphot))
                 if program not in ('arc', 'flat'):
-                    self.assertTrue(simspec.skyphot[channel].max() > 1, 'suspiciously few sky photons; wrong units?')
-                    self.assertTrue(simspec.skyphot[channel].max() < 1e6, 'suspiciously many sky photons; wrong units?')
+                    self.assertTrue(camera.skyphot.max() > 1, 'suspiciously few sky photons; wrong units?')
+                    self.assertTrue(camera.skyphot.max() < 1e6, 'suspiciously many sky photons; wrong units?')
 
             if program in ('arc', 'flat'):
                 self.assertTrue(meta is None)
@@ -92,7 +93,7 @@ class TestObs(unittest.TestCase):
                 self.assertTrue(fluxhdr['BUNIT'].startswith('1e-17'))
                 self.assertTrue(skyfluxhdr['BUNIT'].startswith('1e-17'))
                 for i in range(flux.shape[0]):
-                    objtype = simspec.metadata['OBJTYPE'][i]
+                    objtype = simspec.truth['OBJTYPE'][i]
                     maxflux = flux[i].max()
                     maxsky = skyflux[i].max()
                     self.assertTrue(maxsky > 1, 'suspiciously low {} sky flux ({}); wrong units?'.format(objtype, maxsky))
