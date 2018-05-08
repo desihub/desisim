@@ -123,19 +123,21 @@ def spectype_confusion(simz_tab, zb_tab=None):
     Parameters
     ----------
     simz_tab : Table
-       Truth table;  may be input from truth.fits
+      Truth table;  may be input from truth.fits
     zb_tab : Table (optional)
-       zcatalog/zbest table; may be input from zcatalog-mini.fits
-       If provided, used to match the simz_tab to the zbest quantities
+      zcatalog/zbest table; may be input from zcatalog-mini.fits
+      If provided, used to match the simz_tab to the zbest quantities
 
     Returns
     -------
+    simz_tab : astropy.Table
+      Merged table of simpsec data
     results : dict
       Nested dict.
       First key is the TRUESPECTYPE
       Second key is the SPECTYPE
       e.g.  results['QSO']['QSO'] reports the number of True QSO classified as QSO
-            results['QSO']['Galaxy'] reports the number of True QSO classified as Galaxy
+      results['QSO']['Galaxy'] reports the number of True QSO classified as Galaxy
     """
 
     # Process simz_tab as need be
