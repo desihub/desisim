@@ -10,6 +10,7 @@ desisim change log
 * Update QA to use qaprod_dir
 * Enable redshift QA using input summary catalogs of truth and redshifts
   (`PR #349`_)
+* Generate confusion matrix related to Spectype
 
 .. _`PR #349`: https://github.com/desihub/desisim/pull/349
 .. _`PR #351`: https://github.com/desihub/desisim/pull/351
