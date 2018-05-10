@@ -2,18 +2,26 @@
 desisim change log
 ==================
 
-0.27.1 (unreleased)
+0.28.0 (unreleased)
 -------------------
 
-* Add zstats-like good/fail/miss/list QA method from desitest mini
-  Notebook and refactor previous code to enable it (`PR #351`_).
-* Update QA to use qaprod_dir
 * Enable redshift QA using input summary catalogs of truth and redshifts
   (`PR #349`_)
-* Generate confusion matrix related to Spectype
+* Add zstats-like good/fail/miss/list QA method from desitest mini
+  notebook and refactor previous code to enable it (`PR #351`_).
+* quickquasar mags and random seed (`PR #350`_ and `PR #352`_).
+* New pixsim and pixsim_nights (`PR #353`_, `PR #354`_, and `PR #358`_)
+* Generate confusion matrix related to Spectype (`PR #359`_)
+* Update QA to use qaprod_dir
 
 .. _`PR #349`: https://github.com/desihub/desisim/pull/349
+.. _`PR #350`: https://github.com/desihub/desisim/pull/350
 .. _`PR #351`: https://github.com/desihub/desisim/pull/351
+.. _`PR #352`: https://github.com/desihub/desisim/pull/352
+.. _`PR #353`: https://github.com/desihub/desisim/pull/353
+.. _`PR #354`: https://github.com/desihub/desisim/pull/354
+.. _`PR #358`: https://github.com/desihub/desisim/pull/358
+.. _`PR #359`: https://github.com/desihub/desisim/pull/359
 
 0.27.0 (2018-03-29)
 -------------------
