@@ -22,11 +22,9 @@ def parse(options=None):
                         help="directory with mock targets and truth")
     parser.add_argument('--obslist', type=str, required=True,
                         help="input surveysim obslist file")
-    parser.add_argument('--obsnum', type=int, required=True,
-                        help="index in obslist file to use")
+    parser.add_argument('--expid', type=int, required=True, help="exposure ID")
 
     #- Optional
-    parser.add_argument('--expid', type=int, default=None, help="exposure ID")
     parser.add_argument('--outdir', type=str, help="output directory")
     parser.add_argument('--nspec', type=int, default=None, help="number of spectra to include")
     parser.add_argument('--clobber', action='store_true', help="overwrite any pre-existing output files")
@@ -36,9 +34,6 @@ def parse(options=None):
     else:
         args = parser.parse_args(options)
 
-    if args.expid is None:
-        args.expid = args.obsnum
-
     return args
 
 def main(args=None):
@@ -47,44 +42,12 @@ def main(args=None):
     if isinstance(args, (list, tuple, type(None))):
         args = parse(args)
 
-    # Is there a reason why this was duplicated?
-    # if isinstance(args, (list, tuple, type(None))):
-    #     args = parse(args)
-
     if args.obslist.endswith('.ecsv'):
         obslist = astropy.table.Table.read(args.obslist, format='ascii.ecsv')
     else:
         obslist = astropy.table.Table.read(args.obslist)
 
-    #----
-    #-  Standardize some column names from surveysim output vs.
-    #- twopct.ecsv from 2% survey data challenge.
-
-    #- column names should be upper case
-    # for col in list(obslist.colnames):
-    #     obslist.rename_column(col, col.upper())
-
-    #- MOONDIST -> MOONSEP
-    # if 'MOONDIST' in obslist.colnames:
-    #     obslist.rename_column('MOONDIST', 'MOONSEP')
-
-    #- NIGHT = YEARMMDD (not YEAR-MM-DD) of sunset, derived from MJD if needed
-    # if 'NIGHT' not in obslist.colnames:
-    #     #- Derive NIGHT from MJD
-    #     obslist['NIGHT'] = [desisim.util.dateobs2night(x) for x in obslist['MJD']]
-    # else:
-    #     #- strip dashes from NIGHT string to make YEARMMDD
-    #     obslist['NIGHT'] = np.char.replace(obslist['NIGHT'], '-', '')
-
-    #- Fragile: derive PROGRAM from PASS
-    # if 'PROGRAM' not in obslist.colnames:
-    #     obslist['PROGRAM'] = 'BRIGHT'
-    #     obslist['PROGRAM'][obslist['PASS'] < 4] = 'DARK'
-    #     obslist['PROGRAM'][obslist['PASS'] == 4] = 'GRAY'
-
-    #---- end of obslist standardization
-
-    obs = obslist[args.obsnum]
+    obs = obslist[obslist['EXPID'] == args.expid][0]
     tileid = obs['TILEID']
     night = obs['NIGHT']
     program = obs['PROGRAM']
@@ -111,8 +74,8 @@ def main(args=None):
     try:
         flux, wave, meta = get_mock_spectra(fiberassign, mockdir=args.mockdir)
     except Exception as err:
-        log.fatal('Failed obsnum {} fiberassign {} tile {}'.format(
-            args.obsnum, args.fiberassign, tileid))
+        log.fatal('Failed expid {} fiberassign {} tile {}'.format(
+            args.expid, args.fiberassign, tileid))
         raise err
 
     sim, fibermap = simscience((flux, wave, meta), fiberassign,
