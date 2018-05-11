@@ -48,14 +48,14 @@ def parse(options=None):
     parser.add_argument("--verbose", action="store_true", help="Include debug log info")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing raw and simpix files")
     parser.add_argument("--cosmics", default=None, action="store_true", required=False, help="Add simulated cosmics")
-    parser.add_argument("--seed", type=int, default=123456, required=False, help="random number seed")
+    # parser.add_argument("--seed", type=int, default=123456, required=False, help="random number seed")
 
-    parser.add_argument("--ncpu", type=int, help="Number of cpu cores per thread to use", default=0)
-    parser.add_argument("--nspec", type=int, help="Number of spectra to simulate per camera", default=0)
-    parser.add_argument("--wavemin", type=float, help="Minimum wavelength to simulate")
-    parser.add_argument("--wavemax", type=float, help="Maximum wavelength to simulate")
+    # parser.add_argument("--nspec", type=int, help="Number of spectra to simulate per camera")
+    parser.add_argument("--nexp", type=int, help="Number of exposures to process")
+    # parser.add_argument("--wavemin", type=float, help="Minimum wavelength to simulate")
+    # parser.add_argument("--wavemax", type=float, help="Maximum wavelength to simulate")
     parser.add_argument("--cameras", type=str, default=None, help="cameras, e.g. b0,r5,z9")
-    parser.add_argument("--user_nodes_per_comm_exp", type=int, default=None, help="user specified value of nnodes per exposure communicator")
+    parser.add_argument("--nodes_per_exp", type=int, default=None, help="nodes per exposure")
 
     args = None
     if options is None:
@@ -111,9 +111,29 @@ def main(args, comm=None):
 
     #get a list of tuples of (night,expid) that we can evenly divide between communicators
     night_exposure_list=list()
-    for nt in nights:
-        for exp in night_expid[nt]:
-            night_exposure_list.append([nt,exp])              
+    if comm is None or comm.rank == 0:
+        for nt in nights:
+            for exp in night_expid[nt]:
+                rawfile = desispec.io.findfile('raw', nt, exp)
+                if not os.path.exists(rawfile):
+                    night_exposure_list.append([nt,exp])
+                elif args.overwrite:
+                    log.warning('Overwriting pre-existing {}'.format(os.path.basename(rawfile)))
+                    os.remove(rawfile)
+                    night_exposure_list.append([nt,exp])
+                else:
+                    log.info('Skipping pre-existing {}'.format(os.path.basename(rawfile)))
+
+        if args.nexp is not None:
+            night_exposure_list = night_exposure_list[0:args.nexp]
+
+    if comm is not None:
+        night_exposure_list = comm.bcast(night_exposure_list, root=0)
+
+    if len(night_exposure_list) == 0:
+        if comm is None or comm.rank == 0:
+            log.error('No exposures to process')
+        sys.exit(1)
 
     # Get the list of cameras and make sure it's in the right format
     cams = []
@@ -139,8 +159,8 @@ def main(args, comm=None):
     nnodes=mpi_count_nodes(comm)
 
     #call utility functions to divide our workload
-    if args.user_nodes_per_comm_exp is not None:
-        user_specified_nodes=args.user_nodes_per_comm_exp
+    if args.nodes_per_exp is not None:
+        user_specified_nodes=args.nodes_per_exp
     else:
         user_specified_nodes=None
 
