@@ -14,6 +14,7 @@ desisim change log
 * Generate confusion matrix related to Spectype (`PR #359`_).
 * Update QA to use qaprod_dir
 * Fix newexp-mock wrapper when first expid != 0 (`PR #361`_).
+* newexp-mock options for production running (`PR #363`_).
 
 .. _`PR #349`: https://github.com/desihub/desisim/pull/349
 .. _`PR #350`: https://github.com/desihub/desisim/pull/350
@@ -24,6 +25,7 @@ desisim change log
 .. _`PR #358`: https://github.com/desihub/desisim/pull/358
 .. _`PR #359`: https://github.com/desihub/desisim/pull/359
 .. _`PR #361`: https://github.com/desihub/desisim/pull/361
+.. _`PR #363`: https://github.com/desihub/desisim/pull/363
 
 0.27.0 (2018-03-29)
 -------------------
