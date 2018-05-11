@@ -149,17 +149,18 @@ def simulate_exposure(simspecfile, rawfile, cameras=None,
         if rank == 0:
             log.debug('Writing outputs at {}'.format(asctime()))
 
+        tmprawfile = rawfile + '.tmp'
         if comm is not None:
             for i in range(comm.size):
                 if (i == comm.rank) and (comm_node.rank == 0):
-                    desispec.io.write_raw(rawfile, rawpix, image.meta,
+                    desispec.io.write_raw(tmprawfile, rawpix, image.meta,
                                           camera=camera)
                     if simpixfile is not None:
                         io.write_simpix(simpixfile, truepix, camera=camera,
                                         meta=image.meta)
                 comm.barrier()
         else:
-            desispec.io.write_raw(rawfile, rawpix, image.meta, camera=camera)
+            desispec.io.write_raw(tmprawfile, rawpix, image.meta, camera=camera)
             if simpixfile is not None:
                 io.write_simpix(simpixfile, truepix, camera=camera,
                                 meta=image.meta)
@@ -169,6 +170,11 @@ def simulate_exposure(simspecfile, rawfile, cameras=None,
             log.debug('done at {}'.format(asctime()))
 
         previous_channel = channel
+
+    #- All done; rename temporary raw file to final location
+    if comm is None or comm.rank == 0:
+        os.rename(tmprawfile, rawfile)
+
 
 def simulate(camera, simspec, psf, nspec=None, ncpu=None,
     cosmics=None, wavemin=None, wavemax=None, preproc=True, comm=None):
