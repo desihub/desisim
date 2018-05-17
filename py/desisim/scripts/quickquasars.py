@@ -15,6 +15,7 @@ from desisim.simexp import reference_conditions
 from desisim.templates import SIMQSO
 from desisim.scripts.quickspectra import sim_spectra
 from desisim.lya_spectra import read_lya_skewers , apply_lya_transmission
+from desisim.dla import dla_spec
 from desispec.interpolation import resample_flux
 from desimodel.io import load_pixweight
 from desimodel import footprint
@@ -57,6 +58,10 @@ def parse(options=None):
     parser.add_argument('--target-selection', action = "store_true" ,help="apply QSO target selection cuts to the simulated quasars")
     parser.add_argument('--mags', action = "store_true" ,help="compute and write the QSO mags in the fibermap")
     parser.add_argument('--desi-footprint', action = "store_true" ,help="select QSOs in DESI footprint")
+
+    #- Optional arguments to include dla
+
+    parser.add_argument('--dla',default=False,required=False, action = "store_true" ,help="read dla info from transmition file")
     
     if options is None:
         args = parser.parse_args()
@@ -108,11 +113,33 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                 return
 
     log.info("Read skewers in {}, random seed = {}".format(ifilename,seed))
-    trans_wave, transmission, metadata = read_lya_skewers(ifilename)
-    ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
-    transmission = transmission[ok]
-    metadata = metadata[:][ok]
+
+ ##ALMA:loop over dla to add them to qso's
+    if(args.dla):
+       trans_wave, transmission, metadata,dla_info= read_lya_skewers(ifilename,dla_='TRUE')
+       ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
+       transmission = transmission[ok]
+       metadata = metadata[:][ok]
+       for ii in range(len(metadata)):
+           idd=metadata['MOCKID'][ii]
+           dlas=dla_info[dla_info['MOCKID']==idd]
+           dlass=[]
+           for i in range(len(dlas)):
+               dlass.append(dict(z=dlas[i]['Z_DLA'],N=dlas[i]['N_HI_DLA']))
+           if len(dlass)>0:
+               dla_model=dla_spec(trans_wave,dlass)
+               print("#dlas in ID",len(dlass),ii)
+               imax=abs(dla_model*transmission[ii]-transmission[ii]).argmax()
+               print(trans_wave[imax])
+               transmission[ii]=dla_model*transmission[ii]
+    ##loop over dla to add them to qso's
+    else:
+        trans_wave, transmission, metadata = read_lya_skewers(ifilename)
+        ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
+        transmission = transmission[ok]
+        metadata = metadata[:][ok]
     
+
     # create quasars
     
     if args.desi_footprint :
@@ -179,6 +206,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         nmodel=nqso, redshift=metadata['Z'], 
         lyaforest=False, nocolorcuts=True, noresample=True, seed = seed)
 
+
     log.info("Resample to transmission wavelength grid")
     # because we don't want to alter the transmission field with resampling here
     qso_flux=np.zeros((tmp_qso_flux.shape[0],trans_wave.size))
@@ -189,6 +217,25 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         
     log.info("Apply lya")
     tmp_qso_flux = apply_lya_transmission(tmp_qso_wave,tmp_qso_flux,trans_wave,transmission)
+
+##ALMA  another option to ADD the DLA
+#    if(args.dla):
+#        print("Try to add dlas")
+#        for ii in range(len(tmp_qso_flux)):
+#            idd=metadata['MOCKID'][ii]
+#            dlas=dla_info[dla_info['MOCKID']==idd]
+#            dlass=[]
+#            dla_model=1.
+#            for i in range(len(dlas)):
+#                dlass.append(dict(z=dlas[i]['Z_DLA'],N=dlas[i]['N_HI_DLA']))
+#            if len(dlass)>0:
+#                dla_model=dla_spec(tmp_qso_wave,dlass)
+#                print("#dlas in ID",len(dlass),ii)
+#                imax=abs(dla_model*tmp_qso_flux[ii]-tmp_qso_flux[ii]).argmax()
+#                print(tmp_qso_wave[imax])
+                
+#        tmp_qso_flux[ii]=dla_model*tmp_qso_flux[ii]
+
 
     bbflux=None
     if args.target_selection or args.mags :

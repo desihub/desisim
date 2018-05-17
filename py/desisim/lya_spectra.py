@@ -11,7 +11,7 @@ import numpy as np
 from desisim.dla import insert_dlas
 from desiutil.log import get_logger
 
-def read_lya_skewers(lyafile,indices=None) :
+def read_lya_skewers(lyafile,indices=None,dla_=False) :
     '''
     Reads Lyman alpha transmission skewers (from CoLoRe, format v2.x.y)
 
@@ -43,7 +43,7 @@ def read_lya_skewers(lyafile,indices=None) :
     else :
         log.warning("I assume TRANSMISSION is HDU 3")
         trans = h[3].read()
-        
+
     if trans.shape[1] != wave.size :
         if trans.shape[0] == wave.size :
             trans = trans.T  # now shape is (nqso,nwave)
@@ -60,6 +60,16 @@ def read_lya_skewers(lyafile,indices=None) :
     if indices is not None :
         trans = trans[indices]
         meta=meta[:][indices]
+
+##ALMA
+    if (dla_):
+        if "DLA" in h:
+           dla_=h["DLA"].read()
+        else:
+           log.warning("I assume TRANSMISSION is HDU 3")
+           dla_=h[3].read(i)
+        return wave,trans,meta,dla_
+##ALMA
     return wave,trans,meta
 
 def apply_lya_transmission(qso_wave,qso_flux,trans_wave,trans) :
