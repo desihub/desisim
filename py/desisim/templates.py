@@ -1704,7 +1704,7 @@ class QSO():
 
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(20.0, 22.5),
                        seed=None, redshift=None, mag=None, input_meta=None, N_perz=40, 
-                       maxiter=20, uniform=False, bal=False, balprob=0.12, 
+                       maxiter=20, uniform=False, balqso=False, balprob=0.12, 
 	               lyaforest=True, nocolorcuts=False, verbose=False):
         """Build Monte Carlo QSO spectra/templates.
 
@@ -1748,9 +1748,9 @@ class QSO():
             template that also satisfies the color-cuts (default 20).
           uniform (bool, optional): Draw uniformly from the PCA coefficients
             (default False).
-          bal (bool, optional): Include broad absorption line (BAL) features
+          balqso (bool, optional): Include broad absorption line (BAL) features
             (default False).
-          balprob (float, optional): Probability than a QSO is a BAL 
+          balprob (float, optional): Probability that a QSO is a BAL 
             (default 0.12).
           lyaforest (bool, optional): Include Lyman-alpha forest absorption
             (default True).
@@ -1771,7 +1771,10 @@ class QSO():
         """
         from desispec.interpolation import resample_flux
         from desiutil.log import get_logger, DEBUG
+        """
         from desisim import bal 
+        """
+        import bal 
 
         if uniform:
             from desiutil.stats import perc
@@ -1818,8 +1821,8 @@ class QSO():
             if mag is None:
                 mag = rand.uniform(rmagrange[0], rmagrange[1], nmodel).astype('f4')
 	# Read in the BAL templates if needed. 
-        if bal: 
-            baltemplatefile = "/global/project/projectdirs/desi/spectro/templates/basis_templates/basis_templates_svn/trunk/BAL-templates-v0.1.fits" 
+        if balqso: 
+            baltemplatefile = os.environ['DESI_BASIS_TEMPLATES'] + "/../../trunk/BAL-templates-v0.2.fits"
             balwave, baltemplates = bal.readbaltemplates(baltemplatefile)
 
         # Pre-compute the Lyman-alpha skewers.
@@ -1838,7 +1841,7 @@ class QSO():
             meta[key] = value
         if lyaforest: 
             meta['SUBTYPE'] = 'LYA'
-        if bal: 
+        if balqso: 
             if lyaforest: 
                 meta['SUBTYPE'] = 'LYA+BAL'
             else: 
@@ -1917,8 +1920,8 @@ class QSO():
                     flux[kk, :] = np.dot(self.eigenflux.T, PCA_rand[:, kk]).flatten()
                     if redshift[ii] > 2.39:
                          flux[kk, :pix912] *= np.exp(-phys_dist.value / mfp[ii])
-                    if bal: 
-                        if bal.isbal(balprob): 
+                    if balqso: 
+                        if bal.isbal(balprob,balrand): 
                             baltemplate, balindex[kk] = bal.getbaltemplate(zwave[:,ii], redshift[ii], balwave, baltemplates)
                             flux[kk, :] *= baltemplate
                     if lyaforest:
@@ -2216,6 +2219,7 @@ class SIMQSO():
                                    ('decam2014-g', 'decam2014-r', 'decam2014-z',
                                     'wise2010-W1', 'wise2010-W2') ):
                 meta[band][these] = synthnano[filt][these]
+
 
         if input_qsometa:
             return outflux, meta, input_qsometa
