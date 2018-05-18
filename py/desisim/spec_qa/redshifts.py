@@ -116,6 +116,63 @@ def calc_obj_stats(simz_tab, objtype):
     return stat_dict
 
 
+def spectype_confusion(simz_tab, zb_tab=None):
+    """ Generate a Confusion Matrix for spectral types
+    See the Confusion_matrix_spectypes Notebook in docs/nb for an example
+
+    Parameters
+    ----------
+    simz_tab : Table
+      Truth table;  may be input from truth.fits
+    zb_tab : Table (optional)
+      zcatalog/zbest table; may be input from zcatalog-mini.fits
+      If provided, used to match the simz_tab to the zbest quantities
+
+    Returns
+    -------
+    simz_tab : astropy.Table
+      Merged table of simpsec data
+    results : dict
+      Nested dict.
+      First key is the TRUESPECTYPE
+      Second key is the SPECTYPE
+      e.g.  results['QSO']['QSO'] reports the number of True QSO classified as QSO
+      results['QSO']['Galaxy'] reports the number of True QSO classified as Galaxy
+    """
+
+    # Process simz_tab as need be
+    if zb_tab is not None:
+        match_truth_z(simz_tab, zb_tab, mini_read=True)
+    # Cut down to those processed with the Redshift fitter
+    measured_z = simz_tab['ZWARN'].mask == False
+    cut_simz = simz_tab[measured_z]
+
+    # Strip those columns
+    strip_ttypes = np.char.rstrip(cut_simz['TRUESPECTYPE'])
+    strip_stypes = np.char.rstrip(cut_simz['SPECTYPE'])
+
+    # All TRUE, SPEC types
+    ttypes = np.unique(strip_ttypes)
+    stypes = np.unique(strip_stypes)
+
+    # Init
+    results = {}
+    for ttype in ttypes:
+        results[ttype] = {}
+
+    # Fill
+    for ttype in ttypes:
+        itrue = strip_ttypes == ttype
+        # Init correct answer in case there are none
+        results[ttype][ttype] = 0
+        # import pdb; pdb.set_trace()
+        for stype in stypes:
+            results[ttype][stype] = np.sum(strip_stypes[itrue] == stype)
+
+    # Return
+    return results
+
+
 def find_zbest_files(fibermap_data):
 
     from desimodel.footprint import radec2pix

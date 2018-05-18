@@ -128,8 +128,7 @@ if rank < len(todo):
                 args.obslist, args.fiberassign, args.mockdir)
             if args.outdir is not None:
                 cmd = cmd + " --outdir {}".format(args.outdir)
-            cmd = cmd + " --clobber --expid {} --obsnum {}".format(
-                    thisobs['EXPID'], thisobs['EXPID'])
+            cmd = cmd + " --clobber --expid {}".format(thisobs['EXPID'])
         elif thisobs['FLAVOR'] == 'flat':
             cmd = "newflat --night {} --expid {} --clobber".format(
                     thisobs['NIGHT'], thisobs['EXPID'])

@@ -62,7 +62,7 @@ class EMSpectrum(object):
         # Build a wavelength array if one is not given.
         if log10wave is None:
             cdelt = cdelt_kms/LIGHT/np.log(10) # pixel size [log-10 A]
-            npix = (np.log10(maxwave)-np.log10(minwave))/cdelt+1
+            npix = int(round((np.log10(maxwave)-np.log10(minwave))/cdelt))+1
             self.log10wave = np.linspace(np.log10(minwave), np.log10(maxwave), npix)
         else:
             self.log10wave = log10wave
@@ -315,7 +315,7 @@ class GALAXY(object):
         # Initialize the output wavelength array (linear spacing) unless it is
         # already provided.
         if wave is None:
-            npix = (maxwave-minwave) / cdelt+1
+            npix = int(round((maxwave-minwave) / cdelt))+1
             wave = np.linspace(minwave, maxwave, npix)
         self.wave = wave
 
@@ -1064,7 +1064,7 @@ class SUPERSTAR(object):
         # Initialize the output wavelength array (linear spacing) unless it is
         # already provided.
         if wave is None:
-            npix = (maxwave-minwave) / cdelt+1
+            npix = int(round((maxwave-minwave) / cdelt))+1
             wave = np.linspace(minwave, maxwave, npix)
         self.wave = wave
 
@@ -1662,7 +1662,7 @@ class QSO():
         # Initialize the output wavelength array (linear spacing) unless it is
         # already provided.
         if wave is None:
-            npix = (maxwave-minwave) / cdelt+1
+            npix = int(round((maxwave-minwave) / cdelt))+1
             wave = np.linspace(minwave, maxwave, npix)
         self.wave = wave
 
@@ -2062,7 +2062,7 @@ class SIMQSO():
         # Initialize the output wavelength array (linear spacing) unless it is
         # already provided.
         if wave is None:
-            npix = (maxwave-minwave) / cdelt+1
+            npix = int(round((maxwave-minwave) / cdelt))+1
             wave = np.linspace(minwave, maxwave, npix)
         self.wave = wave
 
