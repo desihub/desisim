@@ -1,4 +1,6 @@
 from __future__ import absolute_import, division, print_function
+import matplotlib
+matplotlib.use('Agg')
 import sys, os
 import argparse
 import time
@@ -21,7 +23,6 @@ from desimodel.io import load_pixweight
 from desimodel import footprint
 from speclite import filters
 from desitarget.cuts import isQSO_colors
-
 import matplotlib.pyplot as plt
 
 def parse(options=None):
@@ -114,25 +115,14 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     log.info("Read skewers in {}, random seed = {}".format(ifilename,seed))
 
- ##ALMA:loop over dla to add them to qso's
+ ##ALMA:Added to read dla_info
+    dlas_added=[]
     if(args.dla):
        trans_wave, transmission, metadata,dla_info= read_lya_skewers(ifilename,dla_='TRUE')
        ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
        transmission = transmission[ok]
        metadata = metadata[:][ok]
-       for ii in range(len(metadata)):
-           idd=metadata['MOCKID'][ii]
-           dlas=dla_info[dla_info['MOCKID']==idd]
-           dlass=[]
-           for i in range(len(dlas)):
-               dlass.append(dict(z=dlas[i]['Z_DLA'],N=dlas[i]['N_HI_DLA']))
-           if len(dlass)>0:
-               dla_model=dla_spec(trans_wave,dlass)
-               print("#dlas in ID",len(dlass),ii)
-               imax=abs(dla_model*transmission[ii]-transmission[ii]).argmax()
-               print(trans_wave[imax])
-               transmission[ii]=dla_model*transmission[ii]
-    ##loop over dla to add them to qso's
+
     else:
         trans_wave, transmission, metadata = read_lya_skewers(ifilename)
         ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
@@ -164,6 +154,22 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         transmission = transmission[indices]
         metadata = metadata[:][indices]
         nqso = transmission.shape[0]
+
+
+##ALMA:added to model de dla's and modify transmission
+##TODO add the dla randomly  and save the dlamodel in metadata
+    if(args.dla):
+        for ii in range(len(metadata)):
+            idd=metadata['MOCKID'][ii]
+            dlas=dla_info[dla_info['MOCKID']==idd]
+            dlass=[]
+            for i in range(len(dlas)):
+                if dlas[i]['Z_DLA']< metadata[ii]['Z']:
+                   dlass.append(dict(z=dlas[i]['Z_DLA'],N=dlas[i]['N_HI_DLA']))
+            if len(dlass)>0:
+               dla_model=dla_spec(trans_wave,dlass)
+               transmission[ii]=dla_model*transmission[ii]
+
 
     if args.nmax is not None :
         if args.nmax < nqso :
@@ -218,23 +224,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     log.info("Apply lya")
     tmp_qso_flux = apply_lya_transmission(tmp_qso_wave,tmp_qso_flux,trans_wave,transmission)
 
-##ALMA  another option to ADD the DLA
-#    if(args.dla):
-#        print("Try to add dlas")
-#        for ii in range(len(tmp_qso_flux)):
-#            idd=metadata['MOCKID'][ii]
-#            dlas=dla_info[dla_info['MOCKID']==idd]
-#            dlass=[]
-#            dla_model=1.
-#            for i in range(len(dlas)):
-#                dlass.append(dict(z=dlas[i]['Z_DLA'],N=dlas[i]['N_HI_DLA']))
-#            if len(dlass)>0:
-#                dla_model=dla_spec(tmp_qso_wave,dlass)
-#                print("#dlas in ID",len(dlass),ii)
-#                imax=abs(dla_model*tmp_qso_flux[ii]-tmp_qso_flux[ii]).argmax()
-#                print(tmp_qso_wave[imax])
-                
-#        tmp_qso_flux[ii]=dla_model*tmp_qso_flux[ii]
 
 
     bbflux=None
