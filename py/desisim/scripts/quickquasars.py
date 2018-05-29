@@ -78,18 +78,52 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     # the spectra simulator REQUIRES a seed
     np.random.seed(seed)
     
-    healpix=0
-    nside=0
-    vals = os.path.basename(ifilename).split(".")[0].split("-")
-    if len(vals)<3 :
-        log.error("Cannot guess nside and healpix from filename {}".format(ifilename))
-        raise ValueError("Cannot guess nside and healpix from filename {}".format(ifilename))
-    try :
-        healpix=int(vals[-1])
-        nside=int(vals[-2])
-    except ValueError:
-        raise ValueError("Cannot guess nside and healpix from filename {}".format(ifilename))
+
+    # read the header of the tranmission file to find the healpix pixel number, nside
+    # and if we are lucky the scheme.
+    # if this fails, try to guess it from the filename (for backward compatibility)
+    healpix=-1
+    nside=-1
+    hpxnest=True
     
+    hdulist=pyfits.open(ifilename)
+    if "METADATA" in hdulist :
+        head=hdulist["METADATA"].header
+        for k in ["HPXPIXEL","PIXNUM"] :
+            if k in head :
+                healpix=int(head[k])
+                log.info("healpix={}={}".format(k,healpix))
+                break
+        for k in ["HPXNSIDE","NSIDE"] :
+            if k in head :
+                nside=int(head[k])
+                log.info("nside={}={}".format(k,nside))
+                break
+        for k in ["HPXNEST","NESTED","SCHEME"] :
+            if k in head :
+                if k == "SCHEME" : 
+                    hpxnest=(head[k]=="NEST")
+                else :
+                    hpxnest=bool(head[k])
+                log.info("hpxnest from {} = {}".format(k,hpxnest))
+                break
+    if healpix >= 0 and nside < 0 :
+        log.error("Read healpix in header but not nside.")
+        raise ValueError("Read healpix in header but not nside.")
+    
+    if healpix < 0 : 
+        vals = os.path.basename(ifilename).split(".")[0].split("-")
+        if len(vals)<3 :
+            log.error("Cannot guess nside and healpix from filename {}".format(ifilename))
+            raise ValueError("Cannot guess nside and healpix from filename {}".format(ifilename))
+        try :
+            healpix=int(vals[-1])
+            nside=int(vals[-2])
+        except ValueError:
+            raise ValueError("Cannot guess nside and healpix from filename {}".format(ifilename))
+        log.warning("Guessed healpix and nside from filename, assuming the healpix scheme is 'NESTED'")
+    
+
     zbest_filename = None
     if args.outfile :
         ofilename = args.outfile
@@ -278,8 +312,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         targetid=None
 
     
-    log.warning("Assuming the healpix scheme is 'NESTED'")
-    meta={"HPXNSIDE":nside,"HPXPIXEL":healpix, "HPXNEST":True}
+    meta={"HPXNSIDE":nside,"HPXPIXEL":healpix, "HPXNEST":hpxnest}
      
     if args.target_selection or args.mags :
         # today we write mags because that's what is in the fibermap
