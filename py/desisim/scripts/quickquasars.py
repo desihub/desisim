@@ -1,6 +1,5 @@
 from __future__ import absolute_import, division, print_function
-import matplotlib
-matplotlib.use('Agg')
+
 import sys, os
 import argparse
 import time
@@ -23,7 +22,6 @@ from desimodel.io import load_pixweight
 from desimodel import footprint
 from speclite import filters
 from desitarget.cuts import isQSO_colors
-import matplotlib.pyplot as plt
 
 def parse(options=None):
     parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
