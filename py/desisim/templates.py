@@ -1771,7 +1771,7 @@ class QSO():
         """
         from desispec.interpolation import resample_flux
         from desiutil.log import get_logger, DEBUG
-        import .bal as bal
+        import desisim.bal as bal
 
         if uniform:
             from desiutil.stats import perc
