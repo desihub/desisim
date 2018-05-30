@@ -16,12 +16,15 @@ from desisim.simexp import reference_conditions
 from desisim.templates import SIMQSO
 from desisim.scripts.quickspectra import sim_spectra
 from desisim.lya_spectra import read_lya_skewers , apply_lya_transmission
-from desisim.dla import dla_spec
+from desisim.dla import dla_spec,insert_dlas
 from desispec.interpolation import resample_flux
 from desimodel.io import load_pixweight
 from desimodel import footprint
 from speclite import filters
 from desitarget.cuts import isQSO_colors
+#import desisim.bal as bal
+
+
 
 def parse(options=None):
     parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -60,7 +63,9 @@ def parse(options=None):
 
     #- Optional arguments to include dla
 
-    parser.add_argument('--dla',default=False,required=False, action = "store_true" ,help="read dla info from transmition file")
+    parser.add_argument('--dla',type=str,default=None,required=False, help="Add DLA to simulated spectra either randonmly (default) or from transmition file information")
+    parser.add_argument('--balqso',action = "store_true",required=False, help="Add broad absorption line to simulated spectra")
+    parser.add_argument('--balprob',type=float,default=0.12,required=False, help="Probability that a qso is a BAL, olny used with balqso=True")
     
     if options is None:
         args = parser.parse_args()
@@ -148,21 +153,32 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     log.info("Read skewers in {}, random seed = {}".format(ifilename,seed))
 
  ##ALMA:Added to read dla_info
-    dlas_added=[]
-    if(args.dla):
-       trans_wave, transmission, metadata,dla_info= read_lya_skewers(ifilename,dla_='TRUE')
+    
+    if(not args.dla or args.dla=='random'):
+       trans_wave, transmission, metadata = read_lya_skewers(ifilename)
        ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
        transmission = transmission[ok]
        metadata = metadata[:][ok]
 
+    elif(args.dla=='file'):
+       print('Read DLA info from transmission file')
+       trans_wave, transmission, metadata,dla_info= read_lya_skewers(ifilename,dla_='TRUE')  
+       ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
+       transmission = transmission[ok]
+       metadata = metadata[:][ok]
     else:
-        trans_wave, transmission, metadata = read_lya_skewers(ifilename)
-        ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
-        transmission = transmission[ok]
-        metadata = metadata[:][ok]
-    
+       print('Not a valid option to add DLAs. Valid options are "random" or "file"')
+       exit()
 
-    # create quasars
+##ALMA: To include BAL feautures
+    if args.balqso: 
+       if not 'DESI_ROOT' in os.environ :
+          log.error("To include BAL features I need the DESI_BASIS_TEMPLATES variable to find the file   $DESIMODEL/../../trunk/BAL-templates-v0.2.fits")
+       baltemplatefile = os.environ['DESI_ROOT'] + "/spectro/templates/basis_templates/trunk/BAL-templates-v0.2.fits"
+       #balwave, baltemplates = bal.readbaltemplates(baltemplatefile)
+       print('SET BAL templates directorty')
+
+# create quasars
     
     if args.desi_footprint :
         footprint_healpix = footprint.radec2pix(footprint_healpix_nside, metadata["RA"], metadata["DEC"])
@@ -188,19 +204,37 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         nqso = transmission.shape[0]
 
 
-##ALMA:added to model de dla's and modify transmission
-##TODO add the dla randomly  and save the dlamodel in metadata
-    if(args.dla):
+##ALMA:added to set transmission to 1 for z>zqso
+    for ii in range(len(metadata)):       
+        transmission[ii][trans_wave>1215.67*(metadata[ii]['Z']+1)]=1.0
+
+##ALMA TODO save the dlamodel in metadata
+    if(args.dla=='file'):
+        min_trans_wave=np.min(trans_wave/1215.67 - 1)
         for ii in range(len(metadata)):
-            idd=metadata['MOCKID'][ii]
-            dlas=dla_info[dla_info['MOCKID']==idd]
-            dlass=[]
-            for i in range(len(dlas)):
-                if dlas[i]['Z_DLA']< metadata[ii]['Z']:
-                   dlass.append(dict(z=dlas[i]['Z_DLA'],N=dlas[i]['N_HI_DLA']))
-            if len(dlass)>0:
-               dla_model=dla_spec(trans_wave,dlass)
-               transmission[ii]=dla_model*transmission[ii]
+            if min_trans_wave < metadata[ii]['Z']: # Any forest?
+               idd=metadata['MOCKID'][ii]
+               dlas=dla_info[dla_info['MOCKID']==idd]
+               dlass=[]
+               for i in range(len(dlas)):
+                   if dlas[i]['Z_DLA']< metadata[ii]['Z']:
+                      dlass.append(dict(z=dlas[i]['Z_DLA'],N=dlas[i]['N_HI_DLA']))
+               if len(dlass)>0:
+                  dla_model=dla_spec(trans_wave,dlass)
+                  transmission[ii]=dla_model*transmission[ii]
+                  
+
+    elif(args.dla=='random'):
+        print('Add DLAs randomly')
+        min_trans_wave=np.min(trans_wave/1215.67 - 1)
+        for ii in range(len(metadata)):
+            if min_trans_wave < metadata[ii]['Z']: # Any forest?
+               dlass, dla_model = insert_dlas(trans_wave, metadata[ii]['Z'])
+               if len(dlass)>0:
+                  plt.plot(trans_wave,transmission[ii],label='no-dla')
+                  transmission[ii]=dla_model*transmission[ii]
+
+    
 
 
     if args.nmax is not None :
