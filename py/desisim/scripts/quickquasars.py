@@ -177,6 +177,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
        baltemplatefile = os.environ['DESI_ROOT'] + "/spectro/templates/basis_templates/trunk/BAL-templates-v0.2.fits"
        #balwave, baltemplates = bal.readbaltemplates(baltemplatefile)
        print('SET BAL templates directorty')
+       exit()
 
 # create quasars
     
