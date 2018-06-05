@@ -170,6 +170,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
        print('Not a valid option to add DLAs. Valid options are "random" or "file"')
        exit()
 
+    if args.dla:
+        dla_filename=os.path.join(pixdir,"dla-{}-{}.fits".format(nside,healpix))
+
 ##ALMA: To include BAL feautures
     if args.balqso: 
        if not 'DESI_ROOT' in os.environ :
@@ -177,7 +180,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
        baltemplatefile = os.environ['DESI_ROOT'] + "/spectro/templates/basis_templates/trunk/BAL-templates-v0.2.fits"
        #balwave, baltemplates = bal.readbaltemplates(baltemplatefile)
        print('SET BAL templates directorty')
-       exit()
+     
 
 # create quasars
     
@@ -209,7 +212,10 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     for ii in range(len(metadata)):       
         transmission[ii][trans_wave>1215.67*(metadata[ii]['Z']+1)]=1.0
 
-##ALMA TODO save the dlamodel in metadata
+
+    if args.dla:
+       dla_NHI, dla_z, dla_id = [], [], []
+
     if(args.dla=='file'):
         min_trans_wave=np.min(trans_wave/1215.67 - 1)
         for ii in range(len(metadata)):
@@ -223,19 +229,31 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                if len(dlass)>0:
                   dla_model=dla_spec(trans_wave,dlass)
                   transmission[ii]=dla_model*transmission[ii]
-                  
+                  dla_z+=[idla['z'] for idla in dlass]
+                  dla_NHI+=[idla['N'] for idla in dlass]
+                  dla_id+=[idd]*len(dlass)
 
     elif(args.dla=='random'):
         print('Add DLAs randomly')
         min_trans_wave=np.min(trans_wave/1215.67 - 1)
         for ii in range(len(metadata)):
             if min_trans_wave < metadata[ii]['Z']: # Any forest?
+               idd=metadata['MOCKID'][ii]
                dlass, dla_model = insert_dlas(trans_wave, metadata[ii]['Z'])
                if len(dlass)>0:
-                  plt.plot(trans_wave,transmission[ii],label='no-dla')
                   transmission[ii]=dla_model*transmission[ii]
-
-    
+                  dla_z+=[idla['z'] for idla in dlass]
+                  dla_NHI+=[idla['N'] for idla in dlass]
+                  dla_id+=[idd]*len(dlass)    
+  
+    if args.dla:
+       if len(dla_id):
+          dla_meta=Table()
+          dla_meta['NHI']=dla_NHI
+          dla_meta['z']=dla_z
+          dla_meta['ID']=dla_id
+       print('added', len(dla_meta))
+       
 
 
     if args.nmax is not None :
@@ -246,7 +264,10 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             transmission = transmission[indices]
             metadata = metadata[:][indices]
             nqso = args.nmax
-
+           
+            if args.dla:
+               dla_meta=dla_meta[:][dla_meta['ID']==metadata['MOCKID']]
+               print('Added after nmax',len(dla_meta))
             
     if args.target_selection or args.mags :
         wanted_min_wave = 3329. # needed to compute magnitudes for decam2014-r (one could have trimmed the transmission file ...)
@@ -320,6 +341,11 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         for band in bands : 
             bbflux[band] = bbflux[band][selection]
         nqso         = selection.size
+
+        if args.dla:
+           dla_meta=dla_meta[:][dla_meta['ID']==metadata['MOCKID']]
+           print('added after target selection',len(dla_meta))
+    
     
     log.info("Resample to a linear wavelength grid (needed by DESI sim.)")
     # we need a linear grid. for this resampling we take care of integrating in bins
@@ -361,6 +387,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     
     sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,meta=meta,seed=seed,fibermap_columns=fibermap_columns)
     
+
+
+
     if args.zbest :
         log.info("Read fibermap")
         fibermap = read_fibermap(ofilename)
@@ -394,6 +423,13 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
         hdulist =pyfits.HDUList([pyfits.PrimaryHDU(),hzbest,hfmap])
         hdulist.writeto(zbest_filename, clobber=True)
+        hdulist.close() # see if this helps with memory issue
+
+    if args.dla:
+     
+        hdla = pyfits.convenience.table_to_hdu(dla_meta); hdla.name="DLA_META"
+        hdulist =pyfits.HDUList([pyfits.PrimaryHDU(),hdla])
+        hdulist.writeto(dla_filename, clobber=True)
         hdulist.close() # see if this helps with memory issue
 
 
@@ -484,3 +520,4 @@ def main(args=None):
             simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed=seeds[i])
     
         
+
