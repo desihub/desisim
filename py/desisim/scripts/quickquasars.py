@@ -22,7 +22,7 @@ from desimodel.io import load_pixweight
 from desimodel import footprint
 from speclite import filters
 from desitarget.cuts import isQSO_colors
-#import desisim.bal as bal
+import desisim.bal as bal
 
 
 
@@ -175,10 +175,12 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
 ##ALMA: To include BAL feautures
     if args.balqso: 
+       balrand=np.random.RandomState( )
+       balprob=args.balprob
        if not 'DESI_ROOT' in os.environ :
           log.error("To include BAL features I need the DESI_BASIS_TEMPLATES variable to find the file   $DESIMODEL/../../trunk/BAL-templates-v0.2.fits")
        baltemplatefile = os.environ['DESI_ROOT'] + "/spectro/templates/basis_templates/trunk/BAL-templates-v0.2.fits"
-       #balwave, baltemplates = bal.readbaltemplates(baltemplatefile)
+       balwave, baltemplates = bal.readbaltemplates(baltemplatefile)
        print('SET BAL templates directorty')
      
 
@@ -309,6 +311,15 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     tmp_qso_flux = qso_flux
     tmp_qso_wave = trans_wave
         
+
+###ALMA FINISH THIS TO MAKE VARIABLES ALL COMPATIBLE
+    log.info("Add BAL")
+    if args.balqso:
+       for kk in range(len(tmp_qso_flux)):                      
+           if bal.isbal(balprob,balrand):
+              baltemplate, balindex[kk] = bal.getbaltemplate(tmp_qso_wave[:,kk], metadata['Z'][kk], balwave, baltemplates)
+              tmp_qso_flux[kk, :]*= baltemplate
+
     log.info("Apply lya")
     tmp_qso_flux = apply_lya_transmission(tmp_qso_wave,tmp_qso_flux,trans_wave,transmission)
 
