@@ -1784,7 +1784,6 @@ class QSO():
         """
         from desispec.interpolation import resample_flux
         from desiutil.log import get_logger, DEBUG
-        import desisim.bal as bal
 
         if uniform:
             from desiutil.stats import perc
@@ -1804,6 +1803,13 @@ class QSO():
             if len(mag) != nmodel:
                 log.fatal('Mag must be an nmodel-length array')
                 raise ValueError
+
+        if balprob < 0:
+            log.warning('Balprob {} is negative; setting to zero.'.format(balprob))
+            balprob = 0.0
+        if balprob > 1:
+            log.warning('Balprob {} cannot exceed unity; setting to 1.0.'.format(balprob))
+            balprob = 1.0
 
         npix = len(self.eigenwave)
 
@@ -1847,11 +1853,9 @@ class QSO():
             meta[key] = value
         if lyaforest: 
             meta['SUBTYPE'] = 'LYA'
-        if balqso: 
-            if lyaforest: 
-                meta['SUBTYPE'] = 'LYA+BAL'
-            else: 
-                meta['SUBTYPE'] = 'BAL'
+            
+        if self.balqso:
+            meta['SUBTYPE'] = meta['SUBTYPE']+'+BAL'
 
         # Attenuate below the Lyman-limit by the mean free path (MFP) model
         # measured by Worseck, Prochaska et al. 2014.
@@ -1926,7 +1930,7 @@ class QSO():
                     flux[kk, :] = np.dot(self.eigenflux.T, PCA_rand[:, kk]).flatten()
                     if redshift[ii] > 2.39:
                          flux[kk, :pix912] *= np.exp(-phys_dist.value / mfp[ii])
-                    if balqso: 
+                    if self.balqso: 
                         if bal.isbal(balprob,balrand): 
                             baltemplate, balindex[kk] = bal.getbaltemplate(zwave[:,ii], redshift[ii], balwave, baltemplates)
                             flux[kk, :] *= baltemplate
