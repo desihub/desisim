@@ -15,7 +15,7 @@ from desispec.io.fibermap import read_fibermap
 from desisim.simexp import reference_conditions
 from desisim.templates import SIMQSO
 from desisim.scripts.quickspectra import sim_spectra
-from desisim.lya_spectra import read_lya_skewers , apply_lya_transmission
+from desisim.lya_spectra import read_lya_skewers , apply_lya_transmission, apply_metals_transmission
 from desisim.dla import dla_spec
 from desispec.interpolation import resample_flux
 from desimodel.io import load_pixweight
