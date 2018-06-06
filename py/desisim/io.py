@@ -12,6 +12,7 @@ import time
 from glob import glob
 import warnings
 
+import fitsio
 from astropy.io import fits
 from astropy.table import Table
 from astropy.stats import sigma_clipped_stats
@@ -875,7 +876,12 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
 
     if onlymeta:
         log.info('Reading {} metadata.'.format(infile))
-        meta = Table(fits.getdata(infile, 1))
+
+        if objtype.upper() == 'BAL': # non-standard data model
+            meta = Table(fitsio.read(infile, ext=1, upper=True, columns=(
+                'SDSS_NAME', 'RA', 'DEC', 'PLATE', 'MJD', 'FIBERID')))
+        else:
+            meta = Table(fitsio.read(infile, ext=1, upper=True))
 
         if (objtype.upper() == 'WD') and (subtype != ''):
             keep = np.where(meta['WDTYPE'] == subtype.upper())[0]
@@ -903,10 +909,19 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
                 meta = Table([np.arange(flux.shape[0]),], names=['PCAVEC',])
             else:
                 raise IOError('Unknown QSO basis template format version {}'.format(format_version))
+    elif objtype.upper() == 'BAL':
+        flux, hdr = fitsio.read(infile, ext=1, columns='TEMP', header=True)
+        w1 = hdr['CRVAL1']
+        dw = hdr['CDELT1']
+        w2 = w1 + dw*flux.shape[1]
+        wave = np.arange(w1, w2, dw)
+
+        meta = Table(fitsio.read(infile, ext=1, upper=True, columns=(
+            'SDSS_NAME', 'RA', 'DEC', 'PLATE', 'MJD', 'FIBERID')))
     else:
-        flux, hdr = fits.getdata(infile, 0, header=True)
-        meta = Table(fits.getdata(infile, 1))
-        wave = fits.getdata(infile, 2)
+        flux, hdr = fitsio.read(infile, ext=0, header=True)
+        meta = Table(fitsio.read(infile, ext=1, upper=True))
+        wave = fitsio.read(infile, ext=2)
 
         if (objtype.upper() == 'WD') and (subtype != ''):
             if 'WDTYPE' not in meta.colnames:
