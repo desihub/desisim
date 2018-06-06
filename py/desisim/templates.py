@@ -1701,6 +1701,7 @@ class QSO():
             for ii in range(len(bal_basemeta)):
                 bal_baseflux[ii, :] = resample_flux(self.eigenwave, bal_basewave,
                                                     bal_baseflux1[ii, :], extrapolate=True)
+                bal_baseflux[ii, bal_baseflux[ii, :] > 1] = 1.0 # do not exceed unity
             self.bal_baseflux = bal_baseflux
             self.bal_basemeta = bal_basemeta
 
@@ -1857,7 +1858,10 @@ class QSO():
             meta['SUBTYPE'] = 'LYA'
             
         if self.balqso:
-            meta['SUBTYPE'] = '{}+BAL'.format(meta['SUBTYPE'].data)
+            if lyaforest: 
+                meta['SUBTYPE'] = 'LYA+BAL'
+            else:
+                meta['SUBTYPE'] = 'BAL'
 
         # Attenuate below the Lyman-limit by the mean free path (MFP) model
         # measured by Worseck, Prochaska et al. 2014.
@@ -1869,7 +1873,6 @@ class QSO():
         PCA_rand = np.zeros( (4, N_perz) )
         nonegflux = np.zeros(N_perz)
         flux = np.zeros( (N_perz, npix) )
-        #balindex = -1*np.ones(N_perz, dtype=int)  # = -1 if is no BAL applied 
 
         zwave = np.outer(self.eigenwave, 1+redshift) # [observed-frame, Angstrom]
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
@@ -1880,8 +1883,11 @@ class QSO():
 
             templaterand = np.random.RandomState(templateseed[ii])
 
-            # Does this QSO have a BAL?
+            # Does this QSO have a BAL?  If so, build the spectrum here.
             hasbal = self.balqso * (templaterand.random_sample() < balprob)
+            if hasbal:
+                balindx = templaterand.choice(len(self.bal_basemeta))
+                balflux = self.bal_baseflux[balindx, :]
 
             # BOSS or SDSS?
             if redshift[ii] > 2.15:
@@ -1915,7 +1921,6 @@ class QSO():
             # Iterate up to maxiter.
             makemore, itercount = True, 0
             while makemore:
-
                 # Gather N_perz sets of coefficients.
                 for jj, ipca in enumerate(self.pca_list):
                     if uniform:
@@ -1929,22 +1934,24 @@ class QSO():
                     else:
                         PCA_rand[jj, :] = self._sample_pcacoeff(N_perz, pca_coeff[ipca][idx], templaterand)
 
+                print(PCA_rand)
+
                 # Instantiate the templates, including attenuation below the
                 # Lyman-limit based on the MFP, and the Lyman-alpha forest.
                 for kk in range(N_perz):
                     flux[kk, :] = np.dot(self.eigenflux.T, PCA_rand[:, kk]).flatten()
                     if redshift[ii] > 2.39:
                          flux[kk, :pix912] *= np.exp(-phys_dist.value / mfp[ii])
-                    import pdb ; pdb.set_trace()
 
-                    if self.balqso: 
-                        if bal.isbal(balprob,balrand): 
-                            baltemplate, balindex[kk] = bal.getbaltemplate(zwave[:,ii], redshift[ii], balwave, baltemplates)
-                            flux[kk, :] *= baltemplate
                     if lyaforest:
                         flux[kk, :] *= qso_skewer_flux
-                    nonegflux[kk] = (np.sum(flux[kk, (zwave[:, ii] > 3000) & (zwave[:, ii] < 1E4)] < 0) == 0) * 1
-
+                    
+                    if hasbal:
+                        pass
+                        #flux[kk, :] *= balflux
+                        
+                    #nonegflux[kk] = (np.sum(flux[kk, (zwave[:, ii] > 3000) & (zwave[:, ii] < 1E4)] < 0) == 0) * 1
+                        
                 # Synthesize photometry to determine which models will pass the
                 # color-cuts.  We have to temporarily pad because the spectra
                 # don't go red enough.
@@ -1975,8 +1982,17 @@ class QSO():
 
                 # If the color-cuts pass then populate the output flux vector
                 # (suitably normalized) and metadata table and finish up.
-                if np.any(colormask * nonegflux):
-                    this = templaterand.choice(np.where(colormask * nonegflux)[0]) # Pick one randomly.
+                #if np.any(colormask * nonegflux):
+                if np.any(colormask):
+                    this = templaterand.choice(np.where(colormask)[0]) # Pick one randomly.
+                    #this = templaterand.choice(np.where(colormask * nonegflux)[0]) # Pick one randomly.
+                    #print(this)
+                    #if hasbal:
+                        #print(balindx)
+                        #import matplotlib.pyplot as plt
+                        #plt.plot(zwave[:, ii], flux[this, :] / balflux) ; plt.show()
+                        #import pdb ; pdb.set_trace()
+                    
                     outflux[ii, :] = resample_flux(self.wave, zwave[:, ii], flux[this, :],
                                                    extrapolate=True) * magnorm[this]
 
