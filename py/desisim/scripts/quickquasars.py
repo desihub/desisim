@@ -1,4 +1,5 @@
 from __future__ import absolute_import, division, print_function
+
 import sys, os
 import argparse
 import time
@@ -15,13 +16,12 @@ from desisim.simexp import reference_conditions
 from desisim.templates import SIMQSO
 from desisim.scripts.quickspectra import sim_spectra
 from desisim.lya_spectra import read_lya_skewers , apply_lya_transmission
+from desisim.dla import dla_spec
 from desispec.interpolation import resample_flux
 from desimodel.io import load_pixweight
 from desimodel import footprint
 from speclite import filters
 from desitarget.cuts import isQSO_colors
-
-import matplotlib.pyplot as plt
 
 def parse(options=None):
     parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -57,6 +57,10 @@ def parse(options=None):
     parser.add_argument('--target-selection', action = "store_true" ,help="apply QSO target selection cuts to the simulated quasars")
     parser.add_argument('--mags', action = "store_true" ,help="compute and write the QSO mags in the fibermap")
     parser.add_argument('--desi-footprint', action = "store_true" ,help="select QSOs in DESI footprint")
+
+    #- Optional arguments to include dla
+
+    parser.add_argument('--dla',default=False,required=False, action = "store_true" ,help="read dla info from transmition file")
     
     if options is None:
         args = parser.parse_args()
@@ -74,18 +78,52 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     # the spectra simulator REQUIRES a seed
     np.random.seed(seed)
     
-    healpix=0
-    nside=0
-    vals = os.path.basename(ifilename).split(".")[0].split("-")
-    if len(vals)<3 :
-        log.error("Cannot guess nside and healpix from filename {}".format(ifilename))
-        raise ValueError("Cannot guess nside and healpix from filename {}".format(ifilename))
-    try :
-        healpix=int(vals[-1])
-        nside=int(vals[-2])
-    except ValueError:
-        raise ValueError("Cannot guess nside and healpix from filename {}".format(ifilename))
+
+    # read the header of the tranmission file to find the healpix pixel number, nside
+    # and if we are lucky the scheme.
+    # if this fails, try to guess it from the filename (for backward compatibility)
+    healpix=-1
+    nside=-1
+    hpxnest=True
     
+    hdulist=pyfits.open(ifilename)
+    if "METADATA" in hdulist :
+        head=hdulist["METADATA"].header
+        for k in ["HPXPIXEL","PIXNUM"] :
+            if k in head :
+                healpix=int(head[k])
+                log.info("healpix={}={}".format(k,healpix))
+                break
+        for k in ["HPXNSIDE","NSIDE"] :
+            if k in head :
+                nside=int(head[k])
+                log.info("nside={}={}".format(k,nside))
+                break
+        for k in ["HPXNEST","NESTED","SCHEME"] :
+            if k in head :
+                if k == "SCHEME" : 
+                    hpxnest=(head[k]=="NEST")
+                else :
+                    hpxnest=bool(head[k])
+                log.info("hpxnest from {} = {}".format(k,hpxnest))
+                break
+    if healpix >= 0 and nside < 0 :
+        log.error("Read healpix in header but not nside.")
+        raise ValueError("Read healpix in header but not nside.")
+    
+    if healpix < 0 : 
+        vals = os.path.basename(ifilename).split(".")[0].split("-")
+        if len(vals)<3 :
+            log.error("Cannot guess nside and healpix from filename {}".format(ifilename))
+            raise ValueError("Cannot guess nside and healpix from filename {}".format(ifilename))
+        try :
+            healpix=int(vals[-1])
+            nside=int(vals[-2])
+        except ValueError:
+            raise ValueError("Cannot guess nside and healpix from filename {}".format(ifilename))
+        log.warning("Guessed healpix and nside from filename, assuming the healpix scheme is 'NESTED'")
+    
+
     zbest_filename = None
     if args.outfile :
         ofilename = args.outfile
@@ -108,11 +146,22 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                 return
 
     log.info("Read skewers in {}, random seed = {}".format(ifilename,seed))
-    trans_wave, transmission, metadata = read_lya_skewers(ifilename)
-    ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
-    transmission = transmission[ok]
-    metadata = metadata[:][ok]
+
+ ##ALMA:Added to read dla_info
+    dlas_added=[]
+    if(args.dla):
+       trans_wave, transmission, metadata,dla_info= read_lya_skewers(ifilename,dla_='TRUE')
+       ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
+       transmission = transmission[ok]
+       metadata = metadata[:][ok]
+
+    else:
+        trans_wave, transmission, metadata = read_lya_skewers(ifilename)
+        ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
+        transmission = transmission[ok]
+        metadata = metadata[:][ok]
     
+
     # create quasars
     
     if args.desi_footprint :
@@ -137,6 +186,22 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         transmission = transmission[indices]
         metadata = metadata[:][indices]
         nqso = transmission.shape[0]
+
+
+##ALMA:added to model de dla's and modify transmission
+##TODO add the dla randomly  and save the dlamodel in metadata
+    if(args.dla):
+        for ii in range(len(metadata)):
+            idd=metadata['MOCKID'][ii]
+            dlas=dla_info[dla_info['MOCKID']==idd]
+            dlass=[]
+            for i in range(len(dlas)):
+                if dlas[i]['Z_DLA']< metadata[ii]['Z']:
+                   dlass.append(dict(z=dlas[i]['Z_DLA'],N=dlas[i]['N_HI_DLA']))
+            if len(dlass)>0:
+               dla_model=dla_spec(trans_wave,dlass)
+               transmission[ii]=dla_model*transmission[ii]
+
 
     if args.nmax is not None :
         if args.nmax < nqso :
@@ -179,6 +244,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         nmodel=nqso, redshift=metadata['Z'], 
         lyaforest=False, nocolorcuts=True, noresample=True, seed = seed)
 
+
     log.info("Resample to transmission wavelength grid")
     # because we don't want to alter the transmission field with resampling here
     qso_flux=np.zeros((tmp_qso_flux.shape[0],trans_wave.size))
@@ -189,6 +255,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         
     log.info("Apply lya")
     tmp_qso_flux = apply_lya_transmission(tmp_qso_wave,tmp_qso_flux,trans_wave,transmission)
+
+
 
     bbflux=None
     if args.target_selection or args.mags :
@@ -244,8 +312,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         targetid=None
 
     
-    log.warning("Assuming the healpix scheme is 'NESTED'")
-    meta={"HPXNSIDE":nside,"HPXPIXEL":healpix, "HPXNEST":True}
+    meta={"HPXNSIDE":nside,"HPXPIXEL":healpix, "HPXNEST":hpxnest}
      
     if args.target_selection or args.mags :
         # today we write mags because that's what is in the fibermap
