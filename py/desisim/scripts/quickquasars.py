@@ -17,12 +17,13 @@ from desisim.templates import SIMQSO
 from desisim.scripts.quickspectra import sim_spectra
 from desisim.lya_spectra import read_lya_skewers , apply_lya_transmission
 from desisim.dla import dla_spec,insert_dlas
+import desisim.bal as bal
 from desispec.interpolation import resample_flux
 from desimodel.io import load_pixweight
 from desimodel import footprint
 from speclite import filters
 from desitarget.cuts import isQSO_colors
-import desisim.bal as bal
+
 
 
 
@@ -61,7 +62,7 @@ def parse(options=None):
     parser.add_argument('--mags', action = "store_true" ,help="compute and write the QSO mags in the fibermap")
     parser.add_argument('--desi-footprint', action = "store_true" ,help="select QSOs in DESI footprint")
 
-    #- Optional arguments to include dla
+    #- Optional arguments to include dlas and bals
 
     parser.add_argument('--dla',type=str,default=None,required=False, help="Add DLA to simulated spectra either randonmly (default) or from transmition file information")
     parser.add_argument('--balqso',action = "store_true",required=False, help="Add broad absorption line to simulated spectra")
@@ -152,7 +153,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     log.info("Read skewers in {}, random seed = {}".format(ifilename,seed))
 
- ##ALMA:Added to read dla_info
+
     
     if(not args.dla or args.dla=='random'):
        trans_wave, transmission, metadata = read_lya_skewers(ifilename)
@@ -167,22 +168,15 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
        transmission = transmission[ok]
        metadata = metadata[:][ok]
     else:
-       print('Not a valid option to add DLAs. Valid options are "random" or "file"')
-       exit()
+       log.error('Not a valid option to add DLAs. Valid options are "random" or "file"')
+       sys.exit(1)
 
     if args.dla:
+        dla_NHI, dla_z,dla_id = [],[], []
         dla_filename=os.path.join(pixdir,"dla-{}-{}.fits".format(nside,healpix))
 
-##ALMA: To include BAL feautures
-    if args.balqso: 
-       balrand=np.random.RandomState( )
-       balprob=args.balprob
-       if not 'DESI_ROOT' in os.environ :
-          log.error("To include BAL features I need the DESI_BASIS_TEMPLATES variable to find the file   $DESIMODEL/../../trunk/BAL-templates-v0.2.fits")
-       baltemplatefile = os.environ['DESI_ROOT'] + "/spectro/templates/basis_templates/trunk/BAL-templates-v0.2.fits"
-       balwave, baltemplates = bal.readbaltemplates(baltemplatefile)
-       print('SET BAL templates directorty')
-     
+
+       
 
 # create quasars
     
@@ -210,24 +204,21 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         nqso = transmission.shape[0]
 
 
-##ALMA:added to set transmission to 1 for z>zqso
+##ALMA:added to set transmission to 1 for z>zqso, this can be removed when transmission is corrected. 
     for ii in range(len(metadata)):       
         transmission[ii][trans_wave>1215.67*(metadata[ii]['Z']+1)]=1.0
-
-
-    if args.dla:
-       dla_NHI, dla_z, dla_id = [], [], []
 
     if(args.dla=='file'):
         min_trans_wave=np.min(trans_wave/1215.67 - 1)
         for ii in range(len(metadata)):
-            if min_trans_wave < metadata[ii]['Z']: # Any forest?
+            if min_trans_wave < metadata[ii]['Z']: 
                idd=metadata['MOCKID'][ii]
                dlas=dla_info[dla_info['MOCKID']==idd]
                dlass=[]
                for i in range(len(dlas)):
-                   if dlas[i]['Z_DLA']< metadata[ii]['Z']:
-                      dlass.append(dict(z=dlas[i]['Z_DLA'],N=dlas[i]['N_HI_DLA']))
+##Adding only dlas between zqso and 1.95, check again maybe for the next version of London mocks...  
+                   if (dlas[i]['Z_DLA']< metadata[ii]['Z']) and (dlas[i]['Z_DLA']> 1.95) :
+                      dlass.append(dict(z=dlas[i]['Z_DLA']+dlas[i]['DZ_DLA'],N=dlas[i]['N_HI_DLA']))
                if len(dlass)>0:
                   dla_model=dla_spec(trans_wave,dlass)
                   transmission[ii]=dla_model*transmission[ii]
@@ -236,10 +227,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                   dla_id+=[idd]*len(dlass)
 
     elif(args.dla=='random'):
-        print('Add DLAs randomly')
         min_trans_wave=np.min(trans_wave/1215.67 - 1)
         for ii in range(len(metadata)):
-            if min_trans_wave < metadata[ii]['Z']: # Any forest?
+            if min_trans_wave < metadata[ii]['Z']: 
                idd=metadata['MOCKID'][ii]
                dlass, dla_model = insert_dlas(trans_wave, metadata[ii]['Z'])
                if len(dlass)>0:
@@ -249,12 +239,11 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                   dla_id+=[idd]*len(dlass)    
   
     if args.dla:
-       if len(dla_id):
+       if len(dla_id)>0:
           dla_meta=Table()
           dla_meta['NHI']=dla_NHI
           dla_meta['z']=dla_z
           dla_meta['ID']=dla_id
-       print('added', len(dla_meta))
        
 
 
@@ -269,7 +258,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
            
             if args.dla:
                dla_meta=dla_meta[:][dla_meta['ID']==metadata['MOCKID']]
-               print('Added after nmax',len(dla_meta))
             
     if args.target_selection or args.mags :
         wanted_min_wave = 3329. # needed to compute magnitudes for decam2014-r (one could have trimmed the transmission file ...)
@@ -313,15 +301,19 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         
 
 ###ALMA FINISH THIS TO MAKE VARIABLES ALL COMPATIBLE
-    log.info("Add BAL")
-    if args.balqso:
-       for kk in range(len(tmp_qso_flux)):                      
-           if bal.isbal(balprob,balrand):
-              baltemplate, balindex[kk] = bal.getbaltemplate(tmp_qso_wave[:,kk], metadata['Z'][kk], balwave, baltemplates)
-              tmp_qso_flux[kk, :]*= baltemplate
+#   log.info("Add BAL")
 
-    log.info("Apply lya")
-    tmp_qso_flux = apply_lya_transmission(tmp_qso_wave,tmp_qso_flux,trans_wave,transmission)
+#    if args.balqso: 
+#       balrand=np.random.RandomState( )
+#       balprob=args.balprob
+#   if args.balqso:
+#       for kk in range(len(tmp_qso_flux)):                      
+#           if bal.isbal(balprob,balrand):
+#              baltemplate, balindex[kk] = bal.getbaltemplate(tmp_qso_wave[:,kk], metadata['Z'][kk], balwave, baltemplates)
+#              tmp_qso_flux[kk, :]*= baltemplate
+
+#    log.info("Apply lya")
+#    tmp_qso_flux = apply_lya_transmission#(tmp_qso_wave,tmp_qso_flux,trans_wave,transmission)
 
 
 
@@ -355,7 +347,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
         if args.dla:
            dla_meta=dla_meta[:][dla_meta['ID']==metadata['MOCKID']]
-           print('added after target selection',len(dla_meta))
+
     
     
     log.info("Resample to a linear wavelength grid (needed by DESI sim.)")
@@ -441,7 +433,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         hdla = pyfits.convenience.table_to_hdu(dla_meta); hdla.name="DLA_META"
         hdulist =pyfits.HDUList([pyfits.PrimaryHDU(),hdla])
         hdulist.writeto(dla_filename, clobber=True)
-        hdulist.close() # see if this helps with memory issue
+        hdulist.close() 
 
 
 
