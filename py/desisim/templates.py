@@ -1644,7 +1644,7 @@ class QSO():
         from astropy.io import fits
         from astropy import cosmology
         from speclite import filters
-        from desisim.io import find_basis_template
+        from desisim.io import find_basis_template, read_basis_templates
         from desiutil.log import get_logger
         from desisim import lya_mock_p1d as lyamock
 
@@ -1697,9 +1697,9 @@ class QSO():
         if self.balqso:
             from desispec.interpolation import resample_flux
             bal_baseflux1, bal_basewave, bal_basemeta = read_basis_templates(objtype='BAL')
-            bal_baseflux = np.zeros((len(bal_basemeta), len(self.basewave)))
+            bal_baseflux = np.zeros((len(bal_basemeta), len(self.eigenwave)))
             for ii in range(len(bal_basemeta)):
-                bal_baseflux[ii, :] = resample_flux(self.basewave, bal_basewave,
+                bal_baseflux[ii, :] = resample_flux(self.eigenwave, bal_basewave,
                                                     bal_baseflux1[ii, :], extrapolate=True)
             self.bal_baseflux = bal_baseflux
             self.bal_basemeta = bal_basemeta
@@ -1804,12 +1804,13 @@ class QSO():
                 log.fatal('Mag must be an nmodel-length array')
                 raise ValueError
 
-        if balprob < 0:
-            log.warning('Balprob {} is negative; setting to zero.'.format(balprob))
-            balprob = 0.0
-        if balprob > 1:
-            log.warning('Balprob {} cannot exceed unity; setting to 1.0.'.format(balprob))
-            balprob = 1.0
+        if self.balqso:
+            if balprob < 0:
+                log.warning('Balprob {} is negative; setting to zero.'.format(balprob))
+                balprob = 0.0
+            if balprob > 1:
+                log.warning('Balprob {} cannot exceed unity; setting to 1.0.'.format(balprob))
+                balprob = 1.0
 
         npix = len(self.eigenwave)
 
@@ -1851,11 +1852,12 @@ class QSO():
         for key, value in zip(('REDSHIFT', 'MAG', 'SEED'),
                                (redshift, mag, templateseed)):
             meta[key] = value
+
         if lyaforest: 
             meta['SUBTYPE'] = 'LYA'
             
         if self.balqso:
-            meta['SUBTYPE'] = meta['SUBTYPE']+'+BAL'
+            meta['SUBTYPE'] = '{}+BAL'.format(meta['SUBTYPE'].data)
 
         # Attenuate below the Lyman-limit by the mean free path (MFP) model
         # measured by Worseck, Prochaska et al. 2014.
@@ -1867,7 +1869,7 @@ class QSO():
         PCA_rand = np.zeros( (4, N_perz) )
         nonegflux = np.zeros(N_perz)
         flux = np.zeros( (N_perz, npix) )
-        balindex = -1*np.ones(N_perz, dtype=int)  # = -1 if is no BAL applied 
+        #balindex = -1*np.ones(N_perz, dtype=int)  # = -1 if is no BAL applied 
 
         zwave = np.outer(self.eigenwave, 1+redshift) # [observed-frame, Angstrom]
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
@@ -1877,6 +1879,9 @@ class QSO():
                 log.debug('Simulating {} template {}/{}.'.format(self.objtype, ii, nmodel))
 
             templaterand = np.random.RandomState(templateseed[ii])
+
+            # Does this QSO have a BAL?
+            hasbal = self.balqso * (templaterand.random_sample() < balprob)
 
             # BOSS or SDSS?
             if redshift[ii] > 2.15:
@@ -1930,6 +1935,8 @@ class QSO():
                     flux[kk, :] = np.dot(self.eigenflux.T, PCA_rand[:, kk]).flatten()
                     if redshift[ii] > 2.39:
                          flux[kk, :pix912] *= np.exp(-phys_dist.value / mfp[ii])
+                    import pdb ; pdb.set_trace()
+
                     if self.balqso: 
                         if bal.isbal(balprob,balrand): 
                             baltemplate, balindex[kk] = bal.getbaltemplate(zwave[:,ii], redshift[ii], balwave, baltemplates)
