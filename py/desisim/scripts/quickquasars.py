@@ -57,6 +57,7 @@ def parse(options=None):
     parser.add_argument('--target-selection', action = "store_true" ,help="apply QSO target selection cuts to the simulated quasars")
     parser.add_argument('--mags', action = "store_true" ,help="compute and write the QSO mags in the fibermap")
     parser.add_argument('--desi-footprint', action = "store_true" ,help="select QSOs in DESI footprint")
+    parser.add_argument('--metals', type=str, default=None, required=False, help = 'list of metal to get the transmission from', nargs='*')
 
     #- Optional arguments to include dla
 
@@ -256,6 +257,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     log.info("Apply lya")
     tmp_qso_flux = apply_lya_transmission(tmp_qso_wave,tmp_qso_flux,trans_wave,transmission)
 
+    if args.metals is not None:
+        log.info("Apply metals")
+        tmp_qso_flux = apply_metals_transmission(tmp_qso_wave,tmp_qso_flux,trans_wave,transmission,args.metals)
 
 
     bbflux=None
