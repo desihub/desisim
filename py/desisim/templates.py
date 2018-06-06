@@ -1710,12 +1710,11 @@ class QSO():
         self.decamwise = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
                                               'wise2010-W1', 'wise2010-W2')
 
-    def _sample_pcacoeff(self, nsample, coeff, rand):
+    def _sample_pcacoeff(self, nsample, coeff, samplerand):
         """Draw from the distribution of PCA coefficients."""
         cdf = np.cumsum(coeff, dtype=float)
         cdf /= cdf[-1]
-        x = rand.uniform(0.0, 1.0, size=nsample)
-        
+        x = samplerand.uniform(0.0, 1.0, size=nsample)
         return coeff[np.interp(x, cdf, np.arange(0, len(coeff), 1)).astype('int')]
 
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(20.0, 22.5),
@@ -1934,8 +1933,6 @@ class QSO():
                     else:
                         PCA_rand[jj, :] = self._sample_pcacoeff(N_perz, pca_coeff[ipca][idx], templaterand)
 
-                print(PCA_rand)
-
                 # Instantiate the templates, including attenuation below the
                 # Lyman-limit based on the MFP, and the Lyman-alpha forest.
                 for kk in range(N_perz):
@@ -1944,13 +1941,11 @@ class QSO():
                          flux[kk, :pix912] *= np.exp(-phys_dist.value / mfp[ii])
 
                     if lyaforest:
-                        flux[kk, :] *= qso_skewer_flux
-                    
+                        flux[kk, :] *= qso_skewer_flux                    
                     if hasbal:
-                        pass
-                        #flux[kk, :] *= balflux
-                        
-                    #nonegflux[kk] = (np.sum(flux[kk, (zwave[:, ii] > 3000) & (zwave[:, ii] < 1E4)] < 0) == 0) * 1
+                        flux[kk, :] *= balflux
+
+                    nonegflux[kk] = (np.sum(flux[kk, (zwave[:, ii] > 3000) & (zwave[:, ii] < 1E4)] < 0) == 0) * 1
                         
                 # Synthesize photometry to determine which models will pass the
                 # color-cuts.  We have to temporarily pad because the spectra
@@ -1982,17 +1977,8 @@ class QSO():
 
                 # If the color-cuts pass then populate the output flux vector
                 # (suitably normalized) and metadata table and finish up.
-                #if np.any(colormask * nonegflux):
-                if np.any(colormask):
-                    this = templaterand.choice(np.where(colormask)[0]) # Pick one randomly.
-                    #this = templaterand.choice(np.where(colormask * nonegflux)[0]) # Pick one randomly.
-                    #print(this)
-                    #if hasbal:
-                        #print(balindx)
-                        #import matplotlib.pyplot as plt
-                        #plt.plot(zwave[:, ii], flux[this, :] / balflux) ; plt.show()
-                        #import pdb ; pdb.set_trace()
-                    
+                if np.any(colormask * nonegflux):
+                    this = templaterand.choice(np.where(colormask * nonegflux)[0]) # Pick one randomly.
                     outflux[ii, :] = resample_flux(self.wave, zwave[:, ii], flux[this, :],
                                                    extrapolate=True) * magnorm[this]
 
