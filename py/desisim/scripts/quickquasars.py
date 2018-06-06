@@ -286,7 +286,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             
     if(args.balqso):
       log.info("Simulate {} QSOs w/bals".format(nqso))
-      tmp_qso_flux, tmp_qso_wave, meta = model_bal.make_templates(nmodel=nqso, seed=seed, balprob=args.balprob,redshift=metadata['Z'],lyaforest=False, nocolorcuts=True,noresample=True)
+      tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(nmodel=nqso, seed=seed, balprob=args.balprob,redshift=metadata['Z'],lyaforest=False, nocolorcuts=True)
     else:            
       log.info("Simulate {} QSOs".format(nqso))
       tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(nmodel=nqso, redshift=metadata['Z'],lyaforest=False, nocolorcuts=True, noresample=True, seed = seed)
@@ -483,9 +483,9 @@ def main(args=None):
     if args.balqso:
        log.info("Load SIMQSO model")
 
-       #from desisim.templates importQSO
-       model=SIMQSO(normfilter=args.norm_filter,nproc=1)
-       #model=QSO(balqso=True,normfilter=args.norm_filter,nproc=1)  #Replace above line with this one
+       from desisim.templates import QSO
+       #model=SIMQSO(normfilter=args.norm_filter,nproc=1)
+       model=QSO(balqso=True,normfilter=args.norm_filter)  #Replace above line with this one
     else:
        log.info("Load SIMQSO model")
        model=SIMQSO(normfilter=args.norm_filter,nproc=1)
