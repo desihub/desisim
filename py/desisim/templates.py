@@ -1603,7 +1603,8 @@ class QSO():
     """Generate Monte Carlo spectra of quasars (QSOs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 normfilter='decam2014-r', colorcuts_function=None, z_wind=0.2):
+                 normfilter='decam2014-r', colorcuts_function=None,
+                 balqso=False, z_wind=0.2):
         """Read the QSO basis continuum templates, filter profiles and initialize the
            output wavelength array.
 
@@ -1621,10 +1622,12 @@ class QSO():
             [default 2 Angstrom/pixel].
           wave (numpy.ndarray): Input/output observed-frame wavelength array,
             overriding the minwave, maxwave, and cdelt arguments [Angstrom].
-          colorcuts_function (function name): Function to use to select
-            templates that pass the color-cuts.
           normfilter (str): normalize each spectrum to the magnitude in this
             filter bandpass (default 'decam2014-r').
+          colorcuts_function (function name): Function to use to select
+            templates that pass the color-cuts.
+          balqso (bool, optional): Include broad absorption line (BAL) features
+            (default False).
           z_wind (float, optional): Redshift window for sampling (defaults to
             0.2).
 
@@ -1641,7 +1644,7 @@ class QSO():
         from astropy.io import fits
         from astropy import cosmology
         from speclite import filters
-        from desisim.io import find_basis_template
+        from desisim.io import find_basis_template, read_basis_templates
         from desiutil.log import get_logger
         from desisim import lya_mock_p1d as lyamock
 
@@ -1689,23 +1692,35 @@ class QSO():
         # Iniatilize the Lyman-alpha mock maker.
         self.lyamock_maker = lyamock.MockMaker()
 
+        # Optionally read the BAL basis templates and resample.
+        self.balqso = balqso
+        if self.balqso:
+            from desispec.interpolation import resample_flux
+            bal_baseflux1, bal_basewave, bal_basemeta = read_basis_templates(objtype='BAL')
+            bal_baseflux = np.zeros((len(bal_basemeta), len(self.eigenwave)))
+            for ii in range(len(bal_basemeta)):
+                bal_baseflux[ii, :] = resample_flux(self.eigenwave, bal_basewave,
+                                                    bal_baseflux1[ii, :], extrapolate=True)
+                bal_baseflux[ii, bal_baseflux[ii, :] > 1] = 1.0 # do not exceed unity
+            self.bal_baseflux = bal_baseflux
+            self.bal_basemeta = bal_basemeta
+
         # Initialize the filter profiles.
         self.normfilt = filters.load_filters(self.normfilter)
         self.decamwise = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
                                               'wise2010-W1', 'wise2010-W2')
 
-    def _sample_pcacoeff(self, nsample, coeff, rand):
+    def _sample_pcacoeff(self, nsample, coeff, samplerand):
         """Draw from the distribution of PCA coefficients."""
         cdf = np.cumsum(coeff, dtype=float)
         cdf /= cdf[-1]
-        x = rand.uniform(0.0, 1.0, size=nsample)
-        
+        x = samplerand.uniform(0.0, 1.0, size=nsample)
         return coeff[np.interp(x, cdf, np.arange(0, len(coeff), 1)).astype('int')]
 
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(20.0, 22.5),
                        seed=None, redshift=None, mag=None, input_meta=None, N_perz=40, 
-                       maxiter=20, uniform=False, balqso=False, balprob=0.12, 
-	               lyaforest=True, nocolorcuts=False, verbose=False):
+                       maxiter=20, uniform=False, balprob=0.12, lyaforest=True,
+                       nocolorcuts=False, verbose=False):
         """Build Monte Carlo QSO spectra/templates.
 
         This function generates QSO spectra on-the-fly using PCA decomposition
@@ -1748,10 +1763,8 @@ class QSO():
             template that also satisfies the color-cuts (default 20).
           uniform (bool, optional): Draw uniformly from the PCA coefficients
             (default False).
-          balqso (bool, optional): Include broad absorption line (BAL) features
-            (default False).
-          balprob (float, optional): Probability that a QSO is a BAL 
-            (default 0.12).
+          balprob (float, optional): Probability that a QSO is a BAL (default
+            0.12).  Only used if QSO(balqso=True) at instantiation.
           lyaforest (bool, optional): Include Lyman-alpha forest absorption
             (default True).
           nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
@@ -1771,7 +1784,6 @@ class QSO():
         """
         from desispec.interpolation import resample_flux
         from desiutil.log import get_logger, DEBUG
-        import desisim.bal as bal
 
         if uniform:
             from desiutil.stats import perc
@@ -1791,6 +1803,14 @@ class QSO():
             if len(mag) != nmodel:
                 log.fatal('Mag must be an nmodel-length array')
                 raise ValueError
+
+        if self.balqso:
+            if balprob < 0:
+                log.warning('Balprob {} is negative; setting to zero.'.format(balprob))
+                balprob = 0.0
+            if balprob > 1:
+                log.warning('Balprob {} cannot exceed unity; setting to 1.0.'.format(balprob))
+                balprob = 1.0
 
         npix = len(self.eigenwave)
 
@@ -1817,10 +1837,6 @@ class QSO():
 
             if mag is None:
                 mag = rand.uniform(rmagrange[0], rmagrange[1], nmodel).astype('f4')
-	# Read in the BAL templates if needed. 
-        if balqso: 
-            baltemplatefile = os.environ['DESI_BASIS_TEMPLATES'] + "/../../trunk/BAL-templates-v0.2.fits"
-            balwave, baltemplates = bal.readbaltemplates(baltemplatefile)
 
         # Pre-compute the Lyman-alpha skewers.
         if lyaforest:
@@ -1836,12 +1852,14 @@ class QSO():
         for key, value in zip(('REDSHIFT', 'MAG', 'SEED'),
                                (redshift, mag, templateseed)):
             meta[key] = value
+
         if lyaforest: 
             meta['SUBTYPE'] = 'LYA'
-        if balqso: 
+            
+        if self.balqso:
             if lyaforest: 
                 meta['SUBTYPE'] = 'LYA+BAL'
-            else: 
+            else:
                 meta['SUBTYPE'] = 'BAL'
 
         # Attenuate below the Lyman-limit by the mean free path (MFP) model
@@ -1854,7 +1872,6 @@ class QSO():
         PCA_rand = np.zeros( (4, N_perz) )
         nonegflux = np.zeros(N_perz)
         flux = np.zeros( (N_perz, npix) )
-        balindex = -1*np.ones(N_perz, dtype=int)  # = -1 if is no BAL applied 
 
         zwave = np.outer(self.eigenwave, 1+redshift) # [observed-frame, Angstrom]
         outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
@@ -1864,6 +1881,12 @@ class QSO():
                 log.debug('Simulating {} template {}/{}.'.format(self.objtype, ii, nmodel))
 
             templaterand = np.random.RandomState(templateseed[ii])
+
+            # Does this QSO have a BAL?  If so, build the spectrum here.
+            hasbal = self.balqso * (templaterand.random_sample() < balprob)
+            if hasbal:
+                balindx = templaterand.choice(len(self.bal_basemeta))
+                balflux = self.bal_baseflux[balindx, :]
 
             # BOSS or SDSS?
             if redshift[ii] > 2.15:
@@ -1897,7 +1920,6 @@ class QSO():
             # Iterate up to maxiter.
             makemore, itercount = True, 0
             while makemore:
-
                 # Gather N_perz sets of coefficients.
                 for jj, ipca in enumerate(self.pca_list):
                     if uniform:
@@ -1917,14 +1939,14 @@ class QSO():
                     flux[kk, :] = np.dot(self.eigenflux.T, PCA_rand[:, kk]).flatten()
                     if redshift[ii] > 2.39:
                          flux[kk, :pix912] *= np.exp(-phys_dist.value / mfp[ii])
-                    if balqso: 
-                        if bal.isbal(balprob,balrand): 
-                            baltemplate, balindex[kk] = bal.getbaltemplate(zwave[:,ii], redshift[ii], balwave, baltemplates)
-                            flux[kk, :] *= baltemplate
-                    if lyaforest:
-                        flux[kk, :] *= qso_skewer_flux
-                    nonegflux[kk] = (np.sum(flux[kk, (zwave[:, ii] > 3000) & (zwave[:, ii] < 1E4)] < 0) == 0) * 1
 
+                    if lyaforest:
+                        flux[kk, :] *= qso_skewer_flux                    
+                    if hasbal:
+                        flux[kk, :] *= balflux
+
+                    nonegflux[kk] = (np.sum(flux[kk, (zwave[:, ii] > 3000) & (zwave[:, ii] < 1E4)] < 0) == 0) * 1
+                        
                 # Synthesize photometry to determine which models will pass the
                 # color-cuts.  We have to temporarily pad because the spectra
                 # don't go red enough.
