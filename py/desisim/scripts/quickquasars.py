@@ -479,10 +479,15 @@ def main(args=None):
     if args.moonsep is not None:
         obsconditions['MOONSEP'] = args.moonsep
     
-    log.info("Load SIMQSO model")
+
     if args.balqso:
-       model=SIMQSO(balqso=True,normfilter=args.norm_filter,nproc=1)
+       log.info("Load SIMQSO model")
+
+       #from desisim.templates importQSO
+       model=SIMQSO(normfilter=args.norm_filter,nproc=1)
+       #model=QSO(balqso=True,normfilter=args.norm_filter,nproc=1)  #Replace above line with this one
     else:
+       log.info("Load SIMQSO model")
        model=SIMQSO(normfilter=args.norm_filter,nproc=1)
     
     decam_and_wise_filters = None
