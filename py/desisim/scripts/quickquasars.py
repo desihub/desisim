@@ -17,7 +17,7 @@ from desisim.templates import SIMQSO
 from desisim.scripts.quickspectra import sim_spectra
 from desisim.lya_spectra import read_lya_skewers , apply_lya_transmission
 from desisim.dla import dla_spec,insert_dlas
-import desisim.bal as bal
+#import desisim.bal as bal
 from desispec.interpolation import resample_flux
 from desimodel.io import load_pixweight
 from desimodel import footprint
@@ -284,11 +284,12 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             trans_wave   = new_trans_wave
             transmission = new_transmission
             
-            
-    log.info("Simulate {} QSOs".format(nqso))
-    tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(
-        nmodel=nqso, redshift=metadata['Z'], 
-        lyaforest=False, nocolorcuts=True, noresample=True, seed = seed)
+    if(args.balqso):
+      log.info("Simulate {} QSOs w/bals".format(nqso))
+      tmp_qso_flux, tmp_qso_wave, meta = model_bal.make_templates(nmodel=nqso, seed=seed, balprob=args.balprob,redshift=metadata['Z'],lyaforest=False, nocolorcuts=True,noresample=True)
+    else:            
+      log.info("Simulate {} QSOs".format(nqso))
+      tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(nmodel=nqso, redshift=metadata['Z'],lyaforest=False, nocolorcuts=True, noresample=True, seed = seed)
 
 
     log.info("Resample to transmission wavelength grid")
@@ -479,7 +480,10 @@ def main(args=None):
         obsconditions['MOONSEP'] = args.moonsep
     
     log.info("Load SIMQSO model")
-    model=SIMQSO(normfilter=args.norm_filter,nproc=1)
+    if args.balqso:
+       model=SIMQSO(balqso=True,normfilter=args.norm_filter,nproc=1)
+    else:
+       model=SIMQSO(normfilter=args.norm_filter,nproc=1)
     
     decam_and_wise_filters = None
     if args.target_selection or args.mags :
