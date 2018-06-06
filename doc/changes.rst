@@ -5,6 +5,7 @@ desisim change log
 0.28.0 (unreleased)
 -------------------
 
+* Add DLAs to templates.QSO class (`PR #321`_).
 * Enable redshift QA using input summary catalogs of truth and redshifts
   (`PR #349`_).
 * Add zstats-like good/fail/miss/list QA method from desitest mini
@@ -16,6 +17,7 @@ desisim change log
 * Fix newexp-mock wrapper when first expid != 0 (`PR #361`_).
 * newexp-mock options for production running (`PR #363`_).
 
+.. _`PR #321`: https://github.com/desihub/desisim/pull/321
 .. _`PR #349`: https://github.com/desihub/desisim/pull/349
 .. _`PR #350`: https://github.com/desihub/desisim/pull/350
 .. _`PR #351`: https://github.com/desihub/desisim/pull/351
