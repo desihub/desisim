@@ -1603,7 +1603,8 @@ class QSO():
     """Generate Monte Carlo spectra of quasars (QSOs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 normfilter='decam2014-r', colorcuts_function=None, z_wind=0.2):
+                 normfilter='decam2014-r', colorcuts_function=None,
+                 balqso=False, z_wind=0.2):
         """Read the QSO basis continuum templates, filter profiles and initialize the
            output wavelength array.
 
@@ -1621,10 +1622,12 @@ class QSO():
             [default 2 Angstrom/pixel].
           wave (numpy.ndarray): Input/output observed-frame wavelength array,
             overriding the minwave, maxwave, and cdelt arguments [Angstrom].
-          colorcuts_function (function name): Function to use to select
-            templates that pass the color-cuts.
           normfilter (str): normalize each spectrum to the magnitude in this
             filter bandpass (default 'decam2014-r').
+          colorcuts_function (function name): Function to use to select
+            templates that pass the color-cuts.
+          balqso (bool, optional): Include broad absorption line (BAL) features
+            (default False).
           z_wind (float, optional): Redshift window for sampling (defaults to
             0.2).
 
@@ -1689,6 +1692,18 @@ class QSO():
         # Iniatilize the Lyman-alpha mock maker.
         self.lyamock_maker = lyamock.MockMaker()
 
+        # Optionally read the BAL basis templates and resample.
+        self.balqso = balqso
+        if self.balqso:
+            from desispec.interpolation import resample_flux
+            bal_baseflux1, bal_basewave, bal_basemeta = read_basis_templates(objtype='BAL')
+            bal_baseflux = np.zeros((len(bal_basemeta), len(self.basewave)))
+            for ii in range(len(bal_basemeta)):
+                bal_baseflux[ii, :] = resample_flux(self.basewave, bal_basewave,
+                                                    bal_baseflux1[ii, :], extrapolate=True)
+            self.bal_baseflux = bal_baseflux
+            self.bal_basemeta = bal_basemeta
+
         # Initialize the filter profiles.
         self.normfilt = filters.load_filters(self.normfilter)
         self.decamwise = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
@@ -1704,8 +1719,8 @@ class QSO():
 
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(20.0, 22.5),
                        seed=None, redshift=None, mag=None, input_meta=None, N_perz=40, 
-                       maxiter=20, uniform=False, balqso=False, balprob=0.12, 
-	               lyaforest=True, nocolorcuts=False, verbose=False):
+                       maxiter=20, uniform=False, balprob=0.12, lyaforest=True,
+                       nocolorcuts=False, verbose=False):
         """Build Monte Carlo QSO spectra/templates.
 
         This function generates QSO spectra on-the-fly using PCA decomposition
@@ -1748,10 +1763,8 @@ class QSO():
             template that also satisfies the color-cuts (default 20).
           uniform (bool, optional): Draw uniformly from the PCA coefficients
             (default False).
-          balqso (bool, optional): Include broad absorption line (BAL) features
-            (default False).
-          balprob (float, optional): Probability that a QSO is a BAL 
-            (default 0.12).
+          balprob (float, optional): Probability that a QSO is a BAL (default
+            0.12).  Only used if QSO(balqso=True) at instantiation.
           lyaforest (bool, optional): Include Lyman-alpha forest absorption
             (default True).
           nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
@@ -1817,10 +1830,6 @@ class QSO():
 
             if mag is None:
                 mag = rand.uniform(rmagrange[0], rmagrange[1], nmodel).astype('f4')
-	# Read in the BAL templates if needed. 
-        if balqso: 
-            baltemplatefile = os.environ['DESI_BASIS_TEMPLATES'] + "/../../trunk/BAL-templates-v0.2.fits"
-            balwave, baltemplates = bal.readbaltemplates(baltemplatefile)
 
         # Pre-compute the Lyman-alpha skewers.
         if lyaforest:
