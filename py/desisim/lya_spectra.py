@@ -163,16 +163,11 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals) :
 
     output_flux = qso_flux.copy()
     for q in range(qso_flux.shape[0]) :
-
-        metTrans = np.ones(trans_wave.size)
-
         for m in metals:
             mtau = absorber_IGM[m]['COEF']*tau[q,:]
             mtrans_wave = (zPix[q,:]+1.)*absorber_IGM[m]['LRF']
-            mtau = np.interp(trans_wave,mtrans_wave,mtau,left=0.,right=0.)
-            metTrans *= np.exp(-mtau)
+            output_flux[q, :] *= np.interp(qso_wave,mtrans_wave,np.exp(-mtau),left=1.,right=1.)
 
-        output_flux[q, :] *= np.interp(qso_wave,trans_wave,metTrans,left=0,right=1)
     return output_flux
 
 def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss2010-g',
