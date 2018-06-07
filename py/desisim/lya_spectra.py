@@ -154,6 +154,9 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals) :
     if qso_flux.shape[0] != trans.shape[0] :
         raise(ValueError("not same number of qso {} {}".format(qso_flux.shape[0],trans.shape[0])))
 
+    if 'all' in metals:
+        metals = [m for m in list(absorber_IGM.keys()) ]
+
     zPix = trans_wave*np.ones(qso_flux.shape[0])[:,None]/lambda_RF_LYA-1.
 
     tau = np.zeros(zPix.shape)
