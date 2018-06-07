@@ -282,13 +282,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             new_transmission[:,:trans_wave.size] = transmission
             trans_wave   = new_trans_wave
             transmission = new_transmission
-            
-    if(args.balprob):
-      log.info("Simulate {} QSOs w/bals".format(nqso))
-      tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(nmodel=nqso, seed=seed, balprob=args.balprob,redshift=metadata['Z'],lyaforest=False, nocolorcuts=True)
-    else:            
-      log.info("Simulate {} QSOs".format(nqso))
-      tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(nmodel=nqso, redshift=metadata['Z'],lyaforest=False, nocolorcuts=True, noresample=True, seed = seed)
+                       
+    log.info("Simulate {} QSOs".format(nqso))
+    tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(nmodel=nqso, redshift=metadata['Z'],lyaforest=False, nocolorcuts=True, noresample=True, seed = seed)
 
 
     log.info("Resample to transmission wavelength grid")
@@ -300,20 +296,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     tmp_qso_wave = trans_wave
         
 
-###REMOVE THIS ALMA FINISH THIS TO MAKE VARIABLES ALL COMPATIBLE
-#   log.info("Add BAL")
-
-#    if args.balqso: 
-#       balrand=np.random.RandomState( )
-#       balprob=args.balprob
-#   if args.balqso:
-#       for kk in range(len(tmp_qso_flux)):                      
-#           if bal.isbal(balprob,balrand):
-#              baltemplate, balindex[kk] = bal.getbaltemplate(tmp_qso_wave[:,kk], metadata['Z'][kk], balwave, baltemplates)
-#              tmp_qso_flux[kk, :]*= baltemplate
-
-#    log.info("Apply lya")
-#    tmp_qso_flux = apply_lya_transmission#(tmp_qso_wave,tmp_qso_flux,trans_wave,transmission)
 
 
 
@@ -479,14 +461,9 @@ def main(args=None):
         obsconditions['MOONSEP'] = args.moonsep
     
 
-    if args.balprob:
-       log.info("Load SIMQSO model")
 
-       from desisim.templates import QSO
-       model=QSO(balqso=True,normfilter=args.norm_filter)  #USING QSO instead of SIMQSO:
-    else:
-       log.info("Load SIMQSO model")
-       model=SIMQSO(normfilter=args.norm_filter,nproc=1)
+    log.info("Load SIMQSO model")
+    model=SIMQSO(normfilter=args.norm_filter,nproc=1)
     
     decam_and_wise_filters = None
     if args.target_selection or args.mags :
