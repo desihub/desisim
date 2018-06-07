@@ -17,7 +17,6 @@ from desisim.templates import SIMQSO
 from desisim.scripts.quickspectra import sim_spectra
 from desisim.lya_spectra import read_lya_skewers , apply_lya_transmission
 from desisim.dla import dla_spec,insert_dlas
-#import desisim.bal as bal
 from desispec.interpolation import resample_flux
 from desimodel.io import load_pixweight
 from desimodel import footprint
@@ -65,8 +64,7 @@ def parse(options=None):
     #- Optional arguments to include dlas and bals
 
     parser.add_argument('--dla',type=str,default=None,required=False, help="Add DLA to simulated spectra either randonmly (default) or from transmition file information")
-    parser.add_argument('--balqso',action = "store_true",required=False, help="Add broad absorption line to simulated spectra")
-    parser.add_argument('--balprob',type=float,default=0.12,required=False, help="Probability that a qso is a BAL, olny used with balqso=True")
+    parser.add_argument('--balprob',type=float,default=0.12,required=False, help="Probability that a qso is a BAL, in order add BAL feature")
     
     if options is None:
         args = parser.parse_args()
@@ -216,7 +214,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                dlas=dla_info[dla_info['MOCKID']==idd]
                dlass=[]
                for i in range(len(dlas)):
-##Adding only dlas between zqso and 1.95, check again maybe for the next version of London mocks...  
+##Adding only dlas between zqso and 1.95, check again for the next version of London mocks...  
                    if (dlas[i]['Z_DLA']< metadata[ii]['Z']) and (dlas[i]['Z_DLA']> 1.95) :
                       dlass.append(dict(z=dlas[i]['Z_DLA']+dlas[i]['DZ_DLA'],N=dlas[i]['N_HI_DLA']))
                if len(dlass)>0:
@@ -237,7 +235,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                   dla_z+=[idla['z'] for idla in dlass]
                   dla_NHI+=[idla['N'] for idla in dlass]
                   dla_id+=[idd]*len(dlass)    
-  
+
+
     if args.dla:
        if len(dla_id)>0:
           dla_meta=Table()
@@ -284,7 +283,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             trans_wave   = new_trans_wave
             transmission = new_transmission
             
-    if(args.balqso):
+    if(args.balprob):
       log.info("Simulate {} QSOs w/bals".format(nqso))
       tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(nmodel=nqso, seed=seed, balprob=args.balprob,redshift=metadata['Z'],lyaforest=False, nocolorcuts=True)
     else:            
@@ -301,7 +300,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     tmp_qso_wave = trans_wave
         
 
-###ALMA FINISH THIS TO MAKE VARIABLES ALL COMPATIBLE
+###REMOVE THIS ALMA FINISH THIS TO MAKE VARIABLES ALL COMPATIBLE
 #   log.info("Add BAL")
 
 #    if args.balqso: 
@@ -430,7 +429,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         hdulist.close() # see if this helps with memory issue
 
     if args.dla:
-     
+    #Is it ok to save the dla data into a separate file?   
         hdla = pyfits.convenience.table_to_hdu(dla_meta); hdla.name="DLA_META"
         hdulist =pyfits.HDUList([pyfits.PrimaryHDU(),hdla])
         hdulist.writeto(dla_filename, clobber=True)
@@ -480,12 +479,11 @@ def main(args=None):
         obsconditions['MOONSEP'] = args.moonsep
     
 
-    if args.balqso:
+    if args.balprob:
        log.info("Load SIMQSO model")
 
        from desisim.templates import QSO
-       #model=SIMQSO(normfilter=args.norm_filter,nproc=1)
-       model=QSO(balqso=True,normfilter=args.norm_filter)  #Replace above line with this one
+       model=QSO(balqso=True,normfilter=args.norm_filter)  #USING QSO instead of SIMQSO:
     else:
        log.info("Load SIMQSO model")
        model=SIMQSO(normfilter=args.norm_filter,nproc=1)
