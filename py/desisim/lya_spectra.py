@@ -11,43 +11,43 @@ import numpy as np
 from desisim.dla import insert_dlas
 from desiutil.log import get_logger
 
+lambda_RF_LYA = 1215.67
 absorber_IGM = {
-    'Halpha'      : { 'LRF':6562.8, 'COEF':None },
-    'Hbeta'       : { 'LRF':4862.68, 'COEF':None },
-    'MgI(2853)'   : { 'LRF':2852.96, 'COEF':None },
-    'MgII(2804)'  : { 'LRF':2803.5324, 'COEF':None },
-    'MgII(2796)'  : { 'LRF':2796.3511, 'COEF':None },
-    'FeII(2600)'  : { 'LRF':2600.1724835, 'COEF':None },
-    'FeII(2587)'  : { 'LRF':2586.6495659, 'COEF':None },
-    'MnII(2577)'  : { 'LRF':2576.877, 'COEF':None },
-    'FeII(2383)'  : { 'LRF':2382.7641781, 'COEF':None },
-    'FeII(2374)'  : { 'LRF':2374.4603294, 'COEF':None },
-    'FeII(2344)'  : { 'LRF':2344.2129601, 'COEF':None },
-    'AlIII(1863)' : { 'LRF':1862.79113, 'COEF':None },
-    'AlIII(1855)' : { 'LRF':1854.71829, 'COEF':None },
-    'AlII(1671)'  : { 'LRF':1670.7886, 'COEF':None },
-    'FeII(1608)'  : { 'LRF':1608.4511, 'COEF':None },
-    'CIV(1551)'   : { 'LRF':1550.77845, 'COEF':None },
-    'CIV(eff)'    : { 'LRF':1549.06, 'COEF':None },
-    'CIV(1548)'   : { 'LRF':1548.2049, 'COEF':None },
-    'SiII(1527)'  : { 'LRF':1526.70698, 'COEF':None },
-    'SiIV(1403)'  : { 'LRF':1402.77291, 'COEF':None },
-    'SiIV(1394)'  : { 'LRF':1393.76018, 'COEF':None },
-    'CII(1335)'   : { 'LRF':1334.5323, 'COEF':None },
-    'SiII(1304)'  : { 'LRF':1304.3702, 'COEF':None },
-    'OI(1302)'    : { 'LRF':1302.1685, 'COEF':None },
-    'SiII(1260)'  : { 'LRF':1260.4221, 'COEF':0.002 },
-    'NV(1243)'    : { 'LRF':1242.804, 'COEF':None },
-    'NV(1239)'    : { 'LRF':1238.821, 'COEF':None },
-    'LYA'         : { 'LRF':1215.67, 'COEF':1. },
-    'SiIII(1207)' : { 'LRF':1206.500, 'COEF':0.005 },
-    'NI(1200)'    : { 'LRF':1200., 'COEF':None },
-    'SiII(1193)'  : { 'LRF':1193.2897, 'COEF':0.002 },
-    'SiII(1190)'  : { 'LRF':1190.4158, 'COEF':0.002 },
-    'OI(1039)'    : { 'LRF':1039.230, 'COEF':None },
-    'OVI(1038)'   : { 'LRF':1037.613, 'COEF':None },
-    'OVI(1032)'   : { 'LRF':1031.912, 'COEF':None },
-    'LYB'         : { 'LRF':1025.72, 'COEF':None },
+    'MgI(2853)'   : { 'LRF':2852.96, 'COEF':1.e-4 },
+    'MgII(2804)'  : { 'LRF':2803.5324, 'COEF':5.e-4 },
+    'MgII(2796)'  : { 'LRF':2796.3511, 'COEF':9.e-4 },
+    'FeII(2600)'  : { 'LRF':2600.1724835, 'COEF':1.e-4 },
+    'FeII(2587)'  : { 'LRF':2586.6495659, 'COEF':1.e-4 },
+    'MnII(2577)'  : { 'LRF':2576.877, 'COEF':1.e-4 },
+    'FeII(2383)'  : { 'LRF':2382.7641781, 'COEF':1.e-4 },
+    'FeII(2374)'  : { 'LRF':2374.4603294, 'COEF':1.e-4 },
+    'FeII(2344)'  : { 'LRF':2344.2129601, 'COEF':1.e-4 },
+    'AlIII(1863)' : { 'LRF':1862.79113, 'COEF':1.e-4 },
+    'AlIII(1855)' : { 'LRF':1854.71829, 'COEF':1.e-4 },
+    'AlII(1671)'  : { 'LRF':1670.7886, 'COEF':1.e-4 },
+    'FeII(1608)'  : { 'LRF':1608.4511, 'COEF':1.e-4 },
+    'CIV(1551)'   : { 'LRF':1550.77845, 'COEF':9.e-4 },
+    'CIV(1548)'   : { 'LRF':1548.2049, 'COEF':1.e-3 },
+    'SiII(1527)'  : { 'LRF':1526.70698, 'COEF':1.e-4 },
+    'SiIV(1403)'  : { 'LRF':1402.77291, 'COEF':5.e-4 },
+    'SiIV(1394)'  : { 'LRF':1393.76018, 'COEF':9.e-4 },
+    'CII(1335)'   : { 'LRF':1334.5323, 'COEF':1.e-4 },
+    'SiII(1304)'  : { 'LRF':1304.3702, 'COEF':1.e-4 },
+    'OI(1302)'    : { 'LRF':1302.1685, 'COEF':1.e-4 },
+    'SiII(1260)'  : { 'LRF':1260.4221, 'COEF':8.e-4 },
+    'NV(1243)'    : { 'LRF':1242.804, 'COEF':5.e-4 },
+    'NV(1239)'    : { 'LRF':1238.821, 'COEF':5.e-4 },
+    'SiIII(1207)' : { 'LRF':1206.500, 'COEF':5.e-3 },
+    'NI(1200)'    : { 'LRF':1200., 'COEF':1.e-3 },
+    'SiII(1193)'  : { 'LRF':1193.2897, 'COEF':5.e-4 },
+    'SiII(1190)'  : { 'LRF':1190.4158, 'COEF':5.e-4 },
+    'OI(1039)'    : { 'LRF':1039.230, 'COEF':1.e-3 },
+    'OVI(1038)'   : { 'LRF':1037.613, 'COEF':1.e-3 },
+    'OVI(1032)'   : { 'LRF':1031.912, 'COEF':5.e-3 },
+    'LYB'         : { 'LRF':1025.72, 'COEF':0.1901 },
+    'CIII(977)'   : { 'LRF':977.020, 'COEF':5.e-3 },
+    'OI(989)'     : { 'LRF':988.7, 'COEF':1.e-3 },
+    'SiII(990)'   : { 'LRF':989.8731, 'COEF':1.e-3 },
 }
 
 def read_lya_skewers(lyafile,indices=None,dla_=False) :
@@ -154,7 +154,10 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals) :
     if qso_flux.shape[0] != trans.shape[0] :
         raise(ValueError("not same number of qso {} {}".format(qso_flux.shape[0],trans.shape[0])))
 
-    zPix = trans_wave*np.ones(qso_flux.shape[0])[:,None]/absorber_IGM['LYA']['LRF']-1.
+    if 'all' in metals:
+        metals = [m for m in list(absorber_IGM.keys()) ]
+
+    zPix = trans_wave*np.ones(qso_flux.shape[0])[:,None]/lambda_RF_LYA-1.
 
     tau = np.zeros(zPix.shape)
     w = trans>1.e-100
@@ -301,7 +304,7 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
 
         # Inject a DLA?
         if add_dlas:
-            if np.min(wave/1215.67 - 1) < zqso[ii]: # Any forest?
+            if np.min(wave/lambda_RF_LYA - 1) < zqso[ii]: # Any forest?
                 dlas, dla_model = insert_dlas(wave, zqso[ii], seed=templateseed[ii])
                 ndla = len(dlas)
                 if ndla > 0:
