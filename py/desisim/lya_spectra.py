@@ -161,12 +161,27 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals) :
     tau[w] = -np.log(trans[w])
     tau[~w] = -np.log(1.e-100)
 
+    try:
+        mtrans = { m:np.exp(-absorber_IGM[m]['COEF']*tau) for m in metals }
+        mtrans_wave = { m:(zPix+1.)*absorber_IGM[m]['LRF'] for m in metals }
+    except KeyError as e:
+        lstMetals = ''
+        nolstMetals = ''
+        for m in absorber_IGM.keys():
+            lstMetals += m+', '
+        for m in np.array(metals)[~np.in1d(metals,[mm for mm in absorber_IGM.keys()])]:
+            nolstMetals += m+', '
+        raise Exception("Input metals {} are not in the list, available metals are {}".format(nolstMetals,lstMetals)) from e
+    except TypeError as e:
+        lstMetals = ''
+        for m in [ m for m in metals if absorber_IGM[m]['COEF'] is None ]:
+            lstMetals += m+', '
+        raise Exception("Input metals {} have no values for COEF".format(lstMetals)) from e
+
     output_flux = qso_flux.copy()
-    for q in range(qso_flux.shape[0]) :
+    for q in range(qso_flux.shape[0]):
         for m in metals:
-            mtau = absorber_IGM[m]['COEF']*tau[q,:]
-            mtrans_wave = (zPix[q,:]+1.)*absorber_IGM[m]['LRF']
-            output_flux[q, :] *= np.interp(qso_wave,mtrans_wave,np.exp(-mtau),left=1.,right=1.)
+            output_flux[q,:] *= np.interp(qso_wave,mtrans_wave[m][q,:],mtrans[m][q,:],left=1.,right=1.)
 
     return output_flux
 

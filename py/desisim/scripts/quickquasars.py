@@ -258,7 +258,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     tmp_qso_flux = apply_lya_transmission(tmp_qso_wave,tmp_qso_flux,trans_wave,transmission)
 
     if args.metals is not None:
-        log.info("Apply metals")
+        lstMetals = ''
+        for m in args.metals: lstMetals += m+', '
+        log.info("Apply metals: {}".format(lstMetals))
         tmp_qso_flux = apply_metals_transmission(tmp_qso_wave,tmp_qso_flux,trans_wave,transmission,args.metals)
 
 
