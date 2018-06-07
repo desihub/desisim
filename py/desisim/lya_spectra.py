@@ -11,6 +11,45 @@ import numpy as np
 from desisim.dla import insert_dlas
 from desiutil.log import get_logger
 
+absorber_IGM = {
+    'Halpha'      : { 'LRF':6562.8, 'COEF':None },
+    'Hbeta'       : { 'LRF':4862.68, 'COEF':None },
+    'MgI(2853)'   : { 'LRF':2852.96, 'COEF':None },
+    'MgII(2804)'  : { 'LRF':2803.5324, 'COEF':None },
+    'MgII(2796)'  : { 'LRF':2796.3511, 'COEF':None },
+    'FeII(2600)'  : { 'LRF':2600.1724835, 'COEF':None },
+    'FeII(2587)'  : { 'LRF':2586.6495659, 'COEF':None },
+    'MnII(2577)'  : { 'LRF':2576.877, 'COEF':None },
+    'FeII(2383)'  : { 'LRF':2382.7641781, 'COEF':None },
+    'FeII(2374)'  : { 'LRF':2374.4603294, 'COEF':None },
+    'FeII(2344)'  : { 'LRF':2344.2129601, 'COEF':None },
+    'AlIII(1863)' : { 'LRF':1862.79113, 'COEF':None },
+    'AlIII(1855)' : { 'LRF':1854.71829, 'COEF':None },
+    'AlII(1671)'  : { 'LRF':1670.7886, 'COEF':None },
+    'FeII(1608)'  : { 'LRF':1608.4511, 'COEF':None },
+    'CIV(1551)'   : { 'LRF':1550.77845, 'COEF':None },
+    'CIV(eff)'    : { 'LRF':1549.06, 'COEF':None },
+    'CIV(1548)'   : { 'LRF':1548.2049, 'COEF':None },
+    'SiII(1527)'  : { 'LRF':1526.70698, 'COEF':None },
+    'SiIV(1403)'  : { 'LRF':1402.77291, 'COEF':None },
+    'SiIV(1394)'  : { 'LRF':1393.76018, 'COEF':None },
+    'CII(1335)'   : { 'LRF':1334.5323, 'COEF':None },
+    'SiII(1304)'  : { 'LRF':1304.3702, 'COEF':None },
+    'OI(1302)'    : { 'LRF':1302.1685, 'COEF':None },
+    'SiII(1260)'  : { 'LRF':1260.4221, 'COEF':0.002 },
+    'NV(1243)'    : { 'LRF':1242.804, 'COEF':None },
+    'NV(1239)'    : { 'LRF':1238.821, 'COEF':None },
+    'LYA'         : { 'LRF':1215.67, 'COEF':1. },
+    'SiIII(1207)' : { 'LRF':1206.500, 'COEF':0.005 },
+    'NI(1200)'    : { 'LRF':1200., 'COEF':None },
+    'SiII(1193)'  : { 'LRF':1193.2897, 'COEF':0.002 },
+    'SiII(1190)'  : { 'LRF':1190.4158, 'COEF':0.002 },
+    'OI(1039)'    : { 'LRF':1039.230, 'COEF':None },
+    'OVI(1038)'   : { 'LRF':1037.613, 'COEF':None },
+    'OVI(1032)'   : { 'LRF':1031.912, 'COEF':None },
+    'LYB'         : { 'LRF':1025.72, 'COEF':None },
+}
+
 def read_lya_skewers(lyafile,indices=None,dla_=False) :
     '''
     Reads Lyman alpha transmission skewers (from CoLoRe, format v2.x.y)
@@ -96,7 +135,55 @@ def apply_lya_transmission(qso_wave,qso_flux,trans_wave,trans) :
     for q in range(qso_flux.shape[0]) :
         output_flux[q, :] *= np.interp(qso_wave,trans_wave,trans[q, :],left=0,right=1)
     return output_flux
+def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals) :
+    '''
+    Apply metal transmission to input flux, interpolating if needed.
+    The input transmission should be only due to lya, if not has no meaning
 
+    Args:
+        qso_wave: 1D[nwave] array of QSO wavelengths
+        qso_flux: 2D[nqso, nwave] array of fluxes
+        trans_wave: 1D[ntranswave ] array of lya transmission wavelength samples
+        trans: 2D[nqso, ntranswave] transmissions [0-1]
+        metals: list of metal names to use
+
+    Returns:
+        output_flux[nqso, nwave]
+
+    '''
+    if qso_flux.shape[0] != trans.shape[0] :
+        raise(ValueError("not same number of qso {} {}".format(qso_flux.shape[0],trans.shape[0])))
+
+    zPix = trans_wave*np.ones(qso_flux.shape[0])[:,None]/absorber_IGM['LYA']['LRF']-1.
+
+    tau = np.zeros(zPix.shape)
+    w = trans>1.e-100
+    tau[w] = -np.log(trans[w])
+    tau[~w] = -np.log(1.e-100)
+
+    try:
+        mtrans = { m:np.exp(-absorber_IGM[m]['COEF']*tau) for m in metals }
+        mtrans_wave = { m:(zPix+1.)*absorber_IGM[m]['LRF'] for m in metals }
+    except KeyError as e:
+        lstMetals = ''
+        nolstMetals = ''
+        for m in absorber_IGM.keys():
+            lstMetals += m+', '
+        for m in np.array(metals)[~np.in1d(metals,[mm for mm in absorber_IGM.keys()])]:
+            nolstMetals += m+', '
+        raise Exception("Input metals {} are not in the list, available metals are {}".format(nolstMetals[:-2],lstMetals[:-2])) from e
+    except TypeError as e:
+        lstMetals = ''
+        for m in [ m for m in metals if absorber_IGM[m]['COEF'] is None ]:
+            lstMetals += m+', '
+        raise Exception("Input metals {} have no values for COEF".format(lstMetals[:-2])) from e
+
+    output_flux = qso_flux.copy()
+    for q in range(qso_flux.shape[0]):
+        for m in metals:
+            output_flux[q,:] *= np.interp(qso_wave,mtrans_wave[m][q,:],mtrans[m][q,:],left=1.,right=1.)
+
+    return output_flux
 
 def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss2010-g',
                 seed=None, rand=None, qso=None, add_dlas=False, debug=False, nocolorcuts=False):
