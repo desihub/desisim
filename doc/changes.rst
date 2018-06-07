@@ -5,7 +5,8 @@ desisim change log
 0.28.0 (unreleased)
 -------------------
 
-* Add DLAs to templates.QSO class (`PR #321`_).
+* Add BALs to QSO spectra outside of desisim.templates (`PR #370`_).
+* Add BALs to templates.QSO class (`PR #321`_).
 * Enable redshift QA using input summary catalogs of truth and redshifts
   (`PR #349`_).
 * Add zstats-like good/fail/miss/list QA method from desitest mini
@@ -28,6 +29,7 @@ desisim change log
 .. _`PR #359`: https://github.com/desihub/desisim/pull/359
 .. _`PR #361`: https://github.com/desihub/desisim/pull/361
 .. _`PR #363`: https://github.com/desihub/desisim/pull/363
+.. _`PR #370`: https://github.com/desihub/desisim/pull/370
 
 0.27.0 (2018-03-29)
 -------------------
