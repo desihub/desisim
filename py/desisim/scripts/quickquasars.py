@@ -15,13 +15,24 @@ from desispec.io.fibermap import read_fibermap
 from desisim.simexp import reference_conditions
 from desisim.templates import SIMQSO
 from desisim.scripts.quickspectra import sim_spectra
+<<<<<<< HEAD
+from desisim.lya_spectra import read_lya_skewers , apply_lya_transmission
+from desisim.dla import dla_spec,insert_dlas
+#from desisim.bal import BAL
+=======
 from desisim.lya_spectra import read_lya_skewers , apply_lya_transmission, apply_metals_transmission
 from desisim.dla import dla_spec
+>>>>>>> master
 from desispec.interpolation import resample_flux
 from desimodel.io import load_pixweight
 from desimodel import footprint
 from speclite import filters
 from desitarget.cuts import isQSO_colors
+
+
+
+
+
 
 def parse(options=None):
     parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -59,9 +70,10 @@ def parse(options=None):
     parser.add_argument('--desi-footprint', action = "store_true" ,help="select QSOs in DESI footprint")
     parser.add_argument('--metals', type=str, default=None, required=False, help = 'list of metal to get the transmission from', nargs='*')
 
-    #- Optional arguments to include dla
+    #- Optional arguments to include dlas and bals
 
-    parser.add_argument('--dla',default=False,required=False, action = "store_true" ,help="read dla info from transmition file")
+    parser.add_argument('--dla',type=str,default=None,required=False, help="Add DLA to simulated spectra either randonmly (default) or from transmition file information")
+    parser.add_argument('--balprob',type=float,default=0.12,required=False, help="Probability that a qso is a BAL, in order add BAL feature")
     
     if options is None:
         args = parser.parse_args()
@@ -148,22 +160,32 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     log.info("Read skewers in {}, random seed = {}".format(ifilename,seed))
 
- ##ALMA:Added to read dla_info
-    dlas_added=[]
-    if(args.dla):
-       trans_wave, transmission, metadata,dla_info= read_lya_skewers(ifilename,dla_='TRUE')
+
+    
+    if(not args.dla or args.dla=='random'):
+       trans_wave, transmission, metadata = read_lya_skewers(ifilename)
        ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
        transmission = transmission[ok]
        metadata = metadata[:][ok]
 
+    elif(args.dla=='file'):
+       print('Read DLA info from transmission file')
+       trans_wave, transmission, metadata,dla_info= read_lya_skewers(ifilename,dla_='TRUE')  
+       ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
+       transmission = transmission[ok]
+       metadata = metadata[:][ok]
     else:
-        trans_wave, transmission, metadata = read_lya_skewers(ifilename)
-        ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
-        transmission = transmission[ok]
-        metadata = metadata[:][ok]
-    
+       log.error('Not a valid option to add DLAs. Valid options are "random" or "file"')
+       sys.exit(1)
 
-    # create quasars
+    if args.dla:
+        dla_NHI, dla_z,dla_id = [],[], []
+        dla_filename=os.path.join(pixdir,"dla-{}-{}.fits".format(nside,healpix))
+
+
+       
+
+# create quasars
     
     if args.desi_footprint :
         footprint_healpix = footprint.radec2pix(footprint_healpix_nside, metadata["RA"], metadata["DEC"])
@@ -189,19 +211,48 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         nqso = transmission.shape[0]
 
 
-##ALMA:added to model de dla's and modify transmission
-##TODO add the dla randomly  and save the dlamodel in metadata
-    if(args.dla):
+##ALMA:added to set transmission to 1 for z>zqso, this can be removed when transmission is corrected. 
+    for ii in range(len(metadata)):       
+        transmission[ii][trans_wave>1215.67*(metadata[ii]['Z']+1)]=1.0
+
+    if(args.dla=='file'):
+        min_trans_wave=np.min(trans_wave/1215.67 - 1)
         for ii in range(len(metadata)):
-            idd=metadata['MOCKID'][ii]
-            dlas=dla_info[dla_info['MOCKID']==idd]
-            dlass=[]
-            for i in range(len(dlas)):
-                if dlas[i]['Z_DLA']< metadata[ii]['Z']:
-                   dlass.append(dict(z=dlas[i]['Z_DLA'],N=dlas[i]['N_HI_DLA']))
-            if len(dlass)>0:
-               dla_model=dla_spec(trans_wave,dlass)
-               transmission[ii]=dla_model*transmission[ii]
+            if min_trans_wave < metadata[ii]['Z']: 
+               idd=metadata['MOCKID'][ii]
+               dlas=dla_info[dla_info['MOCKID']==idd]
+               dlass=[]
+               for i in range(len(dlas)):
+##Adding only dlas between zqso and 1.95, check again for the next version of London mocks...  
+                   if (dlas[i]['Z_DLA']< metadata[ii]['Z']) and (dlas[i]['Z_DLA']> 1.95) :
+                      dlass.append(dict(z=dlas[i]['Z_DLA']+dlas[i]['DZ_DLA'],N=dlas[i]['N_HI_DLA']))
+               if len(dlass)>0:
+                  dla_model=dla_spec(trans_wave,dlass)
+                  transmission[ii]=dla_model*transmission[ii]
+                  dla_z+=[idla['z'] for idla in dlass]
+                  dla_NHI+=[idla['N'] for idla in dlass]
+                  dla_id+=[idd]*len(dlass)
+
+    elif(args.dla=='random'):
+        min_trans_wave=np.min(trans_wave/1215.67 - 1)
+        for ii in range(len(metadata)):
+            if min_trans_wave < metadata[ii]['Z']: 
+               idd=metadata['MOCKID'][ii]
+               dlass, dla_model = insert_dlas(trans_wave, metadata[ii]['Z'])
+               if len(dlass)>0:
+                  transmission[ii]=dla_model*transmission[ii]
+                  dla_z+=[idla['z'] for idla in dlass]
+                  dla_NHI+=[idla['N'] for idla in dlass]
+                  dla_id+=[idd]*len(dlass)    
+
+
+    if args.dla:
+       if len(dla_id)>0:
+          dla_meta=Table()
+          dla_meta['NHI']=dla_NHI
+          dla_meta['z']=dla_z
+          dla_meta['ID']=dla_id
+       
 
 
     if args.nmax is not None :
@@ -212,7 +263,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             transmission = transmission[indices]
             metadata = metadata[:][indices]
             nqso = args.nmax
-
+           
+            if args.dla:
+               dla_meta=dla_meta[:][dla_meta['ID']==metadata['MOCKID']]
             
     if args.target_selection or args.mags :
         wanted_min_wave = 3329. # needed to compute magnitudes for decam2014-r (one could have trimmed the transmission file ...)
@@ -238,13 +291,15 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             new_transmission[:,:trans_wave.size] = transmission
             trans_wave   = new_trans_wave
             transmission = new_transmission
-            
-            
+                       
     log.info("Simulate {} QSOs".format(nqso))
-    tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(
-        nmodel=nqso, redshift=metadata['Z'], 
-        lyaforest=False, nocolorcuts=True, noresample=True, seed = seed)
+    tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(nmodel=nqso, redshift=metadata['Z'],lyaforest=False, nocolorcuts=True, noresample=True, seed = seed)
 
+
+##To add BALs to be checked by Luz and Jaime
+#    if args.balprob:
+#       bal=BAL()
+#       tmp_qso_flux,meta_bal=bal.insert_bals(tmp_qso_wave,tmp_qso_flux, meta['Z'], balprob=args.balprob)
 
     log.info("Resample to transmission wavelength grid")
     # because we don't want to alter the transmission field with resampling here
@@ -254,8 +309,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     tmp_qso_flux = qso_flux
     tmp_qso_wave = trans_wave
         
-    log.info("Apply lya")
-    tmp_qso_flux = apply_lya_transmission(tmp_qso_wave,tmp_qso_flux,trans_wave,transmission)
+
 
     if args.metals is not None:
         lstMetals = ''
@@ -291,6 +345,11 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         for band in bands : 
             bbflux[band] = bbflux[band][selection]
         nqso         = selection.size
+
+        if args.dla:
+           dla_meta=dla_meta[:][dla_meta['ID']==metadata['MOCKID']]
+
+    
     
     log.info("Resample to a linear wavelength grid (needed by DESI sim.)")
     # we need a linear grid. for this resampling we take care of integrating in bins
@@ -332,6 +391,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     
     sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,meta=meta,seed=seed,fibermap_columns=fibermap_columns)
     
+
+
+
     if args.zbest :
         log.info("Read fibermap")
         fibermap = read_fibermap(ofilename)
@@ -366,6 +428,20 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         hdulist =pyfits.HDUList([pyfits.PrimaryHDU(),hzbest,hfmap])
         hdulist.writeto(zbest_filename, clobber=True)
         hdulist.close() # see if this helps with memory issue
+
+    if args.dla:
+    #Is it ok to save the dla data into a separate file?
+        log.info("Updating the spectra file to add DLA metadata {}".format(ofilename))
+        hdudla = pyfits.table_to_hdu(dla_meta); hdudla.name="DLA_META"
+        hdul=pyfits.open(ofilename, mode='update')
+        hdul.append(hdudla)
+        hdul.flush()
+        hdul.close()   
+        
+
+        #hdulist =pyfits.HDUList([pyfits.PrimaryHDU(),hdla])
+        #hdulist.writeto(dla_filename, clobber=True)
+        #hdulist.close() 
 
 
 
@@ -410,6 +486,8 @@ def main(args=None):
     if args.moonsep is not None:
         obsconditions['MOONSEP'] = args.moonsep
     
+
+
     log.info("Load SIMQSO model")
     model=SIMQSO(normfilter=args.norm_filter,nproc=1)
     
@@ -455,3 +533,4 @@ def main(args=None):
             simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed=seeds[i])
     
         
+
