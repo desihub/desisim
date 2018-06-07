@@ -48,12 +48,13 @@ class TestQuickCat(unittest.TestCase):
         flux[isQSO, 1] = np.random.uniform(0, 4.0, np.count_nonzero(isQSO))
         flux[isQSO, 2] = np.random.uniform(0, 4.0, np.count_nonzero(isQSO))
         flux[isQSO, 4] = np.random.uniform(0, 6.0, np.count_nonzero(isQSO))
-        flux[isBGS, 1] = np.random.uniform(10, 600, np.count_nonzero(isBGS))
-        flux[isBGS, 2] = np.random.uniform(15, 1000, np.count_nonzero(isBGS))
-        flux[isBGS, 4] = np.random.uniform(10, 1400, np.count_nonzero(isBGS))
-        flux[isMWS, 1] = np.random.uniform(10, 150, np.count_nonzero(isMWS))
-        flux[isMWS, 2] = np.random.uniform(15, 350, np.count_nonzero(isMWS))
-        flux[isMWS, 4] = np.random.uniform(10, 1500, np.count_nonzero(isMWS))
+        # isBGS and isMWS are arrays of indices, not arrays of booleans
+        flux[isBGS, 1] = np.random.uniform(10, 600, isBGS.size)
+        flux[isBGS, 2] = np.random.uniform(15, 1000, isBGS.size)
+        flux[isBGS, 4] = np.random.uniform(10, 1400, isBGS.size)
+        flux[isMWS, 1] = np.random.uniform(10, 150, isMWS.size)
+        flux[isMWS, 2] = np.random.uniform(15, 350, isMWS.size)
+        flux[isMWS, 4] = np.random.uniform(10, 1500, isMWS.size)
         targets['DECAM_FLUX'] = flux
 
         truth = Table()
