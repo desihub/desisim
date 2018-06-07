@@ -17,11 +17,14 @@ from desisim.templates import SIMQSO
 from desisim.scripts.quickspectra import sim_spectra
 from desisim.lya_spectra import read_lya_skewers , apply_lya_transmission
 from desisim.dla import dla_spec,insert_dlas
+#from desisim.bal import BAL
 from desispec.interpolation import resample_flux
 from desimodel.io import load_pixweight
 from desimodel import footprint
 from speclite import filters
 from desitarget.cuts import isQSO_colors
+
+
 
 
 
@@ -287,6 +290,11 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(nmodel=nqso, redshift=metadata['Z'],lyaforest=False, nocolorcuts=True, noresample=True, seed = seed)
 
 
+##To add BALs to be checked by Luz and Jaime
+#    if args.balprob:
+#       bal=BAL()
+#       tmp_qso_flux,meta_bal=bal.insert_bals(tmp_qso_wave,tmp_qso_flux, meta['Z'], balprob=args.balprob)
+
     log.info("Resample to transmission wavelength grid")
     # because we don't want to alter the transmission field with resampling here
     qso_flux=np.zeros((tmp_qso_flux.shape[0],trans_wave.size))
@@ -411,11 +419,18 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         hdulist.close() # see if this helps with memory issue
 
     if args.dla:
-    #Is it ok to save the dla data into a separate file?   
-        hdla = pyfits.convenience.table_to_hdu(dla_meta); hdla.name="DLA_META"
-        hdulist =pyfits.HDUList([pyfits.PrimaryHDU(),hdla])
-        hdulist.writeto(dla_filename, clobber=True)
-        hdulist.close() 
+    #Is it ok to save the dla data into a separate file?
+        log.info("Updating the spectra file to add DLA metadata {}".format(ofilename))
+        hdudla = pyfits.table_to_hdu(dla_meta); hdudla.name="DLA_META"
+        hdul=pyfits.open(ofilename, mode='update')
+        hdul.append(hdudla)
+        hdul.flush()
+        hdul.close()   
+        
+
+        #hdulist =pyfits.HDUList([pyfits.PrimaryHDU(),hdla])
+        #hdulist.writeto(dla_filename, clobber=True)
+        #hdulist.close() 
 
 
 
