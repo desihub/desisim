@@ -171,12 +171,12 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals) :
             lstMetals += m+', '
         for m in np.array(metals)[~np.in1d(metals,[mm for mm in absorber_IGM.keys()])]:
             nolstMetals += m+', '
-        raise Exception("Input metals {} are not in the list, available metals are {}".format(nolstMetals,lstMetals)) from e
+        raise Exception("Input metals {} are not in the list, available metals are {}".format(nolstMetals[:-2],lstMetals[:-2])) from e
     except TypeError as e:
         lstMetals = ''
         for m in [ m for m in metals if absorber_IGM[m]['COEF'] is None ]:
             lstMetals += m+', '
-        raise Exception("Input metals {} have no values for COEF".format(lstMetals)) from e
+        raise Exception("Input metals {} have no values for COEF".format(lstMetals[:-2])) from e
 
     output_flux = qso_flux.copy()
     for q in range(qso_flux.shape[0]):
