@@ -152,7 +152,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
  ##ALMA: It reads only the skewers only if there are no DLAs or if they are added randomly. 
     if(not args.dla or args.dla=='random'):
-       if args.dla=='random':
        trans_wave, transmission, metadata = read_lya_skewers(ifilename)
        ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
        transmission = transmission[ok]
@@ -204,6 +203,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         transmission[ii][trans_wave>1215.67*(metadata[ii]['Z']+1)]=1.0
 
     if(args.dla=='file'):
+        log.info('Adding DLAs from transmision file')
         min_trans_wave=np.min(trans_wave/1215.67 - 1)
         for ii in range(len(metadata)):
             if min_trans_wave < metadata[ii]['Z']: 
@@ -222,6 +222,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                   dla_id+=[idd]*len(dlass)
 
     elif(args.dla=='random'):
+        log.info('Adding DLAs randomly')
         min_trans_wave=np.min(trans_wave/1215.67 - 1)
         for ii in range(len(metadata)):
             if min_trans_wave < metadata[ii]['Z']: 
@@ -240,7 +241,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
           dla_meta['NHI']=dla_NHI
           dla_meta['z']=dla_z
           dla_meta['ID']=dla_id
-
+    exit()
 
     if args.nmax is not None :
         if args.nmax < nqso :
