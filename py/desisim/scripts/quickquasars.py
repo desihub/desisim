@@ -63,8 +63,7 @@ def parse(options=None):
     #- Optional arguments to include dla
 
     parser.add_argument('--dla',type=str,required=False, help="Add DLA to simulated spectra either randonmly (--dla random) or from transmision file (--dla file)")
-    parser.add_argument('--balprob',type=float,required=False, help="Probability that a qso is a BAL, in order add BAL feature")
-    
+    parser.add_argument('--balprob',type=float,required=False, help="To add BAL features with the specified probability (e.g --balprob 0.5). Expect a number between 0 and 1 ")    
     if options is None:
         args = parser.parse_args()
     else:
@@ -72,8 +71,7 @@ def parse(options=None):
 
     return args
 
-def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed) :
-    
+def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed) :    
     log = get_logger()
 
     # set seed now
@@ -286,11 +284,13 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         lyaforest=False, nocolorcuts=True, noresample=True, seed = seed)
 
     ##To add BALs to be checked by Luz and Jaime
-    if args.balprob:
+    if (args.balprob<=1. and args.balprob >0):
        log.info("Adding BALs with probability {}".format(args.balprob))
        bal=BAL()
        tmp_qso_flux,meta_bal=bal.insert_bals(tmp_qso_wave,tmp_qso_flux, metadata['Z'], balprob=args.balprob,seed=seed)
-
+    else:
+       log.error("Probability to add BALs is not between 0 and 1")
+       sys.exit(1)
    
     log.info("Resample to transmission wavelength grid")
     # because we don't want to alter the transmission field with resampling here
