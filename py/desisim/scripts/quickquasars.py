@@ -62,7 +62,7 @@ def parse(options=None):
 
     #- Optional arguments to include dla
 
-    parser.add_argument('--dla',type=str,default=None,required=False, help="Add DLA to simulated spectra either randonmly (default) or from transmition file information")
+    parser.add_argument('--dla',type=str,required=False, help="Add DLA to simulated spectra either randonmly (--dla random) or from transmision file (--dla file)")
     parser.add_argument('--balprob',type=float,required=False, help="Probability that a qso is a BAL, in order add BAL feature")
     
     if options is None:
@@ -150,15 +150,17 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     log.info("Read skewers in {}, random seed = {}".format(ifilename,seed))
 
- ##ALMA:Added to read dla_info
+ ##ALMA: It reads only the skewers only if there are no DLAs or if they are added randomly. 
     if(not args.dla or args.dla=='random'):
+       if args.dla=='random':
        trans_wave, transmission, metadata = read_lya_skewers(ifilename)
        ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
        transmission = transmission[ok]
        metadata = metadata[:][ok]
+ ##ALMA:Added to read dla_info
 
     elif(args.dla=='file'):
-       print('Read DLA info from transmission file')
+       log.info("Read DLA information in {}".format(ifilename))
        trans_wave, transmission, metadata,dla_info= read_lya_skewers(ifilename,dla_='TRUE')  
        ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
        transmission = transmission[ok]
