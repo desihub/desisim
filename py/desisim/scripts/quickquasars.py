@@ -58,7 +58,7 @@ def parse(options=None):
     parser.add_argument('--target-selection', action = "store_true" ,help="apply QSO target selection cuts to the simulated quasars")
     parser.add_argument('--mags', action = "store_true" ,help="compute and write the QSO mags in the fibermap")
     parser.add_argument('--desi-footprint', action = "store_true" ,help="select QSOs in DESI footprint")
-    parser.add_argument('--metals', type=str, default=None, required=False, help = 'list of metal to get the transmission from', nargs='*')
+    parser.add_argument('--metals', type=str, default=None, required=False, help = "list of metal to get the transmission from, if 'all' runs on all metals", nargs='*')
 
     #- Optional arguments to include dla
 
