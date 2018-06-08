@@ -241,7 +241,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
           dla_meta['NHI']=dla_NHI
           dla_meta['z']=dla_z
           dla_meta['ID']=dla_id
-    exit()
 
     if args.nmax is not None :
         if args.nmax < nqso :
@@ -288,8 +287,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     ##To add BALs to be checked by Luz and Jaime
     if args.balprob:
+       log.info("Adding BALs")
        bal=BAL()
-       tmp_qso_flux,meta_bal=bal.insert_bals(tmp_qso_wave,tmp_qso_flux, metadata['Z'], balprob=args.balprob)
+       tmp_qso_flux,meta_bal=bal.insert_bals(tmp_qso_wave,tmp_qso_flux, metadata['Z'], balprob=args.balprob,seed=seed)
 
    
     log.info("Resample to transmission wavelength grid")
