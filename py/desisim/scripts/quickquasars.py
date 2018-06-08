@@ -287,7 +287,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     ##To add BALs to be checked by Luz and Jaime
     if args.balprob:
-       log.info("Adding BALs")
+       log.info("Adding BALs with probability {}".format(args.balprob))
        bal=BAL()
        tmp_qso_flux,meta_bal=bal.insert_bals(tmp_qso_wave,tmp_qso_flux, metadata['Z'], balprob=args.balprob,seed=seed)
 
