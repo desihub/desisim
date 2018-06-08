@@ -71,7 +71,7 @@ def parse(options=None):
 
     return args
 
-def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed) :    
+def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed,bal=None) :    
     log = get_logger()
 
     # set seed now
@@ -286,8 +286,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     ##To add BALs to be checked by Luz and Jaime
     if (args.balprob<=1. and args.balprob >0):
        log.info("Adding BALs with probability {}".format(args.balprob))
-       bal=BAL()
-       tmp_qso_flux,meta_bal=bal.insert_bals(tmp_qso_wave,tmp_qso_flux, metadata['Z'], balprob=args.balprob,seed=seed)
+       tmp_qso_flux,meta_bal=bal.insert_bals(tmp_qso_wave,tmp_qso_flux, metadata['Z'], balprob=args.balprob)
     else:
        log.error("Probability to add BALs is not between 0 and 1")
        sys.exit(1)
@@ -493,7 +492,9 @@ def main(args=None):
     
     # seeds for each healpix are themselves random numbers
     seeds = np.random.randint(2**32, size=len(args.infile))
-    
+    if args.balprob:
+       bal=BAL()
+
     if args.nproc > 1 :
         func_args = [ {"ifilename":filename , \
                        "args":args, "model":model , \
@@ -506,7 +507,9 @@ def main(args=None):
         pool = multiprocessing.Pool(args.nproc)
         pool.map(_func, func_args)
     else :
-        for i,ifilename in enumerate(args.infile) : 
-            simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed=seeds[i])
-    
+        for i,ifilename in enumerate(args.infile) :
+            if args.balprob:
+               simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed=seeds[i],bal=bal)
+            else:
+                 simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed=seeds[i])
         
