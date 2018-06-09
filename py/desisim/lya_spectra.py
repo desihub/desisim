@@ -100,13 +100,14 @@ def read_lya_skewers(lyafile,indices=None,dla_=False) :
         trans = trans[indices]
         meta=meta[:][indices]
 
-##ALMA
     if (dla_):
         if "DLA" in h:
-           dla_=h["DLA"].read()
+            dla_=h["DLA"].read()
         else:
-           log.warning("I assume TRANSMISSION is HDU 3")
-           dla_=h[3].read(i)
+            mess="No HDU with EXTNAME='DLA' in transmission file {}".format(lyafile)
+            log.error(mess)
+            raise KeyError(mess)
+        
         return wave,trans,meta,dla_
 ##ALMA
     return wave,trans,meta
