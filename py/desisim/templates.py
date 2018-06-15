@@ -1743,8 +1743,8 @@ class QSO():
           zrange (float, optional): Minimum and maximum redshift range.  Defaults
             to a uniform distribution between (0.5, 4.0).
           rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
-            magnitude range.  Defaults to a uniform distribution between (21,
-            23.0).
+            magnitude range.  Defaults to a uniform distribution between (20,
+            22.5).
           seed (int, optional): input seed for the random numbers.
           redshift (float, optional): Input/output template redshifts.  Array
             size must equal nmodel.  Ignores zrange input.
