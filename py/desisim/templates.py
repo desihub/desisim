@@ -2007,7 +2007,8 @@ class SIMQSO():
     """Generate Monte Carlo spectra of quasars (QSOs) using simqso."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 nproc=1, normfilter='decam2014-r', colorcuts_function=None):
+                 nproc=1, normfilter='decam2014-r', colorcuts_function=None,
+                 restframe=False):
         """Read the QSO basis continuum templates, filter profiles and initialize the
            output wavelength array.
 
@@ -2029,6 +2030,7 @@ class SIMQSO():
             overriding the minwave, maxwave, and cdelt arguments [Angstrom].
           colorcuts_function (function name): Function to use to select
             templates that pass the color-cuts.
+          restframe (bool, optional): If True, generate rest-frame templates.
           normfilter (str): normalize each spectrum to the magnitude in this
             filter bandpass (default 'decam2014-r').
 
@@ -2085,7 +2087,13 @@ class SIMQSO():
             wave = np.linspace(minwave, maxwave, npix)
         self.wave = wave
 
-        self.basewave = fixed_R_dispersion(900.0, 6e4, 8000)
+        self.restframe = restframe
+        if restframe:
+            self._zpivot = 1e-3
+            self.basewave = fixed_R_dispersion(900.0*(1+self._zpivot), 6e4*(1+self._zpivot), 8000)
+        else:
+            self.basewave = fixed_R_dispersion(900.0, 6e4, 8000)
+            
         self.cosmo = cosmology.core.FlatLambdaCDM(70.0, 0.3)
 
         self.lambda_lylimit = 911.76
@@ -2128,7 +2136,7 @@ class SIMQSO():
 
         return qsometa
 
-    def _make_simqso_templates(self, redshift=None, rmagrange=None, seed=None,
+    def _make_simqso_templates(self, redshift=None, rmagrange=None, seed=None,                               
                                lyaforest=True, nocolorcuts=False, noresample=False,
                                input_qsometa=None):
         """Wrapper function for actually generating the templates.
@@ -2147,7 +2155,7 @@ class SIMQSO():
             nmodel = len(redshift)
             
         meta = empty_metatable(nmodel=nmodel, objtype='QSO', subtype=subtype)
-        if noresample:
+        if noresample or self.restframe:
             outflux = np.zeros([nmodel, len(self.basewave)])
         else:
             outflux = np.zeros([nmodel, len(self.wave)])
@@ -2219,7 +2227,7 @@ class SIMQSO():
         these = np.where(colormask)[0]
         if len(these) > 0:
             for ii in range(len(these)):
-                if noresample:
+                if noresample or self.restframe:
                     outflux[these[ii], :] = flux[these[ii], :]
                 else:
                     outflux[these[ii], :] = resample_flux(
@@ -2231,14 +2239,16 @@ class SIMQSO():
                 meta['REDSHIFT'][these] = input_qsometa.z
             else:
                 meta['SEED'][these] = seed
-                meta['REDSHIFT'][these] = redshift[these]
-                
+                if self.restframe:
+                    meta['REDSHIFT'][these] = 0
+                else:
+                    meta['REDSHIFT'][these] = redshift[these]
+                    
             meta['MAG'][these] = -2.5 * np.log10(normmaggies[these])
             for band, filt in zip( ('FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2'),
                                    ('decam2014-g', 'decam2014-r', 'decam2014-z',
                                     'wise2010-W1', 'wise2010-W2') ):
                 meta[band][these] = synthnano[filt][these]
-
 
         if input_qsometa:
             return outflux, meta, input_qsometa
@@ -2321,10 +2331,18 @@ class SIMQSO():
         else:
             log = get_logger()
 
+        if self.restframe:
+            log.debug('Setting nocolorcuts=True.')
+            nocolorcuts = True
+
         # Optionally generate spectra from an input file or a
         # simqso.sqgrids.QsoSimPoints object.
         if input_qsometa:
             from simqso.sqgrids import QsoSimObjects
+
+            if self.restframe:
+                log.warning('restframe and input_qsometa inputs cannot be used together.')
+                raise ValueError
             
             if isinstance(input_qsometa, QsoSimObjects):
                 qsos = input_qsometa
@@ -2341,6 +2359,10 @@ class SIMQSO():
                 len(qsometa.data)))
 
         else:
+            if self.restframe and noresample:
+                log.warning('restframe and noresample inputs cannot be used together.')
+                raise ValueError
+
             # Initialize the random seed and assign redshift priors.
             rand = np.random.RandomState(seed)
 
@@ -2353,10 +2375,13 @@ class SIMQSO():
             meta = empty_metatable(nmodel=nmodel, objtype='QSO')
             qsometa = None
 
-            if noresample:
+            if noresample or self.restframe:
                 outflux = np.zeros([nmodel, len(self.basewave)])
             else:
                 outflux = np.zeros([nmodel, len(self.wave)])
+
+            if self.restframe:
+                redshift = np.repeat(self._zpivot, nmodel)
 
             # Iterate (up to maxiter) until enough spectra pass the color cuts.
             itercount = 0
@@ -2368,16 +2393,14 @@ class SIMQSO():
             need = _need(outflux)
             
             while (len(need) > 0):
-
                 if redshift is None:
                     zin = rand.uniform(zrange[0], zrange[1], len(need))
                 else:
                     zin = redshift[need]
 
                 iterflux, itermeta, iterqsometa = self._make_simqso_templates(
-                    zin, rmagrange, seed=iterseed[itercount],
-                    lyaforest=lyaforest, nocolorcuts=nocolorcuts,
-                    noresample=noresample)
+                    zin, rmagrange, seed=iterseed[itercount], lyaforest=lyaforest,
+                    nocolorcuts=nocolorcuts, noresample=noresample)
 
                 outflux[need, :] = iterflux
                 meta[need] = itermeta
@@ -2407,6 +2430,8 @@ class SIMQSO():
 
         if noresample:
             outwave = self.basewave
+        elif self.restframe:
+            outwave = self.basewave / (1 + self._zpivot)
         else:
             outwave = self.wave
 

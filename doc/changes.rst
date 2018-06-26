@@ -5,7 +5,6 @@ desisim change log
 0.28.0 (unreleased)
 -------------------
 
-* Add BALs to QSO spectra outside of desisim.templates (`PR #370`_).
 * Add BALs to templates.QSO class (`PR #321`_).
 * Enable redshift QA using input summary catalogs of truth and redshifts
   (`PR #349`_).
@@ -17,6 +16,8 @@ desisim change log
 * Update QA to use qaprod_dir
 * Fix newexp-mock wrapper when first expid != 0 (`PR #361`_).
 * newexp-mock options for production running (`PR #363`_).
+* Add BALs to QSO spectra outside of desisim.templates (`PR #370`_).
+* Add rest-frame option to templates.SIMQSO (`PR #377`_).
 
 .. _`PR #321`: https://github.com/desihub/desisim/pull/321
 .. _`PR #349`: https://github.com/desihub/desisim/pull/349
@@ -30,6 +31,7 @@ desisim change log
 .. _`PR #361`: https://github.com/desihub/desisim/pull/361
 .. _`PR #363`: https://github.com/desihub/desisim/pull/363
 .. _`PR #370`: https://github.com/desihub/desisim/pull/370
+.. _`PR #377`: https://github.com/desihub/desisim/pull/377
 
 0.27.0 (2018-03-29)
 -------------------
