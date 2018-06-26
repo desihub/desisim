@@ -16,7 +16,7 @@ class BAL(object):
 
         Attributes:
           balflux (numpy.ndarray): Array [nbase,npix] of the rest-frame BAL
-            templates.
+            templates...
           balwave (numpy.ndarray): Array [npix] of rest-frame wavelengths
             corresponding to BASEFLUX (Angstrom).
           balmeta (astropy.Table): Table of metadata [nbase] for each template.
