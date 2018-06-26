@@ -56,7 +56,7 @@ def main(args=None):
         #- TODO: move file location logic to desispec / desitarget / fiberassign
         args.fiberassign = os.path.join(args.fiberassign, 'tile_{:05d}.fits'.format(tileid))
 
-    fiberassign = astropy.table.Table.read(args.fiberassign, 'FIBER_ASSIGNMENTS')
+    fiberassign = astropy.table.Table.read(args.fiberassign, 'FIBERASSIGN')
 
     if args.outdir is None:
         args.outdir = desisim.io.simdir(night=night, mkdir=True)
