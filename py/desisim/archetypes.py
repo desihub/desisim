@@ -50,7 +50,7 @@ def compute_chi2(flux, ferr=None):
                     (ii % 500) * 500, np.min(((ii+1) * (ii % 500), nspec-1)), nspec))
             amp1 = np.sum(flux[ii]*flux,axis=1)/npix
             chi2[ii,:] = npix*(1.-amp1**2)
-            amp[ii,:] = amp1*rescale[ii]/rescale
+            amp[ii,:] = amp1
     else:
         from SetCoverPy import mathutils
         ferr *= rescale[:,None]
@@ -60,10 +60,9 @@ def compute_chi2(flux, ferr=None):
                     (ii % 500) * 500, np.min(((ii+1) * (ii % 500), nspec-1)), nspec))
             xx = flux[ii, :].reshape(1, npix)
             xxerr = ferr[ii, :].reshape(1, npix)
-            amp1, chi21 = mathutils.quick_amplitude(xx, flux, xxerr, ferr, niter=1)
-            chi2[ii,:] = chi21
-            amp[ii,:] = amp1*rescale[ii]/rescale
+            amp[ii,:], chi2[ii,:] = mathutils.quick_amplitude(xx, flux, xxerr, ferr, niter=1)
 
+    amp *= rescale[:,None]/rescale[None,:]
     np.fill_diagonal(chi2,0.)
     np.fill_diagonal(amp,1.)
 
