@@ -2100,7 +2100,7 @@ class SIMQSO():
 
         self.restframe = restframe
         if restframe:
-            self._zpivot = 1e-3
+            self._zpivot = 3.0
             self.basewave = fixed_R_dispersion(basewave_min*(1+self._zpivot),
                                                basewave_max*(1+self._zpivot),
                                                basewave_R)
