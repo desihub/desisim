@@ -2090,9 +2090,9 @@ class SIMQSO():
         self.restframe = restframe
         if restframe:
             self._zpivot = 1e-3
-            self.basewave = fixed_R_dispersion(900.0*(1+self._zpivot), 6e4*(1+self._zpivot), 8000)
+            self.basewave = fixed_R_dispersion(450.0*(1+self._zpivot), 6e4*(1+self._zpivot), 8000)
         else:
-            self.basewave = fixed_R_dispersion(900.0, 6e4, 8000)
+            self.basewave = fixed_R_dispersion(450.0, 6e4, 8000)
             
         self.cosmo = cosmology.core.FlatLambdaCDM(70.0, 0.3)
 
