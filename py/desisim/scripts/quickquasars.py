@@ -420,13 +420,14 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
   
 
         if args.dla:
+           if len(dla_id)>0:
 #This will change according to discussion 
-           log.info("Updating the spectra file to add DLA metadata {}".format(ofilename))
-           hdudla = pyfits.table_to_hdu(dla_meta); hdudla.name="DLA_META"
-           hdul=pyfits.open(ofilename, mode='update')
-           hdul.append(hdudla)
-           hdul.flush()
-           hdul.close()  
+              log.info("Updating the spectra file to add DLA metadata {}".format(ofilename))
+              hdudla = pyfits.table_to_hdu(dla_meta); hdudla.name="DLA_META"
+              hdul=pyfits.open(ofilename, mode='update')
+              hdul.append(hdudla)
+              hdul.flush()
+              hdul.close()  
 
 
 
