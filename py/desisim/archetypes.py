@@ -53,6 +53,7 @@ def compute_chi2(flux, ferr=None):
             amp[ii,:] = amp1
     else:
         from SetCoverPy import mathutils
+        ferr = ferr.copy()
         ferr *= rescale[:,None]
         for ii in range(nspec):
             if ii % 500 == 0 or ii == 0:
