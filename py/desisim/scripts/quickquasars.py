@@ -251,7 +251,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
             if args.dla:
                dla_meta=dla_meta[:][dla_meta['ID']==metadata['MOCKID']]
-            
+              
+
     if args.target_selection or args.mags :
         wanted_min_wave = 3329. # needed to compute magnitudes for decam2014-r (one could have trimmed the transmission file ...)
         wanted_max_wave = 55501. # needed to compute magnitudes for wise2010-W2
@@ -415,19 +416,19 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         hfmap  = pyfits.convenience.table_to_hdu(fibermap);  hfmap.name="FIBERMAP"
 
         hdulist =pyfits.HDUList([pyfits.PrimaryHDU(),hzbest,hfmap])
-        hdulist.writeto(zbest_filename, clobber=True)
+        hdulist.writeto(zbest_filename, overwrite=True)
         hdulist.close() # see if this helps with memory issue
   
 
         if args.dla:
-           if len(dla_id)>0:
-#This will change according to discussion 
-              log.info("Updating the spectra file to add DLA metadata {}".format(ofilename))
-              hdudla = pyfits.table_to_hdu(dla_meta); hdudla.name="DLA_META"
-              hdul=pyfits.open(ofilename, mode='update')
-              hdul.append(hdudla)
-              hdul.flush()
-              hdul.close()  
+           if len(dla_meta)>0:
+              hdla = pyfits.convenience.table_to_hdu(dla_meta); hdla.name="DLA_META"
+              hdlalist =pyfits.HDUList([pyfits.PrimaryHDU(),hdla])
+              hdlalist.writeto(dla_filename, overwrite=True)
+              hdlalist.close()
+              log.info("Saved DLA metadata file {}".format(dla_filename))
+
+
 
 
 
