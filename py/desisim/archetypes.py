@@ -29,29 +29,43 @@ def compute_chi2(flux, ferr=None):
     -------
     Tuple of (chi2, amp) where:
         chi2 : numpy.ndarray
-            Chi^2 matrix [Nspec, Nspec] between all combinations of spectra.
+            Chi^2 matrix [Nspec, Nspec] between all combinations of normalized spectra.
         amp : numpy.ndarray
             Amplitude matrix [Nspec, Nspec] between all combinations of spectra.
 
     """
-    from SetCoverPy import mathutils    
 
     nspec, npix = flux.shape
+    chi2 = np.zeros((nspec, nspec), dtype='f4')
+    amp = np.zeros((nspec, nspec), dtype='f4')
+
+    flux = flux.copy()
+    rescale = np.sqrt(npix/np.sum(flux**2,axis=1))
+    flux *= rescale[:,None]
+
     if ferr is None:
-        ferr = np.ones_like(flux)
+        for ii in range(nspec):
+            if ii % 500 == 0:
+                log.info('Computing chi2 matrix for spectra {}-{} out of {}.'.format(
+                    (ii % 500) * 500, np.min(((ii+1) * (ii % 500), nspec-1)), nspec))
+            amp1 = np.sum(flux[ii]*flux,axis=1)/npix
+            chi2[ii,:] = npix*(1.-amp1**2)
+            amp[ii,:] = amp1
+    else:
+        from SetCoverPy import mathutils
+        ferr = ferr.copy()
+        ferr *= rescale[:,None]
+        for ii in range(nspec):
+            if ii % 500 == 0 or ii == 0:
+                log.info('Computing chi2 matrix for spectra {}-{} out of {}.'.format(
+                    (ii % 500) * 500, np.min(((ii+1) * (ii % 500), nspec-1)), nspec))
+            xx = flux[ii, :].reshape(1, npix)
+            xxerr = ferr[ii, :].reshape(1, npix)
+            amp[ii,:], chi2[ii,:] = mathutils.quick_amplitude(xx, flux, xxerr, ferr, niter=1)
 
-    chi2 = np.zeros((nspec, nspec)).astype('f4')
-    amp = np.zeros((nspec, nspec)).astype('f4')
-
-    for ii in range(nspec):
-        if ii % 500 == 0 or ii == 0:
-            log.info('Computing chi2 matrix for spectra {}-{} out of {}.'.format(
-                (ii % 500) * 500, np.min(((ii+1) * (ii % 500), nspec-1)), nspec))
-        xx = flux[ii, :].reshape(1, npix)
-        xxerr = ferr[ii, :].reshape(1, npix)
-        amp1, chi21 = mathutils.quick_amplitude(xx, flux, xxerr, ferr, niter=1)
-        chi2[ii, :] = chi21
-        amp[ii, :] = amp1
+    amp *= rescale[:,None]/rescale[None,:]
+    np.fill_diagonal(chi2,0.)
+    np.fill_diagonal(amp,1.)
 
     return chi2, amp
 
