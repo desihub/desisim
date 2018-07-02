@@ -45,9 +45,9 @@ def expand_args(args):
         args.rawfile = os.path.join(os.path.dirname(args.simspec), rawfile)
 
     if args.simpixfile is None:
+        outdir = os.path.dirname(os.path.abspath(args.rawfile))
         args.simpixfile = io.findfile(
-            'simpix', night=args.night, expid=args.expid,
-            outdir=os.path.dirname(os.path.abspath(args.rawfile)))
+            'simpix', night=args.night, expid=args.expid, outdir=outdir)
 
 
 #-------------------------------------------------------------------------
