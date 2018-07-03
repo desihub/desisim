@@ -13,6 +13,7 @@ from scipy.special import wofz
 from pkg_resources import resource_filename
 
 from astropy import constants as const
+from desiutil.log import get_logger
 
 c_cgs = const.c.to('cm/s').value
 
@@ -33,7 +34,7 @@ def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, debug=False, **kwa
 
     """
     from scipy import interpolate
-
+    log = get_logger()
     # Init
     if rstate is None:
         rstate = np.random.RandomState(seed)
@@ -46,14 +47,17 @@ def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, debug=False, **kwa
     dz = np.roll(zlya,-1)-zlya
     dz[-1] = dz[-2]
     gdz = (zlya < zem) & (wave > 910.*(1+zem))
-
     # l(z) -- Uses DLA for SLLS too which is fine
     lz = calc_lz(zlya[gdz])
     cum_lz = np.cumsum(lz*dz[gdz])
     tot_lz = cum_lz[-1]
+    if len(cum_lz)<2:
+       log.warning('WARNING: cum_lz in insert_dla  has only {} element. skyped add DLA.'.format(len(cum_lz)))
+       dlas,dla_model=[],[]
+       return dlas,dla_model
+      
     fzdla = interpolate.interp1d(cum_lz/tot_lz, zlya[gdz],
                                  bounds_error=False,fill_value=np.min(zlya[gdz]))#
-
     # n DLA
     nDLA = rstate.poisson(tot_lz, 1)
 

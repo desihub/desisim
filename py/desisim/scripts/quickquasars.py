@@ -166,7 +166,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
        log.error('Not a valid option to add DLAs. Valid options are "random" or "file"')
        sys.exit(1)
 
-    if args.dla:
+    if args.dla is not None :
         dla_NHI, dla_z,dla_id = [],[], []
         dla_filename=os.path.join(pixdir,"dla-{}-{}.fits".format(nside,healpix))
    
@@ -193,13 +193,22 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             return
         transmission = transmission[indices]
         metadata = metadata[:][indices]
-        nqso = transmission.shape[0]
+        nqso = transmission.shape[0] 
 
 
-##ALMA:added to set transmission to 1 for z>zqso, this can be removed when transmission is corrected. 
+    if args.nmax is not None :
+        if args.nmax < nqso :
+            log.info("Limit number of QSOs from {} to nmax={} (random subsample)".format(nqso,args.nmax))
+            # take a random subsample
+            indices = (np.random.uniform(size=args.nmax)*nqso).astype(int)
+            transmission = transmission[indices]
+            metadata = metadata[:][indices]
+            nqso = args.nmax
+
+##ALMA:added to set transmission to 1 for z>zqso, this can be removed when transmission is corrected.        
     for ii in range(len(metadata)):       
         transmission[ii][trans_wave>1215.67*(metadata[ii]['Z']+1)]=1.0
-
+              
     if(args.dla=='file'):
         log.info('Adding DLAs from transmision file')
         min_trans_wave=np.min(trans_wave/1215.67 - 1)
@@ -218,6 +227,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                   dla_z+=[idla['z'] for idla in dlass]
                   dla_NHI+=[idla['N'] for idla in dlass]
                   dla_id+=[idd]*len(dlass)
+        log.info('Added {} DLAs'.format(len(dla_id)))
 
     elif(args.dla=='random'):
         log.info('Adding DLAs randomly')
@@ -231,27 +241,15 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                   dla_z+=[idla['z'] for idla in dlass]
                   dla_NHI+=[idla['N'] for idla in dlass]
                   dla_id+=[idd]*len(dlass)    
+        log.info('Added {} DLAs'.format(len(dla_id)))
 
-
-    if args.dla:
-       if len(dla_id)>0:
-          dla_meta=Table()
+    if args.dla is not None :
+       dla_meta=Table()
+       if len(dla_id)>0:    
           dla_meta['NHI']=dla_NHI
           dla_meta['z']=dla_z
           dla_meta['ID']=dla_id
 
-    if args.nmax is not None :
-        if args.nmax < nqso :
-            log.info("Limit number of QSOs from {} to nmax={} (random subsample)".format(nqso,args.nmax))
-            # take a random subsample
-            indices = (np.random.uniform(size=args.nmax)*nqso).astype(int)
-            transmission = transmission[indices]
-            metadata = metadata[:][indices]
-            nqso = args.nmax
-
-            if args.dla:
-               dla_meta=dla_meta[:][dla_meta['ID']==metadata['MOCKID']]
-            
     if args.target_selection or args.mags :
         wanted_min_wave = 3329. # needed to compute magnitudes for decam2014-r (one could have trimmed the transmission file ...)
         wanted_max_wave = 55501. # needed to compute magnitudes for wise2010-W2
@@ -383,7 +381,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     
     sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,meta=meta,seed=seed,fibermap_columns=fibermap_columns)
     
-    if args.zbest :
+    if args.zbest is not None :
         log.info("Read fibermap")
         fibermap = read_fibermap(ofilename)
 
@@ -415,18 +413,19 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         hfmap  = pyfits.convenience.table_to_hdu(fibermap);  hfmap.name="FIBERMAP"
 
         hdulist =pyfits.HDUList([pyfits.PrimaryHDU(),hzbest,hfmap])
-        hdulist.writeto(zbest_filename, clobber=True)
+        hdulist.writeto(zbest_filename, overwrite=True)
         hdulist.close() # see if this helps with memory issue
   
+    
+    if args.dla is not None :
+        if len(dla_meta)>0:
+            hdla = pyfits.convenience.table_to_hdu(dla_meta); hdla.name="DLA_META"
+            hdlalist =pyfits.HDUList([pyfits.PrimaryHDU(),hdla])
+            hdlalist.writeto(dla_filename, overwrite=True)
+            hdlalist.close()
+            log.info("Saved DLA metadata file {}".format(dla_filename))
 
-        if args.dla:
-#This will change according to discussion 
-           log.info("Updating the spectra file to add DLA metadata {}".format(ofilename))
-           hdudla = pyfits.table_to_hdu(dla_meta); hdudla.name="DLA_META"
-           hdul=pyfits.open(ofilename, mode='update')
-           hdul.append(hdudla)
-           hdul.flush()
-           hdul.close()  
+
 
 
 
