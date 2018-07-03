@@ -166,7 +166,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
        log.error('Not a valid option to add DLAs. Valid options are "random" or "file"')
        sys.exit(1)
 
-    if args.dla:
+    if args.dla is not None :
         dla_NHI, dla_z,dla_id = [],[], []
         dla_filename=os.path.join(pixdir,"dla-{}-{}.fits".format(nside,healpix))
    
@@ -227,6 +227,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                   dla_z+=[idla['z'] for idla in dlass]
                   dla_NHI+=[idla['N'] for idla in dlass]
                   dla_id+=[idd]*len(dlass)
+        log.info('Added {} DLAs'.format(len(dla_id)))
 
     elif(args.dla=='random'):
         log.info('Adding DLAs randomly')
@@ -240,9 +241,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                   dla_z+=[idla['z'] for idla in dlass]
                   dla_NHI+=[idla['N'] for idla in dlass]
                   dla_id+=[idd]*len(dlass)    
+        log.info('Added {} DLAs'.format(len(dla_id)))
 
-
-    if args.dla:
+    if args.dla is not None :
        dla_meta=Table()
        if len(dla_id)>0:    
           dla_meta['NHI']=dla_NHI
@@ -380,7 +381,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     
     sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,meta=meta,seed=seed,fibermap_columns=fibermap_columns)
     
-    if args.zbest :
+    if args.zbest is not None :
         log.info("Read fibermap")
         fibermap = read_fibermap(ofilename)
 
@@ -415,15 +416,14 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         hdulist.writeto(zbest_filename, overwrite=True)
         hdulist.close() # see if this helps with memory issue
   
-
-        if args.dla:
-
-           if len(dla_meta)>0:
-              hdla = pyfits.convenience.table_to_hdu(dla_meta); hdla.name="DLA_META"
-              hdlalist =pyfits.HDUList([pyfits.PrimaryHDU(),hdla])
-              hdlalist.writeto(dla_filename, overwrite=True)
-              hdlalist.close()
-              log.info("Saved DLA metadata file {}".format(dla_filename))
+    
+    if args.dla is not None :
+        if len(dla_meta)>0:
+            hdla = pyfits.convenience.table_to_hdu(dla_meta); hdla.name="DLA_META"
+            hdlalist =pyfits.HDUList([pyfits.PrimaryHDU(),hdla])
+            hdlalist.writeto(dla_filename, overwrite=True)
+            hdlalist.close()
+            log.info("Saved DLA metadata file {}".format(dla_filename))
 
 
 
