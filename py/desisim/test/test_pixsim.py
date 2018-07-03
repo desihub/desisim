@@ -221,14 +221,16 @@ class TestPixsim(unittest.TestCase):
         obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
 
         #- derive night from simspec input while overriding expid
+        #- Include wavelengths covering z, but only ask for b and r
         simspecfile = io.findfile('simspec', night, expid)
-        altrawfile = desispec.io.findfile('raw', night, expid) + '.blat'
+        altexpid = expid+1
+        altrawfile = desispec.io.findfile('raw', night, altexpid) + '.blat'
         opts = [
             '--simspec', simspecfile,
-            '--expid', expid+1,
+            '--expid', altexpid,
             '--rawfile', altrawfile,
             '--cameras', 'b0,r0',
-            '--wavemin', 5000, '--wavemax', 7000.0,
+            '--wavemin', 5500, '--wavemax', 7000.0,
             '--ccd_npix_x', 2000,
             ]
         if ncpu is not None:
@@ -237,7 +239,8 @@ class TestPixsim(unittest.TestCase):
         log.debug('testing pixsim.main({})'.format(opts))
         pixsimargs = desisim.scripts.pixsim.parse(opts)
         desisim.scripts.pixsim.main(pixsimargs)
-        simpixfile = io.findfile('simpix', night, expid+1)
+        simpixfile = io.findfile('simpix', night, altexpid)
+
         self.assertTrue(os.path.exists(simpixfile))
         self.assertTrue(os.path.exists(altrawfile))
         fx = fits.open(altrawfile)

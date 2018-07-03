@@ -49,8 +49,11 @@ class TestIO(unittest.TestCase):
         x = io.simdir()
         self.assertTrue(x is not None)
         night = '20150101'
-        x = io.simdir(night)
-        self.assertTrue(x.endswith(night))
+        expid = 123
+        x = io.simdir(night, expid)
+        self.assertTrue(x.endswith(str(expid)))
+        x = io.simdir(int(night), expid)
+        self.assertTrue(x.endswith(str(expid)))
         x = io.simdir(night, mkdir=True)
         self.assertTrue(os.path.exists(x))
 
