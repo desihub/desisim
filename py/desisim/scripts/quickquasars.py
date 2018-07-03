@@ -193,13 +193,22 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             return
         transmission = transmission[indices]
         metadata = metadata[:][indices]
-        nqso = transmission.shape[0]
+        nqso = transmission.shape[0] 
 
 
-##ALMA:added to set transmission to 1 for z>zqso, this can be removed when transmission is corrected. 
+    if args.nmax is not None :
+        if args.nmax < nqso :
+            log.info("Limit number of QSOs from {} to nmax={} (random subsample)".format(nqso,args.nmax))
+            # take a random subsample
+            indices = (np.random.uniform(size=args.nmax)*nqso).astype(int)
+            transmission = transmission[indices]
+            metadata = metadata[:][indices]
+            nqso = args.nmax
+
+##ALMA:added to set transmission to 1 for z>zqso, this can be removed when transmission is corrected.        
     for ii in range(len(metadata)):       
         transmission[ii][trans_wave>1215.67*(metadata[ii]['Z']+1)]=1.0
-
+              
     if(args.dla=='file'):
         log.info('Adding DLAs from transmision file')
         min_trans_wave=np.min(trans_wave/1215.67 - 1)
@@ -234,24 +243,11 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
 
     if args.dla:
-       if len(dla_id)>0:
-          dla_meta=Table()
+       dla_meta=Table()
+       if len(dla_id)>0:    
           dla_meta['NHI']=dla_NHI
           dla_meta['z']=dla_z
           dla_meta['ID']=dla_id
-
-    if args.nmax is not None :
-        if args.nmax < nqso :
-            log.info("Limit number of QSOs from {} to nmax={} (random subsample)".format(nqso,args.nmax))
-            # take a random subsample
-            indices = (np.random.uniform(size=args.nmax)*nqso).astype(int)
-            transmission = transmission[indices]
-            metadata = metadata[:][indices]
-            nqso = args.nmax
-
-            if args.dla:
-               dla_meta=dla_meta[:][dla_meta['ID']==metadata['MOCKID']]
-              
 
     if args.target_selection or args.mags :
         wanted_min_wave = 3329. # needed to compute magnitudes for decam2014-r (one could have trimmed the transmission file ...)
@@ -421,6 +417,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
   
 
         if args.dla:
+
            if len(dla_meta)>0:
               hdla = pyfits.convenience.table_to_hdu(dla_meta); hdla.name="DLA_META"
               hdlalist =pyfits.HDUList([pyfits.PrimaryHDU(),hdla])
