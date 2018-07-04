@@ -17,7 +17,7 @@ from desisim.templates import SIMQSO
 from desisim.scripts.quickspectra import sim_spectra
 from desisim.lya_spectra import read_lya_skewers , apply_lya_transmission, apply_metals_transmission
 from desisim.dla import dla_spec,insert_dlas
-from desisim.bal import empty_balmeta, insert_bals
+from desisim.bal import empty_balmeta, insert_bals, BAL
 from desispec.interpolation import resample_flux
 from desimodel.io import load_pixweight
 from desimodel import footprint
@@ -330,7 +330,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     if (args.balprob):
        if(args.balprob<=1. and args.balprob >0):
           log.info("Adding BALs with probability {}".format(args.balprob))
-          tmp_qso_flux,meta_bal=bal.insert_bals(tmp_qso_wave,tmp_qso_flux, metadata['Z'], balprob=args.balprob,seed=seed)
+          tmp_qso_flux,meta_bal=insert_bals(tmp_qso_wave,tmp_qso_flux, metadata['Z'], bal.balwave, bal.balflux, bal.balmeta, balprob=args.balprob,seed=seed)
        else:
           log.error("Probability to add BALs is not between 0 and 1")
           sys.exit(1)
