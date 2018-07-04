@@ -18,6 +18,8 @@ desisim change log
 * newexp-mock options for production running (`PR #363`_).
 * Add BALs to QSO spectra outside of desisim.templates (`PR #370`_).
 * Add rest-frame option to templates.SIMQSO (`PR #377`_).
+* Optionally change output wave vector in templates.SIMQSO when noresample=True
+  or restframe=True (`PR #383`_).
 
 .. _`PR #321`: https://github.com/desihub/desisim/pull/321
 .. _`PR #349`: https://github.com/desihub/desisim/pull/349
@@ -32,6 +34,7 @@ desisim change log
 .. _`PR #363`: https://github.com/desihub/desisim/pull/363
 .. _`PR #370`: https://github.com/desihub/desisim/pull/370
 .. _`PR #377`: https://github.com/desihub/desisim/pull/377
+.. _`PR #383`: https://github.com/desihub/desisim/pull/383
 
 0.27.0 (2018-03-29)
 -------------------

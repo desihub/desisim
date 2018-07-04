@@ -2007,7 +2007,8 @@ class SIMQSO():
     """Generate Monte Carlo spectra of quasars (QSOs) using simqso."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 nproc=1, normfilter='decam2014-r', colorcuts_function=None,
+                 nproc=1, basewave_min=450.0, basewave_max=6e4, basewave_R=8000,
+                 normfilter='decam2014-r', colorcuts_function=None,
                  restframe=False):
         """Read the QSO basis continuum templates, filter profiles and initialize the
            output wavelength array.
@@ -2028,6 +2029,16 @@ class SIMQSO():
             [default 2 Angstrom/pixel].
           wave (numpy.ndarray): Input/output observed-frame wavelength array,
             overriding the minwave, maxwave, and cdelt arguments [Angstrom].
+          nproc (int, optional): number of cores to use (default 1).
+          basewave_min (float, optional): minimum output wavelength when either
+            restframe=True or noresample=True (in SIMQSO.make_templates)
+            [default 450 Angstrom].
+          basewave_max (float, optional): maximum output wavelength when either
+            restframe=True or noresample=True (in SIMQSO.make_templates)
+            [default 60000 Angstrom].
+          basewave_R (float, optional): output wavelength resolution when either
+            restframe=True or noresample=True (in SIMQSO.make_templates)
+            [default R=8000].
           colorcuts_function (function name): Function to use to select
             templates that pass the color-cuts.
           restframe (bool, optional): If True, generate rest-frame templates.
@@ -2089,10 +2100,12 @@ class SIMQSO():
 
         self.restframe = restframe
         if restframe:
-            self._zpivot = 1e-3
-            self.basewave = fixed_R_dispersion(900.0*(1+self._zpivot), 6e4*(1+self._zpivot), 8000)
+            self._zpivot = 3.0
+            self.basewave = fixed_R_dispersion(basewave_min*(1+self._zpivot),
+                                               basewave_max*(1+self._zpivot),
+                                               basewave_R)
         else:
-            self.basewave = fixed_R_dispersion(900.0, 6e4, 8000)
+            self.basewave = fixed_R_dispersion(basewave_min, basewave_max, basewave_R)
             
         self.cosmo = cosmology.core.FlatLambdaCDM(70.0, 0.3)
 

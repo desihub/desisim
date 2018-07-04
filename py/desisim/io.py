@@ -52,7 +52,7 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
 
     #- outdir default = $DESI_SPECTRO_SIM/$PIXPROD/{night}/
     if outdir is None:
-        outdir = simdir(night)
+        outdir = simdir(night, expid)
 
     #- Definition of where files go
     location = dict(
@@ -1000,12 +1000,13 @@ def write_templates(outfile, flux, wave, meta):
 #-------------------------------------------------------------------------
 #- Utility functions
 
-def simdir(night='', mkdir=False):
+def simdir(night='', expid=0, mkdir=False):
     """
     Return $DESI_SPECTRO_SIM/$PIXPROD/{night}
     If mkdir is True, create directory if needed
     """
-    dirname = os.path.join(os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'), str(night))
+    dirname = os.path.join(os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'),
+         str(night), '{:08d}'.format(expid))
     if mkdir and not os.path.exists(dirname):
         os.makedirs(dirname)
 
