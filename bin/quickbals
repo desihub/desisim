@@ -1,0 +1,9 @@
+#!/usr/bin/env python
+
+"""
+Generate a spectra file
+"""
+
+import sys
+from desisim.scripts.quickbals import main
+sys.exit(main())
