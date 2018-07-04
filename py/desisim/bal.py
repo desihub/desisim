@@ -12,11 +12,11 @@ import numpy as np
 class BAL(object):
     """Base class for inserting BALs into (input) QSO spectra."""
     def __init__(self):
-        """Read and cache the BAL template set.
+        """ Read and cache the BAL template set.
 
         Attributes:
           balflux (numpy.ndarray): Array [nbase,npix] of the rest-frame BAL
-            templates...
+            templates..
           balwave (numpy.ndarray): Array [npix] of rest-frame wavelengths
             corresponding to BASEFLUX (Angstrom).
           balmeta (astropy.Table): Table of metadata [nbase] for each template.
@@ -29,24 +29,23 @@ class BAL(object):
         self.balwave = balwave
         self.balmeta = balmeta
 
-    def empty_balmeta(self, qsoredshift):
-        """Initialize an empty metadata table for BALs."""
+def empty_balmeta(qsoredshift): #self has been removed as an argument
+    """Initialize an empty metadata table for BALs."""
+    from astropy.table import Table, Column
 
-        from astropy.table import Table, Column
+    nqso = len(np.atleast_1d(qsoredshift))
 
-        nqso = len(np.atleast_1d(qsoredshift))
+    balmeta = Table()
+    balmeta.add_column(Column(name='TEMPLATEID', length=nqso, dtype='i4'))
+    balmeta.add_column(Column(name='REDSHIFT', length=nqso, dtype='f4'))
+    balmeta['TEMPLATEID'] = -1
+    balmeta['REDSHIFT'] = qsoredshift
 
-        balmeta = Table()
-        balmeta.add_column(Column(name='TEMPLATEID', length=nqso, dtype='i4'))
-        balmeta.add_column(Column(name='REDSHIFT', length=nqso, dtype='f4'))
-        balmeta['TEMPLATEID'] = -1
-        balmeta['REDSHIFT'] = qsoredshift
-
-        return balmeta        
+    return balmeta        
         
-    def insert_bals(self, qsowave, qsoflux, qsoredshift, balprob=0.12,
+def insert_bals(qsowave, qsoflux, qsoredshift, temp_balwave, temp_balflux, temp_balmeta, balprob=0.12,
                     seed=None, verbose=False):
-        """Probabilistically inserts BALs into one or more QSO spectra.
+    """Probabilistically inserts BALs into one or more QSO spectra.
 
         Args:
             qsowave (numpy.ndarray): observed-frame wavelength array [Angstrom]
@@ -61,50 +60,59 @@ class BAL(object):
             bal_qsoflux (numpy.ndarray): QSO spectrum with the BAL included.
             balmeta (astropy.Table): metadata table for each BAL.
 
-        """
-        from desiutil.log import get_logger, DEBUG
-        from desispec.interpolation import resample_flux
+    """ 
+    from desiutil.log import get_logger, DEBUG
+    from desispec.interpolation import resample_flux
 
-        if verbose:
-            log = get_logger(DEBUG)
-        else:
-            log = get_logger()
+    if verbose:
+        log = get_logger(DEBUG)
+    else:
+        log = get_logger()
 
-        rand = np.random.RandomState(seed)
+    rand = np.random.RandomState(seed) #keep this in mind
 
-        if balprob < 0:
-            log.warning('Balprob {} is negative; setting to zero.'.format(balprob))
-            balprob = 0.0
-        if balprob > 1:
-            log.warning('Balprob {} cannot exceed unity; setting to 1.0.'.format(balprob))
-            balprob = 1.0
+    if balprob < 0:
+        log.warning('Balprob {} is negative; setting to zero.'.format(balprob))
+        balprob = 0.0
+    if balprob > 1:
+        log.warning('Balprob {} cannot exceed unity; setting to 1.0.'.format(balprob))
+        balprob = 1.0
 
-        nqso, nwave = qsoflux.shape
-        if len(qsoredshift) != nqso:
-            log.fatal('Dimensions of qsoflux and qsoredshift do not agree!')
-            raise ValueError
+    nqso, nwave = qsoflux.shape
+    if len(qsoredshift) != nqso:
+        log.fatal('Dimensions of qsoflux and qsoredshift do not agree!')
+        raise ValueError
         
-        if len(qsowave) != nwave:
-            log.fatal('Dimensions of qsoflux and qsowave do not agree!')
-            raise ValueError
+    if len(qsowave) != nwave:
+        log.fatal('Dimensions of qsoflux and qsowave do not agree!')
+        raise ValueError
         
-        balmeta = self.empty_balmeta(qsoredshift)
+    balmeta = empty_balmeta(qsoredshift)
 
-        # Determine which QSO spectrum has BAL(s) and then loop on each. 
-        hasbal = rand.random_sample(nqso) < balprob
-        ihasbal = np.where(hasbal)[0]
+    # Determine which QSO spectrum has BAL(s) and then loop on each. 
+    hasbal = rand.random_sample(nqso) < balprob
+    ihasbal = np.where(hasbal)[0]
 
-        # Should probably return a BAL metadata table, too.
-        if len(ihasbal) == 0:
-            return qsoflux, balmeta
+    # Should probably return a BAL metadata table, too.
+    if len(ihasbal) == 0:
+        return qsoflux, balmeta
 
-        balindx = rand.choice( len(self.balmeta), len(ihasbal) )
-        balmeta['TEMPLATEID'][ihasbal] = balindx
+    print(temp_balmeta)
+    print(ihasbal)
+    print(len(temp_balmeta))
+    print(len(ihasbal))
+    print(np.shape(temp_balflux))
 
-        bal_qsoflux = qsoflux.copy()
-        for ii, indx in zip( ihasbal, balindx ):
-            thisbalflux = resample_flux(qsowave, self.balwave*(1 + qsoredshift[ii]),
-                                        self.balflux[indx, :], extrapolate=True)
-            bal_qsoflux[ii, :] *= thisbalflux
+    balindx = rand.choice( len(temp_balmeta), len(ihasbal) )
+    balmeta['TEMPLATEID'][ihasbal] = balindx
 
-        return bal_qsoflux, balmeta
+    bal_qsoflux = qsoflux.copy()
+
+    print(balindx)
+    
+    for ii, indx in zip( ihasbal, balindx ):
+        thisbalflux = resample_flux(qsowave, temp_balwave*(1 + qsoredshift[ii]),
+                                        temp_balflux[indx, :], extrapolate=True)
+        bal_qsoflux[ii, :] *= thisbalflux
+
+    return bal_qsoflux, balmeta
