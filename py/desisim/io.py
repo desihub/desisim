@@ -1000,13 +1000,24 @@ def write_templates(outfile, flux, wave, meta):
 #-------------------------------------------------------------------------
 #- Utility functions
 
-def simdir(night='', expid=0, mkdir=False):
+def simdir(night=None, expid=None, mkdir=False):
     """
     Return $DESI_SPECTRO_SIM/$PIXPROD/{night}
     If mkdir is True, create directory if needed
     """
-    dirname = os.path.join(os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'),
-         str(night), '{:08d}'.format(expid))
+
+    if (night is None) and (expid is None):
+        dirname = os.path.join(
+            os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD')
+            )
+    #- must provide night+expid, and catch old usage where mkdir was 2nd arg
+    elif (expid is None) or isinstance(expid, bool):
+        raise ValueError("Must provide int expid, not {}".format(expid))
+    else:
+        dirname = os.path.join(
+            os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'),
+            str(night), '{:08d}'.format(expid)
+            )
     if mkdir and not os.path.exists(dirname):
         os.makedirs(dirname)
 

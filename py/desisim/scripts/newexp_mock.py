@@ -59,7 +59,7 @@ def main(args=None):
     fiberassign = astropy.table.Table.read(args.fiberassign, 'FIBERASSIGN')
 
     if args.outdir is None:
-        args.outdir = desisim.io.simdir(night=night, mkdir=True)
+        args.outdir = desisim.io.simdir(night=night, expid=args.expid, mkdir=True)
 
     if args.nspec is None:
         args.nspec = len(fiberassign)
