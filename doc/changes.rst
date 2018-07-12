@@ -20,6 +20,8 @@ desisim change log
 * Add rest-frame option to templates.SIMQSO (`PR #377`_).
 * Optionally change output wave vector in templates.SIMQSO when noresample=True
   or restframe=True (`PR #383`_).
+* Fix `newexp-mock` and `wrap-fastframe` file parsing for `NIGHT/EXPID/*.*`
+  vs. `NIGHT/*.*`.
 
 .. _`PR #321`: https://github.com/desihub/desisim/pull/321
 .. _`PR #349`: https://github.com/desihub/desisim/pull/349
