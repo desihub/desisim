@@ -22,6 +22,7 @@ desisim change log
   or restframe=True (`PR #383`_).
 * Fix `newexp-mock` and `wrap-fastframe` file parsing for `NIGHT/EXPID/*.*`
   vs. `NIGHT/*.*`.
+* Speed up emission line simulation when using MKL >= 2018.0.2
 
 .. _`PR #321`: https://github.com/desihub/desisim/pull/321
 .. _`PR #349`: https://github.com/desihub/desisim/pull/349
