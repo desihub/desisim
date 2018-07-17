@@ -229,7 +229,7 @@ class EMSpectrum(object):
             line['amp'][ii] = amp / (np.sqrt(2.0 * np.pi) * log10sigma)  # [erg/s/A]
 
             # Construct the spectrum [erg/s/cm2/A, rest]
-            jj = np.abs(self.log10wave-thislinewave) < 5*log10sigma
+            jj = np.abs(self.log10wave-thislinewave) < 6*log10sigma
             emspec[jj] += amp * np.exp(-0.5 * (self.log10wave[jj]-thislinewave)**2 / log10sigma**2) \
                           / (np.sqrt(2.0 * np.pi) * log10sigma)
 
