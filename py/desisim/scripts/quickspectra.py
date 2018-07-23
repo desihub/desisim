@@ -179,10 +179,10 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
     sim = desisim.simexp.simulate_spectra(wave, flux, fibermap=frame_fibermap,
         obsconditions=obsconditions, redshift=redshift, seed=seed,
         psfconvolve=True)
-    
+
     random_state = np.random.RandomState(seed)
     sim.generate_random_noise(random_state,use_poisson=use_poisson)
-    
+
     scale=1e17
     specdata = None
 
