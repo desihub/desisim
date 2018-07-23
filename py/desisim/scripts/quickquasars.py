@@ -231,20 +231,19 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     elif(args.dla=='random'):
         log.info('Adding DLAs randomly')
-        saved_rnd_state = np.random.get_state()
+        random_state_just_for_dlas = np.random.RandomState(seed)
         min_trans_wave=np.min(trans_wave/1215.67 - 1)
         for ii in range(len(metadata)):
             if min_trans_wave < metadata[ii]['Z']: 
                 idd=metadata['MOCKID'][ii]
-                dlass, dla_model = insert_dlas(trans_wave, metadata[ii]['Z'], seed=np.random.randint(2**32)) # need to pass a random seed otherwise insert_dla breaks the random sequence
+                dlass, dla_model = insert_dlas(trans_wave, metadata[ii]['Z'], rstate=random_state_just_for_dlas)
                 if len(dlass)>0:
                     transmission[ii]=dla_model*transmission[ii]
                     dla_z+=[idla['z'] for idla in dlass]
                     dla_NHI+=[idla['N'] for idla in dlass]
                     dla_id+=[idd]*len(dlass)
         log.info('Added {} DLAs'.format(len(dla_id)))
-        np.random.set_state(saved_rnd_state) # restore random state to get the same random numbers later as when we don't insert DLAs
-
+        
     if args.dla is not None :
        dla_meta=Table()
        if len(dla_id)>0:    
