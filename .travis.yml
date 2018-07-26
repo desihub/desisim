@@ -54,7 +54,7 @@ env:
         # - DESIMODEL_DATA=branches/test-0.9
         - DESIMODEL_DATA=tags/0.9.2
         - DESISIM_TESTDATA_VERSION=master
-        - SPECSIM_VERSION=v0.11
+        - SPECSIM_VERSION=v0.12
         # - DESISPEC_VERSION=0.18.0
         - DESISPEC_VERSION=master
         - DESITARGET_VERSION=0.19.0
