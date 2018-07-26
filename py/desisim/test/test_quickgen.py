@@ -1,9 +1,10 @@
 """
 Run unit tests through quickgen
 """
-import unittest, os
+import unittest, os, sys
 from uuid import uuid1
 from shutil import rmtree
+import subprocess
 
 from astropy.io import fits
 import numpy as np
@@ -83,6 +84,25 @@ class TestQuickgen(unittest.TestCase):
                 '/spectro/templates/cosmics/v0.2/cosmics-bias-r.fits')
         else:
             cls.cosmics = None
+
+        #- Try to locate where the quickgen script will be
+        cls.topDir = os.path.dirname( # top-level
+            os.path.dirname( # build/
+                os.path.dirname( # lib/
+                    os.path.dirname( # desispec/
+                        os.path.dirname(os.path.abspath(__file__)) # test/
+                        )
+                    )
+                )
+            )
+        cls.binDir = os.path.join(cls.topDir,'bin')
+
+        if not os.path.isdir(cls.binDir):
+            cls.topDir = os.getcwd()
+            cls.binDir = os.path.join(cls.topDir, 'bin')
+        
+        if not os.path.isdir(cls.binDir):
+            raise RuntimeError('Unable to auto-locate desisim/bin from {}'.format(__file__))
 
     def setUp(self):
         self.night = '20150105'
@@ -227,13 +247,36 @@ class TestQuickgen(unittest.TestCase):
         simspec2 = io.findfile('simspec', night, expid2)
         fibermap2 = desispec.io.findfile('fibermap', night, expid2)
 
+        s0=fits.open(simspec0)
+        s1=fits.open(simspec1)
+        s2=fits.open(simspec2)
+
+        self.assertEqual(s0['TRUTH'].data['OBJTYPE'][0], s1['TRUTH'].data['OBJTYPE'][0])
+        self.assertEqual(s0['TRUTH'].data['REDSHIFT'][0], s1['TRUTH'].data['REDSHIFT'][0])
+        self.assertNotEqual(s0['TRUTH'].data['REDSHIFT'][0], s2['TRUTH'].data['REDSHIFT'][0])
+
+        self.assertTrue(np.all(s0['WAVE'].data == s1['WAVE'].data))
+        self.assertTrue(np.all(s0['FLUX'].data == s1['FLUX'].data))
+
         # generate quickgen output for each exposure
-        cmd = "quickgen --simspec {} --fibermap {} --seed 1".format(simspec0,fibermap0)
-        quickgen.main(quickgen.parse(cmd.split()[1:]))
-        cmd = "quickgen --simspec {} --fibermap {} --seed 1".format(simspec1,fibermap1)
-        quickgen.main(quickgen.parse(cmd.split()[1:]))
-        cmd = "quickgen --simspec {} --fibermap {} --seed 2".format(simspec2,fibermap2)
-        quickgen.main(quickgen.parse(cmd.split()[1:]))
+        # spawn with subprocess so that it will really be restarting fresh;
+        # using quickgen.main re-uses a specsim Simulator that consumes random
+        # state when using it.
+        # See https://github.com/desihub/specsim/issues/94
+        cmd = "{} {}/quickgen --simspec {} --fibermap {} --seed 1".format(
+            sys.executable, self.binDir, simspec0, fibermap0)
+        ### quickgen.main(quickgen.parse(cmd.split()[1:]))
+        subprocess.check_call(cmd.split())
+
+        cmd = "{} {}/quickgen --simspec {} --fibermap {} --seed 1".format(
+            sys.executable, self.binDir, simspec1, fibermap1)
+        ### quickgen.main(quickgen.parse(cmd.split()[1:]))
+        subprocess.check_call(cmd.split())
+
+        cmd = "{} {}/quickgen --simspec {} --fibermap {} --seed 2".format(
+            sys.executable, self.binDir, simspec2, fibermap2)
+        ### quickgen.main(quickgen.parse(cmd.split()[1:]))
+        subprocess.check_call(cmd.split())
 
         cframe0=desispec.io.findfile("cframe",night,expid0,camera)
         cframe1=desispec.io.findfile("cframe",night,expid1,camera)
@@ -245,14 +288,6 @@ class TestQuickgen(unittest.TestCase):
         self.assertTrue(np.all(cf0.flux == cf1.flux))   #- same seed
         self.assertTrue(np.all(cf0.ivar == cf1.ivar))
         self.assertTrue(np.any(cf0.flux != cf2.flux))   #- different seed
-
-        s0=fits.open(simspec0)
-        s1=fits.open(simspec1)
-        s2=fits.open(simspec2)
-
-        self.assertEqual(s0['TRUTH'].data['OBJTYPE'][0], s1['TRUTH'].data['OBJTYPE'][0])
-        self.assertEqual(s0['TRUTH'].data['REDSHIFT'][0], s1['TRUTH'].data['REDSHIFT'][0])
-        self.assertNotEqual(s0['TRUTH'].data['REDSHIFT'][0], s2['TRUTH'].data['REDSHIFT'][0])
 
     #- Test that higher airmass makes noisier spectra using simspec as input
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
@@ -400,3 +435,10 @@ class TestQuickgen(unittest.TestCase):
 #- This runs all test* functions in any TestCase class in this file
 if __name__ == '__main__':
     unittest.main()
+
+def test_suite():
+    """Allows testing of only this module with the command::
+
+        python setup.py test -m desisim.test.test_io
+    """
+    return unittest.defaultTestLoader.loadTestsFromName(__name__)

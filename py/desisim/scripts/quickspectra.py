@@ -24,7 +24,7 @@ from desispec.resolution import Resolution
 import matplotlib.pyplot as plt
 
 def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
-                sourcetype=None, targetid=None, redshift=None, expid=0, seed=0, skyerr=0.0, ra=None, dec=None, meta=None, fibermap_columns=None, fullsim=False):
+                sourcetype=None, targetid=None, redshift=None, expid=0, seed=0, skyerr=0.0, ra=None, dec=None, meta=None, fibermap_columns=None, fullsim=False,use_poisson=True):
     """
     Simulate spectra from an input set of wavelength and flux and writes a FITS file in the Spectra format that can
     be used as input to the redshift fitter.
@@ -50,7 +50,7 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
         meta : dictionnary, saved in primary fits header of the spectra file 
         fibermap_columns : add these columns to the fibermap
         fullsim : if True, write full simulation data in extra file per camera
-    
+        use_poisson : if False, do not use numpy.random.poisson to simulate the Poisson noise. This is useful to get reproducible random realizations.
     """
     log = get_logger()
     
@@ -180,7 +180,7 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
         psfconvolve=True)
 
     random_state = np.random.RandomState(seed)
-    sim.generate_random_noise(random_state)
+    sim.generate_random_noise(random_state,use_poisson=use_poisson)
 
     scale=1e17
     specdata = None
