@@ -50,8 +50,7 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
         meta : dictionnary, saved in primary fits header of the spectra file 
         fibermap_columns : add these columns to the fibermap
         fullsim : if True, write full simulation data in extra file per camera
-        use_poisson : if False, do not use numpy.random.poisson to simulate the Poisson noise. 
-                      This is useful to get reproducible random realizations.
+        use_poisson : if False, do not use numpy.random.poisson to simulate the Poisson noise. This is useful to get reproducible random realizations.
     """
     log = get_logger()
     
