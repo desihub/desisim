@@ -2,11 +2,21 @@
 desisim change log
 ==================
 
-0.29.0 (unreleased)
+0.29.1 (unreleased)
 -------------------
 
+* No changes yet.
+
+0.29.0 (2018-07-26)
+-------------------
+
+* Option in quickspectra to write the full sim table (`PR #392`_).
+* Option to use Gaussian instead of Poisson for QSO DLA.
+  Requires specsim >= v0.12 (`PR #393`_).
 * Use `overwrite` instead of `clobber` for `astropy.io.fits` (`PR #395`_).
 
+.. _`PR #392`: https://github.com/desihub/desisim/pull/392
+.. _`PR #393`: https://github.com/desihub/desisim/pull/393
 .. _`PR #395`: https://github.com/desihub/desisim/pull/395
 
 0.28.0 (2018-07-18)
