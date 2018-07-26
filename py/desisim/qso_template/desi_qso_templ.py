@@ -419,7 +419,7 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
     tbhdu.header.set('EXTNAME','METADATA')
 
     hdulist = fits.HDUList([hdu, tbhdu])
-    hdulist.writeto(outfil, clobber=True)
+    hdulist.writeto(outfil, overwrite=True)
 
     return final_wave, final_spec, final_z
 
@@ -546,7 +546,7 @@ def repackage_coeff(boss_pca_fil=None, sdss_pca_fil=None,
 
     hdulist = fits.HDUList([phdu, bp_hdu, bz_hdu, sp_hdu, sz_hdu,
                             e_hdu, ew_hdu])
-    hdulist.writeto(outfil, clobber=True)
+    hdulist.writeto(outfil, overwrite=True)
     print('Wrote {:s}'.format(outfil))
 
 

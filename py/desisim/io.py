@@ -226,7 +226,7 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, outdir=None, filename
         hx.append(obs_hdu)
 
     log.info('Writing {}'.format(filename))
-    hx.writeto(filename, clobber=overwrite)
+    hx.writeto(filename, overwrite=overwrite)
 
 def write_simspec_arc(filename, wave, phot, header, fibermap, overwrite=False):
     '''
@@ -263,7 +263,7 @@ def write_simspec_arc(filename, wave, phot, header, fibermap, overwrite=False):
     hx.append(fibermap_hdu)
 
     log.info('Writing {}'.format(filename))
-    hx.writeto(filename, clobber=overwrite)
+    hx.writeto(filename, overwrite=overwrite)
     return filename
 
 class SimSpecCamera(object):
@@ -992,10 +992,7 @@ def write_templates(outfile, flux, wave, meta):
     hx.append(hdu_meta)
 
     log.info('Writing {}'.format(outfile))
-    try:
-        hx.writeto(outfile, overwrite=True)
-    except:
-        hx.writeto(outfile, clobber=True)
+    hx.writeto(outfile, overwrite=True)
 
 #-------------------------------------------------------------------------
 #- Utility functions
