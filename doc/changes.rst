@@ -5,7 +5,7 @@ desisim change log
 0.29.0 (unreleased)
 -------------------
 
-* Use `overwrite` instead of `clobber` for `astropy.io.fits` (PR `#395`_).
+* Use `overwrite` instead of `clobber` for `astropy.io.fits` (`PR #395`_).
 
 .. _`PR #395`: https://github.com/desihub/desisim/pull/395
 
