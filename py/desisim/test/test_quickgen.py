@@ -4,6 +4,7 @@ Run unit tests through quickgen
 import unittest, os
 from uuid import uuid1
 from shutil import rmtree
+import subprocess
 
 from astropy.io import fits
 import numpy as np
@@ -227,13 +228,33 @@ class TestQuickgen(unittest.TestCase):
         simspec2 = io.findfile('simspec', night, expid2)
         fibermap2 = desispec.io.findfile('fibermap', night, expid2)
 
+        s0=fits.open(simspec0)
+        s1=fits.open(simspec1)
+        s2=fits.open(simspec2)
+
+        self.assertEqual(s0['TRUTH'].data['OBJTYPE'][0], s1['TRUTH'].data['OBJTYPE'][0])
+        self.assertEqual(s0['TRUTH'].data['REDSHIFT'][0], s1['TRUTH'].data['REDSHIFT'][0])
+        self.assertNotEqual(s0['TRUTH'].data['REDSHIFT'][0], s2['TRUTH'].data['REDSHIFT'][0])
+
+        self.assertTrue(np.all(s0['WAVE'].data == s1['WAVE'].data))
+        self.assertTrue(np.all(s0['FLUX'].data == s1['FLUX'].data))
+
         # generate quickgen output for each exposure
+        # spawn with subprocess so that it will really be restarting fresh;
+        # using quickgen.main re-uses a specsim Simulator that consumes random
+        # state when using it.
+        # See https://github.com/desihub/specsim/issues/94
         cmd = "quickgen --simspec {} --fibermap {} --seed 1".format(simspec0,fibermap0)
-        quickgen.main(quickgen.parse(cmd.split()[1:]))
+        ### quickgen.main(quickgen.parse(cmd.split()[1:]))
+        subprocess.check_call(cmd.split())
+
         cmd = "quickgen --simspec {} --fibermap {} --seed 1".format(simspec1,fibermap1)
-        quickgen.main(quickgen.parse(cmd.split()[1:]))
+        ### quickgen.main(quickgen.parse(cmd.split()[1:]))
+        subprocess.check_call(cmd.split())
+
         cmd = "quickgen --simspec {} --fibermap {} --seed 2".format(simspec2,fibermap2)
-        quickgen.main(quickgen.parse(cmd.split()[1:]))
+        ### quickgen.main(quickgen.parse(cmd.split()[1:]))
+        subprocess.check_call(cmd.split())
 
         cframe0=desispec.io.findfile("cframe",night,expid0,camera)
         cframe1=desispec.io.findfile("cframe",night,expid1,camera)
@@ -245,14 +266,6 @@ class TestQuickgen(unittest.TestCase):
         self.assertTrue(np.all(cf0.flux == cf1.flux))   #- same seed
         self.assertTrue(np.all(cf0.ivar == cf1.ivar))
         self.assertTrue(np.any(cf0.flux != cf2.flux))   #- different seed
-
-        s0=fits.open(simspec0)
-        s1=fits.open(simspec1)
-        s2=fits.open(simspec2)
-
-        self.assertEqual(s0['TRUTH'].data['OBJTYPE'][0], s1['TRUTH'].data['OBJTYPE'][0])
-        self.assertEqual(s0['TRUTH'].data['REDSHIFT'][0], s1['TRUTH'].data['REDSHIFT'][0])
-        self.assertNotEqual(s0['TRUTH'].data['REDSHIFT'][0], s2['TRUTH'].data['REDSHIFT'][0])
 
     #- Test that higher airmass makes noisier spectra using simspec as input
     ### @unittest.skipIf('TRAVIS_JOB_ID' in os.environ, 'Skipping memory hungry quickgen/specsim test on Travis')
