@@ -50,9 +50,8 @@ env:
         - DESIUTIL_VERSION=1.9.11
         - SPECLITE_VERSION=0.7
         - SPECTER_VERSION=0.8.3
-        - DESIMODEL_VERSION=0.9.2
-        # - DESIMODEL_DATA=branches/test-0.9
-        - DESIMODEL_DATA=tags/0.9.2
+        - DESIMODEL_VERSION=0.9.6
+        - DESIMODEL_DATA=branches/test-0.9.6
         - DESISIM_TESTDATA_VERSION=master
         - SPECSIM_VERSION=v0.11
         # - DESISPEC_VERSION=0.18.0
