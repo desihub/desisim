@@ -1,7 +1,7 @@
 """
 Run unit tests through quickgen
 """
-import unittest, os
+import unittest, os, sys
 from uuid import uuid1
 from shutil import rmtree
 import subprocess
@@ -84,6 +84,25 @@ class TestQuickgen(unittest.TestCase):
                 '/spectro/templates/cosmics/v0.2/cosmics-bias-r.fits')
         else:
             cls.cosmics = None
+
+        #- Try to locate where the quickgen script will be
+        cls.topDir = os.path.dirname( # top-level
+            os.path.dirname( # build/
+                os.path.dirname( # lib/
+                    os.path.dirname( # desispec/
+                        os.path.dirname(os.path.abspath(__file__)) # test/
+                        )
+                    )
+                )
+            )
+        cls.binDir = os.path.join(cls.topDir,'bin')
+
+        if not os.path.isdir(cls.binDir):
+            cls.topDir = os.getcwd()
+            cls.binDir = os.path.join(cls.topDir, 'bin')
+        
+        if not os.path.isdir(cls.binDir):
+            raise RuntimeError('Unable to auto-locate desisim/bin from {}'.format(__file__))
 
     def setUp(self):
         self.night = '20150105'
@@ -244,15 +263,18 @@ class TestQuickgen(unittest.TestCase):
         # using quickgen.main re-uses a specsim Simulator that consumes random
         # state when using it.
         # See https://github.com/desihub/specsim/issues/94
-        cmd = "quickgen --simspec {} --fibermap {} --seed 1".format(simspec0,fibermap0)
+        cmd = "{} {}/quickgen --simspec {} --fibermap {} --seed 1".format(
+            sys.executable, self.binDir, simspec0, fibermap0)
         ### quickgen.main(quickgen.parse(cmd.split()[1:]))
         subprocess.check_call(cmd.split())
 
-        cmd = "quickgen --simspec {} --fibermap {} --seed 1".format(simspec1,fibermap1)
+        cmd = "{} {}/quickgen --simspec {} --fibermap {} --seed 1".format(
+            sys.executable, self.binDir, simspec1, fibermap1)
         ### quickgen.main(quickgen.parse(cmd.split()[1:]))
         subprocess.check_call(cmd.split())
 
-        cmd = "quickgen --simspec {} --fibermap {} --seed 2".format(simspec2,fibermap2)
+        cmd = "{} {}/quickgen --simspec {} --fibermap {} --seed 2".format(
+            sys.executable, self.binDir, simspec2, fibermap2)
         ### quickgen.main(quickgen.parse(cmd.split()[1:]))
         subprocess.check_call(cmd.split())
 
@@ -413,3 +435,10 @@ class TestQuickgen(unittest.TestCase):
 #- This runs all test* functions in any TestCase class in this file
 if __name__ == '__main__':
     unittest.main()
+
+def test_suite():
+    """Allows testing of only this module with the command::
+
+        python setup.py test -m desisim.test.test_io
+    """
+    return unittest.defaultTestLoader.loadTestsFromName(__name__)
