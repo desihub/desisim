@@ -595,13 +595,19 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
     targets_in_tile = {}
     tileids = list()
     for infile in tilefiles:
-        fibassign, header = fits.getdata(infile, 'FIBER_ASSIGNMENTS', header=True)
-        tile_id = header['TILEID']
-        tileids.append(tile_id)
+        
+        fibassign, header = fits.getdata(infile, 'FIBERASSIGN', header=True)
+ 
+        # hack needed here rnc 7/26/18
+        # tile_id = header['TILEID']
+        fnew=infile.split('/')[-1]
+        tileidnew=fnew.split("_")[-1]
+        tileidnew=tileidnew[:-5]
+        tileids.append(tileidnew)
 
         ii = (fibassign['TARGETID'] != -1)  #- targets with assignments
         nobs.update(fibassign['TARGETID'][ii])
-        targets_in_tile[tile_id] = fibassign['TARGETID'][ii]
+        targets_in_tile[tileidnew] = fibassign['TARGETID'][ii]
 
     #- Trim obsconditions to just the tiles that were observed
     if obsconditions is not None:
