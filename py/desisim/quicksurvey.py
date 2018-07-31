@@ -41,7 +41,8 @@ class SimSetup(object):
         n_epochs (int): number of epochs to be simulated.
 
     """
-    def __init__(self, output_path, targets_path, fiberassign, template_fiberassign,
+    def __init__(self, output_path, targets_path, fiberassign, 
+#template_fiberassign,
                  exposures, fiberassign_dates):
         """Initializes all the paths, filenames and numbers describing DESI survey.
 
@@ -56,7 +57,7 @@ class SimSetup(object):
         self.output_path = output_path
         self.targets_path = targets_path
         self.fiberassign = fiberassign  
-        self.template_fiberassign = template_fiberassign
+        #self.template_fiberassign = template_fiberassign
 
         self.exposures = fitsio.read(exposures, upper=True)
 
@@ -248,7 +249,7 @@ class SimSetup(object):
 
         # setup the tileids for the current observation epoch
         self.create_surveyfile(epoch)
-        self.create_fiberassign_input()
+        #self.create_fiberassign_input()
 
         # launch fiberassign
         print("{} Launching fiberassign".format(asctime()))
