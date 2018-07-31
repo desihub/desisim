@@ -41,9 +41,7 @@ class SimSetup(object):
         n_epochs (int): number of epochs to be simulated.
 
     """
-    def __init__(self, output_path, targets_path, fiberassign, 
-#template_fiberassign,
-                 exposures, fiberassign_dates):
+    def __init__(self, output_path, targets_path, fiberassign, exposures, fiberassign_dates):
         """Initializes all the paths, filenames and numbers describing DESI survey.
 
         Args:
@@ -57,8 +55,6 @@ class SimSetup(object):
         self.output_path = output_path
         self.targets_path = targets_path
         self.fiberassign = fiberassign  
-        #self.template_fiberassign = template_fiberassign
-
         self.exposures = fitsio.read(exposures, upper=True)
 
         self.tmp_output_path = os.path.join(self.output_path, 'tmp/')
@@ -183,19 +179,6 @@ class SimSetup(object):
         np.savetxt(surveyfile, tiles, fmt='%d')
         print("{} tiles to be included in fiberassign".format(len(tiles)))
 
-    """
-    def create_fiberassign_input(self):
-        Creates input files for fiberassign from the provided template
-
-        Notes:
-            The template filename is in self.template_fiberassign
-        
-        params = ''.join(open(self.template_fiberassign).readlines())
-        fx = open(os.path.join(self.tmp_output_path, 'fa_features.txt'), 'w')
-        fx.write(params.format(inputdir = self.tmp_output_path, targetdir = self.targets_path))
-        fx.close()
-    """
-
     def update_observed_tiles(self, epoch):
         """Creates the list of tilefiles to be gathered to buikd the redshift catalog.        
 
@@ -250,7 +233,7 @@ class SimSetup(object):
 
         # setup the tileids for the current observation epoch
         self.create_surveyfile(epoch)
-        #self.create_fiberassign_input()
+
 
         # launch fiberassign
         print("{} Launching fiberassign".format(asctime()))
