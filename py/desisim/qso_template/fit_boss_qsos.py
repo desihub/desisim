@@ -322,7 +322,7 @@ def failed_parallel():
             outfil = 'BOSS_DR10Lya_PCA_values_nocut.fits'
         else:
             outfil = 'BOSS_DR10Lya_PCA_values.fits'
-    thdulist.writeto(outfil, clobber=True)
+    thdulist.writeto(outfil, overwrite=True)
 
     # Done
     #xdb.set_trace()
@@ -372,7 +372,7 @@ def splice_fits(flg=0):
     table_hdu = fits.BinTableHDU.from_columns(np.array(full_tab.filled()))
     thdulist = fits.HDUList([prihdu, table_hdu])
     print('Writing {:s} table, with {:d} rows'.format(outfil,len(full_tab)))
-    thdulist.writeto(outfil, clobber=True)
+    thdulist.writeto(outfil, overwrite=True)
 
 
 ## ################
@@ -415,7 +415,7 @@ if __name__ == '__main__':
     prihdu = fits.PrimaryHDU(header=prihdr)
 
     thdulist = fits.HDUList([prihdu, tbhdu])
-    thdulist.writeto(outfil, clobber=True)
+    thdulist.writeto(outfil, overwrite=True)
 
     # Done
     #xdb.set_trace()

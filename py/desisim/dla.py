@@ -37,7 +37,7 @@ def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, debug=False, **kwa
     log = get_logger()
     # Init
     if rstate is None:
-        rstate = np.random.RandomState(seed)
+        rstate = np.random.RandomState(seed) # this is breaking the chain of randoms if seed is None
     if fNHI is None:
         fNHI = init_fNHI(**kwargs)
 

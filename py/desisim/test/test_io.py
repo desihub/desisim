@@ -54,8 +54,10 @@ class TestIO(unittest.TestCase):
         self.assertTrue(x.endswith(str(expid)))
         x = io.simdir(int(night), expid)
         self.assertTrue(x.endswith(str(expid)))
-        x = io.simdir(night, mkdir=True)
-        self.assertTrue(os.path.exists(x))
+
+        #- If providing night, must also provide expid
+        with self.assertRaises(ValueError):
+            x = io.simdir(night, mkdir=True)
 
     def test_findfile(self):
         night = '20150102'

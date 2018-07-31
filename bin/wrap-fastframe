@@ -54,7 +54,7 @@ else:
 
 #- Assemble full list of simspec files; group by flavor to help MPI balancing
 if rank == 0:
-    allfiles = sorted(glob.glob('{}/*/simspec*.fits'.format(desisim.io.simdir())))
+    allfiles = sorted(glob.glob('{}/*/*/simspec*.fits'.format(desisim.io.simdir())))
 
     #- Generate list of cameras
     cameras = list()
@@ -64,7 +64,7 @@ if rank == 0:
 
     simspecfiles = list()
     for filename in allfiles:
-        night = os.path.basename(os.path.split(filename)[0])
+        night = os.path.basename(os.path.dirname(os.path.dirname(filename)))
         if (args.start <= night) & (night < args.stop):
             flavor = fits.getval(filename, 'FLAVOR')
             expid = fits.getval(filename, 'EXPID')

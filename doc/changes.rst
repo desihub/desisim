@@ -2,7 +2,24 @@
 desisim change log
 ==================
 
-0.28.0 (unreleased)
+0.29.1 (unreleased)
+-------------------
+
+* No changes yet.
+
+0.29.0 (2018-07-26)
+-------------------
+
+* Option in quickspectra to write the full sim table (`PR #392`_).
+* Option to use Gaussian instead of Poisson for QSO DLA.
+  Requires specsim >= v0.12 (`PR #393`_).
+* Use `overwrite` instead of `clobber` for `astropy.io.fits` (`PR #395`_).
+
+.. _`PR #392`: https://github.com/desihub/desisim/pull/392
+.. _`PR #393`: https://github.com/desihub/desisim/pull/393
+.. _`PR #395`: https://github.com/desihub/desisim/pull/395
+
+0.28.0 (2018-07-18)
 -------------------
 
 * Add BALs to templates.QSO class (`PR #321`_).
@@ -20,6 +37,9 @@ desisim change log
 * Add rest-frame option to templates.SIMQSO (`PR #377`_).
 * Optionally change output wave vector in templates.SIMQSO when noresample=True
   or restframe=True (`PR #383`_).
+* Fix ``newexp-mock`` and ``wrap-fastframe`` file parsing for ``NIGHT/EXPID/*.*``
+  vs. ``NIGHT/*.*``.
+* Speed up emission line simulation when using ``MKL >= 2018.0.2`` (`PR #390`_).
 
 .. _`PR #321`: https://github.com/desihub/desisim/pull/321
 .. _`PR #349`: https://github.com/desihub/desisim/pull/349
@@ -35,6 +55,7 @@ desisim change log
 .. _`PR #370`: https://github.com/desihub/desisim/pull/370
 .. _`PR #377`: https://github.com/desihub/desisim/pull/377
 .. _`PR #383`: https://github.com/desihub/desisim/pull/383
+.. _`PR #390`: https://github.com/desihub/desisim/pull/390
 
 0.27.0 (2018-03-29)
 -------------------
@@ -173,7 +194,7 @@ Requires desitarget < 0.19.0
 * Add BGS, MWS to z_find QA
 * Miscellaneous polishing in QA (velocity, clip before RMS, extend [OII] flux, S/N per Ang)
 * Bug fix: correctly select both "bright" and "faint" BGS templates by default
-  (`PR #257`_).  
+  (`PR #257`_).
 * Updates for newexp/fastframe wrappers for end-to-end sims (`PR #258`_).
 
 .. _`PR #250`: https://github.com/desihub/desisim/pull/250
