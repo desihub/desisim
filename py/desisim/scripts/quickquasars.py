@@ -500,8 +500,9 @@ def main(args=None):
     # seeds for each healpix are themselves random numbers
     seeds = np.random.randint(2**32, size=len(args.infile))
     if args.balprob:
-       bal=BAL()
-
+        bal=BAL()
+    else:
+        bal=None
     if args.nproc > 1 :
         func_args = [ {"ifilename":filename , \
                        "args":args, "model":model , \
@@ -509,14 +510,10 @@ def main(args=None):
                        "decam_and_wise_filters": decam_and_wise_filters , \
                        "footprint_healpix_weight": footprint_healpix_weight , \
                        "footprint_healpix_nside": footprint_healpix_nside , \
-                       "seed":seeds[i]
+                       "seed":seeds[i], "bal":bal \
                    } for i,filename in enumerate(args.infile) ]
         pool = multiprocessing.Pool(args.nproc)
         pool.map(_func, func_args)
     else :
         for i,ifilename in enumerate(args.infile) :
-            if args.balprob:
-               simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed=seeds[i],bal=bal)
-            else:
-                 simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed=seeds[i])
-        
+            simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed=seeds[i],bal=bal)
