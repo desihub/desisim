@@ -257,17 +257,17 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         
         if trans_wave[0]>wanted_min_wave :
             log.info("Increase wavelength range from {}:{} to {}:{} to compute magnitudes".format(int(trans_wave[0]),int(trans_wave[-1]),int(wanted_min_wave),int(trans_wave[-1])))
-            # pad with zeros at short wavelength because we assume transmission = 0
-            # and we don't need any wavelength resolution here
+            # pad with ones at short wavelength, we assume F = 1 for z <~ 1.7
+            # we don't need any wavelength resolution here
             new_trans_wave = np.append([wanted_min_wave,trans_wave[0]-0.01],trans_wave)
-            new_transmission = np.zeros((transmission.shape[0],new_trans_wave.size))
+            new_transmission = np.ones((transmission.shape[0],new_trans_wave.size))
             new_transmission[:,2:] = transmission
             trans_wave   = new_trans_wave
             transmission = new_transmission
                     
         if trans_wave[-1]<wanted_max_wave :
             log.info("Increase wavelength range from {}:{} to {}:{} to compute magnitudes".format(int(trans_wave[0]),int(trans_wave[-1]),int(trans_wave[0]),int(wanted_max_wave)))
-            # pad with ones at long wavelength because we assume transmission = 1
+            # pad with ones at long wavelength because we assume F = 1
             coarse_dwave = 2. # we don't care about resolution, we just need a decent QSO spectrum, there is no IGM transmission in this range
             n = int((wanted_max_wave-trans_wave[-1])/coarse_dwave)+1
             new_trans_wave = np.append(trans_wave,np.linspace(trans_wave[-1]+coarse_dwave,trans_wave[-1]+coarse_dwave*(n+1),n))
