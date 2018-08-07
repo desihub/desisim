@@ -66,7 +66,7 @@ class TestQuickCat(unittest.TestCase):
         truth['TRUESPECTYPE'][ii] = 'GALAXY'
         ii = (targets['DESI_TARGET'] == desi_mask.QSO)
         truth['TRUESPECTYPE'][ii] = 'QSO'
-        starmask = desi_mask.mask('MWS_ANY|STD_FSTAR|STD_WD|STD_BRIGHT')
+        starmask = desi_mask.mask('MWS_ANY|STD|STD_WD|STD_BRIGHT')
         ii = (targets['DESI_TARGET'] & starmask) != 0
         truth['TRUESPECTYPE'][ii] = 'STAR'
 
