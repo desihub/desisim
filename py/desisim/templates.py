@@ -1407,19 +1407,19 @@ class STAR(SUPERSTAR):
                                                        restframe=restframe, verbose=verbose)
         return outflux, wave, meta
 
-class FSTD(SUPERSTAR):
+class STD(SUPERSTAR):
     """Generate Monte Carlo spectra of (metal-poor, main sequence turnoff) standard
-    stars (FSTD).
+    stars (STD).
 
     """
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
                  normfilter='decam2014-r', colorcuts_function=None,
                  baseflux=None, basewave=None, basemeta=None):
-        """Initialize the FSTD class.  See the SUPERSTAR.__init__ method for
+        """Initialize the STD class.  See the SUPERSTAR.__init__ method for
         documentation on the arguments plus the inherited attributes.
 
         Note:
-          We assume that the FSTD templates will always be normalized in the
+          We assume that the STD templates will always be normalized in the
           DECam r-band filter.
 
         Args:
@@ -1430,9 +1430,9 @@ class FSTD(SUPERSTAR):
 
         """
         if colorcuts_function is None:
-            from desitarget.cuts import isFSTD_colors as colorcuts_function
+            from desitarget.cuts import isSTD_colors as colorcuts_function
 
-        super(FSTD, self).__init__(objtype='FSTD', minwave=minwave, maxwave=maxwave,
+        super(STD, self).__init__(objtype='STD', minwave=minwave, maxwave=maxwave,
                                    cdelt=cdelt, wave=wave, colorcuts_function=colorcuts_function,
                                    normfilter=normfilter, baseflux=baseflux, basewave=basewave,
                                    basemeta=basemeta)
@@ -1440,11 +1440,11 @@ class FSTD(SUPERSTAR):
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), rmagrange=(16.0, 19.0),
                        seed=None, redshift=None, mag=None, input_meta=None, star_properties=None,
                        nocolorcuts=False, restframe=False, verbose=False):
-        """Build Monte Carlo spectra/templates for FSTD stars.
+        """Build Monte Carlo spectra/templates for STD stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
         arguments and inherited attributes.  Here we only document the arguments
-        which are specific to the FSTD class.
+        which are specific to the STD class.
 
         Args:
           rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
