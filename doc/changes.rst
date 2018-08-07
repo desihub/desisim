@@ -5,7 +5,9 @@ desisim change log
 0.29.1 (unreleased)
 -------------------
 
-* No changes yet.
+* Update templates to DR7+ standard-star designation (FSTD-->STD) (`PR #400`_).
+
+.. _`PR #400`: https://github.com/desihub/desisim/pull/400
 
 0.29.0 (2018-07-26)
 -------------------

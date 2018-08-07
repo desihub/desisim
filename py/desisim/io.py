@@ -831,7 +831,7 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
 
     Args:
 
-        objtype (str): object type to read (e.g., ELG, LRG, QSO, STAR, FSTD, WD,
+        objtype (str): object type to read (e.g., ELG, LRG, QSO, STAR, STD, WD,
           MWS_STAR, BGS).
         subtype (str, optional): template subtype, currently only for white
             dwarfs.  The choices are DA and DB and the default is to read both
@@ -866,7 +866,7 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
         log = get_logger()
 
     ltype = objtype.lower()
-    if objtype == 'FSTD':
+    if objtype == 'STD':
         ltype = 'star'
     if objtype == 'MWS_STAR':
         ltype = 'star'

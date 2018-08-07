@@ -326,7 +326,7 @@ def fibermeta2fibermap(fiberassign, meta):
 
     #- set OBJTYPE
     #- TODO: what about MWS science targets that are also standard stars?
-    stdmask = (desi_mask.STD_FSTAR | desi_mask.STD_WD | desi_mask.STD_BRIGHT)
+    stdmask = (desi_mask.STD | desi_mask.STD_WD | desi_mask.STD_BRIGHT)
     isSTD = (fiberassign['DESI_TARGET'] & stdmask) != 0
     isSKY = (fiberassign['DESI_TARGET'] & desi_mask.SKY) != 0
     isSCI = (~isSTD & ~isSKY)
@@ -653,7 +653,7 @@ def get_source_types(fibermap):
     source_type[(fibermap['DESI_TARGET'] & tm.LRG) != 0] = 'lrg'
     source_type[(fibermap['DESI_TARGET'] & tm.QSO) != 0] = 'qso'
     source_type[(fibermap['DESI_TARGET'] & tm.BGS_ANY) != 0] = 'bgs'
-    starmask = tm.STD_FSTAR | tm.STD_WD | tm.STD_BRIGHT | tm.MWS_ANY
+    starmask = tm.STD | tm.STD_WD | tm.STD_BRIGHT | tm.MWS_ANY
     source_type[(fibermap['DESI_TARGET'] & starmask) != 0] = 'star'
 
     #- Simulate unassigned fibers as sky

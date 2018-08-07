@@ -277,8 +277,8 @@ def main(args):
                 bgs = desisim.templates.BGS(wave=wavelengths, add_SNeIa=args.add_SNeIa)
                 flux, tmpwave, meta1 = bgs.make_templates(nmodel=nobj, seed=args.seed, zrange=args.zrange_bgs,rmagrange=args.rmagrange_bgs,sne_rfluxratiorange=args.sne_rfluxratiorange)
             elif thisobj =='STD':
-                fstd = desisim.templates.FSTD(wave=wavelengths)
-                flux, tmpwave, meta1 = fstd.make_templates(nmodel=nobj, seed=args.seed)
+                std = desisim.templates.STD(wave=wavelengths)
+                flux, tmpwave, meta1 = std.make_templates(nmodel=nobj, seed=args.seed)
             elif thisobj == 'QSO_BAD': # use STAR template no color cuts
                 star = desisim.templates.STAR(wave=wavelengths)
                 flux, tmpwave, meta1 = star.make_templates(nmodel=nobj, seed=args.seed)
