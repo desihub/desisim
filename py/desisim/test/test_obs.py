@@ -167,7 +167,7 @@ class TestObs(unittest.TestCase):
     def test_specter_objtype(self):
         self.assertEqual(obs.specter_objtype('MWS_STAR'), 'STAR')
         self.assertEqual(obs.specter_objtype(['MWS_STAR',])[0], 'STAR')
-        a = np.array(['STAR', 'MWS_STAR', 'QSO_BAD', 'FSTD', 'QSO', 'ELG'])
+        a = np.array(['STAR', 'MWS_STAR', 'QSO_BAD', 'STD', 'QSO', 'ELG'])
         b = np.array(['STAR', 'STAR', 'STAR', 'STAR', 'QSO', 'ELG'])
         self.assertTrue(np.all(obs.specter_objtype(a) == b))
 
