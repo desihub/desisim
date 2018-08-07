@@ -338,10 +338,10 @@ def get_targets(nspec, program, tileid=None, seed=None, specify_targets=dict(), 
             fibermap['DESI_TARGET'][ii] = desi_mask.QSO
 
         elif objtype == 'STD':
-            from desisim.templates import FSTD
-            fstd = FSTD(wave=wave)
-            simflux, wave1, meta1 = fstd.make_templates(nmodel=nobj, seed=seed, **obj_kwargs)
-            fibermap['DESI_TARGET'][ii] = desi_mask.STD_FSTAR
+            from desisim.templates import STD
+            std = STD(wave=wave)
+            simflux, wave1, meta1 = std.make_templates(nmodel=nobj, seed=seed, **obj_kwargs)
+            fibermap['DESI_TARGET'][ii] = desi_mask.STD
 
         elif objtype == 'MWS_STAR':
             from desisim.templates import MWS_STAR

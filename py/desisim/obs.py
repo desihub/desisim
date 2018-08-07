@@ -226,7 +226,7 @@ def specter_objtype(desitype):
     '''
     intype = np.atleast_1d(desitype)
     desi2specter = dict(
-        STAR='STAR', STD='STAR', STD_FSTAR='STAR', FSTD='STAR', MWS_STAR='STAR',
+        STAR='STAR', STD='STAR', STD='STAR', MWS_STAR='STAR',
         LRG='LRG', ELG='ELG', QSO='QSO', QSO_BAD='STAR',
         BGS='LRG', # !!!
         SKY='SKY'
