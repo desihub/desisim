@@ -222,14 +222,16 @@ class EMSpectrum(object):
         # Finally build the emission-line spectrum
         log10sigma = linesigma/LIGHT/np.log(10) # line-width [log-10 Angstrom]
         emspec = np.zeros(len(self.log10wave))
+
         for ii in range(len(line)):
             amp = line['flux'][ii] / line['wave'][ii] / np.log(10) # line-amplitude [erg/s/cm2/A]
             thislinewave = np.log10(line['wave'][ii] * (1.0+zshift))
             line['amp'][ii] = amp / (np.sqrt(2.0 * np.pi) * log10sigma)  # [erg/s/A]
 
             # Construct the spectrum [erg/s/cm2/A, rest]
-            emspec += amp * np.exp(-0.5 * (self.log10wave-thislinewave)**2 / log10sigma**2) \
-                      / (np.sqrt(2.0 * np.pi) * log10sigma)
+            jj = np.abs(self.log10wave-thislinewave) < 6*log10sigma
+            emspec[jj] += amp * np.exp(-0.5 * (self.log10wave[jj]-thislinewave)**2 / log10sigma**2) \
+                          / (np.sqrt(2.0 * np.pi) * log10sigma)
 
         return emspec, 10**self.log10wave, line
 

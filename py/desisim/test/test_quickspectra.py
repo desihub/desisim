@@ -55,10 +55,10 @@ class TestQuickSpectra(unittest.TestCase):
             self.assertTrue(np.allclose(sp1.wave[x], sp2.wave[x]))
             if invert:
                 self.assertFalse(np.allclose(sp1.flux[x], sp2.flux[x]))
-                self.assertFalse(np.allclose(sp1.ivar[x], sp2.ivar[x]))
             else:
                 self.assertTrue(np.allclose(sp1.flux[x], sp2.flux[x]))
                 self.assertTrue(np.allclose(sp1.ivar[x], sp2.ivar[x]))
+            
 
     def test_quickspectra(self):
         cmd = 'quickspectra -i {} -o {} --seed 1'.format(self.inspec_txt, self.outspec1)

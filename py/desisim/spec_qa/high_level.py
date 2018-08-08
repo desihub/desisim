@@ -84,7 +84,7 @@ def main():
     # Write
     summ_tab.meta = meta
     summ_tab.write(summ_file,format='ascii.ecsv',
-        formats=dict(MED_DZ='%8.6f',EFF='%5.3f',CAT_RATE='%6.4f'))#,clobber=True)
+        formats=dict(MED_DZ='%8.6f',EFF='%5.3f',CAT_RATE='%6.4f'))#,overwrite=True)
     '''
 
     # QA Figures

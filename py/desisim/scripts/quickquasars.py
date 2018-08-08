@@ -208,9 +208,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 ##ALMA:added to set transmission to 1 for z>zqso, this can be removed when transmission is corrected.        
     for ii in range(len(metadata)):       
         transmission[ii][trans_wave>1215.67*(metadata[ii]['Z']+1)]=1.0
-              
+
     if(args.dla=='file'):
-        log.info('Adding DLAs from transmision file')
+        log.info('Adding DLAs from transmission file')
         min_trans_wave=np.min(trans_wave/1215.67 - 1)
         for ii in range(len(metadata)):
             if min_trans_wave < metadata[ii]['Z']: 
@@ -231,18 +231,19 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     elif(args.dla=='random'):
         log.info('Adding DLAs randomly')
+        random_state_just_for_dlas = np.random.RandomState(seed)
         min_trans_wave=np.min(trans_wave/1215.67 - 1)
         for ii in range(len(metadata)):
             if min_trans_wave < metadata[ii]['Z']: 
-               idd=metadata['MOCKID'][ii]
-               dlass, dla_model = insert_dlas(trans_wave, metadata[ii]['Z'])
-               if len(dlass)>0:
-                  transmission[ii]=dla_model*transmission[ii]
-                  dla_z+=[idla['z'] for idla in dlass]
-                  dla_NHI+=[idla['N'] for idla in dlass]
-                  dla_id+=[idd]*len(dlass)    
+                idd=metadata['MOCKID'][ii]
+                dlass, dla_model = insert_dlas(trans_wave, metadata[ii]['Z'], rstate=random_state_just_for_dlas)
+                if len(dlass)>0:
+                    transmission[ii]=dla_model*transmission[ii]
+                    dla_z+=[idla['z'] for idla in dlass]
+                    dla_NHI+=[idla['N'] for idla in dlass]
+                    dla_id+=[idd]*len(dlass)
         log.info('Added {} DLAs'.format(len(dla_id)))
-
+        
     if args.dla is not None :
        dla_meta=Table()
        if len(dla_id)>0:    
@@ -297,7 +298,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     if (args.balprob):
        if(args.balprob<=1. and args.balprob >0):
           log.info("Adding BALs with probability {}".format(args.balprob))
+          rnd_state = np.random.get_state() # save current random state
           tmp_qso_flux,meta_bal=bal.insert_bals(tmp_qso_wave,tmp_qso_flux, metadata['Z'], balprob=args.balprob,seed=seed)
+          np.random.set_state(rnd_state) # restore random state to get the same random numbers later as when we don't insert BALs
        else:
           log.error("Probability to add BALs is not between 0 and 1")
           sys.exit(1)
@@ -378,8 +381,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         fibermap_columns={"MAG":mags}
     else :
         fibermap_columns=None
-    
-    sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,meta=meta,seed=seed,fibermap_columns=fibermap_columns)
+    sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,meta=meta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False) # use Poisson = False to get reproducible results.
     
     if args.zbest is not None :
         log.info("Read fibermap")

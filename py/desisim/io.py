@@ -226,7 +226,7 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, outdir=None, filename
         hx.append(obs_hdu)
 
     log.info('Writing {}'.format(filename))
-    hx.writeto(filename, clobber=overwrite)
+    hx.writeto(filename, overwrite=overwrite)
 
 def write_simspec_arc(filename, wave, phot, header, fibermap, overwrite=False):
     '''
@@ -263,7 +263,7 @@ def write_simspec_arc(filename, wave, phot, header, fibermap, overwrite=False):
     hx.append(fibermap_hdu)
 
     log.info('Writing {}'.format(filename))
-    hx.writeto(filename, clobber=overwrite)
+    hx.writeto(filename, overwrite=overwrite)
     return filename
 
 class SimSpecCamera(object):
@@ -992,21 +992,29 @@ def write_templates(outfile, flux, wave, meta):
     hx.append(hdu_meta)
 
     log.info('Writing {}'.format(outfile))
-    try:
-        hx.writeto(outfile, overwrite=True)
-    except:
-        hx.writeto(outfile, clobber=True)
+    hx.writeto(outfile, overwrite=True)
 
 #-------------------------------------------------------------------------
 #- Utility functions
 
-def simdir(night='', expid=0, mkdir=False):
+def simdir(night=None, expid=None, mkdir=False):
     """
     Return $DESI_SPECTRO_SIM/$PIXPROD/{night}
     If mkdir is True, create directory if needed
     """
-    dirname = os.path.join(os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'),
-         str(night), '{:08d}'.format(expid))
+
+    if (night is None) and (expid is None):
+        dirname = os.path.join(
+            os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD')
+            )
+    #- must provide night+expid, and catch old usage where mkdir was 2nd arg
+    elif (expid is None) or isinstance(expid, bool):
+        raise ValueError("Must provide int expid, not {}".format(expid))
+    else:
+        dirname = os.path.join(
+            os.getenv('DESI_SPECTRO_SIM'), os.getenv('PIXPROD'),
+            str(night), '{:08d}'.format(expid)
+            )
     if mkdir and not os.path.exists(dirname):
         os.makedirs(dirname)
 
