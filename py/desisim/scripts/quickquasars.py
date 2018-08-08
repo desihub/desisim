@@ -14,6 +14,7 @@ from desispec.io.util import write_bintable
 from desispec.io.fibermap import read_fibermap
 from desisim.simexp import reference_conditions
 from desisim.templates import SIMQSO
+from desisim.templates import QSO
 from desisim.scripts.quickspectra import sim_spectra
 from desisim.lya_spectra import read_lya_skewers , apply_lya_transmission, apply_metals_transmission
 from desisim.dla import dla_spec,insert_dlas
@@ -63,7 +64,8 @@ def parse(options=None):
     #- Optional arguments to include dla
 
     parser.add_argument('--dla',type=str,required=False, help="Add DLA to simulated spectra either randonmly (--dla random) or from transmision file (--dla file)")
-    parser.add_argument('--balprob',type=float,required=False, help="To add BAL features with the specified probability (e.g --balprob 0.5). Expect a number between 0 and 1 ")    
+    parser.add_argument('--balprob',type=float,required=False, help="To add BAL features with the specified probability (e.g --balprob 0.5). Expect a number between 0 and 1 ") 
+    parser.add_argument('--simqso',action = "store_true", help="Uses desisim.templates.SIMQSO to generate templates. desisim.templates.QSO is used otherwise.")
     if options is None:
         args = parser.parse_args()
     else:
@@ -71,7 +73,7 @@ def parse(options=None):
 
     return args
 
-def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed,bal=None) :    
+def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed,bal=None, simqso=False) :    
     log = get_logger()
 
     # set seed now
@@ -276,11 +278,16 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             trans_wave   = new_trans_wave
             transmission = new_transmission
             
-            
-    log.info("Simulate {} QSOs".format(nqso))
-    tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(
-        nmodel=nqso, redshift=metadata['Z'], 
-        lyaforest=False, nocolorcuts=True, noresample=True, seed = seed)
+    if simqso:
+        log.info("Simulate {} QSOs with SIMQSO templates".format(nqso))
+        tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(
+            nmodel=nqso, redshift=metadata['Z'], 
+            lyaforest=False, nocolorcuts=True, noresample=True, seed = seed)
+    else:
+        log.info("Simulate {} QSOs with QSO templates".format(nqso))
+        tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(
+            nmodel=nqso, redshift=metadata['Z'], 
+            lyaforest=False, nocolorcuts=True, seed = seed)
 
     
    
@@ -471,8 +478,12 @@ def main(args=None):
     if args.moonsep is not None:
         obsconditions['MOONSEP'] = args.moonsep
     
-    log.info("Load SIMQSO model")
-    model=SIMQSO(normfilter=args.norm_filter,nproc=1)
+    if args.simqso:
+        log.info("Load SIMQSO model")
+        model=SIMQSO(normfilter=args.norm_filter,nproc=1)
+    else:
+        log.info("Load QSO model")
+        model=QSO(normfilter=args.norm_filter)
     
     decam_and_wise_filters = None
     if args.target_selection or args.mags :
@@ -516,4 +527,4 @@ def main(args=None):
         pool.map(_func, func_args)
     else :
         for i,ifilename in enumerate(args.infile) :
-            simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed=seeds[i],bal=bal)
+            simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed=seeds[i],bal=bal,simqso=simqso)
