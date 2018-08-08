@@ -63,7 +63,7 @@ def parse(options=None):
     #- Optional arguments to include DLAs and BAls
 
     parser.add_argument('--dla',type=str,required=False, help="Add DLA to simulated spectra either randonmly (--dla random) or from transmision file (--dla file)")
-    parser.add_argument('--bal',type=str,required=False, help="Add BALs to simulated spectra in a random fashion (--bal random)")  #new line to randomly add BALs
+    parser.add_argument('--bal',type=str,required=False, help="Add BALs to simulated spectra with a probability balprob")  #new line to randomly add BALs
     parser.add_argument('--balprob',type=float,required=False, help="To add BAL features with the specified probability (e.g --balprob 0.5). Expect a number between 0 and 1 ")    
     if options is None:
         args = parser.parse_args()
