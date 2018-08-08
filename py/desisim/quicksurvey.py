@@ -36,28 +36,25 @@ class SimSetup(object):
         output_path (str): Path to write the outputs.x
         targets_path (str): Path where the files targets.fits can be found
         epochs_path (str): Path where the epoch files can be found.
-        fiberassign_exec (str): Name of the fiberassign executable
+        fiberassign (str): Name of the fiberassign script  
         template_fiberassign (str): Filename of the template input for fiberassign
         n_epochs (int): number of epochs to be simulated.
 
     """
-    def __init__(self, output_path, targets_path, fiberassign_exec, template_fiberassign,
-                 exposures, fiberassign_dates):
+    def __init__(self, output_path, targets_path, fiberassign, exposures, fiberassign_dates):
         """Initializes all the paths, filenames and numbers describing DESI survey.
 
         Args:
             output_path (str): Path to write the outputs.x
             targets_path (str): Path where the files targets.fits can be found
-            fiberassign_exec (str): Name of the fiberassign executable
+            fiberassign (str): Name of the fiberassign executable
             template_fiberassign (str): Filename of the template input for fiberassign
             exposures (stri): exposures.fits file summarazing surveysim results
             fiberassign_dates (str): ascii file with the dates to run fiberassign.
         """
         self.output_path = output_path
         self.targets_path = targets_path
-        self.fiberassign_exec = fiberassign_exec
-        self.template_fiberassign = template_fiberassign
-
+        self.fiberassign = fiberassign  
         self.exposures = fitsio.read(exposures, upper=True)
 
         self.tmp_output_path = os.path.join(self.output_path, 'tmp/')
@@ -182,18 +179,6 @@ class SimSetup(object):
         np.savetxt(surveyfile, tiles, fmt='%d')
         print("{} tiles to be included in fiberassign".format(len(tiles)))
 
-
-    def create_fiberassign_input(self):
-        """Creates input files for fiberassign from the provided template
-
-        Notes:
-            The template filename is in self.template_fiberassign
-        """
-        params = ''.join(open(self.template_fiberassign).readlines())
-        fx = open(os.path.join(self.tmp_output_path, 'fa_features.txt'), 'w')
-        fx.write(params.format(inputdir = self.tmp_output_path, targetdir = self.targets_path))
-        fx.close()
-
     def update_observed_tiles(self, epoch):
         """Creates the list of tilefiles to be gathered to buikd the redshift catalog.        
 
@@ -204,8 +189,8 @@ class SimSetup(object):
             tilename = os.path.join(self.tmp_fiber_path, 'tile_%05d.fits'%(i))
             if os.path.isfile(tilename):
                 self.tilefiles.append(tilename)
-            else:
-                print('Suggested but does not exist {}'.format(tilename))
+            #else:
+              #  print('Suggested but does not exist {}'.format(tilename))
         print("{} {} tiles to gather in zcat".format(asctime(), len(self.tilefiles)))
 
         
@@ -248,12 +233,16 @@ class SimSetup(object):
 
         # setup the tileids for the current observation epoch
         self.create_surveyfile(epoch)
-        self.create_fiberassign_input()
+
 
         # launch fiberassign
         print("{} Launching fiberassign".format(asctime()))
         f = open('fiberassign.log','a')
-        p = subprocess.call([self.fiberassign_exec, os.path.join(self.tmp_output_path, 'fa_features.txt')], stdout=f)# stdout=subprocess.PIPE)
+        
+        p = subprocess.call([self.fiberassign, '--mtl',  os.path.join(self.tmp_output_path, 'mtl.fits'),'--stdstar',  os.path.join(self.targets_path, 'standards-dark.fits'),  '--sky',  os.path.join(self.targets_path, 'sky.fits'), '--surveytiles',  os.path.join(self.tmp_output_path, 'survey_list.txt'),
+ '--outdir',os.path.join(self.tmp_output_path, 'fiberassign')  , '--fibstatusfile',  '/global/cscratch1/sd/sjbailey/desi/code/desitest/mini/fiberstatus.ecsv'], stdout=f)
+
+
         print("{} Finished fiberassign".format(asctime()))
         f.close()
 

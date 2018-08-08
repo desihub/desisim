@@ -81,7 +81,7 @@ class TestQuickCat(unittest.TestCase):
         fiberassign = truth['TARGETID',]
         fiberassign['RA'] = np.random.uniform(0,5, size=n)
         fiberassign['DEC'] = np.random.uniform(0,5, size=n)
-        fiberassign.meta['EXTNAME'] = 'FIBER_ASSIGNMENTS'
+        fiberassign.meta['EXTNAME'] = 'FIBERASSIGN'
         nx = cls.nspec // cls.ntiles
         cls.targets_in_tile = dict()
         for i, filename in enumerate(cls.tilefiles):
