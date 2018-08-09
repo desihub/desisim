@@ -326,8 +326,16 @@ def fibermeta2fibermap(fiberassign, meta):
 
     #- set OBJTYPE
     #- TODO: what about MWS science targets that are also standard stars?
-    stdmask = (desi_mask.STD | desi_mask.STD_WD | desi_mask.STD_BRIGHT)
+    #- Loop over STD options for backwards/forwards compatibility
+    stdmask = 0
+    for name in ['STD', 'STD_FSTAR', 'STD_WD'
+                 'STD_FAINT', 'STD_FAINT_BEST',
+                 'STD_BRIGHT', 'STD_BRIGHT_BEST']:
+        if name in desi_mask.names():
+            stdmask |= desi_mask[name]
+
     isSTD = (fiberassign['DESI_TARGET'] & stdmask) != 0
+
     isSKY = (fiberassign['DESI_TARGET'] & desi_mask.SKY) != 0
     isSCI = (~isSTD & ~isSKY)
     fibermap['OBJTYPE'][isSTD] = 'STD'
@@ -653,7 +661,14 @@ def get_source_types(fibermap):
     source_type[(fibermap['DESI_TARGET'] & tm.LRG) != 0] = 'lrg'
     source_type[(fibermap['DESI_TARGET'] & tm.QSO) != 0] = 'qso'
     source_type[(fibermap['DESI_TARGET'] & tm.BGS_ANY) != 0] = 'bgs'
-    starmask = tm.STD | tm.STD_WD | tm.STD_BRIGHT | tm.MWS_ANY
+
+    starmask = 0
+    for name in ['STD', 'STD_FSTAR', 'STD_WD', 'MWS_ANY',
+                 'STD_FAINT', 'STD_FAINT_BEST',
+                 'STD_BRIGHT', 'STD_BRIGHT_BEST']:
+        if name in desitarget.targetmask.desi_mask.names():
+            starmask |= desitarget.targetmask.desi_mask[name]
+
     source_type[(fibermap['DESI_TARGET'] & starmask) != 0] = 'star'
 
     #- Simulate unassigned fibers as sky
