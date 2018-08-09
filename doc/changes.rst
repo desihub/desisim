@@ -2,7 +2,12 @@
 desisim change log
 ==================
 
-0.30.0 (unreleased)
+0.30.1 (unreleased)
+-------------------
+
+* No changes yet.
+
+0.30.0 (2018-08-09)
 -------------------
 
 * Update templates to DR7+ standard-star designation (FSTD-->STD) (`PR #400`_).
