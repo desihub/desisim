@@ -280,6 +280,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     # whether to use QSO or SIMQSO to generate quasar templates
     if args.no_simqso:
         log.info("Simulate {} QSOs with QSO templates".format(nqso))
+        # note that QSO model does not have noresample option
         tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(
             nmodel=nqso, redshift=metadata['Z'], 
             lyaforest=False, nocolorcuts=True, seed = seed)
