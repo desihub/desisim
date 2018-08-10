@@ -59,6 +59,7 @@ def parse(options=None):
     parser.add_argument('--mags', action = "store_true" ,help="compute and write the QSO mags in the fibermap")
     parser.add_argument('--desi-footprint', action = "store_true" ,help="select QSOs in DESI footprint")
     parser.add_argument('--metals', type=str, default=None, required=False, help = "list of metal to get the transmission from, if 'all' runs on all metals", nargs='*')
+    parser.add_argument('--metals-from-file', action = 'store_true', help = "add metals from HDU in file")
 
     #- Optional arguments to include dla
 
@@ -150,7 +151,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
  ##ALMA: It reads only the skewers only if there are no DLAs or if they are added randomly. 
     if(not args.dla or args.dla=='random'):
-       trans_wave, transmission, metadata = read_lya_skewers(ifilename)
+       trans_wave, transmission, metadata, _ = read_lya_skewers(ifilename,read_dlas=False,add_metals=args.metals_from_file)
        ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
        transmission = transmission[ok]
        metadata = metadata[:][ok]
@@ -158,7 +159,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     elif(args.dla=='file'):
        log.info("Read DLA information in {}".format(ifilename))
-       trans_wave, transmission, metadata,dla_info= read_lya_skewers(ifilename,dla_='TRUE')  
+       trans_wave, transmission, metadata,dla_info= read_lya_skewers(ifilename,read_dlas=True,add_metals=args.metals_from_file)  
        ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
        transmission = transmission[ok]
        metadata = metadata[:][ok]
@@ -170,8 +171,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         dla_NHI, dla_z,dla_id = [],[], []
         dla_filename=os.path.join(pixdir,"dla-{}-{}.fits".format(nside,healpix))
    
-    
-    
     if args.desi_footprint :
         footprint_healpix = footprint.radec2pix(footprint_healpix_nside, metadata["RA"], metadata["DEC"])
         selection = np.where(footprint_healpix_weight[footprint_healpix]>0.99)[0]
@@ -310,6 +309,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     tmp_qso_flux = apply_lya_transmission(tmp_qso_wave,tmp_qso_flux,trans_wave,transmission)
 
     if args.metals is not None:
+        if args.metals_from_file:
+            print('you can not add metals twice')
+            raise ValueError('you can not add metals twice')
         lstMetals = ''
         for m in args.metals: lstMetals += m+', '
         log.info("Apply metals: {}".format(lstMetals[:-2]))

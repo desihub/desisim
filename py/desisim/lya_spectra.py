@@ -50,7 +50,7 @@ absorber_IGM = {
     'SiII(990)'   : { 'LRF':989.8731, 'COEF':1.e-3 },
 }
 
-def read_lya_skewers(lyafile,indices=None,dla_=False) :
+def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False) :
     '''
     Reads Lyman alpha transmission skewers (from CoLoRe, format v2.x.y)
 
@@ -59,6 +59,8 @@ def read_lya_skewers(lyafile,indices=None,dla_=False) :
 
     Options:
         indices: indices of input file to sub-select
+        read_dlas: try read DLA HDU from file
+        add_metals: try to read metals HDU and multiply transmission
 
     Returns (wave[nwave], transmission[nlya, nwave], metadata[nlya])
 
@@ -100,17 +102,26 @@ def read_lya_skewers(lyafile,indices=None,dla_=False) :
         trans = trans[indices]
         meta=meta[:][indices]
 
-    if (dla_):
+    if (add_metals):
+        if "METALS" in h :
+            metals = h["METALS"].read()
+            trans *= metals
+        else :
+            nom="No HDU with EXTNAME='METALS' in transmission file {}".format(lyafile)
+            log.error(nom)
+            raise KeyError(nom)
+       
+    if (read_dlas):
         if "DLA" in h:
-            dla_=h["DLA"].read()
+            dlas=h["DLA"].read()
         else:
             mess="No HDU with EXTNAME='DLA' in transmission file {}".format(lyafile)
             log.error(mess)
             raise KeyError(mess)
-        
-        return wave,trans,meta,dla_
-##ALMA
-    return wave,trans,meta
+    else: 
+        dlas=None
+
+    return wave,trans,meta,dlas
 
 def apply_lya_transmission(qso_wave,qso_flux,trans_wave,trans) :
     '''
