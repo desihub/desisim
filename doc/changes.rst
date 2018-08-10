@@ -2,12 +2,20 @@
 desisim change log
 ==================
 
-0.29.1 (unreleased)
+0.30.1 (unreleased)
+-------------------
+
+* No changes yet.
+
+0.30.0 (2018-08-09)
 -------------------
 
 * Update templates to DR7+ standard-star designation (FSTD-->STD) (`PR #400`_).
+* Update standard star bit name again STD -> STD_FAINT;
+  requires desitarget 0.23.0 (`PR #402`_).
 
 .. _`PR #400`: https://github.com/desihub/desisim/pull/400
+.. _`PR #402`: https://github.com/desihub/desisim/pull/402
 
 0.29.0 (2018-07-26)
 -------------------
