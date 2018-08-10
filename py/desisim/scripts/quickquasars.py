@@ -65,7 +65,7 @@ def parse(options=None):
 
     parser.add_argument('--dla',type=str,required=False, help="Add DLA to simulated spectra either randonmly (--dla random) or from transmision file (--dla file)")
     parser.add_argument('--balprob',type=float,required=False, help="To add BAL features with the specified probability (e.g --balprob 0.5). Expect a number between 0 and 1 ") 
-    parser.add_argument('--simqso',action = "store_true", help="Uses desisim.templates.SIMQSO to generate templates. desisim.templates.QSO is used otherwise.")
+    parser.add_argument('--no-simqso',action = "store_true", help="Does not use desisim.templates.SIMQSO to generate templates, and uses desisim.templates.QSO instead.")
     if options is None:
         args = parser.parse_args()
     else:
@@ -73,7 +73,7 @@ def parse(options=None):
 
     return args
 
-def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed,bal=None, simqso=False) :    
+def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed,bal=None) :
     log = get_logger()
 
     # set seed now
@@ -81,7 +81,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     # the spectra simulator REQUIRES a seed
     np.random.seed(seed)
     
-
     # read the header of the tranmission file to find the healpix pixel number, nside
     # and if we are lucky the scheme.
     # if this fails, try to guess it from the filename (for backward compatibility)
@@ -278,17 +277,17 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             trans_wave   = new_trans_wave
             transmission = new_transmission
             
-    if simqso:
-        log.info("Simulate {} QSOs with SIMQSO templates".format(nqso))
-        tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(
-            nmodel=nqso, redshift=metadata['Z'], 
-            lyaforest=False, nocolorcuts=True, noresample=True, seed = seed)
-    else:
+    # whether to use QSO or SIMQSO to generate quasar templates
+    if args.no_simqso:
         log.info("Simulate {} QSOs with QSO templates".format(nqso))
         tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(
             nmodel=nqso, redshift=metadata['Z'], 
             lyaforest=False, nocolorcuts=True, seed = seed)
-
+    else:
+        log.info("Simulate {} QSOs with SIMQSO templates".format(nqso))
+        tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(
+            nmodel=nqso, redshift=metadata['Z'], 
+            lyaforest=False, nocolorcuts=True, noresample=True, seed = seed)
     
    
     log.info("Resample to transmission wavelength grid")
@@ -478,12 +477,12 @@ def main(args=None):
     if args.moonsep is not None:
         obsconditions['MOONSEP'] = args.moonsep
     
-    if args.simqso:
-        log.info("Load SIMQSO model")
-        model=SIMQSO(normfilter=args.norm_filter,nproc=1)
-    else:
+    if args.no_simqso:
         log.info("Load QSO model")
         model=QSO(normfilter=args.norm_filter)
+    else:
+        log.info("Load SIMQSO model")
+        model=SIMQSO(normfilter=args.norm_filter,nproc=1)
     
     decam_and_wise_filters = None
     if args.target_selection or args.mags :
@@ -527,4 +526,4 @@ def main(args=None):
         pool.map(_func, func_args)
     else :
         for i,ifilename in enumerate(args.infile) :
-            simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed=seeds[i],bal=bal,simqso=simqso)
+            simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed=seeds[i],bal=bal)
