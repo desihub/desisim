@@ -1605,6 +1605,7 @@ class QSO():
     """Generate Monte Carlo spectra of quasars (QSOs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
+                 basewave_min=1200, basewave_max=2.5e4, basewave_R=8000,
                  normfilter='decam2014-r', colorcuts_function=None,
                  balqso=False, z_wind=0.2):
         """Read the QSO basis continuum templates, filter profiles and initialize the
@@ -1624,6 +1625,12 @@ class QSO():
             [default 2 Angstrom/pixel].
           wave (numpy.ndarray): Input/output observed-frame wavelength array,
             overriding the minwave, maxwave, and cdelt arguments [Angstrom].
+          basewave_min (float, optional): minimum output wavelength when
+            noresample=True (in QSO.make_templates) [default 1200 Angstrom].
+          basewave_max (float, optional): maximum output wavelength when
+            noresample=True (in QSO.make_templates) [default 25000 Angstrom].
+          basewave_R (float, optional): output wavelength resolution when
+            noresample=True (in QSO.make_templates) [default R=8000].
           normfilter (str): normalize each spectrum to the magnitude in this
             filter bandpass (default 'decam2014-r').
           colorcuts_function (function name): Function to use to select
@@ -1690,6 +1697,16 @@ class QSO():
         self.pca_list = ['PCA0', 'PCA1', 'PCA2', 'PCA3']
 
         self.z_wind = z_wind
+
+        def _fixed_R_dispersion(lam1, lam2, R):
+            """"""
+            loglam1 = np.log(lam1)
+            loglam2 = np.log(lam2)
+            dloglam = R**-1
+            loglam = np.arange(loglam1,loglam2+dloglam,dloglam)
+            return np.exp(loglam)
+
+        self.basewave = _fixed_R_dispersion(basewave_min, basewave_max, basewave_R)
 
         # Iniatilize the Lyman-alpha mock maker.
         self.lyamock_maker = lyamock.MockMaker()
