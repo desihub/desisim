@@ -43,7 +43,7 @@ def parse(options=None):
     parser.add_argument('--moonfrac', type=float, default=None, help="Moon illumination fraction; 1=full")
     parser.add_argument('--moonalt', type=float, default=None, help="Moon altitude [degrees]")
     parser.add_argument('--moonsep', type=float, default=None, help="Moon separation to tile [degrees]")
-    parser.add_argument('--seed', type=int, default=None, required = False, help="Random seed")
+    parser.add_argument('--seed', type=int, default=None, required = False, help="Random seed", nargs='*')
     parser.add_argument('--skyerr', type=float, default=0.0, help="Fractional sky subtraction error")
     parser.add_argument('--norm-filter', type=str, default="decam2014-g", help="Broadband filter for normalization")
     parser.add_argument('--nmax', type=int, default=None, help="Max number of QSO per input file, for debugging")
@@ -504,12 +504,15 @@ def main(args=None):
         pixmap=pyfits.open(footprint_filename)[0].data
         footprint_healpix_nside=256 # same resolution as original map so we don't loose anything
         footprint_healpix_weight = load_pixweight(footprint_healpix_nside, pixmap=pixmap)
-        
-    if args.seed is not None :
-        np.random.seed(args.seed)
-    
-    # seeds for each healpix are themselves random numbers
-    seeds = np.random.randint(2**32, size=len(args.infile))
+
+    if args.seed is not None:
+        seeds = args.seed
+    else:
+        seeds = np.unique(np.random.randint(2**32, size=10*len(args.infile)))[:len(args.infile)]
+    if len(seeds)!=len(args.infile):
+        log.error("I need the same number of seeds as the number of files: {} files versus {} seeds".format(len(args.infile),len(seeds)))
+        sys.exit(1)
+
     if args.balprob:
         bal=BAL()
     else:
