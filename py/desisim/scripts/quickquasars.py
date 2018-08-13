@@ -14,6 +14,7 @@ from desispec.io.util import write_bintable
 from desispec.io.fibermap import read_fibermap
 from desisim.simexp import reference_conditions
 from desisim.templates import SIMQSO
+from desisim.templates import QSO
 from desisim.scripts.quickspectra import sim_spectra
 from desisim.lya_spectra import read_lya_skewers , apply_lya_transmission, apply_metals_transmission
 from desisim.dla import dla_spec,insert_dlas
@@ -64,7 +65,8 @@ def parse(options=None):
     #- Optional arguments to include dla
 
     parser.add_argument('--dla',type=str,required=False, help="Add DLA to simulated spectra either randonmly (--dla random) or from transmision file (--dla file)")
-    parser.add_argument('--balprob',type=float,required=False, help="To add BAL features with the specified probability (e.g --balprob 0.5). Expect a number between 0 and 1 ")    
+    parser.add_argument('--balprob',type=float,required=False, help="To add BAL features with the specified probability (e.g --balprob 0.5). Expect a number between 0 and 1 ") 
+    parser.add_argument('--no-simqso',action = "store_true", help="Does not use desisim.templates.SIMQSO to generate templates, and uses desisim.templates.QSO instead.")
     if options is None:
         args = parser.parse_args()
     else:
@@ -72,7 +74,7 @@ def parse(options=None):
 
     return args
 
-def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed,bal=None) :    
+def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed,bal=None) :
     log = get_logger()
 
     # set random seed for this particular HEALPix
@@ -81,6 +83,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     # read the header of the tranmission file to find the healpix pixel number,
     # nside and the HEALPix scheme. If this fails, try to guess it from the 
     # filename (for backward compatibility)
+    
     healpix=-1
     nside=-1
     hpxnest=True
@@ -290,15 +293,22 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             new_transmission[:,:trans_wave.size] = transmission
             trans_wave   = new_trans_wave
             transmission = new_transmission
-            
-            
-    # generate quasar continua
-    log.info("Simulate {} QSOs".format(nqso))
-    tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(
-        nmodel=nqso, redshift=metadata['Z'], 
-        lyaforest=False, nocolorcuts=True, noresample=True, seed = seed)
-     
-    # we don't want to alter the transmission field with resampling here
+
+    # whether to use QSO or SIMQSO to generate quasar continua
+    if args.no_simqso:
+        log.info("Simulate {} QSOs with QSO templates".format(nqso))
+        # if we wanted to use noresample=True here, we would have to modify 
+        # downstream code since each quasar would have a different wave grid
+        tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(
+            nmodel=nqso, redshift=metadata['Z'], 
+            lyaforest=False, nocolorcuts=True, noresample=False, seed = seed)
+    else:
+        log.info("Simulate {} QSOs with SIMQSO templates".format(nqso))
+        # noresample=True to avoid innecessary interpolation
+        tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(
+            nmodel=nqso, redshift=metadata['Z'], 
+            lyaforest=False, nocolorcuts=True, noresample=True, seed = seed)
+    
     log.info("Resample to transmission wavelength grid")
     qso_flux=np.zeros((tmp_qso_flux.shape[0],trans_wave.size))
     for q in range(tmp_qso_flux.shape[0]) :
@@ -474,8 +484,12 @@ def main(args=None):
     if args.moonsep is not None:
         obsconditions['MOONSEP'] = args.moonsep
     
-    log.info("Load SIMQSO model")
-    model=SIMQSO(normfilter=args.norm_filter,nproc=1)
+    if args.no_simqso:
+        log.info("Load QSO model")
+        model=QSO(normfilter=args.norm_filter)
+    else:
+        log.info("Load SIMQSO model")
+        model=SIMQSO(normfilter=args.norm_filter,nproc=1)
     
     decam_and_wise_filters = None
     if args.target_selection or args.mags :

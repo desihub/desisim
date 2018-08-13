@@ -1605,6 +1605,7 @@ class QSO():
     """Generate Monte Carlo spectra of quasars (QSOs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
+                 basewave_min=1200, basewave_max=2.5e4, basewave_R=8000,
                  normfilter='decam2014-r', colorcuts_function=None,
                  balqso=False, z_wind=0.2):
         """Read the QSO basis continuum templates, filter profiles and initialize the
@@ -1624,6 +1625,12 @@ class QSO():
             [default 2 Angstrom/pixel].
           wave (numpy.ndarray): Input/output observed-frame wavelength array,
             overriding the minwave, maxwave, and cdelt arguments [Angstrom].
+          basewave_min (float, optional): minimum output wavelength when
+            noresample=True (in QSO.make_templates) [default 1200 Angstrom].
+          basewave_max (float, optional): maximum output wavelength when
+            noresample=True (in QSO.make_templates) [default 25000 Angstrom].
+          basewave_R (float, optional): output wavelength resolution when
+            noresample=True (in QSO.make_templates) [default R=8000].
           normfilter (str): normalize each spectrum to the magnitude in this
             filter bandpass (default 'decam2014-r').
           colorcuts_function (function name): Function to use to select
@@ -1691,6 +1698,16 @@ class QSO():
 
         self.z_wind = z_wind
 
+        def _fixed_R_dispersion(lam1, lam2, R):
+            """"""
+            loglam1 = np.log(lam1)
+            loglam2 = np.log(lam2)
+            dloglam = R**-1
+            loglam = np.arange(loglam1,loglam2+dloglam,dloglam)
+            return np.exp(loglam)
+
+        self.basewave = _fixed_R_dispersion(basewave_min, basewave_max, basewave_R)
+
         # Iniatilize the Lyman-alpha mock maker.
         self.lyamock_maker = lyamock.MockMaker()
 
@@ -1722,7 +1739,7 @@ class QSO():
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(20.0, 22.5),
                        seed=None, redshift=None, mag=None, input_meta=None, N_perz=40, 
                        maxiter=20, uniform=False, balprob=0.12, lyaforest=True,
-                       nocolorcuts=False, verbose=False):
+                       noresample=False, nocolorcuts=False, verbose=False):
         """Build Monte Carlo QSO spectra/templates.
 
         This function generates QSO spectra on-the-fly using PCA decomposition
@@ -1769,6 +1786,8 @@ class QSO():
             0.12).  Only used if QSO(balqso=True) at instantiation.
           lyaforest (bool, optional): Include Lyman-alpha forest absorption
             (default True).
+          noresample (bool, optional): Do not resample the QSO spectra in
+            wavelength (default False).
           nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
             cuts (default False).
           verbose (bool, optional): Be verbose!
@@ -1777,7 +1796,10 @@ class QSO():
 
           * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
             spectra (1e-17 erg/s/cm2/A).
-          * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
+          * wave (numpy.ndarray): Observed-frame wavelength array (Angstrom).
+              If noresample=True then this is an [nmodel, npix] array (a
+              different observed-frame array for each object), otherwise it's a
+              one-dimensional [npix]-length array.
           * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
 
         Raises:
@@ -1876,7 +1898,10 @@ class QSO():
         flux = np.zeros( (N_perz, npix) )
 
         zwave = np.outer(self.eigenwave, 1+redshift) # [observed-frame, Angstrom]
-        outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
+        if noresample:
+            outflux = np.zeros([nmodel, len(self.eigenwave)]) # [erg/s/cm2/A]
+        else:
+            outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
 
         for ii in range(nmodel):
             if ii % 100 == 0 and ii > 0:
@@ -1981,8 +2006,11 @@ class QSO():
                 # (suitably normalized) and metadata table and finish up.
                 if np.any(colormask * nonegflux):
                     this = templaterand.choice(np.where(colormask * nonegflux)[0]) # Pick one randomly.
-                    outflux[ii, :] = resample_flux(self.wave, zwave[:, ii], flux[this, :],
-                                                   extrapolate=True) * magnorm[this]
+                    if noresample:
+                        outflux[ii, :] = flux[this, :] * magnorm[this]
+                    else:
+                        outflux[ii, :] = resample_flux(self.wave, zwave[:, ii], flux[this, :],
+                                                       extrapolate=True) * magnorm[this]
 
                     meta['FLUX_G'][ii] = synthnano['decam2014-g'][this]
                     meta['FLUX_R'][ii] = synthnano['decam2014-r'][this]
@@ -2003,7 +2031,10 @@ class QSO():
             log.warning('{} spectra could not be computed given the input priors!'.\
                         format(np.sum(success == 0)))
 
-        return 1e17 * outflux, self.wave, meta
+        if noresample:
+            return 1e17 * outflux, zwave.T, meta
+        else:
+            return 1e17 * outflux, self.wave, meta
 
 class SIMQSO():
     """Generate Monte Carlo spectra of quasars (QSOs) using simqso."""
@@ -2058,11 +2089,8 @@ class SIMQSO():
             FilterSequence.
 
         """
-        from astropy.io import fits
         from astropy import cosmology
         from speclite import filters
-        from desisim.io import find_basis_template
-
         from desiutil.log import get_logger
         log = get_logger()
 
