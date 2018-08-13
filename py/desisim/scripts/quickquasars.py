@@ -59,7 +59,7 @@ def parse(options=None):
     parser.add_argument('--target-selection', action = "store_true" ,help="apply QSO target selection cuts to the simulated quasars")
     parser.add_argument('--mags', action = "store_true" ,help="compute and write the QSO mags in the fibermap")
     parser.add_argument('--desi-footprint', action = "store_true" ,help="select QSOs in DESI footprint")
-    parser.add_argument('--metals', type=str, default=None, required=False, help = "list of metal to get the transmission from, if 'all' runs on all metals", nargs='*')
+    parser.add_argument('--metals', type=str, default=None, required=False, help = "list of metals to get the transmission from, if 'all' runs on all metals", nargs='*')
     parser.add_argument('--metals-from-file', action = 'store_true', help = "add metals from HDU in file")
 
     #- Optional arguments to include dla
@@ -157,7 +157,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     log.info("Read skewers in {}, random seed = {}".format(ifilename,seed))
 
     # Read transmission from files. It might include DLA information, and it 
-    # might add metal transmission as well.
+    # might add metal transmission as well (from the HDU file).
     log.info("Read transmission file {}".format(ifilename))
     trans_wave, transmission, metadata, dla_info = read_lya_skewers(ifilename,read_dlas=(args.dla=='file'),add_metals=args.metals_from_file)
     ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
@@ -333,16 +333,16 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             sys.exit(1)
 
 
-    # multiply quasar continua by transmitted flux fraction
-    # (at this point transmission might include Ly-beta, metals and DLAs)
+    # Multiply quasar continua by transmitted flux fraction
+    # (at this point transmission file might include Ly-beta, metals and DLAs)
     log.info("Apply transmitted flux fraction")
     tmp_qso_flux = apply_lya_transmission(tmp_qso_wave,tmp_qso_flux,trans_wave,transmission)
 
-    # if requested, compute metal transmission on the fly (not from file)
+    # if requested, compute metal transmission on the fly (if not included in the HDU file)
     if args.metals is not None:
         if args.metals_from_file:
-            log.error('you can not add metals twice')
-            raise ValueError('you can not add metals twice')
+            log.error('you cannot add metals twice')
+            raise ValueError('you cannot add metals twice')
         lstMetals = ''
         for m in args.metals: lstMetals += m+', '
         log.info("Apply metals: {}".format(lstMetals[:-2]))
