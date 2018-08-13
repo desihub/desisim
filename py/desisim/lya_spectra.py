@@ -67,8 +67,6 @@ def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False) :
     Input file must have WAVELENGTH, TRANSMISSION, and METADATA HDUs
     '''
 
-
-    # this is the new format set up by Andreu
     log = get_logger()
 
     import fitsio
@@ -125,7 +123,9 @@ def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False) :
 
 def apply_lya_transmission(qso_wave,qso_flux,trans_wave,trans) :
     '''
-    Apply transmission to input flux, interpolating if needed
+    Apply transmission to input flux, interpolating if needed. Note that the 
+    transmission might include Lyman-beta and metal absorption, so we should 
+    probably change the name of this function.
 
     Args:
         qso_wave: 1D[nwave] array of QSO wavelengths
@@ -147,10 +147,14 @@ def apply_lya_transmission(qso_wave,qso_flux,trans_wave,trans) :
     for q in range(qso_flux.shape[0]) :
         output_flux[q, :] *= np.interp(qso_wave,trans_wave,trans[q, :],left=0,right=1)
     return output_flux
+
 def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals) :
     '''
     Apply metal transmission to input flux, interpolating if needed.
-    The input transmission should be only due to lya, if not has no meaning
+    The input transmission should be only due to lya, if not has no meaning.
+    This function should not be used in London mocks with version 2.0, since 
+    these have their own metal transmission already in the files, and even 
+    the "TRANSMISSION" HDU includes already Lyman beta.
 
     Args:
         qso_wave: 1D[nwave] array of QSO wavelengths
