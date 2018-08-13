@@ -338,10 +338,14 @@ def get_targets(nspec, program, tileid=None, seed=None, specify_targets=dict(), 
             fibermap['DESI_TARGET'][ii] = desi_mask.QSO
 
         elif objtype == 'STD':
-            from desisim.templates import FSTD
-            fstd = FSTD(wave=wave)
-            simflux, wave1, meta1 = fstd.make_templates(nmodel=nobj, seed=seed, **obj_kwargs)
-            fibermap['DESI_TARGET'][ii] = desi_mask.STD_FSTAR
+            from desisim.templates import STD
+            std = STD(wave=wave)
+            simflux, wave1, meta1 = std.make_templates(nmodel=nobj, seed=seed, **obj_kwargs)
+            #- Loop options for forwards/backwards compatibility
+            for name in ['STD_FAINT', 'STD_FSTAR', 'STD']:
+                if name in desi_mask.names():
+                    fibermap['DESI_TARGET'][ii] |= desi_mask[name]
+                    break
 
         elif objtype == 'MWS_STAR':
             from desisim.templates import MWS_STAR
@@ -350,7 +354,7 @@ def get_targets(nspec, program, tileid=None, seed=None, specify_targets=dict(), 
             if 'rmagrange' not in obj_kwargs.keys():
                 obj_kwargs['rmagrange'] = (15.0,20.0)
             simflux, wave1, meta1 = mwsstar.make_templates(nmodel=nobj, seed=seed, **obj_kwargs)
-            fibermap['DESI_TARGET'][ii] = desi_mask.MWS_ANY
+            fibermap['DESI_TARGET'][ii] |= desi_mask.MWS_ANY
             #- MWS bit names changed after desitarget 0.6.0 so use number
             #- instead of name for now (bit 0 = mask 1 = MWS_MAIN currently)
             fibermap['MWS_TARGET'][ii] = 1

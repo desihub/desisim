@@ -4,7 +4,7 @@ import os
 import unittest
 import numpy as np
 from astropy.table import Table, Column
-from desisim.templates import ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR, WD, SIMQSO
+from desisim.templates import ELG, LRG, QSO, BGS, STAR, STD, MWS_STAR, WD, SIMQSO
 from desisim import lya_mock_p1d as lyamock
 
 desimodel_data_available = 'DESIMODEL' in os.environ
@@ -31,7 +31,7 @@ class TestTemplates(unittest.TestCase):
     def test_simple(self):
         '''Confirm that creating templates works at all'''
         print('In function test_simple, seed = {}'.format(self.seed))
-        for T in [ELG, LRG, QSO, BGS, STAR, FSTD, MWS_STAR, WD, SIMQSO]:
+        for T in [ELG, LRG, QSO, BGS, STAR, STD, MWS_STAR, WD, SIMQSO]:
             template_factory = T(wave=self.wave)
             flux, wave, meta = template_factory.make_templates(self.nspec, seed=self.seed)
             self._check_output_size(flux, wave, meta)
