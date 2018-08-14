@@ -45,16 +45,6 @@ nfilespernode=$((nfiles/nodes+1))
 echo "n files =" $nfiles
 echo "n files per node =" $nfilespernode
 
-# Random seeds
-get_seeded_random()
-{
-    thisseed="$1";
-    openssl enc -aes-256-ctr -pass pass:"$thisseed" -nosalt \
-    </dev/zero 2>/dev/null;
-}
-randoms=($(shuf --random-source=<(get_seeded_random $seed) -i 0-999999999 -n $nfiles))
-
-
 first=1
 last=$nfilespernode
 for node in `seq $nodes` ; do
@@ -62,17 +52,14 @@ for node in `seq $nodes` ; do
 
     # list of files to run
     if (( $node == $nodes )) ; then
-        seeds=(${randoms[@]:$first-1})
         last=""
-    else
-        seeds=(${randoms[@]:$first-1:$nfilespernode})
     fi
 
     echo ${first}-${last}
     tfiles=`echo $files | cut -d " " -f ${first}-${last}`
     first=$(( first + nfilespernode ))
     last=$(( last + nfilespernode ))
-    command="srun -N 1 -n 1 -c $nthreads  quickquasars --exptime 4000. -i $tfiles --zmin 1.8 --nproc $nthreads --outdir $outdir/spectra-16 --downsampling $downsampling --zbest --mags --desi-footprint --seed ${seeds[*]} --metals all"
+    command="srun -N 1 -n 1 -c $nthreads  quickquasars --exptime 4000. -i $tfiles --zmin 1.8 --nproc $nthreads --outdir $outdir/spectra-16 --downsampling $downsampling --zbest --mags --desi-footprint --seed seed"
     echo $command
     echo "log in $outdir/logs/node-$node.log"
 
