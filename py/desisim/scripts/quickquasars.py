@@ -81,7 +81,7 @@ def get_pixel_seed(pixel, nside, global_seed):
         return np.random.randint(2**32, size=1)[0]
     npix=healpy.nside2npix(nside)
     np.random.seed(global_seed)
-    seeds = sp.unique(np.random.randint(2**32, size=10*npix))[:npix]
+    seeds = np.unique(np.random.randint(2**32, size=10*npix))[:npix]
     pixel_seed = seeds[pixel]
     return pixel_seed
 
