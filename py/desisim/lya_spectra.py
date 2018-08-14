@@ -62,7 +62,11 @@ def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False) :
         read_dlas: try read DLA HDU from file
         add_metals: try to read metals HDU and multiply transmission
 
-    Returns (wave[nwave], transmission[nlya, nwave], metadata[nlya])
+    Returns:
+        wave[nwave]
+        transmission[nlya, nwave]
+        metadata[nlya]
+        dlas[ndla] (if read_dlas=True, otherwise None)
 
     Input file must have WAVELENGTH, TRANSMISSION, and METADATA HDUs
     '''
@@ -152,7 +156,7 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals) :
     '''
     Apply metal transmission to input flux, interpolating if needed.
     The input transmission should be only due to lya, if not has no meaning.
-    This function should not be used in London mocks with version 2.0, since 
+    This function should not be used in London mocks with version > 2.0, since 
     these have their own metal transmission already in the files, and even 
     the "TRANSMISSION" HDU includes already Lyman beta.
 
