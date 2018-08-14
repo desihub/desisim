@@ -8,6 +8,7 @@ import numpy as np
 from astropy.table import Table,Column
 import astropy.io.fits as pyfits
 import multiprocessing
+import healpy
 
 from desiutil.log import get_logger
 from desispec.io.util import write_bintable
@@ -43,7 +44,7 @@ def parse(options=None):
     parser.add_argument('--moonfrac', type=float, default=None, help="Moon illumination fraction; 1=full")
     parser.add_argument('--moonalt', type=float, default=None, help="Moon altitude [degrees]")
     parser.add_argument('--moonsep', type=float, default=None, help="Moon separation to tile [degrees]")
-    parser.add_argument('--seed', type=int, default=None, required = False, help="Random seed")
+    parser.add_argument('--seed', type=int, default=None, required = False, help="Global random seed (will be used to generate a seed per each file")
     parser.add_argument('--skyerr', type=float, default=0.0, help="Fractional sky subtraction error")
     parser.add_argument('--norm-filter', type=str, default="decam2014-g", help="Broadband filter for normalization")
     parser.add_argument('--nmax', type=int, default=None, help="Max number of QSO per input file, for debugging")
@@ -73,14 +74,21 @@ def parse(options=None):
 
     return args
 
-def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed,bal=None) :
+
+def get_pixel_seed(pixel, nside, global_seed):
+    if global_seed is None:
+        # return a random seed
+        return np.random.randint(2**32, size=1)[0]
+    npix=healpy.nside2npix(nside)
+    np.random.seed(global_seed)
+    seeds = np.unique(np.random.randint(2**32, size=10*npix))[:npix]
+    pixel_seed = seeds[pixel]
+    return pixel_seed
+
+
+def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,bal=None) :
     log = get_logger()
 
-    # set seed now
-    # we need a seed per healpix because
-    # the spectra simulator REQUIRES a seed
-    np.random.seed(seed)
-    
     # read the header of the tranmission file to find the healpix pixel number, nside
     # and if we are lucky the scheme.
     # if this fails, try to guess it from the filename (for backward compatibility)
@@ -125,6 +133,13 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             raise ValueError("Cannot guess nside and healpix from filename {}".format(ifilename))
         log.warning("Guessed healpix and nside from filename, assuming the healpix scheme is 'NESTED'")
     
+
+    # using global seed (could be None) get seed for this particular pixel
+    global_seed = args.seed
+    seed = get_pixel_seed(healpix, nside, global_seed)
+    # use this seed to generate future random numbers
+    np.random.seed(seed)
+
 
     zbest_filename = None
     if args.outfile :
@@ -504,12 +519,7 @@ def main(args=None):
         pixmap=pyfits.open(footprint_filename)[0].data
         footprint_healpix_nside=256 # same resolution as original map so we don't loose anything
         footprint_healpix_weight = load_pixweight(footprint_healpix_nside, pixmap=pixmap)
-        
-    if args.seed is not None :
-        np.random.seed(args.seed)
-    
-    # seeds for each healpix are themselves random numbers
-    seeds = np.random.randint(2**32, size=len(args.infile))
+
     if args.balprob:
         bal=BAL()
     else:
@@ -521,10 +531,10 @@ def main(args=None):
                        "decam_and_wise_filters": decam_and_wise_filters , \
                        "footprint_healpix_weight": footprint_healpix_weight , \
                        "footprint_healpix_nside": footprint_healpix_nside , \
-                       "seed":seeds[i], "bal":bal \
+                       "bal":bal \
                    } for i,filename in enumerate(args.infile) ]
         pool = multiprocessing.Pool(args.nproc)
         pool.map(_func, func_args)
     else :
         for i,ifilename in enumerate(args.infile) :
-            simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,seed=seeds[i],bal=bal)
+            simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,bal=bal)
