@@ -59,7 +59,7 @@ for node in `seq $nodes` ; do
     tfiles=`echo $files | cut -d " " -f ${first}-${last}`
     first=$(( first + nfilespernode ))
     last=$(( last + nfilespernode ))
-    command="srun -N 1 -n 1 -c $nthreads  quickquasars --exptime 4000. -i $tfiles --zmin 1.8 --nproc $nthreads --outdir $outdir/spectra-16 --downsampling $downsampling --zbest --mags --desi-footprint --seed seed"
+    command="srun -N 1 -n 1 -c $nthreads  quickquasars --exptime 4000. -i $tfiles --zmin 1.8 --nproc $nthreads --outdir $outdir/spectra-16 --downsampling $downsampling --zbest --mags --desi-footprint --seed $seed"
     echo $command
     echo "log in $outdir/logs/node-$node.log"
 
