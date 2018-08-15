@@ -62,9 +62,6 @@ def parse(options=None):
     parser.add_argument('--desi-footprint', action = "store_true" ,help="select QSOs in DESI footprint")
     parser.add_argument('--metals', type=str, default=None, required=False, help = "list of metals to get the transmission from, if 'all' runs on all metals", nargs='*')
     parser.add_argument('--metals-from-file', action = 'store_true', help = "add metals from HDU in file")
-
-    #- Optional arguments to include dla
-
     parser.add_argument('--dla',type=str,required=False, help="Add DLA to simulated spectra either randonmly (--dla random) or from transmision file (--dla file)")
     parser.add_argument('--balprob',type=float,required=False, help="To add BAL features with the specified probability (e.g --balprob 0.5). Expect a number between 0 and 1 ") 
     parser.add_argument('--no-simqso',action = "store_true", help="Does not use desisim.templates.SIMQSO to generate templates, and uses desisim.templates.QSO instead.")
@@ -74,6 +71,87 @@ def parse(options=None):
         args = parser.parse_args(options)
 
     return args
+
+
+def get_spectra_filename(args,nside,pixel):
+    if args.outfile :
+        return args.outfile
+    filename="{}/{}/spectra-{}-{}.fits".format(pixel//100,pixel,nside,pixel)
+    print('filename ',filename)
+    return os.path.join(args.outdir,filename)
+
+
+def get_zbest_filename(args,pixdir,nside,pixel):
+    if args.zbest :
+        return os.path.join(pixdir,"zbest-{}-{}.fits".format(nside,pixel))
+    return None
+
+
+def get_healpix_info(ifilename):
+    """
+    Read the header of the tranmission file to find the healpix pixel, nside
+    and if we are lucky the scheme. If it fails, try to guess it from the 
+    filename (for backward compatibility).
+    Inputs:
+        ifilename: full path to input transmission file
+    Returns:
+        healpix: HEALPix pixel corresponding to the file
+        nside: HEALPix nside value
+        hpxnest: Whether HEALPix scheme in the file was nested
+    """
+
+    log = get_logger()
+    
+    print('ifilename',ifilename)
+
+    healpix=-1
+    nside=-1
+    hpxnest=True
+
+    hdulist=pyfits.open(ifilename)
+    if "METADATA" in hdulist :
+        head=hdulist["METADATA"].header
+        for k in ["HPXPIXEL","PIXNUM"] :
+            if k in head :
+                healpix=int(head[k])
+                log.info("healpix={}={}".format(k,healpix))
+                break
+        for k in ["HPXNSIDE","NSIDE"] :
+            if k in head :
+                nside=int(head[k])
+                log.info("nside={}={}".format(k,nside))
+                break
+        for k in ["HPXNEST","NESTED","SCHEME"] :
+            if k in head :
+                if k == "SCHEME" :
+                    hpxnest=(head[k]=="NEST")
+                else :
+                    hpxnest=bool(head[k])
+                log.info("hpxnest from {} = {}".format(k,hpxnest))
+                break
+
+    if healpix >= 0 and nside < 0 :
+        log.error("Read healpix in header but not nside.")
+        raise ValueError("Read healpix in header but not nside.")
+
+    if healpix < 0 :
+        vals = os.path.basename(ifilename).split(".")[0].split("-")
+        if len(vals)<3 :
+            error_msg="Could not guess healpix info from {}".format(ifilename)
+            log.error(error_msg)
+            raise ValueError(error_msg)
+        try :
+            healpix=int(vals[-1])
+            nside=int(vals[-2])
+        except ValueError:
+            error_msg="Could not guess healpix info from {}".format(ifilename)
+            log.error(error_msg)
+            raise ValueError(error_msg)
+        log.warning("Guessed healpix and nside from filename, assuming the healpix scheme is 'NESTED'")
+
+    print('found',healpix,nside,hpxnest)
+
+    return healpix, nside, hpxnest
 
 
 def get_pixel_seed(pixel, nside, global_seed):
@@ -90,68 +168,22 @@ def get_pixel_seed(pixel, nside, global_seed):
 def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,bal=None) :
     log = get_logger()
 
-    # read the header of the tranmission file to find the healpix pixel 
-    # number, nside and if we are lucky the scheme. If this fails, try to 
-    # guess it from the filename (for backward compatibility)
-
-    healpix=-1
-    nside=-1
-    hpxnest=True
-    
-    hdulist=pyfits.open(ifilename)
-    if "METADATA" in hdulist :
-        head=hdulist["METADATA"].header
-        for k in ["HPXPIXEL","PIXNUM"] :
-            if k in head :
-                healpix=int(head[k])
-                log.info("healpix={}={}".format(k,healpix))
-                break
-        for k in ["HPXNSIDE","NSIDE"] :
-            if k in head :
-                nside=int(head[k])
-                log.info("nside={}={}".format(k,nside))
-                break
-        for k in ["HPXNEST","NESTED","SCHEME"] :
-            if k in head :
-                if k == "SCHEME" : 
-                    hpxnest=(head[k]=="NEST")
-                else :
-                    hpxnest=bool(head[k])
-                log.info("hpxnest from {} = {}".format(k,hpxnest))
-                break
-    if healpix >= 0 and nside < 0 :
-        log.error("Read healpix in header but not nside.")
-        raise ValueError("Read healpix in header but not nside.")
-    
-    if healpix < 0 : 
-        vals = os.path.basename(ifilename).split(".")[0].split("-")
-        if len(vals)<3 :
-            log.error("Cannot guess nside and healpix from filename {}".format(ifilename))
-            raise ValueError("Cannot guess nside and healpix from filename {}".format(ifilename))
-        try :
-            healpix=int(vals[-1])
-            nside=int(vals[-2])
-        except ValueError:
-            raise ValueError("Cannot guess nside and healpix from filename {}".format(ifilename))
-        log.warning("Guessed healpix and nside from filename, assuming the healpix scheme is 'NESTED'")
-    
+    # open filename and extract basic HEALPix information
+    pixel, nside, hpxnest = get_healpix_info(ifilename)
 
     # using global seed (could be None) get seed for this particular pixel
     global_seed = args.seed
-    seed = get_pixel_seed(healpix, nside, global_seed)
+    seed = get_pixel_seed(pixel, nside, global_seed)
     # use this seed to generate future random numbers
     np.random.seed(seed)
 
-    zbest_filename = None
-    if args.outfile :
-        ofilename = args.outfile
-    else :
-        ofilename = os.path.join(args.outdir,"{}/{}/spectra-{}-{}.fits".format(healpix//100,healpix,nside,healpix))
+    # get output file (we will write there spectra for this HEALPix pixel)
+    ofilename = get_spectra_filename(args,nside,pixel)
+    # get directory name (we will also write there zbest file)
     pixdir = os.path.dirname(ofilename)
+    # get filename for zbest file
+    zbest_filename = get_zbest_filename(args,pixdir,nside,pixel)
     
-    if args.zbest :
-        zbest_filename = os.path.join(pixdir,"zbest-{}-{}.fits".format(nside,healpix))
- 
     if not args.overwrite :
         # check whether output exists or not
         if args.zbest :
@@ -164,7 +196,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                 return
 
     # create sub-directories if required 
-    pixdir = os.path.dirname(ofilename)
     if len(pixdir)>0 :
         if not os.path.isdir(pixdir) :
             log.info("Creating dir {}".format(pixdir))
@@ -203,7 +234,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         metadata = metadata[:][indices]
         nqso = transmission.shape[0] 
 
-
     if args.nmax is not None :
         if args.nmax < nqso :
             log.info("Limit number of QSOs from {} to nmax={} (random subsample)".format(nqso,args.nmax))
@@ -219,7 +249,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     #for ii in range(len(metadata)):       
     #    transmission[ii][trans_wave>1215.67*(metadata[ii]['Z']+1)]=1.0
 
-
     # if requested, add DLA to the transmission skewers
     if args.dla is not None :
 
@@ -234,7 +263,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             sys.exit(1)
 
         # if adding DLAs, the information will be printed here
-        dla_filename=os.path.join(pixdir,"dla-{}-{}.fits".format(nside,healpix))
+        dla_filename=os.path.join(pixdir,"dla-{}-{}.fits".format(nside,pixel))
         dla_NHI, dla_z, dla_id = [], [], []
 
         # identify minimum Lya redshift in transmission files
@@ -332,7 +361,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     tmp_qso_flux = qso_flux
     tmp_qso_wave = trans_wave
 
-
     # if requested, add BAL features to the quasar continua
     if args.balprob:
         if args.balprob<=1. and args.balprob >0:
@@ -348,7 +376,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             log.error("BAL probability is not between 0 and 1 : "+balstr)
             sys.exit(1)
 
-
     # Multiply quasar continua by transmitted flux fraction
     # (at this point transmission file might include Ly-beta, metals and DLAs)
     log.info("Apply transmitted flux fraction")
@@ -363,7 +390,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         for m in args.metals: lstMetals += m+', '
         log.info("Apply metals: {}".format(lstMetals[:-2]))
         tmp_qso_flux = apply_metals_transmission(tmp_qso_wave,tmp_qso_flux,trans_wave,transmission,args.metals)
-
 
     # if requested, compute magnitudes and apply target selection
     bbflux=None
@@ -412,7 +438,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         log.warning("No TARGETID")
         targetid=None
     
-    meta={"HPXNSIDE":nside,"HPXPIXEL":healpix, "HPXNEST":hpxnest}
+    meta={"HPXNSIDE":nside,"HPXPIXEL":pixel, "HPXNEST":hpxnest}
      
     if args.target_selection or args.mags :
         # today we write mags because that's what is in the fibermap
@@ -457,7 +483,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         hdulist =pyfits.HDUList([pyfits.PrimaryHDU(),hzbest,hfmap])
         hdulist.writeto(zbest_filename, overwrite=True)
         hdulist.close() # see if this helps with memory issue
-  
 
 
 def _func(arg) :
