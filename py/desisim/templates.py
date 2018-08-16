@@ -11,7 +11,7 @@ import os
 import sys
 import numpy as np
 import multiprocessing
-
+from desiutil.log import get_logger
 from desisim.io import empty_metatable
 
 LIGHT = 2.99792458E5  #- speed of light in km/s
@@ -59,6 +59,9 @@ class EMSpectrum(object):
         from astropy.table import Table, Column, vstack
         from desiutil.sklearn import GaussianMixtureModel
 
+        log = get_logger()
+        
+        
         # Build a wavelength array if one is not given.
         if log10wave is None:
             cdelt = cdelt_kms/LIGHT/np.log(10) # pixel size [log-10 A]
