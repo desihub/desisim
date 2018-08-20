@@ -179,8 +179,8 @@ def find_zbest_files(fibermap_data):
     # Init
     zbest_files = []
     # Search for zbest files with healpy
-    ra_targ = fibermap_data['RA_TARGET'].data
-    dec_targ = fibermap_data['DEC_TARGET'].data
+    ra_targ = fibermap_data['TARGET_RA'].data
+    dec_targ = fibermap_data['TARGET_DEC'].data
     # Getting some NAN in RA/DEC
     good = np.isfinite(ra_targ) & np.isfinite(dec_targ)
     pixels = radec2pix(64, ra_targ[good], dec_targ[good])

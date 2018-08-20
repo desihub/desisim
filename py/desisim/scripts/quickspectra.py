@@ -111,11 +111,11 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
             spectra_fibermap[s][tp] = frame_fibermap[s][tp]
  
     if ra is not None :
-        spectra_fibermap["RA_TARGET"] = ra
-        spectra_fibermap["RA_OBS"]    = ra
+        spectra_fibermap["TARGET_RA"] = ra
+        spectra_fibermap["FIBER_RA"]    = ra
     if dec is not None :
-        spectra_fibermap["DEC_TARGET"] = dec
-        spectra_fibermap["DEC_OBS"]    = dec
+        spectra_fibermap["TARGET_DEC"] = dec
+        spectra_fibermap["FIBER_DEC"]    = dec
             
     if obsconditions is None:
         if program in ['dark', 'lrg', 'qso']:
