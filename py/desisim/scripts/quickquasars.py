@@ -65,6 +65,8 @@ def parse(options=None):
     parser.add_argument('--dla',type=str,required=False, help="Add DLA to simulated spectra either randonmly (--dla random) or from transmision file (--dla file)")
     parser.add_argument('--balprob',type=float,required=False, help="To add BAL features with the specified probability (e.g --balprob 0.5). Expect a number between 0 and 1 ") 
     parser.add_argument('--no-simqso',action = "store_true", help="Does not use desisim.templates.SIMQSO to generate templates, and uses desisim.templates.QSO instead.")
+    parser.add_argument('--no-transmission',action = 'store_true', help='Do not multiply continuum by transmission, use F=1 everywhere')
+
     if options is None:
         args = parser.parse_args()
     else:
@@ -379,17 +381,24 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     # Multiply quasar continua by transmitted flux fraction
     # (at this point transmission file might include Ly-beta, metals and DLAs)
     log.info("Apply transmitted flux fraction")
-    tmp_qso_flux = apply_lya_transmission(tmp_qso_wave,tmp_qso_flux,trans_wave,transmission)
+    if not args.no_transmission:
+        tmp_qso_flux = apply_lya_transmission(tmp_qso_wave,tmp_qso_flux,
+                            trans_wave,transmission)
 
-    # if requested, compute metal transmission on the fly (if not included in the HDU file)
+    # if requested, compute metal transmission on the fly 
+    # (if not included already from the transmission file)
     if args.metals is not None:
         if args.metals_from_file:
             log.error('you cannot add metals twice')
             raise ValueError('you cannot add metals twice')
+        if args.no_transmission:
+            log.error('you cannot add metals if asking for no-transmission')
+            raise ValueError('can not add metals if using no-transmission')
         lstMetals = ''
         for m in args.metals: lstMetals += m+', '
         log.info("Apply metals: {}".format(lstMetals[:-2]))
-        tmp_qso_flux = apply_metals_transmission(tmp_qso_wave,tmp_qso_flux,trans_wave,transmission,args.metals)
+        tmp_qso_flux = apply_metals_transmission(tmp_qso_wave,tmp_qso_flux,
+                            trans_wave,transmission,args.metals)
 
     # if requested, compute magnitudes and apply target selection
     bbflux=None
