@@ -17,7 +17,7 @@ import yaml
 from astropy.table import Table, Column, hstack
 
 from desimodel.focalplane import FocalPlane
-from desisim.io import empty_metatable, empty_star_properties
+from desisim.io import empty_metatable
 import desimodel.io
 from desiutil.log import get_logger
 log = get_logger()

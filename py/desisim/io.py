@@ -1165,18 +1165,3 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype='', add_SNeIa=None, old_sty
             return meta, metaobj
         else:
             return meta, metaobj, metasne
-
-def empty_star_properties(nstar=1):
-    """Initialize a "star_properties" table for desisim.templates."""
-    from astropy.table import Table, Column
-
-    star_properties = Table()
-    star_properties.add_column(Column(name='REDSHIFT', length=nstar, dtype='f4'))
-    star_properties.add_column(Column(name='MAG', length=nstar, dtype='f4'))
-    star_properties.add_column(Column(name='TEFF', length=nstar, dtype='f4'))
-    star_properties.add_column(Column(name='LOGG', length=nstar, dtype='f4'))
-    star_properties.add_column(Column(name='FEH', length=nstar, dtype='f4'))
-    star_properties.add_column(Column(name='SEED', length=nstar, dtype='int64',
-                                      data=np.zeros(nstar)-1))
-
-    return star_properties
