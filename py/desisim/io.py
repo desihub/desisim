@@ -959,41 +959,6 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
 
     return outflux, outwave, meta
 
-def write_templates(outfile, flux, wave, meta):
-    """Write out simulated galaxy templates.
-
-    Args:
-        outfile (str): Output file name.
-        flux (numpy.ndarray): Flux vector (1e-17 erg/s/cm2/A)
-        wave (numpy.ndarray): Wavelength vector (Angstrom).
-        meta (astropy.table.Table): metadata table.
-
-    """
-    from astropy.io import fits
-    from desispec.io.util import makepath
-
-    # Create the path to OUTFILE if necessary.
-    outfile = makepath(outfile)
-
-    hx = fits.HDUList()
-    hdu_wave = fits.PrimaryHDU(wave)
-    hdu_wave.header['EXTNAME'] = 'WAVE'
-    hdu_wave.header['BUNIT'] = 'Angstrom'
-    hdu_wave.header['AIRORVAC']  = ('vac', 'Vacuum wavelengths')
-    hx.append(hdu_wave)
-
-    hdu_flux = fits.ImageHDU(flux)
-    hdu_flux.header['EXTNAME'] = 'FLUX'
-    hdu_flux.header['BUNIT'] = str(fluxunits)
-    hx.append(hdu_flux)
-
-    hdu_meta = fits.table_to_hdu(meta)
-    hdu_meta.header['EXTNAME'] = 'METADATA'
-    hx.append(hdu_meta)
-
-    log.info('Writing {}'.format(outfile))
-    hx.writeto(outfile, overwrite=True)
-
 #-------------------------------------------------------------------------
 #- Utility functions
 
