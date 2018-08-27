@@ -543,7 +543,11 @@ class GALAXY(object):
 
             meta = empty_metatable(nmodel=nmodel, objtype=self.objtype, add_SNeIa=self.add_SNeIa)
         else:
-            meta = empty_metatable(nmodel=nmodel, objtype=self.objtype, add_SNeIa=self.add_SNeIa)
+            if self.add_SNeIa:
+                meta, metaobj, metasne = empty_metatable(nmodel=nmodel, objtype=self.objtype,
+                                                         add_SNeIa=True)
+            else:
+                meta, metaobj = empty_metatable(nmodel=nmodel, objtype=self.objtype)
 
             # Initialize the random seed.
             rand = np.random.RandomState(seed)
@@ -580,9 +584,9 @@ class GALAXY(object):
             if self.add_SNeIa:
                 sne_rfluxratio = rand.uniform(sne_rfluxratiorange[0], sne_rfluxratiorange[1], nmodel)
                 sne_tempid = rand.randint(0, len(self.sne_basemeta)-1, nmodel)
-                meta['SNE_TEMPLATEID'] = sne_tempid
-                meta['SNE_EPOCH'] = self.sne_basemeta['EPOCH'][sne_tempid]
-                meta['SNE_RFLUXRATIO'] = sne_rfluxratio
+                metasne['SNE_TEMPLATEID'] = sne_tempid
+                metasne['SNE_EPOCH'] = self.sne_basemeta['EPOCH'][sne_tempid]
+                metasne['SNE_RFLUXRATIO'] = sne_rfluxratio
 
         if redshift is not None:
             if len(redshift) != nmodel:
@@ -607,9 +611,10 @@ class GALAXY(object):
             blurmatrix = self._blurmatrix(vdisp, log=log)
 
         # Populate some of the metadata table.
-        for key, value in zip(('REDSHIFT', 'MAG', 'VDISP', 'SEED'),
-                               (redshift, mag, vdisp, templateseed)):
-            meta[key] = value
+        metaobj['VDISP'][:] = vdisp
+        for key, value in zip(('REDSHIFT', 'MAG', 'MAGFILTER', 'SEED'),
+                               (redshift, mag, self.normfilter, templateseed)):
+            meta[key][:] = value
 
         # Optionally initialize the emission-line objects and line-ratios.
         d4000 = self.basemeta['D4000']
@@ -645,7 +650,7 @@ class GALAXY(object):
 
                 for key, value in zip(('OIIIHBETA', 'OIIHBETA', 'NIIHBETA', 'SIIHBETA', 'OIIDOUBLET'),
                                       (oiiihbeta, oiihbeta, niihbeta, siihbeta, oiidoublet)):
-                    meta[key][ii] = value
+                    metaobj[key][ii] = value
 
                 if self.normline.upper() == 'OII':
                     ewoii = 10.0**(np.polyval(self.ewoiicoeff, d4000) + # rest-frame EW([OII]), Angstrom
@@ -756,20 +761,21 @@ class GALAXY(object):
                         outflux[ii, :] = resample_flux(self.wave, zwave, blurflux, extrapolate=True)
 
                     meta['TEMPLATEID'][ii] = tempid
-                    meta['D4000'][ii] = d4000[tempid]
                     meta['FLUX_G'][ii] = synthnano['decam2014-g'][this]
                     meta['FLUX_R'][ii] = synthnano['decam2014-r'][this]
                     meta['FLUX_Z'][ii] = synthnano['decam2014-z'][this]
                     meta['FLUX_W1'][ii] = synthnano['wise2010-W1'][this]
                     meta['FLUX_W2'][ii] = synthnano['wise2010-W2'][this]
 
+                    metaobj['D4000'][ii] = d4000[tempid]
+
                     if self.normline is not None:
                         if self.normline == 'OII':
-                            meta['OIIFLUX'][ii] = zlineflux[this]
-                            meta['EWOII'][ii] = ewoii[tempid]
+                            metaobj['OIIFLUX'][ii] = zlineflux[this]
+                            metaobj['EWOII'][ii] = ewoii[tempid]
                         elif self.normline == 'HBETA':
-                            meta['HBETAFLUX'][ii] = zlineflux[this]
-                            meta['EWHBETA'][ii] = ewhbeta[tempid]
+                            metaobj['HBETAFLUX'][ii] = zlineflux[this]
+                            metaobj['EWHBETA'][ii] = ewhbeta[tempid]
 
                     break
 
@@ -780,9 +786,15 @@ class GALAXY(object):
                         format(np.sum(success == 0)))
 
         if restframe:
-            return 1e17 * outflux, self.basewave, meta
+            if self.add_SNeIa:
+                return 1e17 * outflux, self.basewave, meta, metaobj, metasne
+            else:
+                return 1e17 * outflux, self.basewave, meta, metaobj
         else:
-            return 1e17 * outflux, self.wave, meta
+            if self.add_SNeIa:
+                return 1e17 * outflux, self.wave, meta, metaobj, metasne
+            else:
+                return 1e17 * outflux, self.wave, meta, metaobj
 
 class ELG(GALAXY):
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs)."""
@@ -853,15 +865,15 @@ class ELG(GALAXY):
 
         """
 
-        outflux, wave, meta = self.make_galaxy_templates(nmodel=nmodel, zrange=zrange, magrange=rmagrange,
-                                                         oiiihbrange=oiiihbrange, logvdisp_meansig=logvdisp_meansig,
-                                                         minlineflux=minoiiflux, redshift=redshift, vdisp=vdisp,
-                                                         mag=mag, sne_rfluxratiorange=sne_rfluxratiorange,
-                                                         seed=seed, input_meta=input_meta, nocolorcuts=nocolorcuts,
-                                                         nocontinuum=nocontinuum, agnlike=agnlike, novdisp=novdisp,
-                                                         restframe=restframe, verbose=verbose)
+        result = self.make_galaxy_templates(nmodel=nmodel, zrange=zrange, magrange=rmagrange,
+                                            oiiihbrange=oiiihbrange, logvdisp_meansig=logvdisp_meansig,
+                                            minlineflux=minoiiflux, redshift=redshift, vdisp=vdisp,
+                                            mag=mag, sne_rfluxratiorange=sne_rfluxratiorange,
+                                            seed=seed, input_meta=input_meta, nocolorcuts=nocolorcuts,
+                                            nocontinuum=nocontinuum, agnlike=agnlike, novdisp=novdisp,
+                                            restframe=restframe, verbose=verbose)
 
-        return outflux, wave, meta
+        return result
 
 class BGS(GALAXY):
     """Generate Monte Carlo spectra of bright galaxy survey galaxies (BGSs)."""
