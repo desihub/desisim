@@ -1025,8 +1025,11 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype=''):
     """
     from astropy.table import Table, Column
 
+    targetid = np.arange(nmodel).astype(np.int64)
+        
     # Objtype-agnostic metadata
     meta = Table()
+    meta.add_column(Column(name='TARGETID', data=targetid))
     meta.add_column(Column(name='OBJTYPE', length=nmodel, dtype='U10'))
     meta.add_column(Column(name='SUBTYPE', length=nmodel, dtype='U10'))
     meta.add_column(Column(name='TEMPLATEID', length=nmodel, dtype='i4', data=np.zeros(nmodel)-1))
@@ -1046,6 +1049,7 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype=''):
     # Objtype-specific metadata
     objmeta = Table()
     if objtype.upper() == 'ELG' or objtype.upper() == 'LRG' or objtype.upper() == 'BGS':
+        objmeta.add_column(Column(name='TARGETID', data=targetid))
         objmeta.add_column(Column(name='OIIFLUX', length=nmodel, dtype='f4',
                                   data=np.zeros(nmodel)-1, unit='erg/(s*cm2)'))
         objmeta.add_column(Column(name='HBETAFLUX', length=nmodel, dtype='f4',
@@ -1073,6 +1077,7 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype=''):
         pass 
 
     elif objtype.upper() == 'STAR' or objtype.upper() == 'STD' or objtype.upper() == 'MWS_STAR':
+        objmeta.add_column(Column(name='TARGETID', data=targetid))
         objmeta.add_column(Column(name='TEFF', length=nmodel, dtype='f4',
                                   data=np.zeros(nmodel)-1, unit='K'))
         objmeta.add_column(Column(name='LOGG', length=nmodel, dtype='f4',
@@ -1081,6 +1086,7 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype=''):
                                   data=np.zeros(nmodel)-1))
 
     elif objtype.upper() == 'WD':
+        objmeta.add_column(Column(name='TARGETID', data=targetid))
         objmeta.add_column(Column(name='TEFF', length=nmodel, dtype='f4',
                                   data=np.zeros(nmodel)-1, unit='K'))
         objmeta.add_column(Column(name='LOGG', length=nmodel, dtype='f4',
