@@ -29,12 +29,15 @@ class BAL(object):
         self.balwave = balwave
         self.balmeta = balmeta
 
-    def empty_balmeta(self, qsoredshift):
+    def empty_balmeta(self, qsoredshift=None):
         """Initialize an empty metadata table for BALs."""
 
         from astropy.table import Table, Column
 
-        nqso = len(np.atleast_1d(qsoredshift))
+        if qsoredshift is None:
+            nqso = 1
+        else:
+            nqso = len(np.atleast_1d(qsoredshift))
 
         balmeta = Table()
         balmeta.add_column(Column(name='TEMPLATEID', length=nqso, dtype='i4'))
