@@ -227,11 +227,32 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, objmeta=None,
         hx.append(obs_hdu)
 
     # Objtype-specific metadata
-    if truth is not None and objmeta is not None and len(objmeta) > 0:
+    if truth is not None and objmeta is not None:
         for obj in sorted(objmeta.keys()):
-            objhdu = fits.table_to_hdu(objmeta[obj])
-            objhdu.header['EXTNAME'] = 'TRUTH_{}'.format(obj.upper())
-            hx.append(objhdu)
+            extname = 'TRUTH_{}'.format(obj.upper())
+            if hasattr(objmeta[obj], 'data'): # simqso.sqgrids.QsoSimPoints object
+                tab = objmeta[obj].data
+                tab.meta['COSMO'] = objmeta[obj].cosmo_str(objmeta[obj].cosmo)
+                tab.meta['GRIDUNIT'] = objmeta[obj].units
+                tab.meta['GRIDDIM'] = str(objmeta[obj].gridShape)
+                tab.meta['RANDSEED'] = str(objmeta[obj].seed)
+                if objmeta[obj].photoMap is not None:
+                    tab.meta['OBSBANDS'] = ','.join(objmeta[obj].photoMap['bandpasses'])
+                for i,var in enumerate(objmeta[obj].qsoVars):
+                    var.updateMeta(tab.meta,'AX%d'%i)
+                tab.meta['NSIMVAR'] = len(objmeta[obj].qsoVars)
+
+                objhdu = fits.table_to_hdu(tab)
+                objhdu.header['EXTNAME'] = extname
+                hx.append(objhdu)
+                #objmeta[obj].write(outFn=os.path.basename(filename),
+                #                   outputDir=os.path.dirname(filename),
+                #                   extname=extname, overwrite=overwrite)
+            else:
+                if len(objmeta) > 0:
+                    objhdu = fits.table_to_hdu(objmeta[obj])
+                    objhdu.header['EXTNAME'] = extname
+                    hx.append(objhdu)
 
     log.info('Writing {}'.format(filename))
     hx.writeto(filename, overwrite=overwrite)

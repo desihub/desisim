@@ -289,7 +289,7 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
     wave = qso.wave
     flux = np.zeros([nqso, len(wave)], dtype='f4')
 
-    meta = empty_metatable(objtype='QSO', nmodel=nqso)
+    meta, _ = empty_metatable(objtype='QSO', nmodel=nqso)
     meta['TEMPLATEID'] = templateid
     meta['REDSHIFT'] = zqso
     meta['MAG'] = mag_g
@@ -297,16 +297,15 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
     meta['RA'] = ra
     meta['DEC'] = dec
 
-
     # Lists for DLA meta data
     if add_dlas:
         dla_NHI, dla_z, dla_id = [], [], []
 
     # Loop on quasars
     for ii, indx in enumerate(templateid):
-        flux1, _, meta1 = qso.make_templates(nmodel=1, redshift=np.atleast_1d(zqso[ii]), 
-                                             mag=np.atleast_1d(mag_g[ii]), seed=templateseed[ii],
-                                             nocolorcuts=nocolorcuts, lyaforest=False)
+        flux1, _, meta1, _ = qso.make_templates(nmodel=1, redshift=np.atleast_1d(zqso[ii]), 
+                                                mag=np.atleast_1d(mag_g[ii]), seed=templateseed[ii],
+                                                nocolorcuts=nocolorcuts, lyaforest=False)
         flux1 *= 1e-17
         for col in meta1.colnames:
             meta[col][ii] = meta1[col][0]

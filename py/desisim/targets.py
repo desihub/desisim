@@ -330,8 +330,8 @@ def get_targets(nspec, program, tileid=None, seed=None, specify_targets=dict(), 
             fibermap['BGS_TARGET'][ii] = bgs_mask.BGS_BRIGHT
 
         elif objtype == 'QSO':
-            from desisim.templates import QSO
-            qso = QSO(wave=wave)
+            from desisim.templates import QSO, SIMQSO
+            qso = SIMQSO(wave=wave)
             simflux, wave1, meta1, objmeta1 = qso.make_templates(nmodel=nobj, seed=seed, lyaforest=False, **obj_kwargs)
             fibermap['DESI_TARGET'][ii] = desi_mask.QSO
 
@@ -377,11 +377,14 @@ def get_targets(nspec, program, tileid=None, seed=None, specify_targets=dict(), 
 
         # Assign targetid
         meta1['TARGETID'] = targetid[ii]
-        if len(objmeta1) > 0:
-            objmeta1['TARGETID'] = targetid[ii]
-            # We want the dict key tied to the "true" object type (e.g., STAR),
-            # not, e.g., QSO_BAD.
-            objmeta[meta1['OBJTYPE'][0]] = objmeta1
+        if hasattr(objmeta1, 'data'): # simqso.sqgrids.QsoSimPoints object
+            objmeta1.data['TARGETID'] = targetid[ii]
+        else:
+            if len(objmeta1) > 0:
+                objmeta1['TARGETID'] = targetid[ii]
+                # We want the dict key tied to the "true" object type (e.g., STAR),
+                # not, e.g., QSO_BAD.
+        objmeta[meta1['OBJTYPE'][0]] = objmeta1
 
         flux[ii] = simflux
         meta[ii] = meta1
