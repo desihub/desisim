@@ -14,7 +14,7 @@ import string
 import numpy as np
 import yaml
 
-from astropy.table import Table, Column, hstack
+import astropy.table
 
 from desimodel.focalplane import FocalPlane
 from desisim.io import empty_metatable
@@ -216,13 +216,17 @@ def get_targets_parallel(nspec, program, tileid=None, nproc=None, seed=None, spe
         #- wave should be the same for all targets
         wave = targets[0][1]
 
-        #- vstack for arrays, hstack for tables
+        #- vstack for arrays, hstack for tables, python-fu for dictionaries
         flux = np.vstack([tx[0] for tx in targets])
         meta = np.hstack([tx[2] for tx in targets])
-#        for dd in 
-#        for d in L:
-#...    result.update(d)
-        import pdb ; pdb.set_trace()
+        objmeta = dict()
+        for tx in targets:
+            if len(tx[3]) > 0: # can be empty, e.g., for QSOs
+                for key in tx[3].keys():
+                    if key in objmeta:
+                        objmeta[key] = astropy.table.vstack( (objmeta[key], tx[3][key]) )
+                    else:
+                        objmeta[key] = tx[3][key]
 
         #- Fix FIBER and SPECTROID entries in fibermap
         fibermap['FIBER'] = np.arange(nspec)
@@ -375,7 +379,9 @@ def get_targets(nspec, program, tileid=None, seed=None, specify_targets=dict(), 
         meta1['TARGETID'] = targetid[ii]
         if len(objmeta1) > 0:
             objmeta1['TARGETID'] = targetid[ii]
-            objmeta[objtype] = objmeta1
+            # We want the dict key tied to the "true" object type (e.g., STAR),
+            # not, e.g., QSO_BAD.
+            objmeta[meta1['OBJTYPE'][0]] = objmeta1
 
         flux[ii] = simflux
         meta[ii] = meta1
