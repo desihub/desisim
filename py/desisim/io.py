@@ -321,7 +321,7 @@ class SimSpec(object):
 
     """
     def __init__(self, flavor, wave, flux, skyflux, fibermap,
-                 truth, obsconditions, header):
+                 truth, obsconditions, header, objmeta=None):
         """
         Create a SimSpec object
 
@@ -362,6 +362,7 @@ class SimSpec(object):
         self.skyflux = skyflux
         self.fibermap = fibermap
         self.truth = truth
+        self.objmeta = objmeta
         self.obsconditions = obsconditions
         self.header = header
 
@@ -426,6 +427,7 @@ def read_simspec(filename, cameras=None, comm=None, readflux=True, readphot=True
     #- Read and broadcast data that are common across cameras
     header = flavor = truth = fibermap = obsconditions = None
     wave = flux = skyflux = None
+    objmeta = dict()
     if rank == 0:
         with fits.open(filename, memmap=False) as fx:
             header = fx[0].header.copy()
@@ -443,6 +445,11 @@ def read_simspec(filename, cameras=None, comm=None, readflux=True, readphot=True
             if 'TRUTH' in fx:
                 truth = Table(fx['TRUTH'].data)
 
+                for obj in set(truth['OBJTYPE']):
+                    objhdu = 'TRUTH_{}'.format(obj.upper())
+                    if objhdu in fx:
+                        objmeta[obj] = Table(fx[objhdu].data)
+
             if 'FIBERMAP' in fx:
                 fibermap = Table(fx['FIBERMAP'].data)
 
@@ -453,6 +460,7 @@ def read_simspec(filename, cameras=None, comm=None, readflux=True, readphot=True
         header = comm.bcast(header, root=0)
         flavor = comm.bcast(flavor, root=0)
         truth = comm.bcast(truth, root=0)
+        objmeta = comm.bcast(objmeta, root=0)
         fibermap = comm.bcast(fibermap, root=0)
         obsconditions = comm.bcast(obsconditions, root=0)
 
@@ -481,9 +489,11 @@ def read_simspec(filename, cameras=None, comm=None, readflux=True, readphot=True
         skyflux = skyflux[ii]
     if truth is not None:
         truth = truth[ii]
+        # @sbailey - Not sure if we need to do anything with objmeta here
 
     simspec = SimSpec(flavor, wave, flux, skyflux,
-                fibermap, truth, obsconditions, header)
+                      fibermap, truth, obsconditions, header,
+                      objmeta=objmeta)
 
     #- Now read individual camera photons
     #- NOTE: this is somewhat inefficient since the same PHOT_B/R/Z HDUs
