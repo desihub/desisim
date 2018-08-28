@@ -355,7 +355,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         tmp_qso_flux, tmp_qso_wave, meta, qsometa = model.make_templates(
             nmodel=nqso, redshift=metadata['Z'], 
             lyaforest=False, nocolorcuts=True, noresample=True, seed = seed)
-    
+
     log.info("Resample to transmission wavelength grid")
     qso_flux=np.zeros((tmp_qso_flux.shape[0],trans_wave.size))
     for q in range(tmp_qso_flux.shape[0]) :
@@ -425,6 +425,12 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         tmp_qso_flux = tmp_qso_flux[selection]
         metadata     = metadata[:][selection]
         meta         = meta[:][selection]
+        if type(model) is SIMQSO:
+            qsometa.data = qsometa.data[:][selection]
+            qsometa.gridShape = np.shape(qsometa.data)
+        else:
+            qsometa = qsometa[selection]
+
         for band in bands : 
             bbflux[band] = bbflux[band][selection]
         nqso         = selection.size
@@ -459,7 +465,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     else :
         fibermap_columns=None
 
-    sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,meta=meta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False) # use Poisson = False to get reproducible results.
+    sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
+                sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
+                meta=meta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False) # use Poisson = False to get reproducible results.
     
     if args.zbest is not None :
         log.info("Read fibermap")
@@ -544,6 +552,7 @@ def main(args=None):
     decam_and_wise_filters = None
     if args.target_selection or args.mags :
         log.info("Load DeCAM and WISE filters for target selection sim.")
+        # ToDo @moustakas -- load north/south filters
         decam_and_wise_filters = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
                                                       'wise2010-W1', 'wise2010-W2')
         
