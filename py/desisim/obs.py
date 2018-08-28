@@ -57,7 +57,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         outdir (str, optional): output directory
 
     Returns:
-        science: sim, fibermap, meta, obsconditions
+        science: sim, fibermap, meta, obsconditions, objmeta
 
     Writes to outdir or $DESI_SPECTRO_SIM/$PIXPROD/{night}/
 
@@ -131,7 +131,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         fibermap.meta['EXPID'] = expid
         desispec.io.write_fibermap(outfibermap, fibermap)
         truth = dict(WAVE=wave, PHOT=phot, UNITS='photon')
-        return truth, fibermap, None, None
+        return truth, fibermap, None, None, None
 
     elif program == 'flat':
         if flat_spectrum_filename is None :
@@ -157,7 +157,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         flux = sim.simulated['source_flux'].to(fluxunits)
         wave = sim.simulated['wavelength'].to('Angstrom')
         truth = dict(WAVE=wave, FLUX=flux, UNITS=str(fluxunits))
-        return truth, fibermap, None, None
+        return truth, fibermap, None, None, None
 
     #- all other programs
     fibermap, (flux, wave, meta, objmeta) = get_targets_parallel(nspec, program,
@@ -218,7 +218,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
 
     update_obslog(obstype='science', program=program, expid=expid, dateobs=dateobs, tileid=tileid)
 
-    return sim, fibermap, meta, obsconditions
+    return sim, fibermap, meta, obsconditions, objmeta
 
 #- Mapping of DESI objtype to things specter knows about
 def specter_objtype(desitype):

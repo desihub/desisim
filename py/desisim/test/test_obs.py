@@ -63,7 +63,7 @@ class TestObs(unittest.TestCase):
         seed = np.random.randint(2**30)
         #- programs 'bgs' and 'bright' not yet implemented
         for expid, program in enumerate(['arc', 'flat', 'dark', 'mws']):
-            sim, fibermap, meta, obsconditions = obs.new_exposure(program, nspec=10, night=night, expid=expid, seed=seed)
+            sim, fibermap, meta, obsconditions, objmeta = obs.new_exposure(program, nspec=10, night=night, expid=expid, seed=seed)
             simspecfile = io.findfile('simspec', night, expid=expid)
             fibermapfile = io.findfile('simfibermap', night, expid=expid)
             self.assertTrue(os.path.exists(simspecfile))
@@ -116,9 +116,9 @@ class TestObs(unittest.TestCase):
         "Test different levels of sky brightness"
         night = self.night
         #- programs 'bgs' and 'bright' not yet implemented
-        sim_dark, fmap_dark, meta_dark, obscond_dark = obs.new_exposure('dark', nspec=10, night=night, expid=0, exptime=1000)
+        sim_dark, fmap_dark, meta_dark, obscond_dark, objmeta_dark = obs.new_exposure('dark', nspec=10, night=night, expid=0, exptime=1000)
         dark = sim_dark.simulated.copy()
-        sim_mws, fmap_mws, meta_mws, obscond_mws  = obs.new_exposure('mws', nspec=10, night=night, expid=1, exptime=1000)
+        sim_mws, fmap_mws, meta_mws, obscond_mws, objmeta_mws = obs.new_exposure('mws', nspec=10, night=night, expid=1, exptime=1000)
         mws = sim_dark.simulated.copy()
         for channel in ['b', 'r', 'z']:
             sky_mws = mws['num_sky_electrons_'+channel]
