@@ -245,11 +245,8 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, objmeta=None,
                 objhdu = fits.table_to_hdu(tab)
                 objhdu.header['EXTNAME'] = extname
                 hx.append(objhdu)
-                #objmeta[obj].write(outFn=os.path.basename(filename),
-                #                   outputDir=os.path.dirname(filename),
-                #                   extname=extname, overwrite=overwrite)
             else:
-                if len(objmeta) > 0:
+                if len(objmeta) > 0 and len(objmeta[obj]) > 0:
                     objhdu = fits.table_to_hdu(objmeta[obj])
                     objhdu.header['EXTNAME'] = extname
                     hx.append(objhdu)
@@ -467,9 +464,15 @@ def read_simspec(filename, cameras=None, comm=None, readflux=True, readphot=True
                 truth = Table(fx['TRUTH'].data)
 
                 for obj in set(truth['OBJTYPE']):
-                    objhdu = 'TRUTH_{}'.format(obj.upper())
-                    if objhdu in fx:
-                        objmeta[obj] = Table(fx[objhdu].data)
+                    extname = 'TRUTH_{}'.format(obj.upper())
+                    if extname in fx:
+                        if 'COSMO' in fx[extname].header:
+                            from simqso.sqgrids import QsoSimObjects
+                            qsometa = QsoSimObjects()
+                            qsometa.read(filename, extname=extname)
+                            objmeta[obj] = qsometa
+                        else:
+                            objmeta[obj] = Table(fx[extname].data)                            
 
             if 'FIBERMAP' in fx:
                 fibermap = Table(fx['FIBERMAP'].data)
