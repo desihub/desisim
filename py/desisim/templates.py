@@ -61,7 +61,6 @@ class EMSpectrum(object):
 
         log = get_logger()
         
-        
         # Build a wavelength array if one is not given.
         if log10wave is None:
             cdelt = cdelt_kms/LIGHT/np.log(10) # pixel size [log-10 A]
@@ -531,23 +530,25 @@ o
 
             redshift = input_meta['REDSHIFT'].data
             mag = input_meta['MAG'].data
-            vdisp = input_meta['VDISP'].data
+            magfilter = input_meta['MAGFILTER'].data
+            #vdisp = input_meta['VDISP'].data
+            #
+            #vzero = np.where(vdisp <= 0)[0]
+            #if len(vzero) > 0:
+            #    log.fatal('Velocity dispersion is zero or negative!')
+            #    raise ValueError
 
-            vzero = np.where(vdisp <= 0)[0]
-            if len(vzero) > 0:
-                log.fatal('Velocity dispersion is zero or negative!')
-                raise ValueError
-
-            if self.add_SNeIa:
-                sne_tempid = input_meta['SNE_TEMPLATEID']
-                sne_epoch = input_meta['SNE_EPOCH']
-                sne_rfluxratio = input_meta['SNE_RFLUXRATIO']
+            #if self.add_SNeIa:
+            #    sne_tempid = input_meta['SNE_TEMPLATEID']
+            #    sne_epoch = input_meta['SNE_EPOCH']
+            #    sne_rfluxratio = input_meta['SNE_RFLUXRATIO']
 
             nchunk = 1
             nmodel = len(input_meta)
             alltemplateid_chunk = [input_meta['TEMPLATEID'].data.reshape(nmodel, 1)]
 
-            meta = empty_metatable(nmodel=nmodel, objtype=self.objtype, add_SNeIa=self.add_SNeIa)
+            meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
+            #meta = empty_metatable(nmodel=nmodel, objtype=self.objtype, add_SNeIa=self.add_SNeIa)
         else:
             meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
 
