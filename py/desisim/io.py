@@ -1044,27 +1044,27 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype=''):
     meta['SUBTYPE'] = subtype.upper()
 
     # Objtype-specific metadata
-    metaobj = Table()
+    objmeta = Table()
     if objtype.upper() == 'ELG' or objtype.upper() == 'LRG' or objtype.upper() == 'BGS':
-        metaobj.add_column(Column(name='OIIFLUX', length=nmodel, dtype='f4',
+        objmeta.add_column(Column(name='OIIFLUX', length=nmodel, dtype='f4',
                                   data=np.zeros(nmodel)-1, unit='erg/(s*cm2)'))
-        metaobj.add_column(Column(name='HBETAFLUX', length=nmodel, dtype='f4',
+        objmeta.add_column(Column(name='HBETAFLUX', length=nmodel, dtype='f4',
                                   data=np.zeros(nmodel)-1, unit='erg/(s*cm2)'))
-        metaobj.add_column(Column(name='EWOII', length=nmodel, dtype='f4',
+        objmeta.add_column(Column(name='EWOII', length=nmodel, dtype='f4',
                                   data=np.zeros(nmodel)-1, unit='Angstrom'))
-        metaobj.add_column(Column(name='EWHBETA', length=nmodel, dtype='f4',
+        objmeta.add_column(Column(name='EWHBETA', length=nmodel, dtype='f4',
                                   data=np.zeros(nmodel)-1, unit='Angstrom'))
-        metaobj.add_column(Column(name='D4000', length=nmodel, dtype='f4', data=np.zeros(nmodel)-1))
-        metaobj.add_column(Column(name='VDISP', length=nmodel, dtype='f4',
+        objmeta.add_column(Column(name='D4000', length=nmodel, dtype='f4', data=np.zeros(nmodel)-1))
+        objmeta.add_column(Column(name='VDISP', length=nmodel, dtype='f4',
                                   data=np.zeros(nmodel)-1, unit='km/s'))
-        metaobj.add_column(Column(name='OIIDOUBLET', length=nmodel, dtype='f4', data=np.zeros(nmodel)-1))
-        metaobj.add_column(Column(name='OIIIHBETA', length=nmodel, dtype='f4',
+        objmeta.add_column(Column(name='OIIDOUBLET', length=nmodel, dtype='f4', data=np.zeros(nmodel)-1))
+        objmeta.add_column(Column(name='OIIIHBETA', length=nmodel, dtype='f4',
                                   data=np.zeros(nmodel)-1, unit='Dex'))
-        metaobj.add_column(Column(name='OIIHBETA', length=nmodel, dtype='f4',
+        objmeta.add_column(Column(name='OIIHBETA', length=nmodel, dtype='f4',
                                   data=np.zeros(nmodel)-1, unit='Dex'))
-        metaobj.add_column(Column(name='NIIHBETA', length=nmodel, dtype='f4',
+        objmeta.add_column(Column(name='NIIHBETA', length=nmodel, dtype='f4',
                                   data=np.zeros(nmodel)-1, unit='Dex'))
-        metaobj.add_column(Column(name='SIIHBETA', length=nmodel, dtype='f4',
+        objmeta.add_column(Column(name='SIIHBETA', length=nmodel, dtype='f4',
                                   data=np.zeros(nmodel)-1, unit='Dex'))
 
     elif objtype.upper() == 'QSO':
@@ -1073,17 +1073,17 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype=''):
         pass 
 
     elif objtype.upper() == 'STAR' or objtype.upper() == 'STD' or objtype.upper() == 'MWS_STAR':
-        metaobj.add_column(Column(name='TEFF', length=nmodel, dtype='f4',
+        objmeta.add_column(Column(name='TEFF', length=nmodel, dtype='f4',
                                   data=np.zeros(nmodel)-1, unit='K'))
-        metaobj.add_column(Column(name='LOGG', length=nmodel, dtype='f4',
+        objmeta.add_column(Column(name='LOGG', length=nmodel, dtype='f4',
                                   data=np.zeros(nmodel)-1, unit='m/(s**2)'))
-        metaobj.add_column(Column(name='FEH', length=nmodel, dtype='f4',
+        objmeta.add_column(Column(name='FEH', length=nmodel, dtype='f4',
                                   data=np.zeros(nmodel)-1))
 
     elif objtype.upper() == 'WD':
-        metaobj.add_column(Column(name='TEFF', length=nmodel, dtype='f4',
+        objmeta.add_column(Column(name='TEFF', length=nmodel, dtype='f4',
                                   data=np.zeros(nmodel)-1, unit='K'))
-        metaobj.add_column(Column(name='LOGG', length=nmodel, dtype='f4',
+        objmeta.add_column(Column(name='LOGG', length=nmodel, dtype='f4',
                                   data=np.zeros(nmodel)-1, unit='m/(s**2)'))
 
-    return meta, metaobj
+    return meta, objmeta

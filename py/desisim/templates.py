@@ -490,18 +490,18 @@ class GALAXY(object):
             templates instead of resampled observer frame.
           verbose (bool, optional): Be verbose!
 
-        Returns (outflux, wave, meta, metaobj) tuple where:
+        Returns (outflux, wave, meta, objmeta) tuple where:
 
           * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
             spectra (1e-17 erg/s/cm2/A).
           * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
           * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
-          * metaobj (astropy.Table): Additional objtype-specific table data
+          * objmeta (astropy.Table): Additional objtype-specific table data
             [nmodel] for each spectrum.
 
         In addition, if add_SNeIa=True then a third astropy.Table object,
-        metasne, is returned with the properties of the simulated SNe.
-
+        snemeta, is returned with the properties of the simulated SNe.
+o
         Raises:
           ValueError
 
@@ -549,16 +549,16 @@ class GALAXY(object):
 
             meta = empty_metatable(nmodel=nmodel, objtype=self.objtype, add_SNeIa=self.add_SNeIa)
         else:
-            meta, metaobj = empty_metatable(nmodel=nmodel, objtype=self.objtype)
+            meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
 
-            # Initialize the metasne output table
+            # Initialize the snemeta output table
             if self.add_SNeIa:
-                metasne = Table()
-                metasne.add_column(Column(name='SNE_TEMPLATEID', length=nmodel, dtype='i4',
+                snemeta = Table()
+                snemeta.add_column(Column(name='SNE_TEMPLATEID', length=nmodel, dtype='i4',
                                           data=np.zeros(nmodel)-1))
-                metasne.add_column(Column(name='SNE_RFLUXRATIO', length=nmodel, dtype='f4',
+                snemeta.add_column(Column(name='SNE_RFLUXRATIO', length=nmodel, dtype='f4',
                                           data=np.zeros(nmodel)-1))
-                metasne.add_column(Column(name='SNE_EPOCH', length=nmodel, dtype='f4',
+                snemeta.add_column(Column(name='SNE_EPOCH', length=nmodel, dtype='f4',
                                           data=np.zeros(nmodel)-1, unit='days'))
                 
             # Initialize the random seed.
@@ -596,9 +596,9 @@ class GALAXY(object):
             if self.add_SNeIa:
                 sne_rfluxratio = rand.uniform(sne_rfluxratiorange[0], sne_rfluxratiorange[1], nmodel)
                 sne_tempid = rand.randint(0, len(self.sne_basemeta)-1, nmodel)
-                metasne['SNE_TEMPLATEID'] = sne_tempid
-                metasne['SNE_EPOCH'] = self.sne_basemeta['EPOCH'][sne_tempid]
-                metasne['SNE_RFLUXRATIO'] = sne_rfluxratio
+                snemeta['SNE_TEMPLATEID'] = sne_tempid
+                snemeta['SNE_EPOCH'] = self.sne_basemeta['EPOCH'][sne_tempid]
+                snemeta['SNE_RFLUXRATIO'] = sne_rfluxratio
 
         if redshift is not None:
             if len(redshift) != nmodel:
@@ -623,7 +623,7 @@ class GALAXY(object):
             blurmatrix = self._blurmatrix(vdisp, log=log)
 
         # Populate some of the metadata table.
-        metaobj['VDISP'][:] = vdisp
+        objmeta['VDISP'][:] = vdisp
         for key, value in zip(('REDSHIFT', 'MAG', 'MAGFILTER', 'SEED'),
                                (redshift, mag, self.normfilter, templateseed)):
             meta[key][:] = value
@@ -662,7 +662,7 @@ class GALAXY(object):
 
                 for key, value in zip(('OIIIHBETA', 'OIIHBETA', 'NIIHBETA', 'SIIHBETA', 'OIIDOUBLET'),
                                       (oiiihbeta, oiihbeta, niihbeta, siihbeta, oiidoublet)):
-                    metaobj[key][ii] = value
+                    objmeta[key][ii] = value
 
                 if self.normline.upper() == 'OII':
                     ewoii = 10.0**(np.polyval(self.ewoiicoeff, d4000) + # rest-frame EW([OII]), Angstrom
@@ -779,15 +779,15 @@ class GALAXY(object):
                     meta['FLUX_W1'][ii] = synthnano['wise2010-W1'][this]
                     meta['FLUX_W2'][ii] = synthnano['wise2010-W2'][this]
 
-                    metaobj['D4000'][ii] = d4000[tempid]
+                    objmeta['D4000'][ii] = d4000[tempid]
 
                     if self.normline is not None:
                         if self.normline == 'OII':
-                            metaobj['OIIFLUX'][ii] = zlineflux[this]
-                            metaobj['EWOII'][ii] = ewoii[tempid]
+                            objmeta['OIIFLUX'][ii] = zlineflux[this]
+                            objmeta['EWOII'][ii] = ewoii[tempid]
                         elif self.normline == 'HBETA':
-                            metaobj['HBETAFLUX'][ii] = zlineflux[this]
-                            metaobj['EWHBETA'][ii] = ewhbeta[tempid]
+                            objmeta['HBETAFLUX'][ii] = zlineflux[this]
+                            objmeta['EWHBETA'][ii] = ewhbeta[tempid]
 
                     break
 
@@ -803,9 +803,9 @@ class GALAXY(object):
             outwave = self.wave
             
         if self.add_SNeIa:
-            return 1e17 * outflux, outwave, meta, metaobj, metasne
+            return 1e17 * outflux, outwave, meta, objmeta, snemeta
         else:
-            return 1e17 * outflux, outwave, meta, metaobj
+            return 1e17 * outflux, outwave, meta, objmeta
 
 class ELG(GALAXY):
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs)."""
@@ -865,17 +865,17 @@ class ELG(GALAXY):
           minoiiflux (float, optional): Minimum [OII] 3727 flux (default 0.0
             erg/s/cm2).
 
-        Returns (outflux, wave, meta, metaobj) tuple where:
+        Returns (outflux, wave, meta, objmeta) tuple where:
 
           * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
             spectra (1e-17 erg/s/cm2/A).
           * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
           * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
-          * metaobj (astropy.Table): Additional objtype-specific table data
+          * objmeta (astropy.Table): Additional objtype-specific table data
             [nmodel] for each spectrum.
 
         In addition, if add_SNeIa=True then a third astropy.Table object,
-        metasne, is returned with the properties of the simulated SNe.
+        snemeta, is returned with the properties of the simulated SNe.
 
         Raises:
 
@@ -949,17 +949,17 @@ class BGS(GALAXY):
           minhbetaflux (float, optional): Minimum H-beta flux (default 0.0
             erg/s/cm2).
 
-        Returns (outflux, wave, meta, metaobj) tuple where:
+        Returns (outflux, wave, meta, objmeta) tuple where:
 
           * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
             spectra (1e-17 erg/s/cm2/A).
           * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
           * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
-          * metaobj (astropy.Table): Additional objtype-specific table data
+          * objmeta (astropy.Table): Additional objtype-specific table data
             [nmodel] for each spectrum.
 
         In addition, if add_SNeIa=True then a third astropy.Table object,
-        metasne, is returned with the properties of the simulated SNe.
+        snemeta, is returned with the properties of the simulated SNe.
 
         Raises:
 
@@ -1024,17 +1024,17 @@ class LRG(GALAXY):
           agnlike (bool, optional): adopt AGN-like emission-line ratios (not yet
             supported; defaults False).
 
-        Returns (outflux, wave, meta, metaobj) tuple where:
+        Returns (outflux, wave, meta, objmeta) tuple where:
 
           * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
             spectra (1e-17 erg/s/cm2/A).
           * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
           * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
-          * metaobj (astropy.Table): Additional objtype-specific table data
+          * objmeta (astropy.Table): Additional objtype-specific table data
             [nmodel] for each spectrum.
 
         In addition, if add_SNeIa=True then a third astropy.Table object,
-        metasne, is returned with the properties of the simulated SNe.
+        snemeta, is returned with the properties of the simulated SNe.
 
         Raises:
 
@@ -1279,7 +1279,7 @@ class SUPERSTAR(object):
                     mag = rand.uniform(magrange[0], magrange[1], nmodel).astype('f4')
 
             # Initialize the metadata table.
-            meta, metaobj = empty_metatable(nmodel=nmodel, objtype=self.objtype, subtype=self.subtype)
+            meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype, subtype=self.subtype)
 
         # Basic error checking and some preliminaries.
         if redshift is not None:
@@ -1368,15 +1368,15 @@ class SUPERSTAR(object):
                     meta['FLUX_W2'][ii] = synthnano['wise2010-W2'][this]
 
                     if star_properties is None:
-                        metaobj['TEFF'][ii] = self.basemeta['TEFF'][tempid]
-                        metaobj['LOGG'][ii] = self.basemeta['LOGG'][tempid]
+                        objmeta['TEFF'][ii] = self.basemeta['TEFF'][tempid]
+                        objmeta['LOGG'][ii] = self.basemeta['LOGG'][tempid]
                         if 'FEH' in self.basemeta.columns:
-                            metaobj['FEH'][ii] = self.basemeta['FEH'][tempid]
+                            objmeta['FEH'][ii] = self.basemeta['FEH'][tempid]
                     else:
-                        metaobj['TEFF'][ii] = input_properties[1][tempid]
-                        metaobj['LOGG'][ii] = input_properties[0][tempid]
+                        objmeta['TEFF'][ii] = input_properties[1][tempid]
+                        objmeta['LOGG'][ii] = input_properties[0][tempid]
                         if 'FEH' in self.basemeta.columns:
-                            metaobj['FEH'][ii] = input_properties[2][tempid]
+                            objmeta['FEH'][ii] = input_properties[2][tempid]
 
                     break
 
@@ -1387,9 +1387,9 @@ class SUPERSTAR(object):
                         format(np.sum(success == 0)))
 
         if restframe:
-            return 1e17 * outflux, self.basewave, meta, metaobj
+            return 1e17 * outflux, self.basewave, meta, objmeta
         else:
-            return 1e17 * outflux, self.wave, meta, metaobj
+            return 1e17 * outflux, self.wave, meta, objmeta
 
 class STAR(SUPERSTAR):
     """Generate Monte Carlo spectra of generic stars."""
@@ -1431,13 +1431,13 @@ class STAR(SUPERSTAR):
             magnitude range.  Defaults to a uniform distribution between (18,
             23.5).
 
-        Returns (outflux, wave, meta, metaobj) tuple where:
+        Returns (outflux, wave, meta, objmeta) tuple where:
 
           * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
             spectra (1e-17 erg/s/cm2/A).
           * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
           * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
-          * metaobj (astropy.Table): Additional objtype-specific table data
+          * objmeta (astropy.Table): Additional objtype-specific table data
             [nmodel] for each spectrum.
 
         Raises:
@@ -1494,13 +1494,13 @@ class STD(SUPERSTAR):
             magnitude range.  Defaults to a uniform distribution between (16,
             19).
 
-        Returns (outflux, wave, meta, metaobj) tuple where:
+        Returns (outflux, wave, meta, objmeta) tuple where:
 
           * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
             spectra (1e-17 erg/s/cm2/A).
           * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
           * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
-          * metaobj (astropy.Table): Additional objtype-specific table data
+          * objmeta (astropy.Table): Additional objtype-specific table data
             [nmodel] for each spectrum.
 
         Raises:
@@ -1557,13 +1557,13 @@ class MWS_STAR(SUPERSTAR):
             magnitude range.  Defaults to a uniform distribution between (16,
             20).
 
-        Returns (outflux, wave, meta, metaobj) tuple where:
+        Returns (outflux, wave, meta, objmeta) tuple where:
 
           * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
             spectra (1e-17 erg/s/cm2/A).
           * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
           * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
-          * metaobj (astropy.Table): Additional objtype-specific table data
+          * objmeta (astropy.Table): Additional objtype-specific table data
             [nmodel] for each spectrum.
 
         Raises:
@@ -1617,13 +1617,13 @@ class WD(SUPERSTAR):
             magnitude range.  Defaults to a uniform distribution between (16,
             19).
 
-        Returns (outflux, wave, meta, metaobj) tuple where:
+        Returns (outflux, wave, meta, objmeta) tuple where:
 
           * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
             spectra (1e-17 erg/s/cm2/A).
           * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
           * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
-          * metaobj (astropy.Table): Additional objtype-specific table data
+          * objmeta (astropy.Table): Additional objtype-specific table data
             [nmodel] for each spectrum.
 
         Raises:
@@ -1844,7 +1844,7 @@ class QSO():
             cuts (default False).
           verbose (bool, optional): Be verbose!
 
-        Returns (outflux, wave, meta) tuple where:
+        Returns (outflux, wave, meta, objmeta) tuple where:
 
           * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
             spectra (1e-17 erg/s/cm2/A).
@@ -1853,6 +1853,12 @@ class QSO():
               different observed-frame array for each object), otherwise it's a
               one-dimensional [npix]-length array.
           * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
+          * objmeta (astropy.Table): Additional objtype-specific table data
+            [nmodel] for each spectrum.  Note that this table is currently empty
+            for QSO but is included here for uniformity.
+
+        In addition, if balqso=True then a third astropy.Table object, balmeta,
+        is returned with the properties of the simulated BAL.
 
         Raises:
           ValueError
@@ -1900,11 +1906,11 @@ class QSO():
 
             meta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
         else:
-            meta, metaobj = empty_metatable(nmodel=nmodel, objtype=self.objtype)
+            meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
 
             if self.balqso:
                 from astropy.table import vstack
-                metabal = vstack([self.balmeta for ii in range(nmodel)])
+                balmeta = vstack([self.balmeta for ii in range(nmodel)])
 
             # Initialize the random seed.
             rand = np.random.RandomState(seed)
@@ -1936,7 +1942,7 @@ class QSO():
             meta['SUBTYPE'] = 'LYA'
             
         if self.balqso:
-            metabal['REDSHIFT'][:] = redshift
+            balmeta['REDSHIFT'][:] = redshift
             if lyaforest: 
                 meta['SUBTYPE'] = 'LYA+BAL'
             else:
@@ -1970,7 +1976,7 @@ class QSO():
             if hasbal:
                 balindx = templaterand.choice(len(self.bal_basemeta))
                 balflux = self.bal_baseflux[balindx, :]
-                metabal['TEMPLATEID'][ii] = balindx
+                balmeta['TEMPLATEID'][ii] = balindx
 
             # BOSS or SDSS?
             if redshift[ii] > 2.15:
@@ -2094,9 +2100,9 @@ class QSO():
             outwave = self.wave
             
         if self.balqso:
-            return 1e17 * outflux, outwave, meta, metaobj, metabal
+            return 1e17 * outflux, outwave, meta, objmeta, balmeta
         else:
-            return 1e17 * outflux, self.wave, meta, metaobj
+            return 1e17 * outflux, self.wave, meta, objmeta
 
 class SIMQSO():
     """Generate Monte Carlo spectra of quasars (QSOs) using simqso."""
@@ -2259,7 +2265,7 @@ class SIMQSO():
         else:
             nmodel = len(redshift)
             
-        meta = empty_metatable(nmodel=nmodel, objtype='QSO', subtype=subtype)
+        meta, _ = empty_metatable(nmodel=nmodel, objtype='QSO', subtype=subtype)
         if noresample or self.restframe:
             outflux = np.zeros([nmodel, len(self.basewave)])
         else:
@@ -2348,22 +2354,20 @@ class SIMQSO():
                     meta['REDSHIFT'][these] = 0
                 else:
                     meta['REDSHIFT'][these] = redshift[these]
-                    
+
+            meta['MAGFILTER'][these] = self.normfilter
             meta['MAG'][these] = -2.5 * np.log10(normmaggies[these])
             for band, filt in zip( ('FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2'),
                                    ('decam2014-g', 'decam2014-r', 'decam2014-z',
                                     'wise2010-W1', 'wise2010-W2') ):
                 meta[band][these] = synthnano[filt][these]
 
-        if input_qsometa:
-            return outflux, meta, input_qsometa
-        else:
-            return outflux, meta, qsometa
+        return outflux, meta, qsometa
 
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(19.0, 23.0),
                        seed=None, redshift=None, input_qsometa=None, maxiter=20,
                        lyaforest=True, nocolorcuts=False, noresample=False,
-                       return_qsometa=False, verbose=False):
+                       verbose=False):
         """Build Monte Carlo QSO spectra/templates.
 
         * This function generates QSO spectra on-the-fly using @imcgreer's
@@ -2410,20 +2414,19 @@ class SIMQSO():
             cuts (default False).
           noresample (bool, optional): Do not resample the QSO spectra in
             wavelength (default False).
-          return_qsometa (bool, optional): Optionally return the full
-            simqso.sqgrids.QsoSimPoints object, which contains all the data
-            necessary to regenerate the QSO spectra.  In particular, the data
-            attribute is an astropy.Table object which contains lots of useful
-            info.  This object can be written to disk with the
-            simqso.sqgrids.QsoSimObjects.write method.
           verbose (bool, optional): Be verbose!
 
-        Returns (outflux, wave, meta) tuple where:
+        Returns (outflux, wave, meta, qsometa) tuple where:
 
           * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
             spectra (1e-17 erg/s/cm2/A).
           * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
           * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
+          * qsometa (simqso.sqgrids.QsoSimPoints): Object which contains all the
+            data necessary to regenerate the QSO spectra.  In particular, the
+            data attribute is an astropy.Table object which contains lots of
+            useful info.  This object can be written to disk with the
+            simqso.sqgrids.QsoSimObjects.write method.
 
         Raises:
           ValueError
@@ -2477,7 +2480,7 @@ class SIMQSO():
                     raise ValueError
 
             # Initialize the template metadata table and flux vector. 
-            meta = empty_metatable(nmodel=nmodel, objtype='QSO')
+            meta, _ = empty_metatable(nmodel=nmodel, objtype='QSO')
             qsometa = None
 
             if noresample or self.restframe:
@@ -2540,10 +2543,7 @@ class SIMQSO():
         else:
             outwave = self.wave
 
-        if return_qsometa:
-            return 1e17 * outflux, outwave, meta, qsometa
-        else:
-            return 1e17 * outflux, outwave, meta
+        return 1e17 * outflux, outwave, meta, qsometa
 
 def specify_galparams_dict(templatetype, zrange=None, magrange=None,
                             oiiihbrange=None, logvdisp_meansig=None,
