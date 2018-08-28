@@ -87,8 +87,8 @@ def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
 #-------------------------------------------------------------------------
 #- simspec
 
-def write_simspec(sim, truth, fibermap, obs, expid, night, outdir=None, filename=None,
-    header=None, overwrite=False):
+def write_simspec(sim, truth, fibermap, obs, expid, night, objmeta=None,
+                  outdir=None, filename=None, header=None, overwrite=False):
     '''
     Write a simspec file
 
@@ -101,6 +101,7 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, outdir=None, filename
             MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
         expid (int): integer exposure ID
         night (str): YEARMMDD string
+        objmeta (dict): objtype-specific metadata
         outdir (str, optional): output directory
         filename (str, optional): if None, auto-derive from envvars, night, expid, and outdir
         header (dict-like): header to include in HDU0
@@ -224,6 +225,13 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, outdir=None, filename
         obs_hdu = fits.table_to_hdu(obstable)
         obs_hdu.header['EXTNAME'] = 'OBSCONDITIONS'
         hx.append(obs_hdu)
+
+    # Objtype-specific metadata
+    if truth is not None and objmeta is not None and len(objmeta) > 0:
+        for obj in sorted(objmeta.keys()):
+            objhdu = fits.table_to_hdu(objmeta[obj])
+            objhdu.header['EXTNAME'] = 'TRUTH_{}'.format(obj.upper())
+            hx.append(objhdu)
 
     log.info('Writing {}'.format(filename))
     hx.writeto(filename, overwrite=overwrite)

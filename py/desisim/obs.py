@@ -160,7 +160,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         return truth, fibermap, None, None
 
     #- all other programs
-    fibermap, (flux, wave, meta) = get_targets_parallel(nspec, program,
+    fibermap, (flux, wave, meta, objmeta) = get_targets_parallel(nspec, program,
         tileid=tileid, nproc=nproc, seed=seed, specify_targets=specify_targets)
 
     if obsconditions is None:
@@ -206,7 +206,8 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
     hdr['DATE-OBS'] = (time.strftime('%FT%T', dateobs), 'Start of exposure')
 
     simfile = io.write_simspec(sim, meta, fibermap, obsconditions,
-        expid, night, header=hdr, filename=outsimspec)
+                               expid, night, objmeta=objmeta, header=hdr,
+                               filename=outsimspec)
 
     if not isinstance(fibermap, table.Table):
         fibermap = table.Table(fibermap)
