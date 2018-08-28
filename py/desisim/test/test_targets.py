@@ -28,7 +28,7 @@ class TestObs(unittest.TestCase):
         import multiprocessing as mp
         nproc = mp.cpu_count() // 2
         for n in [5, 23, 15*nproc+7]:
-            fibermap, (flux, wave, meta, objmeta) = desisim.targets.get_targets_parallel(n, 'DARK')
+            fibermap, (flux, wave, meta, objmeta) = desisim.targets.get_targets_parallel(n, 'DARK', seed=1)
             self.assertEqual(n, len(fibermap))
             #- unique FIBER and TARGETID
             self.assertEqual(n, len(set(fibermap['FIBER'])))

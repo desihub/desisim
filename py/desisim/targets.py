@@ -384,7 +384,7 @@ def get_targets(nspec, program, tileid=None, seed=None, specify_targets=dict(), 
                 objmeta1['TARGETID'] = targetid[ii]
                 # We want the dict key tied to the "true" object type (e.g., STAR),
                 # not, e.g., QSO_BAD.
-        objmeta[meta1['OBJTYPE'][0]] = objmeta1
+                objmeta[meta1['OBJTYPE'][0]] = objmeta1
 
         flux[ii] = simflux
         meta[ii] = meta1

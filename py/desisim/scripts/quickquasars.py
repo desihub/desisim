@@ -346,13 +346,13 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         log.info("Simulate {} QSOs with QSO templates".format(nqso))
         # if we wanted to use noresample=True here, we would have to modify 
         # downstream code since each quasar would have a different wave grid
-        tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(
+        tmp_qso_flux, tmp_qso_wave, meta, qsometa = model.make_templates(
             nmodel=nqso, redshift=metadata['Z'], 
             lyaforest=False, nocolorcuts=True, noresample=False, seed = seed)
     else:
         log.info("Simulate {} QSOs with SIMQSO templates".format(nqso))
         # noresample=True to avoid innecessary interpolation
-        tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(
+        tmp_qso_flux, tmp_qso_wave, meta, qsometa = model.make_templates(
             nmodel=nqso, redshift=metadata['Z'], 
             lyaforest=False, nocolorcuts=True, noresample=True, seed = seed)
     

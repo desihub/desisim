@@ -1051,10 +1051,10 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype=''):
     nmodel : :class:`int`
         Number of rows in output table.  Defaults to 1.
     objtype : :class:`str`
-        Object type.  Defaults to `ELG`.
+        Object type.  Defaults to ELG.
     subtype : :class:`str`
-        Subtype for the given object type (e.g., `LYA` is objtype=`QSO`).
-        Defaults to ``.
+        Subtype for the given object type (e.g., LYA is objtype=QSO).
+        Defaults to `.`
 
     Returns
     -------
