@@ -1764,15 +1764,17 @@ class QSO():
         # Optionally read the BAL basis templates and resample.
         self.balqso = balqso
         if self.balqso:
+            from desisim.bal import BAL
             from desispec.interpolation import resample_flux
-            bal_baseflux1, bal_basewave, bal_basemeta = read_basis_templates(objtype='BAL')
-            bal_baseflux = np.zeros((len(bal_basemeta), len(self.eigenwave)))
-            for ii in range(len(bal_basemeta)):
-                bal_baseflux[ii, :] = resample_flux(self.eigenwave, bal_basewave,
-                                                    bal_baseflux1[ii, :], extrapolate=True)
+            bal = BAL()
+            bal_baseflux = np.zeros((len(bal.balmeta), len(self.eigenwave)))
+            for ii in range(len(bal.balmeta)):
+                bal_baseflux[ii, :] = resample_flux(self.eigenwave, bal.balwave,
+                                                    bal.balflux[ii, :], extrapolate=True)
                 bal_baseflux[ii, bal_baseflux[ii, :] > 1] = 1.0 # do not exceed unity
             self.bal_baseflux = bal_baseflux
-            self.bal_basemeta = bal_basemeta
+            self.bal_basemeta = bal.balmeta
+            self.balmeta = bal.empty_balmeta()
 
         # Initialize the filter profiles.
         self.normfilt = filters.load_filters(self.normfilter)
@@ -1900,6 +1902,10 @@ class QSO():
         else:
             meta, metaobj = empty_metatable(nmodel=nmodel, objtype=self.objtype)
 
+            if self.balqso:
+                from astropy.table import vstack
+                metabal = vstack([self.balmeta for ii in range(nmodel)])
+
             # Initialize the random seed.
             rand = np.random.RandomState(seed)
             templateseed = rand.randint(2**32, size=nmodel)
@@ -1930,6 +1936,7 @@ class QSO():
             meta['SUBTYPE'] = 'LYA'
             
         if self.balqso:
+            metabal['REDSHIFT'][:] = redshift
             if lyaforest: 
                 meta['SUBTYPE'] = 'LYA+BAL'
             else:
@@ -1963,6 +1970,7 @@ class QSO():
             if hasbal:
                 balindx = templaterand.choice(len(self.bal_basemeta))
                 balflux = self.bal_baseflux[balindx, :]
+                metabal['TEMPLATEID'][ii] = balindx
 
             # BOSS or SDSS?
             if redshift[ii] > 2.15:
@@ -2081,9 +2089,14 @@ class QSO():
                         format(np.sum(success == 0)))
 
         if noresample:
-            return 1e17 * outflux, zwave.T, meta
+            outwave = zwave.T
         else:
-            return 1e17 * outflux, self.wave, meta
+            outwave = self.wave
+            
+        if self.balqso:
+            return 1e17 * outflux, outwave, meta, metaobj, metabal
+        else:
+            return 1e17 * outflux, self.wave, meta, metaobj
 
 class SIMQSO():
     """Generate Monte Carlo spectra of quasars (QSOs) using simqso."""

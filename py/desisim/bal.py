@@ -40,10 +40,10 @@ class BAL(object):
             nqso = len(np.atleast_1d(qsoredshift))
 
         balmeta = Table()
-        balmeta.add_column(Column(name='TEMPLATEID', length=nqso, dtype='i4'))
-        balmeta.add_column(Column(name='REDSHIFT', length=nqso, dtype='f4'))
-        balmeta['TEMPLATEID'] = -1
-        balmeta['REDSHIFT'] = qsoredshift
+        balmeta.add_column(Column(name='TEMPLATEID', length=nqso, dtype='i4', data=np.zeros(nqso)-1))
+        balmeta.add_column(Column(name='REDSHIFT', length=nqso, dtype='f4', data=np.zeros(nqso)))
+        if qsoredshift is not None:
+            balmeta['REDSHIFT'] = qsoredshift
 
         return balmeta        
         
