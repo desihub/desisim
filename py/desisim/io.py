@@ -1001,7 +1001,7 @@ def _parse_filename(filename):
     elif len(x) == 3:
         return x[0], x[1].lower(), int(x[2])
 
-def empty_metatable(nmodel=1, objtype='ELG', subtype='', add_SNeIa=None, old_style=False):
+def empty_metatable(nmodel=1, objtype='ELG', subtype=''):
     """Initialize template metadata tables depending on the given object type. 
 
     Parameters
@@ -1013,12 +1013,6 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype='', add_SNeIa=None, old_sty
     subtype : :class:`str`
         Subtype for the given object type (e.g., `LYA` is objtype=`QSO`).
         Defaults to ``.
-    add_SNeIa : :class:`bool`
-        Add additional columns pertaining to Type Ia supernovae (SNe Ia).
-        Defaults to False.
-    old_style : :class:`bool`
-        Return a single, old-style metadata table containing columns for all the
-        different types of supported objects, regardless of objtype.
 
     Returns
     -------
@@ -1027,142 +1021,69 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype='', add_SNeIa=None, old_sty
     metaobj : :class:`astropy.table.Table`
         Objtype-specific supplemental metadata table (e.g., containing the [OII]
         flux for ELG targets and surface gravity for stars.
-    metasne : :class:`astropy.table.Table`
-        SNe properties (only returned if add_SNeIa=True)
 
     """
     from astropy.table import Table, Column
 
+    # Objtype-agnostic metadata
     meta = Table()
     meta.add_column(Column(name='OBJTYPE', length=nmodel, dtype='U10'))
     meta.add_column(Column(name='SUBTYPE', length=nmodel, dtype='U10'))
-    meta.add_column(Column(name='TEMPLATEID', length=nmodel, dtype='i4',
-                           data=np.zeros(nmodel)-1))
-    meta.add_column(Column(name='SEED', length=nmodel, dtype='int64',
-                           data=np.zeros(nmodel)-1))
-    meta.add_column(Column(name='REDSHIFT', length=nmodel, dtype='f4',
-                           data=np.zeros(nmodel)))
-    meta.add_column(Column(name='MAG', length=nmodel, dtype='f4',
-                           data=np.zeros(nmodel)-1, unit='mag')) # normalization magnitude
+    meta.add_column(Column(name='TEMPLATEID', length=nmodel, dtype='i4', data=np.zeros(nmodel)-1))
+    meta.add_column(Column(name='SEED', length=nmodel, dtype='int64', data=np.zeros(nmodel)-1))
+    meta.add_column(Column(name='REDSHIFT', length=nmodel, dtype='f4', data=np.zeros(nmodel)))
+    meta.add_column(Column(name='MAG', length=nmodel, dtype='f4', data=np.zeros(nmodel)-1, unit='mag')) # normalization magnitude
     meta.add_column(Column(name='MAGFILTER', length=nmodel, dtype='U15')) # normalization filter
-    meta.add_column(Column(name='FLUX_G', length=nmodel, dtype='f4',
-                           unit='nanomaggies'))
-    meta.add_column(Column(name='FLUX_R', length=nmodel, dtype='f4',
-                           unit='nanomaggies'))
-    meta.add_column(Column(name='FLUX_Z', length=nmodel, dtype='f4',
-                           unit='nanomaggies'))
-    meta.add_column(Column(name='FLUX_W1', length=nmodel, dtype='f4',
-                           unit='nanomaggies'))
-    meta.add_column(Column(name='FLUX_W2', length=nmodel, dtype='f4',
-                           unit='nanomaggies'))
-
-    # For backwards compatability, pack all the object-specific into the same
-    # metadata table...
-    if old_style:
-        meta.add_column(Column(name='OIIFLUX', length=nmodel, dtype='f4',
-                               data=np.zeros(nmodel)-1, unit='erg/(s*cm2)'))
-        meta.add_column(Column(name='HBETAFLUX', length=nmodel, dtype='f4',
-                               data=np.zeros(nmodel)-1, unit='erg/(s*cm2)'))
-        meta.add_column(Column(name='EWOII', length=nmodel, dtype='f4',
-                               data=np.zeros(nmodel)-1, unit='Angstrom'))
-        meta.add_column(Column(name='EWHBETA', length=nmodel, dtype='f4',
-                               data=np.zeros(nmodel)-1, unit='Angstrom'))
-
-        meta.add_column(Column(name='D4000', length=nmodel, dtype='f4', data=np.zeros(nmodel)-1))
-        meta.add_column(Column(name='VDISP', length=nmodel, dtype='f4',
-                               data=np.zeros(nmodel)-1, unit='km/s'))
-        meta.add_column(Column(name='OIIDOUBLET', length=nmodel, dtype='f4', data=np.zeros(nmodel)-1))
-        meta.add_column(Column(name='OIIIHBETA', length=nmodel, dtype='f4',
-                               data=np.zeros(nmodel)-1, unit='Dex'))
-        meta.add_column(Column(name='OIIHBETA', length=nmodel, dtype='f4',
-                               data=np.zeros(nmodel)-1, unit='Dex'))
-        meta.add_column(Column(name='NIIHBETA', length=nmodel, dtype='f4',
-                               data=np.zeros(nmodel)-1, unit='Dex'))
-        meta.add_column(Column(name='SIIHBETA', length=nmodel, dtype='f4',
-                               data=np.zeros(nmodel)-1, unit='Dex'))
-
-        # ZMETAL and AGE deprecated as of v2.4 basis templates.
-        meta.add_column(Column(name='ZMETAL', length=nmodel, dtype='f4',
-                               data=np.zeros(nmodel)-1))
-        meta.add_column(Column(name='AGE', length=nmodel, dtype='f4',
-                               data=np.zeros(nmodel)-1, unit='Gyr'))
-
-        meta.add_column(Column(name='TEFF', length=nmodel, dtype='f4',
-                               data=np.zeros(nmodel)-1, unit='K'))
-        meta.add_column(Column(name='LOGG', length=nmodel, dtype='f4',
-                               data=np.zeros(nmodel)-1, unit='m/(s**2)'))
-        meta.add_column(Column(name='FEH', length=nmodel, dtype='f4',
-                               data=np.zeros(nmodel)-1))
-
-        if add_SNeIa:
-            meta.add_column(Column(name='SNE_TEMPLATEID', length=nmodel, dtype='i4',
-                                   data=np.zeros(nmodel)-1))
-            meta.add_column(Column(name='SNE_RFLUXRATIO', length=nmodel, dtype='f4',
-                                   data=np.zeros(nmodel)-1))
-            meta.add_column(Column(name='SNE_EPOCH', length=nmodel, dtype='f4',
-                                   data=np.zeros(nmodel)-1, unit='days'))
-
-    else: # ...otherwise return a second, object-specific table.
-
-        metaobj = Table()
-        
-        if objtype.upper() == 'ELG' or objtype.upper() == 'LRG' or objtype.upper() == 'BGS':
-            metaobj.add_column(Column(name='OIIFLUX', length=nmodel, dtype='f4',
-                                      data=np.zeros(nmodel)-1, unit='erg/(s*cm2)'))
-            metaobj.add_column(Column(name='HBETAFLUX', length=nmodel, dtype='f4',
-                                      data=np.zeros(nmodel)-1, unit='erg/(s*cm2)'))
-            metaobj.add_column(Column(name='EWOII', length=nmodel, dtype='f4',
-                                      data=np.zeros(nmodel)-1, unit='Angstrom'))
-            metaobj.add_column(Column(name='EWHBETA', length=nmodel, dtype='f4',
-                                      data=np.zeros(nmodel)-1, unit='Angstrom'))
-            metaobj.add_column(Column(name='D4000', length=nmodel, dtype='f4', data=np.zeros(nmodel)-1))
-            metaobj.add_column(Column(name='VDISP', length=nmodel, dtype='f4',
-                                      data=np.zeros(nmodel)-1, unit='km/s'))
-            metaobj.add_column(Column(name='OIIDOUBLET', length=nmodel, dtype='f4', data=np.zeros(nmodel)-1))
-            metaobj.add_column(Column(name='OIIIHBETA', length=nmodel, dtype='f4',
-                                      data=np.zeros(nmodel)-1, unit='Dex'))
-            metaobj.add_column(Column(name='OIIHBETA', length=nmodel, dtype='f4',
-                                      data=np.zeros(nmodel)-1, unit='Dex'))
-            metaobj.add_column(Column(name='NIIHBETA', length=nmodel, dtype='f4',
-                                      data=np.zeros(nmodel)-1, unit='Dex'))
-            metaobj.add_column(Column(name='SIIHBETA', length=nmodel, dtype='f4',
-                                      data=np.zeros(nmodel)-1, unit='Dex'))
-
-        elif objtype.upper() == 'QSO':
-            # SIMQSO has metadata handled in templates.SIMQSO.make_templates()
-            # while templates.QSO.make_templates has no metadata (at this time). 
-            pass 
-
-        elif objtype.upper() == 'STAR' or objtype.upper() == 'STD' or objtype.upper() == 'MWS_STAR':
-            metaobj.add_column(Column(name='TEFF', length=nmodel, dtype='f4',
-                                      data=np.zeros(nmodel)-1, unit='K'))
-            metaobj.add_column(Column(name='LOGG', length=nmodel, dtype='f4',
-                                      data=np.zeros(nmodel)-1, unit='m/(s**2)'))
-            metaobj.add_column(Column(name='FEH', length=nmodel, dtype='f4',
-                                      data=np.zeros(nmodel)-1))
-
-        elif objtype.upper() == 'WD':
-            metaobj.add_column(Column(name='TEFF', length=nmodel, dtype='f4',
-                                      data=np.zeros(nmodel)-1, unit='K'))
-            metaobj.add_column(Column(name='LOGG', length=nmodel, dtype='f4',
-                                      data=np.zeros(nmodel)-1, unit='m/(s**2)'))
-
-        if add_SNeIa:
-            metasne = Table()
-            metasne.add_column(Column(name='SNE_TEMPLATEID', length=nmodel, dtype='i4',
-                                      data=np.zeros(nmodel)-1))
-            metasne.add_column(Column(name='SNE_RFLUXRATIO', length=nmodel, dtype='f4',
-                                      data=np.zeros(nmodel)-1))
-            metasne.add_column(Column(name='SNE_EPOCH', length=nmodel, dtype='f4',
-                                      data=np.zeros(nmodel)-1, unit='days'))
+    meta.add_column(Column(name='FLUX_G', length=nmodel, dtype='f4', unit='nanomaggies'))
+    meta.add_column(Column(name='FLUX_R', length=nmodel, dtype='f4', unit='nanomaggies'))
+    meta.add_column(Column(name='FLUX_Z', length=nmodel, dtype='f4', unit='nanomaggies'))
+    meta.add_column(Column(name='FLUX_W1', length=nmodel, dtype='f4', unit='nanomaggies'))
+    meta.add_column(Column(name='FLUX_W2', length=nmodel, dtype='f4', unit='nanomaggies'))
 
     meta['OBJTYPE'] = objtype.upper()
     meta['SUBTYPE'] = subtype.upper()
 
-    if old_style:
-        return meta
-    else:
-        if add_SNeIa:
-            return meta, metaobj, metasne
-        else:
-            return meta, metaobj
+    # Objtype-specific metadata
+    metaobj = Table()
+    if objtype.upper() == 'ELG' or objtype.upper() == 'LRG' or objtype.upper() == 'BGS':
+        metaobj.add_column(Column(name='OIIFLUX', length=nmodel, dtype='f4',
+                                  data=np.zeros(nmodel)-1, unit='erg/(s*cm2)'))
+        metaobj.add_column(Column(name='HBETAFLUX', length=nmodel, dtype='f4',
+                                  data=np.zeros(nmodel)-1, unit='erg/(s*cm2)'))
+        metaobj.add_column(Column(name='EWOII', length=nmodel, dtype='f4',
+                                  data=np.zeros(nmodel)-1, unit='Angstrom'))
+        metaobj.add_column(Column(name='EWHBETA', length=nmodel, dtype='f4',
+                                  data=np.zeros(nmodel)-1, unit='Angstrom'))
+        metaobj.add_column(Column(name='D4000', length=nmodel, dtype='f4', data=np.zeros(nmodel)-1))
+        metaobj.add_column(Column(name='VDISP', length=nmodel, dtype='f4',
+                                  data=np.zeros(nmodel)-1, unit='km/s'))
+        metaobj.add_column(Column(name='OIIDOUBLET', length=nmodel, dtype='f4', data=np.zeros(nmodel)-1))
+        metaobj.add_column(Column(name='OIIIHBETA', length=nmodel, dtype='f4',
+                                  data=np.zeros(nmodel)-1, unit='Dex'))
+        metaobj.add_column(Column(name='OIIHBETA', length=nmodel, dtype='f4',
+                                  data=np.zeros(nmodel)-1, unit='Dex'))
+        metaobj.add_column(Column(name='NIIHBETA', length=nmodel, dtype='f4',
+                                  data=np.zeros(nmodel)-1, unit='Dex'))
+        metaobj.add_column(Column(name='SIIHBETA', length=nmodel, dtype='f4',
+                                  data=np.zeros(nmodel)-1, unit='Dex'))
+
+    elif objtype.upper() == 'QSO':
+        # SIMQSO has metadata handled in templates.SIMQSO.make_templates()
+        # while templates.QSO.make_templates has no metadata (at this time). 
+        pass 
+
+    elif objtype.upper() == 'STAR' or objtype.upper() == 'STD' or objtype.upper() == 'MWS_STAR':
+        metaobj.add_column(Column(name='TEFF', length=nmodel, dtype='f4',
+                                  data=np.zeros(nmodel)-1, unit='K'))
+        metaobj.add_column(Column(name='LOGG', length=nmodel, dtype='f4',
+                                  data=np.zeros(nmodel)-1, unit='m/(s**2)'))
+        metaobj.add_column(Column(name='FEH', length=nmodel, dtype='f4',
+                                  data=np.zeros(nmodel)-1))
+
+    elif objtype.upper() == 'WD':
+        metaobj.add_column(Column(name='TEFF', length=nmodel, dtype='f4',
+                                  data=np.zeros(nmodel)-1, unit='K'))
+        metaobj.add_column(Column(name='LOGG', length=nmodel, dtype='f4',
+                                  data=np.zeros(nmodel)-1, unit='m/(s**2)'))
+
+    return meta, metaobj

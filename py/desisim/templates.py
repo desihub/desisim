@@ -506,6 +506,7 @@ class GALAXY(object):
           ValueError
 
         """
+        from astropy.table import Table, Column
         from desispec.interpolation import resample_flux
         from desiutil.log import get_logger, DEBUG
 
@@ -548,13 +549,18 @@ class GALAXY(object):
 
             meta = empty_metatable(nmodel=nmodel, objtype=self.objtype, add_SNeIa=self.add_SNeIa)
         else:
-            if self.add_SNeIa:
-                meta, metaobj, metasne = empty_metatable(
-                    nmodel=nmodel, objtype=self.objtype,
-                    add_SNeIa=True)
-            else:
-                meta, metaobj = empty_metatable(nmodel=nmodel, objtype=self.objtype)
+            meta, metaobj = empty_metatable(nmodel=nmodel, objtype=self.objtype)
 
+            # Initialize the metasne output table
+            if self.add_SNeIa:
+                metasne = Table()
+                metasne.add_column(Column(name='SNE_TEMPLATEID', length=nmodel, dtype='i4',
+                                          data=np.zeros(nmodel)-1))
+                metasne.add_column(Column(name='SNE_RFLUXRATIO', length=nmodel, dtype='f4',
+                                          data=np.zeros(nmodel)-1))
+                metasne.add_column(Column(name='SNE_EPOCH', length=nmodel, dtype='f4',
+                                          data=np.zeros(nmodel)-1, unit='days'))
+                
             # Initialize the random seed.
             rand = np.random.RandomState(seed)
             templateseed = rand.randint(2**32, size=nmodel)
@@ -792,15 +798,14 @@ class GALAXY(object):
                         format(np.sum(success == 0)))
 
         if restframe:
-            if self.add_SNeIa:
-                return 1e17 * outflux, self.basewave, meta, metaobj, metasne
-            else:
-                return 1e17 * outflux, self.basewave, meta, metaobj
+            outwave = self.basewave
         else:
-            if self.add_SNeIa:
-                return 1e17 * outflux, self.wave, meta, metaobj, metasne
-            else:
-                return 1e17 * outflux, self.wave, meta, metaobj
+            outwave = self.wave
+            
+        if self.add_SNeIa:
+            return 1e17 * outflux, outwave, meta, metaobj, metasne
+        else:
+            return 1e17 * outflux, outwave, meta, metaobj
 
 class ELG(GALAXY):
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs)."""
@@ -1892,9 +1897,8 @@ class QSO():
             mag = input_meta['MAG'].data
 
             meta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
-            
         else:
-            meta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
+            meta, metaobj = empty_metatable(nmodel=nmodel, objtype=self.objtype)
 
             # Initialize the random seed.
             rand = np.random.RandomState(seed)
@@ -1918,9 +1922,9 @@ class QSO():
 
         # Populate some of the metadata table.
         meta['TEMPLATEID'] = np.arange(nmodel)
-        for key, value in zip(('REDSHIFT', 'MAG', 'SEED'),
-                               (redshift, mag, templateseed)):
-            meta[key] = value
+        for key, value in zip(('REDSHIFT', 'MAG', 'MAGFILTER', 'SEED'),
+                               (redshift, mag, self.normfilter, templateseed)):
+            meta[key][:] = value
 
         if lyaforest: 
             meta['SUBTYPE'] = 'LYA'
