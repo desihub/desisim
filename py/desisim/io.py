@@ -1043,6 +1043,7 @@ def _parse_filename(filename):
     elif len(x) == 3:
         return x[0], x[1].lower(), int(x[2])
 
+                
 def empty_metatable(nmodel=1, objtype='ELG', subtype=''):
     """Initialize template metadata tables depending on the given object type. 
 
@@ -1135,3 +1136,33 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype=''):
                                   data=np.zeros(nmodel)-1, unit='m/(s**2)'))
 
     return meta, objmeta
+
+                
+def empty_snemetatable(nmodel=1):
+    """Initialize a metadata table for SNE.
+
+    Parameters
+    ----------
+    nmodel : :class:`int`
+        Number of rows in output table.  Defaults to 1.
+
+    Returns
+    -------
+    snemeta : :class:`astropy.table.Table`
+        Metadata table.
+
+    """
+    from astropy.table import Table, Column
+
+    targetid = np.arange(nmodel).astype(np.int64)
+
+    snemeta = Table()
+    snemeta.add_column(Column(name='TARGETID', data=targetid))
+    snemeta.add_column(Column(name='SNE_TEMPLATEID', length=nmodel, dtype='i4',
+                              data=np.zeros(nmodel)-1))
+    snemeta.add_column(Column(name='SNE_RFLUXRATIO', length=nmodel, dtype='f4',
+                              data=np.zeros(nmodel)-1))
+    snemeta.add_column(Column(name='SNE_EPOCH', length=nmodel, dtype='f4',
+                              data=np.zeros(nmodel)-1, unit='days'))
+    
+    return snemeta
