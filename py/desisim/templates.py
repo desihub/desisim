@@ -25,6 +25,15 @@ def _check_input_meta(input_meta):
             required_cols))
         raise ValueError
 
+def _check_input_snemeta(input_snemeta):
+    log = get_logger()
+    cols = input_meta.colnames
+    required_cols = ('SNE_TEMPLATEID', 'SNE_EPOCH', 'SNE_FLUXRATIO', 'SNE_FILTER')
+    if not np.all(np.in1d(required_cols, cols)):
+        log.warning('Input SNe metadata table (input_snemeta) is missing one or more required columns {}'.format(
+            required_cols))
+        raise ValueError
+
 class EMSpectrum(object):
     """Construct a complete nebular emission-line spectrum.
 
@@ -252,7 +261,7 @@ class GALAXY(object):
 
     """
     def __init__(self, objtype='ELG', minwave=3600.0, maxwave=10000.0, cdelt=0.2,
-                 wave=None, colorcuts_function=None, normfilter='decam2014-r',
+                 wave=None, colorcuts_function=None, normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  normline='OII', fracvdisp=(0.1, 40), baseflux=None, basewave=None,
                  basemeta=None, add_SNeIa=False):
         """Read the appropriate basis continuum templates, filter profiles and
@@ -279,8 +288,11 @@ class GALAXY(object):
             function to apply (e.g., desitarget.cuts.isBGS_faint and
             desitarget.cuts.isBGS_bright) which will be applied in sequence
             (default None).
-          normfilter (str): normalize each spectrum to the magnitude in this
-            filter bandpass (default 'decam2014-r').
+          normfilter_north (str): normalization filter for simulated "north"
+            templates.  Each spectrum is normalized to the magnitude in this
+            filter bandpass (default 'BASS-r').
+          normfilter_south (str): corresponding normalization filter for "south"
+            (default 'decam2014-r').
           normline (str): normalize the emission-line spectrum to the flux in
             this emission line.  The options are 'OII' (for ELGs, the default),
             'HBETA' (for BGS), or None (for LRGs).
@@ -300,16 +312,22 @@ class GALAXY(object):
             corresponding to BASEFLUX (Angstrom).
           basemeta (astropy.Table): Table of meta-data [nbase] for each base template.
           pixbound (numpy.ndarray): Pixel boundaries of BASEWAVE (Angstrom).
-          rfilt (speclite.filters instance): DECam2014 r-band FilterSequence.
-          normfilt (speclite.filters instance): FilterSequence of self.normfilter.
+          normfilt_north (speclite.filters instance): FilterSequence of
+            self.normfilter_north.
+          normfilt_south (speclite.filters instance): FilterSequence of
+            self.normfilter_south.
           decamwise (speclite.filters instance): DECam2014-[g,r,z] and WISE2010-[W1,W2]
             FilterSequence.
+          bassmzlswise (speclite.filters instance): BASS-[g,r], MzLS-z and
+            WISE2010-[W1,W2] FilterSequence.
 
         Optional Attributes:
           sne_baseflux (numpy.ndarray): Array [sne_nbase,sne_npix] of the base
             rest-frame SNeIa spectra interpolated onto BASEWAVE [erg/s/cm2/A].
           sne_basemeta (astropy.Table): Table of meta-data for each base SNeIa
             spectra [sne_nbase].
+          rfilt_north (speclite.filters instance): BASS r-band FilterSequence.
+          rfilt_south (speclite.filters instance): DECam2014 r-band FilterSequence.
 
         """
         from speclite import filters
@@ -317,7 +335,8 @@ class GALAXY(object):
 
         self.objtype = objtype.upper()
         self.colorcuts_function = colorcuts_function
-        self.normfilter = normfilter
+        self.normfilter_north = normfilter_north
+        self.normfilter_south = normfilter_south
         self.normline = normline
 
         if self.normline is not None:
@@ -352,15 +371,20 @@ class GALAXY(object):
             self.sne_baseflux = sne_baseflux
             self.sne_basemeta = sne_basemeta
 
+            self.rfilt_north = filters.load_filters('BASS-r')
+            self.rfilt_south = filters.load_filters('decam2014-r')
+
         # Pixel boundaries
         self.pixbound = pxs.cen2bound(basewave)
         self.fracvdisp = fracvdisp
 
         # Initialize the filter profiles.
-        self.rfilt = filters.load_filters('decam2014-r')
-        self.normfilt = filters.load_filters(self.normfilter)
+        self.normfilt_north = filters.load_filters(self.normfilter_north)
+        self.normfilt_south = filters.load_filters(self.normfilter_south)
         self.decamwise = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
                                               'wise2010-W1', 'wise2010-W2')
+        self.bassmzlswise = filters.load_filters('BASS-g', 'BASS-r', 'MzLS-z',
+                                                 'wise2010-W1', 'wise2010-W2')
 
     def _blurmatrix(self, vdisp, log=None):
         """Pre-compute the blur_matrix as a dictionary keyed by each unique value of
@@ -415,10 +439,11 @@ class GALAXY(object):
 
     def make_galaxy_templates(self, nmodel=100, zrange=(0.6, 1.6), magrange=(21.0, 23.5),
                               oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
-                              minlineflux=0.0, sne_rfluxratiorange=(0.01, 0.1),
+                              minlineflux=0.0, sne_fluxratiorange=(0.01, 0.1), sne_filter='decam2014-r',
                               seed=None, redshift=None, mag=None, vdisp=None,
-                              input_meta=None, nocolorcuts=False, nocontinuum=False,
-                              agnlike=False, novdisp=False, restframe=False, verbose=False):
+                              input_meta=None, input_snemeta=None, nocolorcuts=False,
+                              nocontinuum=False, agnlike=False, novdisp=False, south=True,
+                              restframe=False, verbose=False):
         """Build Monte Carlo galaxy spectra/templates.
 
         This function chooses random subsets of the basis continuum spectra (for
@@ -461,10 +486,13 @@ class GALAXY(object):
             Defaults to log10-sigma=1.9+/-0.15 km/s.
           minlineflux (float, optional): Minimum emission-line flux in the line
             specified by self.normline (default 0 erg/s/cm2).
-          sne_rfluxratiorange (float, optional): r-band flux ratio of the SNeIa
-            spectrum with respect to the underlying galaxy.  Defaults to a
-            uniform distribution between (0.01, 0.1).
-
+        
+          sne_fluxratiorange (float, optional): flux ratio of the SNeIa spectrum
+            with respect to the underlying galaxy in the filter specified in
+            sne_filter.  Defaults to a uniform distribution between (0.01, 0.1).
+          sne_filter (str): filter corresponding to SNE_FLUXRATIORANGE (default
+            'decam2014-r').
+        
           seed (int, optional): Input seed for the random numbers.
           redshift (float, optional): Input/output template redshifts.  Array
             size must equal nmodel.  Ignores zrange input.
@@ -472,16 +500,19 @@ class GALAXY(object):
             specified by self.normfilter.  Array size must equal nmodel.
             Ignores magrange input.
           vdisp (float, optional): Input/output velocity dispersions.  Array
-            size must equal nmodel.  Ignores magrange input.
-
+            size must equal nmodel.
+        
           input_meta (astropy.Table): *Input* metadata table with the following
-            required columns: TEMPLATEID, SEED, REDSHIFT, VDISP, MAG (where mag
-            is specified by self.normfilter).  In addition, if add_SNeIa is True
-            then the table must also contain SNE_TEMPLATEID, SNE_EPOCH, and
-            SNE_RFLUXRATIO columns.  See desisim.io.empty_metatable for the
-            required data type for each column.  If this table is passed then
-            all other optional inputs (nmodel, redshift, vdisp, mag, zrange,
-            logvdisp_meansig, etc.) are ignored.
+            required columns: TEMPLATEID, SEED, REDSHIFT, MAG, and MAGFILTER
+            (see desisim.io.empty_metatable for the expected data types).  In
+            addition, in order to faithfully reproduce a previous set of
+            spectra, then VDISP must also be passed (normally returned in the
+            OBJMETA table).  If present, then all other optional inputs (nmodel,
+            redshift, mag, zrange, logvdisp_meansig, etc.) are ignored.
+          input_snemeta (astropy.Table): *Input* table of SN properties with
+            required columns SNE_TEMPLATEID, SNE_EPOCH, SNE_FLUXRATIO, and
+            SNE_FILTER.  Only used if add_SNeIa is True.  Also, if present then
+            all other optional inputs pertaining to SNe are ignored.
 
           nocolorcuts (bool, optional): Do not apply the color-cuts specified by
             the self.colorcuts_function function (default False).
@@ -494,6 +525,9 @@ class GALAXY(object):
           agnlike (bool, optional): Adopt AGN-like emission-line ratios (e.g.,
             for the LRGs and some BGS galaxies) (default False, meaning we adopt
             star-formation-like line-ratios).  Option not yet supported.
+          south (bool, optional): Apply "south" color-cuts using the DECaLS
+            filter system, otherwise apply the "north" (MzLS+BASS) color-cuts.
+            Defaults to True.
           restframe (bool, optional): If True, return full resolution restframe
             templates instead of resampled observer frame.
           verbose (bool, optional): Be verbose!
@@ -507,14 +541,14 @@ class GALAXY(object):
           * objmeta (astropy.Table): Additional objtype-specific table data
             [nmodel] for each spectrum.
 
-        In addition, if add_SNeIa=True then a third astropy.Table object,
-        snemeta, is returned with the properties of the simulated SNe.
+          In addition, if add_SNeIa=True then a third astropy.Table object,
+          snemeta, is returned with the properties of the simulated SNe.
 o
         Raises:
           ValueError
 
         """
-        from astropy.table import Table, Column
+        from speclite import filters
         from desispec.interpolation import resample_flux
 
         if verbose:
@@ -533,24 +567,15 @@ o
 
         # Optionally unpack a metadata table.
         if input_meta is not None:
+            _check_input_meta(input_meta)
+
             templateseed = input_meta['SEED'].data
             rand = np.random.RandomState(templateseed[0])
 
             redshift = input_meta['REDSHIFT'].data
             mag = input_meta['MAG'].data
-            magfilter = input_meta['MAGFILTER'].data
-            vdisp = input_meta['VDISP'].data
+            magfilter = np.char.strip(input_meta['MAGFILTER'].data)
             
-            vzero = np.where(vdisp <= 0)[0]
-            if len(vzero) > 0:
-                log.fatal('Velocity dispersion is zero or negative!')
-                raise ValueError
-
-            if self.add_SNeIa:
-                sne_tempid = input_meta['SNE_TEMPLATEID']
-                sne_epoch = input_meta['SNE_EPOCH']
-                sne_rfluxratio = input_meta['SNE_RFLUXRATIO']
-
             nchunk = 1
             nmodel = len(input_meta)
             alltemplateid_chunk = [input_meta['TEMPLATEID'].data.reshape(nmodel, 1)]
@@ -559,16 +584,6 @@ o
         else:
             meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
 
-            # Initialize the snemeta output table
-            if self.add_SNeIa:
-                snemeta = Table()
-                snemeta.add_column(Column(name='SNE_TEMPLATEID', length=nmodel, dtype='i4',
-                                          data=np.zeros(nmodel)-1))
-                snemeta.add_column(Column(name='SNE_RFLUXRATIO', length=nmodel, dtype='f4',
-                                          data=np.zeros(nmodel)-1))
-                snemeta.add_column(Column(name='SNE_EPOCH', length=nmodel, dtype='f4',
-                                          data=np.zeros(nmodel)-1, unit='days'))
-                
             # Initialize the random seed.
             rand = np.random.RandomState(seed)
             templateseed = rand.randint(2**32, size=nmodel)
@@ -590,23 +605,20 @@ o
             if mag is None:
                 mag = rand.uniform(magrange[0], magrange[1], nmodel).astype('f4')
 
-            if vdisp is None:
-                # Limit the number of unique velocity dispersion values.
-                nvdisp = int(np.max( ( np.min(
-                    ( np.round(nmodel * self.fracvdisp[0]), self.fracvdisp[1] ) ), 1 ) ))
-                if logvdisp_meansig[1] > 0:
-                    vvdisp = 10**rand.normal(logvdisp_meansig[0], logvdisp_meansig[1], nvdisp)
-                else:
-                    vvdisp = 10**np.repeat(logvdisp_meansig[0], nvdisp)
-                vdisp = rand.choice(vvdisp, nmodel)
+            if south:
+                magfilter = np.repeat(self.normfilter_south, nmodel)
+            else:
+                magfilter = np.repeat(self.normfilter_north, nmodel)
 
-            # Generate the (optional) distribution of SNe Ia priors.
-            if self.add_SNeIa:
-                sne_rfluxratio = rand.uniform(sne_rfluxratiorange[0], sne_rfluxratiorange[1], nmodel)
-                sne_tempid = rand.randint(0, len(self.sne_basemeta)-1, nmodel)
-                snemeta['SNE_TEMPLATEID'] = sne_tempid
-                snemeta['SNE_EPOCH'] = self.sne_basemeta['EPOCH'][sne_tempid]
-                snemeta['SNE_RFLUXRATIO'] = sne_rfluxratio
+        if vdisp is None:
+            # Limit the number of unique velocity dispersion values.
+            nvdisp = int(np.max( ( np.min(
+                ( np.round(nmodel * self.fracvdisp[0]), self.fracvdisp[1] ) ), 1 ) ))
+            if logvdisp_meansig[1] > 0:
+                vvdisp = 10**rand.normal(logvdisp_meansig[0], logvdisp_meansig[1], nvdisp)
+            else:
+                vvdisp = 10**np.repeat(logvdisp_meansig[0], nvdisp)
+            vdisp = rand.choice(vvdisp, nmodel)
 
         if redshift is not None:
             if len(redshift) != nmodel:
@@ -623,6 +635,32 @@ o
                 log.fatal('Vdisp must be an nmodel-length array')
                 raise ValueError
 
+            vzero = np.where(vdisp <= 0)[0]
+            if len(vzero) > 0:
+                log.fatal('Velocity dispersion is zero or negative!')
+                raise ValueError
+
+        # Generate the (optional) distribution of SNe Ia priors or read them
+        # from the input table.
+        if self.add_SNeIa:
+            if input_snemeta is not None:
+                _check_input_snemeta(input_snemeta)
+                sne_tempid = input_snemeta['SNE_TEMPLATEID']
+                sne_epoch = input_snemeta['SNE_EPOCH']
+                sne_fluxratio = input_snemeta['SNE_FLUXRATIO']
+                sne_filter = np.char.strip(input_snemeta['SNE_FILTER'])
+            else:
+                from desisim.io import empty_snemetatable
+                snemeta = empty_snemetatable(nmodel)
+                
+                sne_fluxratio = rand.uniform(sne_fluxratiorange[0], sne_fluxratiorange[1], nmodel)
+                sne_tempid = rand.randint(0, len(self.sne_basemeta)-1, nmodel)
+                
+                snemeta['SNE_TEMPLATEID'] = sne_tempid
+                snemeta['SNE_EPOCH'] = self.sne_basemeta['EPOCH'][sne_tempid]
+                snemeta['SNE_FLUXRATIO'] = sne_fluxratio
+                snemeta['SNE_FILTER'] = sne_filter
+
         # Precompute the velocity dispersion convolution matrix for each unique
         # value of vdisp.
         if nocontinuum or novdisp:
@@ -633,8 +671,15 @@ o
         # Populate some of the metadata table.
         objmeta['VDISP'][:] = vdisp
         for key, value in zip(('REDSHIFT', 'MAG', 'MAGFILTER', 'SEED'),
-                               (redshift, mag, self.normfilter, templateseed)):
+                               (redshift, mag, magfilter, templateseed)):
             meta[key][:] = value
+
+        # Load the unique set of MAGFILTERs.  We could check against
+        # self.decamwise.names and self.bassmzlswise to see if the filters have
+        # already been loaded, but speed should not be an issue.
+        normfilt = dict()
+        for mfilter in np.unique(magfilter):
+            normfilt[mfilter] = filters.load_filters(mfilter)
 
         # Optionally initialize the emission-line objects and line-ratios.
         d4000 = self.basemeta['D4000']
@@ -722,15 +767,16 @@ o
 
                 # Synthesize photometry to determine which models will pass the
                 # color-cuts.
-                maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
+                if south:
+                    maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
+                else:
+                    maggies = self.bassmzlswise.get_ab_maggies(restflux, zwave, mask_invalid=True)
+
                 if nocontinuum:
                     magnorm = np.repeat(10**(-0.4*mag[ii]), nbasechunk)
                 else:
-                    if self.normfilter in self.decamwise.names:
-                        normmaggies = np.array(maggies[self.normfilter])
-                    else:
-                        normmaggies = np.array(self.normfilt.get_ab_maggies(
-                            restflux, zwave, mask_invalid=True)[self.normfilter])
+                    normmaggies = np.array(normfilt[magfilter[ii]].get_ab_maggies(
+                        restflux, zwave, mask_invalid=True)[magfilter[ii]])
                     magnorm = 10**(-0.4*mag[ii]) / normmaggies
 
                 synthnano = dict()
@@ -741,24 +787,25 @@ o
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, nbasechunk)
                 else:
+                    if south:
+                        gflux, rflux, zflux, w1flux, w2flux = synthnano['decam2014-g'], \
+                          synthnano['decam2014-r'], synthnano['decam2014-z'], \
+                          synthnano['wise2010-W1'], synthnano['wise2010-W2']
+                    else:
+                        gflux, rflux, zflux, w1flux, w2flux = synthnano['BASS-g'], \
+                          synthnano['BASS-r'], synthnano['MzLS-z'], \
+                          synthnano['wise2010-W1'], synthnano['wise2010-W2']
+
                     if isinstance(self.colorcuts_function, (tuple, list)):
                         _colormask = []
                         for cf in self.colorcuts_function:
-                            _colormask.append(cf(
-                                gflux=synthnano['decam2014-g'],
-                                rflux=synthnano['decam2014-r'],
-                                zflux=synthnano['decam2014-z'],
-                                w1flux=synthnano['wise2010-W1'],
-                                w2flux=synthnano['wise2010-W2']))
+                            _colormask.append(cf(gflux=gflux, rflux=rflux, zflux=zflux,
+                                                 w1flux=w1flux, w2flux=w2flux, south=south))
                         colormask = np.any( np.ma.getdata(np.vstack(_colormask)), axis=0)
                     else:
-                        colormask = self.colorcuts_function(
-                            gflux=synthnano['decam2014-g'],
-                            rflux=synthnano['decam2014-r'],
-                            zflux=synthnano['decam2014-z'],
-                            w1flux=synthnano['wise2010-W1'],
-                            w2flux=synthnano['wise2010-W2'])
-
+                        colormask = self.colorcuts_function(gflux=gflux, rflux=rflux, zflux=zflux,
+                                                            w1flux=w1flux, w2flux=w2flux, south=south)
+                        
                 # If the color-cuts pass then populate the output flux vector
                 # (suitably normalized) and metadata table, convolve with the
                 # velocity dispersion, resample, and finish up.  Note that the
@@ -819,7 +866,8 @@ class ELG(GALAXY):
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 add_SNeIa=False, normfilter='decam2014-r', colorcuts_function=None,
+                 add_SNeIa=False, colorcuts_function=None,
+                 normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the ELG class.  See the GALAXY.__init__ method for documentation
          on the arguments plus the inherited attributes.
@@ -843,17 +891,17 @@ class ELG(GALAXY):
 
         super(ELG, self).__init__(objtype='ELG', minwave=minwave, maxwave=maxwave,
                                   cdelt=cdelt, wave=wave, colorcuts_function=colorcuts_function,
-                                  normfilter=normfilter, normline='OII', add_SNeIa=add_SNeIa,
+                                  normfilter_north=normfilter_north, normfilter_south=normfilter_south,
                                   baseflux=baseflux, basewave=basewave, basemeta=basemeta)
 
         self.ewoiicoeff = [1.34323087, -5.02866474, 5.43842874]
 
     def make_templates(self, nmodel=100, zrange=(0.6, 1.6), rmagrange=(21.0, 23.4),
                        oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
-                       minoiiflux=0.0, sne_rfluxratiorange=(0.1, 1.0), redshift=None,
-                       mag=None, vdisp=None, seed=None, input_meta=None, nocolorcuts=False,
-                       nocontinuum=False, agnlike=False, novdisp=False, restframe=False,
-                       verbose=False):
+                       minoiiflux=0.0, sne_fluxratiorange=(0.1, 1.0), sne_filter='decam2014-r',
+                       redshift=None, mag=None, vdisp=None, seed=None, input_meta=None,
+                       nocolorcuts=False, nocontinuum=False, agnlike=False, novdisp=False,
+                       south=True, restframe=False, verbose=False):
         """Build Monte Carlo ELG spectra/templates.
 
         See the GALAXY.make_galaxy_templates function for documentation on the
@@ -890,10 +938,10 @@ class ELG(GALAXY):
         result = self.make_galaxy_templates(nmodel=nmodel, zrange=zrange, magrange=rmagrange,
                                             oiiihbrange=oiiihbrange, logvdisp_meansig=logvdisp_meansig,
                                             minlineflux=minoiiflux, redshift=redshift, vdisp=vdisp,
-                                            mag=mag, sne_rfluxratiorange=sne_rfluxratiorange,
+                                            mag=mag, sne_fluxratiorange=sne_fluxratiorange, sne_filter=sne_filter,
                                             seed=seed, input_meta=input_meta, nocolorcuts=nocolorcuts,
                                             nocontinuum=nocontinuum, agnlike=agnlike, novdisp=novdisp,
-                                            restframe=restframe, verbose=verbose)
+                                            south=south, restframe=restframe, verbose=verbose)
         return result
 
 class BGS(GALAXY):
@@ -1065,8 +1113,7 @@ class SUPERSTAR(object):
     """Base class for generating Monte Carlo spectra of the various flavors of stars."""
 
     def __init__(self, objtype='STAR', subtype='', minwave=3600.0, maxwave=10000.0, cdelt=0.2,
-                 wave=None, colorcuts_function=None,
-                 normfilter_north='BASS-r', normfilter_south='decam2014-r',
+                 wave=None, colorcuts_function=None, normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Read the appropriate basis continuum templates, filter profiles and
         initialize the output wavelength array.
