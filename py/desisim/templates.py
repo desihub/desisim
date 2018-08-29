@@ -261,9 +261,10 @@ class GALAXY(object):
 
     """
     def __init__(self, objtype='ELG', minwave=3600.0, maxwave=10000.0, cdelt=0.2,
-                 wave=None, colorcuts_function=None, normfilter_north='BASS-r', normfilter_south='decam2014-r',
-                 normline='OII', fracvdisp=(0.1, 40), baseflux=None, basewave=None,
-                 basemeta=None, add_SNeIa=False):
+                 wave=None, add_SNeIa=False, colorcuts_function=None,
+                 normfilter_north='BASS-r', normfilter_south='decam2014-r', normline='OII',
+                 fracvdisp=(0.1, 40), baseflux=None, basewave=None,
+                 basemeta=None):
         """Read the appropriate basis continuum templates, filter profiles and
         initialize the output wavelength array.
 
@@ -828,11 +829,11 @@ o
                         outflux[ii, :] = resample_flux(self.wave, zwave, blurflux, extrapolate=True)
 
                     meta['TEMPLATEID'][ii] = tempid
-                    meta['FLUX_G'][ii] = synthnano['decam2014-g'][this]
-                    meta['FLUX_R'][ii] = synthnano['decam2014-r'][this]
-                    meta['FLUX_Z'][ii] = synthnano['decam2014-z'][this]
-                    meta['FLUX_W1'][ii] = synthnano['wise2010-W1'][this]
-                    meta['FLUX_W2'][ii] = synthnano['wise2010-W2'][this]
+                    meta['FLUX_G'][ii] = gflux[this]
+                    meta['FLUX_R'][ii] = rflux[this]
+                    meta['FLUX_Z'][ii] = zflux[this]
+                    meta['FLUX_W1'][ii] = w1flux[this]
+                    meta['FLUX_W2'][ii] = w2flux[this]
 
                     objmeta['D4000'][ii] = d4000[tempid]
 
@@ -873,9 +874,8 @@ class ELG(GALAXY):
          on the arguments plus the inherited attributes.
 
         Note:
-          We assume that the ELG templates will always be normalized in the
-          DECam r-band filter and that the emission-line spectra will be
-          normalized to the integrated [OII] emission-line flux.
+          By default, we assume the emission-line spectra will be normalized to
+          the integrated [OII] emission-line flux.
 
         Args:
 
@@ -890,9 +890,11 @@ class ELG(GALAXY):
             from desitarget.cuts import isELG as colorcuts_function
 
         super(ELG, self).__init__(objtype='ELG', minwave=minwave, maxwave=maxwave,
-                                  cdelt=cdelt, wave=wave, colorcuts_function=colorcuts_function,
+                                  cdelt=cdelt, wave=wave, normline='OII',
+                                  colorcuts_function=colorcuts_function,
                                   normfilter_north=normfilter_north, normfilter_south=normfilter_south,
-                                  baseflux=baseflux, basewave=basewave, basemeta=basemeta)
+                                  baseflux=baseflux, basewave=basewave, basemeta=basemeta,
+                                  add_SNeIa=add_SNeIa)
 
         self.ewoiicoeff = [1.34323087, -5.02866474, 5.43842874]
 
@@ -900,8 +902,8 @@ class ELG(GALAXY):
                        oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
                        minoiiflux=0.0, sne_fluxratiorange=(0.1, 1.0), sne_filter='decam2014-r',
                        redshift=None, mag=None, vdisp=None, seed=None, input_meta=None,
-                       nocolorcuts=False, nocontinuum=False, agnlike=False, novdisp=False,
-                       south=True, restframe=False, verbose=False):
+                       input_snemeta=None, nocolorcuts=False, nocontinuum=False, agnlike=False,
+                       novdisp=False, south=True, restframe=False, verbose=False):
         """Build Monte Carlo ELG spectra/templates.
 
         See the GALAXY.make_galaxy_templates function for documentation on the
@@ -929,8 +931,8 @@ class ELG(GALAXY):
           * objmeta (astropy.Table): Additional objtype-specific table data
             [nmodel] for each spectrum.
 
-        In addition, if add_SNeIa=True then a third astropy.Table object,
-        snemeta, is returned with the properties of the simulated SNe.
+          In addition, if add_SNeIa=True then a third astropy.Table object,
+          snemeta, is returned with the properties of the simulated SNe.
 
         Raises:
 
@@ -939,24 +941,24 @@ class ELG(GALAXY):
                                             oiiihbrange=oiiihbrange, logvdisp_meansig=logvdisp_meansig,
                                             minlineflux=minoiiflux, redshift=redshift, vdisp=vdisp,
                                             mag=mag, sne_fluxratiorange=sne_fluxratiorange, sne_filter=sne_filter,
-                                            seed=seed, input_meta=input_meta, nocolorcuts=nocolorcuts,
-                                            nocontinuum=nocontinuum, agnlike=agnlike, novdisp=novdisp,
-                                            south=south, restframe=restframe, verbose=verbose)
+                                            seed=seed, input_meta=input_meta, input_snemeta=input_snemeta,
+                                            nocolorcuts=nocolorcuts, nocontinuum=nocontinuum, agnlike=agnlike,
+                                            novdisp=novdisp, south=south, restframe=restframe, verbose=verbose)
         return result
 
 class BGS(GALAXY):
     """Generate Monte Carlo spectra of bright galaxy survey galaxies (BGSs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 add_SNeIa=False, normfilter='decam2014-r', colorcuts_function=None,
+                 add_SNeIa=False, colorcuts_function=None,
+                 normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the BGS class.  See the GALAXY.__init__ method for documentation
          on the arguments plus the inherited attributes.
 
         Note:
-          We assume that the BGS templates will always be normalized in the
-          DECam r-band filter and that the emission-line spectra will be
-          normalized to the integrated H-beta emission-line flux.
+          By default, we assume the emission-line spectra will be normalized to
+          the integrated H-beta emission-line flux.
 
         Args:
 
@@ -973,18 +975,20 @@ class BGS(GALAXY):
             colorcuts_function = (isBGS_bright, isBGS_faint)
 
         super(BGS, self).__init__(objtype='BGS', minwave=minwave, maxwave=maxwave,
-                                  cdelt=cdelt, wave=wave, colorcuts_function=colorcuts_function,
-                                  normfilter=normfilter, normline='HBETA', add_SNeIa=add_SNeIa,
-                                  baseflux=baseflux, basewave=basewave, basemeta=basemeta)
+                                  cdelt=cdelt, wave=wave, normline='HBETA', 
+                                  colorcuts_function=colorcuts_function,
+                                  normfilter_north=normfilter_north, normfilter_south=normfilter_south,
+                                  baseflux=baseflux, basewave=basewave, basemeta=basemeta,
+                                  add_SNeIa=add_SNeIa)
 
         self.ewhbetacoeff = [1.28520974, -4.94408026, 4.9617704]
 
     def make_templates(self, nmodel=100, zrange=(0.01, 0.4), rmagrange=(15.0, 19.5),
                        oiiihbrange=(-1.3, 0.6), logvdisp_meansig=(2.0, 0.17),
-                       minhbetaflux=0.0, sne_rfluxratiorange=(0.1, 1.0), redshift=None,
-                       mag=None, vdisp=None, seed=None, input_meta=None, nocolorcuts=False,
-                       nocontinuum=False, agnlike=False, novdisp=False, restframe=False,
-                       verbose=False):
+                       minhbetaflux=0.0, sne_fluxratiorange=(0.1, 1.0), sne_filter='decam2014-r',
+                       redshift=None, mag=None, vdisp=None, seed=None, input_meta=None,
+                       input_snemeta=None, nocolorcuts=False, nocontinuum=False, agnlike=False,
+                       novdisp=False, south=True, restframe=False, verbose=False):
         """Build Monte Carlo BGS spectra/templates.
 
          See the GALAXY.make_galaxy_templates function for documentation on the
@@ -1012,8 +1016,8 @@ class BGS(GALAXY):
           * objmeta (astropy.Table): Additional objtype-specific table data
             [nmodel] for each spectrum.
 
-        In addition, if add_SNeIa=True then a third astropy.Table object,
-        snemeta, is returned with the properties of the simulated SNe.
+          In addition, if add_SNeIa=True then a third astropy.Table object,
+          snemeta, is returned with the properties of the simulated SNe.
 
         Raises:
 
@@ -1021,11 +1025,10 @@ class BGS(GALAXY):
         result = self.make_galaxy_templates(nmodel=nmodel, zrange=zrange, magrange=rmagrange,
                                             oiiihbrange=oiiihbrange, logvdisp_meansig=logvdisp_meansig,
                                             minlineflux=minhbetaflux, redshift=redshift, vdisp=vdisp,
-                                            mag=mag, sne_rfluxratiorange=sne_rfluxratiorange,
-                                            seed=seed, input_meta=input_meta, nocolorcuts=nocolorcuts,
-                                            nocontinuum=nocontinuum, agnlike=agnlike, novdisp=novdisp,
-                                            restframe=restframe, verbose=verbose)
-        
+                                            mag=mag, sne_fluxratiorange=sne_fluxratiorange, sne_filter=sne_filter,
+                                            seed=seed, input_meta=input_meta, input_snemeta=input_snemeta,
+                                            nocolorcuts=nocolorcuts, nocontinuum=nocontinuum, agnlike=agnlike,
+                                            novdisp=novdisp, south=south, restframe=restframe, verbose=verbose)
         return result
 
 class LRG(GALAXY):
@@ -1420,13 +1423,17 @@ class SUPERSTAR(object):
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, nbasechunk)
                 else:
-                    colormask = self.colorcuts_function(
-                        gflux=synthnano['decam2014-g'],
-                        rflux=synthnano['decam2014-r'],
-                        zflux=synthnano['decam2014-z'],
-                        w1flux=synthnano['wise2010-W1'],
-                        w2flux=synthnano['wise2010-W2'],
-                        south=south)
+                    if south:
+                        gflux, rflux, zflux, w1flux, w2flux = synthnano['decam2014-g'], \
+                          synthnano['decam2014-r'], synthnano['decam2014-z'], \
+                          synthnano['wise2010-W1'], synthnano['wise2010-W2']
+                    else:
+                        gflux, rflux, zflux, w1flux, w2flux = synthnano['BASS-g'], \
+                          synthnano['BASS-r'], synthnano['MzLS-z'], \
+                          synthnano['wise2010-W1'], synthnano['wise2010-W2']
+
+                    colormask = self.colorcuts_function(gflux=gflux, rflux=rflux, zflux=zflux,
+                                                        w1flux=w1flux, w2flux=w2flux, south=south)
 
                 # If the color-cuts pass then populate the output flux vector
                 # (suitably normalized) and metadata table and finish up.
@@ -1443,11 +1450,11 @@ class SUPERSTAR(object):
                                                        extrapolate=True) * magnorm[this]
 
                     meta['TEMPLATEID'][ii] = tempid
-                    meta['FLUX_G'][ii] = synthnano['decam2014-g'][this]
-                    meta['FLUX_R'][ii] = synthnano['decam2014-r'][this]
-                    meta['FLUX_Z'][ii] = synthnano['decam2014-z'][this]
-                    meta['FLUX_W1'][ii] = synthnano['wise2010-W1'][this]
-                    meta['FLUX_W2'][ii] = synthnano['wise2010-W2'][this]
+                    meta['FLUX_G'][ii] = gflux[this]
+                    meta['FLUX_R'][ii] = rflux[this]
+                    meta['FLUX_Z'][ii] = zflux[this]
+                    meta['FLUX_W1'][ii] = w1flux[this]
+                    meta['FLUX_W2'][ii] = w2flux[this]
 
                     if star_properties is None:
                         objmeta['TEFF'][ii] = self.basemeta['TEFF'][tempid]
