@@ -20,7 +20,7 @@ def _check_input_meta(input_meta):
     log = get_logger()
     cols = input_meta.colnames
     required_cols = ('SEED', 'REDSHIFT', 'MAG', 'MAGFILTER')
-    if not np.all(np.in1d(required_cols )):
+    if not np.all(np.in1d(required_cols, cols)):
         log.warning('Input metadata table (input_meta) is missing one or more required columns {}'.format(
             required_cols))
         raise ValueError
@@ -1068,7 +1068,7 @@ class SUPERSTAR(object):
     """Base class for generating Monte Carlo spectra of the various flavors of stars."""
 
     def __init__(self, objtype='STAR', subtype='', minwave=3600.0, maxwave=10000.0, cdelt=0.2,
-                 wave=None, colorcuts_function_north=None, colorcuts_function_south=None,
+                 wave=None, colorcuts_function=None,
                  normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Read the appropriate basis continuum templates, filter profiles and
@@ -1089,12 +1089,9 @@ class SUPERSTAR(object):
             (default 2 Angstrom/pixel).
           wave (numpy.ndarray): Input/output observed-frame wavelength array,
             overriding the minwave, maxwave, and cdelt arguments (Angstrom).
-          colorcuts_function_north (function name): Function to use to select
-            templates that pass the "north" color-cuts for the specified objtype
-            (default None).
-          colorcuts_function_south (function name): Function to use to select
-            templates that pass the "south" color-cuts for the specified objtype
-            (default None).
+          colorcuts_function (function name): Function to use to select targets
+            (must accept a "south" Boolean argument for selecting templates that
+            pass the "north" vs "south" color-cuts (default None).
           normfilter_north (str): normalization filter for simulated "north"
             templates.  Each spectrum is normalized to the magnitude in this
             filter bandpass (default 'BASS-r').
@@ -1123,8 +1120,7 @@ class SUPERSTAR(object):
         self.objtype = objtype.upper()
         self.subtype = subtype.upper()
 
-        self.colorcuts_function_north = colorcuts_function_north
-        self.colorcuts_function_south = colorcuts_function_south
+        self.colorcuts_function = colorcuts_function
         self.normfilter_north = normfilter_north
         self.normfilter_south = normfilter_south
 
@@ -1155,7 +1151,7 @@ class SUPERSTAR(object):
     def make_star_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                             magrange=(18.0, 23.5), seed=None, redshift=None,
                             mag=None, input_meta=None, star_properties=None,
-                            nocolorcuts=False, north=False, restframe=False,
+                            nocolorcuts=False, south=True, restframe=False,
                             verbose=False):
 
         """Build Monte Carlo spectra/templates for various flavors of stars.
@@ -1199,14 +1195,12 @@ class SUPERSTAR(object):
           mag (float, optional): Input/output template magnitudes in the band
             specified by self.normfilter.  Array size must equal nmodel.
             Ignores magrange input.
-
           input_meta (astropy.Table): *Input* metadata table with the following
             required columns: TEMPLATEID, SEED, REDSHIFT, and MAG (where mag is
             specified by self.normfilter).  See desisim.io.empty_metatable for
             the required data type for each column.  If this table is passed
             then all other optional inputs (nmodel, redshift, mag, vrad_meansig,
             etc.) are ignored.
-
           star_properties (astropy.Table): *Input* table with the following
             required columns: REDSHIFT, MAG, TEFF, LOGG, and FEH (except for
             WDs, which don't need to have an FEH column).  Optionally, SEED can
@@ -1214,11 +1208,11 @@ class SUPERSTAR(object):
             templates are interpolated to the desired physical values provided,
             enabling large numbers of mock stellar spectra to be generated with
             physically consistent properties.
-
           nocolorcuts (bool, optional): Do not apply the color-cuts specified by
             the self.colorcuts_function function (default False).
-          north (bool, optional): If True, return full resolution restframe
-            templates instead of resampled observer frame.
+          south (bool, optional): Apply "south" color-cuts using the DECaLS
+            filter system, otherwise apply the "north" (MzLS+BASS) color-cuts.
+            Defaults to True.
           restframe (bool, optional): If True, return full resolution restframe
             templates instead of resampled observer frame.
           verbose (bool, optional): Be verbose!
@@ -1234,6 +1228,7 @@ class SUPERSTAR(object):
           ValueError
 
         """
+        from speclite import filters
         from desispec.interpolation import resample_flux
 
         if verbose:
@@ -1252,7 +1247,7 @@ class SUPERSTAR(object):
             templateseed = input_meta['SEED'].data
             redshift = input_meta['REDSHIFT'].data
             mag = input_meta['MAG'].data
-            magfilter = input_meta['MAGFILTER'].data
+            magfilter = np.char.strip(input_meta['MAGFILTER'].data)
 
             nchunk = 1
             alltemplateid_chunk = [input_meta['TEMPLATEID'].data.reshape(nmodel, 1)]
@@ -1307,6 +1302,11 @@ class SUPERSTAR(object):
                 if mag is None:
                     mag = rand.uniform(magrange[0], magrange[1], nmodel).astype('f4')
 
+                if south:
+                    magfilter = np.repeat(self.normfilter_south, nmodel)
+                else:
+                    magfilter = np.repeat(self.normfilter_north, nmodel)
+
         # Basic error checking and some preliminaries.
         if redshift is not None:
             if len(redshift) != nmodel:
@@ -1318,13 +1318,19 @@ class SUPERSTAR(object):
                 log.fatal('Mag must be an nmodel-length array')
                 raise ValueError
 
+        # Load the unique set of MAGFILTERs.  We could check against
+        # self.decamwise.names and self.bassmzlswise to see if the filters have
+        # already been loaded, but speed should not be an issue.
+        normfilt = dict()
+        for mfilter in np.unique(magfilter):
+            normfilt[mfilter] = filters.load_filters(mfilter)
+
         # Initialize the metadata table.
         meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype, subtype=self.subtype)
 
         # Populate some of the metadata table.
-        import pdb ; pdb.set_trace()
         for key, value in zip(('REDSHIFT', 'MAG', 'MAGFILTER', 'SEED'),
-                               (redshift, mag, self.normfilter, templateseed)):
+                               (redshift, mag, magfilter, templateseed)):
             meta[key][:] = value
 
         # Optionally interpolate onto a non-uniform grid.
@@ -1354,12 +1360,13 @@ class SUPERSTAR(object):
 
                 # Synthesize photometry to determine which models will pass the
                 # color-cuts.
-                maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
-                if self.normfilter in self.decamwise.names:
-                    normmaggies = np.array(maggies[self.normfilter])
+                if south:
+                    maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
                 else:
-                    normmaggies = np.array(self.normfilt.get_ab_maggies(
-                        restflux, zwave, mask_invalid=True)[self.normfilter])
+                    maggies = self.bassmzlswise.get_ab_maggies(restflux, zwave, mask_invalid=True)
+
+                normmaggies = np.array(normfilt[magfilter[ii]].get_ab_maggies(
+                    restflux, zwave, mask_invalid=True)[magfilter[ii]])
                 magnorm = 10**(-0.4*mag[ii]) / normmaggies
 
                 synthnano = dict()
@@ -1374,7 +1381,8 @@ class SUPERSTAR(object):
                         rflux=synthnano['decam2014-r'],
                         zflux=synthnano['decam2014-z'],
                         w1flux=synthnano['wise2010-W1'],
-                        w2flux=synthnano['wise2010-W2'])
+                        w2flux=synthnano['wise2010-W2'],
+                        south=south)
 
                 # If the color-cuts pass then populate the output flux vector
                 # (suitably normalized) and metadata table and finish up.
@@ -1425,8 +1433,6 @@ class STAR(SUPERSTAR):
     """Generate Monte Carlo spectra of generic stars."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 colorcuts_function_north=None, colorcuts_function_south=None,
-                 normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the STAR class.  See the SUPERSTAR.__init__ method for
         documentation on the arguments plus the inherited attributes.
@@ -1447,7 +1453,7 @@ class STAR(SUPERSTAR):
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                        rmagrange=(18.0, 23.5), seed=None, redshift=None,
                        mag=None, input_meta=None, star_properties=None,
-                       restframe=False, verbose=False):
+                       south=True, restframe=False, verbose=False):
         """Build Monte Carlo spectra/templates for generic stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
@@ -1484,14 +1490,11 @@ class STD(SUPERSTAR):
 
     """
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 normfilter='decam2014-r', colorcuts_function=None,
+                 colorcuts_function=None,
+                 normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the STD class.  See the SUPERSTAR.__init__ method for
         documentation on the arguments plus the inherited attributes.
-
-        Note:
-          We assume that the STD templates will always be normalized in the
-          DECam r-band filter.
 
         Args:
 
@@ -1505,12 +1508,12 @@ class STD(SUPERSTAR):
 
         super(STD, self).__init__(objtype='STD', minwave=minwave, maxwave=maxwave,
                                    cdelt=cdelt, wave=wave, colorcuts_function=colorcuts_function,
-                                   normfilter=normfilter, baseflux=baseflux, basewave=basewave,
-                                   basemeta=basemeta)
+                                   normfilter_north=normfilter_north, normfilter_south=normfilter_south,
+                                   baseflux=baseflux, basewave=basewave, basemeta=basemeta)
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), rmagrange=(16.0, 19.0),
                        seed=None, redshift=None, mag=None, input_meta=None, star_properties=None,
-                       nocolorcuts=False, restframe=False, verbose=False):
+                       nocolorcuts=False, south=True, restframe=False, verbose=False):
         """Build Monte Carlo spectra/templates for STD stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
@@ -1538,8 +1541,8 @@ class STD(SUPERSTAR):
                                           magrange=rmagrange, seed=seed, redshift=redshift,
                                           mag=mag, input_meta=input_meta,
                                           star_properties=star_properties,
-                                          nocolorcuts=nocolorcuts, restframe=restframe,
-                                          verbose=verbose)
+                                          nocolorcuts=nocolorcuts, south=south,
+                                          restframe=restframe, verbose=verbose)
         return result
 
 class MWS_STAR(SUPERSTAR):
