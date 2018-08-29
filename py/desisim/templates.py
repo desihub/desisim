@@ -861,9 +861,8 @@ class ELG(GALAXY):
         that are specific to the ELG class.
 
         Args:
-          rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
-            magnitude range.  Defaults to a uniform distribution between (21,
-            23.4).
+          rmagrange (float, optional): Minimum and maximum r-band (AB) magnitude
+            range.  Defaults to a uniform distribution between (21, 23.4).
           oiiihbrange (float, optional): Minimum and maximum logarithmic [OIII]
             5007/H-beta line-ratio.  Defaults to a uniform distribution between
             (-0.5, 0.2).
@@ -945,9 +944,8 @@ class BGS(GALAXY):
          arguments that are specific to the BGS class.
 
         Args:
-          rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
-            magnitude range.  Defaults to a uniform distribution between (15,
-            19.5).
+          rmagrange (float, optional): Minimum and maximum r-band (AB) magnitude
+            range.  Defaults to a uniform distribution between (15, 19.5).
           oiiihbrange (float, optional): Minimum and maximum logarithmic [OIII]
             5007/H-beta line-ratio.  Defaults to a uniform distribution between
             (-1.3, 0.6).
@@ -1023,9 +1021,8 @@ class LRG(GALAXY):
          arguments that are specific to the LRG class.
 
         Args:
-          zmagrange (float, optional): Minimum and maximum DECam z-band (AB)
-            magnitude range.  Defaults to a uniform distribution between (19,
-            20.5).
+          zmagrange (float, optional): Minimum and maximum z-band (AB) magnitude
+            range.  Defaults to a uniform distribution between (19, 20.5).
           logvdisp_meansig (float, optional): Logarithmic mean and sigma values
             for the (Gaussian) stellar velocity dispersion distribution.
             Defaults to log10-sigma=(2.3+/-0.1) km/s
@@ -1459,10 +1456,9 @@ class STAR(SUPERSTAR):
         which are specific to the STAR class.
 
         Args:
-          rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
-            magnitude range.  Defaults to a uniform distribution between (18,
-            23.5).
-
+          rmagrange (float, optional): Minimum and maximum r-band (AB) magnitude
+            range.  Defaults to a uniform distribution between (18, 23.5).
+        
         Returns (outflux, wave, meta, objmeta) tuple where:
 
           * outflux (numpy.ndarray): Array [nmodel, npix] of observed-frame
@@ -1518,9 +1514,8 @@ class STD(SUPERSTAR):
         which are specific to the STD class.
 
         Args:
-          rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
-            magnitude range.  Defaults to a uniform distribution between (16,
-            19).
+          rmagrange (float, optional): Minimum and maximum r-band (AB) magnitude
+            range.  Defaults to a uniform distribution between (16, 19).
 
         Returns (outflux, wave, meta, objmeta) tuple where:
 
@@ -1553,10 +1548,6 @@ class MWS_STAR(SUPERSTAR):
         """Initialize the MWS_STAR class.  See the SUPERSTAR.__init__ method for
         documentation on the arguments plus the inherited attributes.
 
-        Note:
-          We assume that the MWS_STAR templates will always be normalized in the
-          DECam r-band filter.
-
         Args:
 
         Attributes:
@@ -1582,9 +1573,8 @@ class MWS_STAR(SUPERSTAR):
         which are specific to the MWS_STAR class.
 
         Args:
-          rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
-            magnitude range.  Defaults to a uniform distribution between (16,
-            20).
+          rmagrange (float, optional): Minimum and maximum r-band (AB) magnitude
+            range.  Defaults to a uniform distribution between (16, 20).
 
         Returns (outflux, wave, meta, objmeta) tuple where:
 
@@ -1610,14 +1600,11 @@ class WD(SUPERSTAR):
     """Generate Monte Carlo spectra of white dwarfs."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 subtype='DA', normfilter='decam2014-g', colorcuts_function=None,
+                 subtype='DA', colorcuts_function=None,
+                 normfilter_north='BASS-g', normfilter_south='decam2014-g',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the WD class.  See the SUPERSTAR.__init__ method for documentation
         on the arguments plus the inherited attributes.
-
-        Note:
-          We assume that the WD templates will always be normalized in the
-          DECam g-band filter.
 
         Args:
 
@@ -1626,15 +1613,14 @@ class WD(SUPERSTAR):
         Raises:
 
         """
-
         super(WD, self).__init__(objtype='WD', subtype=subtype, minwave=minwave, maxwave=maxwave,
                                  cdelt=cdelt, wave=wave, colorcuts_function=colorcuts_function,
-                                 normfilter=normfilter, baseflux=baseflux, basewave=basewave,
-                                 basemeta=basemeta)
+                                 normfilter_north=normfilter_north, normfilter_south=normfilter_south,
+                                 baseflux=baseflux, basewave=basewave, basemeta=basemeta)
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), gmagrange=(16.0, 19.0),
                        seed=None, redshift=None, mag=None, input_meta=None, star_properties=None,
-                       nocolorcuts=False, restframe=False, verbose=False):
+                       nocolorcuts=False, south=True, restframe=False, verbose=False):
         """Build Monte Carlo spectra/templates for WD stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
@@ -1642,9 +1628,8 @@ class WD(SUPERSTAR):
         which are specific to the WD class.
 
         Args:
-          gmagrange (float, optional): Minimum and maximum DECam g-band (AB)
-            magnitude range.  Defaults to a uniform distribution between (16,
-            19).
+          gmagrange (float, optional): Minimum and maximum g-band (AB) magnitude
+            range.  Defaults to a uniform distribution between (16, 19).
 
         Returns (outflux, wave, meta, objmeta) tuple where:
 
@@ -1674,7 +1659,7 @@ class WD(SUPERSTAR):
                                           magrange=gmagrange, seed=seed, redshift=redshift,
                                           mag=mag, input_meta=input_meta,
                                           star_properties=star_properties,
-                                          nocolorcuts=nocolorcuts,
+                                          nocolorcuts=nocolorcuts, south=south,
                                           restframe=restframe, verbose=verbose)
         return result
 
@@ -1839,9 +1824,8 @@ class QSO():
           nmodel (int, optional): Number of models to generate (default 100).
           zrange (float, optional): Minimum and maximum redshift range.  Defaults
             to a uniform distribution between (0.5, 4.0).
-          rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
-            magnitude range.  Defaults to a uniform distribution between (20,
-            22.5).
+          rmagrange (float, optional): Minimum and maximum r-band (AB) magnitude
+            range.  Defaults to a uniform distribution between (20, 22.5).
           seed (int, optional): input seed for the random numbers.
           redshift (float, optional): Input/output template redshifts.  Array
             size must equal nmodel.  Ignores zrange input.
@@ -2417,9 +2401,8 @@ class SIMQSO():
           nmodel (int, optional): Number of models to generate (default 100).
           zrange (float, optional): Minimum and maximum redshift range.  Defaults
             to a uniform distribution between (0.5, 4.0).
-          rmagrange (float, optional): Minimum and maximum DECam r-band (AB)
-            magnitude range.  Defaults to a uniform distribution between (19,
-            23).
+          rmagrange (float, optional): Minimum and maximum r-band (AB) magnitude
+            range.  Defaults to a uniform distribution between (19, 23).
           seed (int, optional): input seed for the random numbers.
           redshift (float, optional): Input/output template redshifts.  Array
             size must equal nmodel.  Ignores zrange input.
