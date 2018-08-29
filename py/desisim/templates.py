@@ -1445,10 +1445,8 @@ class STAR(SUPERSTAR):
 
         """
         super(STAR, self).__init__(objtype='STAR', minwave=minwave, maxwave=maxwave,
-                                   cdelt=cdelt, wave=wave, colorcuts_function_north=colorcuts_function_north,
-                                   colorcuts_function_south=colorcuts_function_south,
-                                   normfilter_north=normfilter_north, normfilter_south=normfilter_south,
-                                   baseflux=baseflux, basewave=basewave, basemeta=basemeta)
+                                   cdelt=cdelt, wave=wave, baseflux=baseflux,
+                                   basewave=basewave, basemeta=basemeta)
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                        rmagrange=(18.0, 23.5), seed=None, redshift=None,
@@ -1490,8 +1488,7 @@ class STD(SUPERSTAR):
 
     """
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 colorcuts_function=None,
-                 normfilter_north='BASS-r', normfilter_south='decam2014-r',
+                 colorcuts_function=None, normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the STD class.  See the SUPERSTAR.__init__ method for
         documentation on the arguments plus the inherited attributes.
@@ -1551,7 +1548,7 @@ class MWS_STAR(SUPERSTAR):
 
     """
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 normfilter='decam2014-r', colorcuts_function=None,
+                 colorcuts_function=None, normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the MWS_STAR class.  See the SUPERSTAR.__init__ method for
         documentation on the arguments plus the inherited attributes.
@@ -1569,14 +1566,15 @@ class MWS_STAR(SUPERSTAR):
         """
         if colorcuts_function is None:
             from desitarget.cuts import isMWSSTAR_colors as colorcuts_function
+            
         super(MWS_STAR, self).__init__(objtype='MWS_STAR', minwave=minwave, maxwave=maxwave,
                                        cdelt=cdelt, wave=wave, colorcuts_function=colorcuts_function,
-                                       normfilter=normfilter, baseflux=baseflux, basewave=basewave,
-                                       basemeta=basemeta)
+                                       normfilter_north=normfilter_north, normfilter_south=normfilter_south,
+                                       baseflux=baseflux, basewave=basewave, basemeta=basemeta)
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), rmagrange=(16.0, 20.0),
                        seed=None, redshift=None, mag=None, input_meta=None, star_properties=None,
-                       nocolorcuts=False, restframe=False, verbose=False):
+                       nocolorcuts=False, south=True, restframe=False, verbose=False):
         """Build Monte Carlo spectra/templates for MWS_STAR stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
@@ -1604,8 +1602,8 @@ class MWS_STAR(SUPERSTAR):
                                           magrange=rmagrange, seed=seed, redshift=redshift,
                                           mag=mag, input_meta=input_meta,
                                           star_properties=star_properties,
-                                          nocolorcuts=nocolorcuts, restframe=restframe,
-                                          verbose=verbose)
+                                          nocolorcuts=nocolorcuts, south=south,
+                                          restframe=restframe, verbose=verbose)
         return result
 
 class WD(SUPERSTAR):
