@@ -11,10 +11,19 @@ import os
 import sys
 import numpy as np
 import multiprocessing
-from desiutil.log import get_logger
+from desiutil.log import get_logger, DEBUG
 from desisim.io import empty_metatable
 
 LIGHT = 2.99792458E5  #- speed of light in km/s
+
+def _check_input_meta(input_meta):
+    log = get_logger()
+    cols = input_meta.colnames
+    required_cols = ('SEED', 'REDSHIFT', 'MAG', 'MAGFILTER')
+    if not np.all(np.in1d(required_cols )):
+        log.warning('Input metadata table (input_meta) is missing one or more required columns {}'.format(
+            required_cols))
+        raise ValueError
 
 class EMSpectrum(object):
     """Construct a complete nebular emission-line spectrum.
@@ -507,7 +516,6 @@ o
         """
         from astropy.table import Table, Column
         from desispec.interpolation import resample_flux
-        from desiutil.log import get_logger, DEBUG
 
         if verbose:
             log = get_logger(DEBUG)
@@ -1060,7 +1068,8 @@ class SUPERSTAR(object):
     """Base class for generating Monte Carlo spectra of the various flavors of stars."""
 
     def __init__(self, objtype='STAR', subtype='', minwave=3600.0, maxwave=10000.0, cdelt=0.2,
-                 wave=None, colorcuts_function=None, normfilter='decam2014-r',
+                 wave=None, colorcuts_function_north=None, colorcuts_function_south=None,
+                 normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Read the appropriate basis continuum templates, filter profiles and
         initialize the output wavelength array.
@@ -1080,11 +1089,17 @@ class SUPERSTAR(object):
             (default 2 Angstrom/pixel).
           wave (numpy.ndarray): Input/output observed-frame wavelength array,
             overriding the minwave, maxwave, and cdelt arguments (Angstrom).
-          colorcuts_function (function name): Function to use to select
-            templates that pass the color-cuts for the specified objtype
+          colorcuts_function_north (function name): Function to use to select
+            templates that pass the "north" color-cuts for the specified objtype
             (default None).
-          normfilter (str): normalize each spectrum to the magnitude in this
-            filter bandpass (default 'decam2014-r').
+          colorcuts_function_south (function name): Function to use to select
+            templates that pass the "south" color-cuts for the specified objtype
+            (default None).
+          normfilter_north (str): normalization filter for simulated "north"
+            templates.  Each spectrum is normalized to the magnitude in this
+            filter bandpass (default 'BASS-r').
+          normfilter_south (str): corresponding normalization filter for "south"
+            (default 'decam2014-r').
 
         Attributes:
           wave (numpy.ndarray): Output wavelength array (Angstrom).
@@ -1093,17 +1108,25 @@ class SUPERSTAR(object):
           basewave (numpy.ndarray): Array [npix] of rest-frame wavelengths
             corresponding to BASEFLUX (Angstrom).
           basemeta (astropy.Table): Table of meta-data [nbase] for each base template.
-          normfilt (speclite.filters instance): FilterSequence of self.normfilter.
+          normfilt_north (speclite.filters instance): FilterSequence of
+            self.normfilter_north.
+          normfilt_south (speclite.filters instance): FilterSequence of
+            self.normfilter_south.
           decamwise (speclite.filters instance): DECam2014-[g,r,z] and WISE2010-[W1,W2]
             FilterSequence.
+          bassmzlswise (speclite.filters instance): BASS-[g,r], MzLS-z and
+            WISE2010-[W1,W2] FilterSequence.
 
         """
         from speclite import filters
 
         self.objtype = objtype.upper()
         self.subtype = subtype.upper()
-        self.colorcuts_function = colorcuts_function
-        self.normfilter = normfilter
+
+        self.colorcuts_function_north = colorcuts_function_north
+        self.colorcuts_function_south = colorcuts_function_south
+        self.normfilter_north = normfilter_north
+        self.normfilter_south = normfilter_south
 
         # Initialize the output wavelength array (linear spacing) unless it is
         # already provided.
@@ -1122,14 +1145,18 @@ class SUPERSTAR(object):
         self.basemeta = basemeta
 
         # Initialize the filter profiles.
-        self.normfilt = filters.load_filters(self.normfilter)
+        self.normfilt_north = filters.load_filters(self.normfilter_north)
+        self.normfilt_south = filters.load_filters(self.normfilter_south)
         self.decamwise = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
                                               'wise2010-W1', 'wise2010-W2')
+        self.bassmzlswise = filters.load_filters('BASS-g', 'BASS-r', 'MzLS-z',
+                                                 'wise2010-W1', 'wise2010-W2')
 
     def make_star_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                             magrange=(18.0, 23.5), seed=None, redshift=None,
                             mag=None, input_meta=None, star_properties=None,
-                            nocolorcuts=False, restframe=False, verbose=False):
+                            nocolorcuts=False, north=False, restframe=False,
+                            verbose=False):
 
         """Build Monte Carlo spectra/templates for various flavors of stars.
 
@@ -1190,6 +1217,8 @@ class SUPERSTAR(object):
 
           nocolorcuts (bool, optional): Do not apply the color-cuts specified by
             the self.colorcuts_function function (default False).
+          north (bool, optional): If True, return full resolution restframe
+            templates instead of resampled observer frame.
           restframe (bool, optional): If True, return full resolution restframe
             templates instead of resampled observer frame.
           verbose (bool, optional): Be verbose!
@@ -1206,7 +1235,6 @@ class SUPERSTAR(object):
 
         """
         from desispec.interpolation import resample_flux
-        from desiutil.log import get_logger, DEBUG
 
         if verbose:
             log = get_logger(DEBUG)
@@ -1219,11 +1247,12 @@ class SUPERSTAR(object):
         # Optionally unpack a metadata table.
         if input_meta is not None:
             nmodel = len(input_meta)
-            meta = empty_metatable(nmodel=nmodel, objtype=self.objtype, subtype=self.subtype)
+            _check_input_meta(input_meta)
 
             templateseed = input_meta['SEED'].data
             redshift = input_meta['REDSHIFT'].data
             mag = input_meta['MAG'].data
+            magfilter = input_meta['MAGFILTER'].data
 
             nchunk = 1
             alltemplateid_chunk = [input_meta['TEMPLATEID'].data.reshape(nmodel, 1)]
@@ -1278,9 +1307,6 @@ class SUPERSTAR(object):
                 if mag is None:
                     mag = rand.uniform(magrange[0], magrange[1], nmodel).astype('f4')
 
-            # Initialize the metadata table.
-            meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype, subtype=self.subtype)
-
         # Basic error checking and some preliminaries.
         if redshift is not None:
             if len(redshift) != nmodel:
@@ -1292,7 +1318,11 @@ class SUPERSTAR(object):
                 log.fatal('Mag must be an nmodel-length array')
                 raise ValueError
 
+        # Initialize the metadata table.
+        meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype, subtype=self.subtype)
+
         # Populate some of the metadata table.
+        import pdb ; pdb.set_trace()
         for key, value in zip(('REDSHIFT', 'MAG', 'MAGFILTER', 'SEED'),
                                (redshift, mag, self.normfilter, templateseed)):
             meta[key][:] = value
@@ -1395,14 +1425,11 @@ class STAR(SUPERSTAR):
     """Generate Monte Carlo spectra of generic stars."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 normfilter='decam2014-r', colorcuts_function=None,
+                 colorcuts_function_north=None, colorcuts_function_south=None,
+                 normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the STAR class.  See the SUPERSTAR.__init__ method for
         documentation on the arguments plus the inherited attributes.
-
-        Note:
-          We assume that the STAR templates will always be normalized in the
-          DECam r-band filter.
 
         Args:
 
@@ -1412,9 +1439,10 @@ class STAR(SUPERSTAR):
 
         """
         super(STAR, self).__init__(objtype='STAR', minwave=minwave, maxwave=maxwave,
-                                   cdelt=cdelt, wave=wave, colorcuts_function=colorcuts_function,
-                                   normfilter=normfilter, baseflux=baseflux, basewave=basewave,
-                                   basemeta=basemeta)
+                                   cdelt=cdelt, wave=wave, colorcuts_function_north=colorcuts_function_north,
+                                   colorcuts_function_south=colorcuts_function_south,
+                                   normfilter_north=normfilter_north, normfilter_south=normfilter_south,
+                                   baseflux=baseflux, basewave=basewave, basemeta=basemeta)
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                        rmagrange=(18.0, 23.5), seed=None, redshift=None,
@@ -1631,8 +1659,6 @@ class WD(SUPERSTAR):
             different values of SUBTYPE.
 
         """
-        from desiutil.log import get_logger
-
         log = get_logger()
         
         for intable in (input_meta, star_properties):
@@ -1704,7 +1730,6 @@ class QSO():
         from astropy import cosmology
         from speclite import filters
         from desisim.io import find_basis_template, read_basis_templates
-        from desiutil.log import get_logger
         from desisim import lya_mock_p1d as lyamock
 
         log = get_logger()
@@ -1865,7 +1890,6 @@ class QSO():
 
         """
         from desispec.interpolation import resample_flux
-        from desiutil.log import get_logger, DEBUG
 
         if uniform:
             from desiutil.stats import perc
@@ -2159,7 +2183,6 @@ class SIMQSO():
         """
         from astropy import cosmology
         from speclite import filters
-        from desiutil.log import get_logger
         log = get_logger()
 
         try:
@@ -2432,8 +2455,6 @@ class SIMQSO():
           ValueError
 
         """
-        from desiutil.log import get_logger, DEBUG
-
         if verbose:
             log = get_logger(DEBUG)
         else:
