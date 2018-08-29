@@ -55,8 +55,8 @@ def parse(options=None):
     parser.add_argument('--wmax', type=float, default=10000,help="Max wavelength (obs. frame)")
     parser.add_argument('--dwave', type=float, default=0.2,help="Internal wavelength step (don't change this)")
     parser.add_argument('--nproc', type=int, default=1,help="number of processors to run faster")
-    parser.add_argument('--zbest', type=float,required=False, help="add a zbest file per spectrum. If set to zero it correspond to truth, otherwise adds a gaussian error with sigma=dv")
-    #parser.add_argument('--zerr_sigma', type=float, help="add gaussian error to the redshift in the zbest file. e.g dv=500km/s")
+    parser.add_argument('--zbest', type=float,required=False, help="add a zbest file per spectrum. If set to zero it correspond to truth redshift, otherwise adds a gaussian error with sigma=zbest value. e.g --zbest 200 (where 200 km/s)")
+ 
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
     parser.add_argument('--target-selection', action = "store_true" ,help="apply QSO target selection cuts to the simulated quasars")
     parser.add_argument('--mags', action = "store_true" ,help="compute and write the QSO mags in the fibermap")
