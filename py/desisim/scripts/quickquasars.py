@@ -55,7 +55,8 @@ def parse(options=None):
     parser.add_argument('--wmax', type=float, default=10000,help="Max wavelength (obs. frame)")
     parser.add_argument('--dwave', type=float, default=0.2,help="Internal wavelength step (don't change this)")
     parser.add_argument('--nproc', type=int, default=1,help="number of processors to run faster")
-    parser.add_argument('--zbest', action = "store_true" ,help="add a zbest file per spectrum with the truth")
+    parser.add_argument('--zbest', type=float,required=False, help="add a zbest file per spectrum. If set to zero it correspond to truth, otherwise adds a gaussian error with sigma=dv")
+    #parser.add_argument('--zerr_sigma', type=float, help="add gaussian error to the redshift in the zbest file. e.g dv=500km/s")
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
     parser.add_argument('--target-selection', action = "store_true" ,help="apply QSO target selection cuts to the simulated quasars")
     parser.add_argument('--mags', action = "store_true" ,help="compute and write the QSO mags in the fibermap")
@@ -84,7 +85,7 @@ def get_spectra_filename(args,nside,pixel):
 
 
 def get_zbest_filename(args,pixdir,nside,pixel):
-    if args.zbest :
+    if args.zbest is not None :
         return os.path.join(pixdir,"zbest-{}-{}.fits".format(nside,pixel))
     return None
 
@@ -188,7 +189,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     
     if not args.overwrite :
         # check whether output exists or not
-        if args.zbest :
+        if args.zbest:
             if os.path.isfile(ofilename) and os.path.isfile(zbest_filename) :
                 log.info("skip existing {} and {}".format(ofilename,zbest_filename))
                 return
@@ -478,8 +479,10 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             ('BRICKNAME', (str,8))]
         zbest = Table(np.zeros(nqso, dtype=columns))
         zbest["CHI2"][:]      = 0.
-        zbest["Z"]            = metadata['Z']
-        zbest["ZERR"][:]      = 0.
+        dv=args.zbest*np.random.normal(0,1,nqso)
+        dz=(dv/299792.458)*(1.+metadata['Z'])   #c=299792.45
+        zbest["Z"]= metadata['Z']+dz
+        zbest["ZERR"][:]      = dz*np.random.normal(0,1)
         zbest["ZWARN"][:]     = 0
         zbest["SPECTYPE"][:]  = "QSO"
         zbest["SUBTYPE"][:]   = ""
