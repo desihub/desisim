@@ -137,18 +137,18 @@ class TestTemplates(unittest.TestCase):
         meta1['SUBTYPE'][0] = 'DB'
         flux2, wave2, meta2, _ = wd.make_templates(input_meta=meta1)
         
-    @unittest.skip('Skipping input_meta test')
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_input_meta(self):
         '''Test that input meta table option works.'''
         print('In function test_input_meta, seed = {}'.format(self.seed))
-        for T in [LRG, QSO, BGS, STAR, WD]:
+        for T in [ELG, LRG, BGS, QSO, STAR, MWS_STAR, WD]:
             Tx = T(wave=self.wave)
             flux1, wave1, meta1, objmeta1 = Tx.make_templates(self.nspec, seed=self.seed)
             flux2, wave2, meta2, objmeta2 = Tx.make_templates(input_meta=meta1)
             badkeys = list()
             for key in meta1.colnames:
-                if key in ('FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2'):
+                if key in ('REDSHIFT', 'MAG', 'MAGFILTER', 'SEED', 'FLUX_G',
+                           'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2'):
                     #- not sure why the tolerances aren't closer
                     if not np.allclose(meta1[key], meta2[key], atol=5e-5):
                         print(meta1['OBJTYPE'][0], key, meta1[key], meta2[key])
@@ -161,7 +161,6 @@ class TestTemplates(unittest.TestCase):
             self.assertTrue(np.allclose(flux1, flux2))
             self.assertTrue(np.all(wave1 == wave2))
 
-    @unittest.skip('Skipping star_properties test')
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     def test_star_properties(self):
         '''Test that input data table option works.'''

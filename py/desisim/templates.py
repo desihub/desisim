@@ -2349,8 +2349,10 @@ class SIMQSO():
             raise ValueError
             
         # Initialize the K-correction and luminosity function objects.
-        self.kcorr_north = ContinuumKCorr(filtnames[self.normfilter_north], 1450)
-        self.kcorr_south = ContinuumKCorr(filtnames[self.normfilter_south], 1450, effWaveBand='SDSS-r')
+        self.kcorr_north = ContinuumKCorr(filtnames[self.normfilter_north], 1450,
+                                          effWaveBand=self.normfilt_north.effective_wavelengths.value)
+        self.kcorr_south = ContinuumKCorr(filtnames[self.normfilter_south], 1450,
+                                          effWaveBand=self.normfilt_south.effective_wavelengths.value)
         self.qlf = BOSS_DR9_PLEpivot(cosmo=self.cosmo)
 
     def empty_qsometa(self, qsometa, nmodel):
@@ -2399,6 +2401,8 @@ class SIMQSO():
                                          specFeatures, input_qsometa.data[ii])
                 flux[ii, :] = flux1.f_lambda
 
+            qsometa = input_qsometa
+
         else:
             from simqso.sqmodels import get_BossDr9_model_vars
             from simqso.sqrun import buildSpectraBulk
@@ -2433,13 +2437,15 @@ class SIMQSO():
         # Synthesize photometry to determine which models will pass the
         # color cuts.
         if south:
+            magfilt = self.normfilt_south
+            magfilter = self.normfilter_south
             maggies = self.decamwise.get_ab_maggies(flux, self.basewave.copy(), mask_invalid=True)
         else:
+            magfilt = self.normfilt_north
+            magfilter = self.normfilter_north
             maggies = self.bassmzlswise.get_ab_maggies(flux, self.basewave.copy(), mask_invalid=True)
 
-        #need magfilter!!
-        #normmaggies = np.array(normfilt[magfilter[ii]].get_ab_maggies(
-        #    flux, self.basewave.copy(), mask_invalid=True)[magfilter[ii]])
+        normmaggies = np.array(magfilt.get_ab_maggies(flux, self.basewave.copy(), mask_invalid=True)[magfilter])
 
         synthnano = dict()
         for key in maggies.columns:
@@ -2482,8 +2488,7 @@ class SIMQSO():
                 else:
                     meta['REDSHIFT'][these] = redshift[these]
 
-            import pdb ; pdb.set_trace()
-            meta['MAGFILTER'][these] = self.normfilter
+            meta['MAGFILTER'][these] = magfilter
             meta['MAG'][these] = -2.5 * np.log10(normmaggies[these])
 
             meta['FLUX_G'][these] = gflux[these]
@@ -2534,9 +2539,10 @@ class SIMQSO():
           mag (float, optional): Not currently supported, but see magrange.
             Defaults to None.
           input_qsometa (simqso.sqgrids.QsoSimPoints object or FITS filename):
-            *Input* QsoSimPoints object or FITS filename (with a qsometa_extname
-            HDU) from which to (re)generate the QSO spectra.  All other inputs are
-            ignored when this optional input is present.
+            Input QsoSimPoints object or FITS filename (with a qsometa_extname
+            HDU) from which to (re)generate the QSO spectra.  All other inputs
+            are ignored when this optional input is present.  Please be cautious
+            when using this argument, as it has not been fully tested.
           qsometa_extname (str): FITS extension name to read when input_qsometa
             is a filename.  Defaults to 'QSOMETA'.
           maxiter (int): maximum number of iterations for findng a template that
