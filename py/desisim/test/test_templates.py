@@ -28,12 +28,21 @@ class TestTemplates(unittest.TestCase):
         self.assertEqual(flux.shape, (self.nspec, len(self.wave)))
 
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
-    def test_simple(self):
+    def test_simple_south(self):
         '''Confirm that creating templates works at all'''
-        print('In function test_simple, seed = {}'.format(self.seed))
+        print('In function test_simple_south, seed = {}'.format(self.seed))
         for T in [ELG, LRG, QSO, BGS, STAR, STD, MWS_STAR, WD, SIMQSO]:
             template_factory = T(wave=self.wave)
-            flux, wave, meta, _ = template_factory.make_templates(self.nspec, seed=self.seed)
+            flux, wave, meta, _ = template_factory.make_templates(self.nspec, seed=self.seed, south=True)
+            self._check_output_size(flux, wave, meta)
+
+    @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
+    def test_simple_north(self):
+        '''Confirm that creating templates works at all'''
+        print('In function test_simple_north, seed = {}'.format(self.seed))
+        for T in [ELG, LRG, QSO, BGS, STAR, STD, MWS_STAR, WD, SIMQSO]:
+            template_factory = T(wave=self.wave)
+            flux, wave, meta, _ = template_factory.make_templates(self.nspec, seed=self.seed, south=False)
             self._check_output_size(flux, wave, meta)
 
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
@@ -144,13 +153,17 @@ class TestTemplates(unittest.TestCase):
         for T in [ELG, LRG, BGS, QSO, STAR, MWS_STAR, WD]:
             Tx = T(wave=self.wave)
             flux1, wave1, meta1, objmeta1 = Tx.make_templates(self.nspec, seed=self.seed)
-            flux2, wave2, meta2, objmeta2 = Tx.make_templates(input_meta=meta1)
+            if 'VDISP' in objmeta1.colnames:
+                vdisp = objmeta1['VDISP'].data
+                flux2, wave2, meta2, objmeta2 = Tx.make_templates(input_meta=meta1, vdisp=vdisp)
+            else:
+                flux2, wave2, meta2, objmeta2 = Tx.make_templates(input_meta=meta1)
             badkeys = list()
             for key in meta1.colnames:
-                if key in ('REDSHIFT', 'MAG', 'MAGFILTER', 'SEED', 'FLUX_G',
+                if key in ('REDSHIFT', 'MAG', 'SEED', 'FLUX_G',
                            'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2'):
                     #- not sure why the tolerances aren't closer
-                    if not np.allclose(meta1[key], meta2[key], atol=5e-5):
+                    if not np.allclose(meta1[key], meta2[key], rtol=1e-4):
                         print(meta1['OBJTYPE'][0], key, meta1[key], meta2[key])
                         badkeys.append(key)
                 else:
@@ -158,7 +171,10 @@ class TestTemplates(unittest.TestCase):
                         badkeys.append(key)
 
             self.assertEqual(len(badkeys), 0, 'mismatch for spectral type {} in keys {}'.format(meta1['OBJTYPE'][0], badkeys))
-            self.assertTrue(np.allclose(flux1, flux2))
+            #if np.allclose(flux1, flux2, rtol=1e-4) is False:
+            #    import pdb ; pdb.set_trace()
+            self.assertTrue(np.all(np.isclose(flux1, flux2, atol=1e-3)))
+            #self.assertTrue(np.allclose(flux1, flux2, rtol=1e-4))
             self.assertTrue(np.all(wave1 == wave2))
 
     @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
@@ -168,22 +184,26 @@ class TestTemplates(unittest.TestCase):
         star_properties = Table()
         star_properties.add_column(Column(name='REDSHIFT', length=self.nspec, dtype='f4'))
         star_properties.add_column(Column(name='MAG', length=self.nspec, dtype='f4'))
+        star_properties.add_column(Column(name='MAGFILTER', length=self.nspec, dtype='U15'))
         star_properties.add_column(Column(name='TEFF', length=self.nspec, dtype='f4'))
         star_properties.add_column(Column(name='LOGG', length=self.nspec, dtype='f4'))
         star_properties.add_column(Column(name='FEH', length=self.nspec, dtype='f4'))
         star_properties['REDSHIFT'] = self.rand.uniform(-5E-4, 5E-4, self.nspec)
         star_properties['MAG'] = self.rand.uniform(16, 19, self.nspec)
+        star_properties['MAGFILTER'][:] = 'decam2014-r'
         star_properties['TEFF'] = self.rand.uniform(4000, 10000, self.nspec)
         star_properties['LOGG'] = self.rand.uniform(0.5, 5.0, self.nspec)
         star_properties['FEH'] = self.rand.uniform(-2.0, 0.0, self.nspec)
         for T in [STAR]:
             Tx = T(wave=self.wave)
-            flux, wave, meta, _ = Tx.make_templates(star_properties=star_properties, seed=self.seed)
+            flux, wave, meta, objmeta = Tx.make_templates(star_properties=star_properties, seed=self.seed)
             badkeys = list()
-            for key in meta.colnames:
-                if key in star_properties.colnames:
-                    if not np.allclose(meta[key], star_properties[key]):
-                        badkeys.append(key)
+            for key in ('REDSHIFT', 'MAG'):
+                if not np.allclose(meta[key], star_properties[key]):
+                    badkeys.append(key)
+            for key in ('TEFF', 'LOGG', 'FEH'):
+                if not np.allclose(objmeta[key], star_properties[key]):
+                    badkeys.append(key)
             self.assertEqual(len(badkeys), 0, 'mismatch for spectral type {} in keys {}'.format(meta['OBJTYPE'][0], badkeys))
 
     def test_lyamock_seed(self):

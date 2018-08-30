@@ -798,18 +798,18 @@ o
                     synthnano[key] = 1E9 * maggies[key] * magnorm # nanomaggies
                 zlineflux = normlineflux[templateid] * magnorm
 
+                if south:
+                    gflux, rflux, zflux, w1flux, w2flux = synthnano['decam2014-g'], \
+                      synthnano['decam2014-r'], synthnano['decam2014-z'], \
+                      synthnano['wise2010-W1'], synthnano['wise2010-W2']
+                else:
+                    gflux, rflux, zflux, w1flux, w2flux = synthnano['BASS-g'], \
+                      synthnano['BASS-r'], synthnano['MzLS-z'], \
+                      synthnano['wise2010-W1'], synthnano['wise2010-W2']
+
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, nbasechunk)
                 else:
-                    if south:
-                        gflux, rflux, zflux, w1flux, w2flux = synthnano['decam2014-g'], \
-                          synthnano['decam2014-r'], synthnano['decam2014-z'], \
-                          synthnano['wise2010-W1'], synthnano['wise2010-W2']
-                    else:
-                        gflux, rflux, zflux, w1flux, w2flux = synthnano['BASS-g'], \
-                          synthnano['BASS-r'], synthnano['MzLS-z'], \
-                          synthnano['wise2010-W1'], synthnano['wise2010-W2']
-
                     if isinstance(self.colorcuts_function, (tuple, list)):
                         _colormask = []
                         for cf in self.colorcuts_function:
@@ -865,7 +865,6 @@ o
         if ~np.all(success):
             log.warning('{} spectra could not be computed given the input priors!'.\
                         format(np.sum(success == 0)))
-            import pdb ; pdb.set_trace()
 
         if restframe:
             outwave = self.basewave
@@ -1437,18 +1436,18 @@ class SUPERSTAR(object):
                 for key in maggies.columns:
                     synthnano[key] = 1E9 * maggies[key] * magnorm
 
+                if south:
+                    gflux, rflux, zflux, w1flux, w2flux = synthnano['decam2014-g'], \
+                      synthnano['decam2014-r'], synthnano['decam2014-z'], \
+                      synthnano['wise2010-W1'], synthnano['wise2010-W2']
+                else:
+                    gflux, rflux, zflux, w1flux, w2flux = synthnano['BASS-g'], \
+                      synthnano['BASS-r'], synthnano['MzLS-z'], \
+                      synthnano['wise2010-W1'], synthnano['wise2010-W2']
+
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, nbasechunk)
                 else:
-                    if south:
-                        gflux, rflux, zflux, w1flux, w2flux = synthnano['decam2014-g'], \
-                          synthnano['decam2014-r'], synthnano['decam2014-z'], \
-                          synthnano['wise2010-W1'], synthnano['wise2010-W2']
-                    else:
-                        gflux, rflux, zflux, w1flux, w2flux = synthnano['BASS-g'], \
-                          synthnano['BASS-r'], synthnano['MzLS-z'], \
-                          synthnano['wise2010-W1'], synthnano['wise2010-W2']
-
                     colormask = self.colorcuts_function(gflux=gflux, rflux=rflux, zflux=zflux,
                                                         w1flux=w1flux, w2flux=w2flux, south=south)
 
@@ -2163,18 +2162,18 @@ class QSO():
                 for key in maggies.columns:
                     synthnano[key] = 1E9 * maggies[key] * magnorm
 
+                if south:
+                    gflux, rflux, zflux, w1flux, w2flux = synthnano['decam2014-g'], \
+                      synthnano['decam2014-r'], synthnano['decam2014-z'], \
+                      synthnano['wise2010-W1'], synthnano['wise2010-W2']
+                else:
+                    gflux, rflux, zflux, w1flux, w2flux = synthnano['BASS-g'], \
+                      synthnano['BASS-r'], synthnano['MzLS-z'], \
+                      synthnano['wise2010-W1'], synthnano['wise2010-W2']
+                          
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, N_perz)
                 else:
-                    if south:
-                        gflux, rflux, zflux, w1flux, w2flux = synthnano['decam2014-g'], \
-                          synthnano['decam2014-r'], synthnano['decam2014-z'], \
-                          synthnano['wise2010-W1'], synthnano['wise2010-W2']
-                    else:
-                        gflux, rflux, zflux, w1flux, w2flux = synthnano['BASS-g'], \
-                          synthnano['BASS-r'], synthnano['MzLS-z'], \
-                          synthnano['wise2010-W1'], synthnano['wise2010-W2']
-                          
                     colormask = self.colorcuts_function(gflux=gflux, rflux=rflux, zflux=zflux,
                                                         w1flux=w1flux, w2flux=w2flux, south=south,
                                                         optical=True)
@@ -2342,7 +2341,7 @@ class SIMQSO():
         # Map between speclite and simqso filter names.
         filtnames = dict()
         for filt1, filt2 in zip( ('decam2014-g', 'decam2014-r', 'decam2014-z', 'BASS-g', 'BASS-r', 'MzLS-z'),
-                                 ('DECam-g', 'DECam-r', 'DECam-z', 'BASS-g', 'BASS-r', 'MzLS-z') ):
+                                 ('DECam-g', 'DECam-r', 'DECam-z', 'BASS-MzLS-g', 'BASS-MzLS-r', 'MzLS-MzLS-z') ):
             filtnames[filt1] = filt2
         if normfilter_north not in filtnames.keys() or normfilter_south not in filtnames.keys():
             log.warning('Unrecognized normalization filter!')
@@ -2451,18 +2450,18 @@ class SIMQSO():
         for key in maggies.columns:
             synthnano[key] = 1E9 * maggies[key]
 
+        if south:
+            gflux, rflux, zflux, w1flux, w2flux = synthnano['decam2014-g'], \
+              synthnano['decam2014-r'], synthnano['decam2014-z'], \
+              synthnano['wise2010-W1'], synthnano['wise2010-W2']
+        else:
+            gflux, rflux, zflux, w1flux, w2flux = synthnano['BASS-g'], \
+              synthnano['BASS-r'], synthnano['MzLS-z'], \
+              synthnano['wise2010-W1'], synthnano['wise2010-W2']
+
         if nocolorcuts or self.colorcuts_function is None:
             colormask = np.repeat(1, nmodel)
         else:
-            if south:
-                gflux, rflux, zflux, w1flux, w2flux = synthnano['decam2014-g'], \
-                  synthnano['decam2014-r'], synthnano['decam2014-z'], \
-                  synthnano['wise2010-W1'], synthnano['wise2010-W2']
-            else:
-                gflux, rflux, zflux, w1flux, w2flux = synthnano['BASS-g'], \
-                  synthnano['BASS-r'], synthnano['MzLS-z'], \
-                  synthnano['wise2010-W1'], synthnano['wise2010-W2']
-
             colormask = self.colorcuts_function(gflux=gflux, rflux=rflux, zflux=zflux,
                                                 w1flux=w1flux, w2flux=w2flux, south=south)
 
