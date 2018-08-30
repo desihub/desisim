@@ -27,10 +27,21 @@ def _check_input_meta(input_meta):
 
 def _check_input_snemeta(input_snemeta):
     log = get_logger()
-    cols = input_meta.colnames
+    cols = input_snemeta.colnames
     required_cols = ('SNE_TEMPLATEID', 'SNE_EPOCH', 'SNE_FLUXRATIO', 'SNE_FILTER')
     if not np.all(np.in1d(required_cols, cols)):
         log.warning('Input SNe metadata table (input_snemeta) is missing one or more required columns {}'.format(
+            required_cols))
+        raise ValueError
+
+def _check_star_properties(star_properties, WD=False):
+    log = get_logger()
+    cols = star_properties.colnames
+    required_cols = ['REDSHIFT', 'MAG', 'MAGFILTER', 'TEFF', 'LOGG']
+    if not WD:
+        required_cols = required_cols + ['FEH']
+    if not np.all(np.in1d(required_cols, cols)):
+        log.warning('Input star_properties is missing one or more required columns {}'.format(
             required_cols))
         raise ValueError
 
@@ -262,8 +273,8 @@ class GALAXY(object):
     """
     def __init__(self, objtype='ELG', minwave=3600.0, maxwave=10000.0, cdelt=0.2,
                  wave=None, add_SNeIa=False, colorcuts_function=None,
-                 normfilter_north='BASS-r', normfilter_south='decam2014-r', normline='OII',
-                 fracvdisp=(0.1, 40), baseflux=None, basewave=None,
+                 normfilter_north='BASS-r', normfilter_south='decam2014-r',
+                 normline='OII', fracvdisp=(0.1, 40), baseflux=None, basewave=None,
                  basemeta=None):
         """Read the appropriate basis continuum templates, filter profiles and
         initialize the output wavelength array.
@@ -901,7 +912,7 @@ class ELG(GALAXY):
 
         self.ewoiicoeff = [1.34323087, -5.02866474, 5.43842874]
 
-    def make_templates(self, nmodel=100, zrange=(0.6, 1.6), rmagrange=(21.0, 23.4),
+    def make_templates(self, nmodel=100, zrange=(0.6, 1.6), magrange=(21.0, 23.4),
                        oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
                        minoiiflux=0.0, sne_fluxratiorange=(0.1, 1.0), sne_filter='decam2014-r',
                        redshift=None, mag=None, vdisp=None, seed=None, input_meta=None,
@@ -914,8 +925,6 @@ class ELG(GALAXY):
         that are specific to the ELG class.
 
         Args:
-          rmagrange (float, optional): Minimum and maximum r-band (AB) magnitude
-            range.  Defaults to a uniform distribution between (21, 23.4).
           oiiihbrange (float, optional): Minimum and maximum logarithmic [OIII]
             5007/H-beta line-ratio.  Defaults to a uniform distribution between
             (-0.5, 0.2).
@@ -940,7 +949,7 @@ class ELG(GALAXY):
         Raises:
 
         """
-        result = self.make_galaxy_templates(nmodel=nmodel, zrange=zrange, magrange=rmagrange,
+        result = self.make_galaxy_templates(nmodel=nmodel, zrange=zrange, magrange=magrange,
                                             oiiihbrange=oiiihbrange, logvdisp_meansig=logvdisp_meansig,
                                             minlineflux=minoiiflux, redshift=redshift, vdisp=vdisp,
                                             mag=mag, sne_fluxratiorange=sne_fluxratiorange, sne_filter=sne_filter,
@@ -986,7 +995,7 @@ class BGS(GALAXY):
 
         self.ewhbetacoeff = [1.28520974, -4.94408026, 4.9617704]
 
-    def make_templates(self, nmodel=100, zrange=(0.01, 0.4), rmagrange=(15.0, 19.5),
+    def make_templates(self, nmodel=100, zrange=(0.01, 0.4), magrange=(15.0, 20.0),
                        oiiihbrange=(-1.3, 0.6), logvdisp_meansig=(2.0, 0.17),
                        minhbetaflux=0.0, sne_fluxratiorange=(0.1, 1.0), sne_filter='decam2014-r',
                        redshift=None, mag=None, vdisp=None, seed=None, input_meta=None,
@@ -999,8 +1008,6 @@ class BGS(GALAXY):
          arguments that are specific to the BGS class.
 
         Args:
-          rmagrange (float, optional): Minimum and maximum r-band (AB) magnitude
-            range.  Defaults to a uniform distribution between (15, 19.5).
           oiiihbrange (float, optional): Minimum and maximum logarithmic [OIII]
             5007/H-beta line-ratio.  Defaults to a uniform distribution between
             (-1.3, 0.6).
@@ -1025,7 +1032,7 @@ class BGS(GALAXY):
         Raises:
 
         """
-        result = self.make_galaxy_templates(nmodel=nmodel, zrange=zrange, magrange=rmagrange,
+        result = self.make_galaxy_templates(nmodel=nmodel, zrange=zrange, magrange=magrange,
                                             oiiihbrange=oiiihbrange, logvdisp_meansig=logvdisp_meansig,
                                             minlineflux=minhbetaflux, redshift=redshift, vdisp=vdisp,
                                             mag=mag, sne_fluxratiorange=sne_fluxratiorange, sne_filter=sne_filter,
@@ -1065,7 +1072,7 @@ class LRG(GALAXY):
                                   baseflux=baseflux, basewave=basewave, basemeta=basemeta,
                                   add_SNeIa=add_SNeIa)
 
-    def make_templates(self, nmodel=100, zrange=(0.5, 1.0), zmagrange=(19.0, 20.2),
+    def make_templates(self, nmodel=100, zrange=(0.5, 1.0), magrange=(19.0, 20.2),
                        logvdisp_meansig=(2.3, 0.1), sne_fluxratiorange=(0.1, 1.0),
                        sne_filter='decam2014-r', redshift=None, mag=None, vdisp=None,
                        seed=None, input_meta=None, input_snemeta=None, nocolorcuts=False,
@@ -1077,8 +1084,6 @@ class LRG(GALAXY):
          arguments that are specific to the LRG class.
 
         Args:
-          zmagrange (float, optional): Minimum and maximum z-band (AB) magnitude
-            range.  Defaults to a uniform distribution between (19, 20.5).
           logvdisp_meansig (float, optional): Logarithmic mean and sigma values
             for the (Gaussian) stellar velocity dispersion distribution.
             Defaults to log10-sigma=(2.3+/-0.1) km/s
@@ -1100,7 +1105,7 @@ class LRG(GALAXY):
         Raises:
 
         """
-        result = self.make_galaxy_templates(nmodel=nmodel, zrange=zrange, magrange=zmagrange,
+        result = self.make_galaxy_templates(nmodel=nmodel, zrange=zrange, magrange=magrange,
                                             logvdisp_meansig=logvdisp_meansig, redshift=redshift,
                                             vdisp=vdisp, mag=mag, sne_fluxratiorange=sne_fluxratiorange,
                                             sne_filter=sne_filter, seed=seed, input_meta=input_meta,
@@ -1121,8 +1126,8 @@ class SUPERSTAR(object):
     """Base class for generating Monte Carlo spectra of the various flavors of stars."""
 
     def __init__(self, objtype='STAR', subtype='', minwave=3600.0, maxwave=10000.0, cdelt=0.2,
-                 wave=None, colorcuts_function=None, normfilter_north='BASS-r', normfilter_south='decam2014-r',
-                 baseflux=None, basewave=None, basemeta=None):
+                 wave=None, normfilter_north='BASS-r', normfilter_south='decam2014-r',
+                 colorcuts_function=None, baseflux=None, basewave=None, basemeta=None):
         """Read the appropriate basis continuum templates, filter profiles and
         initialize the output wavelength array.
 
@@ -1201,7 +1206,7 @@ class SUPERSTAR(object):
                                                  'wise2010-W1', 'wise2010-W2')
 
     def make_star_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
-                            magrange=(18.0, 23.5), seed=None, redshift=None,
+                            magrange=(18.0, 22.0), seed=None, redshift=None,
                             mag=None, input_meta=None, star_properties=None,
                             nocolorcuts=False, south=True, restframe=False,
                             verbose=False):
@@ -1238,28 +1243,33 @@ class SUPERSTAR(object):
             spectrum.  Defaults to a normal distribution with a mean of zero and
             sigma of 200 km/s.
           magrange (float, optional): Minimum and maximum magnitude in the
-            bandpass specified by self.normfilter.  Defaults to a uniform
-            distribution between (18, 23.5) in the r-band.
+            bandpass specified by self.normfilter_south (if south=True) or
+            self.normfilter_north (if south=False). Defaults to a uniform
+            distribution between (18, 22).
           seed (int, optional): input seed for the random numbers.
           redshift (float, optional): Input/output (dimensionless) radial
             velocity.  Array size must equal nmodel.  Ignores vrad_meansig
             input.
-          mag (float, optional): Input/output template magnitudes in the band
-            specified by self.normfilter.  Array size must equal nmodel.
-            Ignores magrange input.
+          mag (float, optional): Input/output template magnitudes in the
+            bandpass specified by self.normfilter_south (if south=True) or
+            self.normfilter_north (if south=False).  Array size must equal
+            nmodel.  Ignores magrange input.
+        
           input_meta (astropy.Table): *Input* metadata table with the following
-            required columns: TEMPLATEID, SEED, REDSHIFT, and MAG (where mag is
-            specified by self.normfilter).  See desisim.io.empty_metatable for
-            the required data type for each column.  If this table is passed
-            then all other optional inputs (nmodel, redshift, mag, vrad_meansig,
-            etc.) are ignored.
+            required columns: TEMPLATEID, SEED, REDSHIFT, MAG, and MAGFILTER
+            (see desisim.io.empty_metatable for the expected data types).  If
+            present, then all other optional inputs (nmodel, redshift, mag,
+            zrange, vrad_meansig, etc.) are ignored.
           star_properties (astropy.Table): *Input* table with the following
-            required columns: REDSHIFT, MAG, TEFF, LOGG, and FEH (except for
-            WDs, which don't need to have an FEH column).  Optionally, SEED can
-            also be included in the table.  When this table is passed, the basis
-            templates are interpolated to the desired physical values provided,
-            enabling large numbers of mock stellar spectra to be generated with
-            physically consistent properties.
+            required columns: REDSHIFT, MAG, MAGFILTER, TEFF, LOGG, and FEH
+            (except for WDs, which don't need to have an FEH column).
+            Optionally, SEED can also be included in the table.  When this table
+            is passed, the basis templates are interpolated to the desired
+            physical values provided, enabling large numbers of mock stellar
+            spectra to be generated with physically consistent properties.
+            However, be warned that the interpolation scheme is very
+            rudimentary.
+        
           nocolorcuts (bool, optional): Do not apply the color-cuts specified by
             the self.colorcuts_function function (default False).
           south (bool, optional): Apply "south" color-cuts using the DECaLS
@@ -1306,9 +1316,11 @@ class SUPERSTAR(object):
         else:
             if star_properties is not None:
                 nmodel = len(star_properties)
+                _check_star_properties(star_properties, WD=self.objtype=='WD')
 
                 redshift = star_properties['REDSHIFT'].data
                 mag = star_properties['MAG'].data
+                magfilter = np.char.strip(star_properties['MAGFILTER'].data)
 
                 if 'SEED' in star_properties.keys():
                     templateseed = star_properties['SEED'].data
@@ -1505,7 +1517,7 @@ class STAR(SUPERSTAR):
                                    basewave=basewave, basemeta=basemeta)
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
-                       rmagrange=(18.0, 23.5), seed=None, redshift=None,
+                       magrange=(18.0, 23.5), seed=None, redshift=None,
                        mag=None, input_meta=None, star_properties=None,
                        south=True, restframe=False, verbose=False):
         """Build Monte Carlo spectra/templates for generic stars.
@@ -1515,8 +1527,6 @@ class STAR(SUPERSTAR):
         which are specific to the STAR class.
 
         Args:
-          rmagrange (float, optional): Minimum and maximum r-band (AB) magnitude
-            range.  Defaults to a uniform distribution between (18, 23.5).
         
         Returns (outflux, wave, meta, objmeta) tuple where:
 
@@ -1531,7 +1541,7 @@ class STAR(SUPERSTAR):
 
         """
         result = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
-                                          magrange=rmagrange, seed=seed, redshift=redshift,
+                                          magrange=magrange, seed=seed, redshift=redshift,
                                           mag=mag, input_meta=input_meta,
                                           star_properties=star_properties,
                                           restframe=restframe, verbose=verbose)
@@ -1563,7 +1573,7 @@ class STD(SUPERSTAR):
                                    normfilter_north=normfilter_north, normfilter_south=normfilter_south,
                                    baseflux=baseflux, basewave=basewave, basemeta=basemeta)
 
-    def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), rmagrange=(16.0, 19.0),
+    def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), magrange=(16.0, 19.0),
                        seed=None, redshift=None, mag=None, input_meta=None, star_properties=None,
                        nocolorcuts=False, south=True, restframe=False, verbose=False):
         """Build Monte Carlo spectra/templates for STD stars.
@@ -1573,8 +1583,6 @@ class STD(SUPERSTAR):
         which are specific to the STD class.
 
         Args:
-          rmagrange (float, optional): Minimum and maximum r-band (AB) magnitude
-            range.  Defaults to a uniform distribution between (16, 19).
 
         Returns (outflux, wave, meta, objmeta) tuple where:
 
@@ -1589,7 +1597,7 @@ class STD(SUPERSTAR):
 
         """
         result = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
-                                          magrange=rmagrange, seed=seed, redshift=redshift,
+                                          magrange=magrange, seed=seed, redshift=redshift,
                                           mag=mag, input_meta=input_meta,
                                           star_properties=star_properties,
                                           nocolorcuts=nocolorcuts, south=south,
@@ -1622,7 +1630,7 @@ class MWS_STAR(SUPERSTAR):
                                        normfilter_north=normfilter_north, normfilter_south=normfilter_south,
                                        baseflux=baseflux, basewave=basewave, basemeta=basemeta)
 
-    def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), rmagrange=(16.0, 20.0),
+    def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), magrange=(16.0, 20.0),
                        seed=None, redshift=None, mag=None, input_meta=None, star_properties=None,
                        nocolorcuts=False, south=True, restframe=False, verbose=False):
         """Build Monte Carlo spectra/templates for MWS_STAR stars.
@@ -1632,8 +1640,6 @@ class MWS_STAR(SUPERSTAR):
         which are specific to the MWS_STAR class.
 
         Args:
-          rmagrange (float, optional): Minimum and maximum r-band (AB) magnitude
-            range.  Defaults to a uniform distribution between (16, 20).
 
         Returns (outflux, wave, meta, objmeta) tuple where:
 
@@ -1648,7 +1654,7 @@ class MWS_STAR(SUPERSTAR):
 
         """
         result = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
-                                          magrange=rmagrange, seed=seed, redshift=redshift,
+                                          magrange=magrange, seed=seed, redshift=redshift,
                                           mag=mag, input_meta=input_meta,
                                           star_properties=star_properties,
                                           nocolorcuts=nocolorcuts, south=south,
@@ -1677,7 +1683,7 @@ class WD(SUPERSTAR):
                                  normfilter_north=normfilter_north, normfilter_south=normfilter_south,
                                  baseflux=baseflux, basewave=basewave, basemeta=basemeta)
 
-    def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), gmagrange=(16.0, 19.0),
+    def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), magrange=(16.0, 19.0),
                        seed=None, redshift=None, mag=None, input_meta=None, star_properties=None,
                        nocolorcuts=False, south=True, restframe=False, verbose=False):
         """Build Monte Carlo spectra/templates for WD stars.
@@ -1687,8 +1693,6 @@ class WD(SUPERSTAR):
         which are specific to the WD class.
 
         Args:
-          gmagrange (float, optional): Minimum and maximum g-band (AB) magnitude
-            range.  Defaults to a uniform distribution between (16, 19).
 
         Returns (outflux, wave, meta, objmeta) tuple where:
 
@@ -1715,7 +1719,7 @@ class WD(SUPERSTAR):
                         raise ValueError
         
         result = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
-                                          magrange=gmagrange, seed=seed, redshift=redshift,
+                                          magrange=magrange, seed=seed, redshift=redshift,
                                           mag=mag, input_meta=input_meta,
                                           star_properties=star_properties,
                                           nocolorcuts=nocolorcuts, south=south,
@@ -1727,8 +1731,8 @@ class QSO():
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
                  basewave_min=1200, basewave_max=2.5e4, basewave_R=8000,
-                 normfilter='decam2014-r', colorcuts_function=None,
-                 balqso=False, z_wind=0.2):
+                 normfilter_north='BASS-r', normfilter_south='decam2014-r', 
+                 colorcuts_function=None, balqso=False, z_wind=0.2):
         """Read the QSO basis continuum templates, filter profiles and initialize the
            output wavelength array.
 
@@ -1752,10 +1756,13 @@ class QSO():
             noresample=True (in QSO.make_templates) [default 25000 Angstrom].
           basewave_R (float, optional): output wavelength resolution when
             noresample=True (in QSO.make_templates) [default R=8000].
-          normfilter (str): normalize each spectrum to the magnitude in this
-            filter bandpass (default 'decam2014-r').
           colorcuts_function (function name): Function to use to select
             templates that pass the color-cuts.
+          normfilter_north (str): normalization filter for simulated "north"
+            templates.  Each spectrum is normalized to the magnitude in this
+            filter bandpass (default 'BASS-r').
+          normfilter_south (str): corresponding normalization filter for "south"
+            (default 'decam2014-r').
           balqso (bool, optional): Include broad absorption line (BAL) features
             (default False).
           z_wind (float, optional): Redshift window for sampling (defaults to
@@ -1766,9 +1773,14 @@ class QSO():
           wave (numpy.ndarray): Output wavelength array [Angstrom].
           cosmo (astropy.cosmology): Default cosmology object (currently
             hard-coded to FlatLCDM with H0=70, Omega0=0.3).
-          normfilt (speclite.filters instance): FilterSequence of self.normfilter.
+          normfilt_north (speclite.filters instance): FilterSequence of
+            self.normfilter_north.
+          normfilt_south (speclite.filters instance): FilterSequence of
+            self.normfilter_south.
           decamwise (speclite.filters instance): DECam2014-[g,r,z] and WISE2010-[W1,W2]
             FilterSequence.
+          bassmzlswise (speclite.filters instance): BASS-[g,r], MzLS-z and
+            WISE2010-[W1,W2] FilterSequence.
 
         """
         from astropy.io import fits
@@ -1789,7 +1801,8 @@ class QSO():
                 from desitarget.cuts import isQSO as colorcuts_function
 
         self.colorcuts_function = colorcuts_function
-        self.normfilter = normfilter
+        self.normfilter_north = normfilter_north
+        self.normfilter_south = normfilter_south
 
         # Initialize the output wavelength array (linear spacing) unless it is
         # already provided.
@@ -1847,9 +1860,12 @@ class QSO():
             self.balmeta = bal.empty_balmeta()
 
         # Initialize the filter profiles.
-        self.normfilt = filters.load_filters(self.normfilter)
+        self.normfilt_north = filters.load_filters(self.normfilter_north)
+        self.normfilt_south = filters.load_filters(self.normfilter_south)
         self.decamwise = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
                                               'wise2010-W1', 'wise2010-W2')
+        self.bassmzlswise = filters.load_filters('BASS-g', 'BASS-r', 'MzLS-z',
+                                                 'wise2010-W1', 'wise2010-W2')
 
     def _sample_pcacoeff(self, nsample, coeff, samplerand):
         """Draw from the distribution of PCA coefficients."""
@@ -1858,10 +1874,10 @@ class QSO():
         x = samplerand.uniform(0.0, 1.0, size=nsample)
         return coeff[np.interp(x, cdf, np.arange(0, len(coeff), 1)).astype('int')]
 
-    def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(20.0, 22.5),
+    def make_templates(self, nmodel=100, zrange=(0.5, 4.0), magrange=(20.0, 22.5),
                        seed=None, redshift=None, mag=None, input_meta=None, N_perz=40, 
                        maxiter=20, uniform=False, balprob=0.12, lyaforest=True,
-                       noresample=False, nocolorcuts=False, verbose=False):
+                       noresample=False, nocolorcuts=False, south=True, verbose=False):
         """Build Monte Carlo QSO spectra/templates.
 
         This function generates QSO spectra on-the-fly using PCA decomposition
@@ -1876,27 +1892,28 @@ class QSO():
         the documentation for the input_meta argument, below).
 
         Note:
-          The templates are only defined in the range 3500-10000 A (observed)
-          and we do not yet apply proper color-cuts to "select" DESI QSOs.
+          The templates are only defined in the range 3500-10000 A (observed). 
 
         Args:
           nmodel (int, optional): Number of models to generate (default 100).
           zrange (float, optional): Minimum and maximum redshift range.  Defaults
             to a uniform distribution between (0.5, 4.0).
-          rmagrange (float, optional): Minimum and maximum r-band (AB) magnitude
-            range.  Defaults to a uniform distribution between (20, 22.5).
+          magrange (float, optional): Minimum and maximum magnitude in the
+            bandpass specified by self.normfilter_south (if south=True) or
+            self.normfilter_north (if south=False). Defaults to a uniform
+            distribution between (20, 22.5).
           seed (int, optional): input seed for the random numbers.
           redshift (float, optional): Input/output template redshifts.  Array
             size must equal nmodel.  Ignores zrange input.
-          mag (float, optional): Input/output template magnitudes in the band
-            specified by self.normfilter.  Array size must equal nmodel.
-            Ignores rmagrange input.
+          mag (float, optional): Input/output template magnitudes in the
+            bandpass specified by self.normfilter_south (if south=True) or
+            self.normfilter_north (if south=False).  Array size must equal
+            nmodel.  Ignores magrange input.
           input_meta (astropy.Table): *Input* metadata table with the following
-            required columns: SEED, REDSHIFT, and MAG (where mag is specified by
-            self.normfilter).  See desisim.io.empty_metatable for the required
-            data type for each column.  If this table is passed then all other
-            optional inputs (nmodel, redshift, mag, zrange, rmagrange, etc.) are
-            ignored.
+            required columns: TEMPLATEID, SEED, REDSHIFT, MAG, and MAGFILTER
+            (see desisim.io.empty_metatable for the expected data types).  If
+            present, then all other optional inputs (nmodel, redshift, mag,
+            zrange, etc.) are ignored.
           N_perz (int, optional): Number of templates per redshift redshift
             value to generate (default 20).
           maxiter (int): maximum number of iterations for findng a non-negative
@@ -1911,6 +1928,9 @@ class QSO():
             wavelength (default False).
           nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
             cuts (default False).
+          south (bool, optional): Apply "south" color-cuts using the DECaLS
+            filter system, otherwise apply the "north" (MzLS+BASS) color-cuts.
+            Defaults to True.
           verbose (bool, optional): Be verbose!
 
         Returns (outflux, wave, meta, objmeta) tuple where:
@@ -1926,13 +1946,14 @@ class QSO():
             [nmodel] for each spectrum.  Note that this table is currently empty
             for QSO but is included here for uniformity.
 
-        In addition, if balqso=True then a third astropy.Table object, balmeta,
-        is returned with the properties of the simulated BAL.
+          In addition, if balqso=True then a third astropy.Table object,
+          balmeta, is returned with the properties of the simulated BAL.
 
         Raises:
           ValueError
 
         """
+        from speclite import filters
         from desispec.interpolation import resample_flux
 
         if uniform:
@@ -1967,12 +1988,14 @@ class QSO():
         # Optionally unpack a metadata table.
         if input_meta is not None:
             nmodel = len(input_meta)
+            _check_input_meta(input_meta)
 
             templateseed = input_meta['SEED'].data
             redshift = input_meta['REDSHIFT'].data
             mag = input_meta['MAG'].data
+            magfilter = np.char.strip(input_meta['MAGFILTER'].data)
 
-            meta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
+            meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
         else:
             meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
 
@@ -1989,7 +2012,22 @@ class QSO():
                 redshift = rand.uniform(zrange[0], zrange[1], nmodel)
 
             if mag is None:
-                mag = rand.uniform(rmagrange[0], rmagrange[1], nmodel).astype('f4')
+                mag = rand.uniform(magrange[0], magrange[1], nmodel).astype('f4')
+
+            if south:
+                magfilter = np.repeat(self.normfilter_south, nmodel)
+            else:
+                magfilter = np.repeat(self.normfilter_north, nmodel)
+
+        if redshift is not None:
+            if len(redshift) != nmodel:
+                log.fatal('Redshift must be an nmodel-length array')
+                raise ValueError
+
+        if mag is not None:
+            if len(mag) != nmodel:
+                log.fatal('Mag must be an nmodel-length array')
+                raise ValueError
 
         # Pre-compute the Lyman-alpha skewers.
         if lyaforest:
@@ -2001,9 +2039,9 @@ class QSO():
                 skewer_flux[ii, :] = skewer_flux1
 
         # Populate some of the metadata table.
-        meta['TEMPLATEID'] = np.arange(nmodel)
+        meta['TEMPLATEID'][:] = np.arange(nmodel)
         for key, value in zip(('REDSHIFT', 'MAG', 'MAGFILTER', 'SEED'),
-                               (redshift, mag, self.normfilter, templateseed)):
+                               (redshift, mag, magfilter, templateseed)):
             meta[key][:] = value
 
         if lyaforest: 
@@ -2015,6 +2053,13 @@ class QSO():
                 meta['SUBTYPE'] = 'LYA+BAL'
             else:
                 meta['SUBTYPE'] = 'BAL'
+
+        # Load the unique set of MAGFILTERs.  We could check against
+        # self.decamwise.names and self.bassmzlswise to see if the filters have
+        # already been loaded, but speed should not be an issue.
+        normfilt = dict()
+        for mfilter in np.unique(magfilter):
+            normfilt[mfilter] = filters.load_filters(mfilter)
 
         # Attenuate below the Lyman-limit by the mean free path (MFP) model
         # measured by Worseck, Prochaska et al. 2014.
@@ -2109,13 +2154,13 @@ class QSO():
                 # color-cuts.  We have to temporarily pad because the spectra
                 # don't go red enough.
                 padflux, padzwave = self.decamwise.pad_spectrum(flux, zwave[:, ii], method='edge')
-                maggies = self.decamwise.get_ab_maggies(padflux, padzwave, mask_invalid=True)
-
-                if self.normfilter in self.decamwise.names:
-                    normmaggies = np.array(maggies[self.normfilter])
+                if south:
+                    maggies = self.decamwise.get_ab_maggies(padflux, padzwave, mask_invalid=True)
                 else:
-                    normmaggies = np.array(self.normfilt.get_ab_maggies(
-                        padflux, padzwave, mask_invalid=True)[self.normfilter])
+                    maggies = self.bassmzlswise.get_ab_maggies(padflux, padzwave, mask_invalid=True)
+
+                normmaggies = np.array(normfilt[magfilter[ii]].get_ab_maggies(
+                    padflux, padzwave, mask_invalid=True)[magfilter[ii]])
                 magnorm = 10**(-0.4*mag[ii]) / normmaggies
 
                 synthnano = dict()
@@ -2125,14 +2170,19 @@ class QSO():
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, N_perz)
                 else:
-                    colormask = self.colorcuts_function(
-                        gflux=synthnano['decam2014-g'],
-                        rflux=synthnano['decam2014-r'],
-                        zflux=synthnano['decam2014-z'],
-                        w1flux=synthnano['wise2010-W1'],
-                        w2flux=synthnano['wise2010-W2'],
-                        optical=True)
-
+                    if south:
+                        gflux, rflux, zflux, w1flux, w2flux = synthnano['decam2014-g'], \
+                          synthnano['decam2014-r'], synthnano['decam2014-z'], \
+                          synthnano['wise2010-W1'], synthnano['wise2010-W2']
+                    else:
+                        gflux, rflux, zflux, w1flux, w2flux = synthnano['BASS-g'], \
+                          synthnano['BASS-r'], synthnano['MzLS-z'], \
+                          synthnano['wise2010-W1'], synthnano['wise2010-W2']
+                          
+                    colormask = self.colorcuts_function(gflux=gflux, rflux=rflux, zflux=zflux,
+                                                        w1flux=w1flux, w2flux=w2flux, south=south,
+                                                        optical=True)
+                          
                 # If the color-cuts pass then populate the output flux vector
                 # (suitably normalized) and metadata table and finish up.
                 if np.any(colormask * nonegflux):
@@ -2143,12 +2193,12 @@ class QSO():
                         outflux[ii, :] = resample_flux(self.wave, zwave[:, ii], flux[this, :],
                                                        extrapolate=True) * magnorm[this]
 
-                    meta['FLUX_G'][ii] = synthnano['decam2014-g'][this]
-                    meta['FLUX_R'][ii] = synthnano['decam2014-r'][this]
-                    meta['FLUX_Z'][ii] = synthnano['decam2014-z'][this]
-                    meta['FLUX_W1'][ii] = synthnano['wise2010-W1'][this]
-                    meta['FLUX_W2'][ii] = synthnano['wise2010-W2'][this]
-
+                    meta['FLUX_G'][ii] = gflux[this]
+                    meta['FLUX_R'][ii] = rflux[this]
+                    meta['FLUX_Z'][ii] = zflux[this]
+                    meta['FLUX_W1'][ii] = w1flux[this]
+                    meta['FLUX_W2'][ii] = w2flux[this]
+                    
                     makemore = False
 
                 itercount += 1
@@ -2314,7 +2364,7 @@ class SIMQSO():
 
         return qsometa
 
-    def _make_simqso_templates(self, redshift=None, rmagrange=None, seed=None,                               
+    def _make_simqso_templates(self, redshift=None, magrange=None, seed=None,                               
                                lyaforest=True, nocolorcuts=False, noresample=False,
                                input_qsometa=None):
         """Wrapper function for actually generating the templates.
@@ -2357,7 +2407,7 @@ class SIMQSO():
 
             # Sample from the QLF, using the input redshifts.
             zrange = (np.min(redshift), np.max(redshift))
-            qsometa = generateQlfPoints(self.qlf, rmagrange, zrange,
+            qsometa = generateQlfPoints(self.qlf, magrange, zrange,
                                         kcorr=self.kcorr, zin=redshift,
                                         qlfseed=seed, gridseed=seed)
 
@@ -2431,7 +2481,7 @@ class SIMQSO():
 
         return outflux, meta, qsometa
 
-    def make_templates(self, nmodel=100, zrange=(0.5, 4.0), rmagrange=(19.0, 23.0),
+    def make_templates(self, nmodel=100, zrange=(0.5, 4.0), magrange=(19.0, 23.0),
                        seed=None, redshift=None, input_qsometa=None, maxiter=20,
                        lyaforest=True, nocolorcuts=False, noresample=False,
                        verbose=False):
@@ -2448,7 +2498,7 @@ class SIMQSO():
 
           Providing apparent magnitudes on *input* is not supported although it
           could be if there is need.  However, one can control the apparent
-          brightness of the resulting QSO spectra by specifying rmagrange.
+          brightness of the resulting QSO spectra by specifying magrange.
 
         * The way the code is currently structured could lead to memory problems
           if one attempts to generate very large numbers of spectra
@@ -2460,14 +2510,16 @@ class SIMQSO():
           nmodel (int, optional): Number of models to generate (default 100).
           zrange (float, optional): Minimum and maximum redshift range.  Defaults
             to a uniform distribution between (0.5, 4.0).
-          rmagrange (float, optional): Minimum and maximum r-band (AB) magnitude
-            range.  Defaults to a uniform distribution between (19, 23).
+          magrange (float, optional): Minimum and maximum magnitude in the
+            bandpass specified by self.normfilter_south (if south=True) or
+            self.normfilter_north (if south=False). Defaults to a uniform
+            distribution between (19, 23).
           seed (int, optional): input seed for the random numbers.
           redshift (float, optional): Input/output template redshifts.  Array
             size must equal nmodel.  Ignores zrange input.
           mag (float, optional): Input/output template magnitudes in the band
             specified by self.normfilter.  Array size must equal nmodel.
-            Ignores rmagrange input.
+            Ignores magrange input.
           input_qsometa (simqso.sqgrids.QsoSimPoints or FITS filename): *Input*
             QsoSimPoints object or FITS filename (with a 'QSOMETA' HDU) from
             which to (re)generate the QSO spectra.  All other inputs are ignored
@@ -2571,7 +2623,7 @@ class SIMQSO():
                     zin = redshift[need]
 
                 iterflux, itermeta, iterqsometa = self._make_simqso_templates(
-                    zin, rmagrange, seed=iterseed[itercount], lyaforest=lyaforest,
+                    zin, magrange, seed=iterseed[itercount], lyaforest=lyaforest,
                     nocolorcuts=nocolorcuts, noresample=noresample)
 
                 outflux[need, :] = iterflux
@@ -2691,10 +2743,7 @@ def specify_galparams_dict(templatetype, zrange=None, magrange=None,
     if zrange is not None:
         fulldef_dict['zrange'] = zrange
     if magrange is not None:
-        if templatetype == 'LRG':
-            fulldef_dict['zmagrange'] = magrange
-        else:
-            fulldef_dict['rmagrange'] = magrange
+        fulldef_dict['magrange'] = magrange
     if oiiihbrange is not None:
         fulldef_dict['oiiihbrange'] = oiiihbrange
     if logvdisp_meansig is not None:
@@ -2785,10 +2834,7 @@ def specify_starparams_dict(templatetype,vrad_meansig=None,
     if vrad_meansig is not None:
         fulldef_dict['vrad_meansig'] = vrad_meansig
     if magrange is not None:
-        if templatetype=='WD':
-            fulldef_dict['gmagrange'] = magrange
-        else:
-            fulldef_dict['rmagrange'] = magrange
+        fulldef_dict['magrange'] = magrange
     if redshift is not None:
         fulldef_dict['redshift'] = redshift
     if mag is not None:
