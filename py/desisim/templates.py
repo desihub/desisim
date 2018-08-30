@@ -418,7 +418,7 @@ class GALAXY(object):
 
         """
         if agnlike:
-            raise NotImplementedError('agnlike option not yet implemented')
+            raise NotImplementedError('AGNLIKE option not yet implemented')
 
         if rand is None:
             rand = np.random.RandomState()
@@ -438,7 +438,7 @@ class GALAXY(object):
 
         return oiidoublet, oiihbeta, niihbeta, siihbeta, oiiihbeta
 
-    def make_galaxy_templates(self, nmodel=100, zrange=(0.6, 1.6), magrange=(21.0, 23.5),
+    def make_galaxy_templates(self, nmodel=100, zrange=(0.6, 1.6), magrange=(20.0, 22.0),
                               oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
                               minlineflux=0.0, sne_fluxratiorange=(0.01, 0.1), sne_filter='decam2014-r',
                               seed=None, redshift=None, mag=None, vdisp=None,
@@ -477,8 +477,9 @@ class GALAXY(object):
           zrange (float, optional): Minimum and maximum redshift range.  Defaults
             to a uniform distribution between (0.6, 1.6).
           magrange (float, optional): Minimum and maximum magnitude in the
-            bandpass specified by self.normfilter.  Defaults to a uniform
-            distribution between (21, 23.4) in the r-band.
+            bandpass specified by self.normfilter_south (if south=True) or
+            self.normfilter_north (if south=False). Defaults to a uniform
+            distribution between (20.0, 22.0).
           oiiihbrange (float, optional): Minimum and maximum logarithmic
             [OIII] 5007/H-beta line-ratio.  Defaults to a uniform distribution
             between (-0.5, 0.2).
@@ -497,11 +498,12 @@ class GALAXY(object):
           seed (int, optional): Input seed for the random numbers.
           redshift (float, optional): Input/output template redshifts.  Array
             size must equal nmodel.  Ignores zrange input.
-          mag (float, optional): Input/output template magnitudes in the band
-            specified by self.normfilter.  Array size must equal nmodel.
-            Ignores magrange input.
-          vdisp (float, optional): Input/output velocity dispersions.  Array
-            size must equal nmodel.
+          mag (float, optional): Input/output template magnitudes in the
+            bandpass specified by self.normfilter_south (if south=True) or
+            self.normfilter_north (if south=False).  Array size must equal
+            nmodel.  Ignores magrange input.
+          vdisp (float, optional): Input/output velocity dispersions in km/s.
+            Array size must equal nmodel.
         
           input_meta (astropy.Table): *Input* metadata table with the following
             required columns: TEMPLATEID, SEED, REDSHIFT, MAG, and MAGFILTER
@@ -852,6 +854,7 @@ o
         if ~np.all(success):
             log.warning('{} spectra could not be computed given the input priors!'.\
                         format(np.sum(success == 0)))
+            import pdb ; pdb.set_trace()
 
         if restframe:
             outwave = self.basewave
@@ -874,8 +877,8 @@ class ELG(GALAXY):
          on the arguments plus the inherited attributes.
 
         Note:
-          By default, we assume the emission-line spectra will be normalized to
-          the integrated [OII] emission-line flux.
+          By default, we assume the emission-line spectra are normalized to the
+          integrated [OII] emission-line flux.
 
         Args:
 
@@ -887,7 +890,7 @@ class ELG(GALAXY):
 
         """
         if colorcuts_function is None:
-            from desitarget.cuts import isELG as colorcuts_function
+            from desitarget.cuts import isELG_colors as colorcuts_function
 
         super(ELG, self).__init__(objtype='ELG', minwave=minwave, maxwave=maxwave,
                                   cdelt=cdelt, wave=wave, normline='OII',
@@ -957,8 +960,8 @@ class BGS(GALAXY):
          on the arguments plus the inherited attributes.
 
         Note:
-          By default, we assume the emission-line spectra will be normalized to
-          the integrated H-beta emission-line flux.
+          By default, we assume the emission-line spectra are normalized to the
+          integrated H-beta emission-line flux.
 
         Args:
 
@@ -1035,15 +1038,15 @@ class LRG(GALAXY):
     """Generate Monte Carlo spectra of luminous red galaxies (LRGs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 add_SNeIa=False, normfilter='decam2014-z', colorcuts_function=None,
+                 add_SNeIa=False, colorcuts_function=None,
+                 normfilter_north='MzLS-z', normfilter_south='decam2014-z',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the LRG class.  See the GALAXY.__init__ method for documentation
         on the arguments plus the inherited attributes.
 
         Note:
-          We assume that the LRG templates will always be normalized in the
-          DECam z-band filter.  Emission lines (with presumably AGN-like
-          line-ratios) are not yet included.
+          Emission lines (with presumably AGN-like line-ratios) are not yet
+          included.
 
         Args:
 
@@ -1056,15 +1059,17 @@ class LRG(GALAXY):
             from desitarget.cuts import isLRG_colors as colorcuts_function
 
         super(LRG, self).__init__(objtype='LRG', minwave=minwave, maxwave=maxwave,
-                                  cdelt=cdelt, wave=wave, colorcuts_function=colorcuts_function,
-                                  normfilter=normfilter, normline=None, add_SNeIa=add_SNeIa,
-                                  baseflux=baseflux, basewave=basewave, basemeta=basemeta)
+                                  cdelt=cdelt, wave=wave, normline=None,
+                                  colorcuts_function=colorcuts_function,
+                                  normfilter_north=normfilter_north, normfilter_south=normfilter_south,
+                                  baseflux=baseflux, basewave=basewave, basemeta=basemeta,
+                                  add_SNeIa=add_SNeIa)
 
-    def make_templates(self, nmodel=100, zrange=(0.5, 1.0), zmagrange=(19.0, 20.4),
-                       logvdisp_meansig=(2.3, 0.1), sne_rfluxratiorange=(0.1, 1.0),
-                       redshift=None, mag=None, vdisp=None, seed=None,
-                       input_meta=None, nocolorcuts=False, novdisp=False, agnlike=False,
-                       restframe=False, verbose=False):
+    def make_templates(self, nmodel=100, zrange=(0.5, 1.0), zmagrange=(19.0, 20.2),
+                       logvdisp_meansig=(2.3, 0.1), sne_fluxratiorange=(0.1, 1.0),
+                       sne_filter='decam2014-r', redshift=None, mag=None, vdisp=None,
+                       seed=None, input_meta=None, input_snemeta=None, nocolorcuts=False,
+                       novdisp=False, agnlike=False, south=True, restframe=False, verbose=False):
         """Build Monte Carlo BGS spectra/templates.
 
          See the GALAXY.make_galaxy_templates function for documentation on the
@@ -1089,19 +1094,19 @@ class LRG(GALAXY):
           * objmeta (astropy.Table): Additional objtype-specific table data
             [nmodel] for each spectrum.
 
-        In addition, if add_SNeIa=True then a third astropy.Table object,
-        snemeta, is returned with the properties of the simulated SNe.
+          In addition, if add_SNeIa=True then a third astropy.Table object,
+          snemeta, is returned with the properties of the simulated SNe.
 
         Raises:
 
         """
-
         result = self.make_galaxy_templates(nmodel=nmodel, zrange=zrange, magrange=zmagrange,
                                             logvdisp_meansig=logvdisp_meansig, redshift=redshift,
-                                            vdisp=vdisp, mag=mag, sne_rfluxratiorange=sne_rfluxratiorange,
-                                            seed=seed, input_meta=input_meta, nocolorcuts=nocolorcuts,
-                                            novdisp=novdisp, agnlike=agnlike, restframe=restframe,
-                                            verbose=verbose)
+                                            vdisp=vdisp, mag=mag, sne_fluxratiorange=sne_fluxratiorange,
+                                            sne_filter=sne_filter, seed=seed, input_meta=input_meta,
+                                            input_snemeta=input_snemeta, nocolorcuts=nocolorcuts,
+                                            agnlike=agnlike, novdisp=novdisp, south=south,
+                                            restframe=restframe, verbose=verbose)
 
         # Pre-v2.4 templates:
         if 'ZMETAL' in self.basemeta.colnames:
