@@ -1794,11 +1794,7 @@ class QSO():
         self.objtype = 'QSO'
 
         if colorcuts_function is None:
-            try:
-                from desitarget.cuts import isQSO_colors as colorcuts_function
-            except ImportError:
-                log.error('Please upgrade desitarget to get the latest isQSO_colors function.')
-                from desitarget.cuts import isQSO as colorcuts_function
+            from desitarget.cuts import isQSO_colors as colorcuts_function
 
         self.colorcuts_function = colorcuts_function
         self.normfilter_north = normfilter_north
@@ -2227,8 +2223,8 @@ class SIMQSO():
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
                  nproc=1, basewave_min=450.0, basewave_max=6e4, basewave_R=8000,
-                 normfilter='decam2014-r', colorcuts_function=None,
-                 restframe=False):
+                 normfilter_north='BASS-r', normfilter_south='decam2014-r', 
+                 colorcuts_function=None, restframe=False):
         """Read the QSO basis continuum templates, filter profiles and initialize the
            output wavelength array.
 
@@ -2258,11 +2254,14 @@ class SIMQSO():
           basewave_R (float, optional): output wavelength resolution when either
             restframe=True or noresample=True (in SIMQSO.make_templates)
             [default R=8000].
+          normfilter_north (str): normalization filter for simulated "north"
+            templates.  Each spectrum is normalized to the magnitude in this
+            filter bandpass (default 'BASS-r').
+          normfilter_south (str): corresponding normalization filter for "south"
+            (default 'decam2014-r').
           colorcuts_function (function name): Function to use to select
             templates that pass the color-cuts.
           restframe (bool, optional): If True, generate rest-frame templates.
-          normfilter (str): normalize each spectrum to the magnitude in this
-            filter bandpass (default 'decam2014-r').
 
         Attributes:
           objtype (str): 'QSO'
@@ -2270,9 +2269,14 @@ class SIMQSO():
           procMap (map Class): Built-in map for multiprocessing (based on nproc). 
           cosmo (astropy.cosmology): Default cosmology object (currently
             hard-coded to FlatLCDM with H0=70, Omega0=0.3).
-          normfilt (speclite.filters instance): FilterSequence of self.normfilter.
+          normfilt_north (speclite.filters instance): FilterSequence of
+            self.normfilter_north.
+          normfilt_south (speclite.filters instance): FilterSequence of
+            self.normfilter_south.
           decamwise (speclite.filters instance): DECam2014-[g,r,z] and WISE2010-[W1,W2]
             FilterSequence.
+          bassmzlswise (speclite.filters instance): BASS-[g,r], MzLS-z and
+            WISE2010-[W1,W2] FilterSequence.
 
         """
         from astropy import cosmology
@@ -2290,14 +2294,11 @@ class SIMQSO():
         self.objtype = 'QSO'
 
         if colorcuts_function is None:
-            try:
-                from desitarget.cuts import isQSO_colors as colorcuts_function
-            except ImportError:
-                log.error('Please upgrade desitarget to get the latest isQSO_colors function.')
-                from desitarget.cuts import isQSO as colorcuts_function
+            from desitarget.cuts import isQSO_colors as colorcuts_function
 
         self.colorcuts_function = colorcuts_function
-        self.normfilter = normfilter
+        self.normfilter_north = normfilter_north
+        self.normfilter_south = normfilter_south
 
         # Initialize multiprocessing map object.
         if nproc > 1:
@@ -2328,21 +2329,28 @@ class SIMQSO():
         self.lambda_lyalpha = 1215.67
 
         # Initialize the filter profiles.
-        self.normfilt = filters.load_filters(self.normfilter)
+        self.normfilt_north = filters.load_filters(self.normfilter_north)
+        self.normfilt_south = filters.load_filters(self.normfilter_south)
         self.decamwise = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
                                               'wise2010-W1', 'wise2010-W2')
+        self.bassmzlswise = filters.load_filters('BASS-g', 'BASS-r', 'MzLS-z',
+                                                 'wise2010-W1', 'wise2010-W2')
 
         # Initialize the BOSS/DR9 quasar luminosity function and k-correction
         # objects.
-        def _filtname(filt):
-            if filt not in ('decam2014-g', 'decam2014-r', 'decam2014-z'):
-                log.warning('Unrecognized normalization filter {}! Using {}'.format('decam2014-r'))
-                filt = self.normfilter
-            outfilt = 'DECam-{}'.format(filt[-1])
-            return outfilt
+
+        # Map between speclite and simqso filter names.
+        filtnames = dict()
+        for filt1, filt2 in zip( ('decam2014-g', 'decam2014-r', 'decam2014-z', 'BASS-g', 'BASS-r', 'MzLS-z'),
+                                 ('DECam-g', 'DECam-r', 'DECam-z', 'BASS-g', 'BASS-r', 'MzLS-z') ):
+            filtnames[filt1] = filt2
+        if normfilter_north not in filtnames.keys() or normfilter_south not in filtnames.keys():
+            log.warning('Unrecognized normalization filter!')
+            raise ValueError
             
         # Initialize the K-correction and luminosity function objects.
-        self.kcorr = ContinuumKCorr(_filtname(self.normfilter), 1450, effWaveBand='SDSS-r')
+        self.kcorr_north = ContinuumKCorr(filtnames[self.normfilter_north], 1450)
+        self.kcorr_south = ContinuumKCorr(filtnames[self.normfilter_south], 1450, effWaveBand='SDSS-r')
         self.qlf = BOSS_DR9_PLEpivot(cosmo=self.cosmo)
 
     def empty_qsometa(self, qsometa, nmodel):
@@ -2350,15 +2358,6 @@ class SIMQSO():
         needed to regenerate simqso spectra.
         
         """
-        #from simqso.sqgrids import (QsoSimPoints, AbsMagVar, AppMagVar,
-        #                            RedshiftVar, FixedSampler)
-        #
-        #M = AbsMagVar(FixedSampler(np.repeat(-1, nmodel)), self.kcorr.restBand)
-        #m = AppMagVar(FixedSampler(np.repeat(-1, nmodel)), self.kcorr.obsBand)
-        #z = RedshiftVar(FixedSampler(np.repeat(-1, nmodel)))
-        #qsometa = QsoSimPoints([M, m, z], cosmo=self.cosmo)
-
-        #qsometa = copy.copy(_qsometa)
         qsometa.data.remove_rows(np.arange(len(qsometa.data)))
         [qsometa.data.add_row() for ii in range(nmodel)]
 
@@ -2366,7 +2365,7 @@ class SIMQSO():
 
     def _make_simqso_templates(self, redshift=None, magrange=None, seed=None,                               
                                lyaforest=True, nocolorcuts=False, noresample=False,
-                               input_qsometa=None):
+                               input_qsometa=None, south=True):
         """Wrapper function for actually generating the templates.
 
         """ 
@@ -2407,9 +2406,12 @@ class SIMQSO():
 
             # Sample from the QLF, using the input redshifts.
             zrange = (np.min(redshift), np.max(redshift))
-            qsometa = generateQlfPoints(self.qlf, magrange, zrange,
-                                        kcorr=self.kcorr, zin=redshift,
-                                        qlfseed=seed, gridseed=seed)
+            if south:
+                qsometa = generateQlfPoints(self.qlf, magrange, zrange, zin=redshift,
+                                            kcorr=self.kcorr_south, qlfseed=seed, gridseed=seed)
+            else:
+                qsometa = generateQlfPoints(self.qlf, magrange, zrange, zin=redshift,
+                                            kcorr=self.kcorr_north, qlfseed=seed, gridseed=seed)
 
             # Add the fiducial quasar SED model from BOSS/DR9, optionally
             # without IGM absorption. This step adds a fiducial continuum,
@@ -2417,24 +2419,27 @@ class SIMQSO():
             qsometa.addVars(get_BossDr9_model_vars(qsometa, self.basewave, noforest=not lyaforest))
 
             # Establish the desired (output) photometric system.
-            qsometa.loadPhotoMap([('DECam', 'DECaLS'), ('WISE', 'AllWISE')])
+            if south:
+                qsometa.loadPhotoMap([('DECam', 'DECaLS'), ('WISE', 'AllWISE')])
+            else:
+                qsometa.loadPhotoMap([('BASS-MzLS', 'BASS-MzLS'), ('WISE', 'AllWISE')])
 
             # Finally, generate the spectra, iterating in order to converge on the
             # per-object K-correction (typically, after ~two steps the maximum error
             # on the absolute mags is typically <<1%).
-            _, flux = buildSpectraBulk(self.basewave, qsometa, maxIter=5,
-                                       procMap=self.procMap, saveSpectra=True,
-                                       verbose=0)
+            _, flux = buildSpectraBulk(self.basewave, qsometa, maxIter=5, verbose=0,
+                                       procMap=self.procMap, saveSpectra=True)
 
         # Synthesize photometry to determine which models will pass the
         # color cuts.
-        maggies = self.decamwise.get_ab_maggies(flux, self.basewave.copy(), mask_invalid=True)
-
-        if self.normfilter in self.decamwise.names:
-            normmaggies = np.array(maggies[self.normfilter])
+        if south:
+            maggies = self.decamwise.get_ab_maggies(flux, self.basewave.copy(), mask_invalid=True)
         else:
-            normmaggies = np.array(self.normfilt.get_ab_maggies(
-                flux, self.basewave.copy(), mask_invalid=True)[self.normfilter])
+            maggies = self.bassmzlswise.get_ab_maggies(flux, self.basewave.copy(), mask_invalid=True)
+
+        #need magfilter!!
+        #normmaggies = np.array(normfilt[magfilter[ii]].get_ab_maggies(
+        #    flux, self.basewave.copy(), mask_invalid=True)[magfilter[ii]])
 
         synthnano = dict()
         for key in maggies.columns:
@@ -2443,12 +2448,17 @@ class SIMQSO():
         if nocolorcuts or self.colorcuts_function is None:
             colormask = np.repeat(1, nmodel)
         else:
-            colormask = self.colorcuts_function(
-                gflux=synthnano['decam2014-g'],
-                rflux=synthnano['decam2014-r'],
-                zflux=synthnano['decam2014-z'],
-                w1flux=synthnano['wise2010-W1'],
-                w2flux=synthnano['wise2010-W2'])
+            if south:
+                gflux, rflux, zflux, w1flux, w2flux = synthnano['decam2014-g'], \
+                  synthnano['decam2014-r'], synthnano['decam2014-z'], \
+                  synthnano['wise2010-W1'], synthnano['wise2010-W2']
+            else:
+                gflux, rflux, zflux, w1flux, w2flux = synthnano['BASS-g'], \
+                  synthnano['BASS-r'], synthnano['MzLS-z'], \
+                  synthnano['wise2010-W1'], synthnano['wise2010-W2']
+
+            colormask = self.colorcuts_function(gflux=gflux, rflux=rflux, zflux=zflux,
+                                                w1flux=w1flux, w2flux=w2flux, south=south)
 
         # For objects that pass the color cuts, populate the output flux
         # vector, the metadata and qsometadata tables, and finish up.
@@ -2472,19 +2482,23 @@ class SIMQSO():
                 else:
                     meta['REDSHIFT'][these] = redshift[these]
 
+            import pdb ; pdb.set_trace()
             meta['MAGFILTER'][these] = self.normfilter
             meta['MAG'][these] = -2.5 * np.log10(normmaggies[these])
-            for band, filt in zip( ('FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2'),
-                                   ('decam2014-g', 'decam2014-r', 'decam2014-z',
-                                    'wise2010-W1', 'wise2010-W2') ):
-                meta[band][these] = synthnano[filt][these]
 
+            meta['FLUX_G'][these] = gflux[these]
+            meta['FLUX_R'][these] = rflux[these]
+            meta['FLUX_Z'][these] = zflux[these]
+            meta['FLUX_W1'][these] = w1flux[these]
+            meta['FLUX_W2'][these] = w2flux[these]
+            
         return outflux, meta, qsometa
 
-    def make_templates(self, nmodel=100, zrange=(0.5, 4.0), magrange=(19.0, 23.0),
-                       seed=None, redshift=None, input_qsometa=None, maxiter=20,
+    def make_templates(self, nmodel=100, zrange=(0.5, 4.0), magrange=(19.0, 22.5),
+                       seed=None, redshift=None, input_qsometa=None,
+                       qsometa_extname='QSOMETA', maxiter=20,
                        lyaforest=True, nocolorcuts=False, noresample=False,
-                       verbose=False):
+                       south=True, verbose=False):
         """Build Monte Carlo QSO spectra/templates.
 
         * This function generates QSO spectra on-the-fly using @imcgreer's
@@ -2517,13 +2531,14 @@ class SIMQSO():
           seed (int, optional): input seed for the random numbers.
           redshift (float, optional): Input/output template redshifts.  Array
             size must equal nmodel.  Ignores zrange input.
-          mag (float, optional): Input/output template magnitudes in the band
-            specified by self.normfilter.  Array size must equal nmodel.
-            Ignores magrange input.
-          input_qsometa (simqso.sqgrids.QsoSimPoints or FITS filename): *Input*
-            QsoSimPoints object or FITS filename (with a 'QSOMETA' HDU) from
-            which to (re)generate the QSO spectra.  All other inputs are ignored
-            when this optional input is present.
+          mag (float, optional): Not currently supported, but see magrange.
+            Defaults to None.
+          input_qsometa (simqso.sqgrids.QsoSimPoints object or FITS filename):
+            *Input* QsoSimPoints object or FITS filename (with a qsometa_extname
+            HDU) from which to (re)generate the QSO spectra.  All other inputs are
+            ignored when this optional input is present.
+          qsometa_extname (str): FITS extension name to read when input_qsometa
+            is a filename.  Defaults to 'QSOMETA'.
           maxiter (int): maximum number of iterations for findng a template that
             satisfies the color-cuts (default 20).
           lyaforest (bool, optional): Include Lyman-alpha forest absorption
@@ -2532,6 +2547,9 @@ class SIMQSO():
             cuts (default False).
           noresample (bool, optional): Do not resample the QSO spectra in
             wavelength (default False).
+          south (bool, optional): Apply "south" color-cuts using the DECaLS
+            filter system, otherwise apply the "north" (MzLS+BASS) color-cuts.
+            Defaults to True.
           verbose (bool, optional): Be verbose!
 
         Returns (outflux, wave, meta, qsometa) tuple where:
@@ -2571,13 +2589,13 @@ class SIMQSO():
             if isinstance(input_qsometa, QsoSimObjects):
                 qsos = input_qsometa
             else:
-                log.debug('Reading QSOMETA extension from {}'.format(input_qsometa))
-                qsos = input_qsometa.read(input_qsometa, extname='QSOMETA')
+                log.debug('Reading {} extension from {}'.format(qsometa_extname, input_qsometa))
+                qsos = input_qsometa.read(input_qsometa, extname=qsometa_extname)
                 
             nmodel = len(input_qsometa.data)
             outflux, meta, qsometa = self._make_simqso_templates(
                 input_qsometa=qsos, lyaforest=lyaforest, noresample=noresample,
-                nocolorcuts=nocolorcuts)
+                nocolorcuts=nocolorcuts, south=south)
 
             log.debug('Generated {} templates from an input qso metadata table.'.format(
                 len(qsometa.data)))
@@ -2624,7 +2642,7 @@ class SIMQSO():
 
                 iterflux, itermeta, iterqsometa = self._make_simqso_templates(
                     zin, magrange, seed=iterseed[itercount], lyaforest=lyaforest,
-                    nocolorcuts=nocolorcuts, noresample=noresample)
+                    nocolorcuts=nocolorcuts, noresample=noresample, south=south)
 
                 outflux[need, :] = iterflux
                 meta[need] = itermeta
