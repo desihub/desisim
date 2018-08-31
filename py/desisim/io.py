@@ -1123,10 +1123,9 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype='', simqso=False):
             objmeta.add_column(Column(name='MABS', length=nmodel, dtype='f4',
                                       data=np.zeros(nmodel)-1, unit='mag'))
             objmeta.add_column(Column(name='SLOPES', length=nmodel, dtype='f4',
-                                      data=np.zeros(nmodel, 5)-1))
+                                      data=np.zeros( (nmodel, 5) )-1))
             objmeta.add_column(Column(name='EMLINES', length=nmodel, dtype='f4',
-                                      data=np.zeros(nmodel, 62, 3)-1))
-        else:
+                                      data=np.zeros( (nmodel, 62, 3) )-1))
 
     elif objtype.upper() == 'STAR' or objtype.upper() == 'STD' or objtype.upper() == 'MWS_STAR':
         objmeta.add_column(Column(name='TARGETID', data=targetid))

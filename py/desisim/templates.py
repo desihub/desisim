@@ -1938,11 +1938,10 @@ class QSO():
               one-dimensional [npix]-length array.
           * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
           * objmeta (astropy.Table): Additional objtype-specific table data
-            [nmodel] for each spectrum.  Note that this table is currently empty
-            for QSO but is included here for uniformity.
+            [nmodel] for each spectrum.
 
           In addition, if balqso=True then a third astropy.Table object,
-          balmeta, is returned with the properties of the simulated BAL.
+          balmeta, is returned with the properties of the simulated BALs.
 
         Raises:
           ValueError
@@ -2382,7 +2381,8 @@ class SIMQSO():
         else:
             nmodel = len(redshift)
             
-        meta, _ = empty_metatable(nmodel=nmodel, objtype='QSO', subtype=subtype)
+        meta, objmeta = empty_metatable(nmodel=nmodel, objtype='QSO',
+                                        subtype=subtype, simqso=True)
         if noresample or self.restframe:
             outflux = np.zeros([nmodel, len(self.basewave)])
         else:
@@ -2495,12 +2495,16 @@ class SIMQSO():
             meta['FLUX_Z'][these] = zflux[these]
             meta['FLUX_W1'][these] = w1flux[these]
             meta['FLUX_W2'][these] = w2flux[these]
+
+            objmeta['MABS'][these] = qsometa.data['absMag'][these]
+            objmeta['SLOPES'][these, :] = qsometa.data['slopes'][these, :]
+            objmeta['EMLINES'][these, :, :] = qsometa.data['emLines'][these, :, :]
             
-        return outflux, meta, qsometa
+        return outflux, meta, objmeta, qsometa
 
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), magrange=(19.0, 22.5),
-                       seed=None, redshift=None, input_qsometa=None,
-                       qsometa_extname='QSOMETA', maxiter=20,
+                       seed=None, redshift=None, mag=None, maxiter=20,
+                       input_qsometa=None, qsometa_extname='QSOMETA', return_qsometa=False, 
                        lyaforest=True, nocolorcuts=False, noresample=False,
                        south=True, verbose=False):
         """Build Monte Carlo QSO spectra/templates.
@@ -2535,8 +2539,10 @@ class SIMQSO():
           seed (int, optional): input seed for the random numbers.
           redshift (float, optional): Input/output template redshifts.  Array
             size must equal nmodel.  Ignores zrange input.
-          mag (float, optional): Not currently supported, but see magrange.
-            Defaults to None.
+          mag (float, optional): Not currently supported or used, but see
+            magrange.  Defaults to None.
+          maxiter (int): maximum number of iterations for findng a template that
+            satisfies the color-cuts (default 20).
           input_qsometa (simqso.sqgrids.QsoSimPoints object or FITS filename):
             Input QsoSimPoints object or FITS filename (with a qsometa_extname
             HDU) from which to (re)generate the QSO spectra.  All other inputs
@@ -2544,8 +2550,12 @@ class SIMQSO():
             when using this argument, as it has not been fully tested.
           qsometa_extname (str): FITS extension name to read when input_qsometa
             is a filename.  Defaults to 'QSOMETA'.
-          maxiter (int): maximum number of iterations for findng a template that
-            satisfies the color-cuts (default 20).
+          return_qsometa (bool, optional): Return the
+            simqso.sqgrids.QsoSimPoints object, which contains all the data
+            necessary to regenerate the QSO spectra.  In particular, the data
+            attribute is an astropy.Table object which contains lots of useful
+            info.  This object can be written to disk with the
+            simqso.sqgrids.QsoSimObjects.write method (default False).
           lyaforest (bool, optional): Include Lyman-alpha forest absorption
             (default True).
           nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
@@ -2563,11 +2573,11 @@ class SIMQSO():
             spectra (1e-17 erg/s/cm2/A).
           * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
           * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
-          * qsometa (simqso.sqgrids.QsoSimPoints): Object which contains all the
-            data necessary to regenerate the QSO spectra.  In particular, the
-            data attribute is an astropy.Table object which contains lots of
-            useful info.  This object can be written to disk with the
-            simqso.sqgrids.QsoSimObjects.write method.
+          * objmeta (astropy.Table): Additional objtype-specific table data
+            [nmodel] for each spectrum.
+
+          In addition, if return_qsometa=True then a fourth argument, qsometa,
+          is returned (see the return_qsometa documentation, above).
 
         Raises:
           ValueError
@@ -2598,12 +2608,12 @@ class SIMQSO():
                 qsos = input_qsometa.read(input_qsometa, extname=qsometa_extname)
                 
             nmodel = len(input_qsometa.data)
-            outflux, meta, qsometa = self._make_simqso_templates(
+            outflux, meta, objmeta, qsometa = self._make_simqso_templates(
                 input_qsometa=qsos, lyaforest=lyaforest, noresample=noresample,
                 nocolorcuts=nocolorcuts, south=south)
 
             log.debug('Generated {} templates from an input qso metadata table.'.format(
-                len(qsometa.data)))
+                len(objmeta)))
 
         else:
             if self.restframe and noresample:
@@ -2619,7 +2629,7 @@ class SIMQSO():
                     raise ValueError
 
             # Initialize the template metadata table and flux vector. 
-            meta, _ = empty_metatable(nmodel=nmodel, objtype='QSO')
+            meta, objmeta = empty_metatable(nmodel=nmodel, objtype='QSO', simqso=True)
             qsometa = None
 
             if noresample or self.restframe:
@@ -2645,12 +2655,13 @@ class SIMQSO():
                 else:
                     zin = redshift[need]
 
-                iterflux, itermeta, iterqsometa = self._make_simqso_templates(
+                iterflux, itermeta, iterobjmeta, iterqsometa = self._make_simqso_templates(
                     zin, magrange, seed=iterseed[itercount], lyaforest=lyaforest,
                     nocolorcuts=nocolorcuts, noresample=noresample, south=south)
 
                 outflux[need, :] = iterflux
                 meta[need] = itermeta
+                objmeta[need] = iterobjmeta
                 if qsometa is None:
                     _data = iterqsometa.data.copy()
                     qsometa = self.empty_qsometa(iterqsometa, nmodel=nmodel)
@@ -2682,7 +2693,10 @@ class SIMQSO():
         else:
             outwave = self.wave
 
-        return 1e17 * outflux, outwave, meta, qsometa
+        if return_qsometa:
+            return 1e17 * outflux, outwave, meta, objmeta, qsometa
+        else:
+            return 1e17 * outflux, outwave, meta, objmeta
 
 def specify_galparams_dict(templatetype, zrange=None, magrange=None,
                             oiiihbrange=None, logvdisp_meansig=None,
