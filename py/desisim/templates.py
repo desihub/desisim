@@ -1908,7 +1908,9 @@ class QSO():
             required columns: TEMPLATEID, SEED, REDSHIFT, MAG, and MAGFILTER
             (see desisim.io.empty_metatable for the expected data types).  If
             present, then all other optional inputs (nmodel, redshift, mag,
-            zrange, etc.) are ignored.
+            zrange, etc.) are ignored.  Note that this argument cannot be used
+            (at this time) to precisely reproduce templates that have had BALs
+            inserted.
           N_perz (int, optional): Number of templates per redshift redshift
             value to generate (default 20).
           maxiter (int): maximum number of iterations for findng a non-negative
@@ -1989,9 +1991,9 @@ class QSO():
             mag = input_meta['MAG'].data
             magfilter = np.char.strip(input_meta['MAGFILTER'].data)
 
-            meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
+            meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype, simqso=False)
         else:
-            meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
+            meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype, simqso=False)
 
             if self.balqso:
                 from astropy.table import vstack
@@ -2039,14 +2041,15 @@ class QSO():
             meta[key][:] = value
 
         if lyaforest: 
-            meta['SUBTYPE'] = 'LYA'
+            meta['SUBTYPE'][:] = 'LYA'
+            objmeta['BAL'][:] = True
             
         if self.balqso:
             balmeta['REDSHIFT'][:] = redshift
             if lyaforest: 
-                meta['SUBTYPE'] = 'LYA+BAL'
+                meta['SUBTYPE'][:] = 'LYA+BAL'
             else:
-                meta['SUBTYPE'] = 'BAL'
+                meta['SUBTYPE'][:] = 'BAL'
 
         # Load the unique set of MAGFILTERs.  We could check against
         # self.decamwise.names and self.bassmzlswise to see if the filters have
@@ -2192,6 +2195,9 @@ class QSO():
                     meta['FLUX_Z'][ii] = zflux[this]
                     meta['FLUX_W1'][ii] = w1flux[this]
                     meta['FLUX_W2'][ii] = w2flux[this]
+
+                    objmeta['PCA_COEFF'][ii, :] = PCA_rand[:, this].T
+                    objmeta['BAL'][ii] = hasbal
                     
                     makemore = False
 
