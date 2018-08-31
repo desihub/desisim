@@ -1044,7 +1044,7 @@ def _parse_filename(filename):
         return x[0], x[1].lower(), int(x[2])
 
                 
-def empty_metatable(nmodel=1, objtype='ELG', subtype=''):
+def empty_metatable(nmodel=1, objtype='ELG', subtype='', simqso=False):
     """Initialize template metadata tables depending on the given object type. 
 
     Parameters
@@ -1056,12 +1056,15 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype=''):
     subtype : :class:`str`
         Subtype for the given object type (e.g., LYA is objtype=QSO).
         Defaults to `.`
+    simqso : :class:`bool`
+        Initialize a templates.SIMQSO-style objmeta table rather than a
+        templates.QSO one.  Defaults to False.
 
     Returns
     -------
     meta : :class:`astropy.table.Table`
         Metadata table which is agnostic about the object type. 
-    metaobj : :class:`astropy.table.Table`
+    objmeta : :class:`astropy.table.Table`
         Objtype-specific supplemental metadata table (e.g., containing the [OII]
         flux for ELG targets and surface gravity for stars.
 
@@ -1115,9 +1118,15 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype=''):
                                   data=np.zeros(nmodel)-1, unit='Dex'))
 
     elif objtype.upper() == 'QSO':
-        # SIMQSO has metadata handled in templates.SIMQSO.make_templates()
-        # while templates.QSO.make_templates has no metadata (at this time). 
-        pass 
+        objmeta.add_column(Column(name='TARGETID', data=targetid))
+        if simqso:
+            objmeta.add_column(Column(name='MABS', length=nmodel, dtype='f4',
+                                      data=np.zeros(nmodel)-1, unit='mag'))
+            objmeta.add_column(Column(name='SLOPES', length=nmodel, dtype='f4',
+                                      data=np.zeros(nmodel, 5)-1))
+            objmeta.add_column(Column(name='EMLINES', length=nmodel, dtype='f4',
+                                      data=np.zeros(nmodel, 62, 3)-1))
+        else:
 
     elif objtype.upper() == 'STAR' or objtype.upper() == 'STD' or objtype.upper() == 'MWS_STAR':
         objmeta.add_column(Column(name='TARGETID', data=targetid))
