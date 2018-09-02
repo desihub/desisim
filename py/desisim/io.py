@@ -1044,7 +1044,7 @@ def _parse_filename(filename):
         return x[0], x[1].lower(), int(x[2])
 
                 
-def empty_metatable(nmodel=1, objtype='ELG', subtype='', simqso=False):
+def empty_metatable(nmodel=1, objtype='ELG', subtype='', simqso=False, input_meta=False):
     """Initialize template metadata tables depending on the given object type. 
 
     Parameters
@@ -1059,6 +1059,10 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype='', simqso=False):
     simqso : :class:`bool`
         Initialize a templates.SIMQSO-style objmeta table rather than a
         templates.QSO one.  Defaults to False.
+    input_meta : :class:`bool`
+        Initialize an input_meta table for use with the various
+        desisim.templates classes (see its use in, e.g.,
+        desitarget.mock.mockmaker) Defaults to False.
 
     Returns
     -------
@@ -1075,22 +1079,30 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype='', simqso=False):
         
     # Objtype-agnostic metadata
     meta = Table()
-    meta.add_column(Column(name='TARGETID', data=targetid))
-    meta.add_column(Column(name='OBJTYPE', length=nmodel, dtype='U10'))
-    meta.add_column(Column(name='SUBTYPE', length=nmodel, dtype='U10'))
-    meta.add_column(Column(name='TEMPLATEID', length=nmodel, dtype='i4', data=np.zeros(nmodel)-1))
-    meta.add_column(Column(name='SEED', length=nmodel, dtype='int64', data=np.zeros(nmodel)-1))
-    meta.add_column(Column(name='REDSHIFT', length=nmodel, dtype='f4', data=np.zeros(nmodel)))
-    meta.add_column(Column(name='MAG', length=nmodel, dtype='f4', data=np.zeros(nmodel)-1, unit='mag')) # normalization magnitude
-    meta.add_column(Column(name='MAGFILTER', length=nmodel, dtype='U15')) # normalization filter
-    meta.add_column(Column(name='FLUX_G', length=nmodel, dtype='f4', unit='nanomaggies'))
-    meta.add_column(Column(name='FLUX_R', length=nmodel, dtype='f4', unit='nanomaggies'))
-    meta.add_column(Column(name='FLUX_Z', length=nmodel, dtype='f4', unit='nanomaggies'))
-    meta.add_column(Column(name='FLUX_W1', length=nmodel, dtype='f4', unit='nanomaggies'))
-    meta.add_column(Column(name='FLUX_W2', length=nmodel, dtype='f4', unit='nanomaggies'))
+    if input_meta:
+        meta.add_column(Column(name='TEMPLATEID', length=nmodel, dtype='i4', data=np.zeros(nmodel)-1))
+        meta.add_column(Column(name='SEED', length=nmodel, dtype='int64', data=np.zeros(nmodel)-1))
+        meta.add_column(Column(name='REDSHIFT', length=nmodel, dtype='f4', data=np.zeros(nmodel)))
+        meta.add_column(Column(name='MAG', length=nmodel, dtype='f4', data=np.zeros(nmodel)-1, unit='mag')) # normalization magnitude
+        meta.add_column(Column(name='MAGFILTER', length=nmodel, dtype='U15')) # normalization filter
+        return meta
+    else:
+        meta.add_column(Column(name='TARGETID', data=targetid))
+        meta.add_column(Column(name='OBJTYPE', length=nmodel, dtype='U10'))
+        meta.add_column(Column(name='SUBTYPE', length=nmodel, dtype='U10'))
+        meta.add_column(Column(name='TEMPLATEID', length=nmodel, dtype='i4', data=np.zeros(nmodel)-1))
+        meta.add_column(Column(name='SEED', length=nmodel, dtype='int64', data=np.zeros(nmodel)-1))
+        meta.add_column(Column(name='REDSHIFT', length=nmodel, dtype='f4', data=np.zeros(nmodel)))
+        meta.add_column(Column(name='MAG', length=nmodel, dtype='f4', data=np.zeros(nmodel)-1, unit='mag')) # normalization magnitude
+        meta.add_column(Column(name='MAGFILTER', length=nmodel, dtype='U15')) # normalization filter
+        meta.add_column(Column(name='FLUX_G', length=nmodel, dtype='f4', unit='nanomaggies'))
+        meta.add_column(Column(name='FLUX_R', length=nmodel, dtype='f4', unit='nanomaggies'))
+        meta.add_column(Column(name='FLUX_Z', length=nmodel, dtype='f4', unit='nanomaggies'))
+        meta.add_column(Column(name='FLUX_W1', length=nmodel, dtype='f4', unit='nanomaggies'))
+        meta.add_column(Column(name='FLUX_W2', length=nmodel, dtype='f4', unit='nanomaggies'))
 
-    meta['OBJTYPE'] = objtype.upper()
-    meta['SUBTYPE'] = subtype.upper()
+        meta['OBJTYPE'] = objtype.upper()
+        meta['SUBTYPE'] = subtype.upper()
 
     # Objtype-specific metadata
     objmeta = Table()
