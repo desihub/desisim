@@ -16,10 +16,13 @@ from desisim.io import empty_metatable
 
 LIGHT = 2.99792458E5  #- speed of light in km/s
 
-def _check_input_meta(input_meta):
+def _check_input_meta(input_meta, ignore_templateid=False):
     log = get_logger()
     cols = input_meta.colnames
-    required_cols = ('SEED', 'REDSHIFT', 'MAG', 'MAGFILTER')
+    if ignore_templateid:
+        required_cols = ('SEED', 'REDSHIFT', 'MAG', 'MAGFILTER')
+    else:
+        required_cols = ('TEMPLATEID', 'SEED', 'REDSHIFT', 'MAG', 'MAGFILTER')
     if not np.all(np.in1d(required_cols, cols)):
         log.warning('Input metadata table (input_meta) is missing one or more required columns {}'.format(
             required_cols))
@@ -1905,8 +1908,8 @@ class QSO():
             self.normfilter_north (if south=False).  Array size must equal
             nmodel.  Ignores magrange input.
           input_meta (astropy.Table): *Input* metadata table with the following
-            required columns: TEMPLATEID, SEED, REDSHIFT, MAG, and MAGFILTER
-            (see desisim.io.empty_metatable for the expected data types).  If
+            required columns: SEED, REDSHIFT, MAG, and MAGFILTER (see
+            desisim.io.empty_metatable for the expected data types).  If
             present, then all other optional inputs (nmodel, redshift, mag,
             zrange, etc.) are ignored.  Note that this argument cannot be used
             (at this time) to precisely reproduce templates that have had BALs
@@ -1984,7 +1987,7 @@ class QSO():
         # Optionally unpack a metadata table.
         if input_meta is not None:
             nmodel = len(input_meta)
-            _check_input_meta(input_meta)
+            _check_input_meta(input_meta, ignore_templateid=True)
 
             templateseed = input_meta['SEED'].data
             redshift = input_meta['REDSHIFT'].data
@@ -2216,11 +2219,11 @@ class QSO():
             outwave = zwave.T
         else:
             outwave = self.wave
-            
+    
         if self.balqso:
             return 1e17 * outflux, outwave, meta, objmeta, balmeta
         else:
-            return 1e17 * outflux, self.wave, meta, objmeta
+            return 1e17 * outflux, outwave, meta, objmeta
 
 class SIMQSO():
     """Generate Monte Carlo spectra of quasars (QSOs) using simqso."""
