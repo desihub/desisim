@@ -148,8 +148,14 @@ def apply_lya_transmission(qso_wave,qso_flux,trans_wave,trans) :
         raise(ValueError("not same number of qso {} {}".format(qso_flux.shape[0],trans.shape[0])))
     
     output_flux = qso_flux.copy()
-    for q in range(qso_flux.shape[0]) :
-        output_flux[q, :] *= np.interp(qso_wave,trans_wave,trans[q, :],left=0,right=1)
+
+    if qso_wave.ndim == 2: # desisim.QSO(resample=True) returns a 2D wavelength array    
+        for q in range(qso_flux.shape[0]) :
+            output_flux[q, :] *= np.interp(qso_wave[q, :],trans_wave,trans[q, :],left=0,right=1)
+    else:
+        for q in range(qso_flux.shape[0]) :
+            output_flux[q, :] *= np.interp(qso_wave,trans_wave,trans[q, :],left=0,right=1)
+            
     return output_flux
 
 def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals) :
