@@ -1945,9 +1945,6 @@ class QSO():
           * objmeta (astropy.Table): Additional objtype-specific table data
             [nmodel] for each spectrum.
 
-          In addition, if balqso=True then a third astropy.Table object,
-          balmeta, is returned with the properties of the simulated BALs.
-
         Raises:
           ValueError
 
@@ -2045,7 +2042,6 @@ class QSO():
 
         if lyaforest: 
             meta['SUBTYPE'][:] = 'LYA'
-            objmeta['BAL'][:] = True
             
         if self.balqso:
             balmeta['REDSHIFT'][:] = redshift
@@ -2200,7 +2196,8 @@ class QSO():
                     meta['FLUX_W2'][ii] = w2flux[this]
 
                     objmeta['PCA_COEFF'][ii, :] = PCA_rand[:, this].T
-                    objmeta['BAL'][ii] = hasbal
+                    if hasbal:
+                        objmeta['BAL_TEMPLATEID'][ii] = balindx
                     
                     makemore = False
 
@@ -2220,10 +2217,7 @@ class QSO():
         else:
             outwave = self.wave
     
-        if self.balqso:
-            return 1e17 * outflux, outwave, meta, objmeta, balmeta
-        else:
-            return 1e17 * outflux, outwave, meta, objmeta
+        return 1e17 * outflux, outwave, meta, objmeta
 
 class SIMQSO():
     """Generate Monte Carlo spectra of quasars (QSOs) using simqso."""

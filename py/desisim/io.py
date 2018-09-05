@@ -1080,7 +1080,7 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype='', simqso=False, input_met
     # Objtype-agnostic metadata
     meta = Table()
     if input_meta:
-        meta.add_column(Column(name='TEMPLATEID', length=nmodel, dtype='i4', data=np.zeros(nmodel)-1))
+        meta.add_column(Column(name='TEMPLATEID', length=nmodel, dtype='i2', data=np.zeros(nmodel)-1))
         meta.add_column(Column(name='SEED', length=nmodel, dtype='int64', data=np.zeros(nmodel)-1))
         meta.add_column(Column(name='REDSHIFT', length=nmodel, dtype='f4', data=np.zeros(nmodel)))
         meta.add_column(Column(name='MAG', length=nmodel, dtype='f4', data=np.zeros(nmodel)-1, unit='mag')) # normalization magnitude
@@ -1090,7 +1090,7 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype='', simqso=False, input_met
         meta.add_column(Column(name='TARGETID', data=targetid))
         meta.add_column(Column(name='OBJTYPE', length=nmodel, dtype='U10'))
         meta.add_column(Column(name='SUBTYPE', length=nmodel, dtype='U10'))
-        meta.add_column(Column(name='TEMPLATEID', length=nmodel, dtype='i4', data=np.zeros(nmodel)-1))
+        meta.add_column(Column(name='TEMPLATEID', length=nmodel, dtype='i2', data=np.zeros(nmodel)-1))
         meta.add_column(Column(name='SEED', length=nmodel, dtype='int64', data=np.zeros(nmodel)-1))
         meta.add_column(Column(name='REDSHIFT', length=nmodel, dtype='f4', data=np.zeros(nmodel)))
         meta.add_column(Column(name='MAG', length=nmodel, dtype='f4', data=np.zeros(nmodel)-1, unit='mag')) # normalization magnitude
@@ -1141,10 +1141,9 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype='', simqso=False, input_met
         else:
             objmeta.add_column(Column(name='PCA_COEFF', length=nmodel, dtype='f4',
                                       data=np.zeros( (nmodel, 4) )))
-        objmeta.add_column(Column(name='BAL', length=nmodel, dtype=bool))
-        objmeta.add_column(Column(name='DLA', length=nmodel, dtype=bool))
-        objmeta.add_column(Column(name='METALS', length=nmodel, dtype=bool))
-        objmeta.add_column(Column(name='LYAFOREST', length=nmodel, dtype=bool))
+        objmeta.add_column(Column(name='BAL_TEMPLATEID', length=nmodel, dtype='i2', data=np.zeros(nmodel)-1))
+        #objmeta.add_column(Column(name='DLA', length=nmodel, dtype=bool))
+        #objmeta.add_column(Column(name='METALS', length=nmodel, dtype=bool))
 
     elif objtype.upper() == 'STAR' or objtype.upper() == 'STD' or objtype.upper() == 'MWS_STAR':
         objmeta.add_column(Column(name='TARGETID', data=targetid))
@@ -1185,7 +1184,7 @@ def empty_snemetatable(nmodel=1):
 
     snemeta = Table()
     snemeta.add_column(Column(name='TARGETID', data=targetid))
-    snemeta.add_column(Column(name='SNE_TEMPLATEID', length=nmodel, dtype='i4',
+    snemeta.add_column(Column(name='SNE_TEMPLATEID', length=nmodel, dtype='i2',
                               data=np.zeros(nmodel)-1))
     snemeta.add_column(Column(name='SNE_FLUXRATIO', length=nmodel, dtype='f4',
                               data=np.zeros(nmodel)-1))
