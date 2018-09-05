@@ -87,9 +87,15 @@ class BAL(object):
             log.fatal('Dimensions of qsoflux and qsoredshift do not agree!')
             raise ValueError
         
-        if len(qsowave) != nwave:
-            log.fatal('Dimensions of qsoflux and qsowave do not agree!')
-            raise ValueError
+        if qsowave.ndim == 2: # desisim.QSO(resample=True) returns a 2D wavelength array
+            w_nqso, w_nwave = qsowave.shape
+            if w_nwave != nwave or w_nqso != nqso:
+                log.fatal('Dimensions of qsoflux and qsowave do not agree!')
+                raise ValueError
+        else:
+            if len(qsowave) != nwave:
+                log.fatal('Dimensions of qsoflux and qsowave do not agree!')
+                raise ValueError
         
         balmeta = self.empty_balmeta(qsoredshift)
 
@@ -105,9 +111,15 @@ class BAL(object):
         balmeta['TEMPLATEID'][ihasbal] = balindx
 
         bal_qsoflux = qsoflux.copy()
-        for ii, indx in zip( ihasbal, balindx ):
-            thisbalflux = resample_flux(qsowave, self.balwave*(1 + qsoredshift[ii]),
-                                        self.balflux[indx, :], extrapolate=True)
-            bal_qsoflux[ii, :] *= thisbalflux
+        if qsowave.ndim == 2:
+            for ii, indx in zip( ihasbal, balindx ):
+                thisbalflux = resample_flux(qsowave[ii, :], self.balwave*(1 + qsoredshift[ii]),
+                                            self.balflux[indx, :], extrapolate=True)
+                bal_qsoflux[ii, :] *= thisbalflux
+        else:
+            for ii, indx in zip( ihasbal, balindx ):
+                thisbalflux = resample_flux(qsowave, self.balwave*(1 + qsoredshift[ii]),
+                                            self.balflux[indx, :], extrapolate=True)
+                bal_qsoflux[ii, :] *= thisbalflux
 
         return bal_qsoflux, balmeta
