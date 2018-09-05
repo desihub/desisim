@@ -225,25 +225,27 @@ class TestTemplates(unittest.TestCase):
             template_factory = T(wave=self.wave)
             flux, wave, meta, objmeta = template_factory.make_templates(self.nspec, seed=self.seed)
 
-            self.assertTrue(np.all(np.in1d(['OBJTYPE', 'SUBTYPE', 'TEMPLATEID', 'SEED', 'REDSHIFT', 'MAG',
-                                            'MAGFILTER', 'FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2'],
+            self.assertTrue(np.all(np.in1d(['TARGETID', 'OBJTYPE', 'SUBTYPE', 'TEMPLATEID', 'SEED',
+                                            'REDSHIFT', 'MAG', 'MAGFILTER', 'FLUX_G', 'FLUX_R',
+                                            'FLUX_Z', 'FLUX_W1', 'FLUX_W2'],
                                             meta.colnames)))
 
             if ( isinstance(template_factory, ELG) or isinstance(template_factory, LRG) or
                  isinstance(template_factory, BGS) ):
-                self.assertTrue(np.all(np.in1d(['OIIFLUX', 'HBETAFLUX', 'EWOII', 'EWHBETA', 'D4000', 'VDISP',
-                                                'OIIDOUBLET', 'OIIIHBETA', 'OIIHBETA', 'NIIHBETA', 'SIIHBETA'],
+                self.assertTrue(np.all(np.in1d(['TARGETID', 'OIIFLUX', 'HBETAFLUX', 'EWOII', 'EWHBETA',
+                                                'D4000', 'VDISP', 'OIIDOUBLET', 'OIIIHBETA', 'OIIHBETA',
+                                                'NIIHBETA', 'SIIHBETA'],
                                                 objmeta.colnames)))
                 
             if (isinstance(template_factory, STAR) or isinstance(template_factory, STD) or
                 isinstance(template_factory, MWS_STAR) ):
-                self.assertTrue(np.all(np.in1d(['TEFF', 'LOGG', 'FEH'], objmeta.colnames)))
+                self.assertTrue(np.all(np.in1d(['TARGETID', 'TEFF', 'LOGG', 'FEH'], objmeta.colnames)))
 
             if isinstance(template_factory, WD):
-                self.assertTrue(np.all(np.in1d(['TEFF', 'LOGG'], objmeta.colnames)))
+                self.assertTrue(np.all(np.in1d(['TARGETID', 'TEFF', 'LOGG'], objmeta.colnames)))
 
             if isinstance(template_factory, QSO):
-                self.assertTrue(len(objmeta) == 0)
+                self.assertTrue(np.all(np.in1d(['TARGETID', 'PCA_COEFF'], objmeta.colnames)))
 
 if __name__ == '__main__':
     unittest.main()

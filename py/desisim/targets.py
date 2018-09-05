@@ -364,8 +364,8 @@ def get_targets(nspec, program, tileid=None, seed=None, specify_targets=dict(), 
             from desisim.templates import MWS_STAR
             mwsstar = MWS_STAR(wave=wave)
             # todo: mag ranges for different programs of STAR targets should be in desimodel
-            if 'rmagrange' not in obj_kwargs.keys():
-                obj_kwargs['rmagrange'] = (15.0,20.0)
+            if 'magrange' not in obj_kwargs.keys():
+                obj_kwargs['magrange'] = (15.0,20.0)
             simflux, wave1, meta1, objmeta1 = mwsstar.make_templates(nmodel=nobj, seed=seed, **obj_kwargs)
             fibermap['DESI_TARGET'][ii] |= desi_mask.MWS_ANY
             #- MWS bit names changed after desitarget 0.6.0 so use number
