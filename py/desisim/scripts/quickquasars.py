@@ -55,8 +55,13 @@ def parse(options=None):
     parser.add_argument('--wmax', type=float, default=10000,help="Max wavelength (obs. frame)")
     parser.add_argument('--dwave', type=float, default=0.2,help="Internal wavelength step (don't change this)")
     parser.add_argument('--nproc', type=int, default=1,help="number of processors to run faster")
-    parser.add_argument('--zbest', type=float,required=False, help="add a zbest file per spectrum. If set to zero it correspond to truth redshift, otherwise adds a gaussian error with sigma=zbest value. e.g --zbest 200 (where 200 km/s)")
- 
+    
+    parser.add_argument('--zbest', action = "store_true" ,required='--sigma_kms_rsd, --sigma_kms_zfit',help="add a zbest file per spectrum either with the truth redshift or adding some error (use --sigma_kms_rsd and/or --sigma_kms_zfit)")
+
+    parser.add_argument('--sigma_kms_rsd',nargs='?',type=float,const=150, help="Adds a gaussian error to the quasar redshift thats simulate the fingers of god effect (default=150 km/s)")
+
+    parser.add_argument('--sigma_kms_zfit',type=float,help="Adds a gaussian error to the quasar redshift. This error could reflect things like peculiar velocities of the BH,outflows/orientation of the accretion disk/beam of quasar, and noise in spectrum that makes the identification of lines difficult. A suggested values is around 200 km/s, default is 0. ")
+
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
     parser.add_argument('--target-selection', action = "store_true" ,help="apply QSO target selection cuts to the simulated quasars")
     parser.add_argument('--mags', action = "store_true" ,help="compute and write the QSO mags in the fibermap")
@@ -85,7 +90,7 @@ def get_spectra_filename(args,nside,pixel):
 
 
 def get_zbest_filename(args,pixdir,nside,pixel):
-    if args.zbest is not None :
+    if args.zbest :
         return os.path.join(pixdir,"zbest-{}-{}.fits".format(nside,pixel))
     return None
 
@@ -197,6 +202,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             if os.path.isfile(ofilename) :
                 log.info("skip existing {}".format(ofilename))
                 return
+
+    
 
     # create sub-directories if required 
     if len(pixdir)>0 :
@@ -479,10 +486,22 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             ('BRICKNAME', (str,8))]
         zbest = Table(np.zeros(nqso, dtype=columns))
         zbest["CHI2"][:]      = 0.
-        dv=args.zbest*np.random.normal(0,1,nqso)
-        dz=(dv/299792.458)*(1.+metadata['Z'])   #c=299792.45
-        zbest["Z"]= metadata['Z']+dz
-        zbest["ZERR"][:]      = dz*np.random.normal(0,1)
+        zbest["Z"]= metadata['Z']
+        zbest["ZERR"][:]      = 0. 
+        if args.sigma_kms_rsd or args.sigma_kms_zfit:
+           sigma_rsd,sigma_fit = 0.,0.
+           if args.sigma_kms_rsd:
+              sigma_rsd=args.sigma_kms_rsd
+              log.info("Added RSD error with sigma {} to zbest".format(sigma_rsd))
+           if args.sigma_kms_zfit:
+              sigma_fit=args.sigma_kms_zfit
+              log.info("Added zfit error with sigma {} to zbest".format(sigma_fit))
+           sigma=np.sqrt(sigma_rsd*sigma_rsd+sigma_fit*sigma_fit)
+           dz=(sigma/299792.458)*(1.+metadata['Z'])*np.random.normal(0,1,nqso)
+           zbest["Z"]+=dz  
+           zbest["ZERR"]+=dz
+  
+      
         zbest["ZWARN"][:]     = 0
         zbest["SPECTYPE"][:]  = "QSO"
         zbest["SUBTYPE"][:]   = ""
