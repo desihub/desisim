@@ -558,9 +558,9 @@ class GALAXY(object):
           * objmeta (astropy.Table): Additional objtype-specific table data
             [nmodel] for each spectrum.
 
-          In addition, if add_SNeIa=True then a third astropy.Table object,
-          snemeta, is returned with the properties of the simulated SNe.
-o
+        In addition, if add_SNeIa=True then a third astropy.Table object,
+        snemeta, is returned with the properties of the simulated SNe.
+
         Raises:
           ValueError
 
