@@ -152,6 +152,7 @@ matrix:
 
 install:
     # - git clone git://github.com/astropy/ci-helpers.git
+    - git clone git://github.com/weaverba137/ci-helpers.git
     - cd ci-helpers
     - git checkout miniconda-version
     - cd ..
