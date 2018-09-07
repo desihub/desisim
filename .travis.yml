@@ -66,7 +66,7 @@ env:
         - CONDA_DEPENDENCIES=""
         # Workaround for conda version bug.
         # - CONDA_VERSION=4.5.11
-        - MINICONDA_VERSION=4.5.10
+        - MINICONDA_VERSION=4.5.4
         # These packages will only be installed for documentation builds.
         # - CONDA_SPHINX_DEPENDENCIES="scipy pyyaml sphinx==1.5"
         # These packages will only be installed if we really need them.
