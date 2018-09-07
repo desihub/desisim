@@ -61,11 +61,9 @@ env:
         - DESI_LOGLEVEL=DEBUG
         - MAIN_CMD='python setup.py'
         # Additional conda channels to use.
-        - CONDA_CHANNELS=""
+        - CONDA_CHANNELS="astropy"
         # These packages will always be installed.
         - CONDA_DEPENDENCIES=""
-        # Workaround for conda version bug.
-        - CONDA_VERSION=4.5.11
         # These packages will only be installed for documentation builds.
         # - CONDA_SPHINX_DEPENDENCIES="scipy pyyaml sphinx==1.5"
         # These packages will only be installed if we really need them.
@@ -79,7 +77,7 @@ env:
         - DESIHUB_PIP_DEPENDENCIES="desiutil=${DESIUTIL_VERSION}"
         - DESIHUB_PIP_ALL_DEPENDENCIES="desiutil=${DESIUTIL_VERSION} desimodel=${DESIMODEL_VERSION} specter=${SPECTER_VERSION} desispec=${DESISPEC_VERSION} desitarget=${DESITARGET_VERSION} specsim=${SPECSIM_VERSION}"
         # Debug the Travis install process.
-        - DEBUG=True
+        - DEBUG=False
     matrix:
         - PYTHON_VERSION=3.5 SETUP_CMD='egg_info'
         - PYTHON_VERSION=3.5 SETUP_CMD='bdist_egg'
@@ -107,8 +105,6 @@ matrix:
         # builds, which operate in a much more bare-bones environment
         - os: linux
           env: PYTHON_VERSION=3.5 SETUP_CMD='build_sphinx --warning-is-error'
-               CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
-               PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
 
         # Try multiple python versions with the latest numpy
         - os: linux
@@ -151,16 +147,12 @@ matrix:
         #   env: MAIN_CMD='pep8 astropy --count' SETUP_CMD=''
 
 install:
-    # - git clone git://github.com/astropy/ci-helpers.git
-    - git clone git://github.com/weaverba137/ci-helpers.git
-    - cd ci-helpers
-    - git checkout miniconda-version
-    - cd ..
+    - git clone git://github.com/astropy/ci-helpers.git
     - source ci-helpers/travis/setup_conda.sh
     # egg_info causes the astropy/ci-helpers script to exit before the pip
     # packages are installed, thus desiutil is not installed in that script.
     - for p in $DESIHUB_PIP_DEPENDENCIES; do r=$(echo $p | cut -d= -f1); v=$(echo $p | cut -d= -f2); pip install git+https://github.com/desihub/${r}.git@${v}#egg=${r}; done
-    - pip install git+https://github.com/imcgreer/simqso.git@${SIMQSO_VERSION}#egg=simqso
+    - if [[ $SETUP_CMD == test* ]]; then pip install git+https://github.com/imcgreer/simqso.git@${SIMQSO_VERSION}#egg=simqso; fi
     # Install desimodel and desisim test data
     - if [[ $SETUP_CMD == test* ]]; then source etc/get_testdata.sh; fi
     - df -h
