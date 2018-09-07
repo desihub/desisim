@@ -249,6 +249,9 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
         * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
         * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum
           with columns defined in desisim.io.empty_metatable *plus* RA, DEC.
+        * objmeta (astropy.Table): Table of additional object-specific meta-data
+          [nmodel] for each output spectrum with columns defined in
+          desisim.io.empty_metatable.
         * dla_meta (astropy.Table): Table of meta-data [ndla] for the DLAs injected
           into the spectra.  Only returned if add_dlas=True
 
