@@ -329,9 +329,8 @@ def fibermeta2fibermap(fiberassign, meta):
 
     isSKY = (fiberassign['DESI_TARGET'] & desi_mask.SKY) != 0
     isSCI = (~isSTD & ~isSKY)
-    fibermap['OBJTYPE'][isSTD] = 'STD'
     fibermap['OBJTYPE'][isSKY] = 'SKY'
-    fibermap['OBJTYPE'][isSCI] = 'SCIENCE'
+    fibermap['OBJTYPE'][isSCI | isSTD] = 'TGT'
 
     fibermap['LAMBDAREF'] = 5400.0
     fibermap['TARGET_RA'] = fiberassign['RA']
