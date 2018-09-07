@@ -286,22 +286,23 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
     dec = np.array([head['DEC'] for head in heads])
     mag_g = np.array([head['MAG_G'] for head in heads])
 
-    # Hard-coded filtername!
+    # Hard-coded filtername!  Should match MAG_G!
     normfilt = load_filters(normfilter)
 
     if qso is None:
-        qso = QSO(normfilter=normfilter, wave=wave)
+        qso = QSO(normfilter_south=normfilter, wave=wave)
 
     wave = qso.wave
     flux = np.zeros([nqso, len(wave)], dtype='f4')
 
-    meta, _ = empty_metatable(objtype='QSO', nmodel=nqso)
-    meta['TEMPLATEID'] = templateid
-    meta['REDSHIFT'] = zqso
-    meta['MAG'] = mag_g
-    meta['SEED'] = templateseed
-    meta['RA'] = ra
-    meta['DEC'] = dec
+    meta, objmeta = empty_metatable(objtype='QSO', nmodel=nqso)
+    meta['TEMPLATEID'][:] = templateid
+    meta['REDSHIFT'][:] = zqso
+    meta['MAG'][:] = mag_g
+    meta['MAGFILTER'][:] = normfilter
+    meta['SEED'][:] = templateseed
+    meta['RA'][:] = ra
+    meta['DEC'][:] = dec
 
     # Lists for DLA meta data
     if add_dlas:
@@ -309,12 +310,14 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
 
     # Loop on quasars
     for ii, indx in enumerate(templateid):
-        flux1, _, meta1, _ = qso.make_templates(nmodel=1, redshift=np.atleast_1d(zqso[ii]), 
+        flux1, _, meta1, objmeta1 = qso.make_templates(nmodel=1, redshift=np.atleast_1d(zqso[ii]), 
                                                 mag=np.atleast_1d(mag_g[ii]), seed=templateseed[ii],
                                                 nocolorcuts=nocolorcuts, lyaforest=False)
         flux1 *= 1e-17
         for col in meta1.colnames:
             meta[col][ii] = meta1[col][0]
+        for col in objmeta1.colnames:
+            objmeta[col][ii] = objmeta1[col][0]
 
         # read lambda and forest transmission
         data = h[indx + 1].read()
@@ -362,6 +365,6 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
             dla_meta['ID'] = dla_id
         else:
             dla_meta = None
-        return flux*1e17, wave, meta, dla_meta
+        return flux*1e17, wave, meta, objmeta, dla_meta
     else:
-        return flux*1e17, wave, meta
+        return flux*1e17, wave, meta, objmeta
