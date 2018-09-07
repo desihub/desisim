@@ -105,7 +105,6 @@ matrix:
         # builds, which operate in a much more bare-bones environment
         - os: linux
           env: PYTHON_VERSION=3.5 SETUP_CMD='build_sphinx --warning-is-error'
-               CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
 
         # Try multiple python versions with the latest numpy
         - os: linux
