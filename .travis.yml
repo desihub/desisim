@@ -45,9 +45,9 @@ env:
         # to repeat them for all configurations.
         # - NUMPY_VERSION=1.10
         # - SCIPY_VERSION=0.16
-        - ASTROPY_VERSION=2.0.7
+        - ASTROPY_VERSION=2.0.8
         # - SPHINX_VERSION=1.6.6
-        - DESIUTIL_VERSION=1.9.11
+        - DESIUTIL_VERSION=1.9.13
         - SPECLITE_VERSION=0.7
         - SPECTER_VERSION=0.8.3
         - DESIMODEL_VERSION=0.9.6
@@ -61,17 +61,17 @@ env:
         - DESI_LOGLEVEL=DEBUG
         - MAIN_CMD='python setup.py'
         # Additional conda channels to use.
-        - CONDA_CHANNELS="openastronomy"
+        - CONDA_CHANNELS=""
         # These packages will always be installed.
         - CONDA_DEPENDENCIES=""
         # These packages will only be installed for documentation builds.
         # - CONDA_SPHINX_DEPENDENCIES="scipy pyyaml sphinx==1.5"
         # These packages will only be installed if we really need them.
-        - CONDA_ALL_DEPENDENCIES="scipy matplotlib coverage pyyaml healpy numba fitsio"
+        - CONDA_ALL_DEPENDENCIES="scipy matplotlib coverage pyyaml healpy numba"
         # These packages will always be installed.
         - PIP_DEPENDENCIES=""
         # These packages will only be installed if we really need them.
-        - PIP_ALL_DEPENDENCIES="speclite==${SPECLITE_VERSION} coveralls"
+        - PIP_ALL_DEPENDENCIES="speclite==${SPECLITE_VERSION} coveralls fitsio"
         # These pip packages need to be installed in a certain order, so we
         # do that separately from the astropy/ci-helpers scripts.
         - DESIHUB_PIP_DEPENDENCIES="desiutil=${DESIUTIL_VERSION}"
@@ -91,12 +91,6 @@ matrix:
     # OS X support is still experimental, so don't penalize failuures.
     allow_failures:
         - os: osx
-        - os: linux
-          env: PYTHON_VERSION=3.6 SETUP_CMD='test'
-               ASTROPY_VERSION=3.0
-               CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
-               PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
-               DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES
 
     include:
 
