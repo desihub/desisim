@@ -151,7 +151,10 @@ matrix:
         #   env: MAIN_CMD='pep8 astropy --count' SETUP_CMD=''
 
 install:
-    - git clone git://github.com/astropy/ci-helpers.git
+    # - git clone git://github.com/astropy/ci-helpers.git
+    - cd ci-helpers
+    - git checkout miniconda-version
+    - cd ..
     - source ci-helpers/travis/setup_conda.sh
     # egg_info causes the astropy/ci-helpers script to exit before the pip
     # packages are installed, thus desiutil is not installed in that script.
