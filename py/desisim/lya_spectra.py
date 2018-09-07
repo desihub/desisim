@@ -215,7 +215,7 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals) :
     return output_flux
 
 def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss2010-g',
-                seed=None, rand=None, qso=None, add_dlas=False, debug=False, nocolorcuts=False):
+                seed=None, rand=None, qso=None, add_dlas=False, debug=False, nocolorcuts=True):
     """Generate a QSO spectrum which includes Lyman-alpha absorption.
 
     Args:
@@ -240,7 +240,7 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
           Set in calc_lz
           These are *not* inserted according to overdensity along the sightline
         nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
-          cuts (default False).
+          cuts (default True).
 
     Returns (flux, wave, meta, dla_meta) where:
 
@@ -304,8 +304,8 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
     meta['MAG'][:] = mag_g
     meta['MAGFILTER'][:] = normfilter
     meta['SEED'][:] = templateseed
-    meta['RA'][:] = ra
-    meta['DEC'][:] = dec
+    meta['RA'] = ra
+    meta['DEC'] = dec
 
     # Lists for DLA meta data
     if add_dlas:
