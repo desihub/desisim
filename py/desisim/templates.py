@@ -2499,7 +2499,7 @@ class SIMQSO():
             meta['FLUX_W1'][these] = w1flux[these]
             meta['FLUX_W2'][these] = w2flux[these]
 
-            objmeta['MABS'][these] = qsometa.data['absMag'][these]
+            objmeta['MABS_1450'][these] = qsometa.data['absMag'][these]
             objmeta['SLOPES'][these, :] = qsometa.data['slopes'][these, :]
             objmeta['EMLINES'][these, :, :] = qsometa.data['emLines'][these, :, :]
             

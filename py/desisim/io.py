@@ -1132,7 +1132,7 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype='', simqso=False, input_met
     elif objtype.upper() == 'QSO':
         objmeta.add_column(Column(name='TARGETID', data=targetid))
         if simqso:
-            objmeta.add_column(Column(name='MABS', length=nmodel, dtype='f4',
+            objmeta.add_column(Column(name='MABS_1450', length=nmodel, dtype='f4',
                                       data=np.zeros(nmodel)-1, unit='mag'))
             objmeta.add_column(Column(name='SLOPES', length=nmodel, dtype='f4',
                                       data=np.zeros( (nmodel, 5) )-1))

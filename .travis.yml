@@ -48,7 +48,7 @@ env:
         - ASTROPY_VERSION=2.0.8
         # - SPHINX_VERSION=1.6.6
         - DESIUTIL_VERSION=1.9.13
-        - SPECLITE_VERSION=master
+        - SPECLITE_VERSION=branches/master
         - SPECTER_VERSION=0.8.3
         - DESIMODEL_VERSION=0.9.6
         - DESIMODEL_DATA=branches/test-0.9.6
@@ -71,7 +71,7 @@ env:
         # These packages will always be installed.
         - PIP_DEPENDENCIES=""
         # These packages will only be installed if we really need them.
-        - PIP_ALL_DEPENDENCIES="speclite=${SPECLITE_VERSION} coveralls fitsio"
+        - PIP_ALL_DEPENDENCIES="speclite==${SPECLITE_VERSION} coveralls fitsio"
         # These pip packages need to be installed in a certain order, so we
         # do that separately from the astropy/ci-helpers scripts.
         - DESIHUB_PIP_DEPENDENCIES="desiutil=${DESIUTIL_VERSION}"
