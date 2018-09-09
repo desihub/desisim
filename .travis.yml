@@ -45,10 +45,11 @@ env:
         # to repeat them for all configurations.
         # - NUMPY_VERSION=1.10
         # - SCIPY_VERSION=0.16
-        - ASTROPY_VERSION=2.0.7
+        - ASTROPY_VERSION=2.0.8
         # - SPHINX_VERSION=1.6.6
-        - DESIUTIL_VERSION=1.9.11
-        - SPECLITE_VERSION=0.7
+        - DESIUTIL_VERSION=1.9.13
+        # - SPECLITE_VERSION=0.7
+        - SPECLITE_VERSION=master
         - SPECTER_VERSION=0.8.3
         - DESIMODEL_VERSION=0.9.6
         - DESIMODEL_DATA=branches/test-0.9.6
@@ -56,22 +57,24 @@ env:
         - SPECSIM_VERSION=v0.12
         # - DESISPEC_VERSION=0.18.0
         - DESISPEC_VERSION=master
-        - DESITARGET_VERSION=0.23.0
-        - SIMQSO_VERSION=v1.2.1
+        - DESITARGET_VERSION=master
+        - SIMQSO_VERSION=v1.2.3
         - DESI_LOGLEVEL=DEBUG
         - MAIN_CMD='python setup.py'
         # Additional conda channels to use.
-        - CONDA_CHANNELS="openastronomy"
+        - CONDA_CHANNELS="astropy"
         # These packages will always be installed.
         - CONDA_DEPENDENCIES=""
         # These packages will only be installed for documentation builds.
         # - CONDA_SPHINX_DEPENDENCIES="scipy pyyaml sphinx==1.5"
         # These packages will only be installed if we really need them.
-        - CONDA_ALL_DEPENDENCIES="scipy matplotlib coverage pyyaml healpy numba fitsio"
+        - CONDA_ALL_DEPENDENCIES="scipy matplotlib coverage pyyaml healpy numba"
         # These packages will always be installed.
         - PIP_DEPENDENCIES=""
         # These packages will only be installed if we really need them.
-        - PIP_ALL_DEPENDENCIES="speclite==${SPECLITE_VERSION} coveralls"
+        # - PIP_ALL_DEPENDENCIES="speclite==${SPECLITE_VERSION} coveralls fitsio"
+        # - PIP_ALL_DEPENDENCIES="speclite coveralls fitsio"
+        - PIP_ALL_DEPENDENCIES="coveralls fitsio"
         # These pip packages need to be installed in a certain order, so we
         # do that separately from the astropy/ci-helpers scripts.
         - DESIHUB_PIP_DEPENDENCIES="desiutil=${DESIUTIL_VERSION}"
@@ -105,8 +108,6 @@ matrix:
         # builds, which operate in a much more bare-bones environment
         - os: linux
           env: PYTHON_VERSION=3.5 SETUP_CMD='build_sphinx --warning-is-error'
-               CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
-               PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
 
         # Try multiple python versions with the latest numpy
         - os: linux
@@ -153,8 +154,9 @@ install:
     - source ci-helpers/travis/setup_conda.sh
     # egg_info causes the astropy/ci-helpers script to exit before the pip
     # packages are installed, thus desiutil is not installed in that script.
+    - if [[ $SETUP_CMD == test* ]]; then pip install git+https://github.com/dkirkby/speclite.git@${SPECLITE_VERSION}#egg=speclite; fi
     - for p in $DESIHUB_PIP_DEPENDENCIES; do r=$(echo $p | cut -d= -f1); v=$(echo $p | cut -d= -f2); pip install git+https://github.com/desihub/${r}.git@${v}#egg=${r}; done
-    - pip install git+https://github.com/imcgreer/simqso.git@${SIMQSO_VERSION}#egg=simqso
+    - if [[ $SETUP_CMD == test* ]]; then pip install git+https://github.com/imcgreer/simqso.git@${SIMQSO_VERSION}#egg=simqso; fi
     # Install desimodel and desisim test data
     - if [[ $SETUP_CMD == test* ]]; then source etc/get_testdata.sh; fi
     - df -h

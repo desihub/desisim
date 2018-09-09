@@ -31,43 +31,48 @@ class TestLya(unittest.TestCase):
             
     @unittest.skipIf(missing_fitsio, 'fitsio not installed; skipping lya_spectra tests')
     def test_read_lya(self):
-        flux, wave, meta = lya_spectra.get_spectra(self.infile, wave=self.wave, seed=self.seed)
+        flux, wave, meta, objmeta = lya_spectra.get_spectra(self.infile, wave=self.wave, seed=self.seed)
         self.assertEqual(flux.shape[0], self.nspec)
         self.assertEqual(wave.shape[0], flux.shape[1])
         self.assertEqual(len(meta), self.nspec)
+        self.assertEqual(len(objmeta), self.nspec)
         templateid = [0,1,2]
         nqso = len(templateid)
 
-        flux, wave, meta = lya_spectra.get_spectra(self.infile, templateid=templateid,
+        flux, wave, meta, objmeta = lya_spectra.get_spectra(self.infile, templateid=templateid,
                                                    wave=self.wave, seed=self.seed)
         self.assertEqual(flux.shape[0], nqso)
         self.assertEqual(wave.shape[0], flux.shape[1])
         self.assertEqual(len(meta), nqso)
+        self.assertEqual(len(objmeta), nqso)
 
     @unittest.skipIf(missing_fitsio, 'fitsio not installed; skipping lya_spectra tests')
     def test_read_lya_seed(self):
-        flux1a, wave1a, meta1a = lya_spectra.get_spectra(self.infile, wave=self.wave, nqso=3, seed=1)
-        flux1b, wave1b, meta1b = lya_spectra.get_spectra(self.infile, wave=self.wave, nqso=3, seed=1)
-        flux2, wave2, meta2 = lya_spectra.get_spectra(self.infile, wave=self.wave, nqso=3, seed=2)
+        flux1a, wave1a, meta1a, objmeta1a = lya_spectra.get_spectra(self.infile, wave=self.wave, nqso=3, seed=1)
+        flux1b, wave1b, meta1b, objmeta1b = lya_spectra.get_spectra(self.infile, wave=self.wave, nqso=3, seed=1)
+        flux2, wave2, meta2, objmeta2 = lya_spectra.get_spectra(self.infile, wave=self.wave, nqso=3, seed=2)
         self.assertTrue(np.all(flux1a == flux1b))
         self.assertTrue(np.any(flux1a != flux2))
 
     @unittest.skipIf(missing_fitsio, 'fitsio not installed; skipping lya_spectra tests')
     def test_insert_dla(self):
-        flux, wave, meta, dla_meta = lya_spectra.get_spectra(self.infile, wave=self.wave, seed=self.seed, add_dlas=True)
+        flux, wave, meta, objmeta, dla_meta = lya_spectra.get_spectra(
+            self.infile, wave=self.wave, seed=self.seed, add_dlas=True)
         self.assertEqual(flux.shape[0], self.nspec)
         self.assertEqual(wave.shape[0], flux.shape[1])
         self.assertEqual(len(meta), self.nspec)
+        self.assertEqual(len(objmeta), self.nspec)
         self.assertGreater(len(dla_meta), 0)
         self.assertIn('NHI', dla_meta.keys())
         templateid = [0,1,2]
         nqso = len(templateid)
 
-        flux, wave, meta = lya_spectra.get_spectra(self.infile, templateid=templateid,
-                                                   wave=self.wave, seed=self.seed)
+        flux, wave, meta, objmeta = lya_spectra.get_spectra(self.infile, templateid=templateid,
+                                                            wave=self.wave, seed=self.seed)
         self.assertEqual(flux.shape[0], nqso)
         self.assertEqual(wave.shape[0], flux.shape[1])
         self.assertEqual(len(meta), nqso)
+        self.assertEqual(len(objmeta), nqso)
 
         #flux, wave, meta = lya_spectra.get_spectra(self.infile, nqso=nqso, first=2)
 
