@@ -5,20 +5,23 @@ desisim change log
 0.30.1 (unreleased)
 -------------------
 
-* No changes yet.
+* Add optional `nside` and `overwrite` arguments to `wrap-newexp` and
+  `obs.new_exposure`, respectively (`PR #412`_).
+* Major (and backwards-incompatible) refactor of how the template/simulated
+  metadata are returned by desisim.templates (`PR #409`_).
+
+.. _`PR #409`: https://github.com/desihub/desisim/pull/409
+.. _`PR #412`: https://github.com/desihub/desisim/pull/412
 
 0.30.0 (2018-08-09)
 -------------------
 
-* Major (and backwards-incompatible) refactor of how the template/simulated
-  metadata are returned by desisim.templates (`PR #409`_).
 * Update templates to DR7+ standard-star designation (FSTD-->STD) (`PR #400`_).
 * Update standard star bit name again STD -> STD_FAINT;
   requires desitarget 0.23.0 (`PR #402`_).
 
 .. _`PR #400`: https://github.com/desihub/desisim/pull/400
 .. _`PR #402`: https://github.com/desihub/desisim/pull/402
-.. _`PR #409`: https://github.com/desihub/desisim/pull/409
 
 0.29.0 (2018-07-26)
 -------------------
