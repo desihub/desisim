@@ -32,7 +32,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
                  nproc=None, seed=None, obsconditions=None,
                  specify_targets=dict(), testslit=False, exptime=None,
                  arc_lines_filename=None, flat_spectrum_filename=None,
-                 outdir=None):
+                 outdir=None, overwrite=False):
     """
     Create a new exposure and output input simulation files.
     Does not generate pixel-level simulations or noisy spectra.
@@ -55,6 +55,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         arc_lines_filename (str, optional): use alternate arc lines filename (used if program="arc")
         flat_spectrum_filename (str, optional): use alternate flat spectrum filename (used if program="flat")
         outdir (str, optional): output directory
+        overwrite (bool, optional): optionally clobber existing files
 
     Returns:
         science: sim, fibermap, meta, obsconditions, objmeta
@@ -125,7 +126,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         wave, phot, fibermap = desisim.simexp.simarc(arcdata, nspec=nspec, testslit=testslit)
 
         header['EXPTIME'] = exptime
-        desisim.io.write_simspec_arc(outsimspec, wave, phot, header, fibermap=fibermap)
+        desisim.io.write_simspec_arc(outsimspec, wave, phot, header, fibermap=fibermap, overwrite=overwrite)
 
         fibermap.meta['NIGHT'] = night
         fibermap.meta['EXPID'] = expid
@@ -147,7 +148,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         header['EXPTIME'] = exptime
         header['FLAVOR'] = 'flat'
         desisim.io.write_simspec(sim, truth=None, fibermap=fibermap, obs=None,
-            expid=expid, night=night, header=header, filename=outsimspec)
+            expid=expid, night=night, header=header, filename=outsimspec, overwrite=overwrite)
 
         fibermap.meta['NIGHT'] = night
         fibermap.meta['EXPID'] = expid
@@ -207,7 +208,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
 
     simfile = io.write_simspec(sim, meta, fibermap, obsconditions,
                                expid, night, objmeta=objmeta, header=hdr,
-                               filename=outsimspec)
+                               filename=outsimspec, overwrite=overwrite)
 
     if not isinstance(fibermap, table.Table):
         fibermap = table.Table(fibermap)

@@ -742,7 +742,7 @@ def testslit_fibermap():
 #- MOVE THESE TO desitarget.mocks.io (?)
 #-------------------------------------------------------------------------
 
-def get_mock_spectra(fiberassign, mockdir=None):
+def get_mock_spectra(fiberassign, mockdir=None, nside=64):
     '''
     Args:
         fiberassign: table loaded from fiberassign tile file
@@ -764,7 +764,7 @@ def get_mock_spectra(fiberassign, mockdir=None):
     ## TODO: check desi_mask.NO_TARGET once that bit exists
 
     for truthfile, targetids in zip(*targets2truthfiles(
-                        fiberassign[~unassigned], basedir=mockdir)):
+                        fiberassign[~unassigned], basedir=mockdir, nside=nside)):
 
         #- Sky fibers aren't in the truth files
         ok = ~np.in1d(targetids, skyids)
