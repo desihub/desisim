@@ -25,7 +25,7 @@ def parse(options=None):
     parser.add_argument('--expid', type=int, required=True, help="exposure ID")
 
     #- Optional
-    parser.add_argument('--nside', help='...', type=int, default=64)
+    parser.add_argument('--nside', help='healpixel organization scheme of the mock spectra', type=int, default=64)
     parser.add_argument('--outdir', type=str, help="output directory")
     parser.add_argument('--nspec', type=int, default=None, help="number of spectra to include")
     parser.add_argument('--clobber', action='store_true', help="overwrite any pre-existing output files")
