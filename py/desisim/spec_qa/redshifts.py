@@ -48,7 +48,7 @@ def calc_obj_stats(simz_tab, objtype):
     Parameters
     ----------
     simz_tab : Table
-        This parameter is not documented.
+        TODO: document this
     objtype : str
         Object type, e.g. 'ELG', 'LRG'
 
