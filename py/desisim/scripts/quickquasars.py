@@ -379,8 +379,13 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     log.info("Resample to transmission wavelength grid")
     qso_flux=np.zeros((tmp_qso_flux.shape[0],trans_wave.size))
-    for q in range(tmp_qso_flux.shape[0]) :
-        qso_flux[q]=np.interp(trans_wave,tmp_qso_wave,tmp_qso_flux[q])
+    if args.no_simqso:
+        for q in range(tmp_qso_flux.shape[0]) :
+            qso_flux[q]=np.interp(trans_wave,tmp_qso_wave[q],tmp_qso_flux[q])
+    else:
+        for q in range(tmp_qso_flux.shape[0]) :
+            qso_flux[q]=np.interp(trans_wave,tmp_qso_wave,tmp_qso_flux[q])
+        
     tmp_qso_flux = qso_flux
     tmp_qso_wave = trans_wave
 
@@ -390,7 +395,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             log.info("Adding BALs with probability {}".format(args.balprob))
             # save current random state
             rnd_state = np.random.get_state() 
-            tmp_qso_flux,meta_bal=bal.insert_bals(tmp_qso_wave,tmp_qso_flux, metadata['Z'], balprob=args.balprob,seed=seed)
+            tmp_qso_flux,meta_bal=bal.insert_bals(tmp_qso_wave,tmp_qso_flux, metadata['Z'],
+                                                  balprob=args.balprob,seed=seed)
             # restore random state to get the same random numbers later 
             # as when we don't insert BALs
             np.random.set_state(rnd_state) 
