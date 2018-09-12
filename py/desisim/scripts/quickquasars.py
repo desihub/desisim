@@ -46,7 +46,6 @@ def parse(options=None):
     parser.add_argument('--moonsep', type=float, default=None, help="Moon separation to tile [degrees]")
     parser.add_argument('--seed', type=int, default=None, required = False, help="Global random seed (will be used to generate a seed per each file")
     parser.add_argument('--skyerr', type=float, default=0.0, help="Fractional sky subtraction error")
-    parser.add_argument('--norm-filter', type=str, default="decam2014-g", help="Broadband filter for normalization")
     parser.add_argument('--nmax', type=int, default=None, help="Max number of QSO per input file, for debugging")
     parser.add_argument('--downsampling', type=float, default=None,help="fractional random down-sampling (value between 0 and 1)")
     parser.add_argument('--zmin', type=float, default=0,help="Min redshift")
@@ -355,6 +354,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         log.info("Simulate {} QSOs with QSO templates".format(nqso))
         # if we wanted to use noresample=True here, we would have to modify 
         # downstream code since each quasar would have a different wave grid
+        import pdb ; pdb.set_trace()
+        
         tmp_qso_flux, tmp_qso_wave, meta, qsometa = model.make_templates(
             nmodel=nqso, redshift=metadata['Z'], 
             lyaforest=False, nocolorcuts=True, noresample=False, seed = seed)
@@ -519,8 +520,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         hdulist.writeto(zbest_filename, overwrite=True)
         hdulist.close() # see if this helps with memory issue
 
-    import pdb ; pdb.set_trace()
-
 def _func(arg) :
     """ Used for multiprocessing.Pool """
     return simulate_one_healpix(**arg)
@@ -563,11 +562,9 @@ def main(args=None):
     
     if args.no_simqso:
         log.info("Load QSO model")
-        #model=QSO(normfilter=args.norm_filter)
         model=QSO()
     else:
         log.info("Load SIMQSO model")
-        #model=SIMQSO(normfilter=args.norm_filter,nproc=1)
         model=SIMQSO(nproc=1)
     
     decam_and_wise_filters = None
