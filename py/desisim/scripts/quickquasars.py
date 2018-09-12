@@ -167,7 +167,9 @@ def get_pixel_seed(pixel, nside, global_seed):
     return pixel_seed
 
 
-def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,bal=None) :
+def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,
+                         bassmzls_and_wise_filters,footprint_healpix_weight,
+                         footprint_healpix_nside,bal=None) :
     log = get_logger()
 
     # open filename and extract basic HEALPix information
@@ -400,25 +402,39 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         tmp_qso_flux = apply_metals_transmission(tmp_qso_wave,tmp_qso_flux,
                             trans_wave,transmission,args.metals)
 
-    # if requested, compute magnitudes and apply target selection
+    # if requested, compute magnitudes and apply target selection.  Need to do
+    # this calculation separately for QSOs in the north vs south.
+    # See https://github.com/desihub/desitarget/issues/353
     bbflux=None
     if args.target_selection or args.mags :
         bands=['FLUX_G','FLUX_R','FLUX_Z', 'FLUX_W1', 'FLUX_W2']
         bbflux=dict()
+        bbflux['SOUTH'] = metadata['DEC'] <= 32.125 # constant-declination cut!
+        for band in bands:
+            bbflux[band] = np.zeros(nqso)
         # need to recompute the magnitudes to account for lya transmission
         log.info("Compute QSO magnitudes")
-        maggies = decam_and_wise_filters.get_ab_maggies(
-            1e-17 * tmp_qso_flux, tmp_qso_wave)
-        for band, filt in zip( bands,
-                            [ 'decam2014-g', 'decam2014-r', 'decam2014-z',
-                              'wise2010-W1', 'wise2010-W2']  ):
-            
-            bbflux[band] = np.ma.getdata(1e9 * maggies[filt]) # nanomaggies
-    
+
+        for these, filters in zip( (~bbflux['SOUTH'], bbflux['SOUTH']),
+                                   (bassmzls_and_wise_filters, decam_and_wise_filters) ):
+            if np.count_nonzero(these) > 0:
+                maggies = filters.get_ab_maggies(1e-17 * tmp_qso_flux, tmp_qso_wave)
+                for band, filt in zip( bands, maggies.colnames ):
+                    bbflux[band][these] = np.ma.getdata(1e9 * maggies[filt]) # nanomaggies
+
     if args.target_selection :
         log.info("Apply target selection")
-        isqso = isQSO_colors(gflux=bbflux['FLUX_G'], rflux=bbflux['FLUX_R'], zflux=bbflux['FLUX_Z'],
-                             w1flux=bbflux['FLUX_W1'], w2flux=bbflux['FLUX_W2'])
+        isqso = np.ones(nqso, dtype=bool)
+        for these, issouth in zip( (~bbflux['SOUTH'], bbflux['SOUTH']), (False, True) ):
+            if np.count_nonzero(these) > 0:
+                # optical cuts only if using QSO vs SIMQSO
+                isqso[these] &= isQSO_colors(gflux=bbflux['FLUX_G'][these],
+                                             rflux=bbflux['FLUX_R'][these],
+                                             zflux=bbflux['FLUX_Z'][these],
+                                             w1flux=bbflux['FLUX_W1'][these],
+                                             w2flux=bbflux['FLUX_W2'][these],
+                                             south=issouth, optical=args.no_simqso) 
+        
         log.info("Target selection: {}/{} QSOs selected".format(np.sum(isqso),nqso))
         selection=np.where(isqso)[0]
         if selection.size==0 : return
@@ -544,10 +560,12 @@ def main(args=None):
     
     if args.no_simqso:
         log.info("Load QSO model")
-        model=QSO(normfilter=args.norm_filter)
+        #model=QSO(normfilter=args.norm_filter)
+        model=QSO()
     else:
         log.info("Load SIMQSO model")
-        model=SIMQSO(normfilter=args.norm_filter,nproc=1)
+        #model=SIMQSO(normfilter=args.norm_filter,nproc=1)
+        model=SIMQSO(nproc=1)
     
     decam_and_wise_filters = None
     if args.target_selection or args.mags :
@@ -555,6 +573,8 @@ def main(args=None):
         # ToDo @moustakas -- load north/south filters
         decam_and_wise_filters = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
                                                       'wise2010-W1', 'wise2010-W2')
+        bassmzls_and_wise_filters = filters.load_filters('BASS-g', 'BASS-r', 'MzLS-z',
+                                                     'wise2010-W1', 'wise2010-W2')
         
     footprint_healpix_weight = None
     footprint_healpix_nside  = None
@@ -579,6 +599,7 @@ def main(args=None):
                        "args":args, "model":model , \
                        "obsconditions":obsconditions , \
                        "decam_and_wise_filters": decam_and_wise_filters , \
+                       "bassmzls_and_wise_filters": bassmzls_and_wise_filters , \
                        "footprint_healpix_weight": footprint_healpix_weight , \
                        "footprint_healpix_nside": footprint_healpix_nside , \
                        "bal":bal \
@@ -587,4 +608,5 @@ def main(args=None):
         pool.map(_func, func_args)
     else :
         for i,ifilename in enumerate(args.infile) :
-            simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,bal=bal)
+            simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,bassmzls_and_wise_filters,
+                                 footprint_healpix_weight,footprint_healpix_nside,bal=bal)
