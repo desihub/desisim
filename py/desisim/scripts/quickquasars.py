@@ -20,6 +20,7 @@ from desisim.scripts.quickspectra import sim_spectra
 from desisim.lya_spectra import read_lya_skewers , apply_lya_transmission, apply_metals_transmission
 from desisim.dla import dla_spec,insert_dlas
 from desisim.bal import BAL
+from desisim.io import empty_metatable
 from desispec.interpolation import resample_flux
 from desimodel.io import load_pixweight
 from desimodel import footprint
@@ -349,22 +350,32 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             trans_wave   = new_trans_wave
             transmission = new_transmission
 
-    # whether to use QSO or SIMQSO to generate quasar continua
+    # whether to use QSO or SIMQSO to generate quasar continua.  Simulate
+    # spectra in the north vs south separately because they're on different
+    # photometric systems.
+    south = np.where( is_south(metadata['DEC']) )[0]
+    north = np.where( ~is_south(metadata['DEC']) )[0]
+    meta, qsometa = empty_metatable(nqso, objtype='QSO', simqso=~args.no_simqso)
     if args.no_simqso:
         log.info("Simulate {} QSOs with QSO templates".format(nqso))
-        # if we wanted to use noresample=True here, we would have to modify 
-        # downstream code since each quasar would have a different wave grid
-        import pdb ; pdb.set_trace()
-        
-        tmp_qso_flux, tmp_qso_wave, meta, qsometa = model.make_templates(
-            nmodel=nqso, redshift=metadata['Z'], 
-            lyaforest=False, nocolorcuts=True, noresample=False, seed = seed)
-    else:xo
+        tmp_qso_flux = np.zeros([nobj, len(model.eigenwave)], dtype='f4')
+        tmp_qso_wave = np.zeros_like(qso_flux)
+    else:
         log.info("Simulate {} QSOs with SIMQSO templates".format(nqso))
-        # noresample=True to avoid innecessary interpolation
-        tmp_qso_flux, tmp_qso_wave, meta, qsometa = model.make_templates(
-            nmodel=nqso, redshift=metadata['Z'], 
-            lyaforest=False, nocolorcuts=True, noresample=True, seed = seed)
+        tmp_qso_flux = np.zeros([nqso, len(model.basewave)], dtype='f4')
+        tmp_qso_wave = model.basewave
+        
+    for these, issouth in zip( (north, south), (False, True) ):
+        if len(these) > 0:
+            _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa = model.make_templates(
+                nmodel=nqso, redshift=metadata['Z'], lyaforest=False, nocolorcuts=True,
+                noresample=True, seed=seed, south=issouth)
+            meta[these] = _meta
+            qsometa[these] = _qsometa
+            tmp_qso_flux[these, :] = _tmp_qso_flux
+            
+            if args.no_simqso:
+                tmp_qso_wave[these, :] = _tmp_qso_wave
 
     log.info("Resample to transmission wavelength grid")
     qso_flux=np.zeros((tmp_qso_flux.shape[0],trans_wave.size))
