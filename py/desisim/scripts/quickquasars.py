@@ -355,11 +355,11 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     # photometric systems.
     south = np.where( is_south(metadata['DEC']) )[0]
     north = np.where( ~is_south(metadata['DEC']) )[0]
-    meta, qsometa = empty_metatable(nqso, objtype='QSO', simqso=~args.no_simqso)
+    meta, qsometa = empty_metatable(nqso, objtype='QSO', simqso=not args.no_simqso)
     if args.no_simqso:
         log.info("Simulate {} QSOs with QSO templates".format(nqso))
-        tmp_qso_flux = np.zeros([nobj, len(model.eigenwave)], dtype='f4')
-        tmp_qso_wave = np.zeros_like(qso_flux)
+        tmp_qso_flux = np.zeros([nqso, len(model.eigenwave)], dtype='f4')
+        tmp_qso_wave = np.zeros_like(tmp_qso_flux)
     else:
         log.info("Simulate {} QSOs with SIMQSO templates".format(nqso))
         tmp_qso_flux = np.zeros([nqso, len(model.basewave)], dtype='f4')
@@ -368,7 +368,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     for these, issouth in zip( (north, south), (False, True) ):
         if len(these) > 0:
             _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa = model.make_templates(
-                nmodel=nqso, redshift=metadata['Z'], lyaforest=False, nocolorcuts=True,
+                nmodel=len(these), redshift=metadata['Z'][these], lyaforest=False, nocolorcuts=True,
                 noresample=True, seed=seed, south=issouth)
             meta[these] = _meta
             qsometa[these] = _qsometa
