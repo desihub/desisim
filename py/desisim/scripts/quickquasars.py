@@ -88,6 +88,13 @@ def get_zbest_filename(args,pixdir,nside,pixel):
         return os.path.join(pixdir,"zbest-{}-{}.fits".format(nside,pixel))
     return None
 
+def is_south(dec):
+    """Identify which QSOs are in the south vs the north, since these are on
+    different photometric systems.  See
+    https://github.com/desihub/desitarget/issues/353 for details.
+
+    """
+    return dec <= 32.125 # constant-declination cut!
 
 def get_healpix_info(ifilename):
     """
@@ -351,7 +358,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         tmp_qso_flux, tmp_qso_wave, meta, qsometa = model.make_templates(
             nmodel=nqso, redshift=metadata['Z'], 
             lyaforest=False, nocolorcuts=True, noresample=False, seed = seed)
-    else:
+    else:xo
         log.info("Simulate {} QSOs with SIMQSO templates".format(nqso))
         # noresample=True to avoid innecessary interpolation
         tmp_qso_flux, tmp_qso_wave, meta, qsometa = model.make_templates(
@@ -404,12 +411,11 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     # if requested, compute magnitudes and apply target selection.  Need to do
     # this calculation separately for QSOs in the north vs south.
-    # See https://github.com/desihub/desitarget/issues/353
     bbflux=None
     if args.target_selection or args.mags :
         bands=['FLUX_G','FLUX_R','FLUX_Z', 'FLUX_W1', 'FLUX_W2']
         bbflux=dict()
-        bbflux['SOUTH'] = metadata['DEC'] <= 32.125 # constant-declination cut!
+        bbflux['SOUTH'] = is_south(metadata['DEC'])
         for band in bands:
             bbflux[band] = np.zeros(nqso)
         # need to recompute the magnitudes to account for lya transmission
@@ -441,11 +447,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         tmp_qso_flux = tmp_qso_flux[selection]
         metadata     = metadata[:][selection]
         meta         = meta[:][selection]
-        if type(model) is SIMQSO:
-            qsometa.data = qsometa.data[:][selection]
-            qsometa.gridShape = np.shape(qsometa.data)
-        else:
-            qsometa = qsometa[selection]
+        qsometa      = qsometa[:][selection]
 
         for band in bands : 
             bbflux[band] = bbflux[band][selection]
@@ -469,7 +471,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         log.warning("No TARGETID")
         targetid=None
     
-    meta={"HPXNSIDE":nside,"HPXPIXEL":pixel, "HPXNEST":hpxnest}
+    specmeta={"HPXNSIDE":nside,"HPXPIXEL":pixel, "HPXNEST":hpxnest}
      
     if args.target_selection or args.mags :
         # today we write mags because that's what is in the fibermap
@@ -483,7 +485,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
                 sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
-                meta=meta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False) # use Poisson = False to get reproducible results.
+                meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False) # use Poisson = False to get reproducible results.
     
     if args.zbest is not None :
         log.info("Read fibermap")
@@ -517,6 +519,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         hdulist.writeto(zbest_filename, overwrite=True)
         hdulist.close() # see if this helps with memory issue
 
+    import pdb ; pdb.set_trace()
 
 def _func(arg) :
     """ Used for multiprocessing.Pool """
