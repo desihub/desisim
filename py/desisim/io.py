@@ -463,16 +463,23 @@ def read_simspec(filename, cameras=None, comm=None, readflux=True, readphot=True
             if 'TRUTH' in fx:
                 truth = Table(fx['TRUTH'].data)
 
-                for obj in set(truth['OBJTYPE']):
+                if 'OBJTYPE' in truth.colnames:
+                    objtype = truth['OBJTYPE'] # output of desisim.obs.new_exposure
+                else:
+                    objtype = truth['TEMPLATETYPE'] # output of desitarget.mock.build.write_targets_truth
+
+                for obj in set(objtype):
                     extname = 'TRUTH_{}'.format(obj.upper())
                     if extname in fx:
+                        # This snippet of code reads a QsoSimObjects extension,
+                        # which is currently deprecated.
                         if 'COSMO' in fx[extname].header:
                             from simqso.sqgrids import QsoSimObjects
                             qsometa = QsoSimObjects()
                             qsometa.read(filename, extname=extname)
                             objmeta[obj] = qsometa
                         else:
-                            objmeta[obj] = Table(fx[extname].data)                            
+                            objmeta[obj] = Table(fx[extname].data)
 
             if 'FIBERMAP' in fx:
                 fibermap = Table(fx['FIBERMAP'].data)
