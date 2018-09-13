@@ -797,7 +797,7 @@ def read_mock_spectra(truthfile, targetids, mockdir=None):
     Reads mock spectra from a truth file
 
     Args:
-        truthfile (str): full path to a mocks spectra_truth*.fits file
+        truthfile (str): full path to a mocks truth-*.fits file
         targetids (array-like): targetids to load from that file
         mockdir: ???
 
@@ -818,11 +818,23 @@ def read_mock_spectra(truthfile, targetids, mockdir=None):
     #     truth = fx['TRUTH'].data
     #     wave = fx['WAVE'].data
     #     flux = fx['FLUX'].data
+    objtruth = dict()
     with fitsio.FITS(truthfile) as fx:
         truth = fx['TRUTH'].read()
         wave = fx['WAVE'].read()
         flux = fx['FLUX'].read()
 
+        if 'OBJTYPE' in truth.dtype.names:
+            # output of desisim.obs.new_exposure
+            objtype = [oo.decode('ascii').strip().upper() for oo in truth['OBJTYPE']] 
+        else:
+            # output of desitarget.mock.build.write_targets_truth
+            objtype = [oo.decode('ascii').strip().upper() for oo in truth['TEMPLATETYPE']] 
+        for obj in set(objtype):
+            extname = 'TRUTH_{}'.format(obj)
+            if extname in fx:
+                objtruth[obj] = fx[extname].read()
+        
     missing = np.in1d(targetids, truth['TARGETID'], invert=True)
     if np.any(missing):
         missingids = targetids[missing]
@@ -832,6 +844,13 @@ def read_mock_spectra(truthfile, targetids, mockdir=None):
     ii = np.in1d(truth['TARGETID'], targetids)
     flux = flux[ii]
     truth = truth[ii]
+    if bool(objtruth):
+        for obj in objtruth.keys():
+            ii = np.in1d(objtruth[obj]['TARGETID'], targetids)
+            import pdb ; pdb.set_trace()
+            objtruth[obj][:] = objtruth[obj][ii]
+
+    import pdb ; pdb.set_trace()
 
     assert set(targetids) == set(truth['TARGETID'])
 

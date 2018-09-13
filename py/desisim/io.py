@@ -446,7 +446,7 @@ def read_simspec(filename, cameras=None, comm=None, readflux=True, readphot=True
     #- Read and broadcast data that are common across cameras
     header = flavor = truth = fibermap = obsconditions = None
     wave = flux = skyflux = None
-    objtruth = dict()
+    objtruth = dict() # =objmeta in desisim.templates
     if rank == 0:
         with fits.open(filename, memmap=False) as fx:
             header = fx[0].header.copy()
