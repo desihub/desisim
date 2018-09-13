@@ -834,7 +834,7 @@ def read_mock_spectra(truthfile, targetids, mockdir=None):
             extname = 'TRUTH_{}'.format(obj)
             if extname in fx:
                 objtruth[obj] = fx[extname].read()
-        
+
     missing = np.in1d(targetids, truth['TARGETID'], invert=True)
     if np.any(missing):
         missingids = targetids[missing]
@@ -847,14 +847,12 @@ def read_mock_spectra(truthfile, targetids, mockdir=None):
     if bool(objtruth):
         for obj in objtruth.keys():
             ii = np.in1d(objtruth[obj]['TARGETID'], targetids)
-            import pdb ; pdb.set_trace()
             objtruth[obj][:] = objtruth[obj][ii]
-
-    import pdb ; pdb.set_trace()
 
     assert set(targetids) == set(truth['TARGETID'])
 
     #- sort truth to match order of input targetids
+    # it doesn't matter if objtruth is sorted
     if len(targetids) == len(truth['TARGETID']):
         i = np.argsort(targetids)
         j = np.argsort(truth['TARGETID'])
@@ -877,7 +875,7 @@ def read_mock_spectra(truthfile, targetids, mockdir=None):
     wave = desispec.io.util.native_endian(wave).astype(np.float64)
     reordered_flux = desispec.io.util.native_endian(reordered_flux).astype(np.float64)
 
-    return reordered_flux, wave, reordered_truth
+    return reordered_flux, wave, reordered_truth, objtruth
 
 def targets2truthfiles(targets, basedir, nside=64):
     '''
