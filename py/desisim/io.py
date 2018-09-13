@@ -339,7 +339,7 @@ class SimSpec(object):
 
     """
     def __init__(self, flavor, wave, flux, skyflux, fibermap,
-                 truth, obsconditions, header, objmeta=None):
+                 truth, obsconditions, header, objtruth=None):
         """
         Create a SimSpec object
 
@@ -352,6 +352,7 @@ class SimSpec(object):
             truth: table of truth metadata information about these spectra
             obsconditions (dict-like): observing conditions; see notes below
             header : FITS header from HDU0
+            objtruth: additional object type specific metadata information 
 
         Notes:
           * all inputs must be specified but can be None, depending upon flavor,
@@ -380,7 +381,7 @@ class SimSpec(object):
         self.skyflux = skyflux
         self.fibermap = fibermap
         self.truth = truth
-        self.objmeta = objmeta
+        self.objtruth = objtruth
         self.obsconditions = obsconditions
         self.header = header
 
@@ -445,7 +446,7 @@ def read_simspec(filename, cameras=None, comm=None, readflux=True, readphot=True
     #- Read and broadcast data that are common across cameras
     header = flavor = truth = fibermap = obsconditions = None
     wave = flux = skyflux = None
-    objmeta = dict()
+    objtruth = dict() # =objmeta in desisim.templates
     if rank == 0:
         with fits.open(filename, memmap=False) as fx:
             header = fx[0].header.copy()
@@ -463,16 +464,23 @@ def read_simspec(filename, cameras=None, comm=None, readflux=True, readphot=True
             if 'TRUTH' in fx:
                 truth = Table(fx['TRUTH'].data)
 
-                for obj in set(truth['OBJTYPE']):
+                if 'OBJTYPE' in truth.colnames:
+                    objtype = truth['OBJTYPE'] # output of desisim.obs.new_exposure
+                else:
+                    objtype = truth['TEMPLATETYPE'] # output of desitarget.mock.build.write_targets_truth
+
+                for obj in set(objtype):
                     extname = 'TRUTH_{}'.format(obj.upper())
                     if extname in fx:
+                        # This snippet of code reads a QsoSimObjects extension,
+                        # which is currently deprecated.
                         if 'COSMO' in fx[extname].header:
                             from simqso.sqgrids import QsoSimObjects
                             qsometa = QsoSimObjects()
                             qsometa.read(filename, extname=extname)
-                            objmeta[obj] = qsometa
+                            objtruth[obj] = qsometa
                         else:
-                            objmeta[obj] = Table(fx[extname].data)                            
+                            objtruth[obj] = Table(fx[extname].data)
 
             if 'FIBERMAP' in fx:
                 fibermap = Table(fx['FIBERMAP'].data)
@@ -484,7 +492,7 @@ def read_simspec(filename, cameras=None, comm=None, readflux=True, readphot=True
         header = comm.bcast(header, root=0)
         flavor = comm.bcast(flavor, root=0)
         truth = comm.bcast(truth, root=0)
-        objmeta = comm.bcast(objmeta, root=0)
+        objtruth = comm.bcast(objtruth, root=0)
         fibermap = comm.bcast(fibermap, root=0)
         obsconditions = comm.bcast(obsconditions, root=0)
 
@@ -513,11 +521,11 @@ def read_simspec(filename, cameras=None, comm=None, readflux=True, readphot=True
         skyflux = skyflux[ii]
     if truth is not None:
         truth = truth[ii]
-        # @sbailey - Not sure if we need to do anything with objmeta here
+        # @sbailey - Not sure if we need to do anything with objtruth here
 
     simspec = SimSpec(flavor, wave, flux, skyflux,
                       fibermap, truth, obsconditions, header,
-                      objmeta=objmeta)
+                      objtruth=objtruth)
 
     #- Now read individual camera photons
     #- NOTE: this is somewhat inefficient since the same PHOT_B/R/Z HDUs
