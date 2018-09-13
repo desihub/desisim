@@ -797,7 +797,7 @@ def read_mock_spectra(truthfile, targetids, mockdir=None):
     Reads mock spectra from a truth file
 
     Args:
-        truthfile (str): full path to a mocks truth-*.fits file
+        truthfile (str): full path to a mocks truth-\*.fits file
         targetids (array-like): targetids to load from that file
         mockdir: ???
 
