@@ -769,7 +769,7 @@ def get_mock_spectra(fiberassign, mockdir=None, nside=64):
         #- Sky fibers aren't in the truth files
         ok = ~np.in1d(targetids, skyids)
 
-        tmpflux, tmpwave, tmpmeta = read_mock_spectra(truthfile, targetids[ok])
+        tmpflux, tmpwave, tmpmeta, tmpobjmeta = read_mock_spectra(truthfile, targetids[ok])
 
         if flux is None:
             nwave = tmpflux.shape[1]
