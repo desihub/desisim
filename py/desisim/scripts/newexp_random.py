@@ -67,7 +67,7 @@ def main(args):
         if args.moonsep is not None:
             obsconditions['MOONSEP'] = args.moonsep
 
-    sim, fibermap, meta, obs = desisim.obs.new_exposure(args.program,
+    sim, fibermap, meta, obs, objmeta = desisim.obs.new_exposure(args.program,
         nspec=args.nspec, night=args.night, expid=args.expid, 
         tileid=args.tileid, nproc=args.nproc, seed=args.seed, 
         obsconditions=obsconditions, outdir=args.outdir)

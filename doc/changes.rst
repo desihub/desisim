@@ -5,7 +5,17 @@ desisim change log
 0.30.1 (unreleased)
 -------------------
 
-* No changes yet.
+* Read and write `select_mock_targets` style `simspec` file (`PR #416`_). 
+* Restore `quickquasars` to a functioning state, after being broken in `PR #409`_ (`PR #413`_). 
+* Add optional `nside` and `overwrite` arguments to `wrap-newexp` and
+  `obs.new_exposure`, respectively (`PR #412`_).
+* Major (and backwards-incompatible) refactor of how the template/simulated
+  metadata are returned by desisim.templates (`PR #409`_).
+
+.. _`PR #409`: https://github.com/desihub/desisim/pull/409
+.. _`PR #412`: https://github.com/desihub/desisim/pull/412
+.. _`PR #413`: https://github.com/desihub/desisim/pull/413
+.. _`PR #416`: https://github.com/desihub/desisim/pull/416
 
 0.30.0 (2018-08-09)
 -------------------

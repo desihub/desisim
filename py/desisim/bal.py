@@ -29,18 +29,21 @@ class BAL(object):
         self.balwave = balwave
         self.balmeta = balmeta
 
-    def empty_balmeta(self, qsoredshift):
+    def empty_balmeta(self, qsoredshift=None):
         """Initialize an empty metadata table for BALs."""
 
         from astropy.table import Table, Column
 
-        nqso = len(np.atleast_1d(qsoredshift))
+        if qsoredshift is None:
+            nqso = 1
+        else:
+            nqso = len(np.atleast_1d(qsoredshift))
 
         balmeta = Table()
-        balmeta.add_column(Column(name='TEMPLATEID', length=nqso, dtype='i4'))
-        balmeta.add_column(Column(name='REDSHIFT', length=nqso, dtype='f4'))
-        balmeta['TEMPLATEID'] = -1
-        balmeta['REDSHIFT'] = qsoredshift
+        balmeta.add_column(Column(name='TEMPLATEID', length=nqso, dtype='i4', data=np.zeros(nqso)-1))
+        balmeta.add_column(Column(name='REDSHIFT', length=nqso, dtype='f4', data=np.zeros(nqso)))
+        if qsoredshift is not None:
+            balmeta['REDSHIFT'] = qsoredshift
 
         return balmeta        
         
@@ -84,9 +87,15 @@ class BAL(object):
             log.fatal('Dimensions of qsoflux and qsoredshift do not agree!')
             raise ValueError
         
-        if len(qsowave) != nwave:
-            log.fatal('Dimensions of qsoflux and qsowave do not agree!')
-            raise ValueError
+        if qsowave.ndim == 2: # desisim.QSO(resample=True) returns a 2D wavelength array
+            w_nqso, w_nwave = qsowave.shape
+            if w_nwave != nwave or w_nqso != nqso:
+                log.fatal('Dimensions of qsoflux and qsowave do not agree!')
+                raise ValueError
+        else:
+            if len(qsowave) != nwave:
+                log.fatal('Dimensions of qsoflux and qsowave do not agree!')
+                raise ValueError
         
         balmeta = self.empty_balmeta(qsoredshift)
 
@@ -102,9 +111,15 @@ class BAL(object):
         balmeta['TEMPLATEID'][ihasbal] = balindx
 
         bal_qsoflux = qsoflux.copy()
-        for ii, indx in zip( ihasbal, balindx ):
-            thisbalflux = resample_flux(qsowave, self.balwave*(1 + qsoredshift[ii]),
-                                        self.balflux[indx, :], extrapolate=True)
-            bal_qsoflux[ii, :] *= thisbalflux
+        if qsowave.ndim == 2:
+            for ii, indx in zip( ihasbal, balindx ):
+                thisbalflux = resample_flux(qsowave[ii, :], self.balwave*(1 + qsoredshift[ii]),
+                                            self.balflux[indx, :], extrapolate=True)
+                bal_qsoflux[ii, :] *= thisbalflux
+        else:
+            for ii, indx in zip( ihasbal, balindx ):
+                thisbalflux = resample_flux(qsowave, self.balwave*(1 + qsoredshift[ii]),
+                                            self.balflux[indx, :], extrapolate=True)
+                bal_qsoflux[ii, :] *= thisbalflux
 
         return bal_qsoflux, balmeta

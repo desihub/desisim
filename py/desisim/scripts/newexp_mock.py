@@ -25,6 +25,7 @@ def parse(options=None):
     parser.add_argument('--expid', type=int, required=True, help="exposure ID")
 
     #- Optional
+    parser.add_argument('--nside', help='healpixel organization scheme of the mock spectra', type=int, default=64)
     parser.add_argument('--outdir', type=str, help="output directory")
     parser.add_argument('--nspec', type=int, default=None, help="number of spectra to include")
     parser.add_argument('--clobber', action='store_true', help="overwrite any pre-existing output files")
@@ -72,7 +73,7 @@ def main(args=None):
 
     log.info('Simulating night {} expid {} tile {}'.format(night, args.expid, tileid))
     try:
-        flux, wave, meta = get_mock_spectra(fiberassign, mockdir=args.mockdir)
+        flux, wave, meta, objmeta = get_mock_spectra(fiberassign, mockdir=args.mockdir, nside=args.nside)
     except Exception as err:
         log.fatal('Failed expid {} fiberassign {} tile {}'.format(
             args.expid, args.fiberassign, tileid))
@@ -107,4 +108,4 @@ def main(args=None):
         outdir=args.outdir), overwrite=args.clobber)
 
     desisim.io.write_simspec(sim, meta, fibermap, obs, args.expid, night, header=header,
-        outdir=args.outdir, overwrite=args.clobber)
+                             objmeta=objmeta, outdir=args.outdir, overwrite=args.clobber)

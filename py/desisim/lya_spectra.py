@@ -148,8 +148,14 @@ def apply_lya_transmission(qso_wave,qso_flux,trans_wave,trans) :
         raise(ValueError("not same number of qso {} {}".format(qso_flux.shape[0],trans.shape[0])))
     
     output_flux = qso_flux.copy()
-    for q in range(qso_flux.shape[0]) :
-        output_flux[q, :] *= np.interp(qso_wave,trans_wave,trans[q, :],left=0,right=1)
+
+    if qso_wave.ndim == 2: # desisim.QSO(resample=True) returns a 2D wavelength array    
+        for q in range(qso_flux.shape[0]) :
+            output_flux[q, :] *= np.interp(qso_wave[q, :],trans_wave,trans[q, :],left=0,right=1)
+    else:
+        for q in range(qso_flux.shape[0]) :
+            output_flux[q, :] *= np.interp(qso_wave,trans_wave,trans[q, :],left=0,right=1)
+            
     return output_flux
 
 def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals) :
@@ -209,7 +215,7 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals) :
     return output_flux
 
 def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss2010-g',
-                seed=None, rand=None, qso=None, add_dlas=False, debug=False, nocolorcuts=False):
+                seed=None, rand=None, qso=None, add_dlas=False, debug=False, nocolorcuts=True):
     """Generate a QSO spectrum which includes Lyman-alpha absorption.
 
     Args:
@@ -234,7 +240,7 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
           Set in calc_lz
           These are *not* inserted according to overdensity along the sightline
         nocolorcuts (bool, optional): Do not apply the fiducial rzW1W2 color-cuts
-          cuts (default False).
+          cuts (default True).
 
     Returns (flux, wave, meta, dla_meta) where:
 
@@ -243,6 +249,9 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
         * wave (numpy.ndarray): Observed-frame [npix] wavelength array (Angstrom).
         * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum
           with columns defined in desisim.io.empty_metatable *plus* RA, DEC.
+        * objmeta (astropy.Table): Table of additional object-specific meta-data
+          [nmodel] for each output spectrum with columns defined in
+          desisim.io.empty_metatable.
         * dla_meta (astropy.Table): Table of meta-data [ndla] for the DLAs injected
           into the spectra.  Only returned if add_dlas=True
 
@@ -280,23 +289,23 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
     dec = np.array([head['DEC'] for head in heads])
     mag_g = np.array([head['MAG_G'] for head in heads])
 
-    # Hard-coded filtername!
+    # Hard-coded filtername!  Should match MAG_G!
     normfilt = load_filters(normfilter)
 
     if qso is None:
-        qso = QSO(normfilter=normfilter, wave=wave)
+        qso = QSO(normfilter_south=normfilter, wave=wave)
 
     wave = qso.wave
     flux = np.zeros([nqso, len(wave)], dtype='f4')
 
-    meta = empty_metatable(objtype='QSO', nmodel=nqso)
-    meta['TEMPLATEID'] = templateid
-    meta['REDSHIFT'] = zqso
-    meta['MAG'] = mag_g
-    meta['SEED'] = templateseed
+    meta, objmeta = empty_metatable(objtype='QSO', nmodel=nqso)
+    meta['TEMPLATEID'][:] = templateid
+    meta['REDSHIFT'][:] = zqso
+    meta['MAG'][:] = mag_g
+    meta['MAGFILTER'][:] = normfilter
+    meta['SEED'][:] = templateseed
     meta['RA'] = ra
     meta['DEC'] = dec
-
 
     # Lists for DLA meta data
     if add_dlas:
@@ -304,12 +313,14 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
 
     # Loop on quasars
     for ii, indx in enumerate(templateid):
-        flux1, _, meta1 = qso.make_templates(nmodel=1, redshift=np.atleast_1d(zqso[ii]), 
-                                             mag=np.atleast_1d(mag_g[ii]), seed=templateseed[ii],
-                                             nocolorcuts=nocolorcuts, lyaforest=False)
+        flux1, _, meta1, objmeta1 = qso.make_templates(nmodel=1, redshift=np.atleast_1d(zqso[ii]), 
+                                                mag=np.atleast_1d(mag_g[ii]), seed=templateseed[ii],
+                                                nocolorcuts=nocolorcuts, lyaforest=False)
         flux1 *= 1e-17
         for col in meta1.colnames:
             meta[col][ii] = meta1[col][0]
+        for col in objmeta1.colnames:
+            objmeta[col][ii] = objmeta1[col][0]
 
         # read lambda and forest transmission
         data = h[indx + 1].read()
@@ -357,6 +368,6 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
             dla_meta['ID'] = dla_id
         else:
             dla_meta = None
-        return flux*1e17, wave, meta, dla_meta
+        return flux*1e17, wave, meta, objmeta, dla_meta
     else:
-        return flux*1e17, wave, meta
+        return flux*1e17, wave, meta, objmeta

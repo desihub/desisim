@@ -20,6 +20,7 @@ from desisim.scripts.quickspectra import sim_spectra
 from desisim.lya_spectra import read_lya_skewers , apply_lya_transmission, apply_metals_transmission
 from desisim.dla import dla_spec,insert_dlas
 from desisim.bal import BAL
+from desisim.io import empty_metatable
 from desispec.interpolation import resample_flux
 from desimodel.io import load_pixweight
 from desimodel import footprint
@@ -46,7 +47,6 @@ def parse(options=None):
     parser.add_argument('--moonsep', type=float, default=None, help="Moon separation to tile [degrees]")
     parser.add_argument('--seed', type=int, default=None, required = False, help="Global random seed (will be used to generate a seed per each file")
     parser.add_argument('--skyerr', type=float, default=0.0, help="Fractional sky subtraction error")
-    parser.add_argument('--norm-filter', type=str, default="decam2014-g", help="Broadband filter for normalization")
     parser.add_argument('--nmax', type=int, default=None, help="Max number of QSO per input file, for debugging")
     parser.add_argument('--downsampling', type=float, default=None,help="fractional random down-sampling (value between 0 and 1)")
     parser.add_argument('--zmin', type=float, default=0,help="Min redshift")
@@ -94,6 +94,13 @@ def get_zbest_filename(args,pixdir,nside,pixel):
         return os.path.join(pixdir,"zbest-{}-{}.fits".format(nside,pixel))
     return None
 
+def is_south(dec):
+    """Identify which QSOs are in the south vs the north, since these are on
+    different photometric systems.  See
+    https://github.com/desihub/desitarget/issues/353 for details.
+
+    """
+    return dec <= 32.125 # constant-declination cut!
 
 def get_healpix_info(ifilename):
     """
@@ -173,7 +180,9 @@ def get_pixel_seed(pixel, nside, global_seed):
     return pixel_seed
 
 
-def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,bal=None) :
+def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,
+                         bassmzls_and_wise_filters,footprint_healpix_weight,
+                         footprint_healpix_nside,bal=None) :
     log = get_logger()
 
     # open filename and extract basic HEALPix information
@@ -349,25 +358,42 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             trans_wave   = new_trans_wave
             transmission = new_transmission
 
-    # whether to use QSO or SIMQSO to generate quasar continua
+    # whether to use QSO or SIMQSO to generate quasar continua.  Simulate
+    # spectra in the north vs south separately because they're on different
+    # photometric systems.
+    south = np.where( is_south(metadata['DEC']) )[0]
+    north = np.where( ~is_south(metadata['DEC']) )[0]
+    meta, qsometa = empty_metatable(nqso, objtype='QSO', simqso=not args.no_simqso)
     if args.no_simqso:
         log.info("Simulate {} QSOs with QSO templates".format(nqso))
-        # if we wanted to use noresample=True here, we would have to modify 
-        # downstream code since each quasar would have a different wave grid
-        tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(
-            nmodel=nqso, redshift=metadata['Z'], 
-            lyaforest=False, nocolorcuts=True, noresample=False, seed = seed)
+        tmp_qso_flux = np.zeros([nqso, len(model.eigenwave)], dtype='f4')
+        tmp_qso_wave = np.zeros_like(tmp_qso_flux)
     else:
         log.info("Simulate {} QSOs with SIMQSO templates".format(nqso))
-        # noresample=True to avoid innecessary interpolation
-        tmp_qso_flux, tmp_qso_wave, meta = model.make_templates(
-            nmodel=nqso, redshift=metadata['Z'], 
-            lyaforest=False, nocolorcuts=True, noresample=True, seed = seed)
-    
+        tmp_qso_flux = np.zeros([nqso, len(model.basewave)], dtype='f4')
+        tmp_qso_wave = model.basewave
+        
+    for these, issouth in zip( (north, south), (False, True) ):
+        if len(these) > 0:
+            _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa = model.make_templates(
+                nmodel=len(these), redshift=metadata['Z'][these], lyaforest=False, nocolorcuts=True,
+                noresample=True, seed=seed, south=issouth)
+            meta[these] = _meta
+            qsometa[these] = _qsometa
+            tmp_qso_flux[these, :] = _tmp_qso_flux
+            
+            if args.no_simqso:
+                tmp_qso_wave[these, :] = _tmp_qso_wave
+
     log.info("Resample to transmission wavelength grid")
     qso_flux=np.zeros((tmp_qso_flux.shape[0],trans_wave.size))
-    for q in range(tmp_qso_flux.shape[0]) :
-        qso_flux[q]=np.interp(trans_wave,tmp_qso_wave,tmp_qso_flux[q])
+    if args.no_simqso:
+        for q in range(tmp_qso_flux.shape[0]) :
+            qso_flux[q]=np.interp(trans_wave,tmp_qso_wave[q],tmp_qso_flux[q])
+    else:
+        for q in range(tmp_qso_flux.shape[0]) :
+            qso_flux[q]=np.interp(trans_wave,tmp_qso_wave,tmp_qso_flux[q])
+        
     tmp_qso_flux = qso_flux
     tmp_qso_wave = trans_wave
 
@@ -377,7 +403,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             log.info("Adding BALs with probability {}".format(args.balprob))
             # save current random state
             rnd_state = np.random.get_state() 
-            tmp_qso_flux,meta_bal=bal.insert_bals(tmp_qso_wave,tmp_qso_flux, metadata['Z'], balprob=args.balprob,seed=seed)
+            tmp_qso_flux,meta_bal=bal.insert_bals(tmp_qso_wave,tmp_qso_flux, metadata['Z'],
+                                                  balprob=args.balprob,seed=seed)
             # restore random state to get the same random numbers later 
             # as when we don't insert BALs
             np.random.set_state(rnd_state) 
@@ -408,31 +435,46 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         tmp_qso_flux = apply_metals_transmission(tmp_qso_wave,tmp_qso_flux,
                             trans_wave,transmission,args.metals)
 
-    # if requested, compute magnitudes and apply target selection
+    # if requested, compute magnitudes and apply target selection.  Need to do
+    # this calculation separately for QSOs in the north vs south.
     bbflux=None
     if args.target_selection or args.mags :
         bands=['FLUX_G','FLUX_R','FLUX_Z', 'FLUX_W1', 'FLUX_W2']
         bbflux=dict()
+        bbflux['SOUTH'] = is_south(metadata['DEC'])
+        for band in bands:
+            bbflux[band] = np.zeros(nqso)
         # need to recompute the magnitudes to account for lya transmission
         log.info("Compute QSO magnitudes")
-        maggies = decam_and_wise_filters.get_ab_maggies(
-            1e-17 * tmp_qso_flux, tmp_qso_wave)
-        for band, filt in zip( bands,
-                            [ 'decam2014-g', 'decam2014-r', 'decam2014-z',
-                              'wise2010-W1', 'wise2010-W2']  ):
-            
-            bbflux[band] = np.ma.getdata(1e9 * maggies[filt]) # nanomaggies
-    
+
+        for these, filters in zip( (~bbflux['SOUTH'], bbflux['SOUTH']),
+                                   (bassmzls_and_wise_filters, decam_and_wise_filters) ):
+            if np.count_nonzero(these) > 0:
+                maggies = filters.get_ab_maggies(1e-17 * tmp_qso_flux, tmp_qso_wave)
+                for band, filt in zip( bands, maggies.colnames ):
+                    bbflux[band][these] = np.ma.getdata(1e9 * maggies[filt]) # nanomaggies
+
     if args.target_selection :
         log.info("Apply target selection")
-        isqso = isQSO_colors(gflux=bbflux['FLUX_G'], rflux=bbflux['FLUX_R'], zflux=bbflux['FLUX_Z'],
-                             w1flux=bbflux['FLUX_W1'], w2flux=bbflux['FLUX_W2'])
+        isqso = np.ones(nqso, dtype=bool)
+        for these, issouth in zip( (~bbflux['SOUTH'], bbflux['SOUTH']), (False, True) ):
+            if np.count_nonzero(these) > 0:
+                # optical cuts only if using QSO vs SIMQSO
+                isqso[these] &= isQSO_colors(gflux=bbflux['FLUX_G'][these],
+                                             rflux=bbflux['FLUX_R'][these],
+                                             zflux=bbflux['FLUX_Z'][these],
+                                             w1flux=bbflux['FLUX_W1'][these],
+                                             w2flux=bbflux['FLUX_W2'][these],
+                                             south=issouth, optical=args.no_simqso) 
+        
         log.info("Target selection: {}/{} QSOs selected".format(np.sum(isqso),nqso))
         selection=np.where(isqso)[0]
         if selection.size==0 : return
         tmp_qso_flux = tmp_qso_flux[selection]
         metadata     = metadata[:][selection]
         meta         = meta[:][selection]
+        qsometa      = qsometa[:][selection]
+
         for band in bands : 
             bbflux[band] = bbflux[band][selection]
         nqso         = selection.size
@@ -455,7 +497,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         log.warning("No TARGETID")
         targetid=None
     
-    meta={"HPXNSIDE":nside,"HPXPIXEL":pixel, "HPXNEST":hpxnest}
+    specmeta={"HPXNSIDE":nside,"HPXPIXEL":pixel, "HPXNEST":hpxnest}
      
     if args.target_selection or args.mags :
         # today we write mags because that's what is in the fibermap
@@ -467,7 +509,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     else :
         fibermap_columns=None
 
-    sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,meta=meta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False) # use Poisson = False to get reproducible results.
+    sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
+                sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
+                meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False) # use Poisson = False to get reproducible results.
     
     if args.zbest is not None :
         log.info("Read fibermap")
@@ -515,7 +559,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         hdulist.writeto(zbest_filename, overwrite=True)
         hdulist.close() # see if this helps with memory issue
 
-
 def _func(arg) :
     """ Used for multiprocessing.Pool """
     return simulate_one_healpix(**arg)
@@ -558,16 +601,19 @@ def main(args=None):
     
     if args.no_simqso:
         log.info("Load QSO model")
-        model=QSO(normfilter=args.norm_filter)
+        model=QSO()
     else:
         log.info("Load SIMQSO model")
-        model=SIMQSO(normfilter=args.norm_filter,nproc=1)
+        model=SIMQSO(nproc=1)
     
     decam_and_wise_filters = None
     if args.target_selection or args.mags :
         log.info("Load DeCAM and WISE filters for target selection sim.")
+        # ToDo @moustakas -- load north/south filters
         decam_and_wise_filters = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
                                                       'wise2010-W1', 'wise2010-W2')
+        bassmzls_and_wise_filters = filters.load_filters('BASS-g', 'BASS-r', 'MzLS-z',
+                                                     'wise2010-W1', 'wise2010-W2')
         
     footprint_healpix_weight = None
     footprint_healpix_nside  = None
@@ -592,6 +638,7 @@ def main(args=None):
                        "args":args, "model":model , \
                        "obsconditions":obsconditions , \
                        "decam_and_wise_filters": decam_and_wise_filters , \
+                       "bassmzls_and_wise_filters": bassmzls_and_wise_filters , \
                        "footprint_healpix_weight": footprint_healpix_weight , \
                        "footprint_healpix_nside": footprint_healpix_nside , \
                        "bal":bal \
@@ -600,4 +647,5 @@ def main(args=None):
         pool.map(_func, func_args)
     else :
         for i,ifilename in enumerate(args.infile) :
-            simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,footprint_healpix_weight,footprint_healpix_nside,bal=bal)
+            simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,bassmzls_and_wise_filters,
+                                 footprint_healpix_weight,footprint_healpix_nside,bal=bal)
