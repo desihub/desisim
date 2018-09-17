@@ -84,8 +84,7 @@ def parse(options=None):
 
 def get_spectra_filename(args,nside,pixel):
     if args.outfile :
-        name=args.outfile
-        return name 
+        return args.outfile
     filename="{}/{}/spectra-{}-{}.fits".format(pixel//100,pixel,nside,pixel)
     return os.path.join(args.outdir,filename)
 
@@ -200,7 +199,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     np.random.seed(seed)
 
     # get output file (we will write there spectra for this HEALPix pixel)
-    ofilename= get_spectra_filename(args,nside,pixel)
+    ofilename = get_spectra_filename(args,nside,pixel)
     # get directory name (we will also write there zbest file)
     pixdir = os.path.dirname(ofilename)
 
@@ -212,7 +211,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     
     if not args.overwrite :
         # check whether output exists or not
-        if args.zbest:
+        if args.zbest :
             if os.path.isfile(ofilename) and os.path.isfile(zbest_filename) :
                 log.info("skip existing {} and {}".format(ofilename,zbest_filename))
                 return
@@ -220,8 +219,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             if os.path.isfile(ofilename) :
                 log.info("skip existing {}".format(ofilename))
                 return
-
-    
 
     # create sub-directories if required 
     if len(pixdir)>0 :
@@ -327,7 +324,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                 dla_z += [idla['z'] for idla in dlas]
                 dla_NHI += [idla['N'] for idla in dlas]
                 dla_id += [idd]*len(dlas)
-        
         log.info('Added {} DLAs'.format(len(dla_id)))
         # write file with DLA information
         if len(dla_id)>0:    
@@ -562,7 +558,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             ('BRICKNAME', (str,8))]
         zbest = Table(np.zeros(nqso, dtype=columns))
         zbest["CHI2"][:]      = 0.
-        zbest["Z"]= metadata['Z']
+        zbest["Z"]            = metadata['Z']
         zbest["ZERR"][:]      = 0. 
         if args.sigma_kms_rsd or args.sigma_kms_zfit:
            sigma_rsd,sigma_fit = 0.,0.
@@ -574,10 +570,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
               log.info("Added zfit error with sigma {} to zbest".format(sigma_fit))
            sigma=np.sqrt(sigma_rsd*sigma_rsd+sigma_fit*sigma_fit)
            dz=(sigma/299792.458)*(1.+metadata['Z'])*np.random.normal(0,1,nqso)
-           zbest["Z"]+=dz  
+           zbest["Z"]+=dz
            zbest["ZERR"]+=dz
-  
-      
         zbest["ZWARN"][:]     = 0
         zbest["SPECTYPE"][:]  = "QSO"
         zbest["SUBTYPE"][:]   = ""
