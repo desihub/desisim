@@ -22,6 +22,7 @@ from desisim.dla import dla_spec,insert_dlas
 from desisim.bal import BAL
 from desisim.io import empty_metatable
 from desispec.interpolation import resample_flux
+
 from desimodel.io import load_pixweight
 from desimodel import footprint
 from speclite import filters
@@ -83,9 +84,9 @@ def parse(options=None):
 
 def get_spectra_filename(args,nside,pixel):
     if args.outfile :
-        return args.outfile
+        name=args.outfile
+        return name 
     filename="{}/{}/spectra-{}-{}.fits".format(pixel//100,pixel,nside,pixel)
-    print('filename ',filename)
     return os.path.join(args.outdir,filename)
 
 
@@ -93,6 +94,10 @@ def get_zbest_filename(args,pixdir,nside,pixel):
     if args.zbest :
         return os.path.join(pixdir,"zbest-{}-{}.fits".format(nside,pixel))
     return None
+
+def get_truth_filename(args,pixdir,nside,pixel):
+    return os.path.join(pixdir,"truth-{}-{}.fits".format(nside,pixel))
+
 
 def is_south(dec):
     """Identify which QSOs are in the south vs the north, since these are on
@@ -195,9 +200,13 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     np.random.seed(seed)
 
     # get output file (we will write there spectra for this HEALPix pixel)
-    ofilename = get_spectra_filename(args,nside,pixel)
+    ofilename= get_spectra_filename(args,nside,pixel)
     # get directory name (we will also write there zbest file)
     pixdir = os.path.dirname(ofilename)
+
+    # get filename for truth file
+    truth_filename = get_truth_filename(args,pixdir,nside,pixel)
+    
     # get filename for zbest file
     zbest_filename = get_zbest_filename(args,pixdir,nside,pixel)
     
@@ -289,6 +298,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         min_lya_z = np.min(trans_wave/1215.67 - 1)
 
         # loop over quasars in pixel
+        
         for ii in range(len(metadata)):
 
             # quasars with z < min_z will not have any DLA in spectrum
@@ -317,7 +327,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                 dla_z += [idla['z'] for idla in dlas]
                 dla_NHI += [idla['N'] for idla in dlas]
                 dla_id += [idd]*len(dlas)
-
+        
         log.info('Added {} DLAs'.format(len(dla_id)))
         # write file with DLA information
         if len(dla_id)>0:    
@@ -326,11 +336,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             dla_meta['z']=dla_z
             dla_meta['ID']=dla_id
 
-            hdla = pyfits.convenience.table_to_hdu(dla_meta); hdla.name="DLA_META"
-            hdlalist = pyfits.HDUList([pyfits.PrimaryHDU(),hdla])
-            hdlalist.writeto(dla_filename, overwrite=True)
-            hdlalist.close()
-            log.info("Saved DLA metadata file {}".format(dla_filename))
+            hdu_dla = pyfits.convenience.table_to_hdu(dla_meta); hdu_dla.name="DLA_META"
+            del(dla_meta)
+            log.info("DLA metadata to be saved in {}".format(truth_filename))
 
     # if requested, extend transmission skewers to cover full spectrum     
     if args.target_selection or args.mags :
@@ -408,6 +416,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             # restore random state to get the same random numbers later 
             # as when we don't insert BALs
             np.random.set_state(rnd_state) 
+            hdu_bal=pyfits.convenience.table_to_hdu(meta_bal); hdu_bal.name="BAL_META"
+            del meta_bal
         else:
             balstr=str(args.balprob) 
             log.error("BAL probability is not between 0 and 1 : "+balstr)
@@ -509,9 +519,31 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     else :
         fibermap_columns=None
 
+     
     sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
                 sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
                 meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False) # use Poisson = False to get reproducible results.
+    
+    
+    meta.rename_column('REDSHIFT','TRUEZ')
+ 
+    log.info('Writing a truth file  {}'.format(truth_filename))    
+    hdu = pyfits.convenience.table_to_hdu(meta)
+    hdu.header['EXTNAME'] = 'TRUTH'
+    hduqso=pyfits.convenience.table_to_hdu(qsometa)
+    hduqso.header['EXTNAME'] = 'QSO_META'
+    hdulist=pyfits.HDUList([pyfits.PrimaryHDU(),hdu,hduqso])
+    
+    if args.dla:
+       hdulist.append(hdu_dla)
+    if args.balprob:
+       hdulist.append(hdu_bal)
+
+    hdulist.writeto(truth_filename, overwrite=True)
+    hdulist.close()
+
+
+   
     
     if args.zbest is not None :
         log.info("Read fibermap")
