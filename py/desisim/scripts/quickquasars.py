@@ -524,9 +524,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                 sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
                 meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False) # use Poisson = False to get reproducible results.
     
-    
+
+##Adedd to write the truth file, includen metadata for DLA's and BALs    
     meta.rename_column('REDSHIFT','TRUEZ')
- 
     log.info('Writing a truth file  {}'.format(truth_filename))    
     hdu = pyfits.convenience.table_to_hdu(meta)
     hdu.header['EXTNAME'] = 'TRUTH'
@@ -660,7 +660,8 @@ def main(args=None):
         footprint_healpix_nside=256 # same resolution as original map so we don't loose anything
         footprint_healpix_weight = load_pixweight(footprint_healpix_nside, pixmap=pixmap)
 
-    if args.sigma_kms_zfit or args.sigma_kms_rsd:
+    if (args.sigma_kms_zfit or args.sigma_kms_rsd) and not args.zbest:
+       log.info("Setting --zbest to true as required by --sigma_kms_zfit or --sigma_kms_rsd")
        args.zbest = True
 
 
