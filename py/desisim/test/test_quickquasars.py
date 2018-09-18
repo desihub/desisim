@@ -45,7 +45,6 @@ class Testquickquasars(unittest.TestCase):
             
 
     def test_quickquasars(self):
-
         cmd = 'quickquasars -i {} -o {} --exptime 4000 --nmax 5 --overwrite --seed 1'.format(self.infile, self.outspec1)
         opts = quickquasars.parse(cmd.split()[1:])
         quickquasars.main(opts)
@@ -57,7 +56,7 @@ class Testquickquasars(unittest.TestCase):
         quickquasars.main(opts)
         self.assertTrue(os.path.exists(self.outspec1))
 
-         cmd = 'quickquasars -i {} -o {} --exptime 4000 --zbest --nmax 5 --overwrite --seed 1'.format(self.infile, self.outspec1)
+        cmd = 'quickquasars -i {} -o {} --exptime 4000 --zbest --nmax 5 --overwrite --seed 1'.format(self.infile, self.outspec1)
         opts = quickquasars.parse(cmd.split()[1:])
         quickquasars.main(opts)
         self.assertTrue(os.path.exists(self.outspec1))

@@ -57,7 +57,7 @@ def parse(options=None):
     parser.add_argument('--dwave', type=float, default=0.2,help="Internal wavelength step (don't change this)")
     parser.add_argument('--nproc', type=int, default=1,help="number of processors to run faster")
     
-    parser.add_argument('--zbest', action = "store_true" ,required='--sigma_kms_rsd, --sigma_kms_zfit',help="add a zbest file per spectrum either with the truth redshift or adding some error (use --sigma_kms_rsd and/or --sigma_kms_zfit)")
+    parser.add_argument('--zbest', action = "store_true",help="add a zbest file per spectrum either with the truth redshift or adding some error (use --sigma_kms_rsd and/or --sigma_kms_zfit)")
 
     parser.add_argument('--sigma_kms_rsd',nargs='?',type=float,const=150, help="Adds a gaussian error to the quasar redshift thats simulate the fingers of god effect (default=150 km/s)")
 
@@ -659,6 +659,10 @@ def main(args=None):
         pixmap=pyfits.open(footprint_filename)[0].data
         footprint_healpix_nside=256 # same resolution as original map so we don't loose anything
         footprint_healpix_weight = load_pixweight(footprint_healpix_nside, pixmap=pixmap)
+
+    if args.sigma_kms_zfit or args.sigma_kms_rsd:
+       args.zbest = True
+
 
     if args.balprob:
         bal=BAL()
