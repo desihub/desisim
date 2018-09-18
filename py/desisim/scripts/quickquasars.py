@@ -332,9 +332,13 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             dla_meta['z']=dla_z
             dla_meta['ID']=dla_id
 
-            hdu_dla = pyfits.convenience.table_to_hdu(dla_meta); hdu_dla.name="DLA_META"
+            hdu_dla = pyfits.convenience.table_to_hdu(dla_meta)
+            hdu_dla.name="DLA_META"
             del(dla_meta)
             log.info("DLA metadata to be saved in {}".format(truth_filename))
+        else:
+            hdu_dla=pyfits.PrimaryHDU()
+            hdu_dla.name="DLA_META"
 
     # if requested, extend transmission skewers to cover full spectrum     
     if args.target_selection or args.mags :
@@ -633,6 +637,7 @@ def main(args=None):
         model=SIMQSO(nproc=1)
     
     decam_and_wise_filters = None
+    bassmzls_and_wise_filters = None 
     if args.target_selection or args.mags :
         log.info("Load DeCAM and WISE filters for target selection sim.")
         # ToDo @moustakas -- load north/south filters
