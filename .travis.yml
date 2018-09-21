@@ -68,11 +68,11 @@ env:
         # These packages will only be installed for documentation builds.
         # - CONDA_SPHINX_DEPENDENCIES="scipy pyyaml sphinx==1.5"
         # These packages will only be installed if we really need them.
-        - CONDA_ALL_DEPENDENCIES="scipy matplotlib coverage pyyaml healpy numba"
+        - CONDA_ALL_DEPENDENCIES="scipy matplotlib coverage pyyaml numba"
         # These packages will always be installed.
         - PIP_DEPENDENCIES=""
         # These packages will only be installed if we really need them.
-        - PIP_ALL_DEPENDENCIES="speclite==${SPECLITE_VERSION} coveralls fitsio"
+        - PIP_ALL_DEPENDENCIES="speclite==${SPECLITE_VERSION} coveralls fitsio healpy"
         # - PIP_ALL_DEPENDENCIES="speclite coveralls fitsio"
         - PIP_ALL_DEPENDENCIES="coveralls fitsio"
         # These pip packages need to be installed in a certain order, so we
