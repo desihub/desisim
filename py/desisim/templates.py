@@ -127,8 +127,12 @@ class EMSpectrum(object):
 
         self.forbidmog = GaussianMixtureModel.load(forbidmogfile)
 
-        self.oiiidoublet = 2.8875
-        self.niidoublet = 2.93579
+        self.oiiidoublet = 2.8875   # [OIII] 5007/4959
+        self.niidoublet = 2.93579   # [NII] 6584/6548
+        self.oidoublet = 3.03502    # [OI] 6300/6363
+        self.siiidoublet = 2.4686   # [SIII] 9532/9069
+        self.ariiidoublet = 4.16988 # [ArIII] 7135/7751
+        self.mgiidoublet = 1.0      # MgII 2803/2796
 
     def spectrum(self, oiiihbeta=None, oiihbeta=None, niihbeta=None,
                  siihbeta=None, oiidoublet=0.73, siidoublet=1.3,
@@ -205,6 +209,15 @@ class EMSpectrum(object):
         is3726 = np.where(line['name'] == '[OII]_3726')[0]
         is3729 = np.where(line['name'] == '[OII]_3729')[0]
 
+        is6300 = np.where(line['name'] == '[OI]_6300')[0]
+        is6363 = np.where(line['name'] == '[OI]_6363')[0]
+        is9532 = np.where(line['name'] == '[SIII]_9532')[0]
+        is9069 = np.where(line['name'] == '[SIII]_9069')[0]
+        is7135 = np.where(line['name'] == '[ArIII]_7135')[0]
+        is7751 = np.where(line['name'] == '[ArIII]_7751')[0]
+        is2800a = np.where(line['name'] == 'MgII_2800a')[0]
+        is2800b = np.where(line['name'] == 'MgII_2800b')[0]
+
         # Draw from the MoGs for forbidden lines.
         if oiiihbeta is None or oiihbeta is None or niihbeta is None or siihbeta is None:
             oiiihbeta, oiihbeta, niihbeta, siihbeta = \
@@ -222,6 +235,24 @@ class EMSpectrum(object):
         line['ratio'][is6716] = 10**siihbeta # [SII]/Hbeta
         line['ratio'][is6731] = line['ratio'][is6716]/siidoublet
 
+        # Hack! For the following lines use constant ratios relative to H-beta--
+
+        # Normalize [OI]
+        line['ratio'][is6300] = 0.1 # [OI]6300/Hbeta
+        line['ratio'][is6363] = line['ratio'][is6300]/self.oidoublet 
+
+        # Normalize [SIII]
+        line['ratio'][is9532] = 0.75 # [SIII]9532/Hbeta
+        line['ratio'][is9069] = line['ratio'][is9532]/self.siiidoublet
+        
+        # Normalize [ArIII]
+        line['ratio'][is7135] = 0.04 # [ArIII]7135/Hbeta
+        line['ratio'][is7751] = line['ratio'][is7135]/self.ariiidoublet
+
+        # Normalize MgII
+        line['ratio'][is2800a] = 0.3 # MgII2796/Hbeta
+        line['ratio'][is2800a] = line['ratio'][is2800a]/self.mgiidoublet
+        
         ## Normalize [NeIII] 3869.
         #coeff = np.asarray([1.0876,-1.1647])
         #disp = 0.1 # dex
