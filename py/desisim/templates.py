@@ -123,7 +123,7 @@ class EMSpectrum(object):
         nline = len(line)
         line['flux'] = Column(np.ones(nline), dtype='f8')  # integrated line-flux
         line['amp'] = Column(np.ones(nline), dtype='f8')   # amplitude
-        self.line = line
+        self.line = line[np.argsort(line['wave'])]
 
         self.forbidmog = GaussianMixtureModel.load(forbidmogfile)
 
@@ -192,7 +192,10 @@ class EMSpectrum(object):
             FLUX [Angstrom, linear spacing];
             line is a Table of emission-line parameters used to generate
             the emission-line spectrum.
+
         """
+        from astropy.table import Table
+
         rand = np.random.RandomState(seed)
 
         line = self.line.copy()
@@ -285,20 +288,27 @@ class EMSpectrum(object):
                 line['flux'][ii] = hbetaflux*line['ratio'][ii]
 
         # Finally build the emission-line spectrum
-        log10sigma = linesigma/LIGHT/np.log(10) # line-width [log-10 Angstrom]
-        emspec = np.zeros(len(self.log10wave))
+        log10sigma = linesigma /LIGHT / np.log(10) # line-width [log-10 Angstrom]
+        emspec = np.zeros_like(self.log10wave)
 
-        for ii in range(len(line)):
-            amp = line['flux'][ii] / line['wave'][ii] / np.log(10) # line-amplitude [erg/s/cm2/A]
-            thislinewave = np.log10(line['wave'][ii] * (1.0+zshift))
-            line['amp'][ii] = amp / (np.sqrt(2.0 * np.pi) * log10sigma)  # [erg/s/A]
+        loglinewave = np.log10(line['wave'])
+        these = np.where( (loglinewave > self.log10wave.min()) *
+                          (loglinewave < self.log10wave.max()) )[0]
+        if len(these) > 0:
+            theseline = line[these]
+            for ii in range(len(theseline)):
+                amp = theseline['flux'][ii] / theseline['wave'][ii] / np.log(10) # line-amplitude [erg/s/cm2/A]
+                thislinewave = np.log10(theseline['wave'][ii] * (1.0 + zshift))
+                theseline['amp'][ii] = amp / (np.sqrt(2.0 * np.pi) * log10sigma)  # [erg/s/A]
 
-            # Construct the spectrum [erg/s/cm2/A, rest]
-            jj = np.abs(self.log10wave-thislinewave) < 6*log10sigma
-            emspec[jj] += amp * np.exp(-0.5 * (self.log10wave[jj]-thislinewave)**2 / log10sigma**2) \
-                          / (np.sqrt(2.0 * np.pi) * log10sigma)
+                # Construct the spectrum [erg/s/cm2/A, rest]
+                jj = np.abs( self.log10wave - thislinewave ) < 6 * log10sigma
+                emspec[jj] += amp * np.exp(-0.5 * (self.log10wave[jj]-thislinewave)**2 / log10sigma**2) \
+                              / (np.sqrt(2.0 * np.pi) * log10sigma)
+        else:
+            theseline = Table()
 
-        return emspec, 10**self.log10wave, line
+        return emspec, 10**self.log10wave, theseline
 
 class GALAXY(object):
     """Base class for generating Monte Carlo spectra of the various flavors of
