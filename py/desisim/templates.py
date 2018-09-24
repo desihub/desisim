@@ -423,7 +423,7 @@ class GALAXY(object):
 
         # Initialize the EMSpectrum object with the same wavelength array as
         # the "base" (continuum) templates so that we don't have to resample.
-         if self.normline is not None:
+        if self.normline is not None:
             if self.normline.upper() not in ('OII', 'HBETA'):
                 log.warning('Unrecognized normline input {}; setting to None.'.format(self.normline))
                 self.normline = None
