@@ -72,6 +72,7 @@ class EMSpectrum(object):
             [km/s, default 20].
         log10wave (numpy.ndarray, optional): Input/output wavelength array
             (log10-Angstrom, default None).
+        include_mgii (bool, optional): Include Mg II in emission (default False). 
 
     Attributes:
         log10wave (numpy.ndarray): Wavelength array constructed from the input arguments.
@@ -86,7 +87,9 @@ class EMSpectrum(object):
         IOError: If the required data files are not found.
 
     """
-    def __init__(self, minwave=3650.0, maxwave=7075.0, cdelt_kms=20.0, log10wave=None):
+    def __init__(self, minwave=3650.0, maxwave=7075.0, cdelt_kms=20.0, log10wave=None,
+                 include_mgii=False):
+
         from pkg_resources import resource_filename
         from astropy.table import Table, Column, vstack
         from desiutil.sklearn import GaussianMixtureModel
@@ -118,6 +121,11 @@ class EMSpectrum(object):
 
         recombdata = Table.read(recombfile, format='ascii.ecsv', guess=False)
         forbiddata = Table.read(forbidfile, format='ascii.ecsv', guess=False)
+        self.include_mgii = include_mgii
+        if not self.include_mgii:
+            forbiddata.remove_rows(np.where(forbiddata['name'] == 'MgII_2800a')[0])
+            forbiddata.remove_rows(np.where(forbiddata['name'] == 'MgII_2800b')[0])
+            
         line = vstack([recombdata,forbiddata], metadata_conflicts='silent')
 
         nline = len(line)
@@ -218,8 +226,6 @@ class EMSpectrum(object):
         is9069 = np.where(line['name'] == '[SIII]_9069')[0]
         is7135 = np.where(line['name'] == '[ArIII]_7135')[0]
         is7751 = np.where(line['name'] == '[ArIII]_7751')[0]
-        is2800a = np.where(line['name'] == 'MgII_2800a')[0]
-        is2800b = np.where(line['name'] == 'MgII_2800b')[0]
 
         # Draw from the MoGs for forbidden lines.
         if oiiihbeta is None or oiihbeta is None or niihbeta is None or siihbeta is None:
@@ -253,8 +259,12 @@ class EMSpectrum(object):
         line['ratio'][is7751] = line['ratio'][is7135]/self.ariiidoublet
 
         # Normalize MgII
-        line['ratio'][is2800a] = 0.3 # MgII2796/Hbeta
-        line['ratio'][is2800a] = line['ratio'][is2800a]/self.mgiidoublet
+        if self.include_mgii:
+            is2800a = np.where(line['name'] == 'MgII_2800a')[0]
+            is2800b = np.where(line['name'] == 'MgII_2800b')[0]
+
+            line['ratio'][is2800a] = 0.3 # MgII2796/Hbeta
+            line['ratio'][is2800a] = line['ratio'][is2800a]/self.mgiidoublet
         
         ## Normalize [NeIII] 3869.
         #coeff = np.asarray([1.0876,-1.1647])
@@ -499,7 +509,7 @@ class GALAXY(object):
                               seed=None, redshift=None, mag=None, vdisp=None,
                               input_meta=None, input_snemeta=None, nocolorcuts=False,
                               nocontinuum=False, agnlike=False, novdisp=False, south=True,
-                              restframe=False, verbose=False):
+                              restframe=False, include_mgii=False, verbose=False):
         """Build Monte Carlo galaxy spectra/templates.
 
         This function chooses random subsets of the basis continuum spectra (for
@@ -586,6 +596,7 @@ class GALAXY(object):
           south (bool, optional): Apply "south" color-cuts using the DECaLS
             filter system, otherwise apply the "north" (MzLS+BASS) color-cuts.
             Defaults to True.
+          include_mgii (bool, optional): Include Mg II in emission (default False).  
           restframe (bool, optional): If True, return full resolution restframe
             templates instead of resampled observer frame.
           verbose (bool, optional): Be verbose!
@@ -746,7 +757,7 @@ class GALAXY(object):
             # Initialize the EMSpectrum object with the same wavelength array as
             # the "base" (continuum) templates so that we don't have to resample.
             from desisim.templates import EMSpectrum
-            EM = EMSpectrum(log10wave=np.log10(self.basewave))
+            EM = EMSpectrum(log10wave=np.log10(self.basewave), include_mgii=include_mgii)
 
         # Build each spectrum in turn.
         if restframe:
