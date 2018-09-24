@@ -326,10 +326,10 @@ class GALAXY(object):
 
     """
     def __init__(self, objtype='ELG', minwave=3600.0, maxwave=10000.0, cdelt=0.2,
-                 wave=None, add_SNeIa=False, colorcuts_function=None,
+                 wave=None, add_SNeIa=False, include_mgii=False, colorcuts_function=None,
                  normfilter_north='BASS-r', normfilter_south='decam2014-r',
-                 normline='OII', fracvdisp=(0.1, 40), baseflux=None, basewave=None,
-                 basemeta=None):
+                 normline='OII', fracvdisp=(0.1, 40), 
+                 baseflux=None, basewave=None, basemeta=None):
         """Read the appropriate basis continuum templates, filter profiles and
         initialize the output wavelength array.
 
@@ -369,6 +369,7 @@ class GALAXY(object):
             GALAXY.make_galaxy_templates, below.
           add_SNeIa (boolean, optional): optionally include a random-epoch SNe
             Ia spectrum in the integrated spectrum (default False).
+          include_mgii (bool, optional): Include Mg II in emission (default False).  
 
         Attributes:
           wave (numpy.ndarray): Output wavelength array (Angstrom).
@@ -405,11 +406,6 @@ class GALAXY(object):
         self.normfilter_south = normfilter_south
         self.normline = normline
 
-        if self.normline is not None:
-            if self.normline.upper() not in ('OII', 'HBETA'):
-                log.warning('Unrecognized normline input {}; setting to None.'.format(self.normline))
-                self.normline = None
-
         # Initialize the output wavelength array (linear spacing) unless it is
         # already provided.
         if wave is None:
@@ -424,6 +420,15 @@ class GALAXY(object):
         self.baseflux = baseflux
         self.basewave = basewave
         self.basemeta = basemeta
+
+        # Initialize the EMSpectrum object with the same wavelength array as
+        # the "base" (continuum) templates so that we don't have to resample.
+         if self.normline is not None:
+            if self.normline.upper() not in ('OII', 'HBETA'):
+                log.warning('Unrecognized normline input {}; setting to None.'.format(self.normline))
+                self.normline = None
+
+            self.EM = EMSpectrum(log10wave=np.log10(self.basewave), include_mgii=include_mgii)
 
         # Optionally read the SNe Ia basis templates and resample.
         self.add_SNeIa = add_SNeIa
@@ -495,7 +500,7 @@ class GALAXY(object):
 
         # Sample from the MoG.  This is not strictly correct because it ignores
         # the prior on [OIII]/Hbeta, but let's revisit that later.
-        samp = EMSpectrum().forbidmog.sample(nobj, random_state=rand)
+        samp = self.EM.forbidmog.sample(nobj, random_state=rand)
         oiiihbeta = samp[:, 0]
         oiihbeta = samp[:, 1]
         niihbeta = samp[:, 2]
@@ -509,7 +514,7 @@ class GALAXY(object):
                               seed=None, redshift=None, mag=None, vdisp=None,
                               input_meta=None, input_snemeta=None, nocolorcuts=False,
                               nocontinuum=False, agnlike=False, novdisp=False, south=True,
-                              restframe=False, include_mgii=False, verbose=False):
+                              restframe=False, verbose=False):
         """Build Monte Carlo galaxy spectra/templates.
 
         This function chooses random subsets of the basis continuum spectra (for
@@ -596,7 +601,6 @@ class GALAXY(object):
           south (bool, optional): Apply "south" color-cuts using the DECaLS
             filter system, otherwise apply the "north" (MzLS+BASS) color-cuts.
             Defaults to True.
-          include_mgii (bool, optional): Include Mg II in emission (default False).  
           restframe (bool, optional): If True, return full resolution restframe
             templates instead of resampled observer frame.
           verbose (bool, optional): Be verbose!
@@ -753,12 +757,6 @@ class GALAXY(object):
         # Optionally initialize the emission-line objects and line-ratios.
         d4000 = self.basemeta['D4000']
 
-        if self.normline is not None:
-            # Initialize the EMSpectrum object with the same wavelength array as
-            # the "base" (continuum) templates so that we don't have to resample.
-            from desisim.templates import EMSpectrum
-            EM = EMSpectrum(log10wave=np.log10(self.basewave), include_mgii=include_mgii)
-
         # Build each spectrum in turn.
         if restframe:
             outflux = np.zeros([nmodel, len(self.basewave)])
@@ -791,10 +789,10 @@ class GALAXY(object):
                                    templaterand.normal(0.0, 0.3, nbase))
                     normlineflux = self.basemeta['OII_CONTINUUM'].data * ewoii
 
-                    emflux, emwave, emline = EM.spectrum(linesigma=vdisp[ii], seed=templateseed[ii],
-                                                         oiidoublet=oiidoublet, oiiihbeta=oiiihbeta,
-                                                         oiihbeta=oiihbeta, niihbeta=niihbeta,
-                                                         siihbeta=siihbeta, oiiflux=1.0)
+                    emflux, emwave, emline = self.EM.spectrum(linesigma=vdisp[ii], seed=templateseed[ii],
+                                                              oiidoublet=oiidoublet, oiiihbeta=oiiihbeta,
+                                                              oiihbeta=oiihbeta, niihbeta=niihbeta,
+                                                              siihbeta=siihbeta, oiiflux=1.0)
 
                 elif self.normline.upper() == 'HBETA':
                     ewhbeta = 10.0**(np.polyval(self.ewhbetacoeff, d4000) + \
@@ -802,10 +800,10 @@ class GALAXY(object):
                                      (self.basemeta['HBETA_LIMIT'].data == 0) # rest-frame H-beta, Angstrom
                     normlineflux = self.basemeta['HBETA_CONTINUUM'].data * ewhbeta
 
-                    emflux, emwave, emline = EM.spectrum(linesigma=vdisp[ii], seed=templateseed[ii],
-                                                         oiidoublet=oiidoublet, oiiihbeta=oiiihbeta,
-                                                         oiihbeta=oiihbeta, niihbeta=niihbeta,
-                                                         siihbeta=siihbeta, hbetaflux=1.0)
+                    emflux, emwave, emline = self.EM.spectrum(linesigma=vdisp[ii], seed=templateseed[ii],
+                                                              oiidoublet=oiidoublet, oiiihbeta=oiiihbeta,
+                                                              oiihbeta=oiihbeta, niihbeta=niihbeta,
+                                                              siihbeta=siihbeta, hbetaflux=1.0)
 
                 emflux /= (1+redshift[ii]) # [erg/s/cm2/A, @redshift[ii]]
 
@@ -935,7 +933,7 @@ class ELG(GALAXY):
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 add_SNeIa=False, colorcuts_function=None,
+                 add_SNeIa=False, include_mgii=False, colorcuts_function=None,
                  normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the ELG class.  See the GALAXY.__init__ method for documentation
@@ -962,7 +960,7 @@ class ELG(GALAXY):
                                   colorcuts_function=colorcuts_function,
                                   normfilter_north=normfilter_north, normfilter_south=normfilter_south,
                                   baseflux=baseflux, basewave=basewave, basemeta=basemeta,
-                                  add_SNeIa=add_SNeIa)
+                                  add_SNeIa=add_SNeIa, include_mgii=include_mgii)
 
         self.ewoiicoeff = [1.34323087, -5.02866474, 5.43842874]
 
@@ -1016,7 +1014,7 @@ class BGS(GALAXY):
     """Generate Monte Carlo spectra of bright galaxy survey galaxies (BGSs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 add_SNeIa=False, colorcuts_function=None,
+                 add_SNeIa=False, include_mgii=False, colorcuts_function=None,
                  normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the BGS class.  See the GALAXY.__init__ method for documentation
@@ -1045,7 +1043,7 @@ class BGS(GALAXY):
                                   colorcuts_function=colorcuts_function,
                                   normfilter_north=normfilter_north, normfilter_south=normfilter_south,
                                   baseflux=baseflux, basewave=basewave, basemeta=basemeta,
-                                  add_SNeIa=add_SNeIa)
+                                  add_SNeIa=add_SNeIa, include_mgii=include_mgii)
 
         self.ewhbetacoeff = [1.28520974, -4.94408026, 4.9617704]
 
