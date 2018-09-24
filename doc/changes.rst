@@ -5,6 +5,7 @@ desisim change log
 0.30.1 (unreleased)
 -------------------
 
+* Do not include Mg II emission by default (`PR #426`_).  
 * Add and adjust the nebular emission line spectra added to galaxy templates
   (`PR #424`_).  
 * Read and write `select_mock_targets` style `simspec` file (`PR #416`_). 
