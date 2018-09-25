@@ -5,7 +5,7 @@ desisim change log
 0.30.1 (unreleased)
 -------------------
 
-* Change ``electron`` to ``count`` for FITS compliance (`PR #500`_).
+* Change ``electron`` to ``count`` for FITS compliance (`PR #428`_).
 * Do not include Mg II emission by default (`PR #426`_).
 * Add and adjust the nebular emission line spectra added to galaxy templates
   (`PR #424`_).
@@ -22,7 +22,7 @@ desisim change log
 .. _`PR #416`: https://github.com/desihub/desisim/pull/416
 .. _`PR #424`: https://github.com/desihub/desisim/pull/424
 .. _`PR #426`: https://github.com/desihub/desisim/pull/426
-.. _`PR #500`: https://github.com/desihub/desisim/pull/500
+.. _`PR #428`: https://github.com/desihub/desisim/pull/428
 
 0.30.0 (2018-08-09)
 -------------------
