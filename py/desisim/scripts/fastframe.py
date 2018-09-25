@@ -29,7 +29,7 @@ def parse(options=None):
     parser.add_argument("--cframe", action="store_true",
                         help="directly write cframe")
     parser.add_argument("--dwave", type=float, default=0.8, help="output wavelength step, in Angstrom")
-    
+
     if options is None:
         args = parser.parse_args()
     else:
@@ -45,7 +45,7 @@ def main(args=None):
 
     if isinstance(args, (list, tuple, type(None))):
         args = parse(args)
-    
+
     print('Reading files')
     simspec = desisim.io.read_simspec(args.simspec, readphot=False)
 
@@ -100,9 +100,9 @@ def main(args=None):
             phot = (results['num_source_electrons'] + \
                     results['num_sky_electrons'] + \
                     results['num_dark_electrons'] + \
-                    results['random_noise_electrons']).T        
+                    results['random_noise_electrons']).T
             ivar = 1.0 / results['variance_electrons'].T
-        
+
         R = Resolution(sim.instrument.cameras[i].get_output_resolution_matrix())
         Rdata = np.tile(R.data.T, nspec).T.reshape(
                         nspec, R.data.shape[0], R.data.shape[1])
@@ -122,17 +122,18 @@ def main(args=None):
             if args.cframe :
                 units = '1e-17 erg/(s cm2 Angstrom)'
             else :
-                #units = 'photon/bin'
-                
-                # we want to save electrons per angstrom and not electrons per bin
-                # to be consistent with the extraction code (specter.extract.ex2d)
-                units = 'electron/Angstrom'
+                #
+                # We want to save electrons per angstrom and not electrons per bin
+                # to be consistent with the extraction code (specter.extract.ex2d).
+                # And to be FITS-compliant, we call electrons "counts".
+                #
+                units = 'count/Angstrom'
                 dwave=np.gradient(wave)
                 xphot /= dwave
                 xivar *= dwave**2
-            
+
             meta['BUNIT']=units
-            
+
             frame = Frame(wave, xphot, xivar, resolution_data=Rdata[0:imax-imin],
                           spectrograph=spectro, fibermap=xfibermap, meta=meta)
             if args.cframe :
