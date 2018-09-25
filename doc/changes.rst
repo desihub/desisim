@@ -20,6 +20,7 @@ desisim change log
 .. _`PR #413`: https://github.com/desihub/desisim/pull/413
 .. _`PR #416`: https://github.com/desihub/desisim/pull/416
 .. _`PR #424`: https://github.com/desihub/desisim/pull/424
+.. _`PR #426`: https://github.com/desihub/desisim/pull/426
 
 0.30.0 (2018-08-09)
 -------------------
