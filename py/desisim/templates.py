@@ -1922,7 +1922,7 @@ class QSO():
         x = samplerand.uniform(0.0, 1.0, size=nsample)
         return coeff[np.interp(x, cdf, np.arange(0, len(coeff), 1)).astype('int')]
 
-    def make_templates(self, nmodel=100, zrange=(0.5, 4.0), magrange=(20.0, 22.5),
+    def make_templates(self, nmodel=100, zrange=(0.5, 4.0), magrange=(17.0, 22.7),
                        seed=None, redshift=None, mag=None, input_meta=None, N_perz=40, 
                        maxiter=20, uniform=False, balprob=0.12, lyaforest=True,
                        noresample=False, nocolorcuts=False, south=True, verbose=False):
@@ -1949,7 +1949,7 @@ class QSO():
           magrange (float, optional): Minimum and maximum magnitude in the
             bandpass specified by self.normfilter_south (if south=True) or
             self.normfilter_north (if south=False). Defaults to a uniform
-            distribution between (20, 22.5).
+            distribution between (17, 22.7).
           seed (int, optional): input seed for the random numbers.
           redshift (float, optional): Input/output template redshifts.  Array
             size must equal nmodel.  Ignores zrange input.
@@ -2555,7 +2555,7 @@ class SIMQSO():
             
         return outflux, meta, objmeta, qsometa
 
-    def make_templates(self, nmodel=100, zrange=(0.5, 4.0), magrange=(19.0, 22.5),
+    def make_templates(self, nmodel=100, zrange=(0.5, 4.0), magrange=(17.0, 22.7),
                        seed=None, redshift=None, mag=None, maxiter=20,
                        input_qsometa=None, qsometa_extname='QSOMETA', return_qsometa=False, 
                        lyaforest=True, nocolorcuts=False, noresample=False,
@@ -2588,7 +2588,7 @@ class SIMQSO():
           magrange (float, optional): Minimum and maximum magnitude in the
             bandpass specified by self.normfilter_south (if south=True) or
             self.normfilter_north (if south=False). Defaults to a uniform
-            distribution between (19, 23).
+            distribution between (17, 22.7).
           seed (int, optional): input seed for the random numbers.
           redshift (float, optional): Input/output template redshifts.  Array
             size must equal nmodel.  Ignores zrange input.
