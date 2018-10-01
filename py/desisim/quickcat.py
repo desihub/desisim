@@ -161,7 +161,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
     n = len(targetid)
 
     try:
-        if 'DECAM_FLUX' in targets.colnames:
+        if 'DECAM_FLUX' in targets.dtype.names :
             true_gflux = targets['DECAM_FLUX'][:, 1]
             true_rflux = targets['DECAM_FLUX'][:, 2]
         else:
@@ -170,7 +170,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
     except:
         raise Exception('Missing photometry needed to estimate redshift efficiency!')
 
-    if (obsconditions is None) and (truth['OIIFLUX'] not in truth.colnames):
+    if (obsconditions is None) and (truth['OIIFLUX'] not in truth.dtype.names):
         raise Exception('Missing obsconditions and flux information to estimate redshift efficiency')
 
     if (simtype == 'ELG'):
@@ -343,7 +343,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
     targetid = truth['TARGETID']
 
     try:
-        if 'DECAM_FLUX' in targets.colnames:
+        if 'DECAM_FLUX' in targets.dtype.names :
             true_gflux = targets['DECAM_FLUX'][:, 1]
             true_rflux = targets['DECAM_FLUX'][:, 2]
         else:
