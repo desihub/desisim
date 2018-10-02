@@ -5,6 +5,8 @@ desisim change log
 0.30.1 (unreleased)
 -------------------
 
+* Add and adjust the nebular emission line spectra added to galaxy templates
+  (`PR #424`_).  
 * Read and write `select_mock_targets` style `simspec` file (`PR #416`_). 
 * Restore `quickquasars` to a functioning state, after being broken in `PR #409`_ (`PR #413`_). 
 * Add optional `nside` and `overwrite` arguments to `wrap-newexp` and
@@ -16,6 +18,7 @@ desisim change log
 .. _`PR #412`: https://github.com/desihub/desisim/pull/412
 .. _`PR #413`: https://github.com/desihub/desisim/pull/413
 .. _`PR #416`: https://github.com/desihub/desisim/pull/416
+.. _`PR #424`: https://github.com/desihub/desisim/pull/424
 
 0.30.0 (2018-08-09)
 -------------------

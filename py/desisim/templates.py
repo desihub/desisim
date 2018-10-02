@@ -123,12 +123,16 @@ class EMSpectrum(object):
         nline = len(line)
         line['flux'] = Column(np.ones(nline), dtype='f8')  # integrated line-flux
         line['amp'] = Column(np.ones(nline), dtype='f8')   # amplitude
-        self.line = line
+        self.line = line[np.argsort(line['wave'])]
 
         self.forbidmog = GaussianMixtureModel.load(forbidmogfile)
 
-        self.oiiidoublet = 2.8875
-        self.niidoublet = 2.93579
+        self.oiiidoublet = 2.8875   # [OIII] 5007/4959
+        self.niidoublet = 2.93579   # [NII] 6584/6548
+        self.oidoublet = 3.03502    # [OI] 6300/6363
+        self.siiidoublet = 2.4686   # [SIII] 9532/9069
+        self.ariiidoublet = 4.16988 # [ArIII] 7135/7751
+        self.mgiidoublet = 1.0      # MgII 2803/2796
 
     def spectrum(self, oiiihbeta=None, oiihbeta=None, niihbeta=None,
                  siihbeta=None, oiidoublet=0.73, siidoublet=1.3,
@@ -188,7 +192,10 @@ class EMSpectrum(object):
             FLUX [Angstrom, linear spacing];
             line is a Table of emission-line parameters used to generate
             the emission-line spectrum.
+
         """
+        from astropy.table import Table
+
         rand = np.random.RandomState(seed)
 
         line = self.line.copy()
@@ -204,6 +211,15 @@ class EMSpectrum(object):
         #is3869 = np.where(line['name'] == '[NeIII]_3869')[0]
         is3726 = np.where(line['name'] == '[OII]_3726')[0]
         is3729 = np.where(line['name'] == '[OII]_3729')[0]
+
+        is6300 = np.where(line['name'] == '[OI]_6300')[0]
+        is6363 = np.where(line['name'] == '[OI]_6363')[0]
+        is9532 = np.where(line['name'] == '[SIII]_9532')[0]
+        is9069 = np.where(line['name'] == '[SIII]_9069')[0]
+        is7135 = np.where(line['name'] == '[ArIII]_7135')[0]
+        is7751 = np.where(line['name'] == '[ArIII]_7751')[0]
+        is2800a = np.where(line['name'] == 'MgII_2800a')[0]
+        is2800b = np.where(line['name'] == 'MgII_2800b')[0]
 
         # Draw from the MoGs for forbidden lines.
         if oiiihbeta is None or oiihbeta is None or niihbeta is None or siihbeta is None:
@@ -222,6 +238,24 @@ class EMSpectrum(object):
         line['ratio'][is6716] = 10**siihbeta # [SII]/Hbeta
         line['ratio'][is6731] = line['ratio'][is6716]/siidoublet
 
+        # Hack! For the following lines use constant ratios relative to H-beta--
+
+        # Normalize [OI]
+        line['ratio'][is6300] = 0.1 # [OI]6300/Hbeta
+        line['ratio'][is6363] = line['ratio'][is6300]/self.oidoublet 
+
+        # Normalize [SIII]
+        line['ratio'][is9532] = 0.75 # [SIII]9532/Hbeta
+        line['ratio'][is9069] = line['ratio'][is9532]/self.siiidoublet
+        
+        # Normalize [ArIII]
+        line['ratio'][is7135] = 0.04 # [ArIII]7135/Hbeta
+        line['ratio'][is7751] = line['ratio'][is7135]/self.ariiidoublet
+
+        # Normalize MgII
+        line['ratio'][is2800a] = 0.3 # MgII2796/Hbeta
+        line['ratio'][is2800a] = line['ratio'][is2800a]/self.mgiidoublet
+        
         ## Normalize [NeIII] 3869.
         #coeff = np.asarray([1.0876,-1.1647])
         #disp = 0.1 # dex
@@ -254,20 +288,27 @@ class EMSpectrum(object):
                 line['flux'][ii] = hbetaflux*line['ratio'][ii]
 
         # Finally build the emission-line spectrum
-        log10sigma = linesigma/LIGHT/np.log(10) # line-width [log-10 Angstrom]
-        emspec = np.zeros(len(self.log10wave))
+        log10sigma = linesigma /LIGHT / np.log(10) # line-width [log-10 Angstrom]
+        emspec = np.zeros_like(self.log10wave)
 
-        for ii in range(len(line)):
-            amp = line['flux'][ii] / line['wave'][ii] / np.log(10) # line-amplitude [erg/s/cm2/A]
-            thislinewave = np.log10(line['wave'][ii] * (1.0+zshift))
-            line['amp'][ii] = amp / (np.sqrt(2.0 * np.pi) * log10sigma)  # [erg/s/A]
+        loglinewave = np.log10(line['wave'])
+        these = np.where( (loglinewave > self.log10wave.min()) *
+                          (loglinewave < self.log10wave.max()) )[0]
+        if len(these) > 0:
+            theseline = line[these]
+            for ii in range(len(theseline)):
+                amp = theseline['flux'][ii] / theseline['wave'][ii] / np.log(10) # line-amplitude [erg/s/cm2/A]
+                thislinewave = np.log10(theseline['wave'][ii] * (1.0 + zshift))
+                theseline['amp'][ii] = amp / (np.sqrt(2.0 * np.pi) * log10sigma)  # [erg/s/A]
 
-            # Construct the spectrum [erg/s/cm2/A, rest]
-            jj = np.abs(self.log10wave-thislinewave) < 6*log10sigma
-            emspec[jj] += amp * np.exp(-0.5 * (self.log10wave[jj]-thislinewave)**2 / log10sigma**2) \
-                          / (np.sqrt(2.0 * np.pi) * log10sigma)
+                # Construct the spectrum [erg/s/cm2/A, rest]
+                jj = np.abs( self.log10wave - thislinewave ) < 6 * log10sigma
+                emspec[jj] += amp * np.exp(-0.5 * (self.log10wave[jj]-thislinewave)**2 / log10sigma**2) \
+                              / (np.sqrt(2.0 * np.pi) * log10sigma)
+        else:
+            theseline = Table()
 
-        return emspec, 10**self.log10wave, line
+        return emspec, 10**self.log10wave, theseline
 
 class GALAXY(object):
     """Base class for generating Monte Carlo spectra of the various flavors of

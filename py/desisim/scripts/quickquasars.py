@@ -461,7 +461,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         for these, filters in zip( (~bbflux['SOUTH'], bbflux['SOUTH']),
                                    (bassmzls_and_wise_filters, decam_and_wise_filters) ):
             if np.count_nonzero(these) > 0:
-                maggies = filters.get_ab_maggies(1e-17 * tmp_qso_flux, tmp_qso_wave)
+                maggies = filters.get_ab_maggies(1e-17 * tmp_qso_flux[these, :], tmp_qso_wave)
                 for band, filt in zip( bands, maggies.colnames ):
                     bbflux[band][these] = np.ma.getdata(1e9 * maggies[filt]) # nanomaggies
 
