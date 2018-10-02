@@ -443,7 +443,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         lstMetals = ''
         for m in args.metals: lstMetals += m+', '
         log.info("Apply metals: {}".format(lstMetals[:-2]))
-        tmp_qso_flux = apply_metals_transmission(tmp_qso_wave,tmp_qso_flux,
+        tmp_qso_flux = apply_metals_transmission(tmp_qso_wave,tmp_qso_flux,s
                             trans_wave,transmission,args.metals)
 
     # if requested, compute magnitudes and apply target selection.  Need to do
@@ -529,25 +529,19 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 ##Adedd to write the truth file, includen metadata for DLA's and BALs   
     log.info("Added FOG to redshift with sigma {} to zbest".format(args.sigma_kms_fog)) 
     dz_fog=(args.sigma_kms_fog/299792.458)*(1.+metadata['Z'])*np.random.normal(0,1,nqso)
-
     meta.rename_column('REDSHIFT','TRUEZ_noFOG')
     log.info('Writing a truth file  {}'.format(truth_filename))    
     meta.add_column(Column(metadata['Z_noRSD'],name='TRUEZ_noRSD'))
-    meta.add_column(Column(metadata['Z']+dz_fog,name='TRUEZ'))
-   
+    meta.add_column(Column(metadata['Z']+dz_fog,name='TRUEZ'))   
     hdu = pyfits.convenience.table_to_hdu(meta)
-
-    hdu.header['EXTNAME'] = 'TRUTH'
-    
+    hdu.header['EXTNAME'] = 'TRUTH'    
     hduqso=pyfits.convenience.table_to_hdu(qsometa)
     hduqso.header['EXTNAME'] = 'QSO_META'
-    hdulist=pyfits.HDUList([pyfits.PrimaryHDU(),hdu,hduqso])
-    
+    hdulist=pyfits.HDUList([pyfits.PrimaryHDU(),hdu,hduqso])    
     if args.dla:
        hdulist.append(hdu_dla)
     if args.balprob:
        hdulist.append(hdu_bal)
-
     hdulist.writeto(truth_filename, overwrite=True)
     hdulist.close()
 
@@ -571,8 +565,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             ('BRICKNAME', (str,8))]
         zbest = Table(np.zeros(nqso, dtype=columns))
         zbest["CHI2"][:]      = 0.
-
-        
         zbest["Z"]            = metadata['Z']+dz_fog
         zbest["ZERR"][:]      = 0.
 
@@ -581,16 +573,13 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
            sigma_zfit=(args.sigma_kms_zfit/299792.458)*(1.+metadata['Z'])
            zbest["Z"]+=sigma_zfit*np.random.normal(0,1,nqso)
            zbest["ZERR"]=sigma_zfit
-
         zbest["ZWARN"][:]     = 0
         zbest["SPECTYPE"][:]  = "QSO"
         zbest["SUBTYPE"][:]   = ""
         zbest["TARGETID"]     = fibermap["TARGETID"]
         zbest["DELTACHI2"][:] = 25.
-
         hzbest = pyfits.convenience.table_to_hdu(zbest); hzbest.name="ZBEST"
         hfmap  = pyfits.convenience.table_to_hdu(fibermap);  hfmap.name="FIBERMAP"
-
         hdulist =pyfits.HDUList([pyfits.PrimaryHDU(),hzbest,hfmap])
         hdulist.writeto(zbest_filename, overwrite=True)
         hdulist.close() # see if this helps with memory issue
