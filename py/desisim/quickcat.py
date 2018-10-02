@@ -4,14 +4,6 @@ desisim.quickcat
 
 Code for quickly generating an output zcatalog given fiber assignment tiles,
 a truth catalog, and optionally a previous zcatalog.
-
-The current redshift errors and ZWARN completeness are based upon Redmonster
-performance on the zdc1 training samples, documented by Govinda Dhungana at
-https://desi.lbl.gov/DocDB/cgi-bin/private/ShowDocument?docid=1657
-
-TODO:
-
-- Include magnitudes or [OII] flux as part of parameterizing results
 '''
 
 from __future__ import absolute_import, division, print_function
@@ -42,10 +34,10 @@ log = get_logger()
 #- /project/projectdirs/desi/datachallenge/redwood/spectro/redux/redwood/
 #- sigmav = c sigmaz / (1+z)
 _sigma_v = {
-    'ELG': 38.03,
-    'LRG': 67.38,
+#    'ELG': 38.03,
+#    'LRG': 67.38,
     'BGS': 37.70,
-    'QSO': 182.16,
+#    'QSO': 182.16,
     'STAR': 51.51,
     'WD':54.35,
     'SKY': 9999,      #- meaningless
@@ -53,9 +45,9 @@ _sigma_v = {
 }
 
 _zwarn_fraction = {
-    'ELG': 0.087,
-    'LRG': 0.007,
-    'QSO': 0.020,
+#    'ELG': 0.087,
+#    'LRG': 0.007,
+#    'QSO': 0.020,
     'BGS': 0.024,
     'STAR': 0.345,
     'WD':0.094,
@@ -64,9 +56,9 @@ _zwarn_fraction = {
 }
 
 _cata_fail_fraction = {
-    'ELG': 0.020,
-    'LRG': 0.002,
-    'QSO': 0.012,
+#    'ELG': 0.020,
+#    'LRG': 0.002,
+#    'QSO': 0.012,
     'BGS': 0.003,
     'STAR': 0.050,
     'WD':0.0,
@@ -404,96 +396,102 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions, param
         raise ValueError('Number of obsconditions {} != len(targets_in_tile) {}'.format(n_tiles, len(targets_in_tile)))
 
     for objtype in objtypes:
-        if objtype in _sigma_v.keys():
+
+        ii=(simtype==objtype)
+
+        ###################################
+        # redshift errors
+        ###################################
+        if objtype =='ELG' :
+
+            sigma         = params["ELG"]["UNCERTAINTY"]["SIGMA_17"]
+            powerlawindex = params["ELG"]["UNCERTAINTY"]["POWER_LAW_INDEX"]
+            oiiflux       = truth['OIIFLUX'][ii]*1e17
+            zerr[ii]      = sigma/(1.e-9+oiiflux**powerlawindex)*(1.+truez[ii])
+            zout[ii]     += np.random.normal(scale=zerr[ii])
+            
+            log.info("ELG sigma={:6.5f} index={:3.2f} median zerr={:6.5f}".format(sigma,powerlawindex,np.median(zerr[ii])))
+                
+        elif objtype == 'LRG' :
+
+            sigma         = params["LRG"]["UNCERTAINTY"]["SIGMA_17"]
+            powerlawindex = params["LRG"]["UNCERTAINTY"]["POWER_LAW_INDEX"]
+            
+            zerr[ii]  = sigma/(1.e-9+true_rflux[ii]**powerlawindex)*(1.+truez[ii])
+            zout[ii] += np.random.normal(scale=zerr[ii])
+                
+            log.info("LRG sigma={} index={} median zerr={}".format(sigma,powerlawindex,np.median(zerr[ii])))
+
+        elif objtype == 'QSO' :
+
+            zsplit = params['QSO_ZSPLIT']
+            sigma         = params["LOWZ_QSO"]["UNCERTAINTY"]["SIGMA_17"]
+            powerlawindex = params["LOWZ_QSO"]["UNCERTAINTY"]["POWER_LAW_INDEX"]                               
+            jj=ii&(truth['TRUEZ']<=zsplit)
+            zerr[jj]  = sigma/(1.e-9+(true_rflux[jj])**powerlawindex)*(1.+truez[jj])
+
+            log.info("LOWZ QSO sigma={} index={} median zerr={}".format(sigma,powerlawindex,np.median(zerr[jj])))
+            
+            sigma         = params["LYA_QSO"]["UNCERTAINTY"]["SIGMA_17"]
+            powerlawindex = params["LYA_QSO"]["UNCERTAINTY"]["POWER_LAW_INDEX"]
+            jj=ii&(truth['TRUEZ']>zsplit)
+            zerr[jj]  = sigma/(1.e-9+(true_rflux[jj])**powerlawindex)*(1.+truez[jj])
+            
+            log.info("LYA QSO sigma={} index={} median zerr={}".format(sigma,powerlawindex,np.median(zerr[jj])))
+            
+            zout[ii] += np.random.normal(scale=zerr[ii])
+        elif objtype in _sigma_v.keys() :
+
+            log.info("{} use constant sigmav = {} km/s".format(objtype,_sigma_v[objtype]))
             ii = (simtype == objtype)
-            n = np.count_nonzero(ii)
-
-            # Error model for ELGs
-            if (objtype =='ELG'):
-
-                sigma         = params["ELG"]["UNCERTAINTY"]["SIGMA_17"]
-                powerlawindex = params["ELG"]["UNCERTAINTY"]["POWER_LAW_INDEX"]
-                oiiflux       = truth['OIIFLUX'][ii]*1e17
-                zerr[ii]      = sigma/(1.e-9+oiiflux**powerlawindex)*(1.+truez[ii])
-                zout[ii]     += np.random.normal(scale=zerr[ii])
-
-                print("ELG sigma={} index={} median zerr={}".format(sigma,powerlawindex,np.median(zerr[ii])))
+            zerr[ii] = _sigma_v[objtype] * (1+truez[ii]) / c
+            zout[ii] += np.random.normal(scale=zerr[ii])
+        else :
+            log.info("{} no redshift error model, will use truth")
                 
-            # Error model for LRGs
-            elif (objtype == 'LRG'):
+        ###################################
+        # redshift efficiencies
+        ###################################
+        # Set ZWARN flags for some targets
+        # the redshift efficiency only sets warning, but does not impact
+        # the redshift value and its error.
+        was_observed, goodz_prob = get_redshift_efficiency(
+            objtype, targets[ii], truth[ii], targets_in_tile,
+            obsconditions=obsconditions,params=params,
+            ignore_obscondition=ignore_obscondition)
 
-                sigma         = params["LRG"]["UNCERTAINTY"]["SIGMA_17"]
-                powerlawindex = params["LRG"]["UNCERTAINTY"]["POWER_LAW_INDEX"]
-                
-                zerr[ii]  = sigma/(1.e-9+true_rflux[ii]**powerlawindex)*(1.+truez[ii])
-                zout[ii] += np.random.normal(scale=zerr[ii])
-                
-                print("LRG sigma={} index={} median zerr={}".format(sigma,powerlawindex,np.median(zerr[ii])))
+        n=np.sum(ii)
+        assert len(was_observed) == n
+        assert len(goodz_prob) == n
+        r = np.random.random(len(was_observed))
+        zwarn[ii] = 4 * (r > goodz_prob) * was_observed
 
-            # Error model for QSOs
-            elif (objtype == 'QSO'):
+        ###################################
+        # catastrophic failures
+        ###################################
 
-                zsplit = params['QSO_ZSPLIT']
-                
-                sigma         = params["LOWZ_QSO"]["UNCERTAINTY"]["SIGMA_17"]
-                powerlawindex = params["LOWZ_QSO"]["UNCERTAINTY"]["POWER_LAW_INDEX"]                               
-                jj=ii&(truth['TRUEZ']<=zsplit)
-                zerr[jj]  = sigma/(1.e-9+(true_rflux[jj])**powerlawindex)*(1.+truez[jj])
-
-                print("LOWZ QSO sigma={} index={} median zerr={} rms={} median(flux)={}".format(sigma,powerlawindex,np.median(zerr[jj]),np.std(zerr[jj]),np.median(true_rflux[jj])))
-                
-                sigma         = params["LYA_QSO"]["UNCERTAINTY"]["SIGMA_17"]
-                powerlawindex = params["LYA_QSO"]["UNCERTAINTY"]["POWER_LAW_INDEX"]
-                jj=ii&(truth['TRUEZ']>zsplit)
-                zerr[jj]  = sigma/(1.e-9+(true_rflux[jj])**powerlawindex)*(1.+truez[jj])
-
-                print("LYA QSO sigma={} index={} median zerr={} rms={}".format(sigma,powerlawindex,np.median(zerr[jj]),np.std(zerr[jj])))
-                
-                zout[ii] += np.random.normal(scale=zerr[ii])
-
-            else:
-                zerr[ii] = _sigma_v[objtype] * (1+truez[ii]) / c
-                zout[ii] += np.random.normal(scale=zerr[ii])
-
-            # Set ZWARN flags for some targets
-            # the redshift efficiency only sets warning, but does not impact
-            # the redshift value and its error.
-            was_observed, goodz_prob = get_redshift_efficiency(
-                objtype, targets[ii], truth[ii], targets_in_tile,
-                obsconditions=obsconditions,params=params,
-                ignore_obscondition=ignore_obscondition)
-
-            assert len(was_observed) == n
-            assert len(goodz_prob) == n
-            r = np.random.random(len(was_observed))
-            zwarn[ii] = 4 * (r > goodz_prob) * was_observed
-
-            # Add fraction of catastrophic failures (zwarn=0 but wrong z)
-            nzwarnzero = np.count_nonzero(zwarn[ii][was_observed] == 0)
-            num_cata = np.random.poisson(_cata_fail_fraction[objtype] * nzwarnzero)
-            
-            
-            if (objtype == 'ELG'): zlim=[0.6,1.7]
-            elif (objtype == 'LRG'): zlim=[0.5,1.1]
-            elif (objtype == 'QSO'): zlim=[0.5,3.5]
-            else: zlim=[0.,3.5]
-            if num_cata > 0:
-                #- tmp = boolean array for all targets, flagging only those
-                #- that are of this simtype and were observed this epoch
-                tmp = np.zeros(len(ii), dtype=bool)
-                tmp[ii] = was_observed
-                kk, = np.where((zwarn==0) & tmp)
-                index = np.random.choice(kk, size=num_cata, replace=False)
-                assert np.all(np.in1d(index, np.where(ii)[0]))
-                assert np.all(zwarn[index] == 0)
-
-                zout[index] = np.random.uniform(zlim[0],zlim[1],len(index))
-
-        else:
-            msg = 'No redshift efficiency model for {}; using true z\n'.format(objtype) + \
-                  'Known types are {}'.format(list(_sigma_v.keys()))
-            log.warning(msg)
-
+        
+        zlim=[0.,3.5]
+        cata_fail_fraction = np.zeros(n)
+        if objtype == "ELG" :
+            cata_fail_fraction[:] = params["ELG"]["FAILURE_RATE"]
+            zlim=[0.6,1.7]
+        elif objtype == "LRG" :
+            cata_fail_fraction[:] = params["LRG"]["FAILURE_RATE"]
+            zlim=[0.5,1.1]
+        elif objtype == "QSO" :
+            zsplit = params["QSO_ZSPLIT"]
+            cata_fail_fraction[truth['TRUEZ'][ii]<=zsplit] = params["LOWZ_QSO"]["FAILURE_RATE"]
+            cata_fail_fraction[truth['TRUEZ'][ii]>zsplit] = params["LYA_QSO"]["FAILURE_RATE"]
+            zlim=[0.5,3.5]
+        elif objtype in _cata_fail_fraction :
+            cata_fail_fraction[:] = _cata_fail_fraction[objtype]
+        
+        failed = (np.random.uniform(size=n)<cata_fail_fraction)&(zwarn[ii]==0)
+        failed_indices = np.where(ii)[0][failed]
+        log.info("{} n_failed/n_tot={}/{}={:4.3f}".format(objtype,failed_indices.size,n,failed_indices.size/float(n)))
+        zout[failed_indices] = np.random.uniform(zlim[0],zlim[1],failed_indices.size)
+        
     return zout, zerr, zwarn
 
 def get_median_obsconditions(tileids):
