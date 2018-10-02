@@ -193,11 +193,11 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     pixel, nside, hpxnest = get_healpix_info(ifilename)
 
     # using global seed (could be None) get seed for this particular pixel
-    #global_seed = args.seed
-    #seed = get_pixel_seed(pixel, nside, global_seed)
+    global_seed = args.seed
+    seed = get_pixel_seed(pixel, nside, global_seed)
     # use this seed to generate future random numbers
     seed=args.seed
-    np.random.seed(seed)
+    
 
     # get output file (we will write there spectra for this HEALPix pixel)
     ofilename = get_spectra_filename(args,nside,pixel)
@@ -530,10 +530,10 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     log.info("Added FOG to redshift with sigma {} to zbest".format(args.sigma_kms_fog)) 
     dz_fog=(args.sigma_kms_fog/299792.458)*(1.+metadata['Z'])*np.random.normal(0,1,nqso)
 
-    meta.rename_column('REDSHIFT','TRUEZ')
+    meta.rename_column('REDSHIFT','TRUEZ_noFOG')
     log.info('Writing a truth file  {}'.format(truth_filename))    
     meta.add_column(Column(metadata['Z_noRSD'],name='TRUEZ_noRSD'))
-    meta.add_column(Column(metadata['Z']+dz_fog,name='TRUEZ_wFOG'))
+    meta.add_column(Column(metadata['Z']+dz_fog,name='TRUEZ'))
    
     hdu = pyfits.convenience.table_to_hdu(meta)
 
@@ -578,9 +578,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
         if args.sigma_kms_zfit:
            log.info("Added zfit error with sigma {} to zbest".format(args.sigma_kms_zfit))
-           dz=(args.sigma_kms_zfit/299792.458)*(1.+metadata['Z'])*np.random.normal(0,1,nqso)
-           zbest["Z"]+=dz
-           zbest["ZERR"]+=dz
+           sigma_zfit=(args.sigma_kms_zfit/299792.458)*(1.+metadata['Z'])
+           zbest["Z"]+=sigma_zfit*np.random.normal(0,1,nqso)
+           zbest["ZERR"]+=sigma_zfit
 
         zbest["ZWARN"][:]     = 0
         zbest["SPECTYPE"][:]  = "QSO"
