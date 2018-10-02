@@ -196,7 +196,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     global_seed = args.seed
     seed = get_pixel_seed(pixel, nside, global_seed)
     # use this seed to generate future random numbers
-    seed=args.seed
+    np.random.seed(seed)
     
 
     # get output file (we will write there spectra for this HEALPix pixel)
@@ -580,7 +580,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
            log.info("Added zfit error with sigma {} to zbest".format(args.sigma_kms_zfit))
            sigma_zfit=(args.sigma_kms_zfit/299792.458)*(1.+metadata['Z'])
            zbest["Z"]+=sigma_zfit*np.random.normal(0,1,nqso)
-           zbest["ZERR"]+=sigma_zfit
+           zbest["ZERR"]=sigma_zfit
 
         zbest["ZWARN"][:]     = 0
         zbest["SPECTYPE"][:]  = "QSO"
