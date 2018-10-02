@@ -142,7 +142,7 @@ def get_zeff_obs(simtype, obsconditions):
     return pobs
 
 
-def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditions=None, parameter_filename=None):
+def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditions=None, parameter_filename=None, ignore_obscondition=False):
     """
     Simple model to get the redshift effiency from the observational conditions or observed magnitudes+redshuft
 
@@ -160,7 +160,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
            'MOONFRAC': array of moonfraction values on a tile.
            'SEEING': array of FWHM seeing during spectroscopic observation on a tile.
         parameter_filename: yaml file with quickcat parameters
-
+        ignore_obscondition: if True, no variation of efficiency with obs. conditions (adjustment of exposure time should correct for mean change of S/N)
     Returns:
         tuple of arrays (observed, p) both with same length as targets
 
@@ -259,7 +259,11 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
     #- be simultaneously fit instead of just taking whichever individual one
     #- succeeds.
 
-    zeff_obs = get_zeff_obs(simtype, obsconditions)
+    if ignore_obscondition :
+        ncond = len(np.atleast_1d(obsconditions['AIRMASS']))
+        zeff_obs = np.ones(ncond)
+    else :
+        zeff_obs = get_zeff_obs(simtype, obsconditions)
     pfail = np.ones(n)
     observed = np.zeros(n, dtype=bool)
 
@@ -333,7 +337,7 @@ def reverse_dictionary(a):
                 b[k].append(i[0])
     return b
 
-def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions, parameter_filename=None):
+def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions, parameter_filename=None, ignore_obscondition=False):
     """
     Returns observed z, zerr, zwarn arrays given true object types and redshifts
 
@@ -350,7 +354,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions, param
            'MOONFRAC': array of moonfraction values on a tile.
            'SEEING': array of FWHM seeing during spectroscopic observation on a tile.
         parameter_filename: yaml file with quickcat parameters
-
+        ignore_obscondition: if True, no variation of efficiency with obs. conditions (adjustment of exposure time should correct for mean change of S/N)
     Returns:
         tuple of (zout, zerr, zwarn)
     """
@@ -493,7 +497,8 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions, param
             # the redshift value and its error.
             was_observed, goodz_prob = get_redshift_efficiency(
                 objtype, targets[ii], truth[ii], targets_in_tile,
-                obsconditions=obsconditions,parameter_filename=parameter_filename)
+                obsconditions=obsconditions,parameter_filename=parameter_filename,
+                ignore_obscondition=ignore_obscondition)
 
             assert len(was_observed) == n
             assert len(goodz_prob) == n
@@ -503,9 +508,12 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions, param
             # Add fraction of catastrophic failures (zwarn=0 but wrong z)
             nzwarnzero = np.count_nonzero(zwarn[ii][was_observed] == 0)
             num_cata = np.random.poisson(_cata_fail_fraction[objtype] * nzwarnzero)
+            
+            
             if (objtype == 'ELG'): zlim=[0.6,1.7]
             elif (objtype == 'LRG'): zlim=[0.5,1.1]
             elif (objtype == 'QSO'): zlim=[0.5,3.5]
+            else: zlim=[0.,3.5]
             if num_cata > 0:
                 #- tmp = boolean array for all targets, flagging only those
                 #- that are of this simtype and were observed this epoch
