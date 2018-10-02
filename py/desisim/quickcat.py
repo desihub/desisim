@@ -17,6 +17,7 @@ TODO:
 from __future__ import absolute_import, division, print_function
 
 import os
+import yaml
 from collections import Counter
 from pkg_resources import resource_filename
 from time import asctime
@@ -101,30 +102,39 @@ def get_zeff_obs(simtype, obsconditions):
         log.warning('No model for how observing conditions impact {} redshift efficiency'.format(simtype))
         return np.ones(len(obsconditions))
 
+    ncond = len(np.atleast_1d(obsconditions['AIRMASS']))
+    
     # airmass
     v = obsconditions['AIRMASS'] - np.mean(obsconditions['AIRMASS'])
     pv  = p_v[0] + p_v[1] * v + p_v[2] * (v**2. - np.mean(v**2))
 
     # ebmv
-    w = obsconditions['EBMV'] - np.mean(obsconditions['EBMV'])
-    pw = p_w[0] + p_w[1] * w + p_w[2] * (w**2 - np.mean(w**2))
-
+    if 'EBMV' in obsconditions : 
+        w = obsconditions['EBMV'] - np.mean(obsconditions['EBMV'])
+        pw = p_w[0] + p_w[1] * w + p_w[2] * (w**2 - np.mean(w**2))
+    else :
+        pw = np.ones(ncond)
+    
     # seeing
     x = obsconditions['SEEING'] - np.mean(obsconditions['SEEING'])
     px = p_x[0] + p_x[1]*x + p_x[2] * (x**2 - np.mean(x**2))
 
     # transparency
-    y = obsconditions['LINTRANS'] - np.mean(obsconditions['LINTRANS'])
-    py = p_y[0] + p_y[1]*y + p_y[2] * (y**2 - np.mean(y**2))
-
+    if 'LINTRANS' in obsconditions :
+        y = obsconditions['LINTRANS'] - np.mean(obsconditions['LINTRANS'])
+        py = p_y[0] + p_y[1]*y + p_y[2] * (y**2 - np.mean(y**2))
+    else :
+        py = np.ones(ncond)
+    
     # moon illumination fraction
     z = obsconditions['MOONFRAC'] - np.mean(obsconditions['MOONFRAC'])
     pz = p_z[0] + p_z[1]*z + p_z[2] * (z**2 - np.mean(z**2))
 
     #- if moon is down phase doesn't matter
+    pz = np.ones(ncond)
     pz[obsconditions['MOONALT'] < 0] = 1.0
 
-    pr = 1.0 + np.random.normal(size=len(z), scale=sigma_r)
+    pr = 1.0 + np.random.normal(size=ncond, scale=sigma_r)
 
     #- this correction factor can be greater than 1, but not less than 0
     pobs = (pv * pw * px * py * pz * pr).clip(min=0.0)
@@ -132,7 +142,7 @@ def get_zeff_obs(simtype, obsconditions):
     return pobs
 
 
-def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditions=None):
+def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditions=None, parameter_filename=None):
     """
     Simple model to get the redshift effiency from the observational conditions or observed magnitudes+redshuft
 
@@ -149,6 +159,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
            'LINTRANS': array of atmospheric transparency during spectro obs; floats [0-1]
            'MOONFRAC': array of moonfraction values on a tile.
            'SEEING': array of FWHM seeing during spectroscopic observation on a tile.
+        parameter_filename: yaml file with quickcat parameters
 
     Returns:
         tuple of arrays (observed, p) both with same length as targets
@@ -170,59 +181,64 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
     except:
         raise Exception('Missing photometry needed to estimate redshift efficiency!')
 
-    if (obsconditions is None) and (truth['OIIFLUX'] not in truth.dtype.names):
+    a_small_flux=1e-40
+    true_gflux[true_gflux<a_small_flux]=a_small_flux
+    true_rflux[true_rflux<a_small_flux]=a_small_flux
+    
+
+    
+    if (obsconditions is None) or ('OIIFLUX' not in truth.dtype.names):
         raise Exception('Missing obsconditions and flux information to estimate redshift efficiency')
 
+    if parameter_filename is None :
+        # Load efficiency parameters yaml file
+        parameter_filename = resource_filename('desisim', 'data/quickcat.yaml')
+    
+    params=None
+    with open(parameter_filename,"r") as file :
+        params = yaml.safe_load(file)
+        
+        
+    
     if (simtype == 'ELG'):
         # Read the model OII flux threshold (FDR fig 7.12 modified to fit redmonster efficiency on OAK)
-        filename = resource_filename('desisim', 'data/quickcat_elg_oii_flux_threshold.txt')
+        # filename = resource_filename('desisim', 'data/quickcat_elg_oii_flux_threshold.txt')
+        
+        # Read the model OII flux threshold (FDR fig 7.12)
+        filename = resource_filename('desisim', 'data/elg_oii_flux_threshold_fdr.txt')
         fdr_z, modified_fdr_oii_flux_threshold = np.loadtxt(filename, unpack=True)
-
-        # Get OIIflux from truth
-        true_oii_flux = truth['OIIFLUX']
-
+        
         # Compute OII flux thresholds for truez
-        oii_flux_threshold = np.interp(truth['TRUEZ'],fdr_z,modified_fdr_oii_flux_threshold)
-        assert (oii_flux_threshold.size == true_oii_flux.size),"oii_flux_threshold and true_oii_flux should have the same size"
-
+        oii_flux_limit = np.interp(truth['TRUEZ'],fdr_z,modified_fdr_oii_flux_threshold)
+        oii_flux_limit[oii_flux_limit<1e-20]=1e-20
+        
         # efficiency is modeled as a function of flux_OII/f_OII_threshold(z) and an arbitrary sigma_fudge
-        sigma_fudge = 1.0
-        max_efficiency = 1.0
-        simulated_eff = eff_model(true_oii_flux/oii_flux_threshold,sigma_fudge,max_efficiency)
+        
+        snr_in_lines       = params["ELG"]["EFFICIENCY"]["SNR_LINES_SCALE"]*7*truth['OIIFLUX']/oii_flux_limit
+        snr_in_continuum   = params["ELG"]["EFFICIENCY"]["SNR_CONTINUUM_SCALE"]*true_rflux
+        snr_tot            = np.sqrt(snr_in_lines**2+snr_in_continuum**2)
+        sigma_fudge        = params["ELG"]["EFFICIENCY"]["SIGMA_FUDGE"]
+        nsigma             = 3.
+        simulated_eff = eff_model(snr_tot,nsigma,sigma_fudge)
 
     elif(simtype == 'LRG'):
-        # Read the model rmag efficiency
-        filename = resource_filename('desisim', 'data/quickcat_lrg_rmag_eff.txt')
-        magr, magr_eff = np.loadtxt(filename, unpack=True)
-
-        # Get Rflux from truth
+        
+       
         r_mag = 22.5 - 2.5*np.log10(true_rflux)
-
-        mean_eff_mag=np.interp(r_mag,magr,magr_eff)
-        fudge=0.002
-        max_efficiency = 0.98
-        simulated_eff = max_efficiency*mean_eff_mag*(1.+fudge*np.random.normal(size=mean_eff_mag.size))
-        simulated_eff[np.where(simulated_eff>max_efficiency)]=max_efficiency
-
+        
+        sigmoid_cutoff = params["LRG"]["EFFICIENCY"]["SIGMOID_CUTOFF"]
+        sigmoid_fudge  = params["LRG"]["EFFICIENCY"]["SIGMOID_FUDGE"]
+        simulated_eff = 1./(1.+np.exp((r_mag-sigmoid_cutoff)/sigmoid_fudge))
+        print("for LRG, efficiency = sigmoid with sigmoid_cutoff =",sigmoid_cutoff,"sigmoid_fudge=",sigmoid_fudge)
+    
     elif(simtype == 'QSO'):
-        # Read the model gmag threshold
-        filename = resource_filename('desisim', 'data/quickcat_qso_gmag_threshold.txt')
-        zc, qso_gmag_threshold_vs_z = np.loadtxt(filename, unpack=True)
-
-        # Get Gflux from truth
-        true_gmag = 22.5 - 2.5 * np.log10(true_gflux) 
-            
-        # Computes QSO mag thresholds for truez
-        qso_gmag_threshold=np.interp(truth['TRUEZ'],zc,qso_gmag_threshold_vs_z)
-        assert (qso_gmag_threshold.size == true_gmag.size),"qso_gmag_threshold and true_gmag should have the same size"
-
-        # Computes G flux
-        qso_true_normed_flux = 10**(-0.4*(true_gmag-qso_gmag_threshold))
-
-        #model effificieny for QSO:
-        sigma_fudge = 0.5
-        max_efficiency = 0.95
-        simulated_eff = eff_model(qso_true_normed_flux,sigma_fudge,max_efficiency)
+        
+        r_mag = 22.5 - 2.5*np.log10(true_rflux) 
+                
+        sigmoid_cutoff = params["QSO"]["EFFICIENCY"]["SIGMOID_CUTOFF"]
+        sigmoid_fudge  = params["QSO"]["EFFICIENCY"]["SIGMOID_FUDGE"]
+        simulated_eff = 1./(1.+np.exp((r_mag-sigmoid_cutoff)/sigmoid_fudge))
+        print("for QSO, efficiency = sigmoid with sigmoid_cutoff =",sigmoid_cutoff,"sigmoid_fudge=",sigmoid_fudge)
 
     elif simtype == 'BGS':
         simulated_eff = 0.98 * np.ones(n)
@@ -289,8 +305,8 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
     return observed, simulated_eff
 
 # Efficiency model
-def eff_model(x, sigma, max_efficiency):
-    return 0.5*max_efficiency*(1.+sp.erf((x-1)/(np.sqrt(2.)*sigma)))
+def eff_model(x, nsigma, sigma, max_efficiency=1):
+    return 0.5*max_efficiency*(1.+sp.erf((x-nsigma)/(np.sqrt(2.)*sigma)))
 
 def reverse_dictionary(a):
     """Inverts a dictionary mapping.
@@ -317,7 +333,7 @@ def reverse_dictionary(a):
                 b[k].append(i[0])
     return b
 
-def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
+def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions, parameter_filename=None):
     """
     Returns observed z, zerr, zwarn arrays given true object types and redshifts
 
@@ -333,12 +349,14 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
            'LINTRANS': array of atmospheric transparency during spectro obs; floats [0-1]
            'MOONFRAC': array of moonfraction values on a tile.
            'SEEING': array of FWHM seeing during spectroscopic observation on a tile.
+        parameter_filename: yaml file with quickcat parameters
 
     Returns:
         tuple of (zout, zerr, zwarn)
     """
 
     simtype = get_simtype(np.char.strip(truth['TRUESPECTYPE']), targets['DESI_TARGET'], targets['BGS_TARGET'], targets['MWS_TARGET'])
+    #simtype = get_simtype(np.char.strip(truth['TEMPLATETYPE']), targets['DESI_TARGET'], targets['BGS_TARGET'], targets['MWS_TARGET'])
     truez = truth['TRUEZ']
     targetid = truth['TARGETID']
 
@@ -352,6 +370,10 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
     except:
         raise Exception('Missing photometry needed to estimate redshift efficiency!')
 
+    a_small_flux=1e-40
+    true_gflux[true_gflux<a_small_flux]=a_small_flux
+    true_rflux[true_rflux<a_small_flux]=a_small_flux
+    
     zout = truez.copy()
     zerr = np.zeros(len(truez), dtype=np.float32)
     zwarn = np.zeros(len(truez), dtype=np.int32)
@@ -471,7 +493,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
             # the redshift value and its error.
             was_observed, goodz_prob = get_redshift_efficiency(
                 objtype, targets[ii], truth[ii], targets_in_tile,
-                obsconditions=obsconditions)
+                obsconditions=obsconditions,parameter_filename=parameter_filename)
 
             assert len(was_observed) == n
             assert len(goodz_prob) == n
