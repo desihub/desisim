@@ -221,17 +221,31 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         sigmoid_cutoff = params["LRG"]["EFFICIENCY"]["SIGMOID_CUTOFF"]
         sigmoid_fudge  = params["LRG"]["EFFICIENCY"]["SIGMOID_FUDGE"]
         simulated_eff = 1./(1.+np.exp((r_mag-sigmoid_cutoff)/sigmoid_fudge))
+
         print("for LRG, efficiency = sigmoid with sigmoid_cutoff =",sigmoid_cutoff,"sigmoid_fudge=",sigmoid_fudge)
     
     elif(simtype == 'QSO'):
         
+        zsplit = params['QSO_ZSPLIT']
         r_mag = 22.5 - 2.5*np.log10(true_rflux) 
-                
-        sigmoid_cutoff = params["QSO"]["EFFICIENCY"]["SIGMOID_CUTOFF"]
-        sigmoid_fudge  = params["QSO"]["EFFICIENCY"]["SIGMOID_FUDGE"]
-        simulated_eff = 1./(1.+np.exp((r_mag-sigmoid_cutoff)/sigmoid_fudge))
-        print("for QSO, efficiency = sigmoid with sigmoid_cutoff =",sigmoid_cutoff,"sigmoid_fudge=",sigmoid_fudge)
+        simulated_eff = np.ones(r_mag.shape)
 
+        # lowz tracer qsos
+        sigmoid_cutoff = params["LOWZ_QSO"]["EFFICIENCY"]["SIGMOID_CUTOFF"]
+        sigmoid_fudge  = params["LOWZ_QSO"]["EFFICIENCY"]["SIGMOID_FUDGE"]
+        ii=(truth['TRUEZ']<=zsplit)
+        simulated_eff[ii] = 1./(1.+np.exp((r_mag[ii]-sigmoid_cutoff)/sigmoid_fudge))
+
+        print("for LOWZ_QSO, efficiency = sigmoid with sigmoid_cutoff =",sigmoid_cutoff,"sigmoid_fudge=",sigmoid_fudge)
+        
+        # highz lya qsos
+        sigmoid_cutoff = params["LYA_QSO"]["EFFICIENCY"]["SIGMOID_CUTOFF"]
+        sigmoid_fudge  = params["LYA_QSO"]["EFFICIENCY"]["SIGMOID_FUDGE"]
+        ii=(truth['TRUEZ']>zsplit)
+        simulated_eff[ii] = 1./(1.+np.exp((r_mag[ii]-sigmoid_cutoff)/sigmoid_fudge))
+
+        print("for LYA_QSO,    efficiency = sigmoid with sigmoid_cutoff =",sigmoid_cutoff,"sigmoid_fudge=",sigmoid_fudge)
+        
     elif simtype == 'BGS':
         simulated_eff = 0.98 * np.ones(n)
 
@@ -396,97 +410,45 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions, param
 
             # Error model for ELGs
             if (objtype =='ELG'):
-                filename = resource_filename('desisim', 'data/quickcat_elg_oii_errz.txt')
-                oii, errz_oii = np.loadtxt(filename, unpack=True)
-                try:
-                    true_oii_flux = truth['OIIFLUX'][ii]
-                except:
-                    raise Exception('Missing OII flux information to estimate redshift error for ELGs')
 
-                mean_err_oii = np.interp(true_oii_flux,oii,errz_oii)
-                zerr[ii] = mean_err_oii*(1.+truez[ii])
-                zout[ii] += np.random.normal(scale=zerr[ii])
+                sigma         = params["ELG"]["UNCERTAINTY"]["SIGMA_17"]
+                powerlawindex = params["ELG"]["UNCERTAINTY"]["POWER_LAW_INDEX"]
+                oiiflux       = truth['OIIFLUX'][ii]*1e17
+                zerr[ii]      = sigma/(1.e-9+oiiflux**powerlawindex)*(1.+truez[ii])
+                zout[ii]     += np.random.normal(scale=zerr[ii])
 
+                print("ELG sigma={} index={} median zerr={}".format(sigma,powerlawindex,np.median(zerr[ii])))
+                
             # Error model for LRGs
             elif (objtype == 'LRG'):
-                redbins=np.linspace(0.55,1.1,5)
-                mag = np.linspace(20.5,23.,50)
 
-                true_magr = 22.5 - 2.5 * np.log10(true_rflux)
-
-                coefs = [[9.46882282e-05,-1.87022383e-03],[6.14601021e-05,-1.17406643e-03],\
-                             [8.85342362e-05,-1.76079966e-03],[6.96202042e-05,-1.38632104e-03]]
-
-                '''
-                Coefs of linear fit of LRG zdc1 redmonster error as a function of Rmag in 4 bins of redshift: (z_low,coef0,coef1)
-                0.55 9.4688228224e-05 -0.00187022382514
-                0.6875 6.14601021052e-05 -0.00117406643273
-                0.825 8.85342361594e-05 -0.00176079966322
-                0.9625 6.96202042482e-05 -0.00138632103551
-                '''
-
-                # for each redshift bin, select the corresponding coefs
-                zerr_tmp = np.zeros(len(truez[ii]))
-                for i in range(redbins.size-1):
-                    index0, = np.where((truez[ii]>=redbins[i]) & (truez[ii]<redbins[i+1]))
-                    if (i==0):
-                        index1, = np.where(truez[ii]<redbins[0])
-                        index = np.concatenate((index0,index1))
-                    elif (i==(redbins.size-2)):
-                        index1, = np.where(truez[ii]>=redbins[-1])
-                        index = np.concatenate((index0,index1))
-                    else:
-                        index=index0
-
-                    # Find mean error at true mag
-                    pol = np.poly1d(coefs[i])
-                    mean_err_mag=np.interp(true_magr[index],mag,pol(mag))
-
-                    # Computes output error and redshift
-                    zerr_tmp[index] = mean_err_mag
-                zerr[ii]=zerr_tmp*(1.+truez[ii])
+                sigma         = params["LRG"]["UNCERTAINTY"]["SIGMA_17"]
+                powerlawindex = params["LRG"]["UNCERTAINTY"]["POWER_LAW_INDEX"]
+                
+                zerr[ii]  = sigma/(1.e-9+true_rflux[ii]**powerlawindex)*(1.+truez[ii])
                 zout[ii] += np.random.normal(scale=zerr[ii])
-
+                
+                print("LRG sigma={} index={} median zerr={}".format(sigma,powerlawindex,np.median(zerr[ii])))
 
             # Error model for QSOs
             elif (objtype == 'QSO'):
-                redbins = np.linspace(0.5,3.5,7)
-                mag = np.linspace(21.,23.,50)
 
-                true_magg = 22.5 - 2.5 * np.log10(true_gflux)
+                zsplit = params['QSO_ZSPLIT']
+                
+                sigma         = params["LOWZ_QSO"]["UNCERTAINTY"]["SIGMA_17"]
+                powerlawindex = params["LOWZ_QSO"]["UNCERTAINTY"]["POWER_LAW_INDEX"]                               
+                jj=ii&(truth['TRUEZ']<=zsplit)
+                zerr[jj]  = sigma/(1.e-9+(true_rflux[jj])**powerlawindex)*(1.+truez[jj])
 
-                coefs = [[0.000156950059747,-0.00320719603886],[0.000461779391179,-0.00924485142818],\
-                             [0.000458672517009,-0.0091254038977],[0.000461427968475,-0.00923812594293],\
-                             [0.000312919487343,-0.00618137905849],[0.000219438845624,-0.00423782927109]]
-                '''
-                Coefs of linear fit of QSO zdc1 redmonster error as a function of Gmag in 6 bins of redshift: (z_low,coef0,coef1)
-                0.5 0.000156950059747 -0.00320719603886
-                1.0 0.000461779391179 -0.00924485142818
-                1.5 0.000458672517009 -0.0091254038977
-                2.0 0.000461427968475 -0.00923812594293
-                2.5 0.000312919487343 -0.00618137905849
-                3.0 0.000219438845624 -0.00423782927109
-                '''
+                print("LOWZ QSO sigma={} index={} median zerr={} rms={} median(flux)={}".format(sigma,powerlawindex,np.median(zerr[jj]),np.std(zerr[jj]),np.median(true_rflux[jj])))
+                
+                sigma         = params["LYA_QSO"]["UNCERTAINTY"]["SIGMA_17"]
+                powerlawindex = params["LYA_QSO"]["UNCERTAINTY"]["POWER_LAW_INDEX"]
+                jj=ii&(truth['TRUEZ']>zsplit)
+                zerr[jj]  = sigma/(1.e-9+(true_rflux[jj])**powerlawindex)*(1.+truez[jj])
 
-                # for each redshift bin, select the corresponding coefs
-                zerr_tmp = np.zeros(len(truez[ii]))
-                for i in range(redbins.size-1):
-                    index0, = np.where((truez[ii]>=redbins[i]) & (truez[ii]<redbins[i+1]))
-                    if (i==0):
-                        index1, = np.where(truez[ii]<redbins[0])
-                        index = np.concatenate((index0,index1))
-                    elif (i==(redbins.size-2)):
-                        index1, = np.where(truez[ii]>=redbins[-1])
-                        index = np.concatenate((index0,index1))
-                    else:
-                        index=index0
-                    # Find mean error at true mag
-                    pol = np.poly1d(coefs[i])
-                    mean_err_mag=np.interp(true_magg[index],mag,pol(mag))
-
-                    # Computes output error and redshift
-                    zerr_tmp[index] = mean_err_mag
-                zerr[ii]=zerr_tmp*(1.+truez[ii])
+                print("LYA QSO sigma={} index={} median zerr={} rms={}".format(sigma,powerlawindex,np.median(zerr[jj]),np.std(zerr[jj])))
+                
                 zout[ii] += np.random.normal(scale=zerr[ii])
 
             else:
