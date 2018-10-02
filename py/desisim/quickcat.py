@@ -142,7 +142,7 @@ def get_zeff_obs(simtype, obsconditions):
     return pobs
 
 
-def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditions=None, parameter_filename=None, ignore_obscondition=False):
+def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditions, params, ignore_obscondition=False):
     """
     Simple model to get the redshift effiency from the observational conditions or observed magnitudes+redshuft
 
@@ -190,15 +190,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
     if (obsconditions is None) or ('OIIFLUX' not in truth.dtype.names):
         raise Exception('Missing obsconditions and flux information to estimate redshift efficiency')
 
-    if parameter_filename is None :
-        # Load efficiency parameters yaml file
-        parameter_filename = resource_filename('desisim', 'data/quickcat.yaml')
     
-    params=None
-    with open(parameter_filename,"r") as file :
-        params = yaml.safe_load(file)
-        
-        
     
     if (simtype == 'ELG'):
         # Read the model OII flux threshold (FDR fig 7.12 modified to fit redmonster efficiency on OAK)
@@ -358,7 +350,16 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions, param
     Returns:
         tuple of (zout, zerr, zwarn)
     """
-
+    
+    if parameter_filename is None :
+        # Load efficiency parameters yaml file
+        parameter_filename = resource_filename('desisim', 'data/quickcat.yaml')
+    
+    params=None
+    with open(parameter_filename,"r") as file :
+        params = yaml.safe_load(file)
+        
+    
     simtype = get_simtype(np.char.strip(truth['TRUESPECTYPE']), targets['DESI_TARGET'], targets['BGS_TARGET'], targets['MWS_TARGET'])
     #simtype = get_simtype(np.char.strip(truth['TEMPLATETYPE']), targets['DESI_TARGET'], targets['BGS_TARGET'], targets['MWS_TARGET'])
     truez = truth['TRUEZ']
@@ -497,7 +498,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions, param
             # the redshift value and its error.
             was_observed, goodz_prob = get_redshift_efficiency(
                 objtype, targets[ii], truth[ii], targets_in_tile,
-                obsconditions=obsconditions,parameter_filename=parameter_filename,
+                obsconditions=obsconditions,params=params,
                 ignore_obscondition=ignore_obscondition)
 
             assert len(was_observed) == n
