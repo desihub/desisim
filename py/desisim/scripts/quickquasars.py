@@ -57,11 +57,11 @@ def parse(options=None):
     parser.add_argument('--dwave', type=float, default=0.2,help="Internal wavelength step (don't change this)")
     parser.add_argument('--nproc', type=int, default=1,help="number of processors to run faster")
     
-    parser.add_argument('--zbest', action = "store_true",help="add a zbest file per spectrum either with the truth redshift or adding some error (use --sigma_kms_rsd and/or --sigma_kms_zfit)")
+    parser.add_argument('--zbest', action = "store_true",help="add a zbest file per spectrum either with the truth redshift or adding some error (optionally use it with --sigma_kms_fog and/or --sigma_kms_zfit)")
 
-    parser.add_argument('--sigma_kms_rsd',nargs='?',type=float,const=150, help="Adds a gaussian error to the quasar redshift thats simulate the fingers of god effect (default=150 km/s)")
+    parser.add_argument('--sigma_kms_fog',type=float,default=150, help="Adds a gaussian error to the quasar redshift that simulate the fingers of god effect")
 
-    parser.add_argument('--sigma_kms_zfit',type=float,help="Adds a gaussian error to the quasar redshift. This error could reflect things like peculiar velocities of the BH,outflows/orientation of the accretion disk/beam of quasar, and noise in spectrum that makes the identification of lines difficult. A suggested values is around 200 km/s, default is 0. ")
+    parser.add_argument('--sigma_kms_zfit',nargs='?',type=float,const=400,help="Adds a gaussian error to the quasar redshift, to simulate the redshift fitting step. E.g. --sigma_kms_zfit 200 will use a sigma value of 200 km/s. If a number is not specified the default is used.")
 
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
     parser.add_argument('--target-selection', action = "store_true" ,help="apply QSO target selection cuts to the simulated quasars")
@@ -193,9 +193,10 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     pixel, nside, hpxnest = get_healpix_info(ifilename)
 
     # using global seed (could be None) get seed for this particular pixel
-    global_seed = args.seed
-    seed = get_pixel_seed(pixel, nside, global_seed)
+    #global_seed = args.seed
+    #seed = get_pixel_seed(pixel, nside, global_seed)
     # use this seed to generate future random numbers
+    seed=args.seed
     np.random.seed(seed)
 
     # get output file (we will write there spectra for this HEALPix pixel)
@@ -525,11 +526,19 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                 meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False) # use Poisson = False to get reproducible results.
     
 
-##Adedd to write the truth file, includen metadata for DLA's and BALs    
+##Adedd to write the truth file, includen metadata for DLA's and BALs   
+    log.info("Added FOG to redshift with sigma {} to zbest".format(args.sigma_kms_fog)) 
+    dz_fog=(args.sigma_kms_fog/299792.458)*(1.+metadata['Z'])*np.random.normal(0,1,nqso)
+
     meta.rename_column('REDSHIFT','TRUEZ')
     log.info('Writing a truth file  {}'.format(truth_filename))    
+    meta.add_column(Column(metadata['Z_noRSD'],name='TRUEZ_noRSD'))
+    meta.add_column(Column(metadata['Z']+dz_fog,name='TRUEZ_wFOG'))
+   
     hdu = pyfits.convenience.table_to_hdu(meta)
+
     hdu.header['EXTNAME'] = 'TRUTH'
+    
     hduqso=pyfits.convenience.table_to_hdu(qsometa)
     hduqso.header['EXTNAME'] = 'QSO_META'
     hdulist=pyfits.HDUList([pyfits.PrimaryHDU(),hdu,hduqso])
@@ -545,7 +554,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
    
     
-    if args.zbest is not None :
+    if args.zbest :
         log.info("Read fibermap")
         fibermap = read_fibermap(ofilename)
         log.info("Writing a zbest file {}".format(zbest_filename))
@@ -562,20 +571,17 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             ('BRICKNAME', (str,8))]
         zbest = Table(np.zeros(nqso, dtype=columns))
         zbest["CHI2"][:]      = 0.
-        zbest["Z"]            = metadata['Z']
-        zbest["ZERR"][:]      = 0. 
-        if args.sigma_kms_rsd or args.sigma_kms_zfit:
-           sigma_rsd,sigma_fit = 0.,0.
-           if args.sigma_kms_rsd:
-              sigma_rsd=args.sigma_kms_rsd
-              log.info("Added RSD error with sigma {} to zbest".format(sigma_rsd))
-           if args.sigma_kms_zfit:
-              sigma_fit=args.sigma_kms_zfit
-              log.info("Added zfit error with sigma {} to zbest".format(sigma_fit))
-           sigma=np.sqrt(sigma_rsd*sigma_rsd+sigma_fit*sigma_fit)
-           dz=(sigma/299792.458)*(1.+metadata['Z'])*np.random.normal(0,1,nqso)
+
+        
+        zbest["Z"]            = metadata['Z']+dz_fog
+        zbest["ZERR"][:]      = 0.
+
+        if args.sigma_kms_zfit:
+           log.info("Added zfit error with sigma {} to zbest".format(args.sigma_kms_zfit))
+           dz=(args.sigma_kms_zfit/299792.458)*(1.+metadata['Z'])*np.random.normal(0,1,nqso)
            zbest["Z"]+=dz
            zbest["ZERR"]+=dz
+
         zbest["ZWARN"][:]     = 0
         zbest["SPECTYPE"][:]  = "QSO"
         zbest["SUBTYPE"][:]   = ""
@@ -660,8 +666,8 @@ def main(args=None):
         footprint_healpix_nside=256 # same resolution as original map so we don't loose anything
         footprint_healpix_weight = load_pixweight(footprint_healpix_nside, pixmap=pixmap)
 
-    if (args.sigma_kms_zfit or args.sigma_kms_rsd) and not args.zbest:
-       log.info("Setting --zbest to true as required by --sigma_kms_zfit or --sigma_kms_rsd")
+    if args.sigma_kms_zfit and not args.zbest:
+       log.info("Setting --zbest to true as required by --sigma_kms_zfit")
        args.zbest = True
 
 
