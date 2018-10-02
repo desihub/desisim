@@ -214,7 +214,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         sigmoid_fudge  = params["LRG"]["EFFICIENCY"]["SIGMOID_FUDGE"]
         simulated_eff = 1./(1.+np.exp((r_mag-sigmoid_cutoff)/sigmoid_fudge))
 
-        print("for LRG, efficiency = sigmoid with sigmoid_cutoff =",sigmoid_cutoff,"sigmoid_fudge=",sigmoid_fudge)
+        log.info("{} eff = sigmoid with cutoff = {:4.3f} fudge = {:4.3f}".format(simtype,sigmoid_cutoff,sigmoid_fudge))
     
     elif(simtype == 'QSO'):
         
@@ -227,16 +227,15 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         sigmoid_fudge  = params["LOWZ_QSO"]["EFFICIENCY"]["SIGMOID_FUDGE"]
         ii=(truth['TRUEZ']<=zsplit)
         simulated_eff[ii] = 1./(1.+np.exp((r_mag[ii]-sigmoid_cutoff)/sigmoid_fudge))
-
-        print("for LOWZ_QSO, efficiency = sigmoid with sigmoid_cutoff =",sigmoid_cutoff,"sigmoid_fudge=",sigmoid_fudge)
-        
+        log.info("{} eff = sigmoid with cutoff = {:4.3f} fudge = {:4.3f}".format("LOWZ QSO",sigmoid_cutoff,sigmoid_fudge))
+                
         # highz lya qsos
         sigmoid_cutoff = params["LYA_QSO"]["EFFICIENCY"]["SIGMOID_CUTOFF"]
         sigmoid_fudge  = params["LYA_QSO"]["EFFICIENCY"]["SIGMOID_FUDGE"]
         ii=(truth['TRUEZ']>zsplit)
         simulated_eff[ii] = 1./(1.+np.exp((r_mag[ii]-sigmoid_cutoff)/sigmoid_fudge))
 
-        print("for LYA_QSO,    efficiency = sigmoid with sigmoid_cutoff =",sigmoid_cutoff,"sigmoid_fudge=",sigmoid_fudge)
+        log.info("{} eff = sigmoid with cutoff = {:4.3f} fudge = {:4.3f}".format("LYA QSO",sigmoid_cutoff,sigmoid_fudge))
         
     elif simtype == 'BGS':
         simulated_eff = 0.98 * np.ones(n)
@@ -420,7 +419,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions, param
             zerr[ii]  = sigma/(1.e-9+true_rflux[ii]**powerlawindex)*(1.+truez[ii])
             zout[ii] += np.random.normal(scale=zerr[ii])
                 
-            log.info("LRG sigma={} index={} median zerr={}".format(sigma,powerlawindex,np.median(zerr[ii])))
+            log.info("LRG sigma={:6.5f} index={:3.2f} median zerr={:6.5f}".format(sigma,powerlawindex,np.median(zerr[ii])))
 
         elif objtype == 'QSO' :
 
@@ -430,14 +429,14 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions, param
             jj=ii&(truth['TRUEZ']<=zsplit)
             zerr[jj]  = sigma/(1.e-9+(true_rflux[jj])**powerlawindex)*(1.+truez[jj])
 
-            log.info("LOWZ QSO sigma={} index={} median zerr={}".format(sigma,powerlawindex,np.median(zerr[jj])))
+            log.info("LOWZ QSO sigma={:6.5f} index={:3.2f} median zerr={:6.5f}".format(sigma,powerlawindex,np.median(zerr[jj])))
             
             sigma         = params["LYA_QSO"]["UNCERTAINTY"]["SIGMA_17"]
             powerlawindex = params["LYA_QSO"]["UNCERTAINTY"]["POWER_LAW_INDEX"]
             jj=ii&(truth['TRUEZ']>zsplit)
             zerr[jj]  = sigma/(1.e-9+(true_rflux[jj])**powerlawindex)*(1.+truez[jj])
             
-            log.info("LYA QSO sigma={} index={} median zerr={}".format(sigma,powerlawindex,np.median(zerr[jj])))
+            log.info("LYA QSO sigma={:6.5f} index={:3.2f} median zerr={:6.5f}".format(sigma,powerlawindex,np.median(zerr[jj])))
             
             zout[ii] += np.random.normal(scale=zerr[ii])
         elif objtype in _sigma_v.keys() :
@@ -583,7 +582,7 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
         truth = Table(truth)
 
     #- Count how many times each target was observed for this set of tiles
-    print('{} QC Reading {} tiles'.format(asctime(), len(tilefiles)))
+    log.info('{} QC Reading {} tiles'.format(asctime(), len(tilefiles)))
     nobs = Counter()
     targets_in_tile = {}
     tileids = list()
@@ -627,14 +626,14 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
         assert np.all(tileids == obsconditions['TILEID'])
 
     #- Trim truth down to just ones that have already been observed
-    print('{} QC Trimming truth to just observed targets'.format(asctime()))
+    log.info('{} QC Trimming truth to just observed targets'.format(asctime()))
     obs_targetids = np.array(list(nobs.keys()))
     iiobs = np.in1d(truth['TARGETID'], obs_targetids)
     truth = truth[iiobs]
     targets = targets[iiobs]
 
     #- Construct initial new z catalog
-    print('{} QC Constructing new redshift catalog'.format(asctime()))
+    log.info('{} QC Constructing new redshift catalog'.format(asctime()))
     newzcat = Table()
     newzcat['TARGETID'] = truth['TARGETID']
     if 'BRICKNAME' in truth.dtype.names:
@@ -646,7 +645,7 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
     newzcat['SPECTYPE'] = truth['TRUESPECTYPE'].copy()
 
     #- Add ZERR and ZWARN
-    print('{} QC Adding ZERR and ZWARN'.format(asctime()))
+    log.info('{} QC Adding ZERR and ZWARN'.format(asctime()))
     nz = len(newzcat)
     if perfect:
         newzcat['Z'] = truth['TRUEZ'].copy()
@@ -664,13 +663,13 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
         newzcat['ZWARN'] = zwarn
 
     #- Add numobs column
-    print('{} QC Adding NUMOBS column'.format(asctime()))
+    log.info('{} QC Adding NUMOBS column'.format(asctime()))
     newzcat.add_column(Column(name='NUMOBS', length=nz, dtype=np.int32))
     for i in range(nz):
         newzcat['NUMOBS'][i] = nobs[newzcat['TARGETID'][i]]
 
     #- Merge previous zcat with newzcat
-    print('{} QC Merging previous zcat'.format(asctime()))
+    log.info('{} QC Merging previous zcat'.format(asctime()))
     if zcat is not None:
         #- don't modify original
         #- Note: this uses copy on write for the columns to be memory
@@ -710,5 +709,5 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
     #- Metadata for header
     newzcat.meta['EXTNAME'] = 'ZCATALOG'
 
-    print('{} QC done'.format(asctime()))
+    log.info('{} QC done'.format(asctime()))
     return newzcat
