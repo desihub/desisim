@@ -239,8 +239,14 @@ class SimSetup(object):
         print("{} Launching fiberassign".format(asctime()))
         f = open('fiberassign.log','a')
         
-        p = subprocess.call([self.fiberassign, '--mtl',  os.path.join(self.tmp_output_path, 'mtl.fits'),'--stdstar',  os.path.join(self.targets_path, 'standards-dark.fits'),  '--sky',  os.path.join(self.targets_path, 'sky.fits'), '--surveytiles',  os.path.join(self.tmp_output_path, 'survey_list.txt'),
- '--outdir',os.path.join(self.tmp_output_path, 'fiberassign')  , '--fibstatusfile',  '/global/cscratch1/sd/sjbailey/desi/code/desitest/mini/fiberstatus.ecsv'], stdout=f)
+        p = subprocess.call([self.fiberassign, 
+                             '--mtl',  os.path.join(self.tmp_output_path, 'mtl.fits'),
+                             '--stdstar',  os.path.join(self.targets_path, 'std.fits'),  
+                             '--sky',  os.path.join(self.targets_path, 'sky.fits'), 
+                             '--surveytiles',  os.path.join(self.tmp_output_path, 'survey_list.txt'),
+                             '--outdir',os.path.join(self.tmp_output_path, 'fiberassign'), 
+                             '--fibstatusfile',  os.path.join(self.targets_path,'fiberstatus.ecsv')], 
+                            stdout=f)
 
 
         print("{} Finished fiberassign".format(asctime()))
@@ -278,10 +284,11 @@ class SimSetup(object):
 
         print(truth.keys())
         #- Drop columns that aren't needed to save memory while manipulating
-        truth.remove_columns(['SEED', 'MAG', 'FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2', 'HBETAFLUX', 'TEFF', 'LOGG', 'FEH'])
-        targets.remove_columns([ 'SHAPEEXP_R', 'SHAPEEXP_E1', 'SHAPEEXP_E2', 'SHAPEDEV_R',
-                                 'SHAPEDEV_E1', 'SHAPEDEV_E2', 'PSFDEPTH_G', 'PSFDEPTH_R', 'PSFDEPTH_Z', 'GALDEPTH_G', 'GALDEPTH_R', 'GALDEPTH_Z',
-                                 'MW_TRANSMISSION_G','MW_TRANSMISSION_R','MW_TRANSMISSION_Z', 'MW_TRANSMISSION_W1', 'MW_TRANSMISSION_W2'])
+        # truth.remove_columns(['SEED', 'MAG', 'FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2', 'HBETAFLUX', 'TEFF', 'LOGG', 'FEH'])
+        # targets.remove_columns([ 'SHAPEEXP_R', 'SHAPEEXP_E1', 'SHAPEEXP_E2', 'SHAPEDEV_R',
+        #                         'SHAPEDEV_E1', 'SHAPEDEV_E2', 'PSFDEPTH_G', 'PSFDEPTH_R', 'PSFDEPTH_Z', 'GALDEPTH_G', 'GALDEPTH_R', 'GALDEPTH_Z',
+        #                         'MW_TRANSMISSION_G','MW_TRANSMISSION_R','MW_TRANSMISSION_Z', 'MW_TRANSMISSION_W1', 'MW_TRANSMISSION_W2'])
+
         gc.collect()
         if 'MOCKID' in truth.colnames:
             truth.remove_column('MOCKID')
