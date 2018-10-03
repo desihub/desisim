@@ -60,8 +60,11 @@ class SimSetup(object):
         self.tmp_output_path = os.path.join(self.output_path, 'tmp/')
         self.tmp_fiber_path = os.path.join(self.tmp_output_path, 'fiberassign/')
         self.surveyfile = os.path.join(self.tmp_output_path, 'survey_list.txt')
+        self.skyfile  = os.path.join(self.targets_path,'sky.fits')
+        self.stdfile  = os.path.join(self.targets_path,'std.fits')
         self.truthfile  = os.path.join(self.targets_path,'truth.fits')
         self.targetsfile = os.path.join(self.targets_path,'targets.fits')
+        self.fibstatusfile = os.path.join(self.targets_path,'fiberstatus.ecsv')
         self.zcat_file = None
         self.mtl_file = None
 
@@ -241,11 +244,11 @@ class SimSetup(object):
         
         p = subprocess.call([self.fiberassign, 
                              '--mtl',  os.path.join(self.tmp_output_path, 'mtl.fits'),
-                             '--stdstar',  os.path.join(self.targets_path, 'std.fits'),  
-                             '--sky',  os.path.join(self.targets_path, 'sky.fits'), 
-                             '--surveytiles',  os.path.join(self.tmp_output_path, 'survey_list.txt'),
+                             '--stdstar',  self.stdfile,  
+                             '--sky',  self.skyfile, 
+                             '--surveytiles',  self.surveyfile,
                              '--outdir',os.path.join(self.tmp_output_path, 'fiberassign'), 
-                             '--fibstatusfile',  os.path.join(self.targets_path,'fiberstatus.ecsv')], 
+                             '--fibstatusfile',  self.fibstatusfile], 
                             stdout=f)
 
 
@@ -260,7 +263,8 @@ class SimSetup(object):
 #        ii = np.in1d(progress_data['TILEID'], self.observed_tiles)
 #        obsconditions = progress_data[ii]
         obsconditions = None
-
+        print('tilefiles', len(self.tilefiles))
+        
         # write the zcat, it uses the tilesfiles constructed in the last step
         self.zcat_file = os.path.join(self.tmp_output_path, 'zcat.fits')
         print("{} starting quickcat".format(asctime()))
