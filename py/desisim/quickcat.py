@@ -37,36 +37,38 @@ from desitarget.targetmask import desi_mask, bgs_mask, mws_mask
 from desiutil.log import get_logger
 log = get_logger()
 
-#- redshift errors and zwarn fractions from DESI-1657
+#- redshift errors, zwarn, cata fail rate fractions from
+#- /project/projectdirs/desi/datachallenge/redwood/spectro/redux/redwood/
 #- sigmav = c sigmaz / (1+z)
 _sigma_v = {
-    'ELG': 19.,
-    'LRG': 40.,
-    'BGS': 13.,
-    'QSO': 423.,
-    'STAR': 18.,
+    'ELG': 38.03,
+    'LRG': 67.38,
+    'BGS': 37.70,
+    'QSO': 182.16,
+    'STAR': 51.51,
+    'WD':54.35,
     'SKY': 9999,      #- meaningless
     'UNKNOWN': 9999,  #- meaningless
 }
 
 _zwarn_fraction = {
-    'ELG': 0.14,       # 1 - 4303/5000
-    'LRG': 0.015,      # 1 - 4921/5000
-    'QSO': 0.18,       # 1 - 4094/5000
-    'BGS': 0.01,
-    'STAR': 0.05,
+    'ELG': 0.087,
+    'LRG': 0.007,
+    'QSO': 0.020,
+    'BGS': 0.024,
+    'STAR': 0.345,
+    'WD':0.094,
     'SKY': 1.0,
     'UNKNOWN': 1.0,
 }
 
-
 _cata_fail_fraction = {
-   # Catastrophic error fractions from redmonster on oak (ELG, LRG, QSO)
-    'ELG': 0.08,
-    'LRG': 0.013,
-    'QSO': 0.20,
-    'BGS': 0.,
-    'STAR': 0.,
+    'ELG': 0.020,
+    'LRG': 0.002,
+    'QSO': 0.012,
+    'BGS': 0.003,
+    'STAR': 0.050,
+    'WD':0.0,
     'SKY': 0.,
     'UNKNOWN': 0.,
 }
