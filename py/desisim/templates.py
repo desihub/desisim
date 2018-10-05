@@ -72,6 +72,7 @@ class EMSpectrum(object):
             [km/s, default 20].
         log10wave (numpy.ndarray, optional): Input/output wavelength array
             (log10-Angstrom, default None).
+        include_mgii (bool, optional): Include Mg II in emission (default False). 
 
     Attributes:
         log10wave (numpy.ndarray): Wavelength array constructed from the input arguments.
@@ -86,7 +87,9 @@ class EMSpectrum(object):
         IOError: If the required data files are not found.
 
     """
-    def __init__(self, minwave=3650.0, maxwave=7075.0, cdelt_kms=20.0, log10wave=None):
+    def __init__(self, minwave=3650.0, maxwave=7075.0, cdelt_kms=20.0, log10wave=None,
+                 include_mgii=False):
+
         from pkg_resources import resource_filename
         from astropy.table import Table, Column, vstack
         from desiutil.sklearn import GaussianMixtureModel
@@ -118,17 +121,26 @@ class EMSpectrum(object):
 
         recombdata = Table.read(recombfile, format='ascii.ecsv', guess=False)
         forbiddata = Table.read(forbidfile, format='ascii.ecsv', guess=False)
+        self.include_mgii = include_mgii
+        if not self.include_mgii:
+            forbiddata.remove_rows(np.where(forbiddata['name'] == 'MgII_2800a')[0])
+            forbiddata.remove_rows(np.where(forbiddata['name'] == 'MgII_2800b')[0])
+            
         line = vstack([recombdata,forbiddata], metadata_conflicts='silent')
 
         nline = len(line)
         line['flux'] = Column(np.ones(nline), dtype='f8')  # integrated line-flux
         line['amp'] = Column(np.ones(nline), dtype='f8')   # amplitude
-        self.line = line
+        self.line = line[np.argsort(line['wave'])]
 
         self.forbidmog = GaussianMixtureModel.load(forbidmogfile)
 
-        self.oiiidoublet = 2.8875
-        self.niidoublet = 2.93579
+        self.oiiidoublet = 2.8875   # [OIII] 5007/4959
+        self.niidoublet = 2.93579   # [NII] 6584/6548
+        self.oidoublet = 3.03502    # [OI] 6300/6363
+        self.siiidoublet = 2.4686   # [SIII] 9532/9069
+        self.ariiidoublet = 4.16988 # [ArIII] 7135/7751
+        self.mgiidoublet = 1.0      # MgII 2803/2796
 
     def spectrum(self, oiiihbeta=None, oiihbeta=None, niihbeta=None,
                  siihbeta=None, oiidoublet=0.73, siidoublet=1.3,
@@ -188,7 +200,10 @@ class EMSpectrum(object):
             FLUX [Angstrom, linear spacing];
             line is a Table of emission-line parameters used to generate
             the emission-line spectrum.
+
         """
+        from astropy.table import Table
+
         rand = np.random.RandomState(seed)
 
         line = self.line.copy()
@@ -204,6 +219,13 @@ class EMSpectrum(object):
         #is3869 = np.where(line['name'] == '[NeIII]_3869')[0]
         is3726 = np.where(line['name'] == '[OII]_3726')[0]
         is3729 = np.where(line['name'] == '[OII]_3729')[0]
+
+        is6300 = np.where(line['name'] == '[OI]_6300')[0]
+        is6363 = np.where(line['name'] == '[OI]_6363')[0]
+        is9532 = np.where(line['name'] == '[SIII]_9532')[0]
+        is9069 = np.where(line['name'] == '[SIII]_9069')[0]
+        is7135 = np.where(line['name'] == '[ArIII]_7135')[0]
+        is7751 = np.where(line['name'] == '[ArIII]_7751')[0]
 
         # Draw from the MoGs for forbidden lines.
         if oiiihbeta is None or oiihbeta is None or niihbeta is None or siihbeta is None:
@@ -222,6 +244,28 @@ class EMSpectrum(object):
         line['ratio'][is6716] = 10**siihbeta # [SII]/Hbeta
         line['ratio'][is6731] = line['ratio'][is6716]/siidoublet
 
+        # Hack! For the following lines use constant ratios relative to H-beta--
+
+        # Normalize [OI]
+        line['ratio'][is6300] = 0.1 # [OI]6300/Hbeta
+        line['ratio'][is6363] = line['ratio'][is6300]/self.oidoublet 
+
+        # Normalize [SIII]
+        line['ratio'][is9532] = 0.75 # [SIII]9532/Hbeta
+        line['ratio'][is9069] = line['ratio'][is9532]/self.siiidoublet
+        
+        # Normalize [ArIII]
+        line['ratio'][is7135] = 0.04 # [ArIII]7135/Hbeta
+        line['ratio'][is7751] = line['ratio'][is7135]/self.ariiidoublet
+
+        # Normalize MgII
+        if self.include_mgii:
+            is2800a = np.where(line['name'] == 'MgII_2800a')[0]
+            is2800b = np.where(line['name'] == 'MgII_2800b')[0]
+
+            line['ratio'][is2800a] = 0.3 # MgII2796/Hbeta
+            line['ratio'][is2800a] = line['ratio'][is2800a]/self.mgiidoublet
+        
         ## Normalize [NeIII] 3869.
         #coeff = np.asarray([1.0876,-1.1647])
         #disp = 0.1 # dex
@@ -254,20 +298,27 @@ class EMSpectrum(object):
                 line['flux'][ii] = hbetaflux*line['ratio'][ii]
 
         # Finally build the emission-line spectrum
-        log10sigma = linesigma/LIGHT/np.log(10) # line-width [log-10 Angstrom]
-        emspec = np.zeros(len(self.log10wave))
+        log10sigma = linesigma /LIGHT / np.log(10) # line-width [log-10 Angstrom]
+        emspec = np.zeros_like(self.log10wave)
 
-        for ii in range(len(line)):
-            amp = line['flux'][ii] / line['wave'][ii] / np.log(10) # line-amplitude [erg/s/cm2/A]
-            thislinewave = np.log10(line['wave'][ii] * (1.0+zshift))
-            line['amp'][ii] = amp / (np.sqrt(2.0 * np.pi) * log10sigma)  # [erg/s/A]
+        loglinewave = np.log10(line['wave'])
+        these = np.where( (loglinewave > self.log10wave.min()) *
+                          (loglinewave < self.log10wave.max()) )[0]
+        if len(these) > 0:
+            theseline = line[these]
+            for ii in range(len(theseline)):
+                amp = theseline['flux'][ii] / theseline['wave'][ii] / np.log(10) # line-amplitude [erg/s/cm2/A]
+                thislinewave = np.log10(theseline['wave'][ii] * (1.0 + zshift))
+                theseline['amp'][ii] = amp / (np.sqrt(2.0 * np.pi) * log10sigma)  # [erg/s/A]
 
-            # Construct the spectrum [erg/s/cm2/A, rest]
-            jj = np.abs(self.log10wave-thislinewave) < 6*log10sigma
-            emspec[jj] += amp * np.exp(-0.5 * (self.log10wave[jj]-thislinewave)**2 / log10sigma**2) \
-                          / (np.sqrt(2.0 * np.pi) * log10sigma)
+                # Construct the spectrum [erg/s/cm2/A, rest]
+                jj = np.abs( self.log10wave - thislinewave ) < 6 * log10sigma
+                emspec[jj] += amp * np.exp(-0.5 * (self.log10wave[jj]-thislinewave)**2 / log10sigma**2) \
+                              / (np.sqrt(2.0 * np.pi) * log10sigma)
+        else:
+            theseline = Table()
 
-        return emspec, 10**self.log10wave, line
+        return emspec, 10**self.log10wave, theseline
 
 class GALAXY(object):
     """Base class for generating Monte Carlo spectra of the various flavors of
@@ -275,10 +326,10 @@ class GALAXY(object):
 
     """
     def __init__(self, objtype='ELG', minwave=3600.0, maxwave=10000.0, cdelt=0.2,
-                 wave=None, add_SNeIa=False, colorcuts_function=None,
+                 wave=None, add_SNeIa=False, include_mgii=False, colorcuts_function=None,
                  normfilter_north='BASS-r', normfilter_south='decam2014-r',
-                 normline='OII', fracvdisp=(0.1, 40), baseflux=None, basewave=None,
-                 basemeta=None):
+                 normline='OII', fracvdisp=(0.1, 40), 
+                 baseflux=None, basewave=None, basemeta=None):
         """Read the appropriate basis continuum templates, filter profiles and
         initialize the output wavelength array.
 
@@ -318,6 +369,7 @@ class GALAXY(object):
             GALAXY.make_galaxy_templates, below.
           add_SNeIa (boolean, optional): optionally include a random-epoch SNe
             Ia spectrum in the integrated spectrum (default False).
+          include_mgii (bool, optional): Include Mg II in emission (default False).  
 
         Attributes:
           wave (numpy.ndarray): Output wavelength array (Angstrom).
@@ -354,11 +406,6 @@ class GALAXY(object):
         self.normfilter_south = normfilter_south
         self.normline = normline
 
-        if self.normline is not None:
-            if self.normline.upper() not in ('OII', 'HBETA'):
-                log.warning('Unrecognized normline input {}; setting to None.'.format(self.normline))
-                self.normline = None
-
         # Initialize the output wavelength array (linear spacing) unless it is
         # already provided.
         if wave is None:
@@ -373,6 +420,15 @@ class GALAXY(object):
         self.baseflux = baseflux
         self.basewave = basewave
         self.basemeta = basemeta
+
+        # Initialize the EMSpectrum object with the same wavelength array as
+        # the "base" (continuum) templates so that we don't have to resample.
+        if self.normline is not None:
+            if self.normline.upper() not in ('OII', 'HBETA'):
+                log.warning('Unrecognized normline input {}; setting to None.'.format(self.normline))
+                self.normline = None
+
+            self.EM = EMSpectrum(log10wave=np.log10(self.basewave), include_mgii=include_mgii)
 
         # Optionally read the SNe Ia basis templates and resample.
         self.add_SNeIa = add_SNeIa
@@ -444,7 +500,7 @@ class GALAXY(object):
 
         # Sample from the MoG.  This is not strictly correct because it ignores
         # the prior on [OIII]/Hbeta, but let's revisit that later.
-        samp = EMSpectrum().forbidmog.sample(nobj, random_state=rand)
+        samp = self.EM.forbidmog.sample(nobj, random_state=rand)
         oiiihbeta = samp[:, 0]
         oiihbeta = samp[:, 1]
         niihbeta = samp[:, 2]
@@ -701,12 +757,6 @@ class GALAXY(object):
         # Optionally initialize the emission-line objects and line-ratios.
         d4000 = self.basemeta['D4000']
 
-        if self.normline is not None:
-            # Initialize the EMSpectrum object with the same wavelength array as
-            # the "base" (continuum) templates so that we don't have to resample.
-            from desisim.templates import EMSpectrum
-            EM = EMSpectrum(log10wave=np.log10(self.basewave))
-
         # Build each spectrum in turn.
         if restframe:
             outflux = np.zeros([nmodel, len(self.basewave)])
@@ -739,10 +789,10 @@ class GALAXY(object):
                                    templaterand.normal(0.0, 0.3, nbase))
                     normlineflux = self.basemeta['OII_CONTINUUM'].data * ewoii
 
-                    emflux, emwave, emline = EM.spectrum(linesigma=vdisp[ii], seed=templateseed[ii],
-                                                         oiidoublet=oiidoublet, oiiihbeta=oiiihbeta,
-                                                         oiihbeta=oiihbeta, niihbeta=niihbeta,
-                                                         siihbeta=siihbeta, oiiflux=1.0)
+                    emflux, emwave, emline = self.EM.spectrum(linesigma=vdisp[ii], seed=templateseed[ii],
+                                                              oiidoublet=oiidoublet, oiiihbeta=oiiihbeta,
+                                                              oiihbeta=oiihbeta, niihbeta=niihbeta,
+                                                              siihbeta=siihbeta, oiiflux=1.0)
 
                 elif self.normline.upper() == 'HBETA':
                     ewhbeta = 10.0**(np.polyval(self.ewhbetacoeff, d4000) + \
@@ -750,10 +800,10 @@ class GALAXY(object):
                                      (self.basemeta['HBETA_LIMIT'].data == 0) # rest-frame H-beta, Angstrom
                     normlineflux = self.basemeta['HBETA_CONTINUUM'].data * ewhbeta
 
-                    emflux, emwave, emline = EM.spectrum(linesigma=vdisp[ii], seed=templateseed[ii],
-                                                         oiidoublet=oiidoublet, oiiihbeta=oiiihbeta,
-                                                         oiihbeta=oiihbeta, niihbeta=niihbeta,
-                                                         siihbeta=siihbeta, hbetaflux=1.0)
+                    emflux, emwave, emline = self.EM.spectrum(linesigma=vdisp[ii], seed=templateseed[ii],
+                                                              oiidoublet=oiidoublet, oiiihbeta=oiiihbeta,
+                                                              oiihbeta=oiihbeta, niihbeta=niihbeta,
+                                                              siihbeta=siihbeta, hbetaflux=1.0)
 
                 emflux /= (1+redshift[ii]) # [erg/s/cm2/A, @redshift[ii]]
 
@@ -883,7 +933,7 @@ class ELG(GALAXY):
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 add_SNeIa=False, colorcuts_function=None,
+                 add_SNeIa=False, include_mgii=False, colorcuts_function=None,
                  normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the ELG class.  See the GALAXY.__init__ method for documentation
@@ -910,7 +960,7 @@ class ELG(GALAXY):
                                   colorcuts_function=colorcuts_function,
                                   normfilter_north=normfilter_north, normfilter_south=normfilter_south,
                                   baseflux=baseflux, basewave=basewave, basemeta=basemeta,
-                                  add_SNeIa=add_SNeIa)
+                                  add_SNeIa=add_SNeIa, include_mgii=include_mgii)
 
         self.ewoiicoeff = [1.34323087, -5.02866474, 5.43842874]
 
@@ -964,7 +1014,7 @@ class BGS(GALAXY):
     """Generate Monte Carlo spectra of bright galaxy survey galaxies (BGSs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 add_SNeIa=False, colorcuts_function=None,
+                 add_SNeIa=False, include_mgii=False, colorcuts_function=None,
                  normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the BGS class.  See the GALAXY.__init__ method for documentation
@@ -993,7 +1043,7 @@ class BGS(GALAXY):
                                   colorcuts_function=colorcuts_function,
                                   normfilter_north=normfilter_north, normfilter_south=normfilter_south,
                                   baseflux=baseflux, basewave=basewave, basemeta=basemeta,
-                                  add_SNeIa=add_SNeIa)
+                                  add_SNeIa=add_SNeIa, include_mgii=include_mgii)
 
         self.ewhbetacoeff = [1.28520974, -4.94408026, 4.9617704]
 
@@ -1872,7 +1922,7 @@ class QSO():
         x = samplerand.uniform(0.0, 1.0, size=nsample)
         return coeff[np.interp(x, cdf, np.arange(0, len(coeff), 1)).astype('int')]
 
-    def make_templates(self, nmodel=100, zrange=(0.5, 4.0), magrange=(20.0, 22.5),
+    def make_templates(self, nmodel=100, zrange=(0.5, 4.0), magrange=(17.0, 22.7),
                        seed=None, redshift=None, mag=None, input_meta=None, N_perz=40, 
                        maxiter=20, uniform=False, balprob=0.12, lyaforest=True,
                        noresample=False, nocolorcuts=False, south=True, verbose=False):
@@ -1899,7 +1949,7 @@ class QSO():
           magrange (float, optional): Minimum and maximum magnitude in the
             bandpass specified by self.normfilter_south (if south=True) or
             self.normfilter_north (if south=False). Defaults to a uniform
-            distribution between (20, 22.5).
+            distribution between (17, 22.7).
           seed (int, optional): input seed for the random numbers.
           redshift (float, optional): Input/output template redshifts.  Array
             size must equal nmodel.  Ignores zrange input.
@@ -2505,7 +2555,7 @@ class SIMQSO():
             
         return outflux, meta, objmeta, qsometa
 
-    def make_templates(self, nmodel=100, zrange=(0.5, 4.0), magrange=(19.0, 22.5),
+    def make_templates(self, nmodel=100, zrange=(0.5, 4.0), magrange=(17.0, 22.7),
                        seed=None, redshift=None, mag=None, maxiter=20,
                        input_qsometa=None, qsometa_extname='QSOMETA', return_qsometa=False, 
                        lyaforest=True, nocolorcuts=False, noresample=False,
@@ -2538,7 +2588,7 @@ class SIMQSO():
           magrange (float, optional): Minimum and maximum magnitude in the
             bandpass specified by self.normfilter_south (if south=True) or
             self.normfilter_north (if south=False). Defaults to a uniform
-            distribution between (19, 23).
+            distribution between (17, 22.7).
           seed (int, optional): input seed for the random numbers.
           redshift (float, optional): Input/output template redshifts.  Array
             size must equal nmodel.  Ignores zrange input.
