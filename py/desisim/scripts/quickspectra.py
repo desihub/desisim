@@ -105,7 +105,7 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
                        ['NIGHT', 'EXPID', 'TILEID'],
                        [np.int32(night), np.int32(expid), np.int32(tileid)],
                        )
-           
+
     for s in range(nspec):
         for tp in frame_fibermap.dtype.fields:
             spectra_fibermap[s][tp] = frame_fibermap[s][tp]
