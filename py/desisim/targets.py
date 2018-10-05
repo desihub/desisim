@@ -46,8 +46,8 @@ def get_simtype(spectype, desi_target, bgs_target, mws_target):
 
     isGalaxy = (spectype == 'GALAXY')
     isQSO = (spectype == 'QSO')
-    isStar = (spectype == 'STAR')
-    isSky = (spectype == 'SKY')
+    isStar = (spectype == 'STAR') | (spectype == 'WD')
+    isSky = (spectype == 'SKY')  | (spectype == '0.0')
 
     isLRG = isGalaxy & ((desi_target & desi_mask.LRG) != 0)
     isELG = isGalaxy & ((desi_target & desi_mask.ELG) != 0)
@@ -68,6 +68,9 @@ def get_simtype(spectype, desi_target, bgs_target, mws_target):
 #    from pdb import set_trace as bp
 #    bp()
 #    print(len(simtype), np.count_nonzero(simtype=='???'), spectype, type(spectype))
+
+    if np.any(simtype == '???') :
+        print("cannot guess simtype of: spectype={}".format(np.unique(spectype[simtype== '???'])))
     assert np.all(simtype != '???')
     return simtype
 
