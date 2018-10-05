@@ -484,6 +484,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions):
             if (objtype == 'ELG'): zlim=[0.6,1.7]
             elif (objtype == 'LRG'): zlim=[0.5,1.1]
             elif (objtype == 'QSO'): zlim=[0.5,3.5]
+            else: zlim=[0.0,1.0]
             if num_cata > 0:
                 #- tmp = boolean array for all targets, flagging only those
                 #- that are of this simtype and were observed this epoch

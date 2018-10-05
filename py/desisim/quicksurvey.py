@@ -60,8 +60,11 @@ class SimSetup(object):
         self.tmp_output_path = os.path.join(self.output_path, 'tmp/')
         self.tmp_fiber_path = os.path.join(self.tmp_output_path, 'fiberassign/')
         self.surveyfile = os.path.join(self.tmp_output_path, 'survey_list.txt')
+        self.skyfile  = os.path.join(self.targets_path,'sky.fits')
+        self.stdfile  = os.path.join(self.targets_path,'std.fits')
         self.truthfile  = os.path.join(self.targets_path,'truth.fits')
         self.targetsfile = os.path.join(self.targets_path,'targets.fits')
+        self.fibstatusfile = os.path.join(self.targets_path,'fiberstatus.ecsv')
         self.zcat_file = None
         self.mtl_file = None
 
@@ -239,8 +242,14 @@ class SimSetup(object):
         print("{} Launching fiberassign".format(asctime()))
         f = open('fiberassign.log','a')
         
-        p = subprocess.call([self.fiberassign, '--mtl',  os.path.join(self.tmp_output_path, 'mtl.fits'),'--stdstar',  os.path.join(self.targets_path, 'standards-dark.fits'),  '--sky',  os.path.join(self.targets_path, 'sky.fits'), '--surveytiles',  os.path.join(self.tmp_output_path, 'survey_list.txt'),
- '--outdir',os.path.join(self.tmp_output_path, 'fiberassign')  , '--fibstatusfile',  '/global/cscratch1/sd/sjbailey/desi/code/desitest/mini/fiberstatus.ecsv'], stdout=f)
+        p = subprocess.call([self.fiberassign, 
+                             '--mtl',  os.path.join(self.tmp_output_path, 'mtl.fits'),
+                             '--stdstar',  self.stdfile,  
+                             '--sky',  self.skyfile, 
+                             '--surveytiles',  self.surveyfile,
+                             '--outdir',os.path.join(self.tmp_output_path, 'fiberassign'), 
+                             '--fibstatusfile',  self.fibstatusfile], 
+                            stdout=f)
 
 
         print("{} Finished fiberassign".format(asctime()))
@@ -254,7 +263,8 @@ class SimSetup(object):
 #        ii = np.in1d(progress_data['TILEID'], self.observed_tiles)
 #        obsconditions = progress_data[ii]
         obsconditions = None
-
+        print('tilefiles', len(self.tilefiles))
+        
         # write the zcat, it uses the tilesfiles constructed in the last step
         self.zcat_file = os.path.join(self.tmp_output_path, 'zcat.fits')
         print("{} starting quickcat".format(asctime()))
@@ -278,10 +288,11 @@ class SimSetup(object):
 
         print(truth.keys())
         #- Drop columns that aren't needed to save memory while manipulating
-        truth.remove_columns(['SEED', 'MAG', 'FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2', 'HBETAFLUX', 'TEFF', 'LOGG', 'FEH'])
-        targets.remove_columns([ 'SHAPEEXP_R', 'SHAPEEXP_E1', 'SHAPEEXP_E2', 'SHAPEDEV_R',
-                                 'SHAPEDEV_E1', 'SHAPEDEV_E2', 'PSFDEPTH_G', 'PSFDEPTH_R', 'PSFDEPTH_Z', 'GALDEPTH_G', 'GALDEPTH_R', 'GALDEPTH_Z',
-                                 'MW_TRANSMISSION_G','MW_TRANSMISSION_R','MW_TRANSMISSION_Z', 'MW_TRANSMISSION_W1', 'MW_TRANSMISSION_W2'])
+        # truth.remove_columns(['SEED', 'MAG', 'FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2', 'HBETAFLUX', 'TEFF', 'LOGG', 'FEH'])
+        # targets.remove_columns([ 'SHAPEEXP_R', 'SHAPEEXP_E1', 'SHAPEEXP_E2', 'SHAPEDEV_R',
+        #                         'SHAPEDEV_E1', 'SHAPEDEV_E2', 'PSFDEPTH_G', 'PSFDEPTH_R', 'PSFDEPTH_Z', 'GALDEPTH_G', 'GALDEPTH_R', 'GALDEPTH_Z',
+        #                         'MW_TRANSMISSION_G','MW_TRANSMISSION_R','MW_TRANSMISSION_Z', 'MW_TRANSMISSION_W1', 'MW_TRANSMISSION_W2'])
+
         gc.collect()
         if 'MOCKID' in truth.colnames:
             truth.remove_column('MOCKID')
