@@ -5,6 +5,9 @@ desisim change log
 0.30.1 (unreleased)
 -------------------
 
+* Add support for >v3.0 stellar templates, with notebook to boot (`PR #434`_).
+* Update notebook describing the construction of the LRG templates (`PR
+  #433`_). 
 * Change ``electron`` to ``count`` for FITS compliance (`PR #428`_).
 * Do not include Mg II emission by default (`PR #426`_).
 * Add and adjust the nebular emission line spectra added to galaxy templates
@@ -23,6 +26,8 @@ desisim change log
 .. _`PR #424`: https://github.com/desihub/desisim/pull/424
 .. _`PR #426`: https://github.com/desihub/desisim/pull/426
 .. _`PR #428`: https://github.com/desihub/desisim/pull/428
+.. _`PR #433`: https://github.com/desihub/desisim/pull/433
+.. _`PR #434`: https://github.com/desihub/desisim/pull/434
 
 0.30.0 (2018-08-09)
 -------------------
