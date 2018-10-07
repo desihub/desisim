@@ -979,7 +979,7 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
                 meta = Table(fx[1].data)
                 wave = fx[2].data
 
-            if objtype.upper() == 'STAR' and 'COLORS' in fx:
+            if 'COLORS' in fx:
                 colors = fx['COLORS'].data
                 hdr = fx['COLORS'].header
                 for ii, col in enumerate(hdr['COLORS'].split(',')):
