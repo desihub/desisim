@@ -26,7 +26,7 @@ class Testquickquasars(unittest.TestCase):
 
     def tearDown(self):
         #- Remove output files but not input files
-        for filename in [self.outspec1, self.outspec2,self.outzbest]:
+        for filename in [self.outspec1, self.outspec1_s,self.outzbest,self.outzbest_s]:
             if os.path.exists(filename):
                 os.remove(filename)
 
