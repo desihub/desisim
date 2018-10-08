@@ -1,9 +1,0 @@
-# Gmag limit vs. redshift to fit redmonster efficiency on zdc1 QSOs
-#
-# redshift Gmag Limit
-0.791667 22.6775
-1.375000 22.5382
-1.958333 22.7705
-2.541667 22.9688
-3.125000 22.9688
-3.708333 22.9688
