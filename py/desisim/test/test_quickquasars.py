@@ -16,10 +16,8 @@ class Testquickquasars(unittest.TestCase):
         cls.infile = resource_filename('desisim','test/data/transmission-16-0.fits.gz')       #London mock
         cls.infile2 = resource_filename('desisim','test/data/transmission-16-1747.fits.gz')    #Saclay mock
         cls.outspec1 = os.path.join(cls.testdir, 'spectra-16-0_1.fits')
-        cls.outspec2 = os.path.join(cls.testdir, 'spectra-16-0_2.fits')
         cls.outzbest = os.path.join(cls.testdir, 'zbest-16-0.fits')
         cls.outspec1_s=os.path.join(cls.testdir, 'spectra-16-1747_1.fits')
-        cls.outspec2_s= os.path.join(cls.testdir, 'spectra-16-1747_2.fits')
         cls.outzbest_s = os.path.join(cls.testdir, 'zbest-16-1747.fits')
 
     @classmethod
