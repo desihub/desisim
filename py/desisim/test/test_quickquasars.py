@@ -13,11 +13,12 @@ class Testquickquasars(unittest.TestCase):
         cls.testdir =tempfile.mkdtemp()
 
         os.chdir(cls.testdir)
-        cls.infile = resource_filename('desisim','test/data/transmission-16-0.fits.gz')
+        cls.infile = resource_filename('desisim','test/data/transmission-16-0.fits.gz')       #London mock
+        cls.infile2 = resource_filename('desisim','test/data/transmission-16-1747.fits.gz')    #Saclay mock
         cls.outspec1 = os.path.join(cls.testdir, 'spectra-16-0_1.fits')
-        cls.outspec2 = os.path.join(cls.testdir, 'spectra-16-0_2.fits')
         cls.outzbest = os.path.join(cls.testdir, 'zbest-16-0.fits')
-
+        cls.outspec1_s=os.path.join(cls.testdir, 'spectra-16-1747_1.fits')
+        cls.outzbest_s = os.path.join(cls.testdir, 'zbest-16-1747.fits')
 
     @classmethod
     def setUp(self):
@@ -25,7 +26,7 @@ class Testquickquasars(unittest.TestCase):
 
     def tearDown(self):
         #- Remove output files but not input files
-        for filename in [self.outspec1, self.outspec2,self.outzbest]:
+        for filename in [self.outspec1, self.outspec1_s,self.outzbest,self.outzbest_s]:
             if os.path.exists(filename):
                 os.remove(filename)
 
@@ -63,7 +64,11 @@ class Testquickquasars(unittest.TestCase):
         self.assertTrue(os.path.exists(self.outzbest))
    
 
-        
+        cmd = 'quickquasars -i {} -o {} --exptime 4000 --zbest --nmax 5 --overwrite --seed 1'.format(self.infile2, self.outspec1_s)
+        opts = quickquasars.parse(cmd.split()[1:])
+        quickquasars.main(opts)
+        self.assertTrue(os.path.exists(self.outspec1_s))
+        self.assertTrue(os.path.exists(self.outzbest_s))
 
 
 
