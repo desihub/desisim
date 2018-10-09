@@ -53,7 +53,7 @@ env:
         - SPECTER_VERSION=0.8.3
         - DESIMODEL_VERSION=0.9.6
         - DESIMODEL_DATA=branches/test-0.9.6
-        - DESISIM_TESTDATA_VERSION=0.5.0
+        - DESISIM_TESTDATA_VERSION=master
         - SPECSIM_VERSION=v0.12
         # - DESISPEC_VERSION=0.18.0
         - DESISPEC_VERSION=master
