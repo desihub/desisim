@@ -530,8 +530,12 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     log.info("Added FOG to redshift with sigma {} to zbest".format(args.sigma_kms_fog)) 
     dz_fog=(args.sigma_kms_fog/299792.458)*(1.+metadata['Z'])*np.random.normal(0,1,nqso)
     meta.rename_column('REDSHIFT','TRUEZ_noFOG')
-    log.info('Writing a truth file  {}'.format(truth_filename))    
-    meta.add_column(Column(metadata['Z_noRSD'],name='TRUEZ_noRSD'))
+    log.info('Writing a truth file  {}'.format(truth_filename))
+    if 'Z_noRSD' in metadata.dtype.names:
+        meta.add_column(Column(metadata['Z_noRSD'],name='TRUEZ_noRSD'))
+    else:
+        log.info('Z_noRSD field not present in transmission file. Z_noRSD not saved to truth file')
+
     meta.add_column(Column(metadata['Z']+dz_fog,name='TRUEZ'))   
     hdu = pyfits.convenience.table_to_hdu(meta)
     hdu.header['EXTNAME'] = 'TRUTH'    
