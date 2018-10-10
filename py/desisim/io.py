@@ -969,9 +969,21 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
         meta = Table(fitsio.read(infile, ext=1, upper=True, columns=(
             'SDSS_NAME', 'RA', 'DEC', 'PLATE', 'MJD', 'FIBERID')))
     else:
-        flux, hdr = fitsio.read(infile, ext=0, header=True)
-        meta = Table(fitsio.read(infile, ext=1, upper=True))
-        wave = fitsio.read(infile, ext=2)
+        with fits.open(infile) as fx:
+            try:
+                flux = fx['FLUX'].data
+                meta = Table(fx['METADATA'].data)
+                wave = fx['WAVE'].data
+            except:
+                flux = fx[0].data
+                meta = Table(fx[1].data)
+                wave = fx[2].data
+
+            if 'COLORS' in fx:
+                colors = fx['COLORS'].data
+                hdr = fx['COLORS'].header
+                for ii, col in enumerate(hdr['COLORS'].split(',')):
+                    meta[col.upper()] = colors[:, ii].flatten()
 
         if (objtype.upper() == 'WD') and (subtype != ''):
             if 'WDTYPE' not in meta.colnames:

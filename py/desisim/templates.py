@@ -1218,6 +1218,7 @@ class SUPERSTAR(object):
             self.normfilter_north.
           normfilt_south (speclite.filters instance): FilterSequence of
             self.normfilter_south.
+          sdssrfilt (speclite.filters instance): SDSS2010-r FilterSequence.
           decamwise (speclite.filters instance): DECam2014-[g,r,z] and WISE2010-[W1,W2]
             FilterSequence.
           bassmzlswise (speclite.filters instance): BASS-[g,r], MzLS-z and
@@ -1252,6 +1253,7 @@ class SUPERSTAR(object):
         # Initialize the filter profiles.
         self.normfilt_north = filters.load_filters(self.normfilter_north)
         self.normfilt_south = filters.load_filters(self.normfilter_south)
+        self.sdssrfilt = filters.load_filters('sdss2010-r')
         self.decamwise = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
                                               'wise2010-W1', 'wise2010-W2')
         self.bassmzlswise = filters.load_filters('BASS-g', 'BASS-r', 'MzLS-z',
@@ -1474,15 +1476,24 @@ class SUPERSTAR(object):
 
                 restflux = baseflux[templateid, :]
 
+                # With radial velocity shifts, the >v3.0 templates do not go red
+                # enough to cover the full r-band spectral range, so pad here.
+                padflux, padzwave = normfilt[magfilter[ii]].pad_spectrum(restflux, zwave, method='edge')
+                
                 # Synthesize photometry to determine which models will pass the
                 # color-cuts.
                 if south:
-                    maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
+                    maggies = self.decamwise.get_ab_maggies(padflux, padzwave, mask_invalid=True)
                 else:
-                    maggies = self.bassmzlswise.get_ab_maggies(restflux, zwave, mask_invalid=True)
+                    maggies = self.bassmzlswise.get_ab_maggies(padflux, padzwave, mask_invalid=True)
+
+                if 'W1-R' in self.basemeta.colnames: # new templates
+                    sdssrnorm = self.sdssrfilt.get_ab_maggies(padflux, padzwave)['sdss2010-r'].data
+                    maggies['wise2010-W1'] = sdssrnorm * 10**(-0.4 * self.basemeta['W1-R'][templateid].data)
+                    maggies['wise2010-W2'] = sdssrnorm * 10**(-0.4 * self.basemeta['W2-R'][templateid].data)
 
                 normmaggies = np.array(normfilt[magfilter[ii]].get_ab_maggies(
-                    restflux, zwave, mask_invalid=True)[magfilter[ii]])
+                    padflux, padzwave, mask_invalid=True)[magfilter[ii]])
                 magnorm = 10**(-0.4*mag[ii]) / normmaggies
 
                 synthnano = dict()
@@ -1497,6 +1508,7 @@ class SUPERSTAR(object):
                     gflux, rflux, zflux, w1flux, w2flux = synthnano['BASS-g'], \
                       synthnano['BASS-r'], synthnano['MzLS-z'], \
                       synthnano['wise2010-W1'], synthnano['wise2010-W2']
+
 
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, nbasechunk)
