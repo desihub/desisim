@@ -863,12 +863,14 @@ class GALAXY(object):
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, nbasechunk)
                 else:
-                    if isinstance(self.colorcuts_function, (tuple, list)):
+                    if self.objtype == 'BGS':
                         _colormask = []
-                        for cf in self.colorcuts_function:
-                            _colormask.append(cf(gflux=gflux, rflux=rflux, zflux=zflux,
-                                                 w1flux=w1flux, w2flux=w2flux, south=south))
-                        colormask = np.any( np.ma.getdata(np.vstack(_colormask)), axis=0)
+                        for targtype in ('bright', 'faint', 'wise'):
+                            _colormask.append(self.colorcuts_function(
+                                gflux=gflux, rflux=rflux, zflux=zflux,
+                                w1flux=w1flux, w2flux=w2flux, south=south,
+                                targtype=targtype))
+                        colormask = np.any( np.ma.getdata(np.vstack(_colormask)), axis=0 )
                     else:
                         colormask = self.colorcuts_function(gflux=gflux, rflux=rflux, zflux=zflux,
                                                             w1flux=w1flux, w2flux=w2flux, south=south)
@@ -1034,9 +1036,7 @@ class BGS(GALAXY):
 
         """
         if colorcuts_function is None:
-            from desitarget.cuts import isBGS_bright
-            from desitarget.cuts import isBGS_faint
-            colorcuts_function = (isBGS_bright, isBGS_faint)
+            from desitarget.cuts import isBGS_colors as colorcuts_function
 
         super(BGS, self).__init__(objtype='BGS', minwave=minwave, maxwave=maxwave,
                                   cdelt=cdelt, wave=wave, normline='HBETA', 
