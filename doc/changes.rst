@@ -5,6 +5,7 @@ desisim change log
 0.30.1 (unreleased)
 -------------------
 
+* Update `desisim.templates.BGS` to use latest selection cuts (`PR #439`_).
 * Add support for >v3.0 stellar templates, with notebook to boot (`PR #434`_).
 * Update notebook describing the construction of the LRG templates (`PR
   #433`_). 
@@ -28,6 +29,7 @@ desisim change log
 .. _`PR #428`: https://github.com/desihub/desisim/pull/428
 .. _`PR #433`: https://github.com/desihub/desisim/pull/433
 .. _`PR #434`: https://github.com/desihub/desisim/pull/434
+.. _`PR #439`: https://github.com/desihub/desisim/pull/439
 
 0.30.0 (2018-08-09)
 -------------------
