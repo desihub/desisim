@@ -21,6 +21,7 @@ from desisim.lya_spectra import read_lya_skewers , apply_lya_transmission, apply
 from desisim.dla import dla_spec,insert_dlas
 from desisim.bal import BAL
 from desisim.io import empty_metatable
+from desisim.eboss import sdss_subsample
 from desispec.interpolation import resample_flux
 
 from desimodel.io import load_pixweight
@@ -73,6 +74,7 @@ def parse(options=None):
     parser.add_argument('--balprob',type=float,required=False, help="To add BAL features with the specified probability (e.g --balprob 0.5). Expect a number between 0 and 1 ") 
     parser.add_argument('--no-simqso',action = "store_true", help="Does not use desisim.templates.SIMQSO to generate templates, and uses desisim.templates.QSO instead.")
     parser.add_argument('--no-transmission',action = 'store_true', help='Do not multiply continuum by transmission, use F=1 everywhere')
+    parser.add_argument('--eboss',action = 'store_true', help='Setup footprint, number density and exposure time to generate eBOSS-like mocks')
 
     if options is None:
         args = parser.parse_args()
@@ -94,6 +96,7 @@ def get_zbest_filename(args,pixdir,nside,pixel):
         return os.path.join(pixdir,"zbest-{}-{}.fits".format(nside,pixel))
     return None
 
+
 def get_truth_filename(args,pixdir,nside,pixel):
     return os.path.join(pixdir,"truth-{}-{}.fits".format(nside,pixel))
 
@@ -105,6 +108,7 @@ def is_south(dec):
 
     """
     return dec <= 32.125 # constant-declination cut!
+
 
 def get_healpix_info(ifilename):
     """
@@ -168,8 +172,6 @@ def get_healpix_info(ifilename):
             raise ValueError(error_msg)
         log.warning("Guessed healpix and nside from filename, assuming the healpix scheme is 'NESTED'")
 
-    print('found',healpix,nside,hpxnest)
-
     return healpix, nside, hpxnest
 
 
@@ -197,7 +199,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     seed = get_pixel_seed(pixel, nside, global_seed)
     # use this seed to generate future random numbers
     np.random.seed(seed)
-    
 
     # get output file (we will write there spectra for this HEALPix pixel)
     ofilename = get_spectra_filename(args,nside,pixel)
@@ -236,6 +237,22 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
     transmission = transmission[ok]
     metadata = metadata[:][ok]
+
+    # option to make for BOSS+eBOSS
+    eboss=False
+    if args.eboss: 
+        eboss=True
+        if args.downsampling or args.desi_footprint:
+            raise ValueError("eboss option can not be run with "
+                    +"desi_footprint or downsampling")
+        input_highz_density=100.0
+        selection = sdss_subsample(metadata["RA"], metadata["DEC"],input_highz_density)
+        log.info("Select QSOs in BOSS+eBOSS footprint {} -> {}".format(transmission.shape[0],selection.size))
+        if selection.size == 0 :
+            log.warning("No intersection with BOSS+eBOSS footprint")
+            return
+        transmission = transmission[selection]
+        metadata = metadata[:][selection]
 
     if args.desi_footprint :
         footprint_healpix = footprint.radec2pix(footprint_healpix_nside, metadata["RA"], metadata["DEC"])
