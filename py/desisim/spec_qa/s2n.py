@@ -39,8 +39,18 @@ def load_s2n_values(objtype, nights, channel, sub_exposures=None):
                 continue
             # Load simspec
             simspec_file = fibermap_path.replace('fibermap', 'simspec')
+            log.debug('Getting {} truth from {}'.format(objtype, simspec_file))
             sps_hdu = fits.open(simspec_file)
             sps_tab = Table(sps_hdu['TRUTH'].data,masked=True)
+
+            #- Get OIIFLUX from separate HDU and join
+            if 'TRUTH_ELG' in sps_hdu:
+                elg_truth = Table(sps_hdu['TRUTH_ELG'].data)
+                sps_tab = join(sps_tab, elg_truth['TARGETID', 'OIIFLUX'],
+                          keys='TARGETID', join_type='left')
+            else:
+                sps_tab['OIIFLUX'] = 0.0
+
             sps_hdu.close()
             objs = sps_tab['TEMPLATETYPE'] == objtype
             if np.sum(objs) == 0:
@@ -51,6 +61,7 @@ def load_s2n_values(objtype, nights, channel, sub_exposures=None):
                 camera = channel+str(ii)
                 cframe_path = findfile(filetype='cframe', night=night, expid=exposure, camera=camera)
                 try:
+                    log.debug('Reading {} from {}'.format(objtype, cframe_path))
                     cframe = read_frame(cframe_path)
                 except:
                     log.warn("Cannot find file: {:s}".format(cframe_path))

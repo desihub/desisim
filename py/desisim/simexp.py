@@ -85,13 +85,13 @@ def simarc(arcdata, nspec=5000, nonuniform=False, testslit=False):
     fibermap.meta['FLAVOR'] = 'arc'
     fibermap['OBJTYPE'] = 'ARC'
 
-    x = fibermap['X_TARGET']
-    y = fibermap['Y_TARGET']
+    x = fibermap['DESIGN_X']
+    y = fibermap['DESIGN_Y']
     r = np.sqrt(x**2 + y**2)
 
     #-----
     #- Determine ratio of fiber sizes relative to larges fiber
-    fiber_area = fiber_area_arcsec2(fibermap['X_TARGET'], fibermap['Y_TARGET'])
+    fiber_area = fiber_area_arcsec2(fibermap['DESIGN_X'], fibermap['DESIGN_Y'])
     size_ratio = fiber_area / np.max(fiber_area)
 
     #- Correct photons for fiber size
@@ -160,9 +160,9 @@ def simflat(flatfile, nspec=5000, nonuniform=False, exptime=10, testslit=False,
         fibermap = astropy.table.Table(desispec.io.empty_fibermap(nspec))
 
     fibermap.meta['FLAVOR'] = 'flat'
-    fibermap['OBJTYPE'] = 'FLAT'
-    x = fibermap['X_TARGET']
-    y = fibermap['Y_TARGET']
+    fibermap['OBJTYPE'] = 'FLT'
+    x = fibermap['DESIGN_X']
+    y = fibermap['DESIGN_Y']
     r = np.sqrt(x**2 + y**2)
     xy = np.vstack([x, y]).T * u.mm
 
@@ -310,19 +310,10 @@ def fibermeta2fibermap(fiberassign, meta):
               'BRICKNAME']:
         fibermap[c] = fiberassign[c]
 
-    #- MAG and FILTER; ignore warnings from negative flux
-    #- these are deprecated anyway and will be replaced with FLUX_G, FLUX_R,
-    #- etc. in the fibermap as well
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-
-        fibermap['FILTER'][:, :5] = \
-            ['DECAM_G', 'DECAM_R', 'DECAM_Z', 'WISE_W1', 'WISE_W2']
-        fibermap['MAG'][:, 0] = 22.5 - 2.5 * np.log10(meta['FLUX_G'].data)
-        fibermap['MAG'][:, 1] = 22.5 - 2.5 * np.log10(meta['FLUX_R'].data)
-        fibermap['MAG'][:, 2] = 22.5 - 2.5 * np.log10(meta['FLUX_Z'].data)
-        fibermap['MAG'][:, 3] = 22.5 - 2.5 * np.log10(meta['FLUX_W1'].data)
-        fibermap['MAG'][:, 4] = 22.5 - 2.5 * np.log10(meta['FLUX_W2'].data)
+    for band in ['G', 'R', 'Z', 'W1', 'W2']:
+        key = 'FLUX_'+band
+        fibermap[key] = meta[key]
+        #- TODO: FLUX_IVAR_*
 
     #- set OBJTYPE
     #- TODO: what about MWS science targets that are also standard stars?
@@ -338,19 +329,18 @@ def fibermeta2fibermap(fiberassign, meta):
 
     isSKY = (fiberassign['DESI_TARGET'] & desi_mask.SKY) != 0
     isSCI = (~isSTD & ~isSKY)
-    fibermap['OBJTYPE'][isSTD] = 'STD'
     fibermap['OBJTYPE'][isSKY] = 'SKY'
-    fibermap['OBJTYPE'][isSCI] = 'SCIENCE'
+    fibermap['OBJTYPE'][isSCI | isSTD] = 'TGT'
 
     fibermap['LAMBDAREF'] = 5400.0
-    fibermap['RA_TARGET'] = fiberassign['RA']
-    fibermap['DEC_TARGET'] = fiberassign['DEC']
-    fibermap['RA_OBS']   = fiberassign['RA']
-    fibermap['DEC_OBS']  = fiberassign['DEC']
-    fibermap['X_TARGET'] = fiberassign['XFOCAL_DESIGN']
-    fibermap['Y_TARGET'] = fiberassign['YFOCAL_DESIGN']
-    fibermap['X_FVCOBS'] = fiberassign['XFOCAL_DESIGN']
-    fibermap['Y_FVCOBS'] = fiberassign['YFOCAL_DESIGN']
+    fibermap['TARGET_RA'] = fiberassign['TARGET_RA']
+    fibermap['TARGET_DEC'] = fiberassign['TARGET_DEC']
+    fibermap['FIBER_RA']   = fiberassign['TARGET_RA']
+    fibermap['FIBER_DEC']  = fiberassign['TARGET_DEC']
+    fibermap['DESIGN_X'] = fiberassign['DESIGN_X']
+    fibermap['DESIGN_Y'] = fiberassign['DESIGN_Y']
+    fibermap['DELTA_X'] = 0.0
+    fibermap['DELTA_Y'] = 0.0
 
     #- TODO: POSITIONER -> LOCATION
     #- TODO: TARGETCAT (how should we propagate this info into here?)
@@ -654,7 +644,7 @@ def get_source_types(fibermap):
         unassigned = fibermap['TARGETID'] == -1
         source_type[unassigned] = 'sky'
 
-    source_type[(fibermap['OBJTYPE'] == 'FLAT')] = 'FLAT'
+    source_type[(fibermap['OBJTYPE'] == 'FLT')] = 'FLAT'
     source_type[(fibermap['OBJTYPE'] == 'ARC')] = 'ARC'
     source_type[(fibermap['DESI_TARGET'] & tm.SKY) != 0] = 'sky'
     source_type[(fibermap['DESI_TARGET'] & tm.ELG) != 0] = 'elg'
@@ -721,7 +711,8 @@ def testslit_fibermap():
     nspectro=10
     testslit_nspec_per_spectro=20
     testslit_nspec = nspectro*testslit_nspec_per_spectro
-    fibermap = np.zeros(testslit_nspec, dtype=desispec.io.fibermap.fibermap_columns)
+    # fibermap = np.zeros(testslit_nspec, dtype=desispec.io.fibermap.fibermap_columns)
+    fibermap = desispec.io.empty_fibermap(testslit_nspec)
     fibermap['FIBER'] = np.zeros((testslit_nspec)).astype(int)
     fibermap['SPECTROID'] = np.zeros((testslit_nspec)).astype(int)
     for spectro in range(nspectro) :
@@ -753,13 +744,14 @@ def get_mock_spectra(fiberassign, mockdir=None, nside=64):
     flux = None
     meta = None
     wave = None
+    objmeta = None
 
     issky = (fiberassign['DESI_TARGET'] & desitarget.targetmask.desi_mask.SKY) != 0
     skyids = fiberassign['TARGETID'][issky]
 
     #- check several ways in which an unassigned fiber might appear
-    unassigned = np.isnan(fiberassign['RA'])
-    unassigned |= np.isnan(fiberassign['DEC'])
+    unassigned = np.isnan(fiberassign['TARGET_RA'])
+    unassigned |= np.isnan(fiberassign['TARGET_DEC'])
     unassigned |= (fiberassign['TARGETID'] < 0)
     ## TODO: check desi_mask.NO_TARGET once that bit exists
 
@@ -777,11 +769,21 @@ def get_mock_spectra(fiberassign, mockdir=None, nside=64):
             meta = np.zeros(nspec, dtype=tmpmeta.dtype)
             meta['TARGETID'] = -1
             wave = tmpwave.astype('f8')
+            objmeta = dict()
+            for key in tmpobjmeta.keys():
+                objmeta[key] = list()
 
         ii = np.in1d(fiberassign['TARGETID'], tmpmeta['TARGETID'])
         flux[ii] = tmpflux
         meta[ii] = tmpmeta
         assert np.all(wave == tmpwave)
+
+        for key in tmpobjmeta.keys():
+            objmeta[key].append(tmpobjmeta[key])
+
+    #- Stack the per-objtype meta tables
+    for key in objmeta.keys():
+        objmeta[key] = astropy.table.Table(np.hstack(objmeta[key]))
 
     #- Set meta['TARGETID'] for sky fibers
     #- TODO: other things to set?
@@ -790,7 +792,7 @@ def get_mock_spectra(fiberassign, mockdir=None, nside=64):
 
     assert np.all(fiberassign['TARGETID'] == meta['TARGETID'])
 
-    return flux, wave, astropy.table.Table(meta)
+    return flux, wave, astropy.table.Table(meta), objmeta
 
 def read_mock_spectra(truthfile, targetids, mockdir=None):
     '''
@@ -847,7 +849,7 @@ def read_mock_spectra(truthfile, targetids, mockdir=None):
     if bool(objtruth):
         for obj in objtruth.keys():
             ii = np.in1d(objtruth[obj]['TARGETID'], targetids)
-            objtruth[obj][:] = objtruth[obj][ii]
+            objtruth[obj] = objtruth[obj][ii]
 
     assert set(targetids) == set(truth['TARGETID'])
 
@@ -899,8 +901,8 @@ def targets2truthfiles(targets, basedir, nside=64):
     #- TODO: what should be done with assignments without targets?
     targets = targets[targets['TARGETID'] != -1]
 
-    theta = np.radians(90-targets['DEC'])
-    phi = np.radians(targets['RA'])
+    theta = np.radians(90-targets['TARGET_DEC'])
+    phi = np.radians(targets['TARGET_RA'])
     pixels = healpy.ang2pix(nside, theta, phi, nest=True)
 
     truthfiles = list()
