@@ -63,6 +63,8 @@ def parse(options=None):
 
     parser.add_argument('--sigma_kms_zfit',nargs='?',type=float,const=400,help="Adds a gaussian error to the quasar redshift, to simulate the redshift fitting step. E.g. --sigma_kms_zfit 200 will use a sigma value of 200 km/s. If a number is not specified the default is used.")
 
+    parser.add_argument('--shift_kms_los',nargs='?',type=float,const=100,help="Adds a shift to the quasar redshift as in arXiv:1708.02225. If a number is not specified the default (100km/s) is used.")
+
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
     parser.add_argument('--target-selection', action = "store_true" ,help="apply QSO target selection cuts to the simulated quasars")
     parser.add_argument('--mags', action = "store_true" ,help="compute and write the QSO mags in the fibermap")
@@ -81,6 +83,16 @@ def parse(options=None):
 
     return args
 
+
+def mod_cauchy(x0,nsamples,xcut=3000):
+    s=np.zeros(nsamples)
+    for i in range(nsamples):
+        tmp=np.infty
+        while(abs(tmp)>xcut):
+             tmp=x0*np.random.standard_cauchy()
+        s[i]=tmp
+    print(max(abs(s)))
+    return s
 
 def get_spectra_filename(args,nside,pixel):
     if args.outfile :
@@ -535,6 +547,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         meta.add_column(Column(metadata['Z_noRSD'],name='TRUEZ_noRSD'))
     else:
         log.info('Z_noRSD field not present in transmission file. Z_noRSD not saved to truth file')
+    if(args.shift_kms_los):
+       metadata['Z']=metadata['Z']+(args.shift_kms_los/299792.458*(1.+metadata['Z']))
+       log.info('Added a shift of 100km/s to the redshift')
 
     meta.add_column(Column(metadata['Z']+dz_fog,name='TRUEZ'))   
     hdu = pyfits.convenience.table_to_hdu(meta)
@@ -574,8 +589,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
         if args.sigma_kms_zfit:
            log.info("Added zfit error with sigma {} to zbest".format(args.sigma_kms_zfit))
-           sigma_zfit=(args.sigma_kms_zfit/299792.458)*(1.+metadata['Z'])
-           zbest["Z"]+=sigma_zfit*np.random.normal(0,1,nqso)
+           sigma_zfit=(1./299792.458)*(1.+metadata['Z'])
+           #zbest["Z"]+=sigma_zfit*args.sigma_kms_zfit*np.random.normal(0,1,nqso)
+           zbest["Z"]+=mod_cauchy(args.sigma_kms_zfit,nqso,xcut=3000)*sigma_zfit
            zbest["ZERR"]=sigma_zfit
         zbest["ZWARN"][:]     = 0
         zbest["SPECTYPE"][:]  = "QSO"
