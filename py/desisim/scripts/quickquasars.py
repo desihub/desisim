@@ -523,7 +523,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
      
     sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
                 sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
-                meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False) # use Poisson = False to get reproducible results.
+                meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False, specsim_config_file="eboss") # use Poisson = False to get reproducible results.
     
 
 ##Adedd to write the truth file, includen metadata for DLA's and BALs   

@@ -175,10 +175,6 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
     wave = wave[ii]*u.Angstrom
     flux = flux[:,ii]*flux_unit
 
-    import specsim.simulator
-    eboss = specsim.simulator.Simulator('eboss')
-    print('created eboss')
-
     sim = desisim.simexp.simulate_spectra(wave, flux, fibermap=frame_fibermap,
         obsconditions=obsconditions, redshift=redshift, seed=seed,
         psfconvolve=True, specsim_config_file=specsim_config_file)
