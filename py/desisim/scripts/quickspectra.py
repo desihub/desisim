@@ -24,7 +24,7 @@ from desispec.resolution import Resolution
 import matplotlib.pyplot as plt
 
 def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
-                sourcetype=None, targetid=None, redshift=None, expid=0, seed=0, skyerr=0.0, ra=None, dec=None, meta=None, fibermap_columns=None, fullsim=False,use_poisson=True):
+                sourcetype=None, targetid=None, redshift=None, expid=0, seed=0, skyerr=0.0, ra=None, dec=None, meta=None, fibermap_columns=None, fullsim=False,use_poisson=True, specsim_config_file="desi"):
     """
     Simulate spectra from an input set of wavelength and flux and writes a FITS file in the Spectra format that can
     be used as input to the redshift fitter.
@@ -175,13 +175,18 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
     wave = wave[ii]*u.Angstrom
     flux = flux[:,ii]*flux_unit
 
+    import specsim.simulator
+    eboss = specsim.simulator.Simulator('eboss')
+    print('created eboss')
+
     sim = desisim.simexp.simulate_spectra(wave, flux, fibermap=frame_fibermap,
         obsconditions=obsconditions, redshift=redshift, seed=seed,
-        psfconvolve=True)
+        psfconvolve=True, specsim_config_file=specsim_config_file)
 
     random_state = np.random.RandomState(seed)
-    sim.generate_random_noise(random_state,use_poisson=use_poisson)
-
+    #sim.generate_random_noise(random_state,use_poisson=use_poisson)
+    sim.generate_random_noise(random_state)
+    
     scale=1e17
     specdata = None
 
