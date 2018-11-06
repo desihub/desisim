@@ -995,6 +995,14 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
                 for ii, col in enumerate(hdr['COLORS'].split(',')):
                     meta[col.upper()] = colors[:, ii].flatten()
 
+        #- Check if we have correct version
+        if objtype.upper() in ('ELG', 'LRG'):
+            if 'BASS_G' not in meta.keys():
+                log.error('missing BASS_G from template metadata')
+                log.error('Is your DESI_BASIS_TEMPLATES too old? {}'.format(os.getenv('DESI_BASIS_TEMPLATES')))
+                log.error('Please update DESI_BASIS_TEMPLATES to v3.0 or later')
+                raise IOError('Incompatible basis templates; please update to v3.0 or later')
+
         if (objtype.upper() == 'WD') and (subtype != ''):
             if 'WDTYPE' not in meta.colnames:
                 raise RuntimeError('Please upgrade to basis_templates >=2.3 to get WDTYPE support')
