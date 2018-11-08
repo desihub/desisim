@@ -7,7 +7,7 @@ desisim change log
 
 * No changes yet
 
-0.31.0 (unreleased)
+0.31.0 (2018-11-08)
 -------------------
 
 * Update to new fibermap format for consistency with targeting and
