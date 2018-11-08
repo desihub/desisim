@@ -11,7 +11,7 @@ desisim change log
 -------------------
 
 * Update to new fibermap format for consistency with targeting and
-  fiber assignment; requires desispec >= 0.26.0 (PR `#446`_).
+  fiber assignment; requires desispec >= 0.26.0 (`PR #446`_).
 * Update `desisim.templates.BGS` to use latest selection cuts (`PR #439`_).
 * Fix quickquasar to work with Saclay mocks (`PR #435`_).
 * Add support for >v3.0 stellar templates, with notebook to boot (`PR #434`_).
