@@ -42,8 +42,8 @@ class TestObs(unittest.TestCase):
         '''Ensure that parallel generated ra,dec are unique'''
         nspec = 60
         fibermap, (flux, wave, meta, objmeta) = desisim.targets.get_targets_parallel(nspec, 'SKY')
-        nra = len(set(fibermap['RA_TARGET']))
-        ndec = len(set(fibermap['DEC_TARGET']))
+        nra = len(set(fibermap['TARGET_RA']))
+        ndec = len(set(fibermap['TARGET_DEC']))
         self.assertEqual(nra, nspec)
         self.assertEqual(ndec, nspec)
 

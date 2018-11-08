@@ -171,8 +171,8 @@ class TestTemplates(unittest.TestCase):
                         badkeys.append(key)
 
             self.assertEqual(len(badkeys), 0, 'mismatch for spectral type {} in keys {}'.format(meta1['OBJTYPE'][0], badkeys))
-            #if np.allclose(flux1, flux2, rtol=1e-4) is False:
-            #    import pdb ; pdb.set_trace()
+            # if np.all(np.allclose(flux1, flux2, rtol=1e-3)) is False:
+            #     import pdb ; pdb.set_trace()
             self.assertTrue(np.all(np.isclose(flux1, flux2, atol=1e-3)))
             #self.assertTrue(np.allclose(flux1, flux2, rtol=1e-4))
             self.assertTrue(np.all(wave1 == wave2))
