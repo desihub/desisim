@@ -2,34 +2,60 @@
 desisim change log
 ==================
 
-0.30.1 (unreleased)
+0.31.1 (unreleased)
 -------------------
 
+* No changes yet
+
+0.31.0 (unreleased)
+-------------------
+
+* Update to new fibermap format for consistency with targeting and
+  fiber assignment; requires desispec >= 0.26.0 (PR `#446`_).
 * Update `desisim.templates.BGS` to use latest selection cuts (`PR #439`_).
+* Fix quickquasar to work with Saclay mocks (`PR #435`_).
 * Add support for >v3.0 stellar templates, with notebook to boot (`PR #434`_).
 * Update notebook describing the construction of the LRG templates (`PR
   #433`_). 
+* Fix quicksurvey (`PR #431`_).
+* Update quickcat model (`PR #430`_, `PR #427`_).
+* Fix archetype computation for redrock (`PR #429`_).
 * Change ``electron`` to ``count`` for FITS compliance (`PR #428`_).
 * Do not include Mg II emission by default (`PR #426`_).
 * Add and adjust the nebular emission line spectra added to galaxy templates
   (`PR #424`_).
+* quickquasar options for random z, ignoring transmission, random seeds,
+  desisim.templates.SIMQSO vs. QSO
+  (`PR #419`_, `PR #408`_, `PR #406`_, `PR #401`_).
 * Read and write `select_mock_targets` style `simspec` file (`PR #416`_).
 * Restore `quickquasars` to a functioning state, after being broken in `PR #409`_ (`PR #413`_).
 * Add optional `nside` and `overwrite` arguments to `wrap-newexp` and
   `obs.new_exposure`, respectively (`PR #412`_).
 * Major (and backwards-incompatible) refactor of how the template/simulated
   metadata are returned by desisim.templates (`PR #409`_).
+* Adding reading metals from LyA transmission files (`PR #407`_).
 
+.. _`PR #401`: https://github.com/desihub/desisim/pull/401
+.. _`PR #406`: https://github.com/desihub/desisim/pull/406
+.. _`PR #407`: https://github.com/desihub/desisim/pull/407
+.. _`PR #408`: https://github.com/desihub/desisim/pull/408
 .. _`PR #409`: https://github.com/desihub/desisim/pull/409
 .. _`PR #412`: https://github.com/desihub/desisim/pull/412
 .. _`PR #413`: https://github.com/desihub/desisim/pull/413
 .. _`PR #416`: https://github.com/desihub/desisim/pull/416
+.. _`PR #419`: https://github.com/desihub/desisim/pull/419
 .. _`PR #424`: https://github.com/desihub/desisim/pull/424
 .. _`PR #426`: https://github.com/desihub/desisim/pull/426
+.. _`PR #427`: https://github.com/desihub/desisim/pull/427
 .. _`PR #428`: https://github.com/desihub/desisim/pull/428
+.. _`PR #429`: https://github.com/desihub/desisim/pull/429
+.. _`PR #430`: https://github.com/desihub/desisim/pull/430
+.. _`PR #431`: https://github.com/desihub/desisim/pull/431
 .. _`PR #433`: https://github.com/desihub/desisim/pull/433
 .. _`PR #434`: https://github.com/desihub/desisim/pull/434
+.. _`PR #435`: https://github.com/desihub/desisim/pull/435
 .. _`PR #439`: https://github.com/desihub/desisim/pull/439
+.. _`PR #446`: https://github.com/desihub/desisim/pull/446
 
 0.30.0 (2018-08-09)
 -------------------
