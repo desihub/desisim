@@ -79,12 +79,16 @@ def main(args):
                 # Load data
                 fibermap_data = desispec.io.read_fibermap(fibermap_path)
                 # Skip calib
-                if fibermap_data['OBJTYPE'][0] in ['FLAT','ARC','BIAS']:
+                objtype = fibermap_data['OBJTYPE'][0]
+                if objtype in ['FLAT', 'FLT', 'ARC', 'BIAS', 'BIA']:
                     continue
-                elif fibermap_data['OBJTYPE'][0] in ['SKY','STD','SCIENCE','BGS','MWS_STAR','ELG', 'LRG', 'QSO']:
+                elif objtype in ['SKY','TGT','BAD']:
                     pass
                 else:
-                    pdb.set_trace()
+                    err_message = 'Unrecognized OBJTYPE {}'.format(objtype)
+                    log.critical(err_message)
+                    raise ValueError(err_message)
+
                 # Append fibermap file
                 fibermap_files.append(fibermap_path)
                 # Slurp the zbest_files

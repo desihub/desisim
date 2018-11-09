@@ -48,7 +48,7 @@ def calc_obj_stats(simz_tab, objtype):
     Parameters
     ----------
     simz_tab : Table
-        This parameter is not documented.
+        TODO: document this
     objtype : str
         Object type, e.g. 'ELG', 'LRG'
 
@@ -179,8 +179,8 @@ def find_zbest_files(fibermap_data):
     # Init
     zbest_files = []
     # Search for zbest files with healpy
-    ra_targ = fibermap_data['RA_TARGET'].data
-    dec_targ = fibermap_data['DEC_TARGET'].data
+    ra_targ = fibermap_data['TARGET_RA'].data
+    dec_targ = fibermap_data['TARGET_DEC'].data
     # Getting some NAN in RA/DEC
     good = np.isfinite(ra_targ) & np.isfinite(dec_targ)
     pixels = radec2pix(64, ra_targ[good], dec_targ[good])
@@ -236,13 +236,24 @@ def load_z(fibermap_files, zbest_files=None, outfil=None):
         sps_hdu = fits.open(simspec_file)
         # Make Tables
         fbm_tabs.append(Table(sps_hdu['FIBERMAP'].data,masked=True))
-        sps_tabs.append(Table(sps_hdu['TRUTH'].data,masked=True))
+        truth = Table(sps_hdu['TRUTH'].data,masked=True)
+        if 'TRUTH_ELG' in sps_hdu:
+           truth_elg = Table(sps_hdu['TRUTH_ELG'].data)
+           truth = join(truth, truth_elg['TARGETID', 'OIIFLUX'],
+                   keys='TARGETID', join_type='left')
+        else:
+            truth['OIIFLUX'] = 0.0
+
+        sps_tabs.append(truth)
         sps_hdu.close()
 
-    # Stack
+    # Stack + Sort
     fbm_tab = vstack(fbm_tabs)
     sps_tab = vstack(sps_tabs)
     del fbm_tabs, sps_tabs
+
+    fbm_tab.sort('TARGETID')
+    sps_tab.sort('TARGETID')
 
     # Add the version number header keywords from fibermap_files[0]
     hdr = fits.getheader(fibermap_files[0].replace('fibermap', 'simspec'))
@@ -255,11 +266,14 @@ def load_z(fibermap_files, zbest_files=None, outfil=None):
     fbm_tab = fbm_tab[uni_idx]
     sps_tab = sps_tab[uni_idx]
 
-    # Combine + Sort
-    sps_tab.remove_column('TARGETID')  # It occurs in both tables
-    sps_tab.remove_column('MAG')  # It occurs in both tables
-    simz_tab = hstack([fbm_tab,sps_tab],join_type='exact')
-    simz_tab.sort('TARGETID')
+    # Combine
+    assert np.all(fbm_tab['TARGETID'] == sps_tab['TARGETID'])
+    keep_colnames = list()
+    for colname in sps_tab.colnames:
+        if colname not in fbm_tab.colnames:
+            keep_colnames.append(colname)
+
+    simz_tab = hstack([fbm_tab,sps_tab[keep_colnames]],join_type='exact')
 
     # Cleanup some names
     #simz_tab.rename_column('OBJTYPE_1', 'OBJTYPE')
@@ -690,9 +704,13 @@ def obj_fig(simz_tab, objtype, summ_stats, outfile=None):
                     yval = yval[gdy]
                     xmin,xmax=0.5,20
                     ax.set_xscale("log", nonposx='clip')
+                elif objtype == 'QSO':
+                    lbl = 'g (Mag)'
+                    xval = 22.5 - 2.5 * np.log10(gdz_tab['FLUX_G'])
+                    xmin,xmax=np.min(xval),np.max(xval)
                 else:
-                    lbl = '{:s} (Mag)'.format(gdz_tab[0]['FILTER'][0])
-                    xval = gdz_tab['MAG'][:,0]
+                    lbl = 'r (Mag)'
+                    xval = 22.5 - 2.5 * np.log10(gdz_tab['FLUX_R'])
                     xmin,xmax=np.min(xval),np.max(xval)
             # Labels
             ax.set_xlabel(lbl)
@@ -1054,13 +1072,12 @@ def dz_summ(simz_tab, outfile=None, pdict=None, min_count=20):
             elif ptype == 'OIIFLUX':
                 x = survey['OIIFLUX']
             else:
-                log.warning('Assuming hardcoded filter order')
                 if ptype == 'GMAG':
-                    x = survey['MAG'][:,0]
+                    x = 22.5 - 2.5*np.log10(survey['FLUX_G'])
                 elif ptype == 'RMAG':
-                    x = survey['MAG'][:,1]
+                    x = 22.5 - 2.5*np.log10(survey['FLUX_R'])
                 elif ptype == 'ZMAG':
-                    x = survey['MAG'][:,2]
+                    x = 22.5 - 2.5*np.log10(survey['FLUX_Z'])
                 else:
                     raise ValueError('unknown ptype {}'.format(ptype))
 
