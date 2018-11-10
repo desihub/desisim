@@ -246,8 +246,12 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         if args.downsampling or args.desi_footprint:
             raise ValueError("eboss option can not be run with "
                     +"desi_footprint or downsampling")
-        input_highz_density=100.0
-        selection = sdss_subsample(metadata["RA"], metadata["DEC"],input_highz_density)
+        # figure out the density of high-z quasars (z>2.15)
+        N_highz=np.sum(metadata["Z"]>2.15)
+        # area of healpix pixel, in degrees
+        area_deg2=healpy.pixelfunc.nside2pixarea(nside,degrees=True)  
+        input_highz_dens_deg2=N_highz/area_deg2
+        selection = sdss_subsample(metadata["RA"], metadata["DEC"],input_highz_dens_deg2)
         log.info("Select QSOs in BOSS+eBOSS footprint {} -> {}".format(transmission.shape[0],selection.size))
         if selection.size == 0 :
             log.warning("No intersection with BOSS+eBOSS footprint")

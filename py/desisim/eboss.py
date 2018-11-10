@@ -18,14 +18,15 @@ def sdss_subsample(ra,dec,input_highz_density):
     Returns:
         selection (ndarray): mask to apply to downsample input list
     """
+    debug=True
     # figure out expected SDSS density, in quasars / sq.deg., above z=2.15
     N=len(ra)
     density = sdss_highz_density(ra,dec)
-    print(np.min(density),'<density<',np.max(density))
+    if debug: print(np.min(density),'<density<',np.max(density))
     fraction = density/input_highz_density
-    print(np.min(fraction),'<fraction<',np.max(fraction))
+    if debug: print(np.min(fraction),'<fraction<',np.max(fraction))
     selection = np.where(np.random.uniform(size=N)<fraction)[0]
-    print(np.sum(selection),'selected out of',N)
+    if debug: print(len(selection),'selected out of',N)
 
     return selection
 
@@ -38,11 +39,13 @@ def sdss_highz_density(ra,dec):
         density (ndarray): density of quasars per sq.deg. with z > 2.15
     """
     # here we should actually read the HEALPix mask from DRQ
+    # for now hack something to test densities for pixel 333
     density=np.ones_like(ra)*16.0
-    density[dec<-10]=0.0
-    density[dec>50]=0.0
-    density[ra<40]=0.0
-    density[ra>180]=0.0
+    density[ra<160]=24.0
+    density[ra<159]=0.0
+    density[ra>161]=0.0
+    density[dec<35]=0.0
+    density[dec>36]=0.0
 
     return density
 
