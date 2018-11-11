@@ -22,6 +22,7 @@ from desisim.dla import dla_spec,insert_dlas
 from desisim.bal import BAL
 from desisim.io import empty_metatable
 from desisim.eboss import sdss_subsample
+from desisim.eboss import FootprintEBOSS
 from desispec.interpolation import resample_flux
 
 from desimodel.io import load_pixweight
@@ -189,7 +190,8 @@ def get_pixel_seed(pixel, nside, global_seed):
 
 def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,
                          bassmzls_and_wise_filters,footprint_healpix_weight,
-                         footprint_healpix_nside,bal=None) :
+                         footprint_healpix_nside,
+                         bal=None,eboss_footprint=False) :
     log = get_logger()
 
     # open filename and extract basic HEALPix information
@@ -240,9 +242,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     metadata = metadata[:][ok]
 
     # option to make for BOSS+eBOSS
-    eboss=False
-    if args.eboss: 
-        eboss=True
+    if eboss_footprint: 
         if args.downsampling or args.desi_footprint:
             raise ValueError("eboss option can not be run with "
                     +"desi_footprint or downsampling")
@@ -251,7 +251,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         # area of healpix pixel, in degrees
         area_deg2=healpy.pixelfunc.nside2pixarea(nside,degrees=True)  
         input_highz_dens_deg2=N_highz/area_deg2
-        selection = sdss_subsample(metadata["RA"], metadata["DEC"],input_highz_dens_deg2)
+        selection = sdss_subsample(metadata["RA"], metadata["DEC"],
+                        input_highz_dens_deg2,eboss_footprint)
         log.info("Select QSOs in BOSS+eBOSS footprint {} -> {}".format(transmission.shape[0],selection.size))
         if selection.size == 0 :
             log.warning("No intersection with BOSS+eBOSS footprint")
@@ -690,11 +691,16 @@ def main(args=None):
        log.info("Setting --zbest to true as required by --sigma_kms_zfit")
        args.zbest = True
 
-
     if args.balprob:
         bal=BAL()
     else:
         bal=None
+
+    if args.eboss:
+        eboss_footprint=FootprintEBOSS()
+    else:
+        eboss_footprint=None
+
     if args.nproc > 1 :
         func_args = [ {"ifilename":filename , \
                        "args":args, "model":model , \
@@ -703,11 +709,13 @@ def main(args=None):
                        "bassmzls_and_wise_filters": bassmzls_and_wise_filters , \
                        "footprint_healpix_weight": footprint_healpix_weight , \
                        "footprint_healpix_nside": footprint_healpix_nside , \
-                       "bal":bal \
+                       "bal":bal, "eboss_footprint":eboss_footprint \
                    } for i,filename in enumerate(args.infile) ]
         pool = multiprocessing.Pool(args.nproc)
         pool.map(_func, func_args)
     else :
         for i,ifilename in enumerate(args.infile) :
-            simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,bassmzls_and_wise_filters,
-                                 footprint_healpix_weight,footprint_healpix_nside,bal=bal)
+            simulate_one_healpix(ifilename,args,model,obsconditions,
+                    decam_and_wise_filters,bassmzls_and_wise_filters,
+                    footprint_healpix_weight,footprint_healpix_nside,
+                    bal=bal,eboss_footprint=eboss_footprint)
