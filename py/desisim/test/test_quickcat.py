@@ -35,7 +35,12 @@ class TestQuickCat(unittest.TestCase):
         targets['DESI_TARGET'][isBGS] = desi_mask.BGS_ANY
         targets['BGS_TARGET'][isBGS] = bgs_mask.BGS_BRIGHT
         targets['DESI_TARGET'][isMWS] = desi_mask.MWS_ANY
-        targets['MWS_TARGET'][isMWS] = mws_mask.MWS_MAIN
+        try:
+            #- desitarget >= 0.25.0
+            targets['MWS_TARGET'][isMWS] = mws_mask.MWS_BROAD
+        except AttributeError:
+            #- desitarget <= 0.24.0
+            targets['MWS_TARGET'][isMWS] = mws_mask.MWS_MAIN
 
         #- Add some fake photometry; no attempt to get colors right
         flux = np.zeros((n, 6))  #- ugrizY; DESI has grz
