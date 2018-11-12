@@ -406,10 +406,19 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         tmp_qso_wave = model.basewave
         
     for these, issouth in zip( (north, south), (False, True) ):
-        if len(these) > 0:
-            _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa = model.make_templates(
-                nmodel=len(these), redshift=metadata['Z'][these], lyaforest=False, nocolorcuts=True,
-                noresample=True, seed=seed, south=issouth)
+        # for eBOSS, generate only quasars with r<22
+        if eboss_footprint:
+            magrange=(17.0, 22.0)
+        else:
+            magrange=None
+        # number of quasars in these
+        nt=len(these)
+        if nt > 0:
+            _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
+                = model.make_templates(nmodel=nt,
+                    redshift=metadata['Z'][these], magrange=magrange,
+                    lyaforest=False, nocolorcuts=True,
+                    noresample=True, seed=seed, south=issouth)
             meta[these] = _meta
             qsometa[these] = _qsometa
             tmp_qso_flux[these, :] = _tmp_qso_flux
@@ -640,6 +649,8 @@ def main(args=None):
     exptime = args.exptime
     if exptime is None :
         exptime = 1000. # sec
+        if args.eboss:
+            exptime = 1000. # sec (added here in case we change the default)
     
     #- Generate obsconditions with args.program, then override as needed
     obsconditions = reference_conditions[args.program.upper()]

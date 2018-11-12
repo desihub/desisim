@@ -9,9 +9,12 @@ from __future__ import division, print_function
 import numpy as np
 import os
 import healpy
+from pkg_resources import resource_filename
 
 def read_sdss_footprint(nside):
-    fname=os.getenv('DESI_PRODUCT_ROOT')+'/desisim/py/desisim/eboss_footprint_nside_'+str(nside)+'.txt'
+    if not nside==16:
+        raise ValueError('add eBOSS footprint for nside='+str(nside))
+    fname=resource_filename('desisim','data/eboss_footprint_nside_16.txt')
     print('in read_sdss_footprint from file',fname)
     if not os.path.isfile(fname):
         print('eBOSS footprint file',fname)
