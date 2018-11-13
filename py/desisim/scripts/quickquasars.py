@@ -5,11 +5,11 @@ import argparse
 import time
 
 import numpy as np
+from scipy.constants import speed_of_light
 from astropy.table import Table,Column
 import astropy.io.fits as pyfits
 import multiprocessing
 import healpy
-
 from desiutil.log import get_logger
 from desispec.io.util import write_bintable
 from desispec.io.fibermap import read_fibermap
@@ -27,6 +27,8 @@ from desimodel.io import load_pixweight
 from desimodel import footprint
 from speclite import filters
 from desitarget.cuts import isQSO_colors
+
+c = speed_of_light/1000. #- km/s
 
 def parse(options=None):
     parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -84,15 +86,15 @@ def parse(options=None):
     return args
 
 
-def mod_cauchy(x0,nsamples,xcut=3000):
-    s=np.zeros(nsamples)
-    for i in range(nsamples):
-        tmp=np.infty
-        while(abs(tmp)>xcut):
-             tmp=x0*np.random.standard_cauchy()
-        s[i]=tmp
-    print(max(abs(s)))
-    return s
+def mod_cauchy(sigma,nsamples,cut=3000):
+    samples=sp.stats.cauchy.rvs(loc=0,scale=sigma,size=3*nsamples)
+    samples=samples[np.abs(samples)<cut]
+    samples=samples[nsamples:]
+    if saples.size==nsamples:
+       return samples
+    else:
+        mod_cauchy(sigma,nsamples,cut=3000)
+    
 
 def get_spectra_filename(args,nside,pixel):
     if args.outfile :
@@ -547,10 +549,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         meta.add_column(Column(metadata['Z_noRSD'],name='TRUEZ_noRSD'))
     else:
         log.info('Z_noRSD field not present in transmission file. Z_noRSD not saved to truth file')
-    if(args.shift_kms_los):
-       metadata['Z']=metadata['Z']+(args.shift_kms_los/299792.458*(1.+metadata['Z']))
-       log.info('Added a shift of 100km/s to the redshift')
-
+    if args.shift_kms_los:
+       metadata['Z']+=(args.shift_kms_los/c*(1.+metadata['Z']))
+       log.info('Added a shift of {} km/s to the redshift'.format(str(args.shift_kms_los)))
     meta.add_column(Column(metadata['Z']+dz_fog,name='TRUEZ'))   
     hdu = pyfits.convenience.table_to_hdu(meta)
     hdu.header['EXTNAME'] = 'TRUTH'    
@@ -589,9 +590,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
         if args.sigma_kms_zfit:
            log.info("Added zfit error with sigma {} to zbest".format(args.sigma_kms_zfit))
-           sigma_zfit=(1./299792.458)*(1.+metadata['Z'])
-           #zbest["Z"]+=sigma_zfit*args.sigma_kms_zfit*np.random.normal(0,1,nqso)
-           zbest["Z"]+=mod_cauchy(args.sigma_kms_zfit,nqso,xcut=3000)*sigma_zfit
+           sigma_zfit=(args.sigma_kms_zfit/c)*(1.+metadata['Z'])
+           zbest["Z"]+=mod_cauchy(loc=0,scale=sigma_zfit,size=nqso)
            zbest["ZERR"]=sigma_zfit
         zbest["ZWARN"][:]     = 0
         zbest["SPECTYPE"][:]  = "QSO"
