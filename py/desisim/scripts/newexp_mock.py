@@ -30,10 +30,13 @@ def parse(options=None):
     parser.add_argument('--nspec', type=int, default=None, help="number of spectra to include")
     parser.add_argument('--clobber', action='store_true', help="overwrite any pre-existing output files")
 
+    log = get_logger()
     if options is None:
         args = parser.parse_args()
+        log.info(' '.join(sys.argv))
     else:
         args = parser.parse_args(options)
+        log.info('newexp-mock '+' '.join(options))
 
     return args
 

@@ -69,7 +69,8 @@ def parse(options=None):
 
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
     parser.add_argument('--target-selection', action = "store_true" ,help="apply QSO target selection cuts to the simulated quasars")
-    parser.add_argument('--mags', action = "store_true" ,help="compute and write the QSO mags in the fibermap")
+    parser.add_argument('--mags', action = "store_true", help="DEPRECATED; use --bbflux")
+    parser.add_argument('--bbflux', action = "store_true", help="compute and write the QSO broad-band fluxes in the fibermap")
     parser.add_argument('--desi-footprint', action = "store_true" ,help="select QSOs in DESI footprint")
     parser.add_argument('--metals', type=str, default=None, required=False, help = "list of metals to get the transmission from, if 'all' runs on all metals", nargs='*')
     parser.add_argument('--metals-from-file', action = 'store_true', help = "add metals from HDU in file")
@@ -356,7 +357,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             hdu_dla.name="DLA_META"
 
     # if requested, extend transmission skewers to cover full spectrum     
-    if args.target_selection or args.mags :
+    if args.target_selection or args.bbflux :
         wanted_min_wave = 3329. # needed to compute magnitudes for decam2014-r (one could have trimmed the transmission file ...)
         wanted_max_wave = 55501. # needed to compute magnitudes for wise2010-W2
         
@@ -463,7 +464,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     # if requested, compute magnitudes and apply target selection.  Need to do
     # this calculation separately for QSOs in the north vs south.
     bbflux=None
-    if args.target_selection or args.mags :
+    if args.target_selection or args.bbflux :
         bands=['FLUX_G','FLUX_R','FLUX_Z', 'FLUX_W1', 'FLUX_W2']
         bbflux=dict()
         bbflux['SOUTH'] = is_south(metadata['DEC'])
@@ -524,13 +525,17 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     
     specmeta={"HPXNSIDE":nside,"HPXPIXEL":pixel, "HPXNEST":hpxnest}
      
-    if args.target_selection or args.mags :
-        # today we write mags because that's what is in the fibermap
-        mags=np.zeros((qso_flux.shape[0],5))
-        for i,band in enumerate(bands) :
-            jj=(bbflux[band]>0)
-            mags[jj,i] = 22.5-2.5*np.log10(bbflux[band][jj]) # AB magnitudes
-        fibermap_columns={"MAG":mags}
+    if args.target_selection or args.bbflux :
+        fibermap_columns = dict(
+            FLUX_G = bbflux['FLUX_G'],
+            FLUX_R = bbflux['FLUX_R'],
+            FLUX_Z = bbflux['FLUX_Z'],
+            FLUX_W1 = bbflux['FLUX_W1'],
+            FLUX_W2 = bbflux['FLUX_W2'],
+            )
+        photsys = np.full(len(bbflux['FLUX_G']), 'N', dtype='S1')
+        photsys[bbflux['SOUTH']] = b'S'
+        fibermap_columns['PHOTSYS'] = photsys
     else :
         fibermap_columns=None
 
@@ -613,9 +618,6 @@ def main(args=None):
     log = get_logger()
     if isinstance(args, (list, tuple, type(None))):
         args = parse(args)
-
-    if isinstance(args, (list, tuple, type(None))):
-        args = parse(args)
     
     if args.outfile is not None and len(args.infile)>1 :
         log.error("Cannot specify single output file with multiple inputs, use --outdir option instead")
@@ -624,6 +626,10 @@ def main(args=None):
     if not os.path.isdir(args.outdir) :
         log.info("Creating dir {}".format(args.outdir))
         os.makedirs(args.outdir)
+
+    if args.mags:
+        log.warning('--mags is deprecated; please use --bbflux instead')
+        args.bbflux = True
     
     exptime = args.exptime
     if exptime is None :
@@ -653,7 +659,7 @@ def main(args=None):
     
     decam_and_wise_filters = None
     bassmzls_and_wise_filters = None 
-    if args.target_selection or args.mags :
+    if args.target_selection or args.bbflux :
         log.info("Load DeCAM and WISE filters for target selection sim.")
         # ToDo @moustakas -- load north/south filters
         decam_and_wise_filters = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
