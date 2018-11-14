@@ -6,6 +6,7 @@ import time
 
 import numpy as np
 from scipy.constants import speed_of_light
+from scipy.stats import cauchy
 from astropy.table import Table,Column
 import astropy.io.fits as pyfits
 import multiprocessing
@@ -87,14 +88,16 @@ def parse(options=None):
     return args
 
 
-def mod_cauchy(sigma,nsamples,cut=3000):
-    samples=sp.stats.cauchy.rvs(loc=0,scale=sigma,size=3*nsamples)
-    samples=samples[np.abs(samples)<cut]
-    samples=samples[nsamples:]
-    if saples.size==nsamples:
-       return samples
-    else:
-        mod_cauchy(sigma,nsamples,cut=3000)
+def mod_cauchy(loc,scale,size,cut):
+    samples=cauchy.rvs(loc=loc,scale=scale,size=3*size)
+    samples=samples[abs(samples)<cut]   
+    if len(samples)>=size:
+       samples=samples[:size] 
+    else:     
+        samples=mod_cauchy(loc,scale,size,cut)   ##Only added for the very unlikely case that there are not enough samples after the cut.
+    return samples
+             
+    
     
 
 def get_spectra_filename(args,nside,pixel):
@@ -382,6 +385,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             trans_wave   = new_trans_wave
             transmission = new_transmission
 
+
+
     # whether to use QSO or SIMQSO to generate quasar continua.  Simulate
     # spectra in the north vs south separately because they're on different
     # photometric systems.
@@ -396,7 +401,13 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         log.info("Simulate {} QSOs with SIMQSO templates".format(nqso))
         tmp_qso_flux = np.zeros([nqso, len(model.basewave)], dtype='f4')
         tmp_qso_wave = model.basewave
-        
+
+###ADD dz_fog before generate the continua
+    meta.add_column(Column(metadata['Z'],name='TRUEZ_noFOG'))
+    log.info("Add FOG to redshift with sigma {} to quasar redshift".format(args.sigma_kms_fog)) 
+    dz_fog=(args.sigma_kms_fog/c)*(1.+metadata['Z'])*np.random.normal(0,1,len(metadata['Z']))    
+    metadata['Z']+=dz_fog
+
     for these, issouth in zip( (north, south), (False, True) ):
         if len(these) > 0:
             _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa = model.make_templates(
@@ -427,7 +438,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             log.info("Adding BALs with probability {}".format(args.balprob))
             # save current random state
             rnd_state = np.random.get_state() 
-            tmp_qso_flux,meta_bal=bal.insert_bals(tmp_qso_wave,tmp_qso_flux, metadata['Z'],
+            tmp_qso_flux,meta_bal=bal.insert_bals(tmp_qso_wave,tmp_qso_flux,metadata['Z'],
                                                   balprob=args.balprob,seed=seed)
             # restore random state to get the same random numbers later 
             # as when we don't insert BALs
@@ -545,11 +556,11 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                 meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False) # use Poisson = False to get reproducible results.
     
 
-##Adedd to write the truth file, includen metadata for DLA's and BALs   
-    log.info("Added FOG to redshift with sigma {} to zbest".format(args.sigma_kms_fog)) 
-    dz_fog=(args.sigma_kms_fog/299792.458)*(1.+metadata['Z'])*np.random.normal(0,1,nqso)
-    meta.rename_column('REDSHIFT','TRUEZ_noFOG')
+##Adedd to write the truth file, including metadata for DLA's and BALs   
+    
     log.info('Writing a truth file  {}'.format(truth_filename))
+
+    meta.rename_column('REDSHIFT','TRUEZ')
     if 'Z_noRSD' in metadata.dtype.names:
         meta.add_column(Column(metadata['Z_noRSD'],name='TRUEZ_noRSD'))
     else:
@@ -557,7 +568,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     if args.shift_kms_los:
        metadata['Z']+=(args.shift_kms_los/c*(1.+metadata['Z']))
        log.info('Added a shift of {} km/s to the redshift'.format(str(args.shift_kms_los)))
-    meta.add_column(Column(metadata['Z']+dz_fog,name='TRUEZ'))   
+
+
     hdu = pyfits.convenience.table_to_hdu(meta)
     hdu.header['EXTNAME'] = 'TRUTH'    
     hduqso=pyfits.convenience.table_to_hdu(qsometa)
@@ -590,14 +602,14 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             ('BRICKNAME', (str,8))]
         zbest = Table(np.zeros(nqso, dtype=columns))
         zbest["CHI2"][:]      = 0.
-        zbest["Z"]            = metadata['Z']+dz_fog
+        zbest["Z"]            = metadata['Z']
         zbest["ZERR"][:]      = 0.
 
         if args.sigma_kms_zfit:
            log.info("Added zfit error with sigma {} to zbest".format(args.sigma_kms_zfit))
-           sigma_zfit=(args.sigma_kms_zfit/c)*(1.+metadata['Z'])
-           zbest["Z"]+=mod_cauchy(loc=0,scale=sigma_zfit,size=nqso)
-           zbest["ZERR"]=sigma_zfit
+           sigma_zfit=mod_cauchy(loc=0,scale=args.sigma_kms_zfit,size=nqso,cut=3000)
+           zbest["Z"]+=sigma_zfit/c*(1.+metadata['Z'])
+           zbest["ZERR"]=args.sigma_kms_zfit/c*(1.+metadata['Z'])
         zbest["ZWARN"][:]     = 0
         zbest["SPECTYPE"][:]  = "QSO"
         zbest["SUBTYPE"][:]   = ""
