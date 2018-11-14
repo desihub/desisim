@@ -11,6 +11,7 @@ from astropy.table import Table,Column
 import astropy.io.fits as pyfits
 import multiprocessing
 import healpy
+
 from desiutil.log import get_logger
 from desispec.io.util import write_bintable
 from desispec.io.fibermap import read_fibermap
@@ -30,7 +31,6 @@ from speclite import filters
 from desitarget.cuts import isQSO_colors
 
 c = speed_of_light/1000. #- km/s
-
 def parse(options=None):
     parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                    description="""Fast simulation of QSO Lya spectra into the final DESI format (Spectra class) that can be directly used as
@@ -67,7 +67,6 @@ def parse(options=None):
     parser.add_argument('--sigma_kms_zfit',nargs='?',type=float,const=400,help="Adds a gaussian error to the quasar redshift, to simulate the redshift fitting step. E.g. --sigma_kms_zfit 200 will use a sigma value of 200 km/s. If a number is not specified the default is used.")
 
     parser.add_argument('--shift_kms_los',nargs='?',type=float,const=100,help="Adds a shift to the quasar redshift as in arXiv:1708.02225. If a number is not specified the default (100km/s) is used.")
-
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
     parser.add_argument('--target-selection', action = "store_true" ,help="apply QSO target selection cuts to the simulated quasars")
     parser.add_argument('--mags', action = "store_true", help="DEPRECATED; use --bbflux")
@@ -97,9 +96,6 @@ def mod_cauchy(loc,scale,size,cut):
         samples=mod_cauchy(loc,scale,size,cut)   ##Only added for the very unlikely case that there are not enough samples after the cut.
     return samples
              
-    
-    
-
 def get_spectra_filename(args,nside,pixel):
     if args.outfile :
         return args.outfile
@@ -385,8 +381,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             trans_wave   = new_trans_wave
             transmission = new_transmission
 
-
-
     # whether to use QSO or SIMQSO to generate quasar continua.  Simulate
     # spectra in the north vs south separately because they're on different
     # photometric systems.
@@ -402,7 +396,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         tmp_qso_flux = np.zeros([nqso, len(model.basewave)], dtype='f4')
         tmp_qso_wave = model.basewave
 
-###ADD dz_fog before generate the continua
+    ###ADD dz_fog before generate the continua
     meta.add_column(Column(metadata['Z'],name='TRUEZ_noFOG'))
     log.info("Add FOG to redshift with sigma {} to quasar redshift".format(args.sigma_kms_fog)) 
     dz_fog=(args.sigma_kms_fog/c)*(1.+metadata['Z'])*np.random.normal(0,1,len(metadata['Z']))    
@@ -556,10 +550,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                 meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False) # use Poisson = False to get reproducible results.
     
 
-##Adedd to write the truth file, including metadata for DLA's and BALs   
-    
+##Adedd to write the truth file, including metadata for DLA's and BALs      
     log.info('Writing a truth file  {}'.format(truth_filename))
-
     meta.rename_column('REDSHIFT','TRUEZ')
     if 'Z_noRSD' in metadata.dtype.names:
         meta.add_column(Column(metadata['Z_noRSD'],name='TRUEZ_noRSD'))
@@ -568,8 +560,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     if args.shift_kms_los:
        metadata['Z']+=(args.shift_kms_los/c*(1.+metadata['Z']))
        log.info('Added a shift of {} km/s to the redshift'.format(str(args.shift_kms_los)))
-
-
     hdu = pyfits.convenience.table_to_hdu(meta)
     hdu.header['EXTNAME'] = 'TRUTH'    
     hduqso=pyfits.convenience.table_to_hdu(qsometa)
