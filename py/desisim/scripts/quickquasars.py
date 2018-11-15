@@ -246,8 +246,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         if args.downsampling or args.desi_footprint:
             raise ValueError("eboss option can not be run with "
                     +"desi_footprint or downsampling")
-        # figure out the density of high-z quasars (z>2.15)
-        N_highz=np.sum(metadata["Z"]>2.15)
+        # figure out the density of high-z quasars (z>1.8)
+        N_highz=np.sum(metadata["Z"]>1.8)
         # area of healpix pixel, in degrees
         area_deg2=healpy.pixelfunc.nside2pixarea(nside,degrees=True)  
         input_highz_dens_deg2=N_highz/area_deg2
