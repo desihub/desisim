@@ -247,9 +247,18 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     # might add metal transmission as well (from the HDU file).
     log.info("Read transmission file {}".format(ifilename))
     trans_wave, transmission, metadata, dla_info = read_lya_skewers(ifilename,read_dlas=(args.dla=='file'),add_metals=args.metals_from_file)
+
+###ADD dz_fog before generate the continua
+    #metadata.add_column(Column(metadata['Z'],name='TRUEZ_noFOG'))
+    Z_noFOG=metadata['Z']
+    log.info("Add FOG to redshift with sigma {} to quasar redshift".format(args.sigma_kms_fog)) 
+    dz_fog=(args.sigma_kms_fog/c)*(1.+metadata['Z'])*np.random.normal(0,1,len(metadata['Z']))    
+    metadata['Z']+=dz_fog
+
     ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
     transmission = transmission[ok]
     metadata = metadata[:][ok]
+    Z_noFOG=Z_noFOG[ok]
 
     if args.desi_footprint :
         footprint_healpix = footprint.radec2pix(footprint_healpix_nside, metadata["RA"], metadata["DEC"])
@@ -260,6 +269,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             return
         transmission = transmission[selection]
         metadata = metadata[:][selection]
+        Z_noFOG=Z_noFOG[selection]
 
     nqso=transmission.shape[0]
     if args.downsampling is not None :
@@ -272,6 +282,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             return
         transmission = transmission[indices]
         metadata = metadata[:][indices]
+        Z_noFOG=Z_noFOG[indices]
         nqso = transmission.shape[0] 
 
     if args.nmax is not None :
@@ -281,6 +292,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             indices = (np.random.uniform(size=args.nmax)*nqso).astype(int)
             transmission = transmission[indices]
             metadata = metadata[:][indices]
+            Z_noFOG=Z_noFOG[indices]
             nqso = args.nmax
 
     # In previous versions of the London mocks we needed to enforce F=1 for 
@@ -396,11 +408,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         tmp_qso_flux = np.zeros([nqso, len(model.basewave)], dtype='f4')
         tmp_qso_wave = model.basewave
 
-    ###ADD dz_fog before generate the continua
-    meta.add_column(Column(metadata['Z'],name='TRUEZ_noFOG'))
-    log.info("Add FOG to redshift with sigma {} to quasar redshift".format(args.sigma_kms_fog)) 
-    dz_fog=(args.sigma_kms_fog/c)*(1.+metadata['Z'])*np.random.normal(0,1,len(metadata['Z']))    
-    metadata['Z']+=dz_fog
+    
 
     for these, issouth in zip( (north, south), (False, True) ):
         if len(these) > 0:
@@ -505,6 +513,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         metadata     = metadata[:][selection]
         meta         = meta[:][selection]
         qsometa      = qsometa[:][selection]
+        Z_noFOG      = Z_noFOG[selection]
 
         for band in bands : 
             bbflux[band] = bbflux[band][selection]
@@ -544,6 +553,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     else :
         fibermap_columns=None
 
+
      
     sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
                 sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
@@ -553,6 +563,10 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 ##Adedd to write the truth file, including metadata for DLA's and BALs      
     log.info('Writing a truth file  {}'.format(truth_filename))
     meta.rename_column('REDSHIFT','TRUEZ')
+    meta.add_column(Column(Z_noFOG,name='TRUEZ_noFOG'))
+    
+    print(Z_noFOG)
+    print(metadata['Z'])º
     if 'Z_noRSD' in metadata.dtype.names:
         meta.add_column(Column(metadata['Z_noRSD'],name='TRUEZ_noRSD'))
     else:
