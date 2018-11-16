@@ -250,11 +250,10 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
 ###ADD dz_fog before generate the continua
     #metadata.add_column(Column(metadata['Z'],name='TRUEZ_noFOG'))
-    Z_noFOG=metadata['Z']
+    Z_noFOG=np.copy(metadata['Z'])
     log.info("Add FOG to redshift with sigma {} to quasar redshift".format(args.sigma_kms_fog)) 
     dz_fog=(args.sigma_kms_fog/c)*(1.+metadata['Z'])*np.random.normal(0,1,len(metadata['Z']))    
     metadata['Z']+=dz_fog
-
     ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
     transmission = transmission[ok]
     metadata = metadata[:][ok]
@@ -564,9 +563,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     log.info('Writing a truth file  {}'.format(truth_filename))
     meta.rename_column('REDSHIFT','TRUEZ')
     meta.add_column(Column(Z_noFOG,name='TRUEZ_noFOG'))
-    
-    print(Z_noFOG)
-    print(metadata['Z'])º
+
     if 'Z_noRSD' in metadata.dtype.names:
         meta.add_column(Column(metadata['Z_noRSD'],name='TRUEZ_noRSD'))
     else:
