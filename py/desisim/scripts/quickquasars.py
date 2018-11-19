@@ -247,7 +247,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                     +"desi_footprint or downsampling")
 
         # Get the redshift distribution from SDSS
-        selection = sdss_subsample_redshift(metadata["Z"],eboss['redshift'])
+        selection = sdss_subsample_redshift(metadata["RA"],metadata["DEC"],metadata["Z"],eboss['redshift'])
         log.info("Select QSOs in BOSS+eBOSS redshift distribution {} -> {}".format(metadata["Z"].size,selection.sum()))
         if selection.sum()==0:
             log.warning("No intersection with BOSS+eBOSS redshift distribution")
