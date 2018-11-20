@@ -608,9 +608,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
         if args.sigma_kms_zfit:
            log.info("Added zfit error with sigma {} to zbest".format(args.sigma_kms_zfit))
-           sigma_zfit=mod_cauchy(loc=0,scale=args.sigma_kms_zfit,size=nqso,cut=3000)
-           zbest["Z"]+=sigma_zfit/c*(1.+metadata['Z'])
-           zbest["ZERR"]=args.sigma_kms_zfit/c*(1.+metadata['Z'])
+           dz_fit=mod_cauchy(loc=0,scale=args.sigma_kms_zfit,size=nqso,cut=3000)*(1.+metadata['Z'])/c
+           zbest["Z"]+=dz_fit
+        zbest["ZERR"][:]      = 0
         zbest["ZWARN"][:]     = 0
         zbest["SPECTYPE"][:]  = "QSO"
         zbest["SUBTYPE"][:]   = ""
