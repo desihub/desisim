@@ -14,8 +14,7 @@ from desiutil.log import get_logger
 from desispec.io.util import write_bintable
 from desispec.io.fibermap import read_fibermap
 from desisim.simexp import reference_conditions
-from desisim.templates import SIMQSO
-from desisim.templates import QSO
+from desisim.templates import SIMQSO, QSO
 from desisim.scripts.quickspectra import sim_spectra
 from desisim.lya_spectra import read_lya_skewers , apply_lya_transmission, apply_metals_transmission
 from desisim.dla import dla_spec,insert_dlas
@@ -415,25 +414,32 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         tmp_qso_wave = model.basewave
 
     for these, issouth in zip( (north, south), (False, True) ):
-        # for eBOSS, generate only quasars with r<22
-        if not eboss is None:
-            magrange=(17.0, 22.0)
-        else:
-            magrange=None
+
         # number of quasars in these
-        nt=len(these)
-        if nt > 0:
+        nt = len(these)
+        if nt<=0: continue
+
+        if not eboss is None:
+            # for eBOSS, generate only quasars with r<22
+            magrange = (17.0, 22.0)
             _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
                 = model.make_templates(nmodel=nt,
                     redshift=metadata['Z'][these], magrange=magrange,
                     lyaforest=False, nocolorcuts=True,
                     noresample=True, seed=seed, south=issouth)
-            meta[these] = _meta
-            qsometa[these] = _qsometa
-            tmp_qso_flux[these, :] = _tmp_qso_flux
+        else:
+            _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
+                = model.make_templates(nmodel=nt,
+                    redshift=metadata['Z'][these],
+                    lyaforest=False, nocolorcuts=True,
+                    noresample=True, seed=seed, south=issouth)
 
-            if args.no_simqso:
-                tmp_qso_wave[these, :] = _tmp_qso_wave
+        meta[these] = _meta
+        qsometa[these] = _qsometa
+        tmp_qso_flux[these, :] = _tmp_qso_flux
+
+        if args.no_simqso:
+            tmp_qso_wave[these, :] = _tmp_qso_wave
 
     log.info("Resample to transmission wavelength grid")
     qso_flux=np.zeros((tmp_qso_flux.shape[0],trans_wave.size))
