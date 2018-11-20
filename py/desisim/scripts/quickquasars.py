@@ -250,7 +250,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     trans_wave, transmission, metadata, dla_info = read_lya_skewers(ifilename,read_dlas=(args.dla=='file'),add_metals=args.metals_from_file)
 
 ###ADD dz_fog before generate the continua
-    #metadata.add_column(Column(metadata['Z'],name='TRUEZ_noFOG'))
+
     Z_noFOG=np.copy(metadata['Z'])
     log.info("Add FOG to redshift with sigma {} to quasar redshift".format(args.sigma_kms_fog)) 
     dz_fog=(args.sigma_kms_fog/c)*(1.+metadata['Z'])*np.random.normal(0,1,len(metadata['Z']))    
@@ -311,12 +311,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             return
         transmission = transmission[indices]
         metadata = metadata[:][indices]
-<<<<<<< HEAD
         Z_noFOG=Z_noFOG[indices]
         nqso = transmission.shape[0] 
-=======
-        nqso = transmission.shape[0]
->>>>>>> master
+
 
     if args.nmax is not None :
         if args.nmax < nqso :
@@ -441,11 +438,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         tmp_qso_flux = np.zeros([nqso, len(model.basewave)], dtype='f4')
         tmp_qso_wave = model.basewave
 
-<<<<<<< HEAD
-    
 
-=======
->>>>>>> master
     for these, issouth in zip( (north, south), (False, True) ):
 
         # number of quasars in these
@@ -491,13 +484,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         if args.balprob<=1. and args.balprob >0:
             log.info("Adding BALs with probability {}".format(args.balprob))
             # save current random state
-<<<<<<< HEAD
-            rnd_state = np.random.get_state() 
-            tmp_qso_flux,meta_bal=bal.insert_bals(tmp_qso_wave,tmp_qso_flux,metadata['Z'],
-=======
+
             rnd_state = np.random.get_state()
             tmp_qso_flux,meta_bal=bal.insert_bals(tmp_qso_wave,tmp_qso_flux, metadata['Z'],
->>>>>>> master
                                                   balprob=args.balprob,seed=seed)
             # restore random state to get the same random numbers later
             # as when we don't insert BALs
@@ -611,23 +600,13 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         fibermap_columns=None
 
 
-<<<<<<< HEAD
-     
-=======
->>>>>>> master
     sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
                 sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
                 meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False) # use Poisson = False to get reproducible results.
 
-<<<<<<< HEAD
-##Adedd to write the truth file, including metadata for DLA's and BALs      
-=======
 
-##Adedd to write the truth file, includen metadata for DLA's and BALs
-    log.info("Added FOG to redshift with sigma {} to zbest".format(args.sigma_kms_fog))
-    dz_fog=(args.sigma_kms_fog/299792.458)*(1.+metadata['Z'])*np.random.normal(0,1,nqso)
-    meta.rename_column('REDSHIFT','TRUEZ_noFOG')
->>>>>>> master
+##Adedd to write the truth file, including metadata for DLA's and BALs      
+
     log.info('Writing a truth file  {}'.format(truth_filename))
     meta.rename_column('REDSHIFT','TRUEZ')
     meta.add_column(Column(Z_noFOG,name='TRUEZ_noFOG'))
@@ -636,14 +615,10 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         meta.add_column(Column(metadata['Z_noRSD'],name='TRUEZ_noRSD'))
     else:
         log.info('Z_noRSD field not present in transmission file. Z_noRSD not saved to truth file')
-<<<<<<< HEAD
     if args.shift_kms_los:
        metadata['Z']+=(args.shift_kms_los/c*(1.+metadata['Z']))
        log.info('Added a shift of {} km/s to the redshift'.format(str(args.shift_kms_los)))
-=======
 
-    meta.add_column(Column(metadata['Z']+dz_fog,name='TRUEZ'))
->>>>>>> master
     hdu = pyfits.convenience.table_to_hdu(meta)
     hdu.header['EXTNAME'] = 'TRUTH'
     hduqso=pyfits.convenience.table_to_hdu(qsometa)
