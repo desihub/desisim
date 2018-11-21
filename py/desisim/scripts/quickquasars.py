@@ -62,11 +62,11 @@ def parse(options=None):
     parser.add_argument('--dwave', type=float, default=0.2,help="Internal wavelength step (don't change this)")
     parser.add_argument('--nproc', type=int, default=1,help="number of processors to run faster")
 
-    parser.add_argument('--zbest', action = "store_true",help="add a zbest file per spectrum either with the truth redshift or adding some error (optionally use it with --sigma_kms_fog and/or --sigma_kms_zfit)")
+    parser.add_argument('--zbest', action = "store_true",help="add a zbest file per spectrum either with the truth redshift or adding some error (optionally use it with --sigma_kms_fog and/or --scale_kms_zfit)")
 
     parser.add_argument('--sigma_kms_fog',type=float,default=150, help="Adds a gaussian error to the quasar redshift that simulate the fingers of god effect")
 
-    parser.add_argument('--sigma_kms_zfit',nargs='?',type=float,const=200,help="Adds a Lorentzian distributed shift to the quasar redshift, to simulate the redshift fitting step. E.g. --sigma_kms_zfit 200 will use a sigma value of 200 km/s. If a number is not specified the default is used.")
+    parser.add_argument('--scale_kms_zfit',nargs='?',type=float,const=200,help="Adds a Lorentzian distributed shift to the quasar redshift, to simulate the redshift fitting step. E.g. --scale_kms_zfit 200 will use a scale parameter of 200 km/s . If a number is not specified the default is used.")
 
 
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
@@ -650,9 +650,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         zbest["Z"]            = metadata['Z']
         zbest["ZERR"][:]      = 0.
 
-        if args.sigma_kms_zfit:
-           log.info("Added zfit error with sigma {} to zbest".format(args.sigma_kms_zfit))
-           dz_fit=mod_cauchy(loc=0,scale=args.sigma_kms_zfit,size=nqso,cut=3000)*(1.+metadata['Z'])/c
+        if args.scale_kms_zfit:
+           log.info("Added zfit error with sigma {} to zbest".format(args.scale_kms_zfit))
+           dz_fit=mod_cauchy(loc=0,scale=args.scale_kms_zfit,size=nqso,cut=3000)*(1.+metadata['Z'])/c
            zbest["Z"]+=dz_fit
 
         zbest["ZERR"][:]     = 0
@@ -741,8 +741,8 @@ def main(args=None):
         footprint_healpix_nside=256 # same resolution as original map so we don't loose anything
         footprint_healpix_weight = load_pixweight(footprint_healpix_nside, pixmap=pixmap)
 
-    if args.sigma_kms_zfit and not args.zbest:
-       log.info("Setting --zbest to true as required by --sigma_kms_zfit")
+    if args.scale_kms_zfit and not args.zbest:
+       log.info("Setting --zbest to true as required by --scale_kms_zfit")
        args.zbest = True
 
     if args.balprob:
