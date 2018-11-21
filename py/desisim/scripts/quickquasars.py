@@ -5,6 +5,8 @@ import argparse
 import time
 
 import numpy as np
+from scipy.constants import speed_of_light
+from scipy.stats import cauchy
 from astropy.table import Table,Column
 import astropy.io.fits as pyfits
 import multiprocessing
@@ -27,6 +29,7 @@ from desimodel.io import load_pixweight
 from desimodel import footprint
 from speclite import filters
 from desitarget.cuts import isQSO_colors
+
 c = speed_of_light/1000. #- km/s
 
 
@@ -63,7 +66,7 @@ def parse(options=None):
 
     parser.add_argument('--sigma_kms_fog',type=float,default=150, help="Adds a gaussian error to the quasar redshift that simulate the fingers of god effect")
 
-        parser.add_argument('--sigma_kms_zfit',nargs='?',type=float,const=400,help="Adds a Lorentzian distributed shift to the quasar redshift, to simulate the redshift fitting step. E.g. --sigma_kms_zfit 200 will use a sigma value of 200 km/s. If a number is not specified the default is used.")
+    parser.add_argument('--sigma_kms_zfit',nargs='?',type=float,const=200,help="Adds a Lorentzian distributed shift to the quasar redshift, to simulate the redshift fitting step. E.g. --sigma_kms_zfit 200 will use a sigma value of 200 km/s. If a number is not specified the default is used.")
 
 
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
@@ -645,7 +648,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             ('BRICKNAME', (str,8))]
         zbest = Table(np.zeros(nqso, dtype=columns))
         zbest["CHI2"][:]      = 0.
-        zbest["Z"]            = metadata['Z']+dz_fog
+        zbest["Z"]            = metadata['Z']
         zbest["ZERR"][:]      = 0.
 
         if args.sigma_kms_zfit:
@@ -653,7 +656,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
            dz_fit=mod_cauchy(loc=0,scale=args.sigma_kms_zfit,size=nqso,cut=3000)*(1.+metadata['Z'])/c
            zbest["Z"]+=dz_fit
 
-         zbest["ZERR"][:]     = 0
+        zbest["ZERR"][:]     = 0
         zbest["ZWARN"][:]     = 0
         zbest["SPECTYPE"][:]  = "QSO"
         zbest["SUBTYPE"][:]   = ""
