@@ -5,6 +5,8 @@ import argparse
 import time
 
 import numpy as np
+from scipy.constants import speed_of_light
+from scipy.stats import cauchy
 from astropy.table import Table,Column
 import astropy.io.fits as pyfits
 import multiprocessing
@@ -27,6 +29,9 @@ from desimodel.io import load_pixweight
 from desimodel import footprint
 from speclite import filters
 from desitarget.cuts import isQSO_colors
+
+c = speed_of_light/1000. #- km/s
+
 
 def parse(options=None):
     parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -57,11 +62,12 @@ def parse(options=None):
     parser.add_argument('--dwave', type=float, default=0.2,help="Internal wavelength step (don't change this)")
     parser.add_argument('--nproc', type=int, default=1,help="number of processors to run faster")
 
-    parser.add_argument('--zbest', action = "store_true",help="add a zbest file per spectrum either with the truth redshift or adding some error (optionally use it with --sigma_kms_fog and/or --sigma_kms_zfit)")
+    parser.add_argument('--zbest', action = "store_true",help="add a zbest file per spectrum either with the truth redshift or adding some error (optionally use it with --sigma_kms_fog and/or --gamma_kms_zfit)")
 
     parser.add_argument('--sigma_kms_fog',type=float,default=150, help="Adds a gaussian error to the quasar redshift that simulate the fingers of god effect")
 
-    parser.add_argument('--sigma_kms_zfit',nargs='?',type=float,const=400,help="Adds a gaussian error to the quasar redshift, to simulate the redshift fitting step. E.g. --sigma_kms_zfit 200 will use a sigma value of 200 km/s. If a number is not specified the default is used.")
+    parser.add_argument('--gamma_kms_zfit',nargs='?',type=float,const=200,help="Adds a Lorentzian distributed shift to the quasar redshift, to simulate the redshift fitting step. E.g. --gamma_kms_zfit 200 will use a gamma parameter of 200 km/s . If a number is not specified the default is used.")
+
 
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
     parser.add_argument('--target-selection', action = "store_true" ,help="apply QSO target selection cuts to the simulated quasars")
@@ -83,6 +89,15 @@ def parse(options=None):
 
     return args
 
+
+def mod_cauchy(loc,scale,size,cut):
+    samples=cauchy.rvs(loc=loc,scale=scale,size=3*size)
+    samples=samples[abs(samples)<cut]   
+    if len(samples)>=size:
+       samples=samples[:size] 
+    else:     
+        samples=mod_cauchy(loc,scale,size,cut)   ##Only added for the very unlikely case that there are not enough samples after the cut.
+    return samples
 
 def get_spectra_filename(args,nside,pixel):
     if args.outfile :
@@ -235,9 +250,16 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     # might add metal transmission as well (from the HDU file).
     log.info("Read transmission file {}".format(ifilename))
     trans_wave, transmission, metadata, dla_info = read_lya_skewers(ifilename,read_dlas=(args.dla=='file'),add_metals=args.metals_from_file)
+
+###ADD dz_fog before generate the continua
+    Z_noFOG=np.copy(metadata['Z'])
+    log.info("Add FOG to redshift with sigma {} to quasar redshift".format(args.sigma_kms_fog)) 
+    dz_fog=(args.sigma_kms_fog/c)*(1.+metadata['Z'])*np.random.normal(0,1,len(metadata['Z']))    
+    metadata['Z']+=dz_fog
     ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
     transmission = transmission[ok]
     metadata = metadata[:][ok]
+    Z_noFOG=Z_noFOG[ok]
 
     # option to make for BOSS+eBOSS
     if not eboss is None:
@@ -277,6 +299,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             return
         transmission = transmission[selection]
         metadata = metadata[:][selection]
+        Z_noFOG=Z_noFOG[selection]
+
+
 
     nqso=transmission.shape[0]
     if args.downsampling is not None :
@@ -289,6 +314,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             return
         transmission = transmission[indices]
         metadata = metadata[:][indices]
+        Z_noFOG=Z_noFOG[indices]
         nqso = transmission.shape[0]
 
     if args.nmax is not None :
@@ -298,6 +324,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             indices = (np.random.uniform(size=args.nmax)*nqso).astype(int)
             transmission = transmission[indices]
             metadata = metadata[:][indices]
+            Z_noFOG=Z_noFOG[indices]
             nqso = args.nmax
 
     # In previous versions of the London mocks we needed to enforce F=1 for
@@ -532,6 +559,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         metadata     = metadata[:][selection]
         meta         = meta[:][selection]
         qsometa      = qsometa[:][selection]
+        Z_noFOG      = Z_noFOG[selection]
 
         for band in bands :
             bbflux[band] = bbflux[band][selection]
@@ -578,16 +606,15 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
 
 ##Adedd to write the truth file, includen metadata for DLA's and BALs
-    log.info("Added FOG to redshift with sigma {} to zbest".format(args.sigma_kms_fog))
-    dz_fog=(args.sigma_kms_fog/299792.458)*(1.+metadata['Z'])*np.random.normal(0,1,nqso)
-    meta.rename_column('REDSHIFT','TRUEZ_noFOG')
     log.info('Writing a truth file  {}'.format(truth_filename))
+    meta.rename_column('REDSHIFT','TRUEZ')
+    meta.add_column(Column(Z_noFOG,name='TRUEZ_noFOG'))
     if 'Z_noRSD' in metadata.dtype.names:
         meta.add_column(Column(metadata['Z_noRSD'],name='TRUEZ_noRSD'))
     else:
         log.info('Z_noRSD field not present in transmission file. Z_noRSD not saved to truth file')
 
-    meta.add_column(Column(metadata['Z']+dz_fog,name='TRUEZ'))
+
     hdu = pyfits.convenience.table_to_hdu(meta)
     hdu.header['EXTNAME'] = 'TRUTH'
     hduqso=pyfits.convenience.table_to_hdu(qsometa)
@@ -620,14 +647,15 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             ('BRICKNAME', (str,8))]
         zbest = Table(np.zeros(nqso, dtype=columns))
         zbest["CHI2"][:]      = 0.
-        zbest["Z"]            = metadata['Z']+dz_fog
+        zbest["Z"]            = metadata['Z']
         zbest["ZERR"][:]      = 0.
 
-        if args.sigma_kms_zfit:
-           log.info("Added zfit error with sigma {} to zbest".format(args.sigma_kms_zfit))
-           sigma_zfit=(args.sigma_kms_zfit/299792.458)*(1.+metadata['Z'])
-           zbest["Z"]+=sigma_zfit*np.random.normal(0,1,nqso)
-           zbest["ZERR"]=sigma_zfit
+        if args.gamma_kms_zfit:
+           log.info("Added zfit error with sigma {} to zbest".format(args.gamma_kms_zfit))
+           dz_fit=mod_cauchy(loc=0,scale=args.gamma_kms_zfit,size=nqso,cut=3000)*(1.+metadata['Z'])/c
+           zbest["Z"]+=dz_fit
+
+        zbest["ZERR"][:]     = 0
         zbest["ZWARN"][:]     = 0
         zbest["SPECTYPE"][:]  = "QSO"
         zbest["SUBTYPE"][:]   = ""
@@ -713,8 +741,8 @@ def main(args=None):
         footprint_healpix_nside=256 # same resolution as original map so we don't loose anything
         footprint_healpix_weight = load_pixweight(footprint_healpix_nside, pixmap=pixmap)
 
-    if args.sigma_kms_zfit and not args.zbest:
-       log.info("Setting --zbest to true as required by --sigma_kms_zfit")
+    if args.gamma_kms_zfit and not args.zbest:
+       log.info("Setting --zbest to true as required by --gamma_kms_zfit")
        args.zbest = True
 
     if args.balprob:
