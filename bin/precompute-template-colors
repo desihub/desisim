@@ -1,0 +1,156 @@
+#!/usr/bin/env python
+
+"""Pre-compute synthetic colors for DESI templates and add them to an HDU.
+
+Specifically: compute colors for ELG, BGS, and LRG on a uniform redshift grid
+and fixed colors for STAR and WD.  All other templates are skipped.  Also, for
+STAR we do not compute WISE colors because the templates do not extend red
+enough.
+
+"""
+import os, glob, pdb
+import shutil, warnings
+import numpy as np
+from astropy.io import fits
+from astropy.table import Table, Column
+
+def get_zgrid():
+    """Minimum, maximum, and redshift spacing.
+
+    """
+    if False: # for testing
+        zmin, zmax, dz = 0.0, 0.5, 0.1
+    else:
+        zmin, zmax, dz = 0.0, 2.5, 0.25
+    nz = np.round( (zmax - zmin) / dz ).astype('i2')
+
+    return zmin, zmax, dz, nz
+
+def get_filters(isstar=False):
+    """Get the filter curves."""
+    from speclite import filters
+
+    if isstar: # no WISE
+        return filters.load_filters('decam2014-*', 'BASS-*', 'MzLS-z',
+                                    'sdss2010-*')
+    else:
+        return filters.load_filters('decam2014-*', 'BASS-*', 'MzLS-z',
+                                    'sdss2010-*',
+                                    'wise2010-W1', 'wise2010-W2')
+
+def zgrid_colors(objtype, zgrid=True, isstar=False):
+    """Compute colors a galaxy template set on a fixed redshift grid.
+
+    """
+    from desisim.io import read_basis_templates
+
+    filt = get_filters(isstar=isstar)
+
+    # Read the templates.
+    flux, wave, meta = read_basis_templates(objtype)
+    #print('HACK!!!')
+    #flux = flux[:10, :]
+    #meta = meta[:10]
+    nt = len(meta)
+
+    # Redshift grid.
+    if zgrid:
+        zmin, zmax, dz, nz = get_zgrid()
+        redshift = np.linspace(zmin, zmax, nz).astype('f4')
+        #print('Redshift grid: {}-{} with dz={} and nz={}'.format(
+        #    zmin, zmax, dz, nz))
+
+    phot = Table()
+    if zgrid:
+        for name in filt.names:
+            colname = name.replace('-', '_').upper()
+            phot.add_column(Column(name=colname, data=np.zeros( (nt, nz) ).astype('f4')))
+
+        for iz, red in enumerate(redshift):
+            zwave = wave.astype('float') * (1 + red)
+            padflux, padzwave = filt.pad_spectrum(flux, zwave, method='edge')
+            
+            phot1 = filt.get_ab_maggies(padflux, padzwave, mask_invalid=False)
+            for name in phot1.colnames:
+                colname = name.replace('-', '_').upper()
+                phot[colname][:, iz] = phot1[name]
+
+    else:
+        for name in filt.names:
+            colname = name.replace('-', '_').upper()
+            phot.add_column(Column(name=colname, data=np.zeros(nt).astype('f4')))
+        
+        padflux, padwave = filt.pad_spectrum(flux, wave, method='edge')
+        phot1 = filt.get_ab_maggies(padflux, padwave, mask_invalid=False)
+        for name in phot1.colnames:
+            colname = name.replace('-', '_').upper()
+            phot[colname][:] = phot1[name]
+                
+    return phot
+
+def main():
+
+    olddir = os.getenv('DESI_BASIS_TEMPLATES')
+    oldver = os.path.basename(olddir)
+    print('Input directory: {}'.format(olddir))
+
+    newver = 'v' + str( (float(oldver[1:]) * 10 + 1) / 10 )
+    newdir = os.path.join( os.path.dirname(olddir), newver )
+    if not os.path.isdir(newdir):
+        os.makedirs(newdir, exist_ok=True)
+    print('Output directory: {}'.format(newdir))
+
+    obj2type = {'BGS': 'GALAXY',
+                'ELG': 'GALAXY',
+                'LRG': 'GALAXY',
+                'STAR': 'STAR',
+                'WD': 'STAR'}
+
+    alloldpathfits = glob.glob( os.path.join(olddir, '*.fits') )
+    for oldpathfits in sorted(alloldpathfits):
+
+        oldfits = os.path.basename(oldpathfits)
+        obj, word, ver = oldfits.split('_')
+
+        objtype = obj.upper()
+        oldver = ver[:4]
+
+        if objtype in obj2type.keys():
+            newver = 'v' + str( (float(oldver[1:]) * 10 + 1) / 10 )
+            newfits = '{}_{}_{}.fits'.format(obj, word, newver)
+
+            isstar = objtype == 'STAR'
+            zgrid = obj2type[objtype] == 'GALAXY'
+            phot = zgrid_colors(objtype, zgrid=zgrid, isstar=isstar)
+
+            hdu = fits.convenience.table_to_hdu(phot)
+            hdu.header['EXTNAME'] = 'DESI-COLORS'
+            hdu.header['BUNIT'] = 'maggies'
+            if zgrid:
+                zmin, zmax, dz, nz = get_zgrid()
+                hdu.header['NZ'] = nz
+                hdu.header['ZMIN'] = np.float('{:.4f}'.format(zmin))
+                hdu.header['ZMAX'] = np.float('{:.4f}'.format(zmax))
+                hdu.header['DZ'] = np.float(dz)
+        else:
+            newver = 'v' + str( (float(oldver[1:]) * 10 + 1) / 10 )
+            newfits = oldfits
+
+            hdu = None
+
+        newpathfits = os.path.join( newdir, newfits )
+        if os.path.isfile(newpathfits):
+            os.remove(newpathfits)
+
+        print('Writing {}'.format(newpathfits))
+        shutil.copy2(oldpathfits, newpathfits)
+
+        if hdu is not None:
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                with fits.open(newpathfits, mode='update') as fx:
+                    fx.append(hdu)
+                    fx.flush()
+                
+if __name__ == '__main__':
+    main()
