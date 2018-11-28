@@ -116,6 +116,11 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, objmeta=None,
     from desiutil.log import get_logger
     log = get_logger()
 
+    import warnings
+    warnings.filterwarnings("ignore", message=".*Dex.* did not parse as fits unit")
+    warnings.filterwarnings("ignore", message=".*nanomaggies.* did not parse as fits unit")
+    warnings.filterwarnings("ignore", message=".*10\*\*6 arcsec.* did not parse as fits unit")
+
     if filename is None:
         filename = findfile('simspec', night, expid, outdir=outdir)
 
@@ -261,6 +266,11 @@ def write_simspec_arc(filename, wave, phot, header, fibermap, overwrite=False):
     import astropy.table
     import astropy.units as u
 
+    import warnings
+    warnings.filterwarnings("ignore", message=".*Dex.* did not parse as fits unit")
+    warnings.filterwarnings("ignore", message=".*nanomaggies.* did not parse as fits unit")
+    warnings.filterwarnings("ignore", message=".*10\*\*6 arcsec.* did not parse as fits unit")
+                    
     hx = fits.HDUList()
     hdr = desispec.io.util.fitsheader(header)
     hdr['FLAVOR'] = 'arc'
@@ -984,6 +994,14 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
                 hdr = fx['COLORS'].header
                 for ii, col in enumerate(hdr['COLORS'].split(',')):
                     meta[col.upper()] = colors[:, ii].flatten()
+
+        #- Check if we have correct version
+        if objtype.upper() in ('ELG', 'LRG'):
+            if 'BASS_G' not in meta.keys():
+                log.error('missing BASS_G from template metadata')
+                log.error('Is your DESI_BASIS_TEMPLATES too old? {}'.format(os.getenv('DESI_BASIS_TEMPLATES')))
+                log.error('Please update DESI_BASIS_TEMPLATES to v3.0 or later')
+                raise IOError('Incompatible basis templates; please update to v3.0 or later')
 
         if (objtype.upper() == 'WD') and (subtype != ''):
             if 'WDTYPE' not in meta.colnames:

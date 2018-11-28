@@ -5,6 +5,8 @@ import argparse
 import time
 
 import numpy as np
+from scipy.constants import speed_of_light
+from scipy.stats import cauchy
 from astropy.table import Table,Column
 import astropy.io.fits as pyfits
 import multiprocessing
@@ -14,19 +16,22 @@ from desiutil.log import get_logger
 from desispec.io.util import write_bintable
 from desispec.io.fibermap import read_fibermap
 from desisim.simexp import reference_conditions
-from desisim.templates import SIMQSO
-from desisim.templates import QSO
+from desisim.templates import SIMQSO, QSO
 from desisim.scripts.quickspectra import sim_spectra
 from desisim.lya_spectra import read_lya_skewers , apply_lya_transmission, apply_metals_transmission
 from desisim.dla import dla_spec,insert_dlas
 from desisim.bal import BAL
 from desisim.io import empty_metatable
+from desisim.eboss import FootprintEBOSS, sdss_subsample, RedshiftDistributionEBOSS, sdss_subsample_redshift
 from desispec.interpolation import resample_flux
 
 from desimodel.io import load_pixweight
 from desimodel import footprint
 from speclite import filters
 from desitarget.cuts import isQSO_colors
+
+c = speed_of_light/1000. #- km/s
+
 
 def parse(options=None):
     parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -37,7 +42,7 @@ def parse(options=None):
     parser.add_argument('-i','--infile', type=str, nargs= "*", required=True, help="Input skewer healpix fits file(s)")
     parser.add_argument('-o','--outfile', type=str, required=False, help="Output spectra (only used if single input file)")
     parser.add_argument('--outdir', type=str, default=".", required=False, help="Output directory")
-    
+
     #- Optional observing conditions to override program defaults
     parser.add_argument('--program', type=str, default="DARK", help="Program (DARK, GRAY or BRIGHT)")
     parser.add_argument('--seeing', type=float, default=None, help="Seeing FWHM [arcsec]")
@@ -56,23 +61,26 @@ def parse(options=None):
     parser.add_argument('--wmax', type=float, default=10000,help="Max wavelength (obs. frame)")
     parser.add_argument('--dwave', type=float, default=0.2,help="Internal wavelength step (don't change this)")
     parser.add_argument('--nproc', type=int, default=1,help="number of processors to run faster")
-    
-    parser.add_argument('--zbest', action = "store_true",help="add a zbest file per spectrum either with the truth redshift or adding some error (optionally use it with --sigma_kms_fog and/or --sigma_kms_zfit)")
+
+    parser.add_argument('--zbest', action = "store_true",help="add a zbest file per spectrum either with the truth redshift or adding some error (optionally use it with --sigma_kms_fog and/or --gamma_kms_zfit)")
 
     parser.add_argument('--sigma_kms_fog',type=float,default=150, help="Adds a gaussian error to the quasar redshift that simulate the fingers of god effect")
 
-    parser.add_argument('--sigma_kms_zfit',nargs='?',type=float,const=400,help="Adds a gaussian error to the quasar redshift, to simulate the redshift fitting step. E.g. --sigma_kms_zfit 200 will use a sigma value of 200 km/s. If a number is not specified the default is used.")
+    parser.add_argument('--gamma_kms_zfit',nargs='?',type=float,const=200,help="Adds a Lorentzian distributed shift to the quasar redshift, to simulate the redshift fitting step. E.g. --gamma_kms_zfit 200 will use a gamma parameter of 200 km/s . If a number is not specified the default is used.")
+
 
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
     parser.add_argument('--target-selection', action = "store_true" ,help="apply QSO target selection cuts to the simulated quasars")
-    parser.add_argument('--mags', action = "store_true" ,help="compute and write the QSO mags in the fibermap")
+    parser.add_argument('--mags', action = "store_true", help="DEPRECATED; use --bbflux")
+    parser.add_argument('--bbflux', action = "store_true", help="compute and write the QSO broad-band fluxes in the fibermap")
     parser.add_argument('--desi-footprint', action = "store_true" ,help="select QSOs in DESI footprint")
     parser.add_argument('--metals', type=str, default=None, required=False, help = "list of metals to get the transmission from, if 'all' runs on all metals", nargs='*')
     parser.add_argument('--metals-from-file', action = 'store_true', help = "add metals from HDU in file")
     parser.add_argument('--dla',type=str,required=False, help="Add DLA to simulated spectra either randonmly (--dla random) or from transmision file (--dla file)")
-    parser.add_argument('--balprob',type=float,required=False, help="To add BAL features with the specified probability (e.g --balprob 0.5). Expect a number between 0 and 1 ") 
+    parser.add_argument('--balprob',type=float,required=False, help="To add BAL features with the specified probability (e.g --balprob 0.5). Expect a number between 0 and 1 ")
     parser.add_argument('--no-simqso',action = "store_true", help="Does not use desisim.templates.SIMQSO to generate templates, and uses desisim.templates.QSO instead.")
     parser.add_argument('--no-transmission',action = 'store_true', help='Do not multiply continuum by transmission, use F=1 everywhere')
+    parser.add_argument('--eboss',action = 'store_true', help='Setup footprint, number density, redshift distribution, and exposure time to generate eBOSS-like mocks')
 
     if options is None:
         args = parser.parse_args()
@@ -81,6 +89,15 @@ def parse(options=None):
 
     return args
 
+
+def mod_cauchy(loc,scale,size,cut):
+    samples=cauchy.rvs(loc=loc,scale=scale,size=3*size)
+    samples=samples[abs(samples)<cut]   
+    if len(samples)>=size:
+       samples=samples[:size] 
+    else:     
+        samples=mod_cauchy(loc,scale,size,cut)   ##Only added for the very unlikely case that there are not enough samples after the cut.
+    return samples
 
 def get_spectra_filename(args,nside,pixel):
     if args.outfile :
@@ -94,6 +111,7 @@ def get_zbest_filename(args,pixdir,nside,pixel):
         return os.path.join(pixdir,"zbest-{}-{}.fits".format(nside,pixel))
     return None
 
+
 def get_truth_filename(args,pixdir,nside,pixel):
     return os.path.join(pixdir,"truth-{}-{}.fits".format(nside,pixel))
 
@@ -106,10 +124,11 @@ def is_south(dec):
     """
     return dec <= 32.125 # constant-declination cut!
 
+
 def get_healpix_info(ifilename):
     """
     Read the header of the tranmission file to find the healpix pixel, nside
-    and if we are lucky the scheme. If it fails, try to guess it from the 
+    and if we are lucky the scheme. If it fails, try to guess it from the
     filename (for backward compatibility).
     Inputs:
         ifilename: full path to input transmission file
@@ -120,7 +139,7 @@ def get_healpix_info(ifilename):
     """
 
     log = get_logger()
-    
+
     print('ifilename',ifilename)
 
     healpix=-1
@@ -168,8 +187,6 @@ def get_healpix_info(ifilename):
             raise ValueError(error_msg)
         log.warning("Guessed healpix and nside from filename, assuming the healpix scheme is 'NESTED'")
 
-    print('found',healpix,nside,hpxnest)
-
     return healpix, nside, hpxnest
 
 
@@ -186,7 +203,8 @@ def get_pixel_seed(pixel, nside, global_seed):
 
 def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,
                          bassmzls_and_wise_filters,footprint_healpix_weight,
-                         footprint_healpix_nside,bal=None) :
+                         footprint_healpix_nside,
+                         bal=None,eboss=None) :
     log = get_logger()
 
     # open filename and extract basic HEALPix information
@@ -197,7 +215,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     seed = get_pixel_seed(pixel, nside, global_seed)
     # use this seed to generate future random numbers
     np.random.seed(seed)
-    
 
     # get output file (we will write there spectra for this HEALPix pixel)
     ofilename = get_spectra_filename(args,nside,pixel)
@@ -206,10 +223,10 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     # get filename for truth file
     truth_filename = get_truth_filename(args,pixdir,nside,pixel)
-    
+
     # get filename for zbest file
     zbest_filename = get_zbest_filename(args,pixdir,nside,pixel)
-    
+
     if not args.overwrite :
         # check whether output exists or not
         if args.zbest :
@@ -221,7 +238,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                 log.info("skip existing {}".format(ofilename))
                 return
 
-    # create sub-directories if required 
+    # create sub-directories if required
     if len(pixdir)>0 :
         if not os.path.isdir(pixdir) :
             log.info("Creating dir {}".format(pixdir))
@@ -229,13 +246,49 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     log.info("Read skewers in {}, random seed = {}".format(ifilename,seed))
 
-    # Read transmission from files. It might include DLA information, and it 
+    # Read transmission from files. It might include DLA information, and it
     # might add metal transmission as well (from the HDU file).
     log.info("Read transmission file {}".format(ifilename))
     trans_wave, transmission, metadata, dla_info = read_lya_skewers(ifilename,read_dlas=(args.dla=='file'),add_metals=args.metals_from_file)
+
+###ADD dz_fog before generate the continua
+    Z_noFOG=np.copy(metadata['Z'])
+    log.info("Add FOG to redshift with sigma {} to quasar redshift".format(args.sigma_kms_fog)) 
+    dz_fog=(args.sigma_kms_fog/c)*(1.+metadata['Z'])*np.random.normal(0,1,len(metadata['Z']))    
+    metadata['Z']+=dz_fog
     ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
     transmission = transmission[ok]
     metadata = metadata[:][ok]
+    Z_noFOG=Z_noFOG[ok]
+
+    # option to make for BOSS+eBOSS
+    if not eboss is None:
+        if args.downsampling or args.desi_footprint:
+            raise ValueError("eboss option can not be run with "
+                    +"desi_footprint or downsampling")
+
+        # Get the redshift distribution from SDSS
+        selection = sdss_subsample_redshift(metadata["RA"],metadata["DEC"],metadata["Z"],eboss['redshift'])
+        log.info("Select QSOs in BOSS+eBOSS redshift distribution {} -> {}".format(metadata["Z"].size,selection.sum()))
+        if selection.sum()==0:
+            log.warning("No intersection with BOSS+eBOSS redshift distribution")
+            return
+        transmission = transmission[selection]
+        metadata = metadata[:][selection]
+
+        # figure out the density of all quasars
+        N_highz = metadata["Z"].size
+        # area of healpix pixel, in degrees
+        area_deg2 = healpy.pixelfunc.nside2pixarea(nside,degrees=True)
+        input_highz_dens_deg2 = N_highz/area_deg2
+        selection = sdss_subsample(metadata["RA"], metadata["DEC"],
+                        input_highz_dens_deg2,eboss['footprint'])
+        log.info("Select QSOs in BOSS+eBOSS footprint {} -> {}".format(transmission.shape[0],selection.size))
+        if selection.size == 0 :
+            log.warning("No intersection with BOSS+eBOSS footprint")
+            return
+        transmission = transmission[selection]
+        metadata = metadata[:][selection]
 
     if args.desi_footprint :
         footprint_healpix = footprint.radec2pix(footprint_healpix_nside, metadata["RA"], metadata["DEC"])
@@ -246,6 +299,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             return
         transmission = transmission[selection]
         metadata = metadata[:][selection]
+        Z_noFOG=Z_noFOG[selection]
+
+
 
     nqso=transmission.shape[0]
     if args.downsampling is not None :
@@ -253,12 +309,13 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
            log.error("Down sampling fraction={} must be between 0 and 1".format(args.downsampling))
            raise ValueError("Down sampling fraction={} must be between 0 and 1".format(args.downsampling))
         indices = np.where(np.random.uniform(size=nqso)<args.downsampling)[0]
-        if indices.size == 0 : 
+        if indices.size == 0 :
             log.warning("Down sampling from {} to 0 (by chance I presume)".format(nqso))
             return
         transmission = transmission[indices]
         metadata = metadata[:][indices]
-        nqso = transmission.shape[0] 
+        Z_noFOG=Z_noFOG[indices]
+        nqso = transmission.shape[0]
 
     if args.nmax is not None :
         if args.nmax < nqso :
@@ -267,12 +324,13 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             indices = (np.random.uniform(size=args.nmax)*nqso).astype(int)
             transmission = transmission[indices]
             metadata = metadata[:][indices]
+            Z_noFOG=Z_noFOG[indices]
             nqso = args.nmax
 
-    # In previous versions of the London mocks we needed to enforce F=1 for 
+    # In previous versions of the London mocks we needed to enforce F=1 for
     # z > z_qso here, but this is not needed anymore. Moreover, now we also
-    # have metal absorption that implies F < 1 for z > z_qso 
-    #for ii in range(len(metadata)):       
+    # have metal absorption that implies F < 1 for z > z_qso
+    #for ii in range(len(metadata)):
     #    transmission[ii][trans_wave>1215.67*(metadata[ii]['Z']+1)]=1.0
 
     # if requested, add DLA to the transmission skewers
@@ -296,11 +354,11 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         min_lya_z = np.min(trans_wave/1215.67 - 1)
 
         # loop over quasars in pixel
-        
+
         for ii in range(len(metadata)):
 
             # quasars with z < min_z will not have any DLA in spectrum
-            if min_lya_z > metadata[ii]['Z']: 
+            if min_lya_z > metadata[ii]['Z']:
                 continue
 
             # quasar ID
@@ -310,7 +368,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             if args.dla=='file':
 
                 for dla in dla_info[dla_info['MOCKID']==idd]:
-                    # Adding only DLAs with z < zqso 
+                    # Adding only DLAs with z < zqso
                     if (dla['Z_DLA']< metadata[ii]['Z']):
                         dlas.append(dict(z=dla['Z_DLA']+dla['DZ_DLA'],N=dla['N_HI_DLA']))
                 transmission_dla = dla_spec(trans_wave,dlas)
@@ -327,7 +385,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                 dla_id += [idd]*len(dlas)
         log.info('Added {} DLAs'.format(len(dla_id)))
         # write file with DLA information
-        if len(dla_id)>0:    
+        if len(dla_id)>0:
             dla_meta=Table()
             dla_meta['NHI']=dla_NHI
             dla_meta['z']=dla_z
@@ -341,11 +399,11 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             hdu_dla=pyfits.PrimaryHDU()
             hdu_dla.name="DLA_META"
 
-    # if requested, extend transmission skewers to cover full spectrum     
-    if args.target_selection or args.mags :
+    # if requested, extend transmission skewers to cover full spectrum
+    if args.target_selection or args.bbflux :
         wanted_min_wave = 3329. # needed to compute magnitudes for decam2014-r (one could have trimmed the transmission file ...)
         wanted_max_wave = 55501. # needed to compute magnitudes for wise2010-W2
-        
+
         if trans_wave[0]>wanted_min_wave :
             log.info("Increase wavelength range from {}:{} to {}:{} to compute magnitudes".format(int(trans_wave[0]),int(trans_wave[-1]),int(wanted_min_wave),int(trans_wave[-1])))
             # pad with ones at short wavelength, we assume F = 1 for z <~ 1.7
@@ -355,7 +413,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             new_transmission[:,2:] = transmission
             trans_wave   = new_trans_wave
             transmission = new_transmission
-                    
+
         if trans_wave[-1]<wanted_max_wave :
             log.info("Increase wavelength range from {}:{} to {}:{} to compute magnitudes".format(int(trans_wave[0]),int(trans_wave[-1]),int(trans_wave[0]),int(wanted_max_wave)))
             # pad with ones at long wavelength because we assume F = 1
@@ -381,18 +439,34 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         log.info("Simulate {} QSOs with SIMQSO templates".format(nqso))
         tmp_qso_flux = np.zeros([nqso, len(model.basewave)], dtype='f4')
         tmp_qso_wave = model.basewave
-        
+
     for these, issouth in zip( (north, south), (False, True) ):
-        if len(these) > 0:
-            _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa = model.make_templates(
-                nmodel=len(these), redshift=metadata['Z'][these], lyaforest=False, nocolorcuts=True,
-                noresample=True, seed=seed, south=issouth)
-            meta[these] = _meta
-            qsometa[these] = _qsometa
-            tmp_qso_flux[these, :] = _tmp_qso_flux
-            
-            if args.no_simqso:
-                tmp_qso_wave[these, :] = _tmp_qso_wave
+
+        # number of quasars in these
+        nt = len(these)
+        if nt<=0: continue
+
+        if not eboss is None:
+            # for eBOSS, generate only quasars with r<22
+            magrange = (17.0, 22.0)
+            _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
+                = model.make_templates(nmodel=nt,
+                    redshift=metadata['Z'][these], magrange=magrange,
+                    lyaforest=False, nocolorcuts=True,
+                    noresample=True, seed=seed, south=issouth)
+        else:
+            _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
+                = model.make_templates(nmodel=nt,
+                    redshift=metadata['Z'][these],
+                    lyaforest=False, nocolorcuts=True,
+                    noresample=True, seed=seed, south=issouth)
+
+        meta[these] = _meta
+        qsometa[these] = _qsometa
+        tmp_qso_flux[these, :] = _tmp_qso_flux
+
+        if args.no_simqso:
+            tmp_qso_wave[these, :] = _tmp_qso_wave
 
     log.info("Resample to transmission wavelength grid")
     qso_flux=np.zeros((tmp_qso_flux.shape[0],trans_wave.size))
@@ -402,7 +476,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     else:
         for q in range(tmp_qso_flux.shape[0]) :
             qso_flux[q]=np.interp(trans_wave,tmp_qso_wave,tmp_qso_flux[q])
-        
+
     tmp_qso_flux = qso_flux
     tmp_qso_wave = trans_wave
 
@@ -411,16 +485,16 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         if args.balprob<=1. and args.balprob >0:
             log.info("Adding BALs with probability {}".format(args.balprob))
             # save current random state
-            rnd_state = np.random.get_state() 
+            rnd_state = np.random.get_state()
             tmp_qso_flux,meta_bal=bal.insert_bals(tmp_qso_wave,tmp_qso_flux, metadata['Z'],
                                                   balprob=args.balprob,seed=seed)
-            # restore random state to get the same random numbers later 
+            # restore random state to get the same random numbers later
             # as when we don't insert BALs
-            np.random.set_state(rnd_state) 
+            np.random.set_state(rnd_state)
             hdu_bal=pyfits.convenience.table_to_hdu(meta_bal); hdu_bal.name="BAL_META"
             del meta_bal
         else:
-            balstr=str(args.balprob) 
+            balstr=str(args.balprob)
             log.error("BAL probability is not between 0 and 1 : "+balstr)
             sys.exit(1)
 
@@ -431,7 +505,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         tmp_qso_flux = apply_lya_transmission(tmp_qso_wave,tmp_qso_flux,
                             trans_wave,transmission)
 
-    # if requested, compute metal transmission on the fly 
+    # if requested, compute metal transmission on the fly
     # (if not included already from the transmission file)
     if args.metals is not None:
         if args.metals_from_file:
@@ -449,7 +523,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     # if requested, compute magnitudes and apply target selection.  Need to do
     # this calculation separately for QSOs in the north vs south.
     bbflux=None
-    if args.target_selection or args.mags :
+    if args.target_selection or args.bbflux :
         bands=['FLUX_G','FLUX_R','FLUX_Z', 'FLUX_W1', 'FLUX_W2']
         bbflux=dict()
         bbflux['SOUTH'] = is_south(metadata['DEC'])
@@ -476,8 +550,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                                              zflux=bbflux['FLUX_Z'][these],
                                              w1flux=bbflux['FLUX_W1'][these],
                                              w2flux=bbflux['FLUX_W2'][these],
-                                             south=issouth, optical=args.no_simqso) 
-        
+                                             south=issouth, optical=args.no_simqso)
+
         log.info("Target selection: {}/{} QSOs selected".format(np.sum(isqso),nqso))
         selection=np.where(isqso)[0]
         if selection.size==0 : return
@@ -485,11 +559,12 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         metadata     = metadata[:][selection]
         meta         = meta[:][selection]
         qsometa      = qsometa[:][selection]
+        Z_noFOG      = Z_noFOG[selection]
 
-        for band in bands : 
+        for band in bands :
             bbflux[band] = bbflux[band][selection]
         nqso         = selection.size
-    
+
     log.info("Resample to a linear wavelength grid (needed by DESI sim.)")
     # careful integration of bins, not just a simple interpolation
     qso_wave=np.linspace(args.wmin,args.wmax,int((args.wmax-args.wmin)/args.dwave)+1)
@@ -507,41 +582,45 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     else :
         log.warning("No TARGETID")
         targetid=None
-    
+
     specmeta={"HPXNSIDE":nside,"HPXPIXEL":pixel, "HPXNEST":hpxnest}
-     
-    if args.target_selection or args.mags :
-        # today we write mags because that's what is in the fibermap
-        mags=np.zeros((qso_flux.shape[0],5))
-        for i,band in enumerate(bands) :
-            jj=(bbflux[band]>0)
-            mags[jj,i] = 22.5-2.5*np.log10(bbflux[band][jj]) # AB magnitudes
-        fibermap_columns={"MAG":mags}
+
+    if args.target_selection or args.bbflux :
+        fibermap_columns = dict(
+            FLUX_G = bbflux['FLUX_G'],
+            FLUX_R = bbflux['FLUX_R'],
+            FLUX_Z = bbflux['FLUX_Z'],
+            FLUX_W1 = bbflux['FLUX_W1'],
+            FLUX_W2 = bbflux['FLUX_W2'],
+            )
+        photsys = np.full(len(bbflux['FLUX_G']), 'N', dtype='S1')
+        photsys[bbflux['SOUTH']] = b'S'
+        fibermap_columns['PHOTSYS'] = photsys
     else :
         fibermap_columns=None
 
-     
+
     sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
                 sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
                 meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False, specsim_config_file="eboss") # use Poisson = False to get reproducible results.
     
 
-##Adedd to write the truth file, includen metadata for DLA's and BALs   
-    log.info("Added FOG to redshift with sigma {} to zbest".format(args.sigma_kms_fog)) 
-    dz_fog=(args.sigma_kms_fog/299792.458)*(1.+metadata['Z'])*np.random.normal(0,1,nqso)
-    meta.rename_column('REDSHIFT','TRUEZ_noFOG')
+
+##Adedd to write the truth file, includen metadata for DLA's and BALs
     log.info('Writing a truth file  {}'.format(truth_filename))
+    meta.rename_column('REDSHIFT','TRUEZ')
+    meta.add_column(Column(Z_noFOG,name='TRUEZ_noFOG'))
     if 'Z_noRSD' in metadata.dtype.names:
         meta.add_column(Column(metadata['Z_noRSD'],name='TRUEZ_noRSD'))
     else:
         log.info('Z_noRSD field not present in transmission file. Z_noRSD not saved to truth file')
 
-    meta.add_column(Column(metadata['Z']+dz_fog,name='TRUEZ'))   
+
     hdu = pyfits.convenience.table_to_hdu(meta)
-    hdu.header['EXTNAME'] = 'TRUTH'    
+    hdu.header['EXTNAME'] = 'TRUTH'
     hduqso=pyfits.convenience.table_to_hdu(qsometa)
     hduqso.header['EXTNAME'] = 'QSO_META'
-    hdulist=pyfits.HDUList([pyfits.PrimaryHDU(),hdu,hduqso])    
+    hdulist=pyfits.HDUList([pyfits.PrimaryHDU(),hdu,hduqso])
     if args.dla:
        hdulist.append(hdu_dla)
     if args.balprob:
@@ -550,8 +629,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     hdulist.close()
 
 
-   
-    
+
+
     if args.zbest :
         log.info("Read fibermap")
         fibermap = read_fibermap(ofilename)
@@ -569,14 +648,15 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             ('BRICKNAME', (str,8))]
         zbest = Table(np.zeros(nqso, dtype=columns))
         zbest["CHI2"][:]      = 0.
-        zbest["Z"]            = metadata['Z']+dz_fog
+        zbest["Z"]            = metadata['Z']
         zbest["ZERR"][:]      = 0.
 
-        if args.sigma_kms_zfit:
-           log.info("Added zfit error with sigma {} to zbest".format(args.sigma_kms_zfit))
-           sigma_zfit=(args.sigma_kms_zfit/299792.458)*(1.+metadata['Z'])
-           zbest["Z"]+=sigma_zfit*np.random.normal(0,1,nqso)
-           zbest["ZERR"]=sigma_zfit
+        if args.gamma_kms_zfit:
+           log.info("Added zfit error with sigma {} to zbest".format(args.gamma_kms_zfit))
+           dz_fit=mod_cauchy(loc=0,scale=args.gamma_kms_zfit,size=nqso,cut=3000)*(1.+metadata['Z'])/c
+           zbest["Z"]+=dz_fit
+
+        zbest["ZERR"][:]     = 0
         zbest["ZWARN"][:]     = 0
         zbest["SPECTYPE"][:]  = "QSO"
         zbest["SUBTYPE"][:]   = ""
@@ -598,21 +678,24 @@ def main(args=None):
     if isinstance(args, (list, tuple, type(None))):
         args = parse(args)
 
-    if isinstance(args, (list, tuple, type(None))):
-        args = parse(args)
-    
     if args.outfile is not None and len(args.infile)>1 :
         log.error("Cannot specify single output file with multiple inputs, use --outdir option instead")
         return 1
-        
+
     if not os.path.isdir(args.outdir) :
         log.info("Creating dir {}".format(args.outdir))
         os.makedirs(args.outdir)
-    
+
+    if args.mags:
+        log.warning('--mags is deprecated; please use --bbflux instead')
+        args.bbflux = True
+
     exptime = args.exptime
     if exptime is None :
         exptime = 1000. # sec
-    
+        if args.eboss:
+            exptime = 1000. # sec (added here in case we change the default)
+
     #- Generate obsconditions with args.program, then override as needed
     obsconditions = reference_conditions[args.program.upper()]
     if args.airmass is not None:
@@ -627,24 +710,24 @@ def main(args=None):
         obsconditions['MOONALT'] = args.moonalt
     if args.moonsep is not None:
         obsconditions['MOONSEP'] = args.moonsep
-    
+
     if args.no_simqso:
         log.info("Load QSO model")
         model=QSO()
     else:
         log.info("Load SIMQSO model")
         model=SIMQSO(nproc=1)
-    
+
     decam_and_wise_filters = None
-    bassmzls_and_wise_filters = None 
-    if args.target_selection or args.mags :
+    bassmzls_and_wise_filters = None
+    if args.target_selection or args.bbflux :
         log.info("Load DeCAM and WISE filters for target selection sim.")
         # ToDo @moustakas -- load north/south filters
         decam_and_wise_filters = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
                                                       'wise2010-W1', 'wise2010-W2')
         bassmzls_and_wise_filters = filters.load_filters('BASS-g', 'BASS-r', 'MzLS-z',
                                                      'wise2010-W1', 'wise2010-W2')
-        
+
     footprint_healpix_weight = None
     footprint_healpix_nside  = None
     if args.desi_footprint :
@@ -652,23 +735,28 @@ def main(args=None):
             log.error("To apply DESI footprint, I need the DESIMODEL variable to find the file $DESIMODEL/data/footprint/desi-healpix-weights.fits")
             sys.exit(1)
         footprint_filename=os.path.join(os.environ['DESIMODEL'],'data','footprint','desi-healpix-weights.fits')
-        if not os.path.isfile(footprint_filename): 
+        if not os.path.isfile(footprint_filename):
             log.error("Cannot find $DESIMODEL/data/footprint/desi-healpix-weights.fits")
             sys.exit(1)
         pixmap=pyfits.open(footprint_filename)[0].data
         footprint_healpix_nside=256 # same resolution as original map so we don't loose anything
         footprint_healpix_weight = load_pixweight(footprint_healpix_nside, pixmap=pixmap)
 
-    if args.sigma_kms_zfit and not args.zbest:
-       log.info("Setting --zbest to true as required by --sigma_kms_zfit")
+    if args.gamma_kms_zfit and not args.zbest:
+       log.info("Setting --zbest to true as required by --gamma_kms_zfit")
        args.zbest = True
-
 
     if args.balprob:
         bal=BAL()
     else:
         bal=None
-    if args.nproc > 1 :
+
+    if args.eboss:
+        eboss = { 'footprint':FootprintEBOSS(), 'redshift':RedshiftDistributionEBOSS() }
+    else:
+        eboss = None
+
+    if args.nproc > 1:
         func_args = [ {"ifilename":filename , \
                        "args":args, "model":model , \
                        "obsconditions":obsconditions , \
@@ -676,11 +764,13 @@ def main(args=None):
                        "bassmzls_and_wise_filters": bassmzls_and_wise_filters , \
                        "footprint_healpix_weight": footprint_healpix_weight , \
                        "footprint_healpix_nside": footprint_healpix_nside , \
-                       "bal":bal \
+                       "bal":bal, "eboss":eboss \
                    } for i,filename in enumerate(args.infile) ]
         pool = multiprocessing.Pool(args.nproc)
         pool.map(_func, func_args)
-    else :
+    else:
         for i,ifilename in enumerate(args.infile) :
-            simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,bassmzls_and_wise_filters,
-                                 footprint_healpix_weight,footprint_healpix_nside,bal=bal)
+            simulate_one_healpix(ifilename,args,model,obsconditions,
+                    decam_and_wise_filters,bassmzls_and_wise_filters,
+                    footprint_healpix_weight,footprint_healpix_nside,
+                    bal=bal,eboss=eboss)
