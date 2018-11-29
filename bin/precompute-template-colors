@@ -18,10 +18,7 @@ def get_zgrid():
     """Minimum, maximum, and redshift spacing.
 
     """
-    if False: # for testing
-        zmin, zmax, dz = 0.0, 0.5, 0.1
-    else:
-        zmin, zmax, dz = 0.0, 2.5, 0.25
+    zmin, zmax, dz = 0.0, 2.5, 0.05
     nz = np.round( (zmax - zmin) / dz ).astype('i2')
 
     return zmin, zmax, dz, nz
@@ -48,17 +45,14 @@ def zgrid_colors(objtype, zgrid=True, isstar=False):
 
     # Read the templates.
     flux, wave, meta = read_basis_templates(objtype)
-    #print('HACK!!!')
-    #flux = flux[:10, :]
-    #meta = meta[:10]
     nt = len(meta)
 
     # Redshift grid.
     if zgrid:
         zmin, zmax, dz, nz = get_zgrid()
         redshift = np.linspace(zmin, zmax, nz).astype('f4')
-        #print('Redshift grid: {}-{} with dz={} and nz={}'.format(
-        #    zmin, zmax, dz, nz))
+        print('Redshift grid: {}-{} with dz={} and nz={}'.format(
+            zmin, zmax, dz, nz))
 
     phot = Table()
     if zgrid:
