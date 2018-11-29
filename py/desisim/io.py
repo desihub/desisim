@@ -995,6 +995,11 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
                 for ii, col in enumerate(hdr['COLORS'].split(',')):
                     meta[col.upper()] = colors[:, ii].flatten()
 
+            if 'DESI-COLORS' in fx:
+                colors = fx['DESI-COLORS'].data
+                for col in colors.names:
+                    meta[col.upper()] = colors[col]
+
         #- Check if we have correct version
         if objtype.upper() in ('ELG', 'LRG'):
             if 'BASS_G' not in meta.keys():
