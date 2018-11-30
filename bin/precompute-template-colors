@@ -57,7 +57,7 @@ def zgrid_colors(objtype, zgrid=True, isstar=False):
     phot = Table()
     if zgrid:
         for name in filt.names:
-            colname = name.replace('-', '_').upper()
+            colname = 'SYNTH_{}'.format(name.replace('-', '_').upper())
             phot.add_column(Column(name=colname, data=np.zeros( (nt, nz) ).astype('f4')))
 
         for iz, red in enumerate(redshift):
@@ -66,18 +66,18 @@ def zgrid_colors(objtype, zgrid=True, isstar=False):
             
             phot1 = filt.get_ab_maggies(padflux, padzwave, mask_invalid=False)
             for name in phot1.colnames:
-                colname = name.replace('-', '_').upper()
+                colname = 'SYNTH_{}'.format(name.replace('-', '_').upper())
                 phot[colname][:, iz] = phot1[name]
 
     else:
         for name in filt.names:
-            colname = name.replace('-', '_').upper()
+            colname = 'SYNTH_{}'.format(name.replace('-', '_').upper())
             phot.add_column(Column(name=colname, data=np.zeros(nt).astype('f4')))
         
         padflux, padwave = filt.pad_spectrum(flux, wave, method='edge')
         phot1 = filt.get_ab_maggies(padflux, padwave, mask_invalid=False)
         for name in phot1.colnames:
-            colname = name.replace('-', '_').upper()
+            colname = 'SYNTH_{}'.format(name.replace('-', '_').upper())
             phot[colname][:] = phot1[name]
                 
     return phot
