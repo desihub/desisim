@@ -5,7 +5,9 @@ desisim change log
 0.31.1 (unreleased)
 -------------------
 
-* No changes yet
+* Precompute colors for star and galaxy templates. (`PR #453`_).
+
+.. _`PR #453`: https://github.com/desihub/desisim/pull/453
 
 0.31.0 (2018-11-08)
 -------------------
