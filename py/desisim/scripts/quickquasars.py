@@ -462,6 +462,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                     lyaforest=False, nocolorcuts=True,
                     noresample=True, seed=seed, south=issouth)
 
+        _meta['TARGETID'] = metadata['MOCKID']
+        _qsometa['TARGETID'] = metadata['MOCKID']
         meta[these] = _meta
         qsometa[these] = _qsometa
         tmp_qso_flux[these, :] = _tmp_qso_flux
@@ -606,7 +608,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                 meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False) # use Poisson = False to get reproducible results.
 
 
-##Adedd to write the truth file, includen metadata for DLA's and BALs
+    ##Adedd to write the truth file, includen metadata for DLA's and BALs
     log.info('Writing a truth file  {}'.format(truth_filename))
     meta.rename_column('REDSHIFT','TRUEZ')
     meta.add_column(Column(Z_noFOG,name='TRUEZ_noFOG'))
@@ -662,7 +664,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         zbest["ZWARN"][:]     = 0
         zbest["SPECTYPE"][:]  = "QSO"
         zbest["SUBTYPE"][:]   = ""
-        zbest["TARGETID"]     = fibermap["TARGETID"]
+        zbest["TARGETID"]     = metadata['MOCKID']
         zbest["DELTACHI2"][:] = 25.
         hzbest = pyfits.convenience.table_to_hdu(zbest); hzbest.name="ZBEST"
         hfmap  = pyfits.convenience.table_to_hdu(fibermap);  hfmap.name="FIBERMAP"
