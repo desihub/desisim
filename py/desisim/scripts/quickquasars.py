@@ -66,9 +66,8 @@ def parse(options=None):
 
     parser.add_argument('--sigma_kms_fog',type=float,default=150, help="Adds a gaussian error to the quasar redshift that simulate the fingers of god effect")
 
-    parser.add_argument('--gamma_kms_zfit',nargs='?',type=float,const=200,help="Adds a Lorentzian distributed shift to the quasar redshift, to simulate the redshift fitting step. E.g. --gamma_kms_zfit 200 will use a gamma parameter of 200 km/s . If a number is not specified the default is used.")
-
-
+    parser.add_argument('--gamma_kms_zfit',nargs='?',type=float,const=200,help="Adds a Lorentzian distributed shift to the quasar redshift, to simulate the redshift fitting step. E.g. --gamma_kms_zfit 200 will use a gamma parameter of 200 km/s . If a number is not specified, a value of 200 is used.")
+    parser.add_argument('--shift_kms_los',type=float,default=0,help="Adds a shift to the quasar redshift written in the zbest sfile.")
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
     parser.add_argument('--target-selection', action = "store_true" ,help="apply QSO target selection cuts to the simulated quasars")
     parser.add_argument('--mags', action = "store_true", help="DEPRECATED; use --bbflux")
@@ -616,6 +615,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     else:
         log.info('Z_noRSD field not present in transmission file. Z_noRSD not saved to truth file')
 
+    metadata['Z']+=args.shift_kms_los/c*(1.+metadata['Z'])
+    log.info('Added a shift of {} km/s to the redshift'.format(str(args.shift_kms_los)))
 
     hdu = pyfits.convenience.table_to_hdu(meta)
     hdu.header['EXTNAME'] = 'TRUTH'
@@ -746,6 +747,7 @@ def main(args=None):
     if args.gamma_kms_zfit and not args.zbest:
        log.info("Setting --zbest to true as required by --gamma_kms_zfit")
        args.zbest = True
+
 
     if args.balprob:
         bal=BAL()
