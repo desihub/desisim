@@ -18,7 +18,7 @@ from desispec.io.fibermap import read_fibermap
 from desisim.simexp import reference_conditions
 from desisim.templates import SIMQSO, QSO
 from desisim.scripts.quickspectra import sim_spectra
-from desisim.lya_spectra import read_lya_skewers , apply_lya_transmission, apply_metals_transmission
+from desisim.lya_spectra import read_lya_skewers , apply_lya_transmission, apply_metals_transmission, lambda_RF_LYA
 from desisim.dla import dla_spec,insert_dlas
 from desisim.bal import BAL
 from desisim.io import empty_metatable
@@ -91,10 +91,10 @@ def parse(options=None):
 
 def mod_cauchy(loc,scale,size,cut):
     samples=cauchy.rvs(loc=loc,scale=scale,size=3*size)
-    samples=samples[abs(samples)<cut]   
+    samples=samples[abs(samples)<cut]
     if len(samples)>=size:
-       samples=samples[:size] 
-    else:     
+       samples=samples[:size]
+    else:
         samples=mod_cauchy(loc,scale,size,cut)   ##Only added for the very unlikely case that there are not enough samples after the cut.
     return samples
 
@@ -250,15 +250,16 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     log.info("Read transmission file {}".format(ifilename))
     trans_wave, transmission, metadata, dla_info = read_lya_skewers(ifilename,read_dlas=(args.dla=='file'),add_metals=args.metals_from_file)
 
-    ###ADD dz_fog before generate the continua
-    Z_noFOG=np.copy(metadata['Z'])
-    log.info("Add FOG to redshift with sigma {} to quasar redshift".format(args.sigma_kms_fog)) 
-    dz_fog=(args.sigma_kms_fog/c)*(1.+metadata['Z'])*np.random.normal(0,1,len(metadata['Z']))    
-    metadata['Z']+=dz_fog
-    ok = np.where(( metadata['Z'] >= args.zmin ) & (metadata['Z'] <= args.zmax ))[0]
-    transmission = transmission[ok]
-    metadata = metadata[:][ok]
-    Z_noFOG=Z_noFOG[ok]
+    ### Add Finger-of-God, before generate the continua
+    log.info("Add FOG to redshift with sigma {} to quasar redshift".format(args.sigma_kms_fog))
+    DZ_FOG = args.sigma_kms_fog/c*(1.+metadata['Z'])*np.random.normal(0,1,metadata['Z'].size)
+    metadata['Z'] += DZ_FOG
+
+    ### Select quasar within a given redshift range
+    w = (metadata['Z']>=args.zmin) & (metadata['Z']<=args.zmax)
+    transmission = transmission[w]
+    metadata = metadata[:][w]
+    DZ_FOG = DZ_FOG[w]
 
     # option to make for BOSS+eBOSS
     if not eboss is None:
@@ -267,17 +268,17 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                     +"desi_footprint or downsampling")
 
         # Get the redshift distribution from SDSS
-        selection = sdss_subsample_redshift(metadata["RA"],metadata["DEC"],metadata["Z"],eboss['redshift'])
-        log.info("Select QSOs in BOSS+eBOSS redshift distribution {} -> {}".format(metadata["Z"].size,selection.sum()))
+        selection = sdss_subsample_redshift(metadata["RA"],metadata["DEC"],metadata['Z'],eboss['redshift'])
+        log.info("Select QSOs in BOSS+eBOSS redshift distribution {} -> {}".format(metadata['Z'].size,selection.sum()))
         if selection.sum()==0:
             log.warning("No intersection with BOSS+eBOSS redshift distribution")
             return
         transmission = transmission[selection]
         metadata = metadata[:][selection]
-        Z_noFOG = Z_noFOG[selection]
+        DZ_FOG = DZ_FOG[selection]
 
         # figure out the density of all quasars
-        N_highz = metadata["Z"].size
+        N_highz = metadata['Z'].size
         # area of healpix pixel, in degrees
         area_deg2 = healpy.pixelfunc.nside2pixarea(nside,degrees=True)
         input_highz_dens_deg2 = N_highz/area_deg2
@@ -289,7 +290,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             return
         transmission = transmission[selection]
         metadata = metadata[:][selection]
-        Z_noFOG = Z_noFOG[selection]
+        DZ_FOG = DZ_FOG[selection]
 
     if args.desi_footprint :
         footprint_healpix = footprint.radec2pix(footprint_healpix_nside, metadata["RA"], metadata["DEC"])
@@ -300,7 +301,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             return
         transmission = transmission[selection]
         metadata = metadata[:][selection]
-        Z_noFOG=Z_noFOG[selection]
+        DZ_FOG = DZ_FOG[selection]
 
 
 
@@ -315,7 +316,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             return
         transmission = transmission[indices]
         metadata = metadata[:][indices]
-        Z_noFOG=Z_noFOG[indices]
+        DZ_FOG = DZ_FOG[indices]
         nqso = transmission.shape[0]
 
     if args.nmax is not None :
@@ -325,14 +326,14 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             indices = (np.random.uniform(size=args.nmax)*nqso).astype(int)
             transmission = transmission[indices]
             metadata = metadata[:][indices]
-            Z_noFOG=Z_noFOG[indices]
+            DZ_FOG = DZ_FOG[indices]
             nqso = args.nmax
 
     # In previous versions of the London mocks we needed to enforce F=1 for
     # z > z_qso here, but this is not needed anymore. Moreover, now we also
     # have metal absorption that implies F < 1 for z > z_qso
     #for ii in range(len(metadata)):
-    #    transmission[ii][trans_wave>1215.67*(metadata[ii]['Z']+1)]=1.0
+    #    transmission[ii][trans_wave>lambda_RF_LYA*(metadata[ii]['Z']+1)]=1.0
 
     # if requested, add DLA to the transmission skewers
     if args.dla is not None :
@@ -352,7 +353,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         dla_NHI, dla_z, dla_id = [], [], []
 
         # identify minimum Lya redshift in transmission files
-        min_lya_z = np.min(trans_wave/1215.67 - 1)
+        min_lya_z = np.min(trans_wave/lambda_RF_LYA - 1)
 
         # loop over quasars in pixel
 
@@ -563,7 +564,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         metadata     = metadata[:][selection]
         meta         = meta[:][selection]
         qsometa      = qsometa[:][selection]
-        Z_noFOG      = Z_noFOG[selection]
+        DZ_FOG      = DZ_FOG[selection]
 
         for band in bands :
             bbflux[band] = bbflux[band][selection]
@@ -608,18 +609,30 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                 sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
                 meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False) # use Poisson = False to get reproducible results.
 
+    ### Add a shift to the redshift, simulating the systematic imprecision of redrock
+    DZ_sys_shift = args.shift_kms_los/c*(1.+metadata['Z'])
+    log.info('Added a shift of {} km/s to the redshift'.format(args.shift_kms_los))
+    meta['REDSHIFT'] += DZ_sys_shift
+    metadata['Z'] += DZ_sys_shift
 
-    ##Adedd to write the truth file, includen metadata for DLA's and BALs
+    ### Add a shift to the redshift, simulating the statistic imprecision of redrock
+    if args.gamma_kms_zfit:
+        log.info("Added zfit error with sigma {} to zbest".format(args.gamma_kms_zfit))
+        DZ_stat_shift = mod_cauchy(loc=0,scale=args.gamma_kms_zfit,size=nqso,cut=3000)/c*(1.+metadata['Z'])
+        meta['REDSHIFT'] += DZ_stat_shift
+        metadata['Z'] += DZ_stat_shift
+
+    ## Write the truth file, including metadata for DLAs and BALs
     log.info('Writing a truth file  {}'.format(truth_filename))
     meta.rename_column('REDSHIFT','TRUEZ')
-    meta.add_column(Column(Z_noFOG,name='TRUEZ_noFOG'))
+    meta.add_column(Column(DZ_FOG,name='DZ_FOG'))
+    meta.add_column(Column(DZ_sys_shift,name='DZ_SYS'))
+    if args.gamma_kms_zfit:
+        meta.add_column(Column(DZ_stat_shift,name='DZ_STAT'))
     if 'Z_noRSD' in metadata.dtype.names:
-        meta.add_column(Column(metadata['Z_noRSD'],name='TRUEZ_noRSD'))
+        meta.add_column(Column(metadata['Z_noRSD'],name='Z_NORSD'))
     else:
-        log.info('Z_noRSD field not present in transmission file. Z_noRSD not saved to truth file')
-
-    metadata['Z']+=args.shift_kms_los/c*(1.+metadata['Z'])
-    log.info('Added a shift of {} km/s to the redshift'.format(str(args.shift_kms_los)))
+        log.info('Z_noRSD field not present in transmission file. Z_NORSD not saved to truth file')
 
     hdu = pyfits.convenience.table_to_hdu(meta)
     hdu.header['EXTNAME'] = 'TRUTH'
@@ -652,23 +665,16 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             ('DELTACHI2', 'f8'),
             ('BRICKNAME', (str,8))]
         zbest = Table(np.zeros(nqso, dtype=columns))
-        zbest["CHI2"][:] = 0.
-        zbest["Z"][:] = metadata['Z']
-        zbest["ZERR"][:] = 0.
-
-        if args.gamma_kms_zfit:
-           log.info("Added zfit error with sigma {} to zbest".format(args.gamma_kms_zfit))
-           dz_fit=mod_cauchy(loc=0,scale=args.gamma_kms_zfit,size=nqso,cut=3000)*(1.+metadata['Z'])/c
-           zbest["Z"]+=dz_fit
-
-        zbest["ZERR"][:] = 0
-        zbest["ZWARN"][:] = 0
-        zbest["SPECTYPE"][:] = 'QSO'
-        zbest["SUBTYPE"][:] = ''
-        zbest["TARGETID"][:] = metadata['MOCKID']
-        zbest["DELTACHI2"][:] = 25.
-        hzbest = pyfits.convenience.table_to_hdu(zbest); hzbest.name="ZBEST"
-        hfmap  = pyfits.convenience.table_to_hdu(fibermap);  hfmap.name="FIBERMAP"
+        zbest['CHI2'][:] = 0.
+        zbest['Z'][:] = metadata['Z']
+        zbest['ZERR'][:] = 0.
+        zbest['ZWARN'][:] = 0
+        zbest['SPECTYPE'][:] = 'QSO'
+        zbest['SUBTYPE'][:] = ''
+        zbest['TARGETID'][:] = metadata['MOCKID']
+        zbest['DELTACHI2'][:] = 25.
+        hzbest = pyfits.convenience.table_to_hdu(zbest); hzbest.name='ZBEST'
+        hfmap  = pyfits.convenience.table_to_hdu(fibermap);  hfmap.name='FIBERMAP'
         hdulist =pyfits.HDUList([pyfits.PrimaryHDU(),hzbest,hfmap])
         hdulist.writeto(zbest_filename, overwrite=True)
         hdulist.close() # see if this helps with memory issue
