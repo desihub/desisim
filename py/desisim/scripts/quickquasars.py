@@ -461,8 +461,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                     lyaforest=False, nocolorcuts=True,
                     noresample=True, seed=seed, south=issouth)
 
-        _meta['TARGETID'][:] = metadata['MOCKID']
-        _qsometa['TARGETID'][:] = metadata['MOCKID']
+        _meta['TARGETID'] = metadata['MOCKID'][these]
+        _qsometa['TARGETID'] = metadata['MOCKID'][these]
         meta[these] = _meta
         qsometa[these] = _qsometa
         tmp_qso_flux[these, :] = _tmp_qso_flux
