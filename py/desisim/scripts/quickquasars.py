@@ -614,7 +614,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         log.info('Z_noRSD field not present in transmission file. Z_noRSD not saved to truth file')
 
     if args.shift_kms_los:
-       metadata['Z']+=(args.shift_kms_los/c*(1.+metadata['Z']))
+       metadata['Z']+=args.shift_kms_los/c*(1.+metadata['Z'])
        log.info('Added a shift of {} km/s to the redshift'.format(str(args.shift_kms_los)))
 
     hdu = pyfits.convenience.table_to_hdu(meta)
