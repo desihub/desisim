@@ -251,7 +251,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     log.info("Read transmission file {}".format(ifilename))
     trans_wave, transmission, metadata, dla_info = read_lya_skewers(ifilename,read_dlas=(args.dla=='file'),add_metals=args.metals_from_file)
 
-###ADD dz_fog before generate the continua
+    ###ADD dz_fog before generate the continua
     Z_noFOG=np.copy(metadata['Z'])
     log.info("Add FOG to redshift with sigma {} to quasar redshift".format(args.sigma_kms_fog)) 
     dz_fog=(args.sigma_kms_fog/c)*(1.+metadata['Z'])*np.random.normal(0,1,len(metadata['Z']))    
@@ -275,6 +275,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             return
         transmission = transmission[selection]
         metadata = metadata[:][selection]
+        Z_noFOG = Z_noFOG[selection]
 
         # figure out the density of all quasars
         N_highz = metadata["Z"].size
@@ -289,6 +290,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             return
         transmission = transmission[selection]
         metadata = metadata[:][selection]
+        Z_noFOG = Z_noFOG[selection]
 
     if args.desi_footprint :
         footprint_healpix = footprint.radec2pix(footprint_healpix_nside, metadata["RA"], metadata["DEC"])
