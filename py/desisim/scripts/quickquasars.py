@@ -359,24 +359,22 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         for ii in range(len(metadata)):
 
             # quasars with z < min_z will not have any DLA in spectrum
-            if min_lya_z > metadata[ii]['Z']:
-                continue
+            if min_lya_z>metadata['Z'][ii]: continue
 
             # quasar ID
             idd=metadata['MOCKID'][ii]
             dlas=[]
 
             if args.dla=='file':
-
                 for dla in dla_info[dla_info['MOCKID']==idd]:
+
                     # Adding only DLAs with z < zqso
-                    if (dla['Z_DLA']< metadata[ii]['Z']):
-                        dlas.append(dict(z=dla['Z_DLA']+dla['DZ_DLA'],N=dla['N_HI_DLA']))
+                    if dla['Z_DLA']>=metadata['Z'][ii]: continue
+                    dlas.append(dict(z=dla['Z_DLA']+dla['DZ_DLA'],N=dla['N_HI_DLA']))
                 transmission_dla = dla_spec(trans_wave,dlas)
 
             elif args.dla=='random':
-
-                dlas, transmission_dla = insert_dlas(trans_wave, metadata[ii]['Z'], rstate=random_state_just_for_dlas)
+                dlas, transmission_dla = insert_dlas(trans_wave, metadata['Z'][ii], rstate=random_state_just_for_dlas)
 
             # multiply transmissions and store information for the DLA file
             if len(dlas)>0:
@@ -388,9 +386,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         # write file with DLA information
         if len(dla_id)>0:
             dla_meta=Table()
-            dla_meta['NHI']=dla_NHI
-            dla_meta['z']=dla_z
-            dla_meta['ID']=dla_id
+            dla_meta['NHI'] = dla_NHI
+            dla_meta['Z'] = dla_z
+            dla_meta['TARGETID'] = dla_id
 
             hdu_dla = pyfits.convenience.table_to_hdu(dla_meta)
             hdu_dla.name="DLA_META"
@@ -462,8 +460,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                     lyaforest=False, nocolorcuts=True,
                     noresample=True, seed=seed, south=issouth)
 
-        _meta['TARGETID'] = metadata['MOCKID']
-        _qsometa['TARGETID'] = metadata['MOCKID']
+        _meta['TARGETID'][:] = metadata['MOCKID']
+        _qsometa['TARGETID'][:] = metadata['MOCKID']
         meta[these] = _meta
         qsometa[these] = _qsometa
         tmp_qso_flux[these, :] = _tmp_qso_flux
@@ -494,6 +492,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             # restore random state to get the same random numbers later
             # as when we don't insert BALs
             np.random.set_state(rnd_state)
+            meta_bal['TARGETID'] = metadata['MOCKID']
+            w = meta_bal['TEMPLATEID']!=-1
+            meta_bal = meta_bal[:][w]
             hdu_bal=pyfits.convenience.table_to_hdu(meta_bal); hdu_bal.name="BAL_META"
             del meta_bal
         else:
@@ -626,9 +627,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     hduqso.header['EXTNAME'] = 'QSO_META'
     hdulist=pyfits.HDUList([pyfits.PrimaryHDU(),hdu,hduqso])
     if args.dla:
-       hdulist.append(hdu_dla)
+        hdulist.append(hdu_dla)
     if args.balprob:
-       hdulist.append(hdu_bal)
+        hdulist.append(hdu_bal)
     hdulist.writeto(truth_filename, overwrite=True)
     hdulist.close()
 
@@ -651,20 +652,20 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             ('DELTACHI2', 'f8'),
             ('BRICKNAME', (str,8))]
         zbest = Table(np.zeros(nqso, dtype=columns))
-        zbest["CHI2"][:]      = 0.
-        zbest["Z"]            = metadata['Z']
-        zbest["ZERR"][:]      = 0.
+        zbest["CHI2"][:] = 0.
+        zbest["Z"][:] = metadata['Z']
+        zbest["ZERR"][:] = 0.
 
         if args.gamma_kms_zfit:
            log.info("Added zfit error with sigma {} to zbest".format(args.gamma_kms_zfit))
            dz_fit=mod_cauchy(loc=0,scale=args.gamma_kms_zfit,size=nqso,cut=3000)*(1.+metadata['Z'])/c
            zbest["Z"]+=dz_fit
 
-        zbest["ZERR"][:]     = 0
-        zbest["ZWARN"][:]     = 0
-        zbest["SPECTYPE"][:]  = "QSO"
-        zbest["SUBTYPE"][:]   = ""
-        zbest["TARGETID"]     = metadata['MOCKID']
+        zbest["ZERR"][:] = 0
+        zbest["ZWARN"][:] = 0
+        zbest["SPECTYPE"][:] = 'QSO'
+        zbest["SUBTYPE"][:] = ''
+        zbest["TARGETID"][:] = metadata['MOCKID']
         zbest["DELTACHI2"][:] = 25.
         hzbest = pyfits.convenience.table_to_hdu(zbest); hzbest.name="ZBEST"
         hfmap  = pyfits.convenience.table_to_hdu(fibermap);  hfmap.name="FIBERMAP"
