@@ -614,7 +614,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     Z_input = metadata['Z'].copy()-DZ_FOG
 
     ### Add a shift to the redshift, simulating the systematic imprecision of redrock
-    DZ_sys_shift = args.shift_kms_los/c*(1.+metadata['Z'])
+    DZ_sys_shift = args.shift_kms_los/c*(1.+Z_input)
     log.info('Added a shift of {} km/s to the redshift'.format(args.shift_kms_los))
     meta['REDSHIFT'] += DZ_sys_shift
     metadata['Z'] += DZ_sys_shift
@@ -622,7 +622,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     ### Add a shift to the redshift, simulating the statistic imprecision of redrock
     if args.gamma_kms_zfit:
         log.info("Added zfit error with gamma {} to zbest".format(args.gamma_kms_zfit))
-        DZ_stat_shift = mod_cauchy(loc=0,scale=args.gamma_kms_zfit,size=nqso,cut=3000)/c*(1.+metadata['Z'])
+        DZ_stat_shift = mod_cauchy(loc=0,scale=args.gamma_kms_zfit,size=nqso,cut=3000)/c*(1.+Z_input)
         meta['REDSHIFT'] += DZ_stat_shift
         metadata['Z'] += DZ_stat_shift
 
