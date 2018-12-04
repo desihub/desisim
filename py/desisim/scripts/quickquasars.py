@@ -621,7 +621,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     ### Add a shift to the redshift, simulating the statistic imprecision of redrock
     if args.gamma_kms_zfit:
-        log.info("Added zfit error with sigma {} to zbest".format(args.gamma_kms_zfit))
+        log.info("Added zfit error with gamma {} to zbest".format(args.gamma_kms_zfit))
         DZ_stat_shift = mod_cauchy(loc=0,scale=args.gamma_kms_zfit,size=nqso,cut=3000)/c*(1.+metadata['Z'])
         meta['REDSHIFT'] += DZ_stat_shift
         metadata['Z'] += DZ_stat_shift
