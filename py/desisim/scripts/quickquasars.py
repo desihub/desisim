@@ -609,6 +609,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                 sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
                 meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False) # use Poisson = False to get reproducible results.
 
+    ### Keep input redshift
+    Z_input = metadata['Z'].copy()-DZ_FOG
+
     ### Add a shift to the redshift, simulating the systematic imprecision of redrock
     DZ_sys_shift = args.shift_kms_los/c*(1.+metadata['Z'])
     log.info('Added a shift of {} km/s to the redshift'.format(args.shift_kms_los))
@@ -624,7 +627,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     ## Write the truth file, including metadata for DLAs and BALs
     log.info('Writing a truth file  {}'.format(truth_filename))
-    meta.rename_column('REDSHIFT','TRUEZ')
+    meta.rename_column('REDSHIFT','Z')
+    meta.add_column(Column(Z_input,name='Z_INPUT'))
     meta.add_column(Column(DZ_FOG,name='DZ_FOG'))
     meta.add_column(Column(DZ_sys_shift,name='DZ_SYS'))
     if args.gamma_kms_zfit:
