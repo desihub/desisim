@@ -23,7 +23,114 @@ from desisim.spec_qa.utils import get_sty_otype
 
 log = get_logger()
 
+
+def load_all_s2n_values(nights, channel, sub_exposures=None):
+    """
+    Calculate S/N values for a set of spectra from an input list of nights
+
+    Args:
+        nights: list
+        channel: str
+        sub_exposures:
+
+    Returns:
+        fdict: dict
+          Contains S/N info
+
+    """
+    fdict = dict(waves=[], s2n=[], fluxes=[], exptime=[], OII=[], objtype=[])
+    for night in nights:
+        if sub_exposures is not None:
+            exposures = sub_exposures
+        else:
+            exposures = get_exposures(night)#, raw=True)
+        for exposure in exposures:
+            fibermap_path = findfile(filetype='fibermap', night=night, expid=exposure)
+            fibermap_data = read_fibermap(fibermap_path)
+            flavor = fibermap_data.meta['FLAVOR']
+            if flavor.lower() in ('arc', 'flat', 'bias'):
+                log.debug('Skipping calibration {} exposure {:08d}'.format(flavor, exposure))
+                continue
+            # Load simspec
+            simspec_file = fibermap_path.replace('fibermap', 'simspec')
+            log.debug('Getting truth from {}'.format(simspec_file))
+            sps_hdu = fits.open(simspec_file)
+            sps_tab = Table(sps_hdu['TRUTH'].data,masked=True)
+
+            #- Get OIIFLUX from separate HDU and join
+            if 'TRUTH_ELG' in sps_hdu:
+                elg_truth = Table(sps_hdu['TRUTH_ELG'].data)
+                sps_tab = join(sps_tab, elg_truth['TARGETID', 'OIIFLUX'],
+                          keys='TARGETID', join_type='left')
+            else:
+                sps_tab['OIIFLUX'] = 0.0
+
+            sps_hdu.close()
+            #objs = sps_tab['TEMPLATETYPE'] == objtype
+            #if np.sum(objs) == 0:
+            #    continue
+
+            # Load spectra (flux or not fluxed; should not matter)
+            for ii in range(10):
+                camera = channel+str(ii)
+                cframe_path = findfile(filetype='cframe', night=night, expid=exposure, camera=camera)
+                try:
+                    log.debug('Reading from {}'.format(cframe_path))
+                    cframe = read_frame(cframe_path)
+                except:
+                    log.warn("Cannot find file: {:s}".format(cframe_path))
+                    continue
+                # Calculate S/N per Ang
+                dwave = cframe.wave - np.roll(cframe.wave,1)
+                dwave[0] = dwave[1]
+                # Calculate
+                s2n = cframe.flux * np.sqrt(cframe.ivar) / np.sqrt(dwave)
+                #s2n = cframe.flux[iobjs,:] * np.sqrt(cframe.ivar[iobjs,:]) / np.sqrt(dwave)
+                # Save
+                fdict['objtype'].append(sps_tab['TEMPLATETYPE'].data[cframe.fibers])
+                fdict['waves'].append(cframe.wave)
+                fdict['s2n'].append(s2n)
+                fdict['fluxes'].append(sps_tab['MAG'].data[cframe.fibers])
+                fdict['OII'].append(sps_tab['OIIFLUX'].data[cframe.fibers])
+                fdict['exptime'].append(cframe.meta['EXPTIME'])
+    # Return
+    return fdict
+
+def parse_s2n_values(objtype, fdict):
+    pdict = dict(waves=[], s2n=[], fluxes=[], exptime=[], OII=[], objtype=[])
+    # Loop on all the entries
+    for ss, wave in enumerate(fdict['waves']):
+        objs = fdict['objtype'][ss] == objtype
+        if np.sum(objs) == 0:
+            continue
+        iobjs = np.where(objs)[0]
+        # Parse/Save
+        pdict['waves'].append(wave)
+        pdict['s2n'].append(fdict['s2n'][ss][iobjs,:])
+        pdict['fluxes'].append(fdict['fluxes'][ss][iobjs])
+        if objtype == 'ELG':
+            pdict['OII'].append(fdict['OII'][ss][iobjs])
+        pdict['exptime'].append(fdict['exptime'][ss])
+    # Return
+    return pdict
+
 def load_s2n_values(objtype, nights, channel, sub_exposures=None):
+    """
+    DEPRECATED
+
+    Calculate S/N values for a set of spectra
+
+    Args:
+        objtype: str
+        nights: list
+        channel: str
+        sub_exposures:
+
+    Returns:
+        fdict: dict
+          Contains S/N info
+
+    """
     fdict = dict(waves=[], s2n=[], fluxes=[], exptime=[], OII=[])
     for night in nights:
         if sub_exposures is not None:
