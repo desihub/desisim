@@ -67,7 +67,7 @@ def parse(options=None):
     parser.add_argument('--sigma_kms_fog',type=float,default=150, help="Adds a gaussian error to the quasar redshift that simulate the fingers of god effect")
 
     parser.add_argument('--gamma_kms_zfit',nargs='?',type=float,const=200,help="Adds a Lorentzian distributed shift to the quasar redshift, to simulate the redshift fitting step. E.g. --gamma_kms_zfit 200 will use a gamma parameter of 200 km/s . If a number is not specified, a value of 200 is used.")
-    parser.add_argument('--shift_kms_los',type=float,default=0,help="Adds a shift to the quasar redshift written in the zbest sfile.")
+    parser.add_argument('--shift_kms_los',type=float,default=0,help="Adds a shift to the quasar redshift written in the zbest file (in km/s)")
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
     parser.add_argument('--target-selection', action = "store_true" ,help="apply QSO target selection cuts to the simulated quasars")
     parser.add_argument('--mags', action = "store_true", help="DEPRECATED; use --bbflux")
