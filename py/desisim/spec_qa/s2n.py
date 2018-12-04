@@ -9,7 +9,7 @@ import matplotlib
 # matplotlib.use('Agg')
 
 import numpy as np
-import sys, os, pdb, glob
+import sys, os, glob
 
 from matplotlib import pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -30,12 +30,12 @@ def load_all_s2n_values(nights, channel, sub_exposures=None):
 
     Args:
         nights: list
-        channel: str
+        channel: str  ('b','r','z')
         sub_exposures:
 
     Returns:
         fdict: dict
-          Contains S/N info
+          Contains all the S/N info for all nights in the given channel
 
     """
     fdict = dict(waves=[], s2n=[], fluxes=[], exptime=[], OII=[], objtype=[])
@@ -58,12 +58,14 @@ def load_all_s2n_values(nights, channel, sub_exposures=None):
             sps_tab = Table(sps_hdu['TRUTH'].data,masked=True)
 
             #- Get OIIFLUX from separate HDU and join
+            '''
             if 'TRUTH_ELG' in sps_hdu:
                 elg_truth = Table(sps_hdu['TRUTH_ELG'].data)
                 sps_tab = join(sps_tab, elg_truth['TARGETID', 'OIIFLUX'],
                           keys='TARGETID', join_type='left')
             else:
                 sps_tab['OIIFLUX'] = 0.0
+            '''
 
             sps_hdu.close()
             #objs = sps_tab['TEMPLATETYPE'] == objtype
@@ -97,6 +99,19 @@ def load_all_s2n_values(nights, channel, sub_exposures=None):
     return fdict
 
 def parse_s2n_values(objtype, fdict):
+    """
+    Parse the input set of S/N measurements on objtype
+
+    Args:
+        objtype: str
+        fdict: dict
+          Contains all the S/N info for all nights in a given channel
+
+    Returns:
+        pdict: dict
+          Contains all the S/N info for the given objtype
+
+    """
     pdict = dict(waves=[], s2n=[], fluxes=[], exptime=[], OII=[], objtype=[])
     # Loop on all the entries
     for ss, wave in enumerate(fdict['waves']):
@@ -151,12 +166,14 @@ def load_s2n_values(objtype, nights, channel, sub_exposures=None):
             sps_tab = Table(sps_hdu['TRUTH'].data,masked=True)
 
             #- Get OIIFLUX from separate HDU and join
+            '''
             if 'TRUTH_ELG' in sps_hdu:
                 elg_truth = Table(sps_hdu['TRUTH_ELG'].data)
                 sps_tab = join(sps_tab, elg_truth['TARGETID', 'OIIFLUX'],
                           keys='TARGETID', join_type='left')
             else:
                 sps_tab['OIIFLUX'] = 0.0
+            '''
 
             sps_hdu.close()
             objs = sps_tab['TEMPLATETYPE'] == objtype

@@ -44,13 +44,10 @@ def main(args):
     # Grab nights
     nights = desispec.io.get_nights()
 
-    # Debugging
-    nights = [nights[0]]
 
     # Load all s2n (once)
     all_s2n_values = []
     channels = ['b', 'r', 'z']
-    channels = ['b'] # Debugging
     for channel in channels:
         print("Loading S/N for channel {}".format(channel))
         all_s2n_values.append(load_all_s2n_values(nights, channel))
