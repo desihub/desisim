@@ -5,7 +5,7 @@ desisim change log
 0.31.1 (unreleased)
 -------------------
 
-* No changes yet
+* Refactor S/N qa to load cframes only once (also updates OII for new TRUTH table)
 
 0.31.0 (2018-11-08)
 -------------------
