@@ -35,8 +35,10 @@ def get_filters(isstar=False):
                                     'sdss2010-*',
                                     'wise2010-W1', 'wise2010-W2')
 
-def zgrid_colors(objtype, zgrid=True, isstar=False):
+def zgrid_colors(objtype, zgrid=True, isstar=False, rmag=20):
     """Compute colors a galaxy template set on a fixed redshift grid.
+
+    rmag - arbitrary normalization magnitude (in DECam-r).
 
     """
     from desisim.io import read_basis_templates
@@ -69,6 +71,12 @@ def zgrid_colors(objtype, zgrid=True, isstar=False):
                 colname = 'SYNTH_{}'.format(name.replace('-', '_').upper())
                 phot[colname][:, iz] = phot1[name]
 
+            # normalize to r=rmag
+            rnorm = 10**(-0.4 * (rmag - 22.5) ) / phot['SYNTH_DECAM2014_R'][:, iz].data
+            for name in phot1.colnames:
+                colname = 'SYNTH_{}'.format(name.replace('-', '_').upper())
+                phot[colname][:, iz] *= rnorm
+                
     else:
         for name in filt.names:
             colname = 'SYNTH_{}'.format(name.replace('-', '_').upper())
@@ -80,6 +88,12 @@ def zgrid_colors(objtype, zgrid=True, isstar=False):
             colname = 'SYNTH_{}'.format(name.replace('-', '_').upper())
             phot[colname][:] = phot1[name]
                 
+        # normalize to r=rmag
+        rnorm = 10**(-0.4 * (rmag - 22.5) ) / phot['SYNTH_DECAM2014_R'].data
+        for name in phot1.colnames:
+            colname = 'SYNTH_{}'.format(name.replace('-', '_').upper())
+            phot[colname][:] *= rnorm
+
     return phot
 
 def main():
