@@ -22,17 +22,18 @@ def parse(options=None):
     if options is None:
         args = parser.parse_args()
     else:
-        args = parser.parse_args(options)
+        args = parser.parse_args(namespace=options)
     return args
 
 def main(args):
     import os.path
     import numpy as np
-    import pdb
 
     import desispec.io
     from desiutil.log import get_logger
     from desisim.spec_qa.s2n import load_s2n_values, obj_s2n_wave, obj_s2n_z
+    from desisim.spec_qa.s2n import load_all_s2n_values
+    from desisim.spec_qa.s2n import parse_s2n_values
 
     # Initialize
     if args.qaprod_dir is not None:
@@ -43,8 +44,16 @@ def main(args):
     # Grab nights
     nights = desispec.io.get_nights()
 
+
+    # Load all s2n (once)
+    all_s2n_values = []
+    channels = ['b', 'r', 'z']
+    for channel in channels:
+        print("Loading S/N for channel {}".format(channel))
+        all_s2n_values.append(load_all_s2n_values(nights, channel))
+
     # Loop on channel
-    for channel in ['b', 'r', 'z']:
+    for ss, channel in enumerate(channels):
         if channel == 'b':
             wv_bins = np.arange(3570., 5700., 20.)
         elif channel == 'r':
@@ -53,7 +62,7 @@ def main(args):
             wv_bins = np.arange(7500., 9800., 20.)
             z_bins = np.linspace(1.0, 1.6, 100) # z camera
         else:
-            pdb.set_trace()
+            raise IOError("Bad channel value: {}".format(channel))
         # Loop on OBJTYPE
         for objtype in ['ELG', 'LRG', 'QSO']:
             if objtype == 'ELG':
@@ -63,16 +72,17 @@ def main(args):
                 flux_bins = np.linspace(16., 22., 6)
             elif objtype == 'QSO':
                 flux_bins = np.linspace(15., 24., 6)
-            # Load
-            s2n_values = load_s2n_values(objtype, nights, channel)#, sub_exposures=exposures)
+            # Parse
+            fdict = all_s2n_values[ss]
+            s2n_dict = parse_s2n_values(objtype, fdict)
             # Plot
             outfile = qaprod_dir+'/QA_s2n_{:s}_{:s}.png'.format(objtype, channel)
             desispec.io.util.makepath(outfile)
-            obj_s2n_wave(s2n_values, wv_bins, flux_bins, objtype, outfile=outfile)
+            obj_s2n_wave(s2n_dict, wv_bins, flux_bins, objtype, outfile=outfile)
             # S/N vs. z for ELG
             if (channel == 'z') & (objtype=='ELG'):
                 outfile = qaprod_dir+'/QA_s2n_{:s}_{:s}_redshift.png'.format(objtype,channel)
                 desispec.io.util.makepath(outfile)
-                obj_s2n_z(s2n_values, z_bins, oii_bins, objtype, outfile=outfile)
+                obj_s2n_z(s2n_dict, z_bins, oii_bins, objtype, outfile=outfile)
 
 
