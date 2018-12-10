@@ -5,7 +5,24 @@ desisim change log
 0.31.1 (unreleased)
 -------------------
 
-* Refactor S/N qa to load cframes only once (also updates OII for new TRUTH table)
+* quickquasars updates:
+
+  * support eBOSS (`PR #450`_).
+  * mimic redshift fitter uncertainties (`PR #452`_).
+  * adding shift to redshift (`PR #454`_).
+  * fix error in size of Z_noFOG (`PR #455`_).
+  * Fix quickquasars targetid truth (`PR #457`_).
+
+* Precompute colors for star and galaxy templates. (`PR #453`_).
+* Refactor S/N qa to load cframes only once (also updates OII for new TRUTH table) (`PR #459`_).
+
+.. _`PR #450`: https://github.com/desihub/desisim/pull/450
+.. _`PR #452`: https://github.com/desihub/desisim/pull/452
+.. _`PR #453`: https://github.com/desihub/desisim/pull/453
+.. _`PR #454`: https://github.com/desihub/desisim/pull/454
+.. _`PR #455`: https://github.com/desihub/desisim/pull/455
+.. _`PR #457`: https://github.com/desihub/desisim/pull/457
+.. _`PR #459`: https://github.com/desihub/desisim/pull/459
 
 0.31.0 (2018-11-08)
 -------------------
