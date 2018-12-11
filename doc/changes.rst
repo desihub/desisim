@@ -15,6 +15,7 @@ desisim change log
 
 * Precompute colors for star and galaxy templates. (`PR #453`_).
 * Refactor S/N qa to load cframes only once (also updates OII for new TRUTH table) (`PR #459`_).
+* Use basis_templates v3.1 and matching desisim-testdata 0.6.1 (`PR #464`_).
 
 .. _`PR #450`: https://github.com/desihub/desisim/pull/450
 .. _`PR #452`: https://github.com/desihub/desisim/pull/452
@@ -23,6 +24,7 @@ desisim change log
 .. _`PR #455`: https://github.com/desihub/desisim/pull/455
 .. _`PR #457`: https://github.com/desihub/desisim/pull/457
 .. _`PR #459`: https://github.com/desihub/desisim/pull/459
+.. _`PR #464`: https://github.com/desihub/desisim/pull/464
 
 0.31.0 (2018-11-08)
 -------------------
