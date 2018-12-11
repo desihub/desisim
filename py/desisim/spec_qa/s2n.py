@@ -58,14 +58,12 @@ def load_all_s2n_values(nights, channel, sub_exposures=None):
             sps_tab = Table(sps_hdu['TRUTH'].data,masked=True)
 
             #- Get OIIFLUX from separate HDU and join
-            '''
-            if 'TRUTH_ELG' in sps_hdu:
+            if ('OIIFLUX' not in sps_tab.colnames) and ('TRUTH_ELG' in sps_hdu):
                 elg_truth = Table(sps_hdu['TRUTH_ELG'].data)
                 sps_tab = join(sps_tab, elg_truth['TARGETID', 'OIIFLUX'],
                           keys='TARGETID', join_type='left')
             else:
                 sps_tab['OIIFLUX'] = 0.0
-            '''
 
             sps_hdu.close()
             #objs = sps_tab['TEMPLATETYPE'] == objtype
@@ -79,7 +77,7 @@ def load_all_s2n_values(nights, channel, sub_exposures=None):
                 try:
                     log.debug('Reading from {}'.format(cframe_path))
                     cframe = read_frame(cframe_path)
-                except:
+                except (IOError, OSError):
                     log.warn("Cannot find file: {:s}".format(cframe_path))
                     continue
                 # Calculate S/N per Ang
@@ -166,14 +164,12 @@ def load_s2n_values(objtype, nights, channel, sub_exposures=None):
             sps_tab = Table(sps_hdu['TRUTH'].data,masked=True)
 
             #- Get OIIFLUX from separate HDU and join
-            '''
-            if 'TRUTH_ELG' in sps_hdu:
+            if ('OIIFLUX' not in sps_tab.colnames) and ('TRUTH_ELG' in sps_hdu):
                 elg_truth = Table(sps_hdu['TRUTH_ELG'].data)
                 sps_tab = join(sps_tab, elg_truth['TARGETID', 'OIIFLUX'],
                           keys='TARGETID', join_type='left')
             else:
                 sps_tab['OIIFLUX'] = 0.0
-            '''
 
             sps_hdu.close()
             objs = sps_tab['TEMPLATETYPE'] == objtype
@@ -187,7 +183,7 @@ def load_s2n_values(objtype, nights, channel, sub_exposures=None):
                 try:
                     log.debug('Reading {} from {}'.format(objtype, cframe_path))
                     cframe = read_frame(cframe_path)
-                except:
+                except (IOError, OSError):
                     log.warn("Cannot find file: {:s}".format(cframe_path))
                     continue
                 # Calculate S/N per Ang
