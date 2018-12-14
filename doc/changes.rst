@@ -2,7 +2,12 @@
 desisim change log
 ==================
 
-0.31.1 (unreleased)
+0.31.2 (unreleased)
+-------------------
+
+* No changes yet.
+
+0.31.1 (2018-12-14)
 -------------------
 
 * quickquasars updates:
