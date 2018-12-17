@@ -77,6 +77,7 @@ def parse(options=None):
     parser.add_argument('--metals', type=str, default=None, required=False, help = "list of metals to get the transmission from, if 'all' runs on all metals", nargs='*')
     parser.add_argument('--metals-from-file', action = 'store_true', help = "add metals from HDU in file")
     parser.add_argument('--dla',type=str,required=False, help="Add DLA to simulated spectra either randonmly (--dla random) or from transmision file (--dla file)")
+    parser.add_argument('--boost',type=float,default=1.0,help="Increase metal interaction by a factor")
     parser.add_argument('--balprob',type=float,required=False, help="To add BAL features with the specified probability (e.g --balprob 0.5). Expect a number between 0 and 1 ")
     parser.add_argument('--no-simqso',action = "store_true", help="Does not use desisim.templates.SIMQSO to generate templates, and uses desisim.templates.QSO instead.")
     parser.add_argument('--no-transmission',action = 'store_true', help='Do not multiply continuum by transmission, use F=1 everywhere')
@@ -518,7 +519,11 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         for m in args.metals: lstMetals += m+', '
         log.info("Apply metals: {}".format(lstMetals[:-2]))
         tmp_qso_flux = apply_metals_transmission(tmp_qso_wave,tmp_qso_flux,
-                            trans_wave,transmission,args.metals)
+                            trans_wave,transmission,args.metals,args.boost)
+
+    # if requested, multiply intensity of metallic lines by a factor
+    if args.boost is not None:
+        log.info("Boost metals by a factor of {}".format(args.boost))
 
     # if requested, compute magnitudes and apply target selection.  Need to do
     # this calculation separately for QSOs in the north vs south.
