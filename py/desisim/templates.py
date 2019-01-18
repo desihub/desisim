@@ -830,7 +830,9 @@ class GALAXY(object):
                 # Optionally add in the SN spectrum.
                 if self.add_SNeIa:
                     galnorm = self.rfilt.get_ab_maggies(restflux, zwave)
-                    snefactor = galnorm['decam2014-r'].data * sne_rfluxratio[ii]/snenorm['decam2014-r'].data
+                    # SYB + OK: rfluxratio never defined above...
+                    #snefactor = galnorm['decam2014-r'].data * sne_rfluxratio[ii]/snenorm['decam2014-r'].data
+                    snefactor = galnorm['decam2014-r'].data * sne_fluxratio[ii]/snenorm['decam2014-r'].data
                     restflux += np.tile(sne_restflux, (nbasechunk, 1)) * np.tile(snefactor, (npix, 1)).T
 
                 # Synthesize photometry to determine which models will pass the
