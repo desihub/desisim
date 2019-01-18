@@ -1233,6 +1233,6 @@ def empty_snemetatable(nmodel=1):
                               data=np.zeros(nmodel)-1))
     snemeta.add_column(Column(name='SNE_EPOCH', length=nmodel, dtype='f4',
                               data=np.zeros(nmodel)-1, unit='days'))
-    SNEmeta.add_column(Column(name='SNE_FILTER', length=nmodel, dtype='U15')) # normalization filter
+    snemeta.add_column(Column(name='SNE_FILTER', length=nmodel, dtype='U15')) # normalization filter
     
     return snemeta
