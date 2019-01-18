@@ -1476,15 +1476,15 @@ class SUPERSTAR(object):
 
                 restflux = baseflux[templateid, :]
 
-                # With radial velocity shifts, the >v3.0 templates do not go red
-                # enough to cover the full r-band spectral range, so pad here.
-                padflux, padzwave = normfilt[magfilter[ii]].pad_spectrum(restflux, zwave, method='edge')
-                
                 # Synthesize photometry to determine which models will pass the
-                # color-cuts.
+                # color-cuts.  Also, with radial velocity shifts, the >v3.0
+                # templates do not go red enough to cover the full r-band
+                # spectral range, so pad here.
                 if south:
+                    padflux, padzwave = self.decamwise.pad_spectrum(restflux, zwave, method='edge')
                     maggies = self.decamwise.get_ab_maggies(padflux, padzwave, mask_invalid=True)
                 else:
+                    padflux, padzwave = self.bassmzlswise.pad_spectrum(restflux, zwave, method='edge')
                     maggies = self.bassmzlswise.get_ab_maggies(padflux, padzwave, mask_invalid=True)
 
                 if 'W1-R' in self.basemeta.colnames: # new templates
@@ -1508,7 +1508,6 @@ class SUPERSTAR(object):
                     gflux, rflux, zflux, w1flux, w2flux = synthnano['BASS-g'], \
                       synthnano['BASS-r'], synthnano['MzLS-z'], \
                       synthnano['wise2010-W1'], synthnano['wise2010-W2']
-
 
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, nbasechunk)
