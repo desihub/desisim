@@ -444,6 +444,7 @@ class GALAXY(object):
 
             self.rfilt_north = filters.load_filters('BASS-r')
             self.rfilt_south = filters.load_filters('decam2014-r')
+            self.rfilt = filters.load_filters('decam2014-r')
 
         # Pixel boundaries
         self.pixbound = pxs.cen2bound(basewave)
