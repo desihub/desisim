@@ -248,8 +248,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     # Read transmission from files. It might include DLA information, and it
     # might add metal transmission as well (from the HDU file).
     log.info("Read transmission file {}".format(ifilename))
-    trans_wave, transmission, metadata, dla_info = read_lya_skewers(ifilename,read_dlas=(args.dla=='file'),add_metals=args.metals_from_file)
-   
+    trans_wave, transmission, metadata, dla_info = read_lya_skewers(ifilename,read_dlas=(args.dla=='file'),add_metals=args.metals_from_file)   
     ### Add Finger-of-God, before generate the continua
     log.info("Add FOG to redshift with sigma {} to quasar redshift".format(args.sigma_kms_fog))
     DZ_FOG = args.sigma_kms_fog/c*(1.+metadata['Z'])*np.random.normal(0,1,metadata['Z'].size)
@@ -392,10 +391,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         if len(dla_id)>0:
             dla_meta=Table()
             dla_meta['NHI'] = dla_NHI
-            dla_meta['Z_DLA_RSD'] = dla_z  #I used the same name that is transmission.
+            dla_meta['Z_DLA'] = dla_z  #This is Z_DLA_RSD in transmision.
             dla_meta['MOCKID']=dla_qid
-            dla_meta['DLAID'] = dla_id
-    
+            dla_meta['DLAID'] = dla_id 
             hdu_dla = pyfits.convenience.table_to_hdu(dla_meta)
             hdu_dla.name="DLA_META"
             del(dla_meta)
