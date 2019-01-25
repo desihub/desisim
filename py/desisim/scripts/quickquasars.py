@@ -250,6 +250,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     log.info("Read transmission file {}".format(ifilename))
     trans_wave, transmission, metadata, dla_info = read_lya_skewers(ifilename,read_dlas=(args.dla=='file'),add_metals=args.metals_from_file)   
     ### Add Finger-of-God, before generate the continua
+
     log.info("Add FOG to redshift with sigma {} to quasar redshift".format(args.sigma_kms_fog))
     DZ_FOG = args.sigma_kms_fog/c*(1.+metadata['Z'])*np.random.normal(0,1,metadata['Z'].size)
     metadata['Z'] += DZ_FOG
@@ -378,7 +379,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                 for idla in dlas:
                    idla['dlaid']+=idd*1000      #Added to have unique DLA ids. Same format as DLAs from file. 
 
-# Please enter the commit message for your changes. Lines starting
             # multiply transmissions and store information for the DLA file
             if len(dlas)>0:
                 transmission[ii] = transmission_dla * transmission[ii]
