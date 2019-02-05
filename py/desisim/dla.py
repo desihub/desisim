@@ -69,7 +69,7 @@ def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, debug=False, **kwa
         # Random NHI
         NHI = float(fNHI(rstate.random_sample()))
         # Generate and append
-        dla = dict(z=zabs, N=NHI)
+        dla = dict(z=zabs, N=NHI,dlaid=jj)
         dlas.append(dla)
 
     # Generate model of DLAs
