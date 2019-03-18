@@ -435,7 +435,7 @@ class GALAXY(object):
         self.add_SNeIIp = add_SNeIIp
         if self.add_SNeIa:
             from desispec.interpolation import resample_flux
-            sne_baseflux1, sne_basewave, sne_basemeta = read_basis_templates(objtype='SNeIa')
+            sne_baseflux1, sne_basewave, sne_basemeta = read_basis_templates(objtype='SNE')
             sne_baseflux = np.zeros((len(sne_basemeta), len(self.basewave)))
             for ii in range(len(sne_basemeta)):
                 sne_baseflux[ii, :] = resample_flux(self.basewave, sne_basewave,
