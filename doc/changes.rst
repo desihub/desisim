@@ -2,10 +2,19 @@
 desisim change log
 ==================
 
-0.31.2 (unreleased)
+0.31.3 (unreleased)
 -------------------
 
 * No changes yet.
+
+0.31.2 (2019-02-28)
+-------------------
+
+* Update quickquasars default redshift error (`PR #466`_).
+* Support for London mocks v5.0 + DLAs (`PR #467`_).
+
+.. _`PR #466`: https://github.com/desihub/desisim/pull/466
+.. _`PR #467`: https://github.com/desihub/desisim/pull/467
 
 0.31.1 (2018-12-14)
 -------------------
