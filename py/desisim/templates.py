@@ -326,7 +326,7 @@ class GALAXY(object):
 
     """
     def __init__(self, objtype='ELG', minwave=3600.0, maxwave=10000.0, cdelt=0.2,
-                 wave=None, add_SNeIa=False, include_mgii=False, colorcuts_function=None,
+                 wave=None, add_SNeIa=False, add_SNeIIp=False, include_mgii=False, colorcuts_function=None,
                  normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  normline='OII', fracvdisp=(0.1, 40), 
                  baseflux=None, basewave=None, basemeta=None):
@@ -432,9 +432,22 @@ class GALAXY(object):
 
         # Optionally read the SNe Ia basis templates and resample.
         self.add_SNeIa = add_SNeIa
+        self.add_SNeIIp = add_SNeIIp
         if self.add_SNeIa:
             from desispec.interpolation import resample_flux
-            sne_baseflux1, sne_basewave, sne_basemeta = read_basis_templates(objtype='SNE')
+            sne_baseflux1, sne_basewave, sne_basemeta = read_basis_templates(objtype='SNeIa')
+            sne_baseflux = np.zeros((len(sne_basemeta), len(self.basewave)))
+            for ii in range(len(sne_basemeta)):
+                sne_baseflux[ii, :] = resample_flux(self.basewave, sne_basewave,
+                                                    sne_baseflux1[ii, :], extrapolate=True)
+            self.sne_baseflux = sne_baseflux
+            self.sne_basemeta = sne_basemeta
+
+            self.rfilt_north = filters.load_filters('BASS-r')
+            self.rfilt_south = filters.load_filters('decam2014-r')
+        if self.add_SNeIIp:
+            from desispec.interpolation import resample_flux
+            sne_baseflux1, sne_basewave, sne_basemeta = read_basis_templates(objtype='SNeIIp')
             sne_baseflux = np.zeros((len(sne_basemeta), len(self.basewave)))
             for ii in range(len(sne_basemeta)):
                 sne_baseflux[ii, :] = resample_flux(self.basewave, sne_basewave,
@@ -451,6 +464,7 @@ class GALAXY(object):
         self.fracvdisp = fracvdisp
 
         # Initialize the filter profiles.
+        self.rfilt = filters.load_filters('decam2014-r')
         self.normfilt_north = filters.load_filters(self.normfilter_north)
         self.normfilt_south = filters.load_filters(self.normfilter_south)
         self.decamwise = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z',
@@ -632,9 +646,10 @@ class GALAXY(object):
 
         # Basic error checking and some preliminaries.
         if nocontinuum:
-            log.warning('Forcing nocolorcuts=True, add_SNeIa=False since nocontinuum=True.')
+            log.warning('Forcing nocolorcuts=True, add_SNeIa=False and add_SNeIIp=False since nocontinuum=True.')
             nocolorcuts = True
             self.add_SNeIa = False
+            self.add_SNeIIp = False
 
         npix = len(self.basewave)
         nbase = len(self.basemeta)
@@ -716,7 +731,7 @@ class GALAXY(object):
 
         # Generate the (optional) distribution of SNe Ia priors or read them
         # from the input table.
-        if self.add_SNeIa:
+        if self.add_SNeIa or self.add_SNeIIp:
             if input_snemeta is not None:
                 _check_input_snemeta(input_snemeta)
                 sne_tempid = input_snemeta['SNE_TEMPLATEID']
@@ -734,6 +749,12 @@ class GALAXY(object):
                 snemeta['SNE_EPOCH'] = self.sne_basemeta['EPOCH'][sne_tempid]
                 snemeta['SNE_FLUXRATIO'] = sne_fluxratio
                 snemeta['SNE_FILTER'] = sne_filter
+            if self.add_SNeIIp:
+                snemeta['SNE_Type'] = np.tile(2,nmodel)
+            elif self.add_SNeIa:
+                snemeta['SNE_Type'] = np.tile(1,nmodel)
+
+
 
         # Precompute the velocity dispersion convolution matrix for each unique
         # value of vdisp.
@@ -812,6 +833,9 @@ class GALAXY(object):
             if self.add_SNeIa:
                 sne_restflux = self.sne_baseflux[sne_tempid[ii], :]
                 snenorm = self.rfilt.get_ab_maggies(sne_restflux, zwave)
+            if self.add_SNeIIp:
+                sne_restflux = self.sne_baseflux[sne_tempid[ii], :]
+                snenorm = self.rfilt.get_ab_maggies(sne_restflux, zwave)
 
             for ichunk in range(nchunk):
                 if ii % 100 == 0 and ii > 0:
@@ -830,6 +854,10 @@ class GALAXY(object):
                 # Optionally add in the SN spectrum.
                 if self.add_SNeIa:
                     galnorm = self.rfilt.get_ab_maggies(restflux, zwave)
+                    snefactor = galnorm['decam2014-r'].data * sne_fluxratio[ii]/snenorm['decam2014-r'].data
+                    restflux += np.tile(sne_restflux, (nbasechunk, 1)) * np.tile(snefactor, (npix, 1)).T
+                if self.add_SNeIIp:
+                    galnorm = self.rfilt.get_ab_maggies(restflux, zwave)
                     # SYB + OK: rfluxratio never defined above...
                     #snefactor = galnorm['decam2014-r'].data * sne_rfluxratio[ii]/snenorm['decam2014-r'].data
                     snefactor = galnorm['decam2014-r'].data * sne_fluxratio[ii]/snenorm['decam2014-r'].data
@@ -837,6 +865,7 @@ class GALAXY(object):
 
                 # Synthesize photometry to determine which models will pass the
                 # color-cuts.
+
                 if south:
                     maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
                 else:
@@ -929,7 +958,7 @@ class GALAXY(object):
         else:
             outwave = self.wave
             
-        if self.add_SNeIa:
+        if self.add_SNeIa or self.add_SNeIIp:
             return 1e17 * outflux, outwave, meta, objmeta, snemeta
         else:
             return 1e17 * outflux, outwave, meta, objmeta
@@ -938,7 +967,7 @@ class ELG(GALAXY):
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 add_SNeIa=False, include_mgii=False, colorcuts_function=None,
+                 add_SNeIa=False, add_SNeIIp=False,include_mgii=False, colorcuts_function=None,
                  normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the ELG class.  See the GALAXY.__init__ method for documentation
@@ -964,7 +993,7 @@ class ELG(GALAXY):
                                   cdelt=cdelt, wave=wave, normline='OII',
                                   colorcuts_function=colorcuts_function,
                                   normfilter_north=normfilter_north, normfilter_south=normfilter_south,
-                                  baseflux=baseflux, basewave=basewave, basemeta=basemeta,
+                                  baseflux=baseflux, basewave=basewave, basemeta=basemeta,add_SNeIIp=add_SNeIIp,
                                   add_SNeIa=add_SNeIa, include_mgii=include_mgii)
 
         self.ewoiicoeff = [1.34323087, -5.02866474, 5.43842874]
@@ -1019,7 +1048,7 @@ class BGS(GALAXY):
     """Generate Monte Carlo spectra of bright galaxy survey galaxies (BGSs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 add_SNeIa=False, include_mgii=False, colorcuts_function=None,
+                 add_SNeIa=False,add_SNeIIp=False , include_mgii=False, colorcuts_function=None,
                  normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the BGS class.  See the GALAXY.__init__ method for documentation
@@ -1045,7 +1074,7 @@ class BGS(GALAXY):
                                   cdelt=cdelt, wave=wave, normline='HBETA', 
                                   colorcuts_function=colorcuts_function,
                                   normfilter_north=normfilter_north, normfilter_south=normfilter_south,
-                                  baseflux=baseflux, basewave=basewave, basemeta=basemeta,
+                                  baseflux=baseflux, basewave=basewave, basemeta=basemeta,add_SNeIIp=add_SNeIIp,
                                   add_SNeIa=add_SNeIa, include_mgii=include_mgii)
 
         self.ewhbetacoeff = [1.28520974, -4.94408026, 4.9617704]
@@ -1100,7 +1129,7 @@ class LRG(GALAXY):
     """Generate Monte Carlo spectra of luminous red galaxies (LRGs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 add_SNeIa=False, colorcuts_function=None,
+                 add_SNeIa=False, add_SNeIIp=False,colorcuts_function=None,
                  normfilter_north='MzLS-z', normfilter_south='decam2014-z',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the LRG class.  See the GALAXY.__init__ method for documentation
@@ -1124,7 +1153,7 @@ class LRG(GALAXY):
                                   cdelt=cdelt, wave=wave, normline=None,
                                   colorcuts_function=colorcuts_function,
                                   normfilter_north=normfilter_north, normfilter_south=normfilter_south,
-                                  baseflux=baseflux, basewave=basewave, basemeta=basemeta,
+                                  baseflux=baseflux, basewave=basewave, basemeta=basemeta,add_SNeIIp=add_SNeIIp,
                                   add_SNeIa=add_SNeIa)
 
     def make_templates(self, nmodel=100, zrange=(0.5, 1.0), magrange=(19.0, 20.2),
