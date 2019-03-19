@@ -451,7 +451,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
         if not eboss is None:
             # for eBOSS, generate only quasars with r<22
-            magrange = (17.0, 22.0)
+            magrange = (17.0, 21.3)
             _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
                 = model.make_templates(nmodel=nt,
                     redshift=metadata['Z'][these], magrange=magrange,
