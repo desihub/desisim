@@ -83,7 +83,7 @@ def parse(options=None):
     parser.add_argument('--no-transmission',action = 'store_true', help='Do not multiply continuum by transmission, use F=1 everywhere')
     parser.add_argument('--eboss',action = 'store_true', help='Setup footprint, number density, redshift distribution, and exposure time to generate eBOSS-like mocks')
     parser.add_argument('--Rv',type=float,default=3.1,help='Adds Galactic extintion, for the specified extintion factor. (default:Rv=3.1')
-    parser.add_argument('--no-extintion',action = "store_true", help="Does not add galactic extintion")
+    parser.add_argument('--no-extintion',action='store_true',help="Does not add galactic extintion")
 
     if options is None:
         args = parser.parse_args()
@@ -612,13 +612,15 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         fibermap_columns=None
 
 # Attenuate the spectra for extinction
-    if sfdmap is not None:
+    if not sfdmap is None:
        log.info("Dust extintion added with Rv={}".format(args.Rv))
        indx=np.arange(len(metadata['RA']))
        extintion = args.Rv * ext_odonnell(qso_wave, Rv=args.Rv)
        EBV = sfdmap.ebv(metadata['RA'],metadata['DEC'], scaling=1.0)
        qso_flux *=10**( -0.4 * EBV[indx, np.newaxis] * extintion)
-       fibermap_columns['EBV']=EBV
+       if fibermap_columns is not None:
+          fibermap_columns['EBV']=EBV
+
 
     sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
                 sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
@@ -778,7 +780,7 @@ def main(args=None):
        log.info("Setting --zbest to true as required by --gamma_kms_zfit")
        args.zbest = True
 
-    if args.no_extintion:
+    if args.no_extintion :
        sfdmap=None
     else:
        sfdmap= SFDMap()
