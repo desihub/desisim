@@ -101,18 +101,18 @@ def mod_cauchy(loc,scale,size,cut):
 def get_spectra_filename(args,nside,pixel):
     if args.outfile :
         return args.outfile
-    filename="{}/{}/spectra-{}-{}.fits".format(pixel//100,pixel,nside,pixel)
+    filename="{}/{}/spectra-{}-{}.fits.gz".format(pixel//100,pixel,nside,pixel)
     return os.path.join(args.outdir,filename)
 
 
 def get_zbest_filename(args,pixdir,nside,pixel):
     if args.zbest :
-        return os.path.join(pixdir,"zbest-{}-{}.fits".format(nside,pixel))
+        return os.path.join(pixdir,"zbest-{}-{}.fits.gz".format(nside,pixel))
     return None
 
 
 def get_truth_filename(args,pixdir,nside,pixel):
-    return os.path.join(pixdir,"truth-{}-{}.fits".format(nside,pixel))
+    return os.path.join(pixdir,"truth-{}-{}.fits.gz".format(nside,pixel))
 
 
 def is_south(dec):
@@ -451,7 +451,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
         if not eboss is None:
             # for eBOSS, generate only quasars with r<22
-            magrange = (17.0, 22.0)
+            magrange = (17.0, 21.0)
             _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
                 = model.make_templates(nmodel=nt,
                     redshift=metadata['Z'][these], magrange=magrange,
