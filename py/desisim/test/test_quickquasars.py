@@ -3,6 +3,7 @@ import unittest, os, shutil, tempfile, subprocess
 import numpy as np
 from desisim.scripts import quickquasars
 import desispec.io
+import desiutil.dust
 from astropy.io import fits
 
 class Testquickquasars(unittest.TestCase):

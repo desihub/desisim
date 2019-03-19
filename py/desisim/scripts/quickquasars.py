@@ -82,7 +82,7 @@ def parse(options=None):
     parser.add_argument('--no-simqso',action = "store_true", help="Does not use desisim.templates.SIMQSO to generate templates, and uses desisim.templates.QSO instead.")
     parser.add_argument('--no-transmission',action = 'store_true', help='Do not multiply continuum by transmission, use F=1 everywhere')
     parser.add_argument('--eboss',action = 'store_true', help='Setup footprint, number density, redshift distribution, and exposure time to generate eBOSS-like mocks')
-    parser.add_argument('--Rv',type=float,default=3.1,help='Adds Galactic extintion, for the specified extintion factor. (default:Rv=3.1')
+    parser.add_argument('--Rv',type=float,default=3.1,help='Adds Galactic extintion, for the specified extintion factor.)
     parser.add_argument('--no-extintion',action='store_true',help="Does not add galactic extintion")
 
     if options is None:
@@ -611,10 +611,10 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     else :
         fibermap_columns=None
 
-# Attenuate the spectra for extinction
+    # Attenuate the spectra for extinction
     if not sfdmap is None:
        log.info("Dust extintion added with Rv={}".format(args.Rv))
-       indx=np.arange(len(metadata['RA']))
+       indx=np.arange(metadata['RA'].size)
        extintion = args.Rv * ext_odonnell(qso_wave, Rv=args.Rv)
        EBV = sfdmap.ebv(metadata['RA'],metadata['DEC'], scaling=1.0)
        qso_flux *=10**( -0.4 * EBV[indx, np.newaxis] * extintion)
