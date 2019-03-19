@@ -2467,7 +2467,8 @@ class SIMQSO():
             qsometa = input_qsometa
 
         else:
-            from simqso.sqmodels import get_BossDr9_model_vars
+            #from simqso.sqmodels import get_BossDr9_model_vars
+            from desisim.qso_template.desi_simqso_model import get_BossDr9_model_vars
             from simqso.sqrun import buildSpectraBulk
             from simqso.sqgrids import generateQlfPoints
 
