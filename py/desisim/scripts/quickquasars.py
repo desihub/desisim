@@ -102,8 +102,6 @@ def mod_cauchy(loc,scale,size,cut):
         samples=mod_cauchy(loc,scale,size,cut)   ##Only added for the very unlikely case that there are not enough samples after the cut.
     return samples
 
-
-
 def get_spectra_filename(args,nside,pixel):
     if args.outfile :
         return args.outfile
@@ -780,7 +778,7 @@ def main(args=None):
        log.info("Setting --zbest to true as required by --gamma_kms_zfit")
        args.zbest = True
 
-    if args.no_extintion or args.eboss:
+    if args.no_extintion:
        sfdmap=None
     else:
        sfdmap= SFDMap()
