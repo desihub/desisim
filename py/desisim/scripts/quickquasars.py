@@ -456,13 +456,13 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                 = model.make_templates(nmodel=nt,
                     redshift=metadata['Z'][these], magrange=magrange,
                     lyaforest=False, nocolorcuts=True,
-                    noresample=True, seed=seed, south=issouth)
+                    noresample=True, seed=seed, south=issouth,mod_emline=True)
         else:
             _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
                 = model.make_templates(nmodel=nt,
                     redshift=metadata['Z'][these],
                     lyaforest=False, nocolorcuts=True,
-                    noresample=True, seed=seed, south=issouth)
+                    noresample=True, seed=seed, south=issouth,mod_emline=True)
 
         _meta['TARGETID'] = metadata['MOCKID'][these]
         _qsometa['TARGETID'] = metadata['MOCKID'][these]

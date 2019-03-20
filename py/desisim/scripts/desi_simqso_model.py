@@ -137,20 +137,22 @@ BossDr9_expDust_cont = grids.BrokenPowerLawContinuumVar([
 BossDr9_FeScalings = [ (0,1540,0.5),(1540,1680,2.0),(1680,1868,1.6),
                        (1868,2140,1.0),(2140,3500,1.0) ]
 
-def BossDr9_EmLineTemplate(*args,**kwargs):
-    kwargs.setdefault('scaleEWs',{'LyB':1.8,
+def BossDr9_EmLineTemplate_modified(*args,**kwargs):
+    kwargs.setdefault('scaleEWs',{'LyB':1.22,
+                                  'ArI':0.81,
                                   'FeIII:UV1':0.31,
                                   'CIII*':0.65,
-                                  'LyAb':1.04,'LyAn':1.04,
-                                  'NV':2.6,
+                                  'LyAb':1.0,'LyAn':1.0,
+                                  'NV':2.2,
                                   'SiII':0.9,'OI':1.5,'CII':0.45,
                                   'SiIV+OIV]':0.92,
                                   'CIVb':0.75,'CIVn':0.75,
                                   'CIII]b':1.2,'CIII]n':1.3,
-                                  'MgIIb':1.8,'MgIIn':1.8})
+                                  'MgIIb':1.7,'MgIIn':1.7})
+
     return grids.generateBEffEmissionLines(*args,**kwargs)
 
-def get_BossDr9_model_vars(qsoGrid,wave,nSightLines=0,
+def get_BossDr9_model_vars_modified(qsoGrid,wave,nSightLines=0,
                            noforest=False,forestseed=None,verbose=0):
     if not noforest:
         if nSightLines <= 0:
@@ -164,7 +166,7 @@ def get_BossDr9_model_vars(qsoGrid,wave,nSightLines=0,
     fetempl = grids.VW01FeTemplateGrid(qsoGrid.z,wave,
                                        scales=BossDr9_FeScalings)
     mvars = [ BossDr9_fiducial_continuum,
-              BossDr9_EmLineTemplate(qsoGrid.absMag),
+              BossDr9_EmLineTemplate_modified(qsoGrid.absMag),
               grids.FeTemplateVar(fetempl) ]
     if not noforest:
         mvars.append( grids.HIAbsorptionVar(igmGrid,subsample=subsample) )

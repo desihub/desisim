@@ -2429,11 +2429,12 @@ class SIMQSO():
 
     def _make_simqso_templates(self, redshift=None, magrange=None, seed=None,                               
                                lyaforest=True, nocolorcuts=False, noresample=False,
-                               input_qsometa=None, south=True):
+                               input_qsometa=None, south=True,mod_emline=False):
         """Wrapper function for actually generating the templates.
 
         """ 
         from desispec.interpolation import resample_flux
+        log = get_logger()
 
         if lyaforest:
             subtype = 'LYA'
@@ -2467,8 +2468,13 @@ class SIMQSO():
             qsometa = input_qsometa
 
         else:
-            #from simqso.sqmodels import get_BossDr9_model_vars
-            from desisim.qso_template.desi_simqso_model import get_BossDr9_model_vars
+            #Added in order to use modified emision lines in quickquasars
+            if not mod_emline is True:
+               from simqso.sqmodels import get_BossDr9_model_vars
+               log.warning("Using default simqso.sqmodel.get_BossDr9_model_vars")
+            else:
+               from desisim.scripts.desi_simqso_model import get_BossDr9_model_vars_modified as get_BossDr9_model_vars
+               log.warning("Using modified simqso.sqmodels.get_BossDr9_model_vars")
             from simqso.sqrun import buildSpectraBulk
             from simqso.sqgrids import generateQlfPoints
 
@@ -2571,7 +2577,7 @@ class SIMQSO():
                        seed=None, redshift=None, mag=None, maxiter=20,
                        input_qsometa=None, qsometa_extname='QSOMETA', return_qsometa=False, 
                        lyaforest=True, nocolorcuts=False, noresample=False,
-                       south=True, verbose=False):
+                       south=True, verbose=False,mod_emline=False):
         """Build Monte Carlo QSO spectra/templates.
 
         * This function generates QSO spectra on-the-fly using @imcgreer's
@@ -2722,7 +2728,7 @@ class SIMQSO():
 
                 iterflux, itermeta, iterobjmeta, iterqsometa = self._make_simqso_templates(
                     zin, magrange, seed=iterseed[itercount], lyaforest=lyaforest,
-                    nocolorcuts=nocolorcuts, noresample=noresample, south=south)
+                    nocolorcuts=nocolorcuts, noresample=noresample, south=south,mod_emline=mod_emline)
 
                 outflux[need, :] = iterflux
                 meta[need] = itermeta
