@@ -3,7 +3,6 @@ import unittest, os, shutil, tempfile, subprocess
 import numpy as np
 from desisim.scripts import quickquasars
 import desispec.io
-import desiutil.dust
 from astropy.io import fits
 
 class Testquickquasars(unittest.TestCase):
@@ -20,7 +19,7 @@ class Testquickquasars(unittest.TestCase):
         cls.outzbest = os.path.join(cls.testdir, 'zbest-16-0.fits')
         cls.outspec1_s=os.path.join(cls.testdir, 'spectra-16-1747_1.fits')
         cls.outzbest_s = os.path.join(cls.testdir, 'zbest-16-1747.fits')
-
+        os.environ['DUST_DIR']=resource_filename('desisim','test/data/')
     @classmethod
     def setUp(self):
         pass
