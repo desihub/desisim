@@ -79,7 +79,6 @@ def parse(options=None):
     parser.add_argument('--balprob',type=float,required=False, help="To add BAL features with the specified probability (e.g --balprob 0.5). Expect a number between 0 and 1 ")
     parser.add_argument('--no-simqso',action = "store_true", help="Does not use desisim.templates.SIMQSO to generate templates, and uses desisim.templates.QSO instead.")
     parser.add_argument('--no-transmission',action = 'store_true', help='Do not multiply continuum by transmission, use F=1 everywhere')
-    parser.add_argument('--modified-emline',action = 'store_true', help='Do not multiply continuum by transmission, use F=1 everywhere')
     parser.add_argument('--eboss',action = 'store_true', help='Setup footprint, number density, redshift distribution, and exposure time to generate eBOSS-like mocks')
 
     if options is None:
@@ -450,11 +449,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         nt = len(these)
         if nt<=0: continue
 
-        if args.modified_emline:
-           mod_emline=True
-        else:
-           mod_emline=False
-
         if not eboss is None:
             # for eBOSS, generate only quasars with r<22
             magrange = (17.0, 22.0)
@@ -462,13 +456,13 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                 = model.make_templates(nmodel=nt,
                     redshift=metadata['Z'][these], magrange=magrange,
                     lyaforest=False, nocolorcuts=True,
-                    noresample=True, seed=seed, south=issouth,mod_emline=mod_emline)
+                    noresample=True, seed=seed, south=issouth)
         else:
             _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
                 = model.make_templates(nmodel=nt,
                     redshift=metadata['Z'][these],
                     lyaforest=False, nocolorcuts=True,
-                    noresample=True, seed=seed, south=issouth,mod_emline=mod_emline)
+                    noresample=True, seed=seed, south=issouth)
 
         _meta['TARGETID'] = metadata['MOCKID'][these]
         _qsometa['TARGETID'] = metadata['MOCKID'][these]
@@ -742,7 +736,8 @@ def main(args=None):
         model=QSO()
     else:
         log.info("Load SIMQSO model")
-        model=SIMQSO(nproc=1)
+        #Todo: define a better name for model
+        model=SIMQSO(nproc=1,sqmodel='modified') 
 
     decam_and_wise_filters = None
     bassmzls_and_wise_filters = None
