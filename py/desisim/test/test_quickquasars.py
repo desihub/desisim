@@ -5,6 +5,8 @@ from desisim.scripts import quickquasars
 import desispec.io
 from astropy.io import fits
 
+#dust_dir= os.environ.get('DUST_DIR')
+
 class Testquickquasars(unittest.TestCase):
 
     @classmethod
@@ -19,7 +21,7 @@ class Testquickquasars(unittest.TestCase):
         cls.outzbest = os.path.join(cls.testdir, 'zbest-16-0.fits')
         cls.outspec1_s=os.path.join(cls.testdir, 'spectra-16-1747_1.fits')
         cls.outzbest_s = os.path.join(cls.testdir, 'zbest-16-1747.fits')
-        os.environ['DUST_DIR']=resource_filename('desisim','test/data/')
+#        os.environ['DUST_DIR']=dust_dir #resource_filename('desisim','test/data/')
     @classmethod
     def setUp(self):
         pass
@@ -46,25 +48,25 @@ class Testquickquasars(unittest.TestCase):
             
 
     def test_quickquasars(self):
-        cmd = 'quickquasars -i {} -o {} --exptime 4000 --nmax 5 --overwrite --seed 1'.format(self.infile, self.outspec1)
+        cmd = 'quickquasars -i {} -o {} --exptime 4000 --nmax 5 --overwrite --seed 1 --no-extintion'.format(self.infile, self.outspec1)
         opts = quickquasars.parse(cmd.split()[1:])
         quickquasars.main(opts)
         self.assertTrue(os.path.exists(self.outspec1))
       
 
-        cmd = 'quickquasars -i {} -o {} --exptime 4000 --bbflux --nmax 5 --overwrite --seed 1'.format(self.infile, self.outspec1)
+        cmd = 'quickquasars -i {} -o {} --exptime 4000 --bbflux --nmax 5 --overwrite --seed 1 --no-extintion'.format(self.infile, self.outspec1)
         opts = quickquasars.parse(cmd.split()[1:])
         quickquasars.main(opts)
         self.assertTrue(os.path.exists(self.outspec1))
 
-        cmd = 'quickquasars -i {} -o {} --exptime 4000 --zbest --nmax 5 --overwrite --seed 1'.format(self.infile, self.outspec1)
+        cmd = 'quickquasars -i {} -o {} --exptime 4000 --zbest --nmax 5 --overwrite --seed 1 --no-extintion'.format(self.infile, self.outspec1)
         opts = quickquasars.parse(cmd.split()[1:])
         quickquasars.main(opts)
         self.assertTrue(os.path.exists(self.outspec1))
         self.assertTrue(os.path.exists(self.outzbest))
    
 
-        cmd = 'quickquasars -i {} -o {} --exptime 4000 --zbest --nmax 5 --overwrite --seed 1'.format(self.infile2, self.outspec1_s)
+        cmd = 'quickquasars -i {} -o {} --exptime 4000 --zbest --nmax 5 --overwrite --seed 1 --no-extintion'.format(self.infile2, self.outspec1_s)
         opts = quickquasars.parse(cmd.split()[1:])
         quickquasars.main(opts)
         self.assertTrue(os.path.exists(self.outspec1_s))
