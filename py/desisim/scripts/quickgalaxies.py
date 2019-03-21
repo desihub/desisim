@@ -266,18 +266,25 @@ mcset.add_argument('--nsim', dest='nsim', type=int, default=10,
                    help='Number of simulations (HEALPix pixels).')
 mcset.add_argument('--seed', dest='seed', type=int, default=None,
                    help='Random number seed')
+mcset.add_argument('--addsn', dest='addsn', action='store_true', default=False,
+                   help='Add SNe Ia to host spectra.')
+mcset.add_argument('--snrmin', dest='snrmin', type=float, default=0.01,
+                   help='SN/host minimum flux ratio.')
+mcset.add_argument('--snrmax', dest='snrmax', type=float, default=1.00,
+                   help='SN/host maximum flux ratio.')
 #
 # Output settings.
 #
 output = parser.add_argument_group('Output settings')
 output.add_argument('--simid', dest='simid',
                     default=datetime.now().strftime('%Y-%m-%d'),
-                    help='ID for simulations.')
+                    help='ID/name for simulations.')
 output.add_argument('--simdir', dest='simdir', default='',
                     help='Simulation output directory absolute path.')
 
 # Parse command line options.
 args = parser.parse_args()
+print(args)
 
 # Save simulation output.
 rng = np.random.RandomState(args.seed)
@@ -292,7 +299,7 @@ ipix = iter(pixels)
 
 # Set up the template generator.
 maker = BGSMaker(seed=args.seed)
-maker.template_maker = BGS(add_SNeIa=False, wave=_default_wave())
+maker.template_maker = BGS(add_SNeIa=args.addsn, wave=_default_wave())
 
 for j in range(args.nsim):
 
@@ -301,6 +308,11 @@ for j in range(args.nsim):
     while len(tdata) == 0:
         pixel = next(ipix)
         tdata = maker.read(healpixels=pixel, nside=args.nside)
+
+    # Add SN generation options.
+    if args.addsn:
+        tdata['SNE_FLUXRATIORANGE'] = (0.01, 1)
+        tdata['SNE_FILTER'] = 'decam2014-r'
 
     # Generate nspec spectral templates and write them to "truth" files.
     wave = None
@@ -313,8 +325,6 @@ for j in range(args.nsim):
         idx = rng.choice(len(tdata['RA']), ntosim)
         tflux, twave, ttarg, ttruth, tobj = \
             maker.make_spectra(tdata, indx=idx)
-
-#        keep = np.ones_like(idx, dtype=bool) # Dummy cuts
 
         # Apply color cuts.
         is_bright = isBGS_colors(gflux=ttruth['FLUX_G'],
@@ -356,12 +366,15 @@ for j in range(args.nsim):
 
     baseid = pixel*1000000
 
+    if args.addsn:
+        # TARGETID in truth table is split in two; deal with it here.
+        truth['TARGETID'] = truth['TARGETID_1']
+
     truth['TARGETID'][:] += baseid
     obj['TARGETID'][:] += baseid
 
     truthfile = os.path.join(args.simdir,
                              'bgs_{}_{:03}_truth.fits'.format(args.simid, j))
-#    write_templates(truthfile, tflux, twave, ttarg, ttruth, tobjtr)
     write_templates(truthfile, flux, wave, targ, truth, obj)
 
     # Generate simulated spectra, given observing conditions.
@@ -370,11 +383,3 @@ for j in range(args.nsim):
     sim_spectra(wave, flux, 'bgs', specfile, obsconditions=obs,
                 sourcetype='bgs', targetid=truth['TARGETID'],
                 redshift=truth['TRUEZ'], seed=args.seed, expid=j)
-
-# fig, axes = plt.subplots(4,4, figsize=(8,8), sharex=True, sharey=True)
-# axes = axes.flatten()
-# for i in range(0,16):
-#     axes[i].plot(wave, flux[i])
-# fig.tight_layout()
-# 
-# plt.show()
