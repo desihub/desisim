@@ -1,10 +1,11 @@
 #!/usr/bin/env python
-
+import os
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
 import simqso.sqgrids  as grids
 from simqso.lumfun import QlfEvolParam,PolyEvolParam,DoublePowerLawLF
 from simqso.hiforest import IGMTransmissionGrid
+
 
 Fan99_model = {
   'forest':{'zrange':(0.0,6.0),
@@ -118,6 +119,7 @@ forestModels = {'Fan1999':Fan99_model,
                 'Worseck&Prochaska2011':WP11_model,
                 'McGreer+2013':McG13hiz_model}
 
+
 BossDr9_fiducial_continuum = grids.BrokenPowerLawContinuumVar([
                                     grids.GaussianSampler(-1.50,0.3),
                                     grids.GaussianSampler(-0.50,0.3),
@@ -137,8 +139,11 @@ BossDr9_expDust_cont = grids.BrokenPowerLawContinuumVar([
 BossDr9_FeScalings = [ (0,1540,0.5),(1540,1680,2.0),(1680,1868,1.6),
                        (1868,2140,1.0),(2140,3500,1.0) ]
 
-def BossDr9_EmLineTemplate_modified(*args,**kwargs):
-    kwargs.setdefault('scaleEWs',{'LyB':1.22,
+def EmLineTemplate_modified(*args,**kwargs):
+    kwargs.setdefault('scaleEWs',{'Lyepsdel':0.07,
+                                  'CIII977':0.185,
+                                  'NIII991':0.051,
+                                  'LyB':1.22,
                                   'ArI':0.81,
                                   'FeIII:UV1':0.31,
                                   'CIII*':0.65,
@@ -150,10 +155,12 @@ def BossDr9_EmLineTemplate_modified(*args,**kwargs):
                                   'CIII]b':1.2,'CIII]n':1.3,
                                   'MgIIb':1.7,'MgIIn':1.7})
 
+    kwargs['EmissionLineTrendFilename']=os.environ['DESISIM']+'/py/desisim/data/mod_emlinetrends_v6'
     return grids.generateBEffEmissionLines(*args,**kwargs)
 
-def get_BossDr9_model_vars_modified(qsoGrid,wave,nSightLines=0,
+def model_vars(qsoGrid,wave,nSightLines=0,
                            noforest=False,forestseed=None,verbose=0):
+
     if not noforest:
         if nSightLines <= 0:
             nSightLines = len(qsoGrid.z)
@@ -163,17 +170,18 @@ def get_BossDr9_model_vars_modified(qsoGrid,wave,nSightLines=0,
                                       nSightLines,zmax=qsoGrid.z.max(),
                                       subsample=subsample,seed=forestseed,
                                       verbose=verbose)
+
     fetempl = grids.VW01FeTemplateGrid(qsoGrid.z,wave,
                                        scales=BossDr9_FeScalings)
     mvars = [ BossDr9_fiducial_continuum,
-              BossDr9_EmLineTemplate_modified(qsoGrid.absMag),
-              grids.FeTemplateVar(fetempl) ]
+              EmLineTemplate_modified(qsoGrid.absMag),
+              grids.FeTemplateVar(fetempl)]
     if not noforest:
         mvars.append( grids.HIAbsorptionVar(igmGrid,subsample=subsample) )
     return mvars
 
 
-def BOSS_DR9_PLEpivot(**kwargs):
+def model_PLEpivot(**kwargs):
     # the 0.3 makes the PLE and LEDE models align at the pivot redshift
     MStar1450_z0 = -22.92 + 1.486 + 0.3
     k1,k2 = 1.293,-0.268
@@ -187,4 +195,32 @@ def BOSS_DR9_PLEpivot(**kwargs):
     alpha = -1.3
     beta = -3.5
     return DoublePowerLawLF(logPhiStar,MStar,alpha,beta,**kwargs)
+
+class LogPhiStarPLEPivot(PolyEvolParam):
+    '''The PLE-Pivot model is PLE (fixed Phi*) below zpivot and
+       LEDE (polynomial in log(Phi*) above zpivot.'''
+    def __init__(self,*args,**kwargs):
+        self.zp = kwargs.pop('zpivot')
+        super(LogPhiStarPLEPivot,self).__init__(*args,**kwargs)
+    def eval_at_z(self,z,par=None):
+        # this fixes Phi* to be the zpivot value at z<zp
+        z = np.asarray(z).clip(self.zp,np.inf)
+        return super(LogPhiStarPLEPivot,self).eval_at_z(z,par)
+
+class MStarPLEPivot(QlfEvolParam):
+    '''The PLE-Pivot model for Mstar encapsulates two evolutionary models,
+       one for z<zpivot and one for z>zp.'''
+    def __init__(self,*args,**kwargs):
+        self.zp = kwargs.pop('zpivot')
+        self.n1 = kwargs.pop('npar1')
+        self.z0_1 = kwargs.pop('z0_1',0.0)
+        self.z0_2 = kwargs.pop('z0_2',0.0)
+        super(MStarPLEPivot,self).__init__(*args,**kwargs)
+    def eval_at_z(self,z,par=None):
+        z = np.asarray(z)
+        par = self._extract_par(par)
+        return np.choose(z<self.zp,
+                         [np.polyval(par[self.n1:],z-self.z0_2),
+                          np.polyval(par[:self.n1],z-self.z0_1)])
+
 

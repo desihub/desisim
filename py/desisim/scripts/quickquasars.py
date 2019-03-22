@@ -1,3 +1,4 @@
+
 from __future__ import absolute_import, division, print_function
 
 import sys, os
@@ -737,7 +738,7 @@ def main(args=None):
     else:
         log.info("Load SIMQSO model")
         #Todo: define a better name for model
-        model=SIMQSO(nproc=1,sqmodel='modified') 
+        model=SIMQSO(nproc=1,sqmodel='lya_simqso_model') 
 
     decam_and_wise_filters = None
     bassmzls_and_wise_filters = None
