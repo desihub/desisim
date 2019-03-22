@@ -20,7 +20,6 @@ from desisim.scripts.quickspectra import sim_spectra
 from desitarget.mock.mockmaker import BGSMaker
 from desitarget.cuts import isBGS_colors
 from desiutil.log import get_logger, DEBUG
-log = get_logger()
 
 from yaml import load
 
@@ -236,150 +235,165 @@ def write_templates(filename, flux, wave, target, truth, objtruth):
     hx.writeto(filename, overwrite=True)
 
 
-parser = ArgumentParser(description='Fast galaxy simulator')
-parser.add_argument('--config', action=SetDefaultFromYAMLFile)
-#
-# Observational conditions.
-#
-cond = parser.add_argument_group('Observing conditions')
-cond.add_argument('--airmass', dest='airmass', type=float, default=1.,
-                  help='Airmass [1..40].')
-cond.add_argument('--exptime', dest='exptime', type=int, default=300,
-                  help='Exposure time [s].')
-cond.add_argument('--seeing', dest='seeing', type=float, default=1.1,
-                  help='Seeing [arcsec].')
-cond.add_argument('--moonalt', dest='moonalt', type=float, default=-60.,
-                  help='Moon altitude [deg].')
-cond.add_argument('--moonfrac', dest='moonfrac', type=float, default=0.,
-                  help='Illuminated moon fraction [0..1].')
-cond.add_argument('--moonsep', dest='moonsep', type=float, default=180.,
-                  help='Moon separation angle [deg].')
-#
-# Galaxy simulation settings.
-#
-mcset = parser.add_argument_group('Simulation settings')
-mcset.add_argument('--nside', dest='nside', type=int, default=64,
-                   help='HEALPix NSIDE parameter.')
-mcset.add_argument('--nspec', dest='nspec', type=int, default=100,
-                   help='Number of spectra per HEALPix pixel.')
-mcset.add_argument('--nsim', dest='nsim', type=int, default=10,
-                   help='Number of simulations (HEALPix pixels).')
-mcset.add_argument('--seed', dest='seed', type=int, default=None,
-                   help='Random number seed')
-mcset.add_argument('--addsn', dest='addsn', action='store_true', default=False,
-                   help='Add SNe Ia to host spectra.')
-mcset.add_argument('--snrmin', dest='snrmin', type=float, default=0.01,
-                   help='SN/host minimum flux ratio.')
-mcset.add_argument('--snrmax', dest='snrmax', type=float, default=1.00,
-                   help='SN/host maximum flux ratio.')
-#
-# Output settings.
-#
-output = parser.add_argument_group('Output settings')
-output.add_argument('--simid', dest='simid',
-                    default=datetime.now().strftime('%Y-%m-%d'),
-                    help='ID/name for simulations.')
-output.add_argument('--simdir', dest='simdir', default='',
-                    help='Simulation output directory absolute path.')
+def parse(options=None):
+    """Parse command-line options.
+    """
+    parser = ArgumentParser(description='Fast galaxy simulator')
+    parser.add_argument('--config', action=SetDefaultFromYAMLFile)
+    #
+    # Observational conditions.
+    #
+    cond = parser.add_argument_group('Observing conditions')
+    cond.add_argument('--airmass', dest='airmass', type=float, default=1.,
+                      help='Airmass [1..40].')
+    cond.add_argument('--exptime', dest='exptime', type=int, default=300,
+                      help='Exposure time [s].')
+    cond.add_argument('--seeing', dest='seeing', type=float, default=1.1,
+                      help='Seeing [arcsec].')
+    cond.add_argument('--moonalt', dest='moonalt', type=float, default=-60.,
+                      help='Moon altitude [deg].')
+    cond.add_argument('--moonfrac', dest='moonfrac', type=float, default=0.,
+                      help='Illuminated moon fraction [0..1].')
+    cond.add_argument('--moonsep', dest='moonsep', type=float, default=180.,
+                      help='Moon separation angle [deg].')
+    #
+    # Galaxy simulation settings.
+    #
+    mcset = parser.add_argument_group('Simulation settings')
+    mcset.add_argument('--nside', dest='nside', type=int, default=64,
+                       help='HEALPix NSIDE parameter.')
+    mcset.add_argument('--nspec', dest='nspec', type=int, default=100,
+                       help='Number of spectra per HEALPix pixel.')
+    mcset.add_argument('--nsim', dest='nsim', type=int, default=10,
+                       help='Number of simulations (HEALPix pixels).')
+    mcset.add_argument('--seed', dest='seed', type=int, default=None,
+                       help='Random number seed')
+    mcset.add_argument('--addsn', dest='addsn', action='store_true', default=False,
+                       help='Add SNe Ia to host spectra.')
+    mcset.add_argument('--snrmin', dest='snrmin', type=float, default=0.01,
+                       help='SN/host minimum flux ratio.')
+    mcset.add_argument('--snrmax', dest='snrmax', type=float, default=1.00,
+                       help='SN/host maximum flux ratio.')
+    #
+    # Output settings.
+    #
+    output = parser.add_argument_group('Output settings')
+    output.add_argument('--simid', dest='simid',
+                        default=datetime.now().strftime('%Y-%m-%d'),
+                        help='ID/name for simulations.')
+    output.add_argument('--simdir', dest='simdir', default='',
+                        help='Simulation output directory absolute path.')
 
-# Parse command line options.
-args = parser.parse_args()
-print(args)
+    # Parse command line options.
+    if options is None:
+        args = parser.parse_args()
+    else:
+        args = parser.parse_args(options)
 
-# Save simulation output.
-rng = np.random.RandomState(args.seed)
-simdata = bgs_write_simdata(args)
-obs = simdata2obsconditions(args)
+    return args
 
-# Generate list of HEALPix pixels to randomly sample from the mocks.
-healpixels = _get_healpixels_in_footprint(nside=args.nside)
-npix = np.minimum(10*args.nsim, len(healpixels))
-pixels = rng.choice(healpixels, size=npix, replace=False)
-ipix = iter(pixels)
 
-# Set up the template generator.
-maker = BGSMaker(seed=args.seed)
-maker.template_maker = BGS(add_SNeIa=args.addsn, wave=_default_wave())
+def main(args=None):
 
-for j in range(args.nsim):
+    log = get_logger()
 
-    # Loop until finding a non-empty healpixel (one with mock galaxies).
-    tdata = []
-    while len(tdata) == 0:
-        pixel = next(ipix)
-        tdata = maker.read(healpixels=pixel, nside=args.nside)
+    if isinstance(args, (list, tuple, type(None))):
+        args = parse(args)
 
-    # Add SN generation options.
-    if args.addsn:
-        tdata['SNE_FLUXRATIORANGE'] = (args.snrmin, args.snrmax)
-        tdata['SNE_FILTER'] = 'decam2014-r'
+    # Save simulation output.
+    rng = np.random.RandomState(args.seed)
+    simdata = bgs_write_simdata(args)
+    obs = simdata2obsconditions(args)
 
-    # Generate nspec spectral templates and write them to "truth" files.
-    wave = None
-    flux, targ, truth, obj = [], [], [], []
+    # Generate list of HEALPix pixels to randomly sample from the mocks.
+    healpixels = _get_healpixels_in_footprint(nside=args.nside)
+    npix = np.minimum(10*args.nsim, len(healpixels))
+    pixels = rng.choice(healpixels, size=npix, replace=False)
+    ipix = iter(pixels)
 
-    # Generate templates until we have enough to pass brightness cuts.
-    ntosim = np.min((args.nspec, len(tdata['RA'])))
-    ngood = 0
-    while ngood < args.nspec:
-        idx = rng.choice(len(tdata['RA']), ntosim)
-        tflux, twave, ttarg, ttruth, tobj = \
-            maker.make_spectra(tdata, indx=idx)
+    # Set up the template generator.
+    maker = BGSMaker(seed=args.seed)
+    maker.template_maker = BGS(add_SNeIa=args.addsn, wave=_default_wave())
 
-        # Apply color cuts.
-        is_bright = isBGS_colors(gflux=ttruth['FLUX_G'],
-                                 rflux=ttruth['FLUX_R'],
-                                 zflux=ttruth['FLUX_Z'],
-                                 w1flux=ttruth['FLUX_W1'],
-                                 w2flux=ttruth['FLUX_W2'],
-                                 targtype='bright')
+    for j in range(args.nsim):
 
-        is_faint = isBGS_colors(gflux=ttruth['FLUX_G'],
-                                rflux=ttruth['FLUX_R'],
-                                zflux=ttruth['FLUX_Z'],
-                                w1flux=ttruth['FLUX_W1'],
-                                w2flux=ttruth['FLUX_W2'],
-                                targtype='faint')
+        # Loop until finding a non-empty healpixel (one with mock galaxies).
+        tdata = []
+        while len(tdata) == 0:
+            pixel = next(ipix)
+            tdata = maker.read(healpixels=pixel, nside=args.nside)
 
-        is_wise  = isBGS_colors(gflux=ttruth['FLUX_G'],
-                                rflux=ttruth['FLUX_R'],
-                                zflux=ttruth['FLUX_Z'],
-                                w1flux=ttruth['FLUX_W1'],
-                                w2flux=ttruth['FLUX_W2'],
-                                targtype='wise')
-        
-        keep = np.logical_or(np.logical_or(is_bright, is_faint), is_wise)
+        # Add SN generation options.
+        if args.addsn:
+            tdata['SNE_FLUXRATIORANGE'] = (args.snrmin, args.snrmax)
+            tdata['SNE_FILTER'] = 'decam2014-r'
 
-        _ngood = np.count_nonzero(keep)
-        if _ngood > 0:
-            ngood += _ngood
-            flux.append(tflux[keep, :])
-            targ.append(ttarg[keep])
-            truth.append(ttruth[keep])
-            obj.append(tobj[keep])
+        # Generate nspec spectral templates and write them to "truth" files.
+        wave = None
+        flux, targ, truth, obj = [], [], [], []
 
-    wave = maker.wave
-    flux = np.vstack(flux)[:args.nspec, :]
-    targ = vstack(targ)[:args.nspec]
-    truth = vstack(truth)[:args.nspec]
-    obj = vstack(obj)[:args.nspec]
+        # Generate templates until we have enough to pass brightness cuts.
+        ntosim = np.min((args.nspec, len(tdata['RA'])))
+        ngood = 0
+        while ngood < args.nspec:
+            idx = rng.choice(len(tdata['RA']), ntosim)
+            tflux, twave, ttarg, ttruth, tobj = \
+                maker.make_spectra(tdata, indx=idx)
 
-    baseid = pixel*1000000
+            # Apply color cuts.
+            is_bright = isBGS_colors(gflux=ttruth['FLUX_G'],
+                                     rflux=ttruth['FLUX_R'],
+                                     zflux=ttruth['FLUX_Z'],
+                                     w1flux=ttruth['FLUX_W1'],
+                                     w2flux=ttruth['FLUX_W2'],
+                                     targtype='bright')
 
-    if args.addsn:
-        # TARGETID in truth table is split in two; deal with it here.
-        truth['TARGETID'] = truth['TARGETID_1']
+            is_faint = isBGS_colors(gflux=ttruth['FLUX_G'],
+                                    rflux=ttruth['FLUX_R'],
+                                    zflux=ttruth['FLUX_Z'],
+                                    w1flux=ttruth['FLUX_W1'],
+                                    w2flux=ttruth['FLUX_W2'],
+                                    targtype='faint')
 
-    truth['TARGETID'][:] += baseid
-    obj['TARGETID'][:] += baseid
+            is_wise  = isBGS_colors(gflux=ttruth['FLUX_G'],
+                                    rflux=ttruth['FLUX_R'],
+                                    zflux=ttruth['FLUX_Z'],
+                                    w1flux=ttruth['FLUX_W1'],
+                                    w2flux=ttruth['FLUX_W2'],
+                                    targtype='wise')
+            
+            keep = np.logical_or(np.logical_or(is_bright, is_faint), is_wise)
 
-    truthfile = os.path.join(args.simdir,
-                             'bgs_{}_{:03}_truth.fits'.format(args.simid, j))
-    write_templates(truthfile, flux, wave, targ, truth, obj)
+            _ngood = np.count_nonzero(keep)
+            if _ngood > 0:
+                ngood += _ngood
+                flux.append(tflux[keep, :])
+                targ.append(ttarg[keep])
+                truth.append(ttruth[keep])
+                obj.append(tobj[keep])
 
-    # Generate simulated spectra, given observing conditions.
-    specfile = os.path.join(args.simdir,
-                            'bgs_{}_{:03}_spectra.fits'.format(args.simid, j))
-    sim_spectra(wave, flux, 'bgs', specfile, obsconditions=obs,
-                sourcetype='bgs', targetid=truth['TARGETID'],
-                redshift=truth['TRUEZ'], seed=args.seed, expid=j)
+        wave = maker.wave
+        flux = np.vstack(flux)[:args.nspec, :]
+        targ = vstack(targ)[:args.nspec]
+        truth = vstack(truth)[:args.nspec]
+        obj = vstack(obj)[:args.nspec]
+
+        baseid = pixel*1000000
+
+        if args.addsn:
+            # TARGETID in truth table is split in two; deal with it here.
+            truth['TARGETID'] = truth['TARGETID_1']
+
+        truth['TARGETID'][:] += baseid
+        obj['TARGETID'][:] += baseid
+
+        truthfile = os.path.join(args.simdir,
+                                 'bgs_{}_{:03}_truth.fits'.format(args.simid, j))
+        write_templates(truthfile, flux, wave, targ, truth, obj)
+
+        # Generate simulated spectra, given observing conditions.
+        specfile = os.path.join(args.simdir,
+                                'bgs_{}_{:03}_spectra.fits'.format(args.simid, j))
+        sim_spectra(wave, flux, 'bgs', specfile, obsconditions=obs,
+                    sourcetype='bgs', targetid=truth['TARGETID'],
+                    redshift=truth['TRUEZ'], seed=args.seed, expid=j)
