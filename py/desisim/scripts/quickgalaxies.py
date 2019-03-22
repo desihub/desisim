@@ -311,7 +311,7 @@ for j in range(args.nsim):
 
     # Add SN generation options.
     if args.addsn:
-        tdata['SNE_FLUXRATIORANGE'] = (0.01, 1)
+        tdata['SNE_FLUXRATIORANGE'] = (args.snrmin, args.snrmax)
         tdata['SNE_FILTER'] = 'decam2014-r'
 
     # Generate nspec spectral templates and write them to "truth" files.
