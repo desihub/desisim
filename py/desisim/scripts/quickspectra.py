@@ -179,8 +179,7 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
         psfconvolve=True, specsim_config_file=specsim_config_file)
 
     random_state = np.random.RandomState(seed)
-    #sim.generate_random_noise(random_state,use_poisson=use_poisson)
-    sim.generate_random_noise(random_state)
+    sim.generate_random_noise(random_state,use_poisson=use_poisson)
     
     scale=1e17
     specdata = None
