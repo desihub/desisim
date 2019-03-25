@@ -607,11 +607,15 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     else :
         fibermap_columns=None
 
-
+    # use Poisson = False to get reproducible results.
+    if args.eboss:
+        specsim_config_file = 'eboss'
+    else:
+        specsim_config_file = 'desi'
     sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
-                sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
-                meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False, specsim_config_file="eboss") # use Poisson = False to get reproducible results.
-    
+        sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
+        meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False,
+        specsim_config_file=specsim_config_file)
 
     ### Keep input redshift
     Z_spec = metadata['Z'].copy()
