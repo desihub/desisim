@@ -471,7 +471,7 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, redshift=Non
     # source types are sky elg lrg qso bgs star , they
     # are only used in specsim.fiberloss for the desi.instrument.fiberloss_method="table" method
 
-    if args.specsim_config_file == "desi":
+    if specsim_config_file == "desi":
         desi.instrument.fiberloss_method = 'fastsim'
 
     log.debug('running simulation with {} fiber loss method'.format(desi.instrument.fiberloss_method))
@@ -609,7 +609,7 @@ def _specsim_config_for_wave(wave, dwave_out=None, specsim_config_file = "desi")
 
     config.instrument.cameras.b.constants.output_pixel_size = "{:.3f} Angstrom".format(dwave_out)
     config.instrument.cameras.r.constants.output_pixel_size = "{:.3f} Angstrom".format(dwave_out)
-    if args.specsim_config_file == "desi":
+    if specsim_config_file == "desi":
         config.instrument.cameras.z.constants.output_pixel_size = "{:.3f} Angstrom".format(dwave_out)
 
     config.update()
