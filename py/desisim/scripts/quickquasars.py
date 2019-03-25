@@ -350,7 +350,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
         # if adding DLAs, the information will be printed here
         dla_filename=os.path.join(pixdir,"dla-{}-{}.fits".format(nside,pixel))
-        dla_NHI, dla_z, dla_id = [], [], []
+        dla_NHI, dla_z, dla_qid,dla_id = [], [], [],[]
 
         # identify minimum Lya redshift in transmission files
         min_lya_z = np.min(trans_wave/lambda_RF_LYA - 1)
@@ -370,27 +370,30 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                 for dla in dla_info[dla_info['MOCKID']==idd]:
 
                     # Adding only DLAs with z < zqso
-                    if dla['Z_DLA']>=metadata['Z'][ii]: continue
-                    dlas.append(dict(z=dla['Z_DLA']+dla['DZ_DLA'],N=dla['N_HI_DLA']))
+                    if dla['Z_DLA_RSD']>=metadata['Z'][ii]: continue
+                    dlas.append(dict(z=dla['Z_DLA_RSD'],N=dla['N_HI_DLA'],dlaid=dla['DLAID']))
                 transmission_dla = dla_spec(trans_wave,dlas)
 
             elif args.dla=='random':
                 dlas, transmission_dla = insert_dlas(trans_wave, metadata['Z'][ii], rstate=random_state_just_for_dlas)
+                for idla in dlas:
+                   idla['dlaid']+=idd*1000      #Added to have unique DLA ids. Same format as DLAs from file. 
 
             # multiply transmissions and store information for the DLA file
             if len(dlas)>0:
                 transmission[ii] = transmission_dla * transmission[ii]
                 dla_z += [idla['z'] for idla in dlas]
                 dla_NHI += [idla['N'] for idla in dlas]
-                dla_id += [idd]*len(dlas)
+                dla_id += [idla['dlaid'] for idla in dlas]
+                dla_qid += [idd]*len(dlas)
         log.info('Added {} DLAs'.format(len(dla_id)))
         # write file with DLA information
         if len(dla_id)>0:
             dla_meta=Table()
             dla_meta['NHI'] = dla_NHI
-            dla_meta['Z'] = dla_z
-            dla_meta['TARGETID'] = dla_id
-
+            dla_meta['Z_DLA'] = dla_z  #This is Z_DLA_RSD in transmision.
+            dla_meta['MOCKID']=dla_qid
+            dla_meta['DLAID'] = dla_id 
             hdu_dla = pyfits.convenience.table_to_hdu(dla_meta)
             hdu_dla.name="DLA_META"
             del(dla_meta)
@@ -448,7 +451,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
         if not eboss is None:
             # for eBOSS, generate only quasars with r<22
-            magrange = (17.0, 22.0)
+            magrange = (17.0, 21.3)
             _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
                 = model.make_templates(nmodel=nt,
                     redshift=metadata['Z'][these], magrange=magrange,

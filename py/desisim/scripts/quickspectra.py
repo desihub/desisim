@@ -21,7 +21,6 @@ import desimodel.io
 import desitarget
 from desispec.spectra import Spectra
 from desispec.resolution import Resolution
-import matplotlib.pyplot as plt
 
 def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
                 sourcetype=None, targetid=None, redshift=None, expid=0, seed=0, skyerr=0.0, ra=None, dec=None, meta=None, fibermap_columns=None, fullsim=False,use_poisson=True, specsim_config_file="desi"):
