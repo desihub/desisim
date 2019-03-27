@@ -82,8 +82,9 @@ def parse(options=None):
     parser.add_argument('--no-simqso',action = "store_true", help="Does not use desisim.templates.SIMQSO to generate templates, and uses desisim.templates.QSO instead.")
     parser.add_argument('--no-transmission',action = 'store_true', help='Do not multiply continuum by transmission, use F=1 everywhere')
     parser.add_argument('--eboss',action = 'store_true', help='Setup footprint, number density, redshift distribution, and exposure time to generate eBOSS-like mocks')
-    parser.add_argument('--Rv',type=float,default=3.1,help='Adds Galactic extintion, for the specified extintion factor.')
-    parser.add_argument('--no-extintion',action='store_true',help="Does not add galactic extintion")
+    parser.add_argument('--extintion-Rv',nargs='?',type=float,const=3.1,help='Adds Galactic extintion, for the specified extintion factor. E.g. --extintion-Rv 3.5 will use Rv of 3.5. If a number is not specified, a value of 3.1 is used.')
+
+    
 
     if options is None:
         args = parser.parse_args()
@@ -613,15 +614,22 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     # Attenuate the spectra for extinction
     if not sfdmap is None:
-       log.info("Dust extintion added with Rv={}".format(args.Rv))
+       Rv=args.extintion_Rv
+       log.info("Dust extintion added with Rv={}".format(Rv))
        indx=np.arange(metadata['RA'].size)
-       extintion = args.Rv * ext_odonnell(qso_wave, Rv=args.Rv)
+       extintion =Rv*ext_odonnell(qso_wave, Rv=Rv)
        EBV = sfdmap.ebv(metadata['RA'],metadata['DEC'], scaling=1.0)
        qso_flux *=10**( -0.4 * EBV[indx, np.newaxis] * extintion)
        if fibermap_columns is not None:
           fibermap_columns['EBV']=EBV
-
-
+       EBV0=0.1    #95%limit EBV  all qsos in master.fits catalog in the DESI footprint. I don't know yet exactly what to use here...
+       EBV_med=np.median(EBV)
+       Ag = 3.303 * (EBV_med - EBV0)
+       #Only modify exposure time if the median EBV is larger than the median EBV in the full catalog.
+       if not Ag <0: 
+          exptime_fact=np.power(10.0, (2.0 * Ag / 2.5))
+          obsconditions['EXPTIME']*=exptime_fact
+          log.info('exposure time adjusted to {}'.format(obsconditions['EXPTIME']))
     sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
                 sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
                 meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False) # use Poisson = False to get reproducible results.
@@ -780,10 +788,10 @@ def main(args=None):
        log.info("Setting --zbest to true as required by --gamma_kms_zfit")
        args.zbest = True
 
-    if args.no_extintion :
-       sfdmap=None
-    else:
+    if args.extintion_Rv :  
        sfdmap= SFDMap()
+    else:
+       sfdmap=None
 
     if args.balprob:
         bal=BAL()
