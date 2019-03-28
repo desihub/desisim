@@ -622,11 +622,11 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
        qso_flux *=10**( -0.4 * EBV[indx, np.newaxis] * extintion)
        if fibermap_columns is not None:
           fibermap_columns['EBV']=EBV
-       EBV0=0.1    #95%limit EBV  all qsos in master.fits catalog in the DESI footprint. I don't know yet exactly what to use here...
+       EBV0=0.1    #95% of all qsos in master.fits catalog in the DESI footprint have a EBV value below EBV0. Use it to update the exposure time following https://github.com/desihub/desisurvey/blob/c112f038e31817af1b2fbb140178522d47f90085/py/desisurvey/etc.py#L82 But still I don't know yet exactly what to use...
        EBV_med=np.median(EBV)
        Ag = 3.303 * (EBV_med - EBV0)
        #Only modify exposure time if the median EBV is larger than the median EBV in the full catalog.
-       if not Ag <0: 
+       if not Ag <0:
           exptime_fact=np.power(10.0, (2.0 * Ag / 2.5))
           obsconditions['EXPTIME']*=exptime_fact
           log.info('exposure time adjusted to {}'.format(obsconditions['EXPTIME']))
@@ -788,7 +788,7 @@ def main(args=None):
        log.info("Setting --zbest to true as required by --gamma_kms_zfit")
        args.zbest = True
 
-    if args.extintion_Rv :  
+    if args.extintion_Rv:
        sfdmap= SFDMap()
     else:
        sfdmap=None
