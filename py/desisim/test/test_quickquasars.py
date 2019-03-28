@@ -7,19 +7,20 @@ from astropy.io import fits
 
 
 class Testquickquasars(unittest.TestCase):
-
+    
     @classmethod
     def setUpClass(cls):
+        os.environ['DUST_DIR']=resource_filename('desisim','test/data/')
         cls.origdir = os.getcwd()
         cls.testdir =tempfile.mkdtemp()
         os.chdir(cls.testdir)
         cls.infile = resource_filename('desisim','test/data/Lv5-transmission-16-1531.fits')       #London mock
         cls.infile2 = resource_filename('desisim','test/data/transmission-16-1747.fits.gz')    #Saclay mock
-        cls.outspec1 = os.path.join(cls.testdir, 'spectra-16-0_1.fits')
-        cls.outzbest = os.path.join(cls.testdir, 'zbest-16-0.fits')
-        cls.outspec1_s=os.path.join(cls.testdir, 'spectra-16-1747_1.fits')
+        cls.outspec1 = os.path.join(cls.testdir, 'spectra-16-1531.fits')
+        cls.outzbest = os.path.join(cls.testdir, 'zbest-16-1531.fits')
+        cls.outspec1_s=os.path.join(cls.testdir, 'spectra-16-1747.fits')
         cls.outzbest_s = os.path.join(cls.testdir, 'zbest-16-1747.fits')
-        os.environ['DUST_DIR']=resource_filename('desisim','test/data/')
+
     @classmethod
     def setUp(self):
         pass
