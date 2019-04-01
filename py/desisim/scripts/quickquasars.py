@@ -84,8 +84,6 @@ def parse(options=None):
     parser.add_argument('--eboss',action = 'store_true', help='Setup footprint, number density, redshift distribution, and exposure time to generate eBOSS-like mocks')
     parser.add_argument('--extintion-Rv',nargs='?',type=float,const=3.1,help='Adds Galactic extintion, for the specified extintion factor. E.g. --extintion-Rv 3.5 will use Rv of 3.5. If a number is not specified, a value of 3.1 is used.')
 
-    
-
     if options is None:
         args = parser.parse_args()
     else:

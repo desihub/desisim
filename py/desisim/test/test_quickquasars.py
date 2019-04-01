@@ -7,7 +7,6 @@ from astropy.io import fits
 
 
 class Testquickquasars(unittest.TestCase):
-    
     @classmethod
     def setUpClass(cls):
         os.environ['DUST_DIR']=resource_filename('desisim','test/data/')
