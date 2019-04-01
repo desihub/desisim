@@ -140,12 +140,16 @@ BossDr9_FeScalings = [ (0,1540,0.5),(1540,1680,2.0),(1680,1868,1.6),
                        (1868,2140,1.0),(2140,3500,1.0) ]
 
 def EmLineTemplate_modified(*args,**kwargs):
-    kwargs.setdefault('scaleEWs',{'Lyepsdel':0.07,
-                                  'CIII977':0.185,
-                                  'NIII991':0.051,
-                                  'LyB':1.22,
-                                  'ArI':0.81,
-                                  'FeIII:UV1':0.31,
+    kwargs.setdefault('scaleEWs',{
+                                  'Lyepsdel':1,
+                                  'CIII977':0.5,
+                                  'NIII991':1.15,
+                                  'NII':1.1,
+                                  'UnknownI':0.1,'UnknownII':0.1,
+                                  'OVI':1.3,
+                                  'LyB':1.3,
+                                  'ArI':1,
+                                  'FeIII:UV1a':1,'FeIII:UV1b':1,
                                   'CIII*':0.65,
                                   'LyAb':1.0,'LyAn':1.0,
                                   'NV':2.2,
