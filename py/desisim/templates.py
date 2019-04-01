@@ -2357,7 +2357,6 @@ class SIMQSO():
                log.warning("Using modified simqso.sqmodels defined in desisim.scripts.lya_simqso_model")
 
             self.sqmodel_vars=sqmodel_vars
-            
         except ImportError:
             message = 'Please install https://github.com/imcgreer/simqso'
             log.error(message)
@@ -2444,7 +2443,6 @@ class SIMQSO():
 
         """ 
         from desispec.interpolation import resample_flux
-        log = get_logger()
 
         if lyaforest:
             subtype = 'LYA'
