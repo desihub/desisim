@@ -81,9 +81,9 @@ def parse(options=None):
     parser.add_argument('--no-simqso',action = "store_true", help="Does not use desisim.templates.SIMQSO to generate templates, and uses desisim.templates.QSO instead.")
     parser.add_argument('--no-transmission',action = 'store_true', help='Do not multiply continuum by transmission, use F=1 everywhere')
     parser.add_argument('--eboss',action = 'store_true', help='Setup footprint, number density, redshift distribution, and exposure time to generate eBOSS-like mocks')
-    parser.add_argument('--extintion-Rv',nargs='?',type=float,const=3.1,help='Adds Galactic extintion, for the specified extintion factor. \
-E.g. --extintion-Rv 3.5 will use Rv of 3.5. \
-If a number is not specified, a value of 3.1 is used.')
+    parser.add_argument('--extintion-Rv',nargs='?',type=float,const=3.1,help='Adds Galactic extintion, for the specified extintion factor.\
+    E.g. --extintion-Rv 3.5 will use Rv of 3.5. \
+    If a number is not specified, a value of 3.1 is used.')
 
     if options is None:
         args = parser.parse_args()
