@@ -392,7 +392,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             dla_meta=Table()
             dla_meta['NHI'] = dla_NHI
             dla_meta['Z_DLA'] = dla_z  #This is Z_DLA_RSD in transmision.
-            dla_meta['MOCKID']=dla_qid
+            dla_meta['TARGETID']=dla_qid
             dla_meta['DLAID'] = dla_id 
             hdu_dla = pyfits.convenience.table_to_hdu(dla_meta)
             hdu_dla.name="DLA_META"
