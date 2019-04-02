@@ -378,14 +378,23 @@ def main(args=None):
         truth = vstack(truth)[:args.nspec]
         obj = vstack(obj)[:args.nspec]
 
-        baseid = pixel*1000000
-
         if args.addsn:
             # TARGETID in truth table is split in two; deal with it here.
             truth['TARGETID'] = truth['TARGETID_1']
 
-        truth['TARGETID'][:] += baseid
-        obj['TARGETID'][:] += baseid
+        # Set up and verify the TARGETID across all truth tables.
+        n = len(truth)
+        new_id = 10000000*pixel + 100000*j + np.arange(1, n+1)
+
+        truth['TARGETID'][:] = new_id
+        targ['TARGETID'][:] = new_id
+        obj['TARGETID'][:] = new_id
+
+        assert(len(truth) == args.nspec)
+        assert(np.all(targ['TARGETID'] == truth['TARGETID']))
+        assert(len(truth) == len(np.unique(truth['TARGETID'])))
+        assert(len(targ) == len(np.unique(targ['TARGETID'])))
+        assert(len(obj) == len(np.unique(obj['TARGETID'])))
 
         truthfile = os.path.join(args.simdir,
                                  'bgs_{}_{:03}_truth.fits'.format(args.simid, j))
