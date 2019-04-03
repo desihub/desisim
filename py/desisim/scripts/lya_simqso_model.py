@@ -140,26 +140,30 @@ BossDr9_FeScalings = [ (0,1540,0.5),(1540,1680,2.0),(1680,1868,1.6),
                        (1868,2140,1.0),(2140,3500,1.0) ]
 
 def EmLineTemplate_modified(*args,**kwargs):
+    """
     kwargs.setdefault('scaleEWs',{
                                   'Lyepsdel':1,
                                   'CIII977':0.5,
                                   'NIII991':1.15,
                                   'NII':1.1,
-                                  'UnknownI':0.1,'UnknownII':0.1,
+                                  'UnknownI':1,
+                                  'UnknownII':0.1,'UnknownII':0.1,
                                   'OVI':1.3,
-                                  'LyB':1.3,
-                                  'ArI':1,
+                                  'LyB':3,
+                                  #'ArI':1,
                                   'FeIII:UV1a':1,'FeIII:UV1b':1,
-                                  'CIII*':0.65,
+                                  'CIII*':1,0.65,
                                   'LyAb':1.0,'LyAn':1.0,
-                                  'NV':2.2,
+                                  'NV':1,2.2,
                                   'SiII':0.9,'OI':1.5,'CII':0.45,
                                   'SiIV+OIV]':0.92,
                                   'CIVb':0.75,'CIVn':0.75,
                                   'CIII]b':1.2,'CIII]n':1.3,
                                   'MgIIb':1.7,'MgIIn':1.7})
+    """
 
-    kwargs['EmissionLineTrendFilename']=os.environ['DESISIM']+'/py/desisim/data/mod_emlinetrends_v6'
+    #kwargs['EmissionLineTrendFilename']=os.environ['DESISIM']+'/py/desisim/data/mod_emlinetrends_v6'
+    kwargs['EmissionLineTrendFilename']=os.environ['DESISIM']+'/py/desisim/data/emlinetrends_v16'
     return grids.generateBEffEmissionLines(*args,**kwargs)
 
 def model_vars(qsoGrid,wave,nSightLines=0,
