@@ -52,7 +52,7 @@ class Testquickquasars(unittest.TestCase):
         self.assertTrue(os.path.exists(self.outspec1))
       
 
-        cmd = 'quickquasars -i {} -o {} --exptime 4000 --bbflux --nmax 5 --overwrite --seed 1 --extintion-Rv '.format(self.infile, self.outspec1)
+        cmd = 'quickquasars -i {} -o {} --exptime 4000 --bbflux --nmax 5 --overwrite --seed 1 --extinction'.format(self.infile, self.outspec1)
         opts = quickquasars.parse(cmd.split()[1:])
         quickquasars.main(opts)
         self.assertTrue(os.path.exists(self.outspec1))
