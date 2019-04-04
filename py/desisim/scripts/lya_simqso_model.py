@@ -7,26 +7,9 @@ from simqso.lumfun import QlfEvolParam,PolyEvolParam,DoublePowerLawLF
 from simqso.hiforest import IGMTransmissionGrid
 
 
-Fan99_model = {
-  'forest':{'zrange':(0.0,6.0),
-            'logNHrange':(13.0,17.3),
-            'N0':50.3,
-            'gamma':2.3,
-            'beta':1.41,
-            'b':30.0},
-     'LLS':{'zrange':(0.0,6.0),
-            'logNHrange':(17.3,20.5),
-            'N0':0.27,
-            'gamma':1.55,
-            'beta':1.25,
-            'b':70.0},
-     'DLA':{'zrange':(0.0,6.0),
-            'logNHrange':(20.5,22.0),
-            'N0':0.04,
-            'gamma':1.3,
-            'beta':1.48,
-            'b':70.0},
-}
+##This script basically duplicates simqso_model.py in SIMQSO https://github.com/imcgreer/simqso/blob/master/simqso/sqmodels.py. It defines the emmision lines. This needs the fits table os.environ['DESISIM']+'/py/desisim/data/emlinetrends_Harris2016mod' based on Table 4 of https://iopscience.iop.org/article/10.3847/0004-6256/151/6/155/pdf. Only the Lya line does not correspond to such reference, but to the values originally defined in SIMQSO. Basically the only modified function is EmLineTemplate_modified. But needs all the others definitions to work. 
+
+
 
 WP11_model = {
  'forest0':{'zrange':(0.0,1.5),
@@ -77,47 +60,10 @@ WP11_model = {
             'bsig':24.0},
 }
 
-McG13hiz_model = {
- 'forest1':{'zrange':(1.5,10.1),
-            'logNHrange':(12.0,14.5),
-            'gamma':3.5,
-            'beta':1.50,
-            'N0':8.5 * 1.1,
-            'brange':(10.,100.),
-            'bsig':24.0},
- 'forest2':{'zrange':(1.5,10.1),
-            'logNHrange':(14.5,17.2),
-            'gamma':3.5,
-            'beta':1.70,
-            'N0':0.33 * 1.1,
-            'brange':(10.,100.),
-            'bsig':24.0},
-     'LLS':{'zrange':(1.5,10.1),
-            'logNHrange':(17.2,20.3),
-            'gamma':2.0,
-            'beta':1.3,
-            'N0':0.13 * 1.1,
-            'brange':(10.,100.),
-            'bsig':24.0},
-  'subDLA':{'zrange':(0.0,10.1),
-            'logNHrange':(20.3,21.0),
-            'N0':0.13 / 7.5 * 1.1,
-            'gamma':1.70,
-            'beta':1.28,
-            'brange':(10.,100.),
-            'bsig':24.0},
-     'DLA':{'zrange':(0.0,10.1),
-            'logNHrange':(21.0,22.0),
-            'N0':0.13 / 33 * 1.1,
-            'gamma':2.0,
-            'beta':1.40,
-            'brange':(10.,100.),
-            'bsig':24.0},
-}
 
-forestModels = {'Fan1999':Fan99_model,
-                'Worseck&Prochaska2011':WP11_model,
-                'McGreer+2013':McG13hiz_model}
+forestModels = {
+		'Worseck&Prochaska2011':WP11_model,
+                }
 
 
 BossDr9_fiducial_continuum = grids.BrokenPowerLawContinuumVar([
@@ -148,12 +94,7 @@ def EmLineTemplate_modified(*args,**kwargs):
                                   'LyB/OIVb':1.1,
                                   'CIII*':1.8,
                                   'LyAb':1.1,'LyAn':1.1
-                                  #'NV':2.2,  #Don't know yet if will be modified
-                                  #'SiII':0.9,'OI':1.5,'CII':0.45,
-                                  #'SiIV+OIV]':0.92,
-                                  #'CIVb':0.75,'CIVn':0.75,
-                                  #'CIII]b':1.2,'CIII]n':1.3,
-                                  #'MgIIb':1.7,'MgIIn':1.7
+                                  #Add more lines if needed. 
                                   })
     kwargs['EmissionLineTrendFilename']=os.environ['DESISIM']+'/py/desisim/data/emlinetrends_Harris2016mod'
     return grids.generateBEffEmissionLines(*args,**kwargs)

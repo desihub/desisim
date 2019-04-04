@@ -2476,7 +2476,6 @@ class SIMQSO():
             qsometa = input_qsometa
 
         else:
-            
             from simqso.sqrun import buildSpectraBulk
             from simqso.sqgrids import generateQlfPoints
 

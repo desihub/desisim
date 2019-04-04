@@ -1,4 +1,3 @@
-
 from __future__ import absolute_import, division, print_function
 
 import sys, os
@@ -737,7 +736,8 @@ def main(args=None):
         model=QSO()
     else:
         log.info("Load SIMQSO model")
-        #Todo: define a better name for model
+        #lya_simqso_model.py is located in $DESISIM/py/desisim/scripts/. 
+        #Uses a different emmision lines model than the default SIMQSO 
         model=SIMQSO(nproc=1,sqmodel='lya_simqso_model') 
 
     decam_and_wise_filters = None
