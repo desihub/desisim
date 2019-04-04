@@ -7,7 +7,7 @@ from simqso.lumfun import QlfEvolParam,PolyEvolParam,DoublePowerLawLF
 from simqso.hiforest import IGMTransmissionGrid
 
 
-##This script basically duplicates simqso_model.py in SIMQSO https://github.com/imcgreer/simqso/blob/master/simqso/sqmodels.py. It defines the emmision lines. This needs the fits table os.environ['DESISIM']+'/py/desisim/data/emlinetrends_Harris2016mod' based on Table 4 of https://iopscience.iop.org/article/10.3847/0004-6256/151/6/155/pdf. Only the Lya line does not correspond to such reference, but to the values originally defined in SIMQSO. Basically the only modified function is EmLineTemplate_modified. But needs all the others definitions to work. 
+##This script basically duplicates simqso_model.py in SIMQSO https://github.com/imcgreer/simqso/blob/master/simqso/sqmodels.py. It defines the emmision lines. This needs the fits table os.environ['DESISIM']+'/py/desisim/data/emlinetrends_Harris2016mod' based on Table 4 of https://iopscience.iop.org/article/10.3847/0004-6256/151/6/155/pdf. Only the Lya line does not correspond to such reference, but to the values originally defined in SIMQSO. Basically the only modified function is EmLineTemplate_modified. But needs all the others definitions to work.
 
 
 
@@ -94,7 +94,7 @@ def EmLineTemplate_modified(*args,**kwargs):
                                   'LyB/OIVb':1.1,
                                   'CIII*':1.8,
                                   'LyAb':1.1,'LyAn':1.1
-                                  #Add more lines if needed. 
+                                  #Add more lines if needed.
                                   })
     kwargs['EmissionLineTrendFilename']=os.environ['DESISIM']+'/py/desisim/data/emlinetrends_Harris2016mod'
     return grids.generateBEffEmissionLines(*args,**kwargs)
