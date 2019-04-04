@@ -139,30 +139,23 @@ BossDr9_expDust_cont = grids.BrokenPowerLawContinuumVar([
 BossDr9_FeScalings = [ (0,1540,0.5),(1540,1680,2.0),(1680,1868,1.6),
                        (1868,2140,1.0),(2140,3500,1.0) ]
 
-def EmLineTemplate_modified(*args,**kwargs)
+def EmLineTemplate_modified(*args,**kwargs):
     kwargs.setdefault('scaleEWs',{
-                                  #'Lyepsdel':0.8,
-                                  'CIII977':0.7,
-                                  'NIII991':0.9,
-                                  #'NII':1.1,
-                                  #'UnknownI':1,
-                                  #'UnknownII':0.1,'UnknownII':0.1,
-                                  'OVI':1.1,
-                                  'LyB':0.9,
-                                  #'ArI':1,
-                                  #'FeIII:UV1a':1,'FeIII:UV1b':1,
-                                  'CIII*':1.2,
-                                  'LyAb':1.1,'LyAn':1.1,
-                                  #'NV':2.2,
+                                  'Lyepsdel':1,
+                                  'CIII':0.3,
+                                  'NII':1.1,
+                                  'LyB/OIVn':0.7,
+                                  'LyB/OIVb':1.1,
+                                  'CIII*':1.8,
+                                  'LyAb':1.1,'LyAn':1.1
+                                  #'NV':2.2,  #Don't know yet if will be modified
                                   #'SiII':0.9,'OI':1.5,'CII':0.45,
                                   #'SiIV+OIV]':0.92,
                                   #'CIVb':0.75,'CIVn':0.75,
                                   #'CIII]b':1.2,'CIII]n':1.3,
                                   #'MgIIb':1.7,'MgIIn':1.7
                                   })
-
-    #kwargs['EmissionLineTrendFilename']=os.environ['DESISIM']+'/py/desisim/data/mod_emlinetrends_v6'
-    kwargs['EmissionLineTrendFilename']=os.environ['DESISIM']+'/py/desisim/data/emlinetrends_v16'
+    kwargs['EmissionLineTrendFilename']=os.environ['DESISIM']+'/py/desisim/data/emlinetrends_Harris2016mod'
     return grids.generateBEffEmissionLines(*args,**kwargs)
 
 def model_vars(qsoGrid,wave,nSightLines=0,
