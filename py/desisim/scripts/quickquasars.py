@@ -29,6 +29,7 @@ from desimodel.io import load_pixweight
 from desimodel import footprint
 from speclite import filters
 from desitarget.cuts import isQSO_colors
+from desiutil.dust import SFDMap, ext_odonnell
 
 c = speed_of_light/1000. #- km/s
 
@@ -117,6 +118,8 @@ def parse(options=None):
     parser.add_argument('--eboss',action = 'store_true', help='Setup footprint, number density, redshift distribution,\
         and exposure time to generate eBOSS-like mocks')
 
+    parser.add_argument('--extinction',action='store_true',help='Adds Galactic extinction')
+
     parser.add_argument('--no-transmission',action = 'store_true', help='Do not multiply continuum\
         by transmission, use F=1 everywhere')
 
@@ -125,6 +128,7 @@ def parse(options=None):
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
 
     parser.add_argument('--nmax', type=int, default=None, help="Max number of QSO per input file, for debugging")
+
 
 
     if options is None:
@@ -249,7 +253,7 @@ def get_pixel_seed(pixel, nside, global_seed):
 def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,
                          bassmzls_and_wise_filters,footprint_healpix_weight,
                          footprint_healpix_nside,
-                         bal=None,eboss=None) :
+                         bal=None,sfdmap=None,eboss=None) :
     log = get_logger()
 
     # open filename and extract basic HEALPix information
@@ -653,6 +657,22 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     else :
         fibermap_columns=None
 
+    # Attenuate the spectra for extinction
+    if not sfdmap is None:
+       Rv=3.1   #set by default
+       indx=np.arange(metadata['RA'].size)
+       extinction =Rv*ext_odonnell(qso_wave)
+       EBV = sfdmap.ebv(metadata['RA'],metadata['DEC'], scaling=1.0)
+       qso_flux *=10**( -0.4 * EBV[indx, np.newaxis] * extinction)
+       if fibermap_columns is not None:
+          fibermap_columns['EBV']=EBV
+       EBV0=0.0
+       EBV_med=np.median(EBV)
+       Ag = 3.303 * (EBV_med - EBV0)
+       exptime_fact=np.power(10.0, (2.0 * Ag / 2.5))
+       obsconditions['EXPTIME']*=exptime_fact
+       log.info("Dust extinction added")
+       log.info('exposure time adjusted to {}'.format(obsconditions['EXPTIME']))
 
     sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
                 sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
@@ -812,6 +832,10 @@ def main(args=None):
        log.info("Setting --zbest to true as required by --gamma_kms_zfit")
        args.zbest = True
 
+    if args.extinction:
+       sfdmap= SFDMap()
+    else:
+       sfdmap=None
 
     if args.balprob:
         bal=BAL()
@@ -831,7 +855,7 @@ def main(args=None):
                        "bassmzls_and_wise_filters": bassmzls_and_wise_filters , \
                        "footprint_healpix_weight": footprint_healpix_weight , \
                        "footprint_healpix_nside": footprint_healpix_nside , \
-                       "bal":bal, "eboss":eboss \
+                       "bal":bal,"sfdmap":sfdmap,"eboss":eboss \
                    } for i,filename in enumerate(args.infile) ]
         pool = multiprocessing.Pool(args.nproc)
         pool.map(_func, func_args)
@@ -840,4 +864,4 @@ def main(args=None):
             simulate_one_healpix(ifilename,args,model,obsconditions,
                     decam_and_wise_filters,bassmzls_and_wise_filters,
                     footprint_healpix_weight,footprint_healpix_nside,
-                    bal=bal,eboss=eboss)
+                    bal=bal,sfdmap=sfdmap,eboss=eboss)
