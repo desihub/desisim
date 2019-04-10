@@ -14,7 +14,11 @@ import multiprocessing
 from desiutil.log import get_logger, DEBUG
 from desisim.io import empty_metatable
 
-LIGHT = 2.99792458E5  #- speed of light in km/s
+try:
+    from scipy import constants
+    C_LIGHT = constants.c/1000.0
+except TypeError: # This can happen during documentation builds.
+    C_LIGHT = 299792458.0/1000.0
 
 def _check_input_meta(input_meta, ignore_templateid=False):
     log = get_logger()
@@ -98,7 +102,7 @@ class EMSpectrum(object):
         
         # Build a wavelength array if one is not given.
         if log10wave is None:
-            cdelt = cdelt_kms/LIGHT/np.log(10) # pixel size [log-10 A]
+            cdelt = cdelt_kms/C_LIGHT/np.log(10) # pixel size [log-10 A]
             npix = int(round((np.log10(maxwave)-np.log10(minwave))/cdelt))+1
             self.log10wave = np.linspace(np.log10(minwave), np.log10(maxwave), npix)
         else:
@@ -298,7 +302,7 @@ class EMSpectrum(object):
                 line['flux'][ii] = hbetaflux*line['ratio'][ii]
 
         # Finally build the emission-line spectrum
-        log10sigma = linesigma /LIGHT / np.log(10) # line-width [log-10 Angstrom]
+        log10sigma = linesigma /C_LIGHT / np.log(10) # line-width [log-10 Angstrom]
         emspec = np.zeros_like(self.log10wave)
 
         loglinewave = np.log10(line['wave'])
@@ -472,7 +476,7 @@ class GALAXY(object):
 
         blurmatrix = dict()
         for uvv in uvdisp:
-            sigma = 1.0 + (self.basewave * uvv / LIGHT)
+            sigma = 1.0 + (self.basewave * uvv / C_LIGHT)
             blurmatrix[uvv] = pxs.gauss_blur_matrix(self.pixbound, sigma).astype('f4')
 
         return blurmatrix
@@ -1415,7 +1419,7 @@ class SUPERSTAR(object):
                     else:
                         vrad = np.repeat(vrad_meansig[0], nmodel)
 
-                    redshift = np.array(vrad) / LIGHT
+                    redshift = np.array(vrad) / C_LIGHT
 
                 if mag is None:
                     mag = rand.uniform(magrange[0], magrange[1], nmodel).astype('f4')
