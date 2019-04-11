@@ -2290,7 +2290,7 @@ class SIMQSO():
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
                  nproc=1, basewave_min=450.0, basewave_max=6e4, basewave_R=8000,
                  normfilter_north='BASS-r', normfilter_south='decam2014-r', 
-                 colorcuts_function=None, restframe=False):
+                 colorcuts_function=None, restframe=False,sqmodel='default'):
         """Read the QSO basis continuum templates, filter profiles and initialize the
            output wavelength array.
 
@@ -2351,7 +2351,16 @@ class SIMQSO():
 
         try:
             from simqso.sqbase import ContinuumKCorr, fixed_R_dispersion
-            from simqso.sqmodels import BOSS_DR9_PLEpivot
+            #Added in order to use modified emision lines in quickquasars
+            if sqmodel is 'default':
+               from simqso.sqmodels import BOSS_DR9_PLEpivot as model_PLEpivot
+               from simqso.sqmodels import get_BossDr9_model_vars as sqmodel_vars
+            else:
+               from desisim.scripts.lya_simqso_model import model_PLEpivot as model_PLEpivot
+               from desisim.scripts.lya_simqso_model import model_vars as sqmodel_vars
+               log.warning("Using modified simqso.sqmodels defined in desisim.scripts.lya_simqso_model")
+
+            self.sqmodel_vars=sqmodel_vars
         except ImportError:
             message = 'Please install https://github.com/imcgreer/simqso'
             log.error(message)
@@ -2419,7 +2428,7 @@ class SIMQSO():
                                           effWaveBand=self.normfilt_north.effective_wavelengths.value)
         self.kcorr_south = ContinuumKCorr(filtnames[self.normfilter_south], 1450,
                                           effWaveBand=self.normfilt_south.effective_wavelengths.value)
-        self.qlf = BOSS_DR9_PLEpivot(cosmo=self.cosmo)
+        self.qlf = model_PLEpivot(cosmo=self.cosmo)
 
     def empty_qsometa(self, qsometa, nmodel):
         """Initialize an empty QsoSimPoints object, which contains all the metadata
@@ -2471,7 +2480,6 @@ class SIMQSO():
             qsometa = input_qsometa
 
         else:
-            from simqso.sqmodels import get_BossDr9_model_vars
             from simqso.sqrun import buildSpectraBulk
             from simqso.sqgrids import generateQlfPoints
 
@@ -2487,7 +2495,7 @@ class SIMQSO():
             # Add the fiducial quasar SED model from BOSS/DR9, optionally
             # without IGM absorption. This step adds a fiducial continuum,
             # emission-line template, and an iron emission-line template.
-            qsometa.addVars(get_BossDr9_model_vars(qsometa, self.basewave, noforest=not lyaforest))
+            qsometa.addVars(self.sqmodel_vars(qsometa, self.basewave, noforest=not lyaforest))
 
             # Establish the desired (output) photometric system.
             if south:

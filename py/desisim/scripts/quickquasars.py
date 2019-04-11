@@ -802,7 +802,9 @@ def main(args=None):
         model=QSO()
     else:
         log.info("Load SIMQSO model")
-        model=SIMQSO(nproc=1)
+        #lya_simqso_model.py is located in $DESISIM/py/desisim/scripts/.
+        #Uses a different emmision lines model than the default SIMQSO
+        model=SIMQSO(nproc=1,sqmodel='lya_simqso_model')
 
     decam_and_wise_filters = None
     bassmzls_and_wise_filters = None
