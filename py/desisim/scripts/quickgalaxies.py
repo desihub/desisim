@@ -268,8 +268,10 @@ def parse(options=None):
                        help='Number of simulations (HEALPix pixels).')
     mcset.add_argument('--seed', dest='seed', type=int, default=None,
                        help='Random number seed')
-    mcset.add_argument('--addsn', dest='addsn', action='store_true', default=False,
+    mcset.add_argument('--addsnia', dest='addsn', action='store_true', default=False,
                        help='Add SNe Ia to host spectra.')
+    mcset.add_argument('--addsniip', dest='addsn', action='store_true', default=False,
+                       help='Add SNe IIp to host spectra.')
     mcset.add_argument('--snrmin', dest='snrmin', type=float, default=0.01,
                        help='SN/host minimum flux ratio.')
     mcset.add_argument('--snrmax', dest='snrmax', type=float, default=1.00,
@@ -313,7 +315,7 @@ def main(args=None):
 
     # Set up the template generator.
     maker = BGSMaker(seed=args.seed)
-    maker.template_maker = BGS(add_SNeIa=args.addsn, wave=_default_wave())
+    maker.template_maker = BGS(add_SNeIa=args.addsnia,add_SNeIIp=args.addsniip, wave=_default_wave())
 
     for j in range(args.nsim):
 
@@ -324,7 +326,7 @@ def main(args=None):
             tdata = maker.read(healpixels=pixel, nside=args.nside)
 
         # Add SN generation options.
-        if args.addsn:
+        if args.addsnia or args.addsniip:
             tdata['SNE_FLUXRATIORANGE'] = (args.snrmin, args.snrmax)
             tdata['SNE_FILTER'] = 'decam2014-r'
 
