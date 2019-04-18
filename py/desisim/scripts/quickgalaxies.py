@@ -268,9 +268,9 @@ def parse(options=None):
                        help='Number of simulations (HEALPix pixels).')
     mcset.add_argument('--seed', dest='seed', type=int, default=None,
                        help='Random number seed')
-    mcset.add_argument('--addsnia', dest='addsn', action='store_true', default=False,
+    mcset.add_argument('--addsnia', dest='addsnia', action='store_true', default=False,
                        help='Add SNe Ia to host spectra.')
-    mcset.add_argument('--addsniip', dest='addsn', action='store_true', default=False,
+    mcset.add_argument('--addsniip', dest='addsniip', action='store_true', default=False,
                        help='Add SNe IIp to host spectra.')
     mcset.add_argument('--snrmin', dest='snrmin', type=float, default=0.01,
                        help='SN/host minimum flux ratio.')
