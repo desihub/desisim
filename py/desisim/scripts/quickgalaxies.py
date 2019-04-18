@@ -380,7 +380,7 @@ def main(args=None):
         truth = vstack(truth)[:args.nspec]
         obj = vstack(obj)[:args.nspec]
 
-        if args.addsn:
+        if args.addsnia or args.addsniip:
             # TARGETID in truth table is split in two; deal with it here.
             truth['TARGETID'] = truth['TARGETID_1']
 
