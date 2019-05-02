@@ -104,6 +104,8 @@ def parse(options=None):
 
     parser.add_argument('--metals-from-file', action = 'store_true', help = "add metals from HDU in file")
 
+    parser.add_argument('--boost',type=float,default=1.0,help="Increase metal interaction by a factor requires as many boost factors as metal lines present in --metals ", nargs='*')
+
     parser.add_argument('--dla',type=str,required=False, help="Add DLA to simulated spectra either randonmly\
         (--dla random) or from transmision file (--dla file)")
 
@@ -128,8 +130,6 @@ def parse(options=None):
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
 
     parser.add_argument('--nmax', type=int, default=None, help="Max number of QSO per input file, for debugging")
-
-
 
     if options is None:
         args = parser.parse_args()
@@ -575,8 +575,13 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         lstMetals = ''
         for m in args.metals: lstMetals += m+', '
         log.info("Apply metals: {}".format(lstMetals[:-2]))
+        
         tmp_qso_flux = apply_metals_transmission(tmp_qso_wave,tmp_qso_flux,
-                            trans_wave,transmission,args.metals)
+                            trans_wave,transmission,args.metals,args.boost)
+
+    # if requested, multiply intensity of metallic lines by a factor
+    if args.boost is not None:
+        log.info("Boost metals by a factor of {}".format(args.boost))
 
     # if requested, compute magnitudes and apply target selection.  Need to do
     # this calculation separately for QSOs in the north vs south.

@@ -26,24 +26,24 @@ absorber_IGM = {
     'AlIII(1855)' : { 'LRF':1854.71829, 'COEF':1.e-4 },
     'AlII(1671)'  : { 'LRF':1670.7886, 'COEF':1.e-4 },
     'FeII(1608)'  : { 'LRF':1608.4511, 'COEF':1.e-4 },
-    'CIV(1551)'   : { 'LRF':1550.77845, 'COEF':9.e-4 },
-    'CIV(1548)'   : { 'LRF':1548.2049, 'COEF':1.e-3 },
+    'CIV(1551)'   : { 'LRF':1550.77845, 'COEF':5.435e-4 },
+    'CIV(1548)'   : { 'LRF':1548.2049, 'COEF':1.487e-3 },
     'SiII(1527)'  : { 'LRF':1526.70698, 'COEF':1.e-4 },
     'SiIV(1403)'  : { 'LRF':1402.77291, 'COEF':5.e-4 },
     'SiIV(1394)'  : { 'LRF':1393.76018, 'COEF':9.e-4 },
     'CII(1335)'   : { 'LRF':1334.5323, 'COEF':1.e-4 },
     'SiII(1304)'  : { 'LRF':1304.3702, 'COEF':1.e-4 },
     'OI(1302)'    : { 'LRF':1302.1685, 'COEF':1.e-4 },
-    'SiII(1260)'  : { 'LRF':1260.4221, 'COEF':8.e-4 },
+    'SiII(1260)'  : { 'LRF':1260.4221, 'COEF':3.542e-5 },
     'NV(1243)'    : { 'LRF':1242.804, 'COEF':5.e-4 },
     'NV(1239)'    : { 'LRF':1238.821, 'COEF':5.e-4 },
-    'SiIII(1207)' : { 'LRF':1206.500, 'COEF':5.e-3 },
+    'SiIII(1207)' : { 'LRF':1206.500, 'COEF':1.8919e-3 },
     'NI(1200)'    : { 'LRF':1200., 'COEF':1.e-3 },
-    'SiII(1193)'  : { 'LRF':1193.2897, 'COEF':5.e-4 },
-    'SiII(1190)'  : { 'LRF':1190.4158, 'COEF':5.e-4 },
+    'SiII(1193)'  : { 'LRF':1193.2897, 'COEF':9.0776e-4 },
+    'SiII(1190)'  : { 'LRF':1190.4158, 'COEF':6.4239e-4 },
     'OI(1039)'    : { 'LRF':1039.230, 'COEF':1.e-3 },
-    'OVI(1038)'   : { 'LRF':1037.613, 'COEF':1.e-3 },
-    'OVI(1032)'   : { 'LRF':1031.912, 'COEF':5.e-3 },
+    'OVI(1038)'   : { 'LRF':1037.613, 'COEF':3.382-3 },
+    'OVI(1032)'   : { 'LRF':1031.912, 'COEF':5.358e-3 },
     'LYB'         : { 'LRF':1025.72, 'COEF':0.1901 },
     'CIII(977)'   : { 'LRF':977.020, 'COEF':5.e-3 },
     'OI(989)'     : { 'LRF':988.7, 'COEF':1.e-3 },
@@ -161,7 +161,7 @@ def apply_lya_transmission(qso_wave,qso_flux,trans_wave,trans) :
             
     return output_flux
 
-def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals) :
+def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals,boost) :
     '''
     Apply metal transmission to input flux, interpolating if needed.
     The input transmission should be only due to lya, if not has no meaning.
@@ -175,6 +175,7 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals) :
         trans_wave: 1D[ntranswave ] array of lya transmission wavelength samples
         trans: 2D[nqso, ntranswave] transmissions [0-1]
         metals: list of metal names to use
+        boost: multiply metal absorption coefficient by a given factor
 
     Returns:
         output_flux[nqso, nwave]
@@ -194,7 +195,9 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals) :
     tau[~w] = -np.log(1.e-100)
 
     try:
-        mtrans = { m:np.exp(-absorber_IGM[m]['COEF']*tau) for m in metals }
+        #for index in range(len(metals)):    FIND A WAY TO ASSOCIATE THE CORRESPONDING METAL TO ITS BOOST....
+        
+        mtrans = { m:np.exp(-absorber_IGM[m]['COEF']*boost[idx]*tau) for idx,m in enumerate(metals) }
         mtrans_wave = { m:(zPix+1.)*absorber_IGM[m]['LRF'] for m in metals }
     except KeyError as e:
         lstMetals = ''
