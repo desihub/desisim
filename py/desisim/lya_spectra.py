@@ -197,7 +197,7 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals,boost) :
     try:
         #for index in range(len(metals)):    FIND A WAY TO ASSOCIATE THE CORRESPONDING METAL TO ITS BOOST....
         
-        mtrans = { m:np.exp(-absorber_IGM[m]['COEF']*boost[idx]*tau) for idx,m in enumerate(metals) }
+        mtrans = { m:np.exp(-absorber_IGM[m]['COEF']*boost*tau) for idx,m in enumerate(metals) }
         mtrans_wave = { m:(zPix+1.)*absorber_IGM[m]['LRF'] for m in metals }
     except KeyError as e:
         lstMetals = ''

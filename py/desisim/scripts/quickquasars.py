@@ -104,7 +104,8 @@ def parse(options=None):
 
     parser.add_argument('--metals-from-file', action = 'store_true', help = "add metals from HDU in file")
 
-    parser.add_argument('--boost',type=float,default=1.0,help="Increase metal interaction by a factor requires as many boost factors as metal lines present in --metals ", nargs='*')
+    parser.add_argument('--boost',type=float,default=1.0,help="Increase metal interaction by a factor\
+	requires as many boost factors as metal lines present in --metals ", nargs='*')
 
     parser.add_argument('--dla',type=str,required=False, help="Add DLA to simulated spectra either randonmly\
         (--dla random) or from transmision file (--dla file)")
