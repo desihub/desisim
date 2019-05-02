@@ -17,6 +17,12 @@ from scipy.interpolate import interp1d
 
 from astropy.io import fits
 
+try:
+    from scipy import constants
+    C_LIGHT = constants.c/1000.0
+except TypeError: # This can happen during documentation builds.
+    C_LIGHT = 299792458.0/1000.0
+
 from desisim.qso_template import fit_boss_qsos as fbq
 from desiutil.stats import perc
 import desisim.io
@@ -368,7 +374,7 @@ def desi_qso_templates(z_wind=0.2, zmnx=(0.4,4.), outfil=None, N_perz=500,
 
     # Rebin
     if rebin_wave is None:
-        light = 2.99792458e5        # [km/s]
+        light = C_LIGHT        # [km/s]
         velpixsize = 10.            # [km/s]
         pixsize = velpixsize/light/np.log(10) # [pixel size in log-10 A]
         minwave = np.log10(wvmnx[0])          # minimum wavelength [log10-A]

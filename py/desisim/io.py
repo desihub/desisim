@@ -804,7 +804,8 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
         meta['CRSHIFTX'] = (0, 'Input cosmics image shift in x')
         meta['CRSHIFTY'] = (0, 'Input cosmics image shift in y')
 
-    del meta['RDNOISE0']
+    if 'RDNOISE0' in meta :
+        del meta['RDNOISE0']
     #- Amp 1 lower left
     nx = pix.shape[1] // 2
     ny = pix.shape[0] // 2
@@ -994,6 +995,11 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
                 hdr = fx['COLORS'].header
                 for ii, col in enumerate(hdr['COLORS'].split(',')):
                     meta[col.upper()] = colors[:, ii].flatten()
+
+            if 'DESI-COLORS' in fx:
+                colors = fx['DESI-COLORS'].data
+                for col in colors.names:
+                    meta[col.upper()] = colors[col]
 
         #- Check if we have correct version
         if objtype.upper() in ('ELG', 'LRG'):

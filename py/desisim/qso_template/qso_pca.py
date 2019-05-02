@@ -100,7 +100,7 @@ def do_boss_lya_parallel(istart, iend, output, debug=False, cut_Lya=True):
         zqso = t_boss['z_pipe'][ii]
 
         wrest  = wave / (1+zqso)
-        wlya = 1215.
+        wlya = 1215.67
 
         # Cut Lya forest?
         if cut_Lya is True:

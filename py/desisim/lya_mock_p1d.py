@@ -1,5 +1,11 @@
 import numpy as np
 
+try:
+    from scipy import constants
+    C_LIGHT = constants.c/1000.0
+except TypeError: # This can happen during documentation builds.
+    C_LIGHT = 299792458.0/1000.0
+
 # code to make mock Lya spectra following McDonald et al. (2006)
 # copied from c++ code in Cosmology/LNLyaF
 
@@ -64,7 +70,7 @@ class MockMaker(object):
         """Get redshifts for each cell in the array (centered at z_c)."""
         N = self.N
         L_kms = N * self.dv_kms
-        c_kms = 2.998e5
+        c_kms = C_LIGHT
         if (L_kms > 4 * c_kms):
             print('Array is too long, approximations break down.')
             raise SystemExit

@@ -20,6 +20,12 @@ import matplotlib.gridspec as gridspec
 from astropy.io import fits
 from astropy.table import Table, vstack, hstack, MaskedColumn, join
 
+try:
+    from scipy import constants
+    C_LIGHT = constants.c/1000.0
+except TypeError: # This can happen during documentation builds.
+    C_LIGHT = 299792458.0/1000.0
+
 import desispec.io
 from .utils import elg_flux_lim, get_sty_otype, catastrophic_dv, match_otype
 
@@ -530,7 +536,7 @@ def criteria(simz_tab, objtype=None, dvlimit=None):
         else:
             dv = dvlimit
         dz = calc_dz(simz_tab[omask]) # dz/1+z
-        cat = np.where(np.abs(dz)*3e5 > dv)[0]
+        cat = np.where(np.abs(dz)*C_LIGHT > dv)[0]
         dv_mask[omask[cat]] = False
     # Return
     return objtype_mask, z_mask, survey_mask, dv_mask, zwarn_mask
@@ -716,7 +722,7 @@ def obj_fig(simz_tab, objtype, summ_stats, outfile=None):
             ax.set_xlabel(lbl)
             ax.set_ylabel(ylbl)
             ax.set_xlim(xmin,xmax)
-            v_ylim = ylim * 3e5  # redshift to km/s
+            v_ylim = ylim * C_LIGHT  # redshift to km/s
             ax.set_ylim(-v_ylim+yoff, v_ylim+yoff)
 
             # Points
@@ -730,7 +736,7 @@ def obj_fig(simz_tab, objtype, summ_stats, outfile=None):
                 xbins = np.linspace(xmin, xmax, 20)
             ybins = np.linspace(-v_ylim+yoff, v_ylim+yoff, 40) # km/s
             #import pdb; pdb.set_trace()
-            counts, xedges, yedges = np.histogram2d(xval, yval * 3e5, bins=(xbins, ybins))
+            counts, xedges, yedges = np.histogram2d(xval, yval * C_LIGHT, bins=(xbins, ybins))
             max_c = np.max(counts)
             #if kk == 3:
             ax.pcolormesh(xedges, yedges, counts.transpose(), cmap=cm, vmin=0, vmax=max_c/5.)
@@ -1061,7 +1067,7 @@ def dz_summ(simz_tab, outfile=None, pdict=None, min_count=20):
 
             # Simple stats
             ok = survey['ZWARN'] == 0
-            dv = calc_dz(survey)*3e5 # dz/1+z
+            dv = calc_dz(survey)*C_LIGHT # dz/1+z
             bad = dv > catastrophic_dv(otype)
             #if i==2:
             #    pdb.set_trace()

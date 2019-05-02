@@ -48,6 +48,9 @@ absorber_IGM = {
     'CIII(977)'   : { 'LRF':977.020, 'COEF':5.e-3 },
     'OI(989)'     : { 'LRF':988.7, 'COEF':1.e-3 },
     'SiII(990)'   : { 'LRF':989.8731, 'COEF':1.e-3 },
+    'LY3'         : { 'LRF':972.537, 'COEF':0.0697 },
+    'LY4'         : { 'LRF':949.7431, 'COEF':0.0335 },
+    'LY5'         : { 'LRF':937.8035, 'COEF':0.0187 },
 }
 
 def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False) :
