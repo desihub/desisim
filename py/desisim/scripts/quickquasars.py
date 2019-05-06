@@ -104,9 +104,6 @@ def parse(options=None):
 
     parser.add_argument('--metals-from-file', action = 'store_true', help = "add metals from HDU in file")
 
-    parser.add_argument('--boost',type=float,default=1.0,help="Increase metal interaction by a factor\
-	requires as many boost factors as metal lines present in --metals ", nargs='*')
-
     parser.add_argument('--dla',type=str,required=False, help="Add DLA to simulated spectra either randonmly\
         (--dla random) or from transmision file (--dla file)")
 
@@ -428,7 +425,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             elif args.dla=='random':
                 dlas, transmission_dla = insert_dlas(trans_wave, metadata['Z'][ii], rstate=random_state_just_for_dlas)
                 for idla in dlas:
-                   idla['dlaid']+=idd*1000      #Added to have unique DLA ids. Same format as DLAs from file. 
+                   idla['dlaid']+=idd*1000      #Added to have unique DLA ids. Same format as DLAs from file.
 
             # multiply transmissions and store information for the DLA file
             if len(dlas)>0:
@@ -444,7 +441,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             dla_meta['NHI'] = dla_NHI
             dla_meta['Z_DLA'] = dla_z  #This is Z_DLA_RSD in transmision.
             dla_meta['TARGETID']=dla_qid
-            dla_meta['DLAID'] = dla_id 
+            dla_meta['DLAID'] = dla_id
             hdu_dla = pyfits.convenience.table_to_hdu(dla_meta)
             hdu_dla.name="DLA_META"
             del(dla_meta)
@@ -576,13 +573,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         lstMetals = ''
         for m in args.metals: lstMetals += m+', '
         log.info("Apply metals: {}".format(lstMetals[:-2]))
-        
-        tmp_qso_flux = apply_metals_transmission(tmp_qso_wave,tmp_qso_flux,
-                            trans_wave,transmission,args.metals,args.boost)
 
-    # if requested, multiply intensity of metallic lines by a factor
-    if args.boost is not None:
-        log.info("Boost metals by a factor of {}".format(args.boost))
+        tmp_qso_flux = apply_metals_transmission(tmp_qso_wave,tmp_qso_flux,
+                            trans_wave,transmission,args.metals)
 
     # if requested, compute magnitudes and apply target selection.  Need to do
     # this calculation separately for QSOs in the north vs south.
