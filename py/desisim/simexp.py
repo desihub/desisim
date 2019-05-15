@@ -779,6 +779,8 @@ def get_mock_spectra(fiberassign, mockdir=None, nside=64):
         assert np.all(wave == tmpwave)
 
         for key in tmpobjmeta.keys():
+            if key not in objmeta:
+                objmeta[key] = list()
             objmeta[key].append(tmpobjmeta[key])
 
     #- Stack the per-objtype meta tables
