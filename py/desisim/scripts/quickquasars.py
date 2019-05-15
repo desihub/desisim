@@ -29,57 +29,105 @@ from desimodel.io import load_pixweight
 from desimodel import footprint
 from speclite import filters
 from desitarget.cuts import isQSO_colors
+from desiutil.dust import SFDMap, ext_odonnell
 
 c = speed_of_light/1000. #- km/s
 
 
 def parse(options=None):
     parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-                                   description="""Fast simulation of QSO Lya spectra into the final DESI format (Spectra class) that can be directly used as
-                                   an input to the redshift fitter (redrock) or correlation function code (picca). The input file is a Lya transmission skewer fits file which format is described in https://desi.lbl.gov/trac/wiki/LymanAlphaWG/LyaSpecSim.""")
+        description="Fast simulation of QSO Lya spectra into the final DESI format\
+            (Spectra class) that can be directly used as an input to the redshift fitter\
+            (redrock) or correlation function code (picca). The input file is a Lya\
+            transmission skewer fits file which format is described in\
+            https://desi.lbl.gov/trac/wiki/LymanAlphaWG/LyaSpecSim.")
 
     #- Required
     parser.add_argument('-i','--infile', type=str, nargs= "*", required=True, help="Input skewer healpix fits file(s)")
+
     parser.add_argument('-o','--outfile', type=str, required=False, help="Output spectra (only used if single input file)")
+
     parser.add_argument('--outdir', type=str, default=".", required=False, help="Output directory")
 
     #- Optional observing conditions to override program defaults
     parser.add_argument('--program', type=str, default="DARK", help="Program (DARK, GRAY or BRIGHT)")
+
     parser.add_argument('--seeing', type=float, default=None, help="Seeing FWHM [arcsec]")
+
     parser.add_argument('--airmass', type=float, default=None, help="Airmass")
+
     parser.add_argument('--exptime', type=float, default=None, help="Exposure time [sec]")
+
     parser.add_argument('--moonfrac', type=float, default=None, help="Moon illumination fraction; 1=full")
+
     parser.add_argument('--moonalt', type=float, default=None, help="Moon altitude [degrees]")
+
     parser.add_argument('--moonsep', type=float, default=None, help="Moon separation to tile [degrees]")
+
     parser.add_argument('--seed', type=int, default=None, required = False, help="Global random seed (will be used to generate a seed per each file")
+
     parser.add_argument('--skyerr', type=float, default=0.0, help="Fractional sky subtraction error")
-    parser.add_argument('--nmax', type=int, default=None, help="Max number of QSO per input file, for debugging")
+
     parser.add_argument('--downsampling', type=float, default=None,help="fractional random down-sampling (value between 0 and 1)")
+
     parser.add_argument('--zmin', type=float, default=0,help="Min redshift")
+
     parser.add_argument('--zmax', type=float, default=10,help="Max redshift")
+
     parser.add_argument('--wmin', type=float, default=3500,help="Min wavelength (obs. frame)")
+
     parser.add_argument('--wmax', type=float, default=10000,help="Max wavelength (obs. frame)")
+
     parser.add_argument('--dwave', type=float, default=0.2,help="Internal wavelength step (don't change this)")
+
+    parser.add_argument('--zbest', action = "store_true",help="add a zbest file per spectrum either with the truth\
+        redshift or adding some error (optionally use it with --sigma_kms_fog and/or --gamma_kms_zfit)")
+
+    parser.add_argument('--sigma_kms_fog',type=float,default=150, help="Adds a gaussian error to the quasar \
+        redshift that simulate the fingers of god effect")
+
+    parser.add_argument('--gamma_kms_zfit',nargs='?',type=float,const=400,help="Adds a Lorentzian distributed shift\
+        to the quasar redshift, to simulate the redshift fitting step. E.g. --gamma_kms_zfit 400 will use a gamma \
+        parameter of 400 km/s . If a number is not specified, a value of 400 is used.")
+
+    parser.add_argument('--shift_kms_los',type=float,default=0,help="Adds a shift to the quasar redshift written in\
+        the zbest file (in km/s)")
+
+    parser.add_argument('--target-selection', action = "store_true" ,help="apply QSO target selection cuts to the simulated quasars")
+
+    parser.add_argument('--mags', action = "store_true", help="DEPRECATED; use --bbflux")
+
+    parser.add_argument('--bbflux', action = "store_true", help="compute and write the QSO broad-band fluxes in the fibermap")
+
+    parser.add_argument('--metals', type=str, default=None, required=False, help = "list of metals to get the\
+        transmission from, if 'all' runs on all metals", nargs='*')
+
+    parser.add_argument('--metals-from-file', action = 'store_true', help = "add metals from HDU in file")
+
+    parser.add_argument('--dla',type=str,required=False, help="Add DLA to simulated spectra either randonmly\
+        (--dla random) or from transmision file (--dla file)")
+
+    parser.add_argument('--balprob',type=float,required=False, help="To add BAL features with the specified probability\
+        (e.g --balprob 0.5). Expect a number between 0 and 1 ")
+
+    parser.add_argument('--no-simqso',action = "store_true", help="Does not use desisim.templates.SIMQSO\
+        to generate templates, and uses desisim.templates.QSO instead.")
+
+    parser.add_argument('--desi-footprint', action = "store_true" ,help="select QSOs in DESI footprint")
+
+    parser.add_argument('--eboss',action = 'store_true', help='Setup footprint, number density, redshift distribution,\
+        and exposure time to generate eBOSS-like mocks')
+
+    parser.add_argument('--extinction',action='store_true',help='Adds Galactic extinction')
+
+    parser.add_argument('--no-transmission',action = 'store_true', help='Do not multiply continuum\
+        by transmission, use F=1 everywhere')
+
     parser.add_argument('--nproc', type=int, default=1,help="number of processors to run faster")
 
-    parser.add_argument('--zbest', action = "store_true",help="add a zbest file per spectrum either with the truth redshift or adding some error (optionally use it with --sigma_kms_fog and/or --gamma_kms_zfit)")
-
-    parser.add_argument('--sigma_kms_fog',type=float,default=150, help="Adds a gaussian error to the quasar redshift that simulate the fingers of god effect")
-
-    parser.add_argument('--gamma_kms_zfit',nargs='?',type=float,const=400,help="Adds a Lorentzian distributed shift to the quasar redshift, to simulate the redshift fitting step. E.g. --gamma_kms_zfit 400 will use a gamma parameter of 400 km/s . If a number is not specified, a value of 400 is used.")
-    parser.add_argument('--shift_kms_los',type=float,default=0,help="Adds a shift to the quasar redshift written in the zbest file (in km/s)")
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
-    parser.add_argument('--target-selection', action = "store_true" ,help="apply QSO target selection cuts to the simulated quasars")
-    parser.add_argument('--mags', action = "store_true", help="DEPRECATED; use --bbflux")
-    parser.add_argument('--bbflux', action = "store_true", help="compute and write the QSO broad-band fluxes in the fibermap")
-    parser.add_argument('--desi-footprint', action = "store_true" ,help="select QSOs in DESI footprint")
-    parser.add_argument('--metals', type=str, default=None, required=False, help = "list of metals to get the transmission from, if 'all' runs on all metals", nargs='*')
-    parser.add_argument('--metals-from-file', action = 'store_true', help = "add metals from HDU in file")
-    parser.add_argument('--dla',type=str,required=False, help="Add DLA to simulated spectra either randonmly (--dla random) or from transmision file (--dla file)")
-    parser.add_argument('--balprob',type=float,required=False, help="To add BAL features with the specified probability (e.g --balprob 0.5). Expect a number between 0 and 1 ")
-    parser.add_argument('--no-simqso',action = "store_true", help="Does not use desisim.templates.SIMQSO to generate templates, and uses desisim.templates.QSO instead.")
-    parser.add_argument('--no-transmission',action = 'store_true', help='Do not multiply continuum by transmission, use F=1 everywhere')
-    parser.add_argument('--eboss',action = 'store_true', help='Setup footprint, number density, redshift distribution, and exposure time to generate eBOSS-like mocks')
+
+    parser.add_argument('--nmax', type=int, default=None, help="Max number of QSO per input file, for debugging")
 
     if options is None:
         args = parser.parse_args()
@@ -203,7 +251,7 @@ def get_pixel_seed(pixel, nside, global_seed):
 def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filters,
                          bassmzls_and_wise_filters,footprint_healpix_weight,
                          footprint_healpix_nside,
-                         bal=None,eboss=None) :
+                         bal=None,sfdmap=None,eboss=None) :
     log = get_logger()
 
     # open filename and extract basic HEALPix information
@@ -377,7 +425,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             elif args.dla=='random':
                 dlas, transmission_dla = insert_dlas(trans_wave, metadata['Z'][ii], rstate=random_state_just_for_dlas)
                 for idla in dlas:
-                   idla['dlaid']+=idd*1000      #Added to have unique DLA ids. Same format as DLAs from file. 
+                   idla['dlaid']+=idd*1000      #Added to have unique DLA ids. Same format as DLAs from file.
 
             # multiply transmissions and store information for the DLA file
             if len(dlas)>0:
@@ -392,8 +440,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             dla_meta=Table()
             dla_meta['NHI'] = dla_NHI
             dla_meta['Z_DLA'] = dla_z  #This is Z_DLA_RSD in transmision.
-            dla_meta['MOCKID']=dla_qid
-            dla_meta['DLAID'] = dla_id 
+            dla_meta['TARGETID']=dla_qid
+            dla_meta['DLAID'] = dla_id
             hdu_dla = pyfits.convenience.table_to_hdu(dla_meta)
             hdu_dla.name="DLA_META"
             del(dla_meta)
@@ -525,6 +573,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         lstMetals = ''
         for m in args.metals: lstMetals += m+', '
         log.info("Apply metals: {}".format(lstMetals[:-2]))
+
         tmp_qso_flux = apply_metals_transmission(tmp_qso_wave,tmp_qso_flux,
                             trans_wave,transmission,args.metals)
 
@@ -607,11 +656,29 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     else :
         fibermap_columns=None
 
-    # use Poisson = False to get reproducible results.
+    # Attenuate the spectra for extinction
+    if not sfdmap is None:
+       Rv=3.1   #set by default
+       indx=np.arange(metadata['RA'].size)
+       extinction =Rv*ext_odonnell(qso_wave)
+       EBV = sfdmap.ebv(metadata['RA'],metadata['DEC'], scaling=1.0)
+       qso_flux *=10**( -0.4 * EBV[indx, np.newaxis] * extinction)
+       if fibermap_columns is not None:
+          fibermap_columns['EBV']=EBV
+       EBV0=0.0
+       EBV_med=np.median(EBV)
+       Ag = 3.303 * (EBV_med - EBV0)
+       exptime_fact=np.power(10.0, (2.0 * Ag / 2.5))
+       obsconditions['EXPTIME']*=exptime_fact
+       log.info("Dust extinction added")
+       log.info('exposure time adjusted to {}'.format(obsconditions['EXPTIME']))
+
     if args.eboss:
         specsim_config_file = 'eboss'
     else:
         specsim_config_file = 'desi'
+
+    ### use Poisson = False to get reproducible results.
     sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
         sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
         meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False,
@@ -741,7 +808,9 @@ def main(args=None):
         model=QSO()
     else:
         log.info("Load SIMQSO model")
-        model=SIMQSO(nproc=1)
+        #lya_simqso_model.py is located in $DESISIM/py/desisim/scripts/.
+        #Uses a different emmision lines model than the default SIMQSO
+        model=SIMQSO(nproc=1,sqmodel='lya_simqso_model')
 
     decam_and_wise_filters = None
     bassmzls_and_wise_filters = None
@@ -771,6 +840,10 @@ def main(args=None):
        log.info("Setting --zbest to true as required by --gamma_kms_zfit")
        args.zbest = True
 
+    if args.extinction:
+       sfdmap= SFDMap()
+    else:
+       sfdmap=None
 
     if args.balprob:
         bal=BAL()
@@ -790,7 +863,7 @@ def main(args=None):
                        "bassmzls_and_wise_filters": bassmzls_and_wise_filters , \
                        "footprint_healpix_weight": footprint_healpix_weight , \
                        "footprint_healpix_nside": footprint_healpix_nside , \
-                       "bal":bal, "eboss":eboss \
+                       "bal":bal,"sfdmap":sfdmap,"eboss":eboss \
                    } for i,filename in enumerate(args.infile) ]
         pool = multiprocessing.Pool(args.nproc)
         pool.map(_func, func_args)
@@ -799,4 +872,4 @@ def main(args=None):
             simulate_one_healpix(ifilename,args,model,obsconditions,
                     decam_and_wise_filters,bassmzls_and_wise_filters,
                     footprint_healpix_weight,footprint_healpix_nside,
-                    bal=bal,eboss=eboss)
+                    bal=bal,sfdmap=sfdmap,eboss=eboss)

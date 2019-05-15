@@ -804,7 +804,8 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
         meta['CRSHIFTX'] = (0, 'Input cosmics image shift in x')
         meta['CRSHIFTY'] = (0, 'Input cosmics image shift in y')
 
-    del meta['RDNOISE0']
+    if 'RDNOISE0' in meta :
+        del meta['RDNOISE0']
     #- Amp 1 lower left
     nx = pix.shape[1] // 2
     ny = pix.shape[0] // 2
