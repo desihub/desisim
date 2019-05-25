@@ -368,7 +368,7 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, redshift=Non
         flux (array): 2D[nspec,nwave] flux in 1e-17 erg/s/cm2/Angstrom
             or astropy Quantity with flux units
         fibermap (Table, optional): table from fiberassign or fibermap; uses
-            X/YFOCAL_DESIGN, TARGETID, (SV1_)DESI_TARGET
+            X/YFOCAL_DESIGN, TARGETID, DESI_TARGET
         obsconditions(dict-like, optional): observation metadata including
             SEEING (arcsec), EXPTIME (sec), AIRMASS,
             MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
