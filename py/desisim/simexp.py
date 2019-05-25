@@ -302,12 +302,19 @@ def fibermeta2fibermap(fiberassign, meta):
     A future refactor will standardize the column names of fiber assignment,
     target catalogs, and fibermaps, but in the meantime this is needed.
     '''
-    from desitarget.targetmask import desi_mask
+    from desitarget.targets import main_cmx_or_sv
+
+    #- Handle DESI_TARGET vs. SV1_DESI_TARGET etc.
+    target_colnames, target_masks, survey = main_cmx_or_sv(fiberassign)
+    targetcol = target_colnames[0]  #- DESI_TARGET or SV1_DESI_TARGET
+    desi_mask = target_masks[0]     #- desi_mask or sv1_desi_mask
 
     #- Copy column names in common
     fibermap = desispec.io.empty_fibermap(len(fiberassign))
-    for c in ['FIBER', 'TARGETID', 'DESI_TARGET', 'BGS_TARGET', 'MWS_TARGET',
-              'BRICKNAME']:
+    for c in ['FIBER', 'TARGETID', 'BRICKNAME']:
+        fibermap[c] = fiberassign[c]
+
+    for c in target_colnames:
         fibermap[c] = fiberassign[c]
 
     for band in ['G', 'R', 'Z', 'W1', 'W2']:
@@ -325,9 +332,9 @@ def fibermeta2fibermap(fiberassign, meta):
         if name in desi_mask.names():
             stdmask |= desi_mask[name]
 
-    isSTD = (fiberassign['DESI_TARGET'] & stdmask) != 0
+    isSTD = (fiberassign[targetcol] & stdmask) != 0
 
-    isSKY = (fiberassign['DESI_TARGET'] & desi_mask.SKY) != 0
+    isSKY = (fiberassign[targetcol] & desi_mask.SKY) != 0
     isSCI = (~isSTD & ~isSKY)
     fibermap['OBJTYPE'][isSKY] = 'SKY'
     fibermap['OBJTYPE'][isSCI | isSTD] = 'TGT'
@@ -361,7 +368,8 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, redshift=Non
         wave (array): 1D wavelengths in Angstroms
         flux (array): 2D[nspec,nwave] flux in 1e-17 erg/s/cm2/Angstrom
             or astropy Quantity with flux units
-        fibermap (Table, optional): table from fiberassign or fibermap; uses X/YFOCAL_DESIGN, TARGETID, DESI_TARGET
+        fibermap (Table, optional): table from fiberassign or fibermap; uses
+            X/YFOCAL_DESIGN, TARGETID, (SV1_)DESI_TARGET
         obsconditions(dict-like, optional): observation metadata including
             SEEING (arcsec), EXPTIME (sec), AIRMASS,
             MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
