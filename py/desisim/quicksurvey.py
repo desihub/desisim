@@ -183,20 +183,24 @@ class SimSetup(object):
         print("{} tiles to be included in fiberassign".format(len(tiles)))
 
     def update_observed_tiles(self, epoch):
-        """Creates the list of tilefiles to be gathered to buikd the redshift catalog.        
+        """Creates the list of tilefiles to be gathered to build the redshift catalog.
 
         """        
         self.tilefiles = list()
         tiles = self.epoch_tiles[epoch]
         for i in tiles:
-            tilename = os.path.join(self.tmp_fiber_path, 'tile_%05d.fits'%(i))
+            tilename = os.path.join(self.tmp_fiber_path, 'tile-%06d.fits'%(i))
+            # retain ability to use previous version of tile files
+            oldtilename = os.path.join(self.tmp_fiber_path, 'tile_%05d.fits'%(i))
             if os.path.isfile(tilename):
                 self.tilefiles.append(tilename)
+            elif os.path.isfile(oldtilename):
+                self.tilefiles.append(oldtilename)
             #else:
               #  print('Suggested but does not exist {}'.format(tilename))
         print("{} {} tiles to gather in zcat".format(asctime(), len(self.tilefiles)))
 
-        
+
     def simulate_epoch(self, epoch, truth, targets, perfect=False, zcat=None):
         """Core routine simulating a DESI epoch,
 
