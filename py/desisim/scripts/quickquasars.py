@@ -102,7 +102,8 @@ def parse(options=None):
     parser.add_argument('--metals', type=str, default=None, required=False, help = "list of metals to get the\
         transmission from, if 'all' runs on all metals", nargs='*')
 
-    parser.add_argument('--metals-from-file', action = 'store_true', help = "add metals from HDU in file")
+    #parser.add_argument('--metals-from-file', action = 'store_true', help = "add metals from HDU in file")
+    parser.add_argument('--metals-from-file',type=str, const='old_fmt',help = "add metals from HDU in file",nargs='?') 
 
     parser.add_argument('--dla',type=str,required=False, help="Add DLA to simulated spectra either randonmly\
         (--dla random) or from transmision file (--dla file)")
@@ -296,6 +297,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     # Read transmission from files. It might include DLA information, and it
     # might add metal transmission as well (from the HDU file).
     log.info("Read transmission file {}".format(ifilename))
+
     trans_wave, transmission, metadata, dla_info = read_lya_skewers(ifilename,read_dlas=(args.dla=='file'),add_metals=args.metals_from_file)
 
     ### Add Finger-of-God, before generate the continua
@@ -564,7 +566,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     # if requested, compute metal transmission on the fly
     # (if not included already from the transmission file)
     if args.metals is not None:
-        if args.metals_from_file:
+        if args.metals_from_file :
             log.error('you cannot add metals twice')
             raise ValueError('you cannot add metals twice')
         if args.no_transmission:
