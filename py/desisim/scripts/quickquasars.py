@@ -98,12 +98,13 @@ def parse(options=None):
     parser.add_argument('--mags', action = "store_true", help="DEPRECATED; use --bbflux")
 
     parser.add_argument('--bbflux', action = "store_true", help="compute and write the QSO broad-band fluxes in the fibermap")
+    parser.add_argument('--add-LYB', action='store_true', help = "Add LYB absorption from transmision file")
 
     parser.add_argument('--metals', type=str, default=None, required=False, help = "list of metals to get the\
         transmission from, if 'all' runs on all metals", nargs='*')
 
     #parser.add_argument('--metals-from-file', action = 'store_true', help = "add metals from HDU in file")
-    parser.add_argument('--metals-from-file',type=str, const='old_fmt',help = "add metals from HDU in file",nargs='?') 
+    parser.add_argument('--metals-from-file',type=str, const='all',help = "add metals from HDU in file",nargs='?') 
 
     parser.add_argument('--dla',type=str,required=False, help="Add DLA to simulated spectra either randonmly\
         (--dla random) or from transmision file (--dla file)")
@@ -298,7 +299,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     # might add metal transmission as well (from the HDU file).
     log.info("Read transmission file {}".format(ifilename))
 
-    trans_wave, transmission, metadata, dla_info = read_lya_skewers(ifilename,read_dlas=(args.dla=='file'),add_metals=args.metals_from_file)
+    trans_wave, transmission, metadata, dla_info = read_lya_skewers(ifilename,read_dlas=(args.dla=='file'),add_metals=args.metals_from_file,add_lyb=args.add_LYB)
 
     ### Add Finger-of-God, before generate the continua
     log.info("Add FOG to redshift with sigma {} to quasar redshift".format(args.sigma_kms_fog))

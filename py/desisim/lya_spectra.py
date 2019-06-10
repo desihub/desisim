@@ -53,7 +53,7 @@ absorber_IGM = {
     'LY5'         : { 'LRF':937.8035, 'COEF':0.0187 },
 }
 
-def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False) :
+def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False,add_lyb=False) :
     '''
     Reads Lyman alpha transmission skewers (from CoLoRe, format v2.x.y)
 
@@ -78,20 +78,18 @@ def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False) :
 
     import fitsio
     h = fitsio.FITS(lyafile)
-    hdulist=[]
-    for hdu in h:
-        hdulist.append(hdu.get_extname())
 
-    lstmetal=hdulist[5:len(hdulist)-1]
 
-    if "WAVELENGTH" in hdulist :
+    if "WAVELENGTH" in h :
         wave  = h["WAVELENGTH"].read()
     else :
         log.warning("I assume WAVELENGTH is HDU 2")
         wave  = h[2].read()
 
-    if "F_LYA" in hdulist :
+    if "F_LYA" in h :
         trans = h["F_LYA"].read()
+    elif "TRANSMISSION" in h:
+        trans=h["TRANSMISSION"].read()
     else :
         log.warning("I assume TRANSMISSION is HDU 3")
         trans = h[3].read()
@@ -103,7 +101,7 @@ def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False) :
             log.error("shape of wavelength={} and transmission={} don't match".format(wave.shape,trans.shape))
             raise ValueError("shape of wavelength={} and transmission={} don't match".format(wave.shape,trans.shape))
 
-    if "METADATA" in hdulist :
+    if "METADATA" in h :
         meta  = h["METADATA"].read()
     else :
         log.warning("I assume METADATA is HDU 1")
@@ -113,23 +111,39 @@ def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False) :
         trans = trans[indices]
         meta=meta[:][indices]
 
+    if (add_lyb):
+        if ("F_LYB" in h) :
+            lyb = h["F_LYB"].read()
+            trans*=lyb
+        else:
+            nolyb="No HDU with EXTNAME='F_LYB' in transmission file {}".format(lyafile)
+            log.error(nolyb)
+            raise KeyError(nlyb) 
+    
+
     if add_metals:
-       if add_metals=='old_fmt':
-          log.info('add metals from file reading a single hdu')
+
+       if add_metals=='all':
+          #For format london v>7.3
+          if "F_METALS" in h:
+              metals = h["F_METALS"].read()
+              trans *= metals
+          #For format london v<7.3
           if "METALS" in h :
               metals = h["METALS"].read()
               trans *= metals
           else :
-              nom="No HDU with EXTNAME='METALS' in transmission file {}".format(lyafile)
+              nom="No HDU with EXTNAME='METALS' or EXTNAME='F_METALS' in transmission file {}".format(lyafile)
               log.error(nom)
-              raise KeyError(nom)
-       
+              raise KeyError(nom)           
        else: 
-          if(add_metals!='all'):      
-              lstmetal=['F_'+m for m in add_metals.split(' ')]
-
-          log.info('add {} metals from file'.format(lstmetal))
-          for metal in lstmetal:
+          if add_metals=='all-dev':
+             metal_list=['F_SI1260','F_SI1207','F_SI1193','F_SI1190']
+          else:      
+             metal_list=['F_'+m for m in add_metals.split(' ')]    
+     
+          log.info('add {} metals from file'.format(metal_list))
+          for metal in metal_list:
               if (metal in h):
                   metals = h[metal].read()
                   trans *= metals
