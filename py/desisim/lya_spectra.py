@@ -118,7 +118,7 @@ def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False,add_l
         else:
             nolyb="No HDU with EXTNAME='F_LYB' in transmission file {}".format(lyafile)
             log.error(nolyb)
-            raise KeyError(nlyb) 
+            raise KeyError(nolyb) 
     
 
     if add_metals:
@@ -140,7 +140,7 @@ def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False,add_l
           if add_metals=='all-dev':
              metal_list=['F_SI1260','F_SI1207','F_SI1193','F_SI1190']
           else:      
-             metal_list=['F_'+m for m in add_metals.split(' ')]    
+             metal_list=['F_'+m for m in add_metals.split(',')]    
      
           log.info('add {} metals from file'.format(metal_list))
           for metal in metal_list:
@@ -148,7 +148,7 @@ def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False,add_l
                   metals = h[metal].read()
                   trans *= metals
               else:
-                  nom="No HDU with EXTNAME={} in transmission file {}".format(metal,lyafile)
+                  nom="No HDU with EXTNAME={} in transmission file {} ".format(metal,lyafile)
                   log.error(nom)
                   raise KeyError(nom)
 

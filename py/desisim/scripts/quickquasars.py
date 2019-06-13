@@ -104,7 +104,8 @@ def parse(options=None):
         transmission from, if 'all' runs on all metals", nargs='*')
 
     #parser.add_argument('--metals-from-file', action = 'store_true', help = "add metals from HDU in file")
-    parser.add_argument('--metals-from-file',type=str, const='all',help = "add metals from HDU in file",nargs='?') 
+    parser.add_argument('--metals-from-file',type=str,const='all',help = "list of metals,'SI1260,SI1207' etc, to get from HDUs in file. \
+Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?') 
 
     parser.add_argument('--dla',type=str,required=False, help="Add DLA to simulated spectra either randonmly\
         (--dla random) or from transmision file (--dla file)")
