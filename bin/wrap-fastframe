@@ -80,7 +80,8 @@ if rank == 0:
                     framefile = desispec.io.findfile('cframe', night, expid, camera)
                 else :
                     framefile = desispec.io.findfile('frame', night, expid, camera)
-                if not os.path.exists(framefile):
+
+                if args.clobber or not os.path.exists(framefile):
                     simspecfiles.append( (flavor, filename) )
                     done = False
                     break
@@ -105,9 +106,11 @@ if rank < len(simspecfiles):
     for flavor, filename in simspecfiles[rank::size]:
         cmd = "fastframe --simspec {}".format(filename)
         if args.outdir:
-            cmd = cmd + " --outdir {}".format(args.outdir)
+           cmd = cmd + " --outdir {}".format(args.outdir)
         if args.clobber:
-            cmd = cmd + " --clobber"
+            pass 
+            ##  clobber not supported by fastframe (it clobbers by default)
+            ##  cmd = cmd + " --clobber"
         if args.cframe:
             cmd = cmd + " --cframe"
         
@@ -118,8 +121,16 @@ if rank < len(simspecfiles):
 
         try:
             t0 = time.time()
+
             logfile = filename.replace('simspec', 'fastframe').replace('.fits', '.log')
+
             assert logfile != filename
+
+            if args.outdir:
+                ##  If outdir provided, log files inherit /night/exposure structure of simspec files but in outdir. 
+                ##  Else placed in original dir. with simspecs.
+                logfile = logfile.replace(desisim.io.simdir(), args.outdir)
+                os.makedirs(os.path.dirname(logfile), exist_ok=args.clobber)
 
             #- Use subprocess.call instead of fastframe.main() to avoid
             #- potential memory leaks and separate logging; this does incur
