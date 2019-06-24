@@ -128,14 +128,17 @@ def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False,add_l
           if "F_METALS" in h:
               metals = h["F_METALS"].read()
               trans *= metals
+              log.info('Added F_Metals from file')
           #For format london v<7.3
-          if "METALS" in h :
+          elif "METALS" in h :
               metals = h["METALS"].read()
               trans *= metals
-          else :
+              log.info('Added Metals from file')
+          else:
               nom="No HDU with EXTNAME='METALS' or EXTNAME='F_METALS' in transmission file {}".format(lyafile)
               log.error(nom)
-              raise KeyError(nom)           
+              raise KeyError(nom)
+                     
        else: 
           if add_metals=='all-dev':
              metal_list=['F_SI1260','F_SI1207','F_SI1193','F_SI1190']
