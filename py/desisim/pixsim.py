@@ -299,6 +299,18 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
         else:
             noverscan = 50
 
+        #- Reproducibly random overscan bias level offsets across diff exp
+        assert channel in 'brz':
+        if channel == 'b':
+            irand = ispec
+        elif channel = 'r':
+            irand = 10 + ispec
+        elif channel = 'z':
+            irand = 20 + ispec
+
+        seeds = np.random.RandomState(0).randint(2**32-1, size=30)
+        rand = np.random.RandomState(seeds[irand])
+
         nyraw = ny
         nxraw = nx + nprescan + noverscan
         rawpix = np.empty( (nyraw*2, nxraw*2), dtype=np.int32 )
@@ -307,24 +319,28 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
         rawpix[0:nyraw, 0:nxraw] = \
             photpix2raw(pix[0:ny, 0:nx], gain, header['RDNOISE1'], 
                 readorder='lr', nprescan=nprescan, noverscan=noverscan,
+                offset=rand.uniform(100, 200),
                 noisydata=noisydata)
 
         #- Amp 2 Lower Right
         rawpix[0:nyraw, nxraw:nxraw+nxraw] = \
             photpix2raw(pix[0:ny, nx:nx+nx], gain, header['RDNOISE2'],
                 readorder='rl', nprescan=nprescan, noverscan=noverscan,
+                offset=rand.uniform(100, 200),
                 noisydata=noisydata)
 
         #- Amp 3 Upper Left
         rawpix[nyraw:nyraw+nyraw, 0:nxraw] = \
             photpix2raw(pix[ny:ny+ny, 0:nx], gain, header['RDNOISE3'],
                 readorder='lr', nprescan=nprescan, noverscan=noverscan,
+                offset=rand.uniform(100, 200),
                 noisydata=noisydata)
 
         #- Amp 4 Upper Right
         rawpix[nyraw:nyraw+nyraw, nxraw:nxraw+nxraw] = \
             photpix2raw(pix[ny:ny+ny, nx:nx+nx], gain, header['RDNOISE4'],
                 readorder='rl', nprescan=nprescan, noverscan=noverscan,
+                offset=rand.uniform(100, 200),
                 noisydata=noisydata)
 
         def xyslice2header(xyslice):
