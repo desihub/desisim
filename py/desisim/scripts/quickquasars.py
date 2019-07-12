@@ -719,11 +719,15 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     else:
         log.info('Z_noRSD field not present in transmission file. Z_NORSD not saved to truth file')
 
+    #Save global seed and pixel seed to primary header
+    hdr=pyfits.Header()
+    hdr['GSEED']=global_seed
+    hdr['PIXSEED']=seed
     hdu = pyfits.convenience.table_to_hdu(meta)
     hdu.header['EXTNAME'] = 'TRUTH'
     hduqso=pyfits.convenience.table_to_hdu(qsometa)
     hduqso.header['EXTNAME'] = 'QSO_META'
-    hdulist=pyfits.HDUList([pyfits.PrimaryHDU(),hdu,hduqso])
+    hdulist=pyfits.HDUList([pyfits.PrimaryHDU(header=hdr),hdu,hduqso])
     if args.dla:
         hdulist.append(hdu_dla)
     if args.balprob:
