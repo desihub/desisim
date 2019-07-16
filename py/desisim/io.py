@@ -806,29 +806,29 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
 
     if 'RDNOISE0' in meta :
         del meta['RDNOISE0']
-    #- Amp 1 lower left
+    #- Amp A lower left
     nx = pix.shape[1] // 2
     ny = pix.shape[0] // 2
     iixy = np.s_[0:ny, 0:nx]
     cx = pix[iixy][mask[iixy] == 0]
     mean, median, std = sigma_clipped_stats(cx, sigma=3, iters=5)
-    meta['RDNOISE1'] = std
+    meta['RDNOISEA'] = std
 
-    #- Amp 2 lower right
+    #- Amp B lower right
     iixy = np.s_[0:ny, nx:2*nx]
     cx = pix[iixy][mask[iixy] == 0]
     mean, median, std = sigma_clipped_stats(cx, sigma=3, iters=5)
-    meta['RDNOISE2'] = std
+    meta['RDNOISEB'] = std
 
-    #- Amp 3 upper left
+    #- Amp C upper left
     iixy = np.s_[ny:2*ny, 0:nx]
     mean, median, std = sigma_clipped_stats(pix[iixy], sigma=3, iters=5)
-    meta['RDNOISE3'] = std
+    meta['RDNOISEC'] = std
 
-    #- Amp 4 upper right
+    #- Amp D upper right
     iixy = np.s_[ny:2*ny, nx:2*nx]
     mean, median, std = sigma_clipped_stats(pix[iixy], sigma=3, iters=5)
-    meta['RDNOISE4'] = std
+    meta['RDNOISED'] = std
     fx.close()
 
     return Image(pix, ivar, mask, meta=meta)

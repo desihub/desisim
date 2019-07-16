@@ -119,6 +119,7 @@ def simulate_exposure(simspecfile, rawfile, cameras=None,
         #- rank must read it instead of rank 0 read + bcast
         channel = camera[0]
         if channel not in psfs:
+            log.info('Reading {} PSF at {}'.format(channel, asctime()))
             psfs[channel] = desimodel.io.load_psf(channel)
 
             #- Trim effective CCD size; mainly to limit memory for testing
@@ -132,10 +133,13 @@ def simulate_exposure(simspecfile, rawfile, cameras=None,
         if previous_channel != channel:
             if (addcosmics is True) and (node_rank == 0):
                 cosmics_file = io.find_cosmics(camera, simspec.header['EXPTIME'])
-                log.info('cosmics templates {}'.format(cosmics_file))
+                log.info('Reading cosmics templates {} at {}'.format(
+                    cosmics_file, asctime()))
                 shape = (psf.npix_y, psf.npix_x)
                 cosmics = io.read_cosmics(cosmics_file, expid, shape=shape)
             if (addcosmics is True) and (comm_node is not None):
+                if node_rank == 0:
+                    log.info('Broadcasting cosmics at {}'.format(asctime()))
                 cosmics = comm_node.bcast(cosmics, root=0)
             else:
                 log.debug("Cosmics not requested")
@@ -261,7 +265,7 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
         header['FEEVER'] = 'SIM'
         header['DETECTOR'] = 'SIM'
         gain = params['ccd'][channel]['gain']
-        for amp in ('1', '2', '3', '4'):
+        for amp in ('A', 'B', 'C', 'D'):
             header['GAIN'+amp] = gain
 
         #- Add cosmics from library of dark images
@@ -271,23 +275,17 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
             # set to zeros values with mask bit 0 (= dead column or hot pixels)
             cosmics_pix = cosmics.pix*((cosmics.mask&1)==0)
             pix = np.random.poisson(truepix) + cosmics_pix
-            header['RDNOISE1'] = cosmics.meta['RDNOISE1']
-            header['RDNOISE2'] = cosmics.meta['RDNOISE2']
-            header['RDNOISE3'] = cosmics.meta['RDNOISE3']
-            header['RDNOISE4'] = cosmics.meta['RDNOISE4']
+            header['RDNOISEA'] = cosmics.meta['RDNOISEA']
+            header['RDNOISEB'] = cosmics.meta['RDNOISEB']
+            header['RDNOISEC'] = cosmics.meta['RDNOISEC']
+            header['RDNOISED'] = cosmics.meta['RDNOISED']
         else:
             pix = truepix
             readnoise = params['ccd'][channel]['readnoise']
-            header['RDNOISE1'] = readnoise
-            header['RDNOISE2'] = readnoise
-            header['RDNOISE3'] = readnoise
-            header['RDNOISE4'] = readnoise
-
-        # if (comm is None) or (comm.rank == 0):
-        #     log.info('RDNOISE1 {}'.format(header['RDNOISE1']))
-        #     log.info('RDNOISE2 {}'.format(header['RDNOISE2']))
-        #     log.info('RDNOISE3 {}'.format(header['RDNOISE3']))
-        #     log.info('RDNOISE4 {}'.format(header['RDNOISE4']))
+            header['RDNOISEA'] = readnoise
+            header['RDNOISEB'] = readnoise
+            header['RDNOISEC'] = readnoise
+            header['RDNOISED'] = readnoise
 
         #- data already has noise if cosmics were added
         noisydata = (cosmics is not None)
@@ -300,12 +298,12 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
             noverscan = 50
 
         #- Reproducibly random overscan bias level offsets across diff exp
-        assert channel in 'brz':
+        assert channel in 'brz'
         if channel == 'b':
             irand = ispec
-        elif channel = 'r':
+        elif channel == 'r':
             irand = 10 + ispec
-        elif channel = 'z':
+        elif channel == 'z':
             irand = 20 + ispec
 
         seeds = np.random.RandomState(0).randint(2**32-1, size=30)
@@ -317,28 +315,28 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
 
         #- Amp 0 Lower Left
         rawpix[0:nyraw, 0:nxraw] = \
-            photpix2raw(pix[0:ny, 0:nx], gain, header['RDNOISE1'], 
+            photpix2raw(pix[0:ny, 0:nx], gain, header['RDNOISEA'], 
                 readorder='lr', nprescan=nprescan, noverscan=noverscan,
                 offset=rand.uniform(100, 200),
                 noisydata=noisydata)
 
         #- Amp 2 Lower Right
         rawpix[0:nyraw, nxraw:nxraw+nxraw] = \
-            photpix2raw(pix[0:ny, nx:nx+nx], gain, header['RDNOISE2'],
+            photpix2raw(pix[0:ny, nx:nx+nx], gain, header['RDNOISEB'],
                 readorder='rl', nprescan=nprescan, noverscan=noverscan,
                 offset=rand.uniform(100, 200),
                 noisydata=noisydata)
 
         #- Amp 3 Upper Left
         rawpix[nyraw:nyraw+nyraw, 0:nxraw] = \
-            photpix2raw(pix[ny:ny+ny, 0:nx], gain, header['RDNOISE3'],
+            photpix2raw(pix[ny:ny+ny, 0:nx], gain, header['RDNOISEC'],
                 readorder='lr', nprescan=nprescan, noverscan=noverscan,
                 offset=rand.uniform(100, 200),
                 noisydata=noisydata)
 
         #- Amp 4 Upper Right
         rawpix[nyraw:nyraw+nyraw, nxraw:nxraw+nxraw] = \
-            photpix2raw(pix[ny:ny+ny, nx:nx+nx], gain, header['RDNOISE4'],
+            photpix2raw(pix[ny:ny+ny, nx:nx+nx], gain, header['RDNOISED'],
                 readorder='rl', nprescan=nprescan, noverscan=noverscan,
                 offset=rand.uniform(100, 200),
                 noisydata=noisydata)
@@ -354,29 +352,29 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
                                            yy.start+1, yy.stop)
             return value
 
-        #- Amp order from DESI-1964
-        #-   3 4
-        #-   1 2
+        #- Amp order from DESI-1964 (previously 1-4 instead of A-D)
+        #-   C D
+        #-   A B
         xoffset = nprescan+nx+noverscan
-        header['PRESEC1']  = xyslice2header(np.s_[0:nyraw, 0:0+nprescan])
-        header['DATASEC1'] = xyslice2header(np.s_[0:nyraw, nprescan:nprescan+nx])
-        header['BIASSEC1'] = xyslice2header(np.s_[0:nyraw, nprescan+nx:nprescan+nx+noverscan])
-        header['CCDSEC1']  = xyslice2header(np.s_[0:ny, 0:nx])
+        header['PRESECA']  = xyslice2header(np.s_[0:nyraw, 0:0+nprescan])
+        header['DATASECA'] = xyslice2header(np.s_[0:nyraw, nprescan:nprescan+nx])
+        header['BIASSECA'] = xyslice2header(np.s_[0:nyraw, nprescan+nx:nprescan+nx+noverscan])
+        header['CCDSECA']  = xyslice2header(np.s_[0:ny, 0:nx])
 
-        header['PRESEC2']  = xyslice2header(np.s_[0:nyraw, xoffset+noverscan+nx:xoffset+noverscan+nx+nprescan])
-        header['DATASEC2'] = xyslice2header(np.s_[0:nyraw, xoffset+noverscan:xoffset+noverscan+nx])
-        header['BIASSEC2'] = xyslice2header(np.s_[0:nyraw, xoffset:xoffset+noverscan])
-        header['CCDSEC2']  = xyslice2header(np.s_[0:ny, nx:2*nx])
+        header['PRESECB']  = xyslice2header(np.s_[0:nyraw, xoffset+noverscan+nx:xoffset+noverscan+nx+nprescan])
+        header['DATASECB'] = xyslice2header(np.s_[0:nyraw, xoffset+noverscan:xoffset+noverscan+nx])
+        header['BIASSECB'] = xyslice2header(np.s_[0:nyraw, xoffset:xoffset+noverscan])
+        header['CCDSECB']  = xyslice2header(np.s_[0:ny, nx:2*nx])
 
-        header['PRESEC3']  = xyslice2header(np.s_[nyraw:2*nyraw, 0:0+nprescan])
-        header['DATASEC3'] = xyslice2header(np.s_[nyraw:2*nyraw, nprescan:nprescan+nx])
-        header['BIASSEC3'] = xyslice2header(np.s_[nyraw:2*nyraw, nprescan+nx:nprescan+nx+noverscan])
-        header['CCDSEC3']  = xyslice2header(np.s_[ny:2*ny, 0:nx])
+        header['PRESECC']  = xyslice2header(np.s_[nyraw:2*nyraw, 0:0+nprescan])
+        header['DATASECC'] = xyslice2header(np.s_[nyraw:2*nyraw, nprescan:nprescan+nx])
+        header['BIASSECC'] = xyslice2header(np.s_[nyraw:2*nyraw, nprescan+nx:nprescan+nx+noverscan])
+        header['CCDSECC']  = xyslice2header(np.s_[ny:2*ny, 0:nx])
 
-        header['PRESEC4']  = xyslice2header(np.s_[nyraw:2*nyraw, xoffset+noverscan+nx:xoffset+noverscan+nx+nprescan])
-        header['DATASEC4'] = xyslice2header(np.s_[nyraw:2*nyraw, xoffset+noverscan:xoffset+noverscan+nx])
-        header['BIASSEC4'] = xyslice2header(np.s_[nyraw:2*nyraw, xoffset:xoffset+noverscan])
-        header['CCDSEC4']  = xyslice2header(np.s_[ny:2*ny, nx:2*nx])
+        header['PRESECD']  = xyslice2header(np.s_[nyraw:2*nyraw, xoffset+noverscan+nx:xoffset+noverscan+nx+nprescan])
+        header['DATASECD'] = xyslice2header(np.s_[nyraw:2*nyraw, xoffset+noverscan:xoffset+noverscan+nx])
+        header['BIASSECD'] = xyslice2header(np.s_[nyraw:2*nyraw, xoffset:xoffset+noverscan])
+        header['CCDSECD']  = xyslice2header(np.s_[ny:2*ny, nx:2*nx])
 
         if preproc:
             log.debug('Running preprocessing at {}'.format(asctime()))
