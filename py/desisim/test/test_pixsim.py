@@ -47,7 +47,7 @@ class TestPixsim(unittest.TestCase):
             os.environ[e] = cls.testEnv[e]
         if desi_templates_available:
             cls.cosmics = (os.environ['DESI_ROOT'] +
-                '/spectro/templates/cosmics/v0.2/cosmics-bias-r.fits')
+                '/spectro/templates/cosmics/v0.3/cosmics-bias-r.fits')
         else:
             cls.cosmics = None
 

@@ -14,6 +14,9 @@ import random
 from time import asctime
 import socket
 
+from astropy.time import Time
+import astropy.units as u
+
 import numpy as np
 
 import desimodel.io
@@ -264,9 +267,6 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
         header['DOSVER'] = 'SIM'
         header['FEEVER'] = 'SIM'
         header['DETECTOR'] = 'SIM'
-        gain = params['ccd'][channel]['gain']
-        for amp in ('A', 'B', 'C', 'D'):
-            header['GAIN'+amp] = gain
 
         #- Add cosmics from library of dark images
         ny = truepix.shape[0] // 2
@@ -275,17 +275,20 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
             # set to zeros values with mask bit 0 (= dead column or hot pixels)
             cosmics_pix = cosmics.pix*((cosmics.mask&1)==0)
             pix = np.random.poisson(truepix) + cosmics_pix
-            header['RDNOISEA'] = cosmics.meta['RDNOISEA']
-            header['RDNOISEB'] = cosmics.meta['RDNOISEB']
-            header['RDNOISEC'] = cosmics.meta['RDNOISEC']
-            header['RDNOISED'] = cosmics.meta['RDNOISED']
+            try:  #- cosmics templates >= v0.3
+                rdnoiseA = cosmics.meta['OBSRDNA']
+                rdnoiseB = cosmics.meta['OBSRDNB']
+                rdnoiseC = cosmics.meta['OBSRDNC']
+                rdnoiseD = cosmics.meta['OBSRDND']
+            except KeyError:  #- cosmics templates <= v0.2
+                rdnoiseA = cosmics.meta['RDNOISE0']
+                rdnoiseB = cosmics.meta['RDNOISE1']
+                rdnoiseC = cosmics.meta['RDNOISE2']
+                rdnoiseD = cosmics.meta['RDNOISE3']
         else:
             pix = truepix
             readnoise = params['ccd'][channel]['readnoise']
-            header['RDNOISEA'] = readnoise
-            header['RDNOISEB'] = readnoise
-            header['RDNOISEC'] = readnoise
-            header['RDNOISED'] = readnoise
+            rdnoiseA = rdnoiseB = rdnoiseC = rdnoiseD = readnoise
 
         #- data already has noise if cosmics were added
         noisydata = (cosmics is not None)
@@ -313,30 +316,32 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
         nxraw = nx + nprescan + noverscan
         rawpix = np.empty( (nyraw*2, nxraw*2), dtype=np.int32 )
 
-        #- Amp 0 Lower Left
+        gain = params['ccd'][channel]['gain']
+
+        #- Amp A/1 Lower Left
         rawpix[0:nyraw, 0:nxraw] = \
-            photpix2raw(pix[0:ny, 0:nx], gain, header['RDNOISEA'], 
+            photpix2raw(pix[0:ny, 0:nx], gain, rdnoiseA,
                 readorder='lr', nprescan=nprescan, noverscan=noverscan,
                 offset=rand.uniform(100, 200),
                 noisydata=noisydata)
 
-        #- Amp 2 Lower Right
+        #- Amp B/2 Lower Right
         rawpix[0:nyraw, nxraw:nxraw+nxraw] = \
-            photpix2raw(pix[0:ny, nx:nx+nx], gain, header['RDNOISEB'],
+            photpix2raw(pix[0:ny, nx:nx+nx], gain, rdnoiseB,
                 readorder='rl', nprescan=nprescan, noverscan=noverscan,
                 offset=rand.uniform(100, 200),
                 noisydata=noisydata)
 
-        #- Amp 3 Upper Left
+        #- Amp C/3 Upper Left
         rawpix[nyraw:nyraw+nyraw, 0:nxraw] = \
-            photpix2raw(pix[ny:ny+ny, 0:nx], gain, header['RDNOISEC'],
+            photpix2raw(pix[ny:ny+ny, 0:nx], gain, rdnoiseC,
                 readorder='lr', nprescan=nprescan, noverscan=noverscan,
                 offset=rand.uniform(100, 200),
                 noisydata=noisydata)
 
-        #- Amp 4 Upper Right
+        #- Amp D/4 Upper Right
         rawpix[nyraw:nyraw+nyraw, nxraw:nxraw+nxraw] = \
-            photpix2raw(pix[ny:ny+ny, nx:nx+nx], gain, header['RDNOISED'],
+            photpix2raw(pix[ny:ny+ny, nx:nx+nx], gain, rdnoiseD,
                 readorder='rl', nprescan=nprescan, noverscan=noverscan,
                 offset=rand.uniform(100, 200),
                 noisydata=noisydata)
@@ -375,6 +380,65 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
         header['DATASECD'] = xyslice2header(np.s_[nyraw:2*nyraw, xoffset+noverscan:xoffset+noverscan+nx])
         header['BIASSECD'] = xyslice2header(np.s_[nyraw:2*nyraw, xoffset:xoffset+noverscan])
         header['CCDSECD']  = xyslice2header(np.s_[ny:2*ny, nx:2*nx])
+
+        #- Add additional keywords to mimic real raw data
+        header['INSTRUME'] = 'DESI'
+        header['PROCTYPE'] = 'RAW'
+        header['PRODTYPE'] = 'image'
+        header['EXPFRAME'] = 0
+        header['REQTIME'] = simspec.header['EXPTIME']
+        header['TIMESYS'] = 'UTC'
+        #- DATE-OBS format YEAR-MM-DDThh:mm:ss.sss -> OBSID kpnoYEARMMDDthhmmss
+        header['OBSID']='kp4m'+header['DATE-OBS'][0:19].replace('-','').replace(':','').lower()
+        header['TIME-OBS'] = header['DATE-OBS'].split('T')[1]
+        header['DELTARA'] = 0.0
+        header['DELTADEC'] = 0.0
+        header['SPECGRPH'] = ispec
+        header['CCDNAME'] = 'CCDS' + str(ispec) + str(channel).upper()
+        header['CCDPREP'] = 'purge,clear'
+        header['CCDSIZE'] = str(rawpix.shape)
+        header['CCDTEMP'] = 850.0
+        header['CPUTEMP'] = 63.7
+        header['CASETEMP'] = 62.8
+        header['CCDTMING'] = 'sim_timing.txt'
+        header['CCDCFG'] = 'sim.cfg'
+        header['SETTINGS'] = 'sim_detectors.json'
+        header['VESSEL'] = 7  #- I don't know what this is
+        header['FEEBOX'] = 'sim097'
+        header['PGAGAIN'] = 5
+        header['OCSVER'] = 'SIM'
+        header['CONSTVER'] = 'SIM'
+        header['BLDTIME'] = 0.35
+        header['DIGITIME'] = 61.9
+
+        #- Remove some spurious header keywords from upstream
+        if 'BUNIT' in header and header['BUNIT'] == 'Angstrom':
+            del header['BUNIT']
+
+        if 'MJD' in header and 'MJD-OBS' not in header:
+            header['MJD-OBS'] = header['MJD']
+            del header['MJD']
+
+        for key in ['RA', 'DEC']:
+            if key in header:
+                del header[key]
+
+        #- Drive MJD-OBS from DATE-OBS if needed
+        if 'MJD-OBS' not in header:
+            header['MJD-OBS'] = Time(header['DATE-OBS']).mjd
+
+        #- from http://www-kpno.kpno.noao.edu/kpno-misc/mayall_params.html
+        kpno_longitude = -(111. + 35/60. + 59.6/3600) * u.deg
+
+        #- Convert DATE-OBS to sexigesimal (sigh) Local Sidereal Time
+        #- Use mean ST as close enough for sims to avoid nutation calc
+        t = Time(header['DATE-OBS'])
+        st = t.sidereal_time('mean', kpno_longitude).to('deg').value
+        hour = st/15
+        minute = (hour % 1)*60
+        second = (minute % 1)*60
+        header['ST'] = '{:02d}:{:02d}:{:0.3f}'.format(
+                int(hour), int(minute), second)
 
         if preproc:
             log.debug('Running preprocessing at {}'.format(asctime()))
