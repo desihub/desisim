@@ -307,6 +307,7 @@ class SimSetup(object):
         targets = Table.read(os.path.join(self.targets_path,'targets.fits'))
 
         print(truth.keys())
+
         #- Drop columns that aren't needed to save memory while manipulating
         # truth.remove_columns(['SEED', 'MAG', 'FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2', 'HBETAFLUX', 'TEFF', 'LOGG', 'FEH'])
         # targets.remove_columns([ 'SHAPEEXP_R', 'SHAPEEXP_E1', 'SHAPEEXP_E2', 'SHAPEDEV_R',
