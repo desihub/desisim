@@ -38,12 +38,12 @@ class SimSetup(object):
 
     Attributes:
         output_path (str): Path to write the outputs.x
-        targets_path (str): Path where the files mtl.fits can be found
+        targets_path (str): Path where the files targets.fits can be found
         epochs_path (str): Path where the epoch files can be found.
         fiberassign (str): Name of the fiberassign script  
         n_epochs (int): number of epochs to be simulated.
     """
-    def __init__(self, output_path, targets_path, fiberassign, exposures, fiberassign_dates, footprint=None, fibstatusfile=None):
+    def __init__(self, output_path, targets_path, fiberassign, exposures, fiberassign_dates, footprint=None, status=None):
         """
         Initializes all the paths, filenames and numbers describing DESI survey.
 
@@ -68,7 +68,7 @@ class SimSetup(object):
         self.stdfile  = os.path.join(self.targets_path,'standards-dark.fits')
         self.truthfile  = os.path.join(self.targets_path,'truth.fits')
         self.targetsfile = os.path.join(self.targets_path,'targets.fits')
-        self.fibstatusfile = fibstatusfile
+        self.status = status
         self.zcat_file = None
         self.mtl_file = None
 
@@ -262,15 +262,14 @@ class SimSetup(object):
         print("{} Launching fiberassign".format(asctime()))
         f = open('fiberassign.log','a')
         
-        p = subprocess.call([self.fiberassign, 
-                             '--mtl',  os.path.join(self.tmp_output_path, 'mtl.fits'),
-                             '--stdstar',  self.stdfile,  
-                             '--sky',  self.skyfile, 
-                             '--surveytiles',  self.surveyfile,
-                             '--footprint', self.footprint,
-                             '--outdir', os.path.join(self.tmp_output_path, 'fiberassign')], 
-                             ##  '--fibstatusfile',  self.fibstatusfile], 
-                            stdout=f)
+        call = [self.fiberassign, '--mtl',  os.path.join(self.tmp_output_path, 'mtl.fits'), '--stdstar',  self.stdfile, '--sky',  self.skyfile,\
+                '--surveytiles',  self.surveyfile, '--footprint', self.footprint, '--outdir', os.path.join(self.tmp_output_path, 'fiberassign')] 
+
+        if self.status is not None:
+            call.append('--status')
+            call.append(self.status)
+
+        p = subprocess.call(call, stdout=f)
 
         print("{} Finished fiberassign".format(asctime()))
         f.close()
