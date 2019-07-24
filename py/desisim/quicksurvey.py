@@ -30,18 +30,17 @@ from astropy.table import join
 from desitarget.targetmask import desi_mask
 
 class SimSetup(object):
-    """Setup to simulate the DESI survey
+    """
+    Setup to simulate the DESI survey
 
     Attributes:
         output_path (str): Path to write the outputs.x
-        targets_path (str): Path where the files targets.fits can be found
+        targets_path (str): Path where the files mtl.fits can be found
         epochs_path (str): Path where the epoch files can be found.
         fiberassign (str): Name of the fiberassign script  
-        template_fiberassign (str): Filename of the template input for fiberassign
         n_epochs (int): number of epochs to be simulated.
-
     """
-    def __init__(self, output_path, targets_path, fiberassign, exposures, fiberassign_dates):
+    def __init__(self, output_path, targets_path, fiberassign, exposures, fiberassign_dates, footprint):
         """Initializes all the paths, filenames and numbers describing DESI survey.
 
         Args:
@@ -59,9 +58,10 @@ class SimSetup(object):
 
         self.tmp_output_path = os.path.join(self.output_path, 'tmp/')
         self.tmp_fiber_path = os.path.join(self.tmp_output_path, 'fiberassign/')
+        self.footprint = footprint
         self.surveyfile = os.path.join(self.tmp_output_path, 'survey_list.txt')
         self.skyfile  = os.path.join(self.targets_path,'sky.fits')
-        self.stdfile  = os.path.join(self.targets_path,'std.fits')
+        self.stdfile  = os.path.join(self.targets_path,'standards-dark.fits')
         self.truthfile  = os.path.join(self.targets_path,'truth.fits')
         self.targetsfile = os.path.join(self.targets_path,'targets.fits')
         self.fibstatusfile = os.path.join(self.targets_path,'fiberstatus.ecsv')
@@ -251,8 +251,9 @@ class SimSetup(object):
                              '--stdstar',  self.stdfile,  
                              '--sky',  self.skyfile, 
                              '--surveytiles',  self.surveyfile,
-                             '--outdir',os.path.join(self.tmp_output_path, 'fiberassign'), 
-                             '--fibstatusfile',  self.fibstatusfile], 
+                             '--footprint', self.footprint,
+                             '--outdir', os.path.join(self.tmp_output_path, 'fiberassign')], 
+                             ##  '--fibstatusfile',  self.fibstatusfile], 
                             stdout=f)
 
 
