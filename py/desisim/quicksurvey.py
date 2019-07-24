@@ -65,7 +65,7 @@ class SimSetup(object):
         self.footprint = footprint
         self.surveyfile = os.path.join(self.tmp_output_path, 'survey_list.txt')
         self.skyfile  = os.path.join(self.targets_path,'sky.fits')
-        self.stdfile  = os.path.join(self.targets_path,'standards-dark.fits')
+        self.stdfile = os.path.join(self.targets_path,'standards.fits')
         self.truthfile  = os.path.join(self.targets_path,'truth.fits')
         self.targetsfile = os.path.join(self.targets_path,'targets.fits')
         self.status = status
