@@ -11,11 +11,12 @@ parser = argparse.ArgumentParser(description="Quick and simplified simulation of
 parser.add_argument("--output_dir", "-O", help="Path to write the outputs", type=str, default="./")
 parser.add_argument("--targets_dir","-T",help="Path to the targets.fits file", type=str, required=True)
 parser.add_argument("--fiberassign", "-f", help="Script for fiberassign", type=str, required=True)
+#parser.add_argument("--template_fiberassign","-t",help="File containing template for fiberassign", type=str, required=True)
 parser.add_argument("--exposures","-E",help="exposures.fits file from surveysim", type=str, required=True)
 parser.add_argument("--fiberassign_dates","-D", help="file with list of dates to run fiberassign", type=str, required=True)
-parser.add_argument("--footprint", help=".fits file defining footprint for fiberassign.", type=str, required=True)
+parser.add_argument("--footprint", help="list of tiles defining the footprint for fiberassign (FITS file).", type=str, default=None)
 
-args = parser.parse_args()
+args  = parser.parse_args()
 
 setup = qs.SimSetup(output_path = args.output_dir, 
                     targets_path = args.targets_dir, 

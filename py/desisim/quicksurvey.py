@@ -25,9 +25,12 @@ from collections import Counter
 from time import time, asctime
 import fitsio
 import desitarget.mtl
+import desimodel
 from desisim.quickcat import quickcat
 from astropy.table import join
+from astropy.time import Time
 from desitarget.targetmask import desi_mask
+
 
 class SimSetup(object):
     """
@@ -40,8 +43,9 @@ class SimSetup(object):
         fiberassign (str): Name of the fiberassign script  
         n_epochs (int): number of epochs to be simulated.
     """
-    def __init__(self, output_path, targets_path, fiberassign, exposures, fiberassign_dates, footprint):
-        """Initializes all the paths, filenames and numbers describing DESI survey.
+    def __init__(self, output_path, targets_path, fiberassign, exposures, fiberassign_dates, footprint=None, fibstatusfile=None):
+        """
+        Initializes all the paths, filenames and numbers describing DESI survey.
 
         Args:
             output_path (str): Path to write the outputs.x
@@ -64,7 +68,7 @@ class SimSetup(object):
         self.stdfile  = os.path.join(self.targets_path,'standards-dark.fits')
         self.truthfile  = os.path.join(self.targets_path,'truth.fits')
         self.targetsfile = os.path.join(self.targets_path,'targets.fits')
-        self.fibstatusfile = os.path.join(self.targets_path,'fiberstatus.ecsv')
+        self.fibstatusfile = fibstatusfile
         self.zcat_file = None
         self.mtl_file = None
 
@@ -75,9 +79,17 @@ class SimSetup(object):
         self.epochs_list = list()
         self.n_epochs = 0
         self.start_epoch = 0
+
+        if self.footprint == None:
+          ##  Default to the nominal DESI footprint a la fiberassign. 
+          self.footprint   = desimodel.io.findfile('footprint/desi-tiles.fits')
+
+        ##  Convert MJD present in exposures to 'NIGHT' in yyyymmdd format. 
+        iso     = Time(self.exposures['MJD'], format='mjd', scale='utc').iso        
+        dateobs = np.array([x.split(' ')[0].replace('-', '') for x in iso if x != '--'])
  
-        dateobs = np.core.defchararray.decode(self.exposures['NIGHT'])
-        dates = list()
+        dates   = list()
+
         with open(fiberassign_dates) as fx:
             for line in fx:
                 line = line.strip()
@@ -87,7 +99,7 @@ class SimSetup(object):
                 year_mm_dd = yearmmdd[0:4]+yearmmdd[4:6]+yearmmdd[6:8]
                 dates.append(year_mm_dd)
 
-            #- add pre- and post- dates for date range bookkeeping
+        #- add pre- and post- dates for date range bookkeeping
         if dates[0] < min(dateobs[0]):
                 dates.insert(0, dateobs[0])
 
@@ -108,8 +120,8 @@ class SimSetup(object):
 
 
     def create_directories(self):
-        """Creates output directories to store simulation results.
-
+        """
+        Creates output directories to store simulation results.
         """
         if not os.path.exists(self.output_path):
             os.makedirs(self.output_path)
@@ -121,14 +133,15 @@ class SimSetup(object):
             os.makedirs(self.tmp_fiber_path)
 
     def cleanup_directories(self):
-        """Deletes files in the temporary output directory
-
+        """
+        Deletes files in the temporary output directory
         """
         if os.path.exists(self.tmp_output_path):
             shutil.rmtree(self.tmp_output_path)
 
     def epoch_data_exists(self, epoch_id=0):
-        """Check epoch directory for zcat.fits and mtl.fits files.
+        """
+        Check epoch directory for zcat.fits and mtl.fits files.
         """
         backup_path = os.path.join(self.output_path, '{}'.format(epoch_id))
         mtl_file = os.path.join(backup_path, 'mtl.fits')
@@ -141,7 +154,8 @@ class SimSetup(object):
 
         
     def backup_epoch_data(self, epoch_id=0):
-        """Deletes files in the temporary output directory
+        """
+        Deletes files in the temporary output directory
 
         Args:
             epoch_id (int): Epoch's ID to backup/copy from the output directory.
@@ -167,7 +181,8 @@ class SimSetup(object):
 
 
     def create_surveyfile(self, epoch):
-        """Creates text file of tiles survey_list.txt to be used by fiberassign
+        """
+        Creates text file of tiles survey_list.txt to be used by fiberassign
 
         Args:
             epoch (int) : epoch of tiles to write
@@ -183,8 +198,8 @@ class SimSetup(object):
         print("{} tiles to be included in fiberassign".format(len(tiles)))
 
     def update_observed_tiles(self, epoch):
-        """Creates the list of tilefiles to be gathered to build the redshift catalog.
-
+        """
+        Creates the list of tilefiles to be gathered to build the redshift catalog.
         """        
         self.tilefiles = list()
         tiles = self.epoch_tiles[epoch]
@@ -202,7 +217,8 @@ class SimSetup(object):
 
 
     def simulate_epoch(self, epoch, truth, targets, perfect=False, zcat=None):
-        """Core routine simulating a DESI epoch,
+        """
+        Core routine simulating a DESI epoch,
 
         Args:
             epoch (int): epoch to simulate
@@ -256,7 +272,6 @@ class SimSetup(object):
                              ##  '--fibstatusfile',  self.fibstatusfile], 
                             stdout=f)
 
-
         print("{} Finished fiberassign".format(asctime()))
         f.close()
 
@@ -284,11 +299,12 @@ class SimSetup(object):
 
 
     def simulate(self):
-        """Simulate the DESI setup described by a SimSetup object.
+        """
+        Simulate the DESI setup described by a SimSetup object.
         """
         self.create_directories()
 
-        truth = Table.read(os.path.join(self.targets_path,'truth.fits'))
+        truth   = Table.read(os.path.join(self.targets_path,'truth.fits'))
         targets = Table.read(os.path.join(self.targets_path,'targets.fits'))
 
         print(truth.keys())
@@ -301,7 +317,6 @@ class SimSetup(object):
         gc.collect()
         if 'MOCKID' in truth.colnames:
             truth.remove_column('MOCKID')
-
 
         for epoch in range(self.start_epoch, self.n_epochs):
             print('--- Epoch {} ---'.format(epoch))
@@ -329,13 +344,10 @@ class SimSetup(object):
                 
         self.cleanup_directories()
 
-
-
-
 def print_efficiency_stats(truth, mtl_initial, zcat):
     print('Overall efficiency')
-    tmp_init = join(mtl_initial, truth, keys='TARGETID')
-    total = join(zcat, tmp_init, keys='TARGETID')
+    tmp_init   = join(mtl_initial, truth, keys='TARGETID')
+    total      = join(zcat, tmp_init, keys='TARGETID')
 
     true_types = ['LRG', 'ELG', 'QSO']
     zcat_types = ['GALAXY', 'GALAXY', 'QSO']

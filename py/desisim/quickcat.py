@@ -133,7 +133,6 @@ def get_zeff_obs(simtype, obsconditions):
 
     return pobs
 
-
 def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditions, params, ignore_obscondition=False):
     """
     Simple model to get the redshift effiency from the observational conditions or observed magnitudes+redshuft
@@ -153,6 +152,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
            'SEEING': array of FWHM seeing during spectroscopic observation on a tile.
         parameter_filename: yaml file with quickcat parameters
         ignore_obscondition: if True, no variation of efficiency with obs. conditions (adjustment of exposure time should correct for mean change of S/N)
+    
     Returns:
         tuple of arrays (observed, p) both with same length as targets
 
@@ -177,13 +177,9 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
     true_gflux[true_gflux<a_small_flux]=a_small_flux
     true_rflux[true_rflux<a_small_flux]=a_small_flux
     
-
-    
     if (obsconditions is None) or ('OIIFLUX' not in truth.dtype.names):
         raise Exception('Missing obsconditions and flux information to estimate redshift efficiency')
 
-    
-    
     if (simtype == 'ELG'):
         # Read the model OII flux threshold (FDR fig 7.12 modified to fit redmonster efficiency on OAK)
         # filename = resource_filename('desisim', 'data/quickcat_elg_oii_flux_threshold.txt')
@@ -494,7 +490,8 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions, param
     return zout, zerr, zwarn
 
 def get_median_obsconditions(tileids):
-    """Gets the observational conditions for a set of tiles.
+    """
+    Gets the observational conditions for a set of tiles.
 
     Args:
        tileids : list of tileids that were observed
@@ -542,7 +539,7 @@ def get_median_obsconditions(tileids):
     obsconditions['LINTRANS'] = np.ones(n)
     obsconditions['SEEING'] = np.ones(n) * 1.1
 
-    #- Add lunar conditions, defaulting to dark time
+    #- Add lunar conditions, defaulting to dark time.
     from desitarget.targetmask import obsconditions as obsbits
     obsconditions['MOONFRAC'] = np.zeros(n)
     obsconditions['MOONALT'] = -20.0 * np.ones(n)
@@ -571,7 +568,7 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
         zcat (optional): input zcatalog Table from previous observations
         obsconditions (optional): Table or ndarray with observing conditions from surveysim
         perfect (optional): if True, treat spectro pipeline as perfect with input=output,
-            otherwise add noise and zwarn!=0 flags
+            otherwise add noise and zwarn!=0 flags.
 
     Returns:
         zcatalog astropy Table based upon input truth, plus ZERR, ZWARN,
@@ -587,7 +584,6 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
     targets_in_tile = {}
     tileids = list()
     for infile in tilefiles:
-        
         fibassign, header = fits.getdata(infile, 'FIBERASSIGN', header=True)
  
         # hack needed here rnc 7/26/18
@@ -606,7 +602,7 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
         nobs.update(fibassign['TARGETID'][ii])
         targets_in_tile[tileidnew] = fibassign['TARGETID'][ii]
 
-    #- Trim obsconditions to just the tiles that were observed
+    #- Trim obsconditions to just the tiles that were observed.
     if obsconditions is not None:
         ii = np.in1d(obsconditions['TILEID'], tileids)
         if np.any(ii == False):
@@ -615,7 +611,7 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
 
     #- Sort obsconditions to match order of tiles
     #- This might not be needed, but is fast for O(20k) tiles and may
-    #- prevent future surprises if code expects them to be row aligned
+    #- prevent future surprises if code expects them to be row aligned.
     tileids = np.array(tileids)
     if (obsconditions is not None) and \
        (np.any(tileids != obsconditions['TILEID'])):
@@ -625,7 +621,7 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
         obsconditions = obsconditions[j[k]]
         assert np.all(tileids == obsconditions['TILEID'])
 
-    #- Trim truth down to just ones that have already been observed
+    #- Trim truth down to just ones that have already been observed.
     log.info('{} QC Trimming truth to just observed targets'.format(asctime()))
     obs_targetids = np.array(list(nobs.keys()))
     iiobs = np.in1d(truth['TARGETID'], obs_targetids)
@@ -648,15 +644,15 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
     log.info('{} QC Adding ZERR and ZWARN'.format(asctime()))
     nz = len(newzcat)
     if perfect:
-        newzcat['Z'] = truth['TRUEZ'].copy()
-        newzcat['ZERR'] = np.zeros(nz, dtype=np.float32)
+        newzcat['Z']     = truth['TRUEZ'].copy()
+        newzcat['ZERR']  = np.zeros(nz, dtype=np.float32)
         newzcat['ZWARN'] = np.zeros(nz, dtype=np.int32)
     else:
         # get the observational conditions for the current tilefiles
         if obsconditions is None:
             obsconditions = get_median_obsconditions(tileids)
 
-        # get the redshifts
+        # get the redshifts.
         z, zerr, zwarn = get_observed_redshifts(targets, truth, targets_in_tile, obsconditions)
         newzcat['Z'] = z  #- update with noisy redshift
         newzcat['ZERR'] = zerr
