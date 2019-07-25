@@ -26,7 +26,9 @@ from time import time, asctime
 import fitsio
 import desitarget.mtl
 import desimodel
-from desisim.quickcat import quickcat
+import astropy.io.fits as fits
+
+from desisim.quickcat import quickcat, exp_derivedprops
 from astropy.table import join
 from astropy.time import Time
 from desitarget.targetmask import desi_mask
@@ -83,10 +85,6 @@ class SimSetup(object):
         if self.footprint == None:
           ##  Default to the nominal DESI footprint a la fiberassign. 
           self.footprint   = desimodel.io.findfile('footprint/desi-tiles.fits')
-
-        ##  Convert MJD present in exposures to 'NIGHT' in yyyymmdd format. 
-        iso     = Time(self.exposures['MJD'], format='mjd', scale='utc').iso        
-        dateobs = np.array([x.split(' ')[0].replace('-', '') for x in iso if x != '--'])
  
         dates   = list()
 
@@ -95,29 +93,34 @@ class SimSetup(object):
                 line = line.strip()
                 if line.startswith('#') or len(line) < 2:
                     continue
-                yearmmdd = line.replace('-', '')
+
+                yearmmdd   = line.replace('-', '')
                 year_mm_dd = yearmmdd[0:4]+yearmmdd[4:6]+yearmmdd[6:8]
-                dates.append(year_mm_dd)
 
-        #- add pre- and post- dates for date range bookkeeping
-        if dates[0] < min(dateobs[0]):
-                dates.insert(0, dateobs[0])
-
-        dates.append('9999-99-99')
-        print(dates)
+                dates.append(np.int(year_mm_dd))
 
         self.n_epochs = len(dates) - 1
 
+        ##  Convert MJD present in exposures to 'NIGHT' in yyyymmdd format.                                                                                                                                     
+        iso     = Time(self.exposures['MJD'], format='mjd', scale='utc').iso
+        dateobs = np.array([x.split(' ')[0].replace('-', '') for x in iso]).astype(np.int)
+        
+        #- add pre- and post- dates for date range bookkeeping                                                                                                                                                
+        if dates[0] < min(dateobs):
+          dates.insert(19000131, dateobs[0])
+          dates.append(30000131)
 
-        for i in range(len(dates)-1):
-            ii = (dateobs >= dates[i]) & (dateobs < dates[i+1])
-            epoch_tiles = list()
-            for tile in self.exposures['TILEID'][ii]:
-                if tile not in epoch_tiles:
-                    epoch_tiles.append(tile)
+        for i in range(len(dates)-1):            
+            isin        = (dateobs >= dates[i]) & (dateobs < dates[i+1])
+
+            epoch_tiles = list(np.unique(self.exposures['TILEID'][isin]))
             self.epoch_tiles.append(epoch_tiles)
-            print('tiles in epoch {} [{} to {}]: {}'.format(i,dates[i], dates[i+1], len(self.epoch_tiles[i])))
 
+            print('tiles in epoch {} [{} to {}]: {}'.format(i, dates[i], dates[i+1], len(epoch_tiles)))
+
+            ##  print(dateobs[isin])
+
+        ##  print(self.epoch_tiles)
 
     def create_directories(self):
         """
@@ -193,8 +196,10 @@ class SimSetup(object):
 
         # create survey list from mtl_epochs IDS
         surveyfile = os.path.join(self.tmp_output_path, "survey_list.txt")
-        tiles = self.epoch_tiles[epoch]
+        tiles      = self.epoch_tiles[epoch]
+
         np.savetxt(surveyfile, tiles, fmt='%d')
+
         print("{} tiles to be included in fiberassign".format(len(tiles)))
 
     def update_observed_tiles(self, epoch):
@@ -203,18 +208,19 @@ class SimSetup(object):
         """        
         self.tilefiles = list()
         tiles = self.epoch_tiles[epoch]
+        
         for i in tiles:
-            tilename = os.path.join(self.tmp_fiber_path, 'tile-%06d.fits'%(i))
+            tilename = os.path.join(self.tmp_fiber_path, 'tile-%06d.fits' % (i))
             # retain ability to use previous version of tile files
-            oldtilename = os.path.join(self.tmp_fiber_path, 'tile_%05d.fits'%(i))
+            oldtilename = os.path.join(self.tmp_fiber_path, 'tile_%05d.fits' % (i))
+
             if os.path.isfile(tilename):
                 self.tilefiles.append(tilename)
+
             elif os.path.isfile(oldtilename):
                 self.tilefiles.append(oldtilename)
-            #else:
-              #  print('Suggested but does not exist {}'.format(tilename))
-        print("{} {} tiles to gather in zcat".format(asctime(), len(self.tilefiles)))
 
+        print("{} {} tiles to gather in zcat".format(asctime(), len(self.tilefiles)))
 
     def simulate_epoch(self, epoch, truth, targets, perfect=False, zcat=None):
         """
@@ -257,45 +263,52 @@ class SimSetup(object):
         # setup the tileids for the current observation epoch
         self.create_surveyfile(epoch)
 
-
         # launch fiberassign
         print("{} Launching fiberassign".format(asctime()))
         f = open('fiberassign.log','a')
         
         call = [self.fiberassign, '--mtl',  os.path.join(self.tmp_output_path, 'mtl.fits'), '--stdstar',  self.stdfile, '--sky',  self.skyfile,\
-                '--surveytiles',  self.surveyfile, '--footprint', self.footprint, '--outdir', os.path.join(self.tmp_output_path, 'fiberassign')] 
+                '--surveytiles',  self.surveyfile, '--footprint', self.footprint, '--outdir', os.path.join(self.tmp_output_path, 'fiberassign'), '--overwrite'] 
 
         if self.status is not None:
             call.append('--status')
             call.append(self.status)
 
+        ##  Doesn't catch no overwrite return on fiberassign. 
         p = subprocess.call(call, stdout=f)
 
         print("{} Finished fiberassign".format(asctime()))
         f.close()
 
-        # create a list of fiberassign tiles to read and update zcat
+        # create a list of fiberassigned tiles to read and update zcat.
         self.update_observed_tiles(epoch)
 
-        #update obsconditions from progress_data
-#        progress_data = Table.read(self.progress_files[epoch + 1])
-#        ii = np.in1d(progress_data['TILEID'], self.observed_tiles)
-#        obsconditions = progress_data[ii]
-        obsconditions = None
-        print('tilefiles', len(self.tilefiles))
-        
+        # update obsconditions, must contain:  TILEID, AIRMASS, EBMV, TRANS, MOONFRAC, SEEING. 
+        exposures       = Table(self.exposures)
+        tiles           = Table(fits.open(self.footprint)[1].data)
+
+        ii              = np.in1d(exposures['TILEID'].quantity, self.epoch_tiles[epoch])
+
+        obsconditions   = exp_derivedprops(exposures[ii], tiles)
+
+        print('\n\nObs conditions for epoch: {}.'.format(epoch))
+        print(obsconditions)
+
+        print('Solving for {} tilefiles.'.format(len(self.tilefiles)))
+
         # write the zcat, it uses the tilesfiles constructed in the last step
         self.zcat_file = os.path.join(self.tmp_output_path, 'zcat.fits')
         print("{} starting quickcat".format(asctime()))
+
         newzcat = quickcat(self.tilefiles, targets, truth, zcat=zcat,
                            obsconditions=obsconditions, perfect=perfect)
+
         print("{} writing zcat".format(asctime()))
         newzcat.write(self.zcat_file, format='fits', overwrite=True)
         print("{} Finished zcat".format(asctime()))
         del newzcat
         gc.collect()
         return 
-
 
     def simulate(self):
         """
@@ -315,6 +328,7 @@ class SimSetup(object):
         #                         'MW_TRANSMISSION_G','MW_TRANSMISSION_R','MW_TRANSMISSION_Z', 'MW_TRANSMISSION_W1', 'MW_TRANSMISSION_W2'])
 
         gc.collect()
+
         if 'MOCKID' in truth.colnames:
             truth.remove_column('MOCKID')
 
@@ -392,7 +406,6 @@ def efficiency_numobs_stats(_setup, epoch_id=0):
     print_efficiency_stats(truth, mtl0, zcat)
     print_numobs_stats(truth, targets, zcat)
     return
-
 
 def summary_setup(_setup):
     for epoch in _setup.epochs_list:

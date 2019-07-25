@@ -16,7 +16,7 @@ from time import asctime
 
 import numpy as np
 from astropy.io import fits
-from astropy.table import Table, Column, vstack
+from astropy.table import Table, Column, vstack, join
 import sys
 import scipy.special as sp
 import desisim
@@ -30,7 +30,7 @@ from desitarget.targetmask import desi_mask, bgs_mask, mws_mask
 from desiutil.log import get_logger
 log = get_logger()
 
-#- redshift errors, zwarn, cata fail rate fractions from
+#- redshift errors, zwarn, cata. fail rate fractions from
 #- /project/projectdirs/desi/datachallenge/redwood/spectro/redux/redwood/
 #- sigmav = c sigmaz / (1+z)
 _sigma_v = {
@@ -76,6 +76,7 @@ def get_zeff_obs(simtype, obsconditions):
         p_y = [1.0, 0.0, 0.08]
         p_z = [1.0, 0.0, 0.0]
         sigma_r = 0.02
+
     elif(simtype=='QSO'):
         p_v = [1.0, -0.2, 0.3]
         p_w = [1.0, -0.5, 0.6]
@@ -83,6 +84,7 @@ def get_zeff_obs(simtype, obsconditions):
         p_y = [1.0, -0.08, -0.04]
         p_z = [1.0, 0.0, 0.0]
         sigma_r = 0.05
+
     elif(simtype=='ELG'):
         p_v = [1.0, -0.1, -0.2]
         p_w = [1.0, 0.25, -0.75]
@@ -90,6 +92,7 @@ def get_zeff_obs(simtype, obsconditions):
         p_y = [1.0, 0.2, 0.1]
         p_z = [1.0, -10.0, 300.0]
         sigma_r = 0.075
+
     else:
         log.warning('No model for how observing conditions impact {} redshift efficiency'.format(simtype))
         return np.ones(len(obsconditions))
@@ -104,6 +107,7 @@ def get_zeff_obs(simtype, obsconditions):
     if 'EBMV' in obsconditions : 
         w = obsconditions['EBMV'] - np.mean(obsconditions['EBMV'])
         pw = p_w[0] + p_w[1] * w + p_w[2] * (w**2 - np.mean(w**2))
+
     else :
         pw = np.ones(ncond)
     
@@ -112,9 +116,10 @@ def get_zeff_obs(simtype, obsconditions):
     px = p_x[0] + p_x[1]*x + p_x[2] * (x**2 - np.mean(x**2))
 
     # transparency
-    if 'LINTRANS' in obsconditions :
-        y = obsconditions['LINTRANS'] - np.mean(obsconditions['LINTRANS'])
+    if 'TRANSP' in obsconditions :
+        y = obsconditions['TRANSP'] - np.mean(obsconditions['TRANSP'])
         py = p_y[0] + p_y[1]*y + p_y[2] * (y**2 - np.mean(y**2))
+
     else :
         py = np.ones(ncond)
     
@@ -147,7 +152,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
            'TILEID': array of tile IDs
            'AIRMASS': array of airmass values on a tile
            'EBMV': array of E(B-V) values on a tile
-           'LINTRANS': array of atmospheric transparency during spectro obs; floats [0-1]
+           'TRANSP': array of atmospheric transparency during spectro obs; floats [0-1]
            'MOONFRAC': array of moonfraction values on a tile.
            'SEEING': array of FWHM seeing during spectroscopic observation on a tile.
         parameter_filename: yaml file with quickcat parameters
@@ -167,6 +172,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         if 'DECAM_FLUX' in targets.dtype.names :
             true_gflux = targets['DECAM_FLUX'][:, 1]
             true_rflux = targets['DECAM_FLUX'][:, 2]
+
         else:
             true_gflux = targets['FLUX_G']
             true_rflux = targets['FLUX_R']
@@ -192,8 +198,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         oii_flux_limit = np.interp(truth['TRUEZ'],fdr_z,modified_fdr_oii_flux_threshold)
         oii_flux_limit[oii_flux_limit<1e-20]=1e-20
         
-        # efficiency is modeled as a function of flux_OII/f_OII_threshold(z) and an arbitrary sigma_fudge
-        
+        # efficiency is modeled as a function of flux_OII/f_OII_threshold(z) and an arbitrary sigma_fudge        
         snr_in_lines       = params["ELG"]["EFFICIENCY"]["SNR_LINES_SCALE"]*7*truth['OIIFLUX']/oii_flux_limit
         snr_in_continuum   = params["ELG"]["EFFICIENCY"]["SNR_CONTINUUM_SCALE"]*true_rflux
         snr_tot            = np.sqrt(snr_in_lines**2+snr_in_continuum**2)
@@ -202,8 +207,6 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         simulated_eff = eff_model(snr_tot,nsigma,sigma_fudge)
 
     elif(simtype == 'LRG'):
-        
-       
         r_mag = 22.5 - 2.5*np.log10(true_rflux)
         
         sigmoid_cutoff = params["LRG"]["EFFICIENCY"]["SIGMOID_CUTOFF"]
@@ -212,8 +215,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
 
         log.info("{} eff = sigmoid with cutoff = {:4.3f} fudge = {:4.3f}".format(simtype,sigmoid_cutoff,sigmoid_fudge))
     
-    elif(simtype == 'QSO'):
-        
+    elif(simtype == 'QSO'):        
         zsplit = params['QSO_ZSPLIT']
         r_mag = 22.5 - 2.5*np.log10(true_rflux) 
         simulated_eff = np.ones(r_mag.shape)
@@ -255,9 +257,11 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
     if ignore_obscondition :
         ncond = len(np.atleast_1d(obsconditions['AIRMASS']))
         zeff_obs = np.ones(ncond)
+
     else :
         zeff_obs = get_zeff_obs(simtype, obsconditions)
-    pfail = np.ones(n)
+
+    pfail    = np.ones(n)
     observed = np.zeros(n, dtype=bool)
 
     # More efficient alternative for large numbers of tiles + large target
@@ -306,7 +310,8 @@ def eff_model(x, nsigma, sigma, max_efficiency=1):
     return 0.5*max_efficiency*(1.+sp.erf((x-nsigma)/(np.sqrt(2.)*sigma)))
 
 def reverse_dictionary(a):
-    """Inverts a dictionary mapping.
+    """
+    Inverts a dictionary mapping.
 
     Args:
         a: input dictionary.
@@ -343,7 +348,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions, param
            'TILEID': array of tile IDs
            'AIRMASS': array of airmass values on a tile
            'EBMV': array of E(B-V) values on a tile
-           'LINTRANS': array of atmospheric transparency during spectro obs; floats [0-1]
+           'TRANSP': array of atmospheric transparency during spectro obs; floats [0-1]
            'MOONFRAC': array of moonfraction values on a tile.
            'SEEING': array of FWHM seeing during spectroscopic observation on a tile.
         parameter_filename: yaml file with quickcat parameters
@@ -357,10 +362,10 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions, param
         parameter_filename = resource_filename('desisim', 'data/quickcat.yaml')
     
     params=None
+
     with open(parameter_filename,"r") as file :
         params = yaml.safe_load(file)
-        
-    
+            
     simtype = get_simtype(np.char.strip(truth['TRUESPECTYPE']), targets['DESI_TARGET'], targets['BGS_TARGET'], targets['MWS_TARGET'])
     #simtype = get_simtype(np.char.strip(truth['TEMPLATETYPE']), targets['DESI_TARGET'], targets['BGS_TARGET'], targets['MWS_TARGET'])
     truez = truth['TRUEZ']
@@ -391,7 +396,6 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions, param
         raise ValueError('Number of obsconditions {} != len(targets_in_tile) {}'.format(n_tiles, len(targets_in_tile)))
 
     for objtype in objtypes:
-
         ii=(simtype==objtype)
 
         ###################################
@@ -464,8 +468,6 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions, param
         ###################################
         # catastrophic failures
         ###################################
-
-        
         zlim=[0.,3.5]
         cata_fail_fraction = np.zeros(n)
         if objtype == "ELG" :
@@ -504,7 +506,7 @@ def get_median_obsconditions(tileids):
            'TILEID': array of tile IDs
            'AIRMASS': array of airmass values on a tile
            'EBMV': array of E(B-V) values on a tile
-           'LINTRANS': array of atmospheric transparency during spectro obs; floats [0-1]
+           'TRANSP': array of atmospheric transparency during spectro obs; floats [0-1]
            'MOONFRAC': array of moonfraction values on a tile.
            'SEEING': array of FWHM seeing during spectroscopic observation on a tile.
     """
@@ -536,7 +538,7 @@ def get_median_obsconditions(tileids):
     obsconditions['TILEID'] = tileids
     obsconditions['AIRMASS'] = tiles['AIRMASS']
     obsconditions['EBMV'] = tiles['EBV_MED']
-    obsconditions['LINTRANS'] = np.ones(n)
+    obsconditions['TRANSP'] = np.ones(n)
     obsconditions['SEEING'] = np.ones(n) * 1.1
 
     #- Add lunar conditions, defaulting to dark time.
@@ -557,7 +559,7 @@ def get_median_obsconditions(tileids):
 
     return obsconditions
 
-def exp_derivedprops(exposures): 
+def exp_derivedprops(exposures, tiles=None): 
     ''' 
     Given RA, DEC, and MJD from exposures table, return derived proprs for Kitt Peak, e.g. MOONFRAC, MOONSEP etc.  
     Note:  temporary copy of https://github.com/changhoonhahn/feasiBGS/blob/master/run/bright_exposure/surveysim_output.py, line 384.  
@@ -565,9 +567,10 @@ def exp_derivedprops(exposures):
     import ephem 
     import desisurvey.config
     import desisurvey.utils   as      dutils
+    import astropy.units      as      u
 
     from   astropy.time       import  Time
-
+    
 
     config           = desisurvey.config.Configuration()
 
@@ -576,8 +579,8 @@ def exp_derivedprops(exposures):
     mayall.lon       = config.location.longitude().to(u.rad).value
     mayall.elevation = config.location.elevation().to(u.m).value
 
-    ##  Observed time (MJD) 
-    mjd              = Time(exposures['MJD'].quantity, format='mjd', scale='utc')
+    ##  Observed time (MJD). 
+    mjd              = Time(exposures['MJD'].quantity.value, format='mjd')
 
     exposures['MOONALT']  = np.zeros(len(mjd))
     exposures['MOONRA']   = np.zeros(len(mjd))
@@ -588,7 +591,7 @@ def exp_derivedprops(exposures):
     exposures['SUNRA']    = np.zeros(len(mjd))
     exposures['SUNDEC']   = np.zeros(len(mjd))
 
-    for i in arange(len(mjd)):
+    for i in range(len(mjd)):
         mayall.date       = mjd.datetime[i] 
 
         _moon = ephem.Moon()
@@ -604,14 +607,21 @@ def exp_derivedprops(exposures):
         
         exposures['SUNALT'][i]   = 180./np.pi*_sun.alt
         exposures['SUNRA'][i]    = 180./np.pi*_sun.ra
-        exposures['sUNDEC'][i]   = 180./np.pi*_sun.dec
+        exposures['SUNDEC'][i]   = 180./np.pi*_sun.dec
 
-    exposures['MOONSEP'] = np.diag(dutils.separation_matrix(exposures['MOONRA'].quantity, exposures['MOONDEC'].quantity, np.atleast_1d(exposures['RA'].quantity), np.atleast_1d(exposures['DEC'].quantity)))
-    exposures['SUNSEP']  = np.diag(dutils.separation_matrix(exposures['SUNRA'].quantity, exposures['SUNDEC'].quantity, np.atleast_1d(exposures['RA'].quantity), np.atleast_1d(exposures['DEC'].quantity)))
+    if tiles is not None:
+        exposures            = join(exposures, tiles, keys=['TILEID'], join_type='outer', table_names=['', '~'], uniq_col_name='{col_name}{table_name}')
+        exposures.remove_column('AIRMASS~')
+        
+        exposures['MOONSEP'] = np.diag(dutils.separation_matrix(exposures['MOONRA'].quantity * u.deg, exposures['MOONDEC'].quantity * u.deg,\
+                                       np.atleast_1d(exposures['RA'].quantity * u.deg), np.atleast_1d(exposures['DEC'].quantity * u.deg)))
+
+        exposures['SUNSEP']  = np.diag(dutils.separation_matrix(exposures['SUNRA'].quantity * u.deg, exposures['SUNDEC'].quantity * u.deg,\
+                                       np.atleast_1d(exposures['RA'].quantity * u.deg), np.atleast_1d(exposures['DEC'].quantity * u.deg))) 
+
+    exposures.remove_rows(np.where(exposures['EXPTIME'].mask == True))
 
     return  exposures
-
-
 
 def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=False):
     """
@@ -622,7 +632,7 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
         targets : astropy Table of targets
         truth : astropy Table of input truth with columns TARGETID, TRUEZ, and TRUETYPE
         zcat (optional): input zcatalog Table from previous observations
-        obsconditions (optional): Table or ndarray with observing conditions from surveysim
+        obsconditions (optional): Table or ndarray with observing conditions from surveysim.
         perfect (optional): if True, treat spectro pipeline as perfect with input=output,
             otherwise add noise and zwarn!=0 flags.
 
@@ -645,6 +655,7 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
         # hack needed here rnc 7/26/18
         if 'TILEID' in header:
             tileidnew = header['TILEID']
+
         else:
             fnew=infile.split('/')[-1]
             tileidnew=fnew.split("_")[-1]
@@ -661,22 +672,24 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
     #- Trim obsconditions to just the tiles that were observed.
     if obsconditions is not None:
         ii = np.in1d(obsconditions['TILEID'], tileids)
+
         if np.any(ii == False):
             obsconditions = obsconditions[ii]
+
         assert len(obsconditions) > 0
 
     #- Sort obsconditions to match order of tiles
     #- This might not be needed, but is fast for O(20k) tiles and may
     #- prevent future surprises if code expects them to be row aligned.
-    tileids = np.array(tileids)
-    if (obsconditions is not None) and \
-       (np.any(tileids != obsconditions['TILEID'])):
-        i = np.argsort(tileids)
-        j = np.argsort(obsconditions['TILEID'])
-        k = np.argsort(i)
-        obsconditions = obsconditions[j[k]]
-        assert np.all(tileids == obsconditions['TILEID'])
+    tileids       = np.array(tileids)
 
+    if (obsconditions is not None):
+      ##  Handle repeated TILEIDs for Cosmic splits.
+      order       = [list(np.where(obsconditions['TILEID'].quantity == x)[0]) for x in tileids]
+      order       = [item for sublist in order for item in sublist]    
+
+      obsconditions = obsconditions[order]
+    
     #- Trim truth down to just ones that have already been observed.
     log.info('{} QC Trimming truth to just observed targets'.format(asctime()))
     obs_targetids = np.array(list(nobs.keys()))
@@ -693,35 +706,39 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
     else:
         newzcat['BRICKNAME'] = np.zeros(len(truth), dtype=(str, 8))
 
-    #- Copy TRUETYPE -> SPECTYPE so that we can change without altering original
+    #- Copy TRUETYPE -> SPECTYPE so that we can change without altering original.
     newzcat['SPECTYPE'] = truth['TRUESPECTYPE'].copy()
 
     #- Add ZERR and ZWARN
     log.info('{} QC Adding ZERR and ZWARN'.format(asctime()))
     nz = len(newzcat)
+
     if perfect:
         newzcat['Z']     = truth['TRUEZ'].copy()
         newzcat['ZERR']  = np.zeros(nz, dtype=np.float32)
         newzcat['ZWARN'] = np.zeros(nz, dtype=np.int32)
+
     else:
         # get the observational conditions for the current tilefiles
         if obsconditions is None:
             obsconditions = get_median_obsconditions(tileids)
 
         # get the redshifts.
-        z, zerr, zwarn = get_observed_redshifts(targets, truth, targets_in_tile, obsconditions)
-        newzcat['Z'] = z  #- update with noisy redshift
-        newzcat['ZERR'] = zerr
-        newzcat['ZWARN'] = zwarn
+        z, zerr, zwarn    = get_observed_redshifts(targets, truth, targets_in_tile, obsconditions)
+        newzcat['Z']      = z  #- update with noisy redshift
+        newzcat['ZERR']   = zerr
+        newzcat['ZWARN']  = zwarn
 
     #- Add numobs column
     log.info('{} QC Adding NUMOBS column'.format(asctime()))
     newzcat.add_column(Column(name='NUMOBS', length=nz, dtype=np.int32))
+
     for i in range(nz):
         newzcat['NUMOBS'][i] = nobs[newzcat['TARGETID'][i]]
 
     #- Merge previous zcat with newzcat
     log.info('{} QC Merging previous zcat'.format(asctime()))
+
     if zcat is not None:
         #- don't modify original
         #- Note: this uses copy on write for the columns to be memory
@@ -762,4 +779,5 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
     newzcat.meta['EXTNAME'] = 'ZCATALOG'
 
     log.info('{} QC done'.format(asctime()))
+
     return newzcat
