@@ -663,8 +663,10 @@ def get_nodes_per_exp(nnodes,nexposures,ncameras,user_nodes_per_comm_exp=None):
     #check if nframes is evenly divisible by nnodes
     nframes = ncameras*nexposures
     if nframes % nnodes !=0:
-        msg=("nframes {} must be evenly divisible by nnodes {}, try again".format(nframes, nnodes))
-        raise ValueError(msg)
+        ### msg=("nframes {} must be evenly divisible by nnodes {}, try again".format(nframes, nnodes))
+        ### raise ValueError(msg)
+        msg=("nframes {} is not evenly divisible by nnodes {}; packing will be inefficient".format(nframes, nnodes))
+        log.warning(msg)
     else:
         log.debug("nframes {} is evenly divisible by nnodes {}, check passed".format(nframes, nnodes))
     
@@ -694,8 +696,10 @@ def get_nodes_per_exp(nnodes,nexposures,ncameras,user_nodes_per_comm_exp=None):
             
     #finally check to make sure exposures*gcf/nnodes is an integer to avoid inefficient node use
     if (nexposures*nodes_per_comm_exp) % nnodes != 0:
-        msg=("nexposures {} * nodes_per_comm_exp {} does not divide evenly into nnodes {}, try again".format(nexposures, nodes_per_comm_exp, nnodes))
-        raise ValueError(msg)
+        ### msg=("nexposures {} * nodes_per_comm_exp {} does not divide evenly into nnodes {}, try again".format(nexposures, nodes_per_comm_exp, nnodes))
+        ### raise ValueError(msg)
+        msg=("nexposures {} * nodes_per_comm_exp {} does not divide evenly into nnodes {}; packing will be inefficient".format(nexposures, nodes_per_comm_exp, nnodes))
+        log.warning(msg)
     else:
         log.debug("nexposures {} * nodes_per_comm_exp {} divides evenly into nnodes {}, check passed".format(nexposures, nodes_per_comm_exp, nnodes))
         
