@@ -152,7 +152,8 @@ class TestPixsim(unittest.TestCase):
         psf = desimodel.io.load_psf(camera[0])
         psf.npix_y, psf.npix_x = self.ccdshape
 
-        image, rawpix, truepix = pixsim.simulate(camera, simspec, psf, nspec=nspec)
+        image, rawpix, truepix = pixsim.simulate(camera, simspec, psf,
+            nspec=nspec, preproc=False)
 
         self.assertTrue(isinstance(image, desispec.image.Image))
         self.assertTrue(isinstance(rawpix, np.ndarray))

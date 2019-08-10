@@ -446,7 +446,7 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
             image = desispec.preproc.preproc(rawpix, header, primary_header=simspec.header)
         else:
             log.debug('Skipping preprocessing')
-            image = Image(np.zeros(rawpix.shape), np.zeros(rawpix.shape), meta=header)
+            image = Image(np.zeros(truepix.shape), np.zeros(truepix.shape), meta=header)
 
     if (comm is None) or (comm.rank == 0):
         log.info('Finished pixsim.simulate for camera {} at {}'.format(camera,
