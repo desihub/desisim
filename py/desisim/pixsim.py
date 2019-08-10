@@ -281,6 +281,7 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
                 rdnoiseC = cosmics.meta['OBSRDNC']
                 rdnoiseD = cosmics.meta['OBSRDND']
             except KeyError:  #- cosmics templates <= v0.2
+                print(cosmic.meta)
                 rdnoiseA = cosmics.meta['RDNOISE0']
                 rdnoiseB = cosmics.meta['RDNOISE1']
                 rdnoiseC = cosmics.meta['RDNOISE2']

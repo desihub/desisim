@@ -170,8 +170,9 @@ class TestPixsim(unittest.TestCase):
         self.assertEqual(pixsim.get_nodes_per_exp(17,3,17), 17)
         self.assertEqual(pixsim.get_nodes_per_exp(12,12,6), 6)
 
-        with self.assertRaises(ValueError):
-            pixsim.get_nodes_per_exp(34,3,17)   #- 3*17 % 34 != 0
+        #- Now prints warning but isn't an error
+        # with self.assertRaises(ValueError):
+        #     pixsim.get_nodes_per_exp(34,3,17)   #- 3*17 % 34 != 0
 
         #- TODO: add more failure cases
 

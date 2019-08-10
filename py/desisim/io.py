@@ -704,7 +704,7 @@ def find_cosmics(camera, exptime=1000, cosmics_dir=None):
         exptime (int, optional): exposure time in seconds
         cosmics_dir (str, optional): directory to look for cosmics templates; defaults to
             $DESI_COSMICS_TEMPLATES if set or otherwise
-            $DESI_ROOT/spectro/templates/cosmics/v0.2  (note HARDCODED version)
+            $DESI_ROOT/spectro/templates/cosmics/v0.3  (note HARDCODED version)
 
     Exposure times <120 sec will use the bias templates; otherwise they will
     use the dark cosmics templates
@@ -713,7 +713,7 @@ def find_cosmics(camera, exptime=1000, cosmics_dir=None):
         if 'DESI_COSMICS_TEMPLATES' in os.environ:
             cosmics_dir = os.environ['DESI_COSMICS_TEMPLATES']
         else:
-            cosmics_dir = os.environ['DESI_ROOT']+'/spectro/templates/cosmics/v0.2/'
+            cosmics_dir = os.environ['DESI_ROOT']+'/spectro/templates/cosmics/v0.3/'
 
     if exptime < 120:
         exptype = 'bias'

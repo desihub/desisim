@@ -114,7 +114,7 @@ class TestIO(unittest.TestCase):
     def test_read_cosmics(self):
         #- hardcoded cosmics version
         infile = (os.environ['DESI_ROOT'] +
-            '/spectro/templates/cosmics/v0.2/cosmics-bias-r.fits')
+            '/spectro/templates/cosmics/v0.3/cosmics-bias-r.fits')
 
         shape = (10, 11)
         c1 = io.read_cosmics(infile, expid=0, shape=shape, jitter=True)
