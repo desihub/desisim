@@ -2350,7 +2350,7 @@ class SIMQSO():
         log = get_logger()
 
         try:
-            from simqso.sqbase import ContinuumKCorr, fixed_R_dispersion
+            from simqso.sqbase import ContinuumKCorr, fixed_R_dispersion,AppToAbsMag
             #Added in order to use modified emision lines in quickquasars
             if sqmodel is 'default':
                from simqso.sqmodels import BOSS_DR9_PLEpivot as model_PLEpivot
@@ -2429,7 +2429,8 @@ class SIMQSO():
         self.kcorr_south = ContinuumKCorr(filtnames[self.normfilter_south], 1450,
                                           effWaveBand=self.normfilt_south.effective_wavelengths.value)
         self.qlf = model_PLEpivot(cosmo=self.cosmo)
-
+        self.m2M=AppToAbsMag(self.cosmo,self.kcorr_south)
+        
     def empty_qsometa(self, qsometa, nmodel):
         """Initialize an empty QsoSimPoints object, which contains all the metadata
         needed to regenerate simqso spectra.
@@ -2440,7 +2441,9 @@ class SIMQSO():
 
         return qsometa
 
-    def _make_simqso_templates(self, redshift=None, magrange=None, seed=None,                               
+
+
+    def _make_simqso_templates(self, redshift=None, magrange=None,mag=None,seed=None,                               
                                lyaforest=True, nocolorcuts=False, noresample=False,
                                input_qsometa=None, south=True):
         """Wrapper function for actually generating the templates.
@@ -2481,16 +2484,34 @@ class SIMQSO():
 
         else:
             from simqso.sqrun import buildSpectraBulk
-            from simqso.sqgrids import generateQlfPoints
+            from simqso.sqgrids import generateQlfPoints,QsoSimPoints
+
 
             # Sample from the QLF, using the input redshifts.
             zrange = (np.min(redshift), np.max(redshift))
+            
+
+
             if south:
-                qsometa = generateQlfPoints(self.qlf, magrange, zrange, zin=redshift,
+                ##To construct the QsoSimPoints with fixed sampling.
+                if mag is not None:
+                   from simqso.sqgrids import AbsMagVar,AppMagVar,RedshiftVar,FixedSampler
+                   _M=mag - self.m2M(mag,redshift)
+                   _M=AbsMagVar(FixedSampler(_M),self.kcorr_south.restBand)
+                   _m=AppMagVar(FixedSampler(mag),self.kcorr_south.obsBand)
+                   _z=RedshiftVar(FixedSampler(redshift))
+
+                   qsometa=QsoSimPoints([_M,_m,_z],cosmo=self.cosmo,units='flux',
+                           seed=seed)
+                else:
+                   qsometa = generateQlfPoints(self.qlf, magrange, zrange, zin=redshift,
                                             kcorr=self.kcorr_south, qlfseed=seed, gridseed=seed)
+           
+                
             else:
                 qsometa = generateQlfPoints(self.qlf, magrange, zrange, zin=redshift,
                                             kcorr=self.kcorr_north, qlfseed=seed, gridseed=seed)
+
 
             # Add the fiducial quasar SED model from BOSS/DR9, optionally
             # without IGM absorption. This step adds a fiducial continuum,
@@ -2687,7 +2708,6 @@ class SIMQSO():
             outflux, meta, objmeta, qsometa = self._make_simqso_templates(
                 input_qsometa=qsos, lyaforest=lyaforest, noresample=noresample,
                 nocolorcuts=nocolorcuts, south=south)
-
             log.debug('Generated {} templates from an input qso metadata table.'.format(
                 len(objmeta)))
 
@@ -2730,10 +2750,11 @@ class SIMQSO():
                     zin = rand.uniform(zrange[0], zrange[1], len(need))
                 else:
                     zin = redshift[need]
-
+               
                 iterflux, itermeta, iterobjmeta, iterqsometa = self._make_simqso_templates(
-                    zin, magrange, seed=iterseed[itercount], lyaforest=lyaforest,
+                    zin,magrange,mag,seed=iterseed[itercount], lyaforest=lyaforest,
                     nocolorcuts=nocolorcuts, noresample=noresample, south=south)
+
 
                 outflux[need, :] = iterflux
                 meta[need] = itermeta
@@ -2773,6 +2794,7 @@ class SIMQSO():
             return 1e17 * outflux, outwave, meta, objmeta, qsometa
         else:
             return 1e17 * outflux, outwave, meta, objmeta
+ 
 
 def specify_galparams_dict(templatetype, zrange=None, magrange=None,
                             oiiihbrange=None, logvdisp_meansig=None,

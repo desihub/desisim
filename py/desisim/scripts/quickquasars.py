@@ -96,6 +96,7 @@ def parse(options=None):
     parser.add_argument('--target-selection', action = "store_true" ,help="apply QSO target selection cuts to the simulated quasars")
 
     parser.add_argument('--mags', action = "store_true", help="DEPRECATED; use --bbflux")
+    parser.add_argument('--mags_from_qlf', type=str, default=None, required=False , help="Sample magnitudes from a QLF in a nzr_qso.dat format")
 
     parser.add_argument('--bbflux', action = "store_true", help="compute and write the QSO broad-band fluxes in the fibermap")
     parser.add_argument('--add-LYB', action='store_true', help = "Add LYB absorption from transmision file")
@@ -139,6 +140,75 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
 
     return args
 
+   
+    
+def mags_from_qlf(zin,qlf='DESIMODEL'):
+
+    def bin_index(bin_centers, low_edge):
+        """Find the index of the bin with the specified low edge, where bins is an array of equally-spaced bin centers.
+        """
+        delta = bin_centers[1] - bin_centers[0]
+        min_value = bin_centers[0] - 0.5 * delta
+        index = int(round((low_edge - min_value) / delta))
+        if abs((low_edge - min_value) / delta - index) > 1e-5:
+            raise ValueError('low_edge = {} is not aligned with specified bins.'.format(low_edge))
+        return index
+    
+    def marginal_mag(magbin, zbin, nqso, z_min=0.,z_max=6.):
+        """Tabulate the marginal distribution of QSOs per sq.deg. per (g or r) magnitude bin with z > z_min.
+    """
+        min_index = bin_index(zbin, z_min)
+        max_index = bin_index(zbin, z_max)
+        return magbin, np.sum(nqso[:, min_index:max_index], axis=1)
+
+    def sample(magbin, zbin, nqso, num_samples,
+           mag_min=16, mag_max=23, z_min=0, z_max=6, seed=None):
+        """Generate random samples of (g,z) within the specified cuts.
+        """
+        mag_min_cut = bin_index(magbin, mag_min)
+        # Calculate the flattened CDF
+        magbin_cut,nqso_cut=marginal_mag(magbin,zbin,nqso,z_min,z_max)
+        nqso_cut_r=nqso_cut.ravel()
+        cdf = np.cumsum(nqso_cut_r)
+        cdf /= np.float(cdf[-1])
+        # Pick random flattened indices.
+        generator = np.random.RandomState(seed)
+        r = generator.rand(num_samples)
+        indices = np.searchsorted(cdf, r)
+        # Unravel to get g,z indices.
+        mag_indices=indices
+        # Spread points out uniformly in each 2D bin.
+        dmag = magbin[1] - magbin[0]
+        magg = magbin[mag_min_cut + mag_indices] + dmag * (generator.rand(num_samples) - 0.5)
+        #zz = zbin[z_min_cut + z_indices] + dz * (generator.rand(num_samples) - 0.5)
+    # Spread points out uniformly in each 2D bin.
+        return magg
+
+    if qlf=='DESIMODEL':
+       qlf_file=os.getenv("DESIMODEL")+'/data/targets/nzr_qso.dat'
+    else:
+       qlf_file=qlf
+    
+    print("Read QLF file from {}".format(qlf_file))
+    qlftab=Table.read(qlf_file,format='ascii',names=('z','r','dNdzdr'))
+    zbin=np.unique(qlftab['z'].data)
+    rbin=np.unique(qlftab['r'].data)
+    nz,nr=len(zbin),len(rbin)
+    print(nz,nr,len(qlftab))
+    assert len(qlftab) == nz*nr
+    nqso_=qlftab['dNdzdr'].data.reshape(nz,nr).transpose()
+    deltaz=zbin[1]-zbin[0]
+    mags=np.zeros_like(zin)
+    for zbin_ in zbin:
+        zmin=zbin_-0.5*deltaz
+        zmax=zbin_+0.5*deltaz
+        w=(zmin<zin) & (zin<zmax)
+        index=np.where(w)[0]
+        if(index.size):
+           num_samples=len(index)
+           mags[index]=sample(rbin,zbin,nqso_,num_samples,z_min=zmin,z_max=zmax)
+    
+    return mags
 
 def mod_cauchy(loc,scale,size,cut):
     samples=cauchy.rvs(loc=loc,scale=scale,size=3*size)
@@ -313,6 +383,11 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     metadata = metadata[:][w]
     DZ_FOG = DZ_FOG[w]
 
+    N_highz = metadata['Z'].size
+    # area of healpix pixel, in degrees
+    area_deg2 = healpy.pixelfunc.nside2pixarea(nside,degrees=True)
+    input_highz_dens_deg2 = N_highz/area_deg2
+    print(input_highz_dens_deg2)
     # option to make for BOSS+eBOSS
     if not eboss is None:
         if args.downsampling or args.desi_footprint:
@@ -495,6 +570,12 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         tmp_qso_flux = np.zeros([nqso, len(model.basewave)], dtype='f4')
         tmp_qso_wave = model.basewave
 
+    if args.mags_from_qlf:
+       mags_qlf=mags_from_qlf(metadata['Z'],args.mags_from_qlf)
+    else:
+       mags_qlf=None
+      
+
     for these, issouth in zip( (north, south), (False, True) ):
 
         # number of quasars in these
@@ -510,7 +591,14 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                     lyaforest=False, nocolorcuts=True,
                     noresample=True, seed=seed, south=issouth)
         else:
-            _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
+            if args.mags_from_qlf:
+               _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
+                = model.make_templates(nmodel=nt,
+                    redshift=metadata['Z'][these],mag=mags_qlf[these],
+                    lyaforest=False, nocolorcuts=True,
+                    noresample=True, seed=seed, south=issouth)
+            else:
+              _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
                 = model.make_templates(nmodel=nt,
                     redshift=metadata['Z'][these],
                     lyaforest=False, nocolorcuts=True,
@@ -584,6 +672,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     # if requested, compute magnitudes and apply target selection.  Need to do
     # this calculation separately for QSOs in the north vs south.
     bbflux=None
+
     if args.target_selection or args.bbflux :
         bands=['FLUX_G','FLUX_R','FLUX_Z', 'FLUX_W1', 'FLUX_W2']
         bbflux=dict()
@@ -621,9 +710,10 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         meta         = meta[:][selection]
         qsometa      = qsometa[:][selection]
         DZ_FOG      = DZ_FOG[selection]
-
+        
         for band in bands :
             bbflux[band] = bbflux[band][selection]
+        bbflux['SOUTH']=bbflux['SOUTH'][selection]
         nqso         = selection.size
 
     log.info("Resample to a linear wavelength grid (needed by DESI sim.)")
@@ -659,6 +749,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         fibermap_columns['PHOTSYS'] = photsys
     else :
         fibermap_columns=None
+
+    
 
     # Attenuate the spectra for extinction
     if not sfdmap is None:
