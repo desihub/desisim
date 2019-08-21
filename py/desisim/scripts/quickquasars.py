@@ -96,7 +96,8 @@ def parse(options=None):
     parser.add_argument('--target-selection', action = "store_true" ,help="apply QSO target selection cuts to the simulated quasars")
 
     parser.add_argument('--mags', action = "store_true", help="DEPRECATED; use --bbflux")
-    parser.add_argument('--mags_from_qlf', type=str, default=None, required=False , help="Sample magnitudes from a QLF in a nzr_qso.dat format")
+    parser.add_argument('--mags-from-qlf', type=str, default=None, required=False , help="Sample magnitudes from a QLF.\
+        Set--mags-from-qlf DESIMODEL to use $DESIMODEL/data/targets/nzr_qso.dat, or --mags-from-qlf path-to-file to use a different QLF.")
 
     parser.add_argument('--bbflux', action = "store_true", help="compute and write the QSO broad-band fluxes in the fibermap")
     parser.add_argument('--add-LYB', action='store_true', help = "Add LYB absorption from transmision file")
@@ -139,8 +140,6 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
         args = parser.parse_args(options)
 
     return args
-
-   
     
 def mags_from_qlf(zin,qlf='DESIMODEL'):
 
@@ -153,7 +152,6 @@ def mags_from_qlf(zin,qlf='DESIMODEL'):
         if abs((low_edge - min_value) / delta - index) > 1e-5:
             raise ValueError('low_edge = {} is not aligned with specified bins.'.format(low_edge))
         return index
-    
     def marginal_mag(magbin, zbin, nqso, z_min=0.,z_max=6.):
         """Tabulate the marginal distribution of QSOs per sq.deg. per (g or r) magnitude bin with z > z_min.
     """
@@ -162,7 +160,7 @@ def mags_from_qlf(zin,qlf='DESIMODEL'):
         return magbin, np.sum(nqso[:, min_index:max_index], axis=1)
 
     def sample(magbin, zbin, nqso, num_samples,
-           mag_min=16, mag_max=23, z_min=0, z_max=6, seed=None):
+           mag_min=16, mag_max=23.5, z_min=0, z_max=6, seed=None):
         """Generate random samples of (g,z) within the specified cuts.
         """
         mag_min_cut = bin_index(magbin, mag_min)
@@ -175,26 +173,21 @@ def mags_from_qlf(zin,qlf='DESIMODEL'):
         generator = np.random.RandomState(seed)
         r = generator.rand(num_samples)
         indices = np.searchsorted(cdf, r)
-        # Unravel to get g,z indices.
         mag_indices=indices
-        # Spread points out uniformly in each 2D bin.
+        # Spread points out uniformly in each bin.
         dmag = magbin[1] - magbin[0]
         magg = magbin[mag_min_cut + mag_indices] + dmag * (generator.rand(num_samples) - 0.5)
-        #zz = zbin[z_min_cut + z_indices] + dz * (generator.rand(num_samples) - 0.5)
-    # Spread points out uniformly in each 2D bin.
         return magg
 
     if qlf=='DESIMODEL':
        qlf_file=os.getenv("DESIMODEL")+'/data/targets/nzr_qso.dat'
     else:
        qlf_file=qlf
-    
-    print("Read QLF file from {}".format(qlf_file))
+    #log.info("Read QLF file from {}".format(qlf_file))
     qlftab=Table.read(qlf_file,format='ascii',names=('z','r','dNdzdr'))
     zbin=np.unique(qlftab['z'].data)
     rbin=np.unique(qlftab['r'].data)
     nz,nr=len(zbin),len(rbin)
-    print(nz,nr,len(qlftab))
     assert len(qlftab) == nz*nr
     nqso_=qlftab['dNdzdr'].data.reshape(nz,nr).transpose()
     deltaz=zbin[1]-zbin[0]
@@ -207,7 +200,6 @@ def mags_from_qlf(zin,qlf='DESIMODEL'):
         if(index.size):
            num_samples=len(index)
            mags[index]=sample(rbin,zbin,nqso_,num_samples,z_min=zmin,z_max=zmax)
-    
     return mags
 
 def mod_cauchy(loc,scale,size,cut):
@@ -383,11 +375,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     metadata = metadata[:][w]
     DZ_FOG = DZ_FOG[w]
 
-    N_highz = metadata['Z'].size
-    # area of healpix pixel, in degrees
-    area_deg2 = healpy.pixelfunc.nside2pixarea(nside,degrees=True)
-    input_highz_dens_deg2 = N_highz/area_deg2
-    print(input_highz_dens_deg2)
     # option to make for BOSS+eBOSS
     if not eboss is None:
         if args.downsampling or args.desi_footprint:
@@ -574,7 +561,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
        mags_qlf=mags_from_qlf(metadata['Z'],args.mags_from_qlf)
     else:
        mags_qlf=None
-      
 
     for these, issouth in zip( (north, south), (False, True) ):
 
@@ -713,7 +699,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         
         for band in bands :
             bbflux[band] = bbflux[band][selection]
-        bbflux['SOUTH']=bbflux['SOUTH'][selection]
+        bbflux['SOUTH']=bbflux['SOUTH'][selection]     #fix bug 
         nqso         = selection.size
 
     log.info("Resample to a linear wavelength grid (needed by DESI sim.)")
