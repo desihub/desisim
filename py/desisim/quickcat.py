@@ -713,6 +713,8 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
 
     #- Metadata for header
     newzcat.meta['EXTNAME'] = 'ZCATALOG'
+    
+    newzcat.sort(keys='TARGETID')
 
     log.info('{} QC done'.format(asctime()))
     return newzcat
