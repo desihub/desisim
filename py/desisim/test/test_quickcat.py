@@ -74,7 +74,6 @@ class TestQuickCat(unittest.TestCase):
         truth['TRUESPECTYPE'][ii] = 'QSO'
         starmask = desi_mask.mask('MWS_ANY|STD_FAINT|STD_WD|STD_BRIGHT') 
         ii = ((targets['DESI_TARGET'] & starmask) != 0) 
-        ii = (targets['MWS_TARGET']!=0)
         truth['TRUESPECTYPE'][ii] = 'STAR'
 
         #- Add some fake [OII] fluxes for the ELGs; include some that will fail
