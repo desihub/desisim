@@ -179,7 +179,7 @@ class TestQuickCat(unittest.TestCase):
         zcat = quickcat(self.tilefiles_multiobs, self.targets, truth=self.truth, perfect=False)
         
         ii_first = np.in1d(zcat['TARGETID'], self.targets_in_tile[self.tileids[0]])
-        ii_last = np.in1d(zcat['TARGETID'], self.targets_in_tile[self.tileids[-1]])
+        ii_last = np.in1d(zcat['TARGETID'], self.targets_in_tile[self.tileids[3]])
         
         n1 = np.count_nonzero(zcat['ZWARN'][ii_first] == 0)
         n2 = np.count_nonzero(zcat['ZWARN'][ii_last] == 0)
