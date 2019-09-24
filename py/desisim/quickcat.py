@@ -676,6 +676,11 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
         #- efficient while still letting us modify a column if needed
         zcat = zcat.copy()
 
+        # needed to have the same ordering both in zcat and newzcat
+        # to ensure consistent use of masks from np.in1d()
+        zcat.sort(keys='TARGETID')
+        newzcat.sort(keys='TARGETID') 
+        
         #- targets that are in both zcat and newzcat
         repeats = np.in1d(zcat['TARGETID'], newzcat['TARGETID'])
 
@@ -708,6 +713,8 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
 
     #- Metadata for header
     newzcat.meta['EXTNAME'] = 'ZCATALOG'
+    
+    #newzcat.sort(keys='TARGETID')
 
     log.info('{} QC done'.format(asctime()))
     return newzcat
