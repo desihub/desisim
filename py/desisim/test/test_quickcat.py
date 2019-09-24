@@ -18,7 +18,7 @@ class TestQuickCat(unittest.TestCase):
         cls.tilefiles = ['tile-{:05d}.fits'.format(i) for i in cls.tileids]
         cls.tilefiles_multiobs = ['multitile-{:05d}.fits'.format(i) for i in cls.tileids]
 
-        cls.nspec = n = 1000
+        cls.nspec = n = 5000
         targets = Table()
         targets['TARGETID'] = np.random.randint(0,2**60, size=n)
         targets['DESI_TARGET'] = 2**np.random.randint(0,3,size=n)
