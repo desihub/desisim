@@ -11,6 +11,7 @@ class TestQuickCat(unittest.TestCase):
     
     @classmethod
     def setUpClass(cls):
+        np.random.seed(50)
         cls.ntiles = 4
         tiles = desimodel.io.load_tiles()
         cls.tileids = tiles['TILEID'][0:cls.ntiles]
@@ -33,8 +34,8 @@ class TestQuickCat(unittest.TestCase):
         isBGS = iibright[0:3]
         isMWS = iibright[3:6]
         targets['DESI_TARGET'][isBGS] = desi_mask.BGS_ANY
-        targets['BGS_TARGET'][isBGS] = bgs_mask.BGS_BRIGHT
         targets['DESI_TARGET'][isMWS] = desi_mask.MWS_ANY
+        targets['BGS_TARGET'][isBGS] = bgs_mask.BGS_BRIGHT
         try:
             #- desitarget >= 0.25.0
             targets['MWS_TARGET'][isMWS] = mws_mask.MWS_BROAD
@@ -63,7 +64,7 @@ class TestQuickCat(unittest.TestCase):
         targets['DECAM_FLUX'] = flux
 
         truth = Table()
-        truth['TARGETID'] = targets['TARGETID']
+        truth['TARGETID'] = targets['TARGETID'].copy()
         truth['TRUEZ'] = np.random.uniform(0, 1.5, size=n)
         truth['TRUESPECTYPE'] = np.zeros(n, dtype=(str, 10))
         truth['GMAG'] = np.random.uniform(18.0, 24.0, size=n)
@@ -71,8 +72,9 @@ class TestQuickCat(unittest.TestCase):
         truth['TRUESPECTYPE'][ii] = 'GALAXY'
         ii = (targets['DESI_TARGET'] == desi_mask.QSO)
         truth['TRUESPECTYPE'][ii] = 'QSO'
-        starmask = desi_mask.mask('MWS_ANY|STD_FAINT|STD_WD|STD_BRIGHT')
-        ii = (targets['DESI_TARGET'] & starmask) != 0
+        starmask = desi_mask.mask('MWS_ANY|STD_FAINT|STD_WD|STD_BRIGHT') 
+        ii = ((targets['DESI_TARGET'] & starmask) != 0) 
+        ii = (targets['MWS_TARGET']!=0)
         truth['TRUESPECTYPE'][ii] = 'STAR'
 
         #- Add some fake [OII] fluxes for the ELGs; include some that will fail
@@ -118,33 +120,40 @@ class TestQuickCat(unittest.TestCase):
     def test_quickcat(self):
         #- First round of obs: perfect input z -> output z
         zcat1 = quickcat(self.tilefiles[0:2], self.targets, truth=self.truth, perfect=True)
-
+        
+        zcat1.sort(keys='TARGETID')
         nx = self.nspec // self.ntiles
-        self.assertTrue(np.all(zcat1['TARGETID'] == self.truth['TARGETID'][0:2*nx]))
-        self.assertTrue(np.all(zcat1['Z'] == self.truth['TRUEZ'][0:2*nx]))
+        truth_01 = self.truth[0:2*nx].copy()
+        truth_01.sort(keys='TARGETID')
+        self.assertTrue(np.all(zcat1['TARGETID'] == truth_01['TARGETID']))
+        self.assertTrue(np.all(zcat1['Z'] == truth_01['TRUEZ']))
         self.assertTrue(np.all(zcat1['ZWARN'] == 0))
 
         #- Now observe with random redshift errors
         zcat2 = quickcat(self.tilefiles[0:2], self.targets, truth=self.truth, perfect=False)
-        self.assertTrue(np.all(zcat2['TARGETID'] == self.truth['TARGETID'][0:2*nx]))
-        self.assertTrue(np.all(zcat2['Z'] != self.truth['TRUEZ'][0:2*nx]))
+        zcat2.sort(keys='TARGETID')
+        self.assertTrue(np.all(zcat2['TARGETID'] == truth_01['TARGETID']))
+        self.assertTrue(np.all(zcat2['Z'] != truth_01['TRUEZ']))
         self.assertTrue(np.any(zcat2['ZWARN'] != 0))
 
         #- And add a second round of observations
-        zcat3 = quickcat(self.tilefiles[2:4], self.targets, truth=self.truth, zcat=zcat2)
-        self.assertTrue(np.all(zcat3['TARGETID'] == self.truth['TARGETID']))
+        zcat3 = quickcat(self.tilefiles[2:4], self.targets, truth=self.truth, zcat=zcat2, perfect=False)
+        self.assertTrue(np.all(np.sort(zcat3['TARGETID']) == np.sort(self.truth['TARGETID'])))
         self.assertTrue(np.all(zcat3['Z'] != self.truth['TRUEZ']))
         
         #- successful targets in the first round of observations shouldn't be updated
+        zcat2.sort(keys='TARGETID')
+        zcat3.sort(keys='TARGETID')
         ii2 = np.in1d(zcat2['TARGETID'], zcat3['TARGETID']) & (zcat2['ZWARN'] == 0)
         ii3 = np.in1d(zcat3['TARGETID'], zcat2['TARGETID'][ii2])
+        ii = zcat2['Z'][ii2] == zcat3['Z'][ii3]
         self.assertTrue(np.all(zcat2['Z'][ii2] == zcat3['Z'][ii3]))
         
         #- Observe the last tile again
         zcat3copy = zcat3.copy()
         zcat4 = quickcat(self.tilefiles[3:4], self.targets, truth=self.truth, zcat=zcat3)
         self.assertTrue(np.all(zcat3copy == zcat3))  #- original unmodified
-        self.assertTrue(np.all(zcat4['TARGETID'] == self.truth['TARGETID']))  #- order preserved
+        self.assertTrue(np.all(np.sort(zcat4['TARGETID']) == np.sort(self.truth['TARGETID'])))  #- order preserved
         self.assertTrue(np.all(zcat4['Z'] != self.truth['TRUEZ']))
 
         #- Check that NUMOBS was incremented
@@ -157,8 +166,10 @@ class TestQuickCat(unittest.TestCase):
         z3 = zcat3[-nx:]
         z4 = zcat4[-nx:]
         ii = (z3['ZWARN'] != 0)
-        self.assertTrue(np.all(z3['Z'][ii] != z4['Z'][ii]))
+        print(np.count_nonzero(ii))
         self.assertTrue(np.all(z3['Z'][~ii] == z4['Z'][~ii]))
+        self.assertTrue(np.all(z3['Z'][ii] != z4['Z'][ii]))
+
 
     def test_multiobs(self):
         # Earlier targets got more observations so should have higher efficiency
