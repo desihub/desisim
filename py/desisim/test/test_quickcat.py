@@ -131,42 +131,45 @@ class TestQuickCat(unittest.TestCase):
 
         #- Now observe with random redshift errors
         zcat2 = quickcat(self.tilefiles[0:2], self.targets, truth=self.truth, perfect=False)
-        zcat2.sort(keys='TARGETID')
-        self.assertTrue(np.all(zcat2['TARGETID'] == truth_01['TARGETID']))
-        self.assertTrue(np.all(zcat2['Z'] != truth_01['TRUEZ']))
-        self.assertTrue(np.any(zcat2['ZWARN'] != 0))
+        zcat2_sorted = zcat2.copy()
+        zcat2_sorted.sort(keys='TARGETID')
+        self.assertTrue(np.all(zcat2_sorted['TARGETID'] == truth_01['TARGETID']))
+        self.assertTrue(np.all(zcat2_sorted['Z'] != truth_01['TRUEZ']))
+        self.assertTrue(np.any(zcat2_sorted['ZWARN'] != 0))
 
         #- And add a second round of observations
         zcat3 = quickcat(self.tilefiles[2:4], self.targets, truth=self.truth, zcat=zcat2, perfect=False)
-        self.assertTrue(np.all(np.sort(zcat3['TARGETID']) == np.sort(self.truth['TARGETID'])))
-        self.assertTrue(np.all(zcat3['Z'] != self.truth['TRUEZ']))
+        zcat3_sorted = zcat3.copy()
+        zcat3_sorted.sort(keys='TARGETID')
+        truth_sorted = self.truth.copy()
+        truth_sorted.sort(keys='TARGETID')
+        self.assertTrue(np.all(zcat3_sorted['TARGETID'] == truth_sorted['TARGETID']))
+        self.assertTrue(np.all(zcat3_sorted['Z'] != truth_sorted['TRUEZ']))
         
         #- successful targets in the first round of observations shouldn't be updated
-        zcat2.sort(keys='TARGETID')
-        zcat3.sort(keys='TARGETID')
-        ii2 = np.in1d(zcat2['TARGETID'], zcat3['TARGETID']) & (zcat2['ZWARN'] == 0)
-        ii3 = np.in1d(zcat3['TARGETID'], zcat2['TARGETID'][ii2])
-        ii = zcat2['Z'][ii2] == zcat3['Z'][ii3]
-        self.assertTrue(np.all(zcat2['Z'][ii2] == zcat3['Z'][ii3]))
+        ii2 = np.in1d(zcat2_sorted['TARGETID'], zcat3_sorted['TARGETID']) & (zcat2_sorted['ZWARN'] == 0)
+        ii3 = np.in1d(zcat3_sorted['TARGETID'], zcat2_sorted['TARGETID'][ii2])
+        ii = zcat2_sorted['Z'][ii2] == zcat3_sorted['Z'][ii3]
+        self.assertTrue(np.all(zcat2_sorted['Z'][ii2] == zcat3_sorted['Z'][ii3]))
         
         #- Observe the last tile again
-        zcat3copy = zcat3.copy()
-        zcat4 = quickcat(self.tilefiles[3:4], self.targets, truth=self.truth, zcat=zcat3)
-        self.assertTrue(np.all(zcat3copy == zcat3))  #- original unmodified
-        self.assertTrue(np.all(np.sort(zcat4['TARGETID']) == np.sort(self.truth['TARGETID'])))  #- order preserved
-        self.assertTrue(np.all(zcat4['Z'] != self.truth['TRUEZ']))
+        zcat3copy = zcat3_sorted.copy()
+        zcat4 = quickcat(self.tilefiles[3:4], self.targets, truth=self.truth, zcat=zcat3copy)
+        zcat4_sorted = zcat4.copy()
+        zcat4_sorted.sort(keys='TARGETID')
+        self.assertTrue(np.all(zcat3copy == zcat3_sorted))  #- original unmodified
+        self.assertTrue(np.all(zcat4_sorted['TARGETID'] == truth_sorted['TARGETID'])) #- all IDS observed
+        self.assertTrue(np.all(zcat4_sorted['Z'] != truth_sorted['TRUEZ']))
 
         #- Check that NUMOBS was incremented
-        i3 = np.in1d(zcat3['TARGETID'], self.targets_in_tile[self.tileids[3]])
-        i4 = np.in1d(zcat4['TARGETID'], self.targets_in_tile[self.tileids[3]])
-        self.assertTrue(np.all(zcat4['NUMOBS'][i4] == zcat3['NUMOBS'][i3]+1))
+        i3 = np.in1d(zcat3_sorted['TARGETID'], self.targets_in_tile[self.tileids[3]]) # ids observed in the last tile
+        i4 = np.in1d(zcat4_sorted['TARGETID'], self.targets_in_tile[self.tileids[3]]) # ids observed in the last tile
+        self.assertTrue(np.all(zcat4_sorted['NUMOBS'][i4] == zcat3_sorted['NUMOBS'][i3]+1))
 
         #- ZWARN==0 targets should be preserved, while ZWARN!=0 updated
-        nx = self.nspec // self.ntiles
-        z3 = zcat3[-nx:]
-        z4 = zcat4[-nx:]
+        z3 = zcat3_sorted[i3]
+        z4 = zcat4_sorted[i4]
         ii = (z3['ZWARN'] != 0)
-        print(np.count_nonzero(ii))
         self.assertTrue(np.all(z3['Z'][~ii] == z4['Z'][~ii]))
         self.assertTrue(np.all(z3['Z'][ii] != z4['Z'][ii]))
 
