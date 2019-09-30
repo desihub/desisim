@@ -1,6 +1,6 @@
 """
 desisim.eboss
-===========
+=============
 
 Functions and methods for mimicking eBOSS survey.
 
@@ -99,8 +99,9 @@ class FootprintEBOSS(object):
         return dens
 
 def sdss_subsample(ra,dec,input_highz_density,eboss_footprint):
-    """ Downsample input list of angular positions based on SDSS footprint
+    """Downsample input list of angular positions based on SDSS footprint
         and input density of all quasars .
+
     Args:
         ra (ndarray): Right ascension (degrees)
         dec (ndarray): Declination (degrees)
