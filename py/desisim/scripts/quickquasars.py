@@ -31,8 +31,13 @@ from speclite import filters
 from desitarget.cuts import isQSO_colors
 from desiutil.dust import SFDMap, ext_odonnell
 
-c = speed_of_light/1000. #- km/s
-
+try:
+    c = speed_of_light/1000. #- km/s
+except TypeError:
+    #
+    # This can happen in documentation builds.
+    #
+    c = 299792458.0/1000.0
 
 def parse(options=None):
     parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
