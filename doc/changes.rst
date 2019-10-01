@@ -2,10 +2,14 @@
 desisim change log
 ==================
 
-0.33.1 (unreleased)
+0.33.1 (2019-10-01)
 -------------------
 
-* No changes yet.
+* *No code or API changes in this tag.*
+* Pinned Numpy version to fix broken tests (`PR #505`_).
+* Minor changes to documentation configuration and docstrings.
+
+.. _`PR #505`: https://github.com/desihub/desisim/pull/505
 
 0.33.0 (2019-09-30)
 -------------------
