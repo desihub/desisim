@@ -457,6 +457,7 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, redshift=Non
 
     #- Extract fiber locations from meta Table -> xy[nspec,2]
     assert np.all(fibermap['FIBER'] == fiberpos['FIBER'][0:nspec])
+
     if 'XFOCAL_DESIGN' in fibermap.dtype.names:
         xy = np.vstack([fibermap['XFOCAL_DESIGN'], fibermap['YFOCAL_DESIGN']]).T * u.mm
     elif 'X' in fibermap.dtype.names:
@@ -745,10 +746,15 @@ def testslit_fibermap():
 #- MOVE THESE TO desitarget.mocks.io (?)
 #-------------------------------------------------------------------------
 
-def get_mock_spectra(fiberassign, mockdir=None, nside=64):
+def get_mock_spectra(fiberassign, mockdir=None, nside=64, obscon=None):
     '''
     Args:
         fiberassign: table loaded from fiberassign tile file
+
+    Options:
+        mockdir (str): base directory under which files are found
+        nside (int): healpix nside for file directory grouping
+        obscon (str): (observing conditions) None/dark/bright extra dir level
 
     Returns (flux, wave, meta) tuple
     '''
@@ -772,7 +778,8 @@ def get_mock_spectra(fiberassign, mockdir=None, nside=64):
     ## TODO: check desi_mask.NO_TARGET once that bit exists
 
     for truthfile, targetids in zip(*targets2truthfiles(
-                        fiberassign[~unassigned], basedir=mockdir, nside=nside)):
+                        fiberassign[~unassigned], basedir=mockdir, nside=nside,
+                        obscon=obscon)):
 
         #- Sky fibers aren't in the truth files
         ok = ~np.in1d(targetids, skyids)
@@ -897,13 +904,17 @@ def read_mock_spectra(truthfile, targetids, mockdir=None):
 
     return reordered_flux, wave, reordered_truth, objtruth
 
-def targets2truthfiles(targets, basedir, nside=64):
+def targets2truthfiles(targets, basedir, nside=64, obscon=None):
     '''
     Return list of mock truth files that contain these targets
 
     Args:
         targets: table with TARGETID column, e.g. from fiber assignment
         basedir: base directory under which files are found
+
+    Options:
+        nside (int): healpix nside for file directory grouping
+        obscon (str): (observing conditions) None/dark/bright extra dir level
 
     Returns (truthfiles, targetids):
         truthfiles: list of truth filenames
@@ -926,7 +937,8 @@ def targets2truthfiles(targets, basedir, nside=64):
     truthfiles = list()
     targetids = list()
     for ipix in sorted(np.unique(pixels)):
-        filename = mockio.findfile('truth', nside, ipix, basedir=basedir)
+        filename = mockio.findfile('truth', nside, ipix,
+                                   basedir=basedir, obscon=obscon)
         truthfiles.append(filename)
         ii = (pixels == ipix)
         targetids.append(np.asarray(targets['TARGETID'][ii]))
