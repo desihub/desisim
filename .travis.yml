@@ -43,7 +43,8 @@ env:
         # The following versions are the 'default' for tests, unless
         # overidden underneath. They are defined here in order to save having
         # to repeat them for all configurations.
-        - NUMPY_VERSION='<1.17'
+        # - NUMPY_VERSION='<1.17'
+        - NUMPY_VERSION=1.16.5
         # - SCIPY_VERSION=0.16
         - ASTROPY_VERSION=2.0.15
         # - SPHINX_VERSION=1.6.6
