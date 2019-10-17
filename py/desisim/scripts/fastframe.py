@@ -70,8 +70,8 @@ def main(args=None):
                 fibermap=fibermap[ii], obsconditions=obs, dwave_out=args.dwave,
                 psfconvolve=True)
     elif simspec.flavor in ['arc', 'flat', 'calib']:
-        x = fibermap['DESIGN_X']
-        y = fibermap['DESIGN_Y']
+        x = fibermap['FIBERASSIGN_X']
+        y = fibermap['FIBERASSIGN_Y']
         fiber_area = desisim.simexp.fiber_area_arcsec2(x, y)
         surface_brightness = (flux.T / fiber_area).T
         config = desisim.simexp._specsim_config_for_wave(wave, dwave_out=args.dwave)
