@@ -45,9 +45,9 @@ env:
         # to repeat them for all configurations.
         - NUMPY_VERSION='<1.17'
         # - SCIPY_VERSION=0.16
-        - ASTROPY_VERSION=2.0.8
+        - ASTROPY_VERSION=2.0.15
         # - SPHINX_VERSION=1.6.6
-        - DESIUTIL_VERSION=1.9.15
+        - DESIUTIL_VERSION=2.0.1
         - SPECLITE_VERSION=0.8
         - SPECTER_VERSION=0.8.3
         - DESIMODEL_VERSION=0.9.6
@@ -94,7 +94,7 @@ matrix:
         - os: osx
         - os: linux
           env: PYTHON_VERSION=3.6 SETUP_CMD='test'
-               ASTROPY_VERSION=3.0
+               ASTROPY_VERSION='<4.0'
                CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
                PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
                DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES
@@ -105,24 +105,24 @@ matrix:
         # Note: this test is not a perfectly realistic test of ReadTheDocs
         # builds, which operate in a much more bare-bones environment
         - os: linux
-          env: PYTHON_VERSION=3.5 SETUP_CMD='build_sphinx --warning-is-error'
+          env: PYTHON_VERSION=3.6 SETUP_CMD='build_sphinx --warning-is-error'
 
         # Try multiple python versions with the latest numpy
         - os: linux
-          env: PYTHON_VERSION=3.5 SETUP_CMD='test --coverage'
+          env: PYTHON_VERSION=3.5 SETUP_CMD='test'
+               CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
+               PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
+               DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES
+
+        - os: linux
+          env: PYTHON_VERSION=3.6 SETUP_CMD='test --coverage'
                CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
                PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
                DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES
 
         - os: linux
           env: PYTHON_VERSION=3.6 SETUP_CMD='test'
-               CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
-               PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
-               DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES
-
-        - os: linux
-          env: PYTHON_VERSION=3.6 SETUP_CMD='test'
-               ASTROPY_VERSION=3.0
+               ASTROPY_VERSION='<4.0'
                CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
                PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
                DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES
