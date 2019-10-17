@@ -95,7 +95,7 @@ matrix:
         - os: osx
         - os: linux
           env: PYTHON_VERSION=3.6 SETUP_CMD='test'
-               ASTROPY_VERSION='<4.0'
+               ASTROPY_VERSION=stable
                CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
                PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
                DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES
