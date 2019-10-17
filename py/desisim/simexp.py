@@ -86,13 +86,13 @@ def simarc(arcdata, nspec=5000, nonuniform=False, testslit=False):
     fibermap.meta['FLAVOR'] = 'arc'
     fibermap['OBJTYPE'] = 'ARC'
 
-    x = fibermap['DESIGN_X']
-    y = fibermap['DESIGN_Y']
+    x = fibermap['FIBERASSIGN_X']
+    y = fibermap['FIBERASSIGN_Y']
     r = np.sqrt(x**2 + y**2)
 
     #-----
     #- Determine ratio of fiber sizes relative to larges fiber
-    fiber_area = fiber_area_arcsec2(fibermap['DESIGN_X'], fibermap['DESIGN_Y'])
+    fiber_area = fiber_area_arcsec2(x, y)
     size_ratio = fiber_area / np.max(fiber_area)
 
     #- Correct photons for fiber size
@@ -162,8 +162,8 @@ def simflat(flatfile, nspec=5000, nonuniform=False, exptime=10, testslit=False,
 
     fibermap.meta['FLAVOR'] = 'flat'
     fibermap['OBJTYPE'] = 'FLT'
-    x = fibermap['DESIGN_X']
-    y = fibermap['DESIGN_Y']
+    x = fibermap['FIBERASSIGN_X']
+    y = fibermap['FIBERASSIGN_Y']
     r = np.sqrt(x**2 + y**2)
     xy = np.vstack([x, y]).T * u.mm
 
@@ -343,8 +343,8 @@ def fibermeta2fibermap(fiberassign, meta):
     fibermap['TARGET_DEC'] = fiberassign['TARGET_DEC']
     fibermap['FIBER_RA']   = fiberassign['TARGET_RA']
     fibermap['FIBER_DEC']  = fiberassign['TARGET_DEC']
-    fibermap['DESIGN_X'] = fiberassign['DESIGN_X']
-    fibermap['DESIGN_Y'] = fiberassign['DESIGN_Y']
+    fibermap['FIBERASSIGN_X'] = fiberassign['FIBERASSIGN_X']
+    fibermap['FIBERASSIGN_Y'] = fiberassign['FIBERASSIGN_Y']
     fibermap['DELTA_X'] = 0.0
     fibermap['DELTA_Y'] = 0.0
 
