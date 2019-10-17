@@ -78,7 +78,7 @@ env:
         - DESIHUB_PIP_DEPENDENCIES="desiutil=${DESIUTIL_VERSION}"
         - DESIHUB_PIP_ALL_DEPENDENCIES="desiutil=${DESIUTIL_VERSION} desimodel=${DESIMODEL_VERSION} specter=${SPECTER_VERSION} desispec=${DESISPEC_VERSION} desitarget=${DESITARGET_VERSION} specsim=${SPECSIM_VERSION}"
         # Debug the Travis install process.
-        - DEBUG=False
+        - DEBUG=True
     matrix:
         - PYTHON_VERSION=3.5 SETUP_CMD='egg_info'
         - PYTHON_VERSION=3.5 SETUP_CMD='bdist_egg'
