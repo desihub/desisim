@@ -77,9 +77,18 @@ def main(args=None):
             args.nspec, len(fiberassign)))
         sys.exit(1)
 
-    log.info('Simulating night {} expid {} tile {}'.format(night, args.expid, tileid))
+    log.info('Simulating night {} expid {} tile {} {}'.format(
+        night, args.expid, tileid, program))
+
+    if program.lower() in ('bright', 'sv_bgs', 'sv_mws'):
+        mock_obscon = 'bright'
+    else:
+        mock_obscon = 'dark'  #- includes gray for mocks
+
     try:
-        flux, wave, meta, objmeta = get_mock_spectra(fiberassign, mockdir=args.mockdir, nside=args.nside)
+        flux, wave, meta, objmeta = get_mock_spectra(
+                fiberassign, mockdir=args.mockdir,
+                nside=args.nside, obscon=mock_obscon)
     except Exception as err:
         log.fatal('Failed expid {} fiberassign {} tile {}'.format(
             args.expid, args.fiberassign, tileid))
