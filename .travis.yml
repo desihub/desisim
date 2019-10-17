@@ -46,7 +46,7 @@ env:
         # - NUMPY_VERSION='<1.17'
         - NUMPY_VERSION=1.16.5
         # - SCIPY_VERSION=0.16
-        - ASTROPY_VERSION=2.0.15
+        - ASTROPY_VERSION=lts
         # - SPHINX_VERSION=1.6.6
         - DESIUTIL_VERSION=2.0.1
         - SPECLITE_VERSION=0.8
@@ -81,8 +81,8 @@ env:
         # Debug the Travis install process.
         - DEBUG=False
     matrix:
-        - PYTHON_VERSION=3.5 SETUP_CMD='egg_info'
-        - PYTHON_VERSION=3.5 SETUP_CMD='bdist_egg'
+        - PYTHON_VERSION=3.5 NUMPY_VERSION=1.15.4 SETUP_CMD='egg_info'
+        - PYTHON_VERSION=3.5 NUMPY_VERSION=1.15.4 SETUP_CMD='bdist_egg'
         - PYTHON_VERSION=3.6 SETUP_CMD='egg_info'
         - PYTHON_VERSION=3.6 SETUP_CMD='bdist_egg'
 
@@ -111,6 +111,7 @@ matrix:
         # Try multiple python versions with the latest numpy
         - os: linux
           env: PYTHON_VERSION=3.5 SETUP_CMD='test'
+               NUMPY_VERSION=1.15.4
                CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
                PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
                DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES
@@ -123,7 +124,7 @@ matrix:
 
         - os: linux
           env: PYTHON_VERSION=3.6 SETUP_CMD='test'
-               ASTROPY_VERSION='<4.0'
+               ASTROPY_VERSION=stable
                CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
                PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
                DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES
