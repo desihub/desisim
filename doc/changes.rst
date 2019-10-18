@@ -2,10 +2,21 @@
 desisim change log
 ==================
 
-0.33.2 (unreleased)
+0.34.1 (unreleased)
 -------------------
 
 * No changes yet.
+
+0.34.0 (2019-10-17)
+-------------------
+
+Requires desispec/0.30.0 or later.
+
+* Support mocks in bright/dark subdirs (`PR #508`_).
+* Support FIBERASSIGN_X/Y instead of DESIGN_X/Y from fiberassign (`PR #512`_).
+
+.. _`PR #508`: https://github.com/desihub/desisim/pull/508
+.. _`PR #512`: https://github.com/desihub/desisim/pull/512
 
 0.33.1 (2019-10-01)
 -------------------
