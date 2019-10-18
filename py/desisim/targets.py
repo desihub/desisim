@@ -417,8 +417,8 @@ def get_targets(nspec, program, tileid=None, seed=None, specify_targets=dict(), 
     fibermap['LAMBDA_REF'] = np.ones(nspec, dtype=np.float32)*5400
     fibermap['TARGET_RA'] = ra
     fibermap['TARGET_DEC'] = dec
-    fibermap['DESIGN_X'] = x
-    fibermap['DESIGN_Y'] = y
+    fibermap['FIBERASSIGN_X'] = x
+    fibermap['FIBERASSIGN_Y'] = y
     fibermap['FIBER_RA'] = fibermap['TARGET_RA']
     fibermap['FIBER_DEC'] = fibermap['TARGET_DEC']
     fibermap['BRICKNAME'] = brick.brickname(ra, dec)

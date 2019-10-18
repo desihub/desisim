@@ -1,2 +1,2 @@
 setuptools
-git+https://github.com/desihub/desiutil.git@1.9.11#egg=desiutil
+git+https://github.com/desihub/desiutil.git@2.0.1#egg=desiutil
