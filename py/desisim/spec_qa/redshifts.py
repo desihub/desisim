@@ -462,7 +462,7 @@ def zstats(simz_tab, objtype=None, dvlimit=None, count=False, survey=False):
     if count:
         return ngood, nfail, nmiss, nlost
     elif ntot == 0:
-        return (np.nan, np.nan, np.nan, np.nan)
+        return (np.nan, np.nan, np.nan, np.nan, np.nan)
     else:
         return 100*ngood/ntot, 100*nfail/ntot, 100*nmiss/ntot, 100*nlost/ntot, ntot
 
@@ -982,9 +982,12 @@ def plot_slices(x, y, ok, bad, x_lo, x_hi, y_cut, num_slices=5, min_count=100,
     weights = np.ones_like(x[bad]) / len(x[ok])
     if len(weights) > 0:
         try:
-            rhs.hist(
-                x[bad], range=(x_lo, x_hi), bins=num_slices, histtype='step',
-                weights=weights, color='k', cumulative=True)
+            try:
+                rhs.hist(
+                    x[bad], range=(x_lo, x_hi), bins=num_slices, histtype='step',
+                    weights=weights, color='k', cumulative=True)
+            except:
+                import pdb; pdb.set_trace()
         except UnboundLocalError:
             log.warning('All values lie outside the plot range')
 
@@ -1091,15 +1094,16 @@ def dz_summ(simz_tab, outfile=None, pdict=None, min_count=20):
             col = i
             axis = axes[row][col]
 
-            #if (row==1) & (col==1):
-            #pdb.set_trace()
-
             if len(survey) < 100:
                 log.warning("Insufficient objects of type {:s}.  Skipping slice QA".format(otype))
                 continue
-            lhs, rhs = plot_slices(
-                    x=x, y=dv, ok=ok, bad=bad, x_lo=x_min, x_hi=x_max,
-                    num_slices=nslice, y_cut=max_dv, axis=axis, min_count=min_count)
+            try:
+                lhs, rhs = plot_slices(x=x.compressed(), y=dv[~x.mask].compressed(),
+                                       ok=ok[~x.mask].compressed(), bad=bad[~x.mask].compressed(),
+                                       x_lo=x_min, x_hi=x_max, num_slices=nslice,
+                                       y_cut=max_dv, axis=axis, min_count=min_count)
+            except:
+                import pdb; pdb.set_trace()
             # Add a label even if the fitter has no results.
             xy = (0.5, 0.98)
             coords = 'axes fraction'
