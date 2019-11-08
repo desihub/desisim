@@ -57,7 +57,7 @@ env:
         - SPECSIM_VERSION=v0.12
         # - DESISPEC_VERSION=0.26.0
         - DESISPEC_VERSION=0.30.0
-        - DESITARGET_VERSION=0.29.1
+        - DESITARGET_VERSION=master
         - SIMQSO_VERSION=v1.2.3
         - DESI_LOGLEVEL=DEBUG
         - MAIN_CMD='python setup.py'
