@@ -5,9 +5,12 @@ desisim change log
 0.34.1 (unreleased)
 -------------------
 
+* Use `desitarget.io.find_target_files` to find (mock) target catalogs (`PR
+  #514`_).  
 * Update `desisim.module` to use latest `v3.2` basis templates (`PR #513`_). 
 
 .. _`PR #513`: https://github.com/desihub/desisim/pull/513
+.. _`PR #514`: https://github.com/desihub/desisim/pull/514
 
 
 0.34.0 (2019-10-17)
