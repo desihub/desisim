@@ -380,7 +380,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         if args.nmax < nqso :
             log.info("Limit number of QSOs from {} to nmax={} (random subsample)".format(nqso,args.nmax))
             # take a random subsample
-            indices = (np.random.uniform(size=args.nmax)*nqso).astype(int)
+            indices = np.random.choice(np.arange(nqso),args.nmax,replace=False)  ##Use random.choice instead of random.uniform (rarely but it does cause a duplication of qsos) 
             transmission = transmission[indices]
             metadata = metadata[:][indices]
             DZ_FOG = DZ_FOG[indices]
@@ -626,9 +626,10 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         meta         = meta[:][selection]
         qsometa      = qsometa[:][selection]
         DZ_FOG      = DZ_FOG[selection]
-
         for band in bands :
             bbflux[band] = bbflux[band][selection]
+        bbflux['SOUTH']=bbflux['SOUTH'][selection]  
+            
         nqso         = selection.size
 
     log.info("Resample to a linear wavelength grid (needed by DESI sim.)")
