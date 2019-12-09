@@ -1186,7 +1186,7 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype='', simqso=False, input_met
             objmeta.add_column(Column(name='PCA_COEFF', length=nmodel, dtype='f4',
                                       data=np.zeros( (nmodel, 4) )))
         objmeta.add_column(Column(name='BAL_TEMPLATEID', length=nmodel, dtype='i2', data=np.zeros(nmodel)-1))
-        #objmeta.add_column(Column(name='DLA', length=nmodel, dtype=bool))
+        objmeta.add_column(Column(name='DLA', length=nmodel, dtype=bool))
         #objmeta.add_column(Column(name='METALS', length=nmodel, dtype=bool))
 
     elif objtype.upper() == 'STAR' or objtype.upper() == 'STD' or objtype.upper() == 'MWS_STAR':
