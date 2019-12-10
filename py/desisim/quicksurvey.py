@@ -20,6 +20,7 @@ import shutil
 import glob
 import subprocess
 from astropy.table import Table, Column
+from astropy.io import fits
 import os.path
 from collections import Counter
 from time import time, asctime
@@ -201,7 +202,7 @@ class SimSetup(object):
         print("{} {} tiles to gather in zcat".format(asctime(), len(self.tilefiles)))
 
 
-    def simulate_epoch(self, epoch, truth, targets, perfect=False, zcat=None):
+    def simulate_epoch(self, epoch, truth, targets, obscon, perfect=False, zcat=None):
         """Core routine simulating a DESI epoch,
 
         Args:
@@ -211,6 +212,7 @@ class SimSetup(object):
                 False: redshifts include uncertainties.
             truth (Table): Truth data
             targets (Table): Targets data
+            obscon (str): A combination of strings that are in the desitarget bitmask yaml file, e.g. "DARK|GRAY". Governs behavior of how priorities are set.
             zcat (Table): Redshift Catalog Data
         Notes:
             This routine simulates three steps:
@@ -223,9 +225,9 @@ class SimSetup(object):
         print("{} Starting MTL".format(asctime()))
         self.mtl_file = os.path.join(self.tmp_output_path, 'mtl.fits')
         if zcat is None:
-            mtl = desitarget.mtl.make_mtl(targets)
+            mtl = desitarget.mtl.make_mtl(targets, obscon)
         else:
-            mtl = desitarget.mtl.make_mtl(targets, zcat)
+            mtl = desitarget.mtl.make_mtl(targets, obscon, zcat)
             
         mtl.write(self.mtl_file, overwrite=True)
         del mtl
@@ -287,8 +289,9 @@ class SimSetup(object):
         """
         self.create_directories()
 
-        truth = Table.read(os.path.join(self.targets_path,'truth.fits'))
-        targets = Table.read(os.path.join(self.targets_path,'targets.fits'))
+        truth = Table.read(self.truthfile)
+        targets = Table.read(self.targetsfile)
+        obscon = fits.open(self.truthfile)['TRUTH'].header['OBSCON']
 
         print(truth.keys())
         #- Drop columns that aren't needed to save memory while manipulating
@@ -317,7 +320,7 @@ class SimSetup(object):
                     zcat = Table.read(os.path.join(epochdir, 'zcat.fits'))
 
                 # Update mtl and zcat
-                self.simulate_epoch(epoch, truth, targets, perfect=True, zcat=zcat)
+                self.simulate_epoch(epoch, truth, targets, obscon, perfect=True, zcat=zcat)
 
                 # copy mtl and zcat to epoch directory
                 self.backup_epoch_data(epoch_id=epoch)
