@@ -8,6 +8,9 @@ desisim API
 .. automodule:: desisim.archetypes
     :members:
 
+.. automodule:: desisim.bal
+    :members:
+
 .. automodule:: desisim.batch
     :members:
 
@@ -18,6 +21,9 @@ desisim API
     :members:
 
 .. automodule:: desisim.dla
+    :members:
+
+.. automodule:: desisim.eboss
     :members:
 
 .. automodule:: desisim.io
@@ -101,6 +107,9 @@ desisim API
     :members:
 
 .. automodule:: desisim.scripts.quickgen
+    :members:
+
+.. automodule:: desisim.scripts.quickquasars
     :members:
 
 .. automodule:: desisim.scripts.quickspectra

@@ -31,8 +31,13 @@ from speclite import filters
 from desitarget.cuts import isQSO_colors
 from desiutil.dust import SFDMap, ext_odonnell
 
-c = speed_of_light/1000. #- km/s
-
+try:
+    c = speed_of_light/1000. #- km/s
+except TypeError:
+    #
+    # This can happen in documentation builds.
+    #
+    c = 299792458.0/1000.0
 
 def parse(options=None):
     parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -105,7 +110,7 @@ def parse(options=None):
 
     #parser.add_argument('--metals-from-file', action = 'store_true', help = "add metals from HDU in file")
     parser.add_argument('--metals-from-file',type=str,const='all',help = "list of metals,'SI1260,SI1207' etc, to get from HDUs in file. \
-Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?') 
+Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?')
 
     parser.add_argument('--dla',type=str,required=False, help="Add DLA to simulated spectra either randonmly\
         (--dla random) or from transmision file (--dla file)")
@@ -176,11 +181,11 @@ def is_south(dec):
 
 
 def get_healpix_info(ifilename):
-    """
-    Read the header of the tranmission file to find the healpix pixel, nside
+    """Read the header of the tranmission file to find the healpix pixel, nside
     and if we are lucky the scheme. If it fails, try to guess it from the
     filename (for backward compatibility).
-    Inputs:
+
+    Args:
         ifilename: full path to input transmission file
     Returns:
         healpix: HEALPix pixel corresponding to the file
@@ -375,7 +380,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         if args.nmax < nqso :
             log.info("Limit number of QSOs from {} to nmax={} (random subsample)".format(nqso,args.nmax))
             # take a random subsample
-            indices = (np.random.uniform(size=args.nmax)*nqso).astype(int)
+            indices = np.random.choice(np.arange(nqso),args.nmax,replace=False)  ##Use random.choice instead of random.uniform (rarely but it does cause a duplication of qsos) 
             transmission = transmission[indices]
             metadata = metadata[:][indices]
             DZ_FOG = DZ_FOG[indices]
@@ -621,9 +626,10 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         meta         = meta[:][selection]
         qsometa      = qsometa[:][selection]
         DZ_FOG      = DZ_FOG[selection]
-
         for band in bands :
             bbflux[band] = bbflux[band][selection]
+        bbflux['SOUTH']=bbflux['SOUTH'][selection]  
+            
         nqso         = selection.size
 
     log.info("Resample to a linear wavelength grid (needed by DESI sim.)")

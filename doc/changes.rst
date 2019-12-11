@@ -2,17 +2,58 @@
 desisim change log
 ==================
 
-0.32.1 (unreleased)
+0.34.1 (unreleased)
 -------------------
 
-* No changes yet.
+* Use `desitarget.io.find_target_files` to find (mock) target catalogs (`PR
+  #514`_).  
+* Update `desisim.module` to use latest `v3.2` basis templates (`PR #513`_). 
+
+.. _`PR #513`: https://github.com/desihub/desisim/pull/513
+.. _`PR #514`: https://github.com/desihub/desisim/pull/514
+
+
+0.34.0 (2019-10-17)
+-------------------
+
+Requires desispec/0.30.0 or later.
+
+* Support mocks in bright/dark subdirs (`PR #508`_).
+* Support FIBERASSIGN_X/Y instead of DESIGN_X/Y from fiberassign (`PR #512`_).
+
+.. _`PR #508`: https://github.com/desihub/desisim/pull/508
+.. _`PR #512`: https://github.com/desihub/desisim/pull/512
+
+0.33.1 (2019-10-01)
+-------------------
+
+* *No code or API changes in this tag.*
+* Pinned Numpy version to fix broken tests (`PR #505`_).
+* Minor changes to documentation configuration and docstrings.
+
+.. _`PR #505`: https://github.com/desihub/desisim/pull/505
+
+0.33.0 (2019-09-30)
+-------------------
+
+* Running quickquasar on recent London mocks (`PR #495`_, `PR #497`_).
+* Update eBOSS to DR16 (`PR #498`_).
+* Updates to pixsim for SV (`PR #502`_).
+* Fix bug in counting repeat observations (`PR #503`_).
+
+.. _`PR #495`: https://github.com/desihub/desisim/pull/495
+.. _`PR #497`: https://github.com/desihub/desisim/pull/497
+.. _`PR #498`: https://github.com/desihub/desisim/pull/498
+.. _`PR #502`: https://github.com/desihub/desisim/pull/502
+.. _`PR #503`: https://github.com/desihub/desisim/pull/503
+
 
 0.32.0 (2019-05-30)
 -------------------
 
 * LyA/QSO sims updates (`PR #471`_, `PR #472`_, `PR #473`_, `PR #475`_,
   `PR #478`_, `PR #483`_, `PR #485`_, `PR #488`_
-* Misc cleanup (`PR #480`, `PR #479`_, 
+* Misc cleanup (`PR #480`, `PR #479`_,
 * Support new tile naming in quicksurvey (`PR #486`_).
 * Fix crashing bug in mock spectra OBJMETA tracking (`PR #490`_).
 * Support SV1_DESI_TARGET (`PR #494`_).
@@ -74,7 +115,7 @@ desisim change log
 * Fix quickquasar to work with Saclay mocks (`PR #435`_).
 * Add support for >v3.0 stellar templates, with notebook to boot (`PR #434`_).
 * Update notebook describing the construction of the LRG templates (`PR
-  #433`_). 
+  #433`_).
 * Fix quicksurvey (`PR #431`_).
 * Update quickcat model (`PR #430`_, `PR #427`_).
 * Fix archetype computation for redrock (`PR #429`_).

@@ -86,13 +86,13 @@ def simarc(arcdata, nspec=5000, nonuniform=False, testslit=False):
     fibermap.meta['FLAVOR'] = 'arc'
     fibermap['OBJTYPE'] = 'ARC'
 
-    x = fibermap['DESIGN_X']
-    y = fibermap['DESIGN_Y']
+    x = fibermap['FIBERASSIGN_X']
+    y = fibermap['FIBERASSIGN_Y']
     r = np.sqrt(x**2 + y**2)
 
     #-----
     #- Determine ratio of fiber sizes relative to larges fiber
-    fiber_area = fiber_area_arcsec2(fibermap['DESIGN_X'], fibermap['DESIGN_Y'])
+    fiber_area = fiber_area_arcsec2(x, y)
     size_ratio = fiber_area / np.max(fiber_area)
 
     #- Correct photons for fiber size
@@ -162,8 +162,8 @@ def simflat(flatfile, nspec=5000, nonuniform=False, exptime=10, testslit=False,
 
     fibermap.meta['FLAVOR'] = 'flat'
     fibermap['OBJTYPE'] = 'FLT'
-    x = fibermap['DESIGN_X']
-    y = fibermap['DESIGN_Y']
+    x = fibermap['FIBERASSIGN_X']
+    y = fibermap['FIBERASSIGN_Y']
     r = np.sqrt(x**2 + y**2)
     xy = np.vstack([x, y]).T * u.mm
 
@@ -343,8 +343,8 @@ def fibermeta2fibermap(fiberassign, meta):
     fibermap['TARGET_DEC'] = fiberassign['TARGET_DEC']
     fibermap['FIBER_RA']   = fiberassign['TARGET_RA']
     fibermap['FIBER_DEC']  = fiberassign['TARGET_DEC']
-    fibermap['DESIGN_X'] = fiberassign['DESIGN_X']
-    fibermap['DESIGN_Y'] = fiberassign['DESIGN_Y']
+    fibermap['FIBERASSIGN_X'] = fiberassign['FIBERASSIGN_X']
+    fibermap['FIBERASSIGN_Y'] = fiberassign['FIBERASSIGN_Y']
     fibermap['DELTA_X'] = 0.0
     fibermap['DELTA_Y'] = 0.0
 
@@ -457,6 +457,7 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, redshift=Non
 
     #- Extract fiber locations from meta Table -> xy[nspec,2]
     assert np.all(fibermap['FIBER'] == fiberpos['FIBER'][0:nspec])
+
     if 'XFOCAL_DESIGN' in fibermap.dtype.names:
         xy = np.vstack([fibermap['XFOCAL_DESIGN'], fibermap['YFOCAL_DESIGN']]).T * u.mm
     elif 'X' in fibermap.dtype.names:
@@ -745,10 +746,15 @@ def testslit_fibermap():
 #- MOVE THESE TO desitarget.mocks.io (?)
 #-------------------------------------------------------------------------
 
-def get_mock_spectra(fiberassign, mockdir=None, nside=64):
+def get_mock_spectra(fiberassign, mockdir=None, nside=64, obscon=None):
     '''
     Args:
         fiberassign: table loaded from fiberassign tile file
+
+    Options:
+        mockdir (str): base directory under which files are found
+        nside (int): healpix nside for file directory grouping
+        obscon (str): (observing conditions) None/dark/bright extra dir level
 
     Returns (flux, wave, meta) tuple
     '''
@@ -772,7 +778,8 @@ def get_mock_spectra(fiberassign, mockdir=None, nside=64):
     ## TODO: check desi_mask.NO_TARGET once that bit exists
 
     for truthfile, targetids in zip(*targets2truthfiles(
-                        fiberassign[~unassigned], basedir=mockdir, nside=nside)):
+                        fiberassign[~unassigned], basedir=mockdir, nside=nside,
+                        obscon=obscon)):
 
         #- Sky fibers aren't in the truth files
         ok = ~np.in1d(targetids, skyids)
@@ -897,13 +904,17 @@ def read_mock_spectra(truthfile, targetids, mockdir=None):
 
     return reordered_flux, wave, reordered_truth, objtruth
 
-def targets2truthfiles(targets, basedir, nside=64):
+def targets2truthfiles(targets, basedir, nside=64, obscon=None):
     '''
     Return list of mock truth files that contain these targets
 
     Args:
         targets: table with TARGETID column, e.g. from fiber assignment
         basedir: base directory under which files are found
+
+    Options:
+        nside (int): healpix nside for file directory grouping
+        obscon (str): (observing conditions) None/dark/bright extra dir level
 
     Returns (truthfiles, targetids):
         truthfiles: list of truth filenames
@@ -913,7 +924,8 @@ def targets2truthfiles(targets, basedir, nside=64):
         are in truthfiles[i]
     '''
     import healpy
-    import desitarget.mock.io as mockio
+    #import desitarget.mock.io as mockio
+    from desitarget.io import find_target_files
     assert nside >= 2
 
     #- TODO: what should be done with assignments without targets?
@@ -926,7 +938,8 @@ def targets2truthfiles(targets, basedir, nside=64):
     truthfiles = list()
     targetids = list()
     for ipix in sorted(np.unique(pixels)):
-        filename = mockio.findfile('truth', nside, ipix, basedir=basedir)
+        filename = find_target_files(basedir, flavor='truth', obscon=obscon,
+                                     hp=ipix, nside=nside, mock=True)
         truthfiles.append(filename)
         ii = (pixels == ipix)
         targetids.append(np.asarray(targets['TARGETID'][ii]))
