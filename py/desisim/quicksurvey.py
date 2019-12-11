@@ -190,15 +190,11 @@ class SimSetup(object):
         self.tilefiles = list()
         tiles = self.epoch_tiles[epoch]
         for i in tiles:
-            tilename = os.path.join(self.tmp_fiber_path, 'tile-%06d.fits'%(i))
-            # retain ability to use previous version of tile files
-            oldtilename = os.path.join(self.tmp_fiber_path, 'tile_%05d.fits'%(i))
+            tilename = os.path.join(self.tmp_fiber_path, 'fba-{:06d}.fits'.format(i))
             if os.path.isfile(tilename):
                 self.tilefiles.append(tilename)
-            elif os.path.isfile(oldtilename):
-                self.tilefiles.append(oldtilename)
-            #else:
-              #  print('Suggested but does not exist {}'.format(tilename))
+            else:
+                print('Suggested but does not exist {}'.format(tilename))
         print("{} {} tiles to gather in zcat".format(asctime(), len(self.tilefiles)))
 
 
@@ -235,7 +231,7 @@ class SimSetup(object):
         print("{} Finished MTL".format(asctime()))
                 
         # clean files and prepare fiberasign inputs
-        tilefiles = sorted(glob.glob(self.tmp_fiber_path+'/tile*.fits'))
+        tilefiles = sorted(glob.glob(self.tmp_fiber_path+'/fba*.fits'))
         if tilefiles:
             for tilefile in tilefiles:
                 os.remove(tilefile)
@@ -249,12 +245,9 @@ class SimSetup(object):
         f = open('fiberassign.log','a')
         
         p = subprocess.call([self.fiberassign, 
-                             '--mtl',  os.path.join(self.tmp_output_path, 'mtl.fits'),
-                             '--stdstar',  self.stdfile,  
-                             '--sky',  self.skyfile, 
-                             '--surveytiles',  self.surveyfile,
-                             '--outdir',os.path.join(self.tmp_output_path, 'fiberassign'), 
-                             '--fibstatusfile',  self.fibstatusfile], 
+                             '--targets',  os.path.join(self.tmp_output_path, 'mtl.fits'),
+                             '--sky',  self.skyfile,
+                             '--dir',os.path.join(self.tmp_output_path, 'fiberassign')],
                             stdout=f)
 
 
