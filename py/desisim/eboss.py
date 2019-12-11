@@ -232,14 +232,14 @@ def create_sdss2desi_redshift_distribution_ratio(sdss_cat,desi_cat,out,dz=0.04,m
 
     f.write('#\n')
     f.write('# Low density HEALPix list\n')
-    f.write('# ')
+    f.write('#')
     for el in ratio['LOWD']['PIXS']:
         f.write(str(el)+' ')
     f.write('\n')
 
     f.write('#\n')
     f.write('# High density HEALPix list\n')
-    f.write('# ')
+    f.write('#')
     for el in ratio['HIGHD']['PIXS']:
         f.write(str(el)+' ')
     f.write('\n')

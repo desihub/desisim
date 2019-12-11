@@ -26,31 +26,34 @@ absorber_IGM = {
     'AlIII(1855)' : { 'LRF':1854.71829, 'COEF':1.e-4 },
     'AlII(1671)'  : { 'LRF':1670.7886, 'COEF':1.e-4 },
     'FeII(1608)'  : { 'LRF':1608.4511, 'COEF':1.e-4 },
-    'CIV(1551)'   : { 'LRF':1550.77845, 'COEF':9.e-4 },
-    'CIV(1548)'   : { 'LRF':1548.2049, 'COEF':1.e-3 },
+    'CIV(1551)'   : { 'LRF':1550.77845, 'COEF':5.435e-4 },
+    'CIV(1548)'   : { 'LRF':1548.2049, 'COEF':1.487e-3 },
     'SiII(1527)'  : { 'LRF':1526.70698, 'COEF':1.e-4 },
     'SiIV(1403)'  : { 'LRF':1402.77291, 'COEF':5.e-4 },
     'SiIV(1394)'  : { 'LRF':1393.76018, 'COEF':9.e-4 },
     'CII(1335)'   : { 'LRF':1334.5323, 'COEF':1.e-4 },
     'SiII(1304)'  : { 'LRF':1304.3702, 'COEF':1.e-4 },
     'OI(1302)'    : { 'LRF':1302.1685, 'COEF':1.e-4 },
-    'SiII(1260)'  : { 'LRF':1260.4221, 'COEF':8.e-4 },
+    'SiII(1260)'  : { 'LRF':1260.4221, 'COEF':3.542e-4 },
     'NV(1243)'    : { 'LRF':1242.804, 'COEF':5.e-4 },
     'NV(1239)'    : { 'LRF':1238.821, 'COEF':5.e-4 },
-    'SiIII(1207)' : { 'LRF':1206.500, 'COEF':5.e-3 },
+    'SiIII(1207)' : { 'LRF':1206.500, 'COEF':1.8919e-3 },
     'NI(1200)'    : { 'LRF':1200., 'COEF':1.e-3 },
-    'SiII(1193)'  : { 'LRF':1193.2897, 'COEF':5.e-4 },
-    'SiII(1190)'  : { 'LRF':1190.4158, 'COEF':5.e-4 },
+    'SiII(1193)'  : { 'LRF':1193.2897, 'COEF':9.0776e-4 },
+    'SiII(1190)'  : { 'LRF':1190.4158, 'COEF':6.4239e-4 },
     'OI(1039)'    : { 'LRF':1039.230, 'COEF':1.e-3 },
-    'OVI(1038)'   : { 'LRF':1037.613, 'COEF':1.e-3 },
-    'OVI(1032)'   : { 'LRF':1031.912, 'COEF':5.e-3 },
+    'OVI(1038)'   : { 'LRF':1037.613, 'COEF':3.382-3 },
+    'OVI(1032)'   : { 'LRF':1031.912, 'COEF':5.358e-3 },
     'LYB'         : { 'LRF':1025.72, 'COEF':0.1901 },
     'CIII(977)'   : { 'LRF':977.020, 'COEF':5.e-3 },
     'OI(989)'     : { 'LRF':988.7, 'COEF':1.e-3 },
     'SiII(990)'   : { 'LRF':989.8731, 'COEF':1.e-3 },
+    'LY3'         : { 'LRF':972.537, 'COEF':0.0697 },
+    'LY4'         : { 'LRF':949.7431, 'COEF':0.0335 },
+    'LY5'         : { 'LRF':937.8035, 'COEF':0.0187 },
 }
 
-def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False) :
+def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False,add_lyb=False) :
     '''
     Reads Lyman alpha transmission skewers (from CoLoRe, format v2.x.y)
 
@@ -75,14 +78,18 @@ def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False) :
 
     import fitsio
     h = fitsio.FITS(lyafile)
+
+
     if "WAVELENGTH" in h :
         wave  = h["WAVELENGTH"].read()
     else :
         log.warning("I assume WAVELENGTH is HDU 2")
         wave  = h[2].read()
-    
-    if "TRANSMISSION" in h :
-        trans = h["TRANSMISSION"].read()
+
+    if "F_LYA" in h :
+        trans = h["F_LYA"].read()
+    elif "TRANSMISSION" in h:
+        trans=h["TRANSMISSION"].read()
     else :
         log.warning("I assume TRANSMISSION is HDU 3")
         trans = h[3].read()
@@ -104,15 +111,52 @@ def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False) :
         trans = trans[indices]
         meta=meta[:][indices]
 
-    if (add_metals):
-        if "METALS" in h :
-            metals = h["METALS"].read()
-            trans *= metals
-        else :
-            nom="No HDU with EXTNAME='METALS' in transmission file {}".format(lyafile)
-            log.error(nom)
-            raise KeyError(nom)
-       
+    if (add_lyb):
+        if ("F_LYB" in h) :
+            lyb = h["F_LYB"].read()
+            trans*=lyb
+        else:
+            nolyb="No HDU with EXTNAME='F_LYB' in transmission file {}".format(lyafile)
+            log.error(nolyb)
+            raise KeyError(nolyb) 
+    
+
+    if add_metals:
+
+       if add_metals=='all':
+          #For format london v>7.3
+          if "F_METALS" in h:
+              metals = h["F_METALS"].read()
+              trans *= metals
+              log.info('Added F_Metals from file')
+          #For format london v<7.3
+          elif "METALS" in h :
+              metals = h["METALS"].read()
+              trans *= metals
+              log.info('Added Metals from file')
+          else:
+              nom="No HDU with EXTNAME='METALS' or EXTNAME='F_METALS' in transmission file {}".format(lyafile)
+              log.error(nom)
+              raise KeyError(nom)
+                     
+       else: 
+          if add_metals=='all-dev':
+             metal_list=['F_SI1260','F_SI1207','F_SI1193','F_SI1190']
+          else:      
+             metal_list=['F_'+m for m in add_metals.split(',')]    
+     
+          log.info('add {} metals from file'.format(metal_list))
+          for metal in metal_list:
+              if (metal in h):
+                  metals = h[metal].read()
+                  trans *= metals
+              else:
+                  nom="No HDU with EXTNAME={} in transmission file {} ".format(metal,lyafile)
+                  log.error(nom)
+                  raise KeyError(nom)
+
+              
+
     if (read_dlas):
         if "DLA" in h:
             dlas=h["DLA"].read()
@@ -120,15 +164,15 @@ def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False) :
             mess="No HDU with EXTNAME='DLA' in transmission file {}".format(lyafile)
             log.error(mess)
             raise KeyError(mess)
-    else: 
+    else:
         dlas=None
 
     return wave,trans,meta,dlas
 
 def apply_lya_transmission(qso_wave,qso_flux,trans_wave,trans) :
     '''
-    Apply transmission to input flux, interpolating if needed. Note that the 
-    transmission might include Lyman-beta and metal absorption, so we should 
+    Apply transmission to input flux, interpolating if needed. Note that the
+    transmission might include Lyman-beta and metal absorption, so we should
     probably change the name of this function.
 
     Args:
@@ -146,24 +190,24 @@ def apply_lya_transmission(qso_wave,qso_flux,trans_wave,trans) :
     '''
     if qso_flux.shape[0] != trans.shape[0] :
         raise(ValueError("not same number of qso {} {}".format(qso_flux.shape[0],trans.shape[0])))
-    
+
     output_flux = qso_flux.copy()
 
-    if qso_wave.ndim == 2: # desisim.QSO(resample=True) returns a 2D wavelength array    
+    if qso_wave.ndim == 2: # desisim.QSO(resample=True) returns a 2D wavelength array
         for q in range(qso_flux.shape[0]) :
             output_flux[q, :] *= np.interp(qso_wave[q, :],trans_wave,trans[q, :],left=0,right=1)
     else:
         for q in range(qso_flux.shape[0]) :
             output_flux[q, :] *= np.interp(qso_wave,trans_wave,trans[q, :],left=0,right=1)
-            
+
     return output_flux
 
 def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals) :
     '''
     Apply metal transmission to input flux, interpolating if needed.
     The input transmission should be only due to lya, if not has no meaning.
-    This function should not be used in London mocks with version > 2.0, since 
-    these have their own metal transmission already in the files, and even 
+    This function should not be used in London mocks with version > 2.0, since
+    these have their own metal transmission already in the files, and even
     the "TRANSMISSION" HDU includes already Lyman beta.
 
     Args:
@@ -313,7 +357,7 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
 
     # Loop on quasars
     for ii, indx in enumerate(templateid):
-        flux1, _, meta1, objmeta1 = qso.make_templates(nmodel=1, redshift=np.atleast_1d(zqso[ii]), 
+        flux1, _, meta1, objmeta1 = qso.make_templates(nmodel=1, redshift=np.atleast_1d(zqso[ii]),
                                                 mag=np.atleast_1d(mag_g[ii]), seed=templateseed[ii],
                                                 nocolorcuts=nocolorcuts, lyaforest=False)
         flux1 *= 1e-17

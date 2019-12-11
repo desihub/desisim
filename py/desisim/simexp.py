@@ -14,6 +14,7 @@ import fitsio
 
 import desitarget
 import desitarget.targetmask
+from desitarget.targets import main_cmx_or_sv
 import desispec.io
 import desispec.io.util
 import desimodel.io
@@ -302,12 +303,17 @@ def fibermeta2fibermap(fiberassign, meta):
     A future refactor will standardize the column names of fiber assignment,
     target catalogs, and fibermaps, but in the meantime this is needed.
     '''
-    from desitarget.targetmask import desi_mask
+    #- Handle DESI_TARGET vs. SV1_DESI_TARGET etc.
+    target_colnames, target_masks, survey = main_cmx_or_sv(fiberassign)
+    targetcol = target_colnames[0]  #- DESI_TARGET or SV1_DESI_TARGET
+    desi_mask = target_masks[0]     #- desi_mask or sv1_desi_mask
 
     #- Copy column names in common
     fibermap = desispec.io.empty_fibermap(len(fiberassign))
-    for c in ['FIBER', 'TARGETID', 'DESI_TARGET', 'BGS_TARGET', 'MWS_TARGET',
-              'BRICKNAME']:
+    for c in ['FIBER', 'TARGETID', 'BRICKNAME']:
+        fibermap[c] = fiberassign[c]
+
+    for c in target_colnames:
         fibermap[c] = fiberassign[c]
 
     for band in ['G', 'R', 'Z', 'W1', 'W2']:
@@ -325,9 +331,9 @@ def fibermeta2fibermap(fiberassign, meta):
         if name in desi_mask.names():
             stdmask |= desi_mask[name]
 
-    isSTD = (fiberassign['DESI_TARGET'] & stdmask) != 0
+    isSTD = (fiberassign[targetcol] & stdmask) != 0
 
-    isSKY = (fiberassign['DESI_TARGET'] & desi_mask.SKY) != 0
+    isSKY = (fiberassign[targetcol] & desi_mask.SKY) != 0
     isSCI = (~isSTD & ~isSKY)
     fibermap['OBJTYPE'][isSKY] = 'SKY'
     fibermap['OBJTYPE'][isSCI | isSTD] = 'TGT'
@@ -361,7 +367,8 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, redshift=Non
         wave (array): 1D wavelengths in Angstroms
         flux (array): 2D[nspec,nwave] flux in 1e-17 erg/s/cm2/Angstrom
             or astropy Quantity with flux units
-        fibermap (Table, optional): table from fiberassign or fibermap; uses X/YFOCAL_DESIGN, TARGETID, DESI_TARGET
+        fibermap (Table, optional): table from fiberassign or fibermap; uses
+            X/YFOCAL_DESIGN, TARGETID, DESI_TARGET
         obsconditions(dict-like, optional): observation metadata including
             SEEING (arcsec), EXPTIME (sec), AIRMASS,
             MOONFRAC (0-1), MOONALT (deg), MOONSEP (deg)
@@ -631,26 +638,31 @@ def get_source_types(fibermap):
     so BGS targets get source_type = 'lrg' (!)
     '''
     from desiutil.log import get_logger
-    log = get_logger('DEBUG')
-    if 'DESI_TARGET' not in fibermap.dtype.names:
-        log.warning("DESI_TARGET not in fibermap table; using source_type='star' for everything")
+    log = get_logger()
+
+    if ('DESI_TARGET' not in fibermap.dtype.names) and \
+       ('SV1_DESI_TARGET' not in fibermap.dtype.names):
+        log.warning("(SV1_)DESI_TARGET not in fibermap table; using source_type='star' for everything")
         return np.array(['star',] * len(fibermap))
+
+    target_colnames, target_masks, survey = main_cmx_or_sv(fibermap)
+    targetcol = target_colnames[0]  #- DESI_TARGET or SV1_DESI_TARGET
+    tm = target_masks[0]     #- desi_mask or sv1_desi_mask
 
     source_type = np.zeros(len(fibermap), dtype='U4')
     assert np.all(source_type == '')
 
-    tm = desitarget.targetmask.desi_mask
     if 'TARGETID' in fibermap.dtype.names:
         unassigned = fibermap['TARGETID'] == -1
         source_type[unassigned] = 'sky'
 
     source_type[(fibermap['OBJTYPE'] == 'FLT')] = 'FLAT'
     source_type[(fibermap['OBJTYPE'] == 'ARC')] = 'ARC'
-    source_type[(fibermap['DESI_TARGET'] & tm.SKY) != 0] = 'sky'
-    source_type[(fibermap['DESI_TARGET'] & tm.ELG) != 0] = 'elg'
-    source_type[(fibermap['DESI_TARGET'] & tm.LRG) != 0] = 'lrg'
-    source_type[(fibermap['DESI_TARGET'] & tm.QSO) != 0] = 'qso'
-    source_type[(fibermap['DESI_TARGET'] & tm.BGS_ANY) != 0] = 'bgs'
+    source_type[(fibermap[targetcol] & tm.SKY) != 0] = 'sky'
+    source_type[(fibermap[targetcol] & tm.ELG) != 0] = 'elg'
+    source_type[(fibermap[targetcol] & tm.LRG) != 0] = 'lrg'
+    source_type[(fibermap[targetcol] & tm.QSO) != 0] = 'qso'
+    source_type[(fibermap[targetcol] & tm.BGS_ANY) != 0] = 'bgs'
 
     starmask = 0
     for name in ['STD', 'STD_FSTAR', 'STD_WD', 'MWS_ANY',
@@ -659,7 +671,7 @@ def get_source_types(fibermap):
         if name in desitarget.targetmask.desi_mask.names():
             starmask |= desitarget.targetmask.desi_mask[name]
 
-    source_type[(fibermap['DESI_TARGET'] & starmask) != 0] = 'star'
+    source_type[(fibermap[targetcol] & starmask) != 0] = 'star'
 
     #- Simulate unassigned fibers as sky
     ## TODO: when fiberassign and desitarget are updated, use
@@ -746,7 +758,11 @@ def get_mock_spectra(fiberassign, mockdir=None, nside=64):
     wave = None
     objmeta = None
 
-    issky = (fiberassign['DESI_TARGET'] & desitarget.targetmask.desi_mask.SKY) != 0
+    target_colnames, target_masks, survey = main_cmx_or_sv(fiberassign)
+    targetcol = target_colnames[0]  #- DESI_TARGET or SV1_DESI_TARGET
+    desi_mask = target_masks[0]     #- desi_mask or sv1_desi_mask
+
+    issky = (fiberassign[targetcol] & desi_mask.SKY) != 0
     skyids = fiberassign['TARGETID'][issky]
 
     #- check several ways in which an unassigned fiber might appear
@@ -779,6 +795,8 @@ def get_mock_spectra(fiberassign, mockdir=None, nside=64):
         assert np.all(wave == tmpwave)
 
         for key in tmpobjmeta.keys():
+            if key not in objmeta:
+                objmeta[key] = list()
             objmeta[key].append(tmpobjmeta[key])
 
     #- Stack the per-objtype meta tables

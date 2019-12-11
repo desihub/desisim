@@ -2,10 +2,34 @@
 desisim change log
 ==================
 
-0.31.3 (unreleased)
+0.32.1 (unreleased)
 -------------------
 
 * No changes yet.
+
+0.32.0 (2019-05-30)
+-------------------
+
+* LyA/QSO sims updates (`PR #471`_, `PR #472`_, `PR #473`_, `PR #475`_,
+  `PR #478`_, `PR #483`_, `PR #485`_, `PR #488`_
+* Misc cleanup (`PR #480`, `PR #479`_, 
+* Support new tile naming in quicksurvey (`PR #486`_).
+* Fix crashing bug in mock spectra OBJMETA tracking (`PR #490`_).
+* Support SV1_DESI_TARGET (`PR #494`_).
+
+.. _`PR #471`: https://github.com/desihub/desisim/pull/471
+.. _`PR #472`: https://github.com/desihub/desisim/pull/472
+.. _`PR #473`: https://github.com/desihub/desisim/pull/473
+.. _`PR #475`: https://github.com/desihub/desisim/pull/475
+.. _`PR #478`: https://github.com/desihub/desisim/pull/478
+.. _`PR #479`: https://github.com/desihub/desisim/pull/479
+.. _`PR #480`: https://github.com/desihub/desisim/pull/480
+.. _`PR #483`: https://github.com/desihub/desisim/pull/483
+.. _`PR #485`: https://github.com/desihub/desisim/pull/485
+.. _`PR #486`: https://github.com/desihub/desisim/pull/486
+.. _`PR #488`: https://github.com/desihub/desisim/pull/488
+.. _`PR #490`: https://github.com/desihub/desisim/pull/490
+.. _`PR #494`: https://github.com/desihub/desisim/pull/494
 
 0.31.2 (2019-02-28)
 -------------------
