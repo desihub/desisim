@@ -365,8 +365,9 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions, param
         params = yaml.safe_load(file)
         
     
-    simtype = get_simtype(np.char.strip(truth['TRUESPECTYPE']), targets['DESI_TARGET'], targets['BGS_TARGET'], targets['MWS_TARGET'])
-    #simtype = get_simtype(np.char.strip(truth['TEMPLATETYPE']), targets['DESI_TARGET'], targets['BGS_TARGET'], targets['MWS_TARGET'])
+    simtype = np.char.strip(truth['TEMPLATETYPE'])
+#    simtype = get_simtype(np.char.strip(truth['TRUESPECTYPE']), targets['DESI_TARGET'], targets['BGS_TARGET'], targets['MWS_TARGET'])
+#    simtype = get_simtype(np.char.strip(truth['TEMPLATETYPE']), targets['DESI_TARGET'], targets['BGS_TARGET'], targets['MWS_TARGET'])
     truez = truth['TRUEZ']
     targetid = truth['TARGETID']
 

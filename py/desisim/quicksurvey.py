@@ -282,9 +282,18 @@ class SimSetup(object):
         """
         self.create_directories()
 
-        truth = Table.read(self.truthfile)
+        truth = Table.read(self.truthfile,hdu='TRUTH')
         targets = Table.read(self.targetsfile)
         obscon = fits.open(self.truthfile)['TRUTH'].header['OBSCON']
+
+        #- Add OII flux from ELG HDU to truth table
+        truth_elg = Table.read(self.truthfile,hdu='TRUTH_ELG')
+        truthid = truth['TARGETID']
+        elgid = truth_elg['TARGETID']
+        match_elg = np.intersect1d(truthid,elgid,return_indices=True)[1]
+        oiiflux = np.zeros(truthid.shape)
+        oiiflux[match_elg] = truth_elg['OIIFLUX']
+        truth['OIIFLUX'] = oiiflux
 
         print(truth.keys())
         #- Drop columns that aren't needed to save memory while manipulating
