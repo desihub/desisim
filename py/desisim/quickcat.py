@@ -645,6 +645,13 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
     #- Copy TRUETYPE -> SPECTYPE so that we can change without altering original
     newzcat['SPECTYPE'] = truth['TRUESPECTYPE'].copy()
 
+    #- Propagate target/truth information to output catalog
+    newzcat['RA'] = targets['RA'].copy()
+    newzcat['DEC'] = targets['DEC'].copy()
+    newzcat['TRUEZ'] = truth['TRUEZ'].copy()
+    newzcat['FLUX_R'] = truth['FLUX_R'].copy()
+    newzcat['OIIFLUX'] = truth['OIIFLUX'].copy()
+
     #- Add ZERR and ZWARN
     log.info('{} QC Adding ZERR and ZWARN'.format(asctime()))
     nz = len(newzcat)
