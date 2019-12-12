@@ -77,11 +77,11 @@ class Supernova(Transient):
 
     def mintime(self):
         """Return minimum time used in model (peak light at t=0)."""
-        return self.snmodel.mintime() * u.day
+        return self.snmodel.mintime() * u.day - self.t0
 
     def maxtime(self):
         """Return maximum time used in model (peak light at t=0)."""
-        return self.snmodel.maxtime() * u.day
+        return self.snmodel.maxtime() * u.day - self.t0
 
     def set_model_pars(self, modelpars):
         """Set sncosmo model parameters.
