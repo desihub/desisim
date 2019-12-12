@@ -261,7 +261,20 @@ class SimSetup(object):
 #        progress_data = Table.read(self.progress_files[epoch + 1])
 #        ii = np.in1d(progress_data['TILEID'], self.observed_tiles)
 #        obsconditions = progress_data[ii]
-        obsconditions = None
+
+        #- Use median conditions per tile or get observing info from exposures file
+        median_conditions = False
+        if median_conditions:
+            obsconditions = None
+        else:
+            obsconditions = Table()
+            obsconditions['TILEID'] = self.exposures['TILEID']
+            obsconditions['AIRMASS'] = self.exposures['AIRMASS']
+            obsconditions['SEEING'] = self.exposures['SEEING']
+            obsconditions['LINTRANS'] = self.exposures['TRANSP']
+            obsconditions['MOONFRAC'] = self.exposures['MOONFRAC']
+            obsconditions['MOONALT'] = self.exposures['MOONALT']
+
         print('tilefiles', len(self.tilefiles))
         
         # write the zcat, it uses the tilesfiles constructed in the last step

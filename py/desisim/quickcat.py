@@ -608,7 +608,7 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
         targets_in_tile[tileidnew] = fibassign['TARGETID'][ii]
 
     #- Trim obsconditions to just the tiles that were observed
-    if obsconditions is not None:
+    if obsconditions is not None and len(tileids) > 0:
         ii = np.in1d(obsconditions['TILEID'], tileids)
         if np.any(ii == False):
             obsconditions = obsconditions[ii]
@@ -620,10 +620,13 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
     tileids = np.array(tileids)
     if (obsconditions is not None) and \
        (np.any(tileids != obsconditions['TILEID'])):
-        i = np.argsort(tileids)
-        j = np.argsort(obsconditions['TILEID'])
-        k = np.argsort(i)
-        obsconditions = obsconditions[j[k]]
+#        i = np.argsort(tileids)
+#        j = np.argsort(obsconditions['TILEID'])
+#        k = np.argsort(i)
+#        obsconditions = obsconditions[j[k]]
+        match_tiles = np.intersect1d(obsconditions['TILEID'],tileids,return_indices=True)[1]
+        order_tiles = np.argsort(tileids)
+        obsconditions = obsconditions[match_tiles][order_tiles]
         assert np.all(tileids == obsconditions['TILEID'])
 
     #- Trim truth down to just ones that have already been observed
