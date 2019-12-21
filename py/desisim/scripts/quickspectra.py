@@ -198,32 +198,59 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
             table.write(table_filename,format="fits",overwrite=True)
             print("wrote",table_filename)
 
-    for table in sim.camera_output :
-        
-        wave = table['wavelength'].astype(float)
-        flux = (table['observed_flux']+table['random_noise_electrons']*table['flux_calibration']).T.astype(float)
-        if np.any(skyscale):
-            flux += ((table['num_sky_electrons']*skyscale)*table['flux_calibration']).T.astype(float)
+    if specsim_config_file == "eboss":
+        for table in sim._eboss_camera_output:
+            wave = table['wavelength'].astype(float)
+            flux = (table['observed_flux']+table['random_noise_electrons']*table['flux_calibration']).T.astype(float)
+            if np.any(skyscale):
+                flux += ((table['num_sky_electrons']*skyscale)*table['flux_calibration']).T.astype(float)
 
-        ivar = table['flux_inverse_variance'].T.astype(float)
-        
-        band  = table.meta['name'].strip()[0]
-        
-        flux = flux * scale
-        ivar = ivar / scale**2
-        mask  = np.zeros(flux.shape).astype(int)
-        
-        spec = Spectra([band], {band : wave}, {band : flux}, {band : ivar}, 
-                       resolution_data={band : resolution[band]}, 
-                       mask={band : mask}, 
-                       fibermap=spectra_fibermap, 
-                       meta=meta,
-                       single=True)
-        
-        if specdata is None :
-            specdata = spec
-        else :
-            specdata.update(spec)
+            ivar = table['flux_inverse_variance'].T.astype(float)
+            
+            band  = table.meta['name'].strip()[0]
+            
+            flux = flux * scale
+            ivar = ivar / scale**2
+            mask  = np.zeros(flux.shape).astype(int)
+            
+            spec = Spectra([band], {band : wave}, {band : flux}, {band : ivar}, 
+                        resolution_data=None, 
+                        mask={band : mask}, 
+                        fibermap=spectra_fibermap, 
+                        meta=meta,
+                        single=True)
+            
+            if specdata is None :
+                specdata = spec
+            else :
+                specdata.update(spec)
+    
+    else:
+        for table in sim.camera_output :
+            wave = table['wavelength'].astype(float)
+            flux = (table['observed_flux']+table['random_noise_electrons']*table['flux_calibration']).T.astype(float)
+            if np.any(skyscale):
+                flux += ((table['num_sky_electrons']*skyscale)*table['flux_calibration']).T.astype(float)
+
+            ivar = table['flux_inverse_variance'].T.astype(float)
+            
+            band  = table.meta['name'].strip()[0]
+            
+            flux = flux * scale
+            ivar = ivar / scale**2
+            mask  = np.zeros(flux.shape).astype(int)
+            
+            spec = Spectra([band], {band : wave}, {band : flux}, {band : ivar}, 
+                        resolution_data={band : resolution[band]}, 
+                        mask={band : mask}, 
+                        fibermap=spectra_fibermap, 
+                        meta=meta,
+                        single=True)
+            
+            if specdata is None :
+                specdata = spec
+            else :
+                specdata.update(spec)
     
     desispec.io.write_spectra(spectra_filename, specdata)        
     log.info('Wrote '+spectra_filename)
