@@ -14,7 +14,6 @@ import random
 from time import asctime
 import socket
 
-from astropy.time import Time
 import astropy.units as u
 
 import numpy as np
@@ -29,9 +28,12 @@ from desiutil.log import get_logger
 log = get_logger()
 
 # Inhibit download of IERS-A catalog, even from a good server.
-# Note that this is triggered by a call to astropy.time.Time().sidereal_time().
+# Note that this is triggered by a call to astropy.time.Time(),
+# which is subsequently used to compute sidereal_time().
+# It's the initialization of astropy.time.Time() itself that makes the call.
 from desisurvey.utils import freeze_iers
 freeze_iers()
+from astropy.time import Time
 
 def simulate_exposure(simspecfile, rawfile, cameras=None,
         ccdshape=None, simpixfile=None, addcosmics=None, comm=None,
