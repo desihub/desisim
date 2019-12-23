@@ -28,6 +28,11 @@ from . import obs, io
 from desiutil.log import get_logger
 log = get_logger()
 
+# Inhibit download of IERS-A catalog, even from a good server.
+# Note that this is triggered by a call to astropy.time.Time().sidereal_time().
+from desisurvey.utils import freeze_iers
+freeze_iers()
+
 def simulate_exposure(simspecfile, rawfile, cameras=None,
         ccdshape=None, simpixfile=None, addcosmics=None, comm=None,
         **kwargs):
@@ -69,7 +74,7 @@ def simulate_exposure(simspecfile, rawfile, cameras=None,
         num_nodes = 1
         node_rank = 0
         node_size = 1
-    
+
     if rank == 0:
         log.debug('Starting simulate_exposure at {}'.format(asctime()))
 
@@ -147,8 +152,8 @@ def simulate_exposure(simspecfile, rawfile, cameras=None,
             else:
                 log.debug("Cosmics not requested")
 
-        if node_rank == 0: 
-            log.info("Starting simulate for camera {} on node {}".format(camera,node_index)) 
+        if node_rank == 0:
+            log.info("Starting simulate for camera {} on node {}".format(camera,node_index))
         image, rawpix, truepix = simulate(camera, simspec, psf, comm=comm_node, preproc=False, cosmics=cosmics, **kwargs)
 
         #- Use input communicator as barrier since multiple sub-communicators
@@ -571,18 +576,18 @@ def parallel_project(psf, wave, phot, specmin=0, ncpu=None, comm=None):
         args = list()
         if comm.rank == 0:
             for i in range(comm.size):
-                if iispec[i+1] > iispec[i]: 
+                if iispec[i+1] > iispec[i]:
                     args.append( [psf, wave, phot[iispec[i]:iispec[i+1]], iispec[i]] )
 
         args=comm.scatter(args,root=0)
         #now that all ranks have args, we can call _project
         xy_subimg=_project(args)
-        #_project calls project calls spotgrid etc        
+        #_project calls project calls spotgrid etc
 
         xy_subimg=comm.gather(xy_subimg,root=0)
 
         if comm.rank ==0:
-            #now all the data should be back at rank 0        
+            #now all the data should be back at rank 0
             # use same technique as multiprocessing to recombine the data
             img = np.zeros( (psf.npix_y, psf.npix_x) )
             for xyrange, subimg in xy_subimg:
@@ -655,12 +660,12 @@ def get_nodes_per_exp(nnodes,nexposures,ncameras,user_nodes_per_comm_exp=None):
         * if user_nodes_per_comm_exp is given, requires that
           GreatestCommonDivisor(nnodes, ncameras) / user_nodes_per_comm_exp = int
     """
- 
+
     from math import gcd
     import desiutil.log as logging
     log = logging.get_logger()
     log.setLevel(logging.INFO)
-    
+
     #check if nframes is evenly divisible by nnodes
     nframes = ncameras*nexposures
     if nframes % nnodes !=0:
@@ -670,11 +675,11 @@ def get_nodes_per_exp(nnodes,nexposures,ncameras,user_nodes_per_comm_exp=None):
         log.warning(msg)
     else:
         log.debug("nframes {} is evenly divisible by nnodes {}, check passed".format(nframes, nnodes))
-    
+
     #find greatest common divisor between nnodes and ncameras
-    #greatest common divisor = greatest common factor    
+    #greatest common divisor = greatest common factor
     #we use python's built in gcd
-    greatest_common_factor=gcd(nnodes,ncameras) 
+    greatest_common_factor=gcd(nnodes,ncameras)
     #the greatest common factor must be greater than one UNLESS we are on one node
     if nnodes > 1:
         if greatest_common_factor == 1:
@@ -682,8 +687,8 @@ def get_nodes_per_exp(nnodes,nexposures,ncameras,user_nodes_per_comm_exp=None):
             raise ValueError(msg)
         else:
             log.debug("greatest common factor {} between nnodes {} and nframes {} is greater than one, check passed".format(greatest_common_factor, nnodes, nframes))
-        
-    #check to make sure the user hasn't specified a really asinine value of user_nodes_per_comm_exp    
+
+    #check to make sure the user hasn't specified a really asinine value of user_nodes_per_comm_exp
     if user_nodes_per_comm_exp is not None:
         if greatest_common_factor % user_nodes_per_comm_exp !=0:
             msg=("user-specified value of user_nodes_per_comm_exp {} is bad, try again".format(user_nodes_per_comm_exp))
@@ -693,8 +698,8 @@ def get_nodes_per_exp(nnodes,nexposures,ncameras,user_nodes_per_comm_exp=None):
             nodes_per_comm_exp=user_nodes_per_comm_exp
     #if the user didn't specify anything, use the greatest common factor
     if user_nodes_per_comm_exp is None:
-        nodes_per_comm_exp=greatest_common_factor        
-            
+        nodes_per_comm_exp=greatest_common_factor
+
     #finally check to make sure exposures*gcf/nnodes is an integer to avoid inefficient node use
     if (nexposures*nodes_per_comm_exp) % nnodes != 0:
         ### msg=("nexposures {} * nodes_per_comm_exp {} does not divide evenly into nnodes {}, try again".format(nexposures, nodes_per_comm_exp, nnodes))
@@ -703,8 +708,8 @@ def get_nodes_per_exp(nnodes,nexposures,ncameras,user_nodes_per_comm_exp=None):
         log.warning(msg)
     else:
         log.debug("nexposures {} * nodes_per_comm_exp {} divides evenly into nnodes {}, check passed".format(nexposures, nodes_per_comm_exp, nnodes))
-        
- 
+
+
     return nodes_per_comm_exp
 
 #-------------------------------------------------------------------------
@@ -754,6 +759,3 @@ def mpi_split_by_node(comm, nodes_per_communicator):
     comm_node = comm.Split(color = node_index)
 
     return comm_node, node_index, num_nodes
-
-
-
