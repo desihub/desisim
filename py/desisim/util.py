@@ -85,6 +85,9 @@ def dateobs2night(dateobs):
     TODO: consider adding format option to pass to astropy.time.Time without
         otherwise questioning the dateobs format
     '''
+    # See pixsim.py
+    from desisurvey.utils import freeze_iers
+    freeze_iers()
     import astropy.time
     import datetime
     if isinstance(dateobs, float):
