@@ -2,10 +2,13 @@
 desisim change log
 ==================
 
-0.34.2 (unreleased)
+0.34.2 (2019-12-27)
 -------------------
 
-* No changes yet.
+* Add ``desisurvey.utils.freeze_iers()`` to any code that uses
+  ``astropy.time`` (`PR #520`_).
+
+.. _`PR #520`: https://github.com/desihub/desisim/pull/520
 
 0.34.1 (2019-12-20)
 -------------------
