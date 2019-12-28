@@ -38,6 +38,7 @@ _sigma_v = {
 #    'LRG': 67.38,
     'BGS': 37.70,
 #    'QSO': 182.16,
+    'MWS': 50.00,
     'STAR': 51.51,
     'WD':54.35,
     'SKY': 9999,      #- meaningless
@@ -164,12 +165,9 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
     n = len(targetid)
 
     try:
-        if 'DECAM_FLUX' in targets.dtype.names :
-            true_gflux = targets['DECAM_FLUX'][:, 1]
-            true_rflux = targets['DECAM_FLUX'][:, 2]
-        else:
             true_gflux = targets['FLUX_G']
             true_rflux = targets['FLUX_R']
+            true_zflux = targets['FLUX_Z']
     except:
         raise Exception('Missing photometry needed to estimate redshift efficiency!')
 
@@ -364,20 +362,17 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions, param
     with open(parameter_filename,"r") as file :
         params = yaml.safe_load(file)
         
-    
-    simtype = np.char.strip(truth['TEMPLATETYPE'])
-#    simtype = get_simtype(np.char.strip(truth['TRUESPECTYPE']), targets['DESI_TARGET'], targets['BGS_TARGET'], targets['MWS_TARGET'])
-#    simtype = get_simtype(np.char.strip(truth['TEMPLATETYPE']), targets['DESI_TARGET'], targets['BGS_TARGET'], targets['MWS_TARGET'])
-    truez = truth['TRUEZ']
+    simtype  = np.char.strip(truth['TEMPLATETYPE'])
+#   simtype  = get_simtype(np.char.strip(truth['TRUESPECTYPE']), targets['DESI_TARGET'], targets['BGS_TARGET'], targets['MWS_TARGET'])
+#   simtype  = get_simtype(np.char.strip(truth['TEMPLATETYPE']), targets['DESI_TARGET'], targets['BGS_TARGET'], targets['MWS_TARGET'])
+    truez    = truth['TRUEZ']
     targetid = truth['TARGETID']
 
     try:
-        if 'DECAM_FLUX' in targets.dtype.names :
-            true_gflux = targets['DECAM_FLUX'][:, 1]
-            true_rflux = targets['DECAM_FLUX'][:, 2]
-        else:
-            true_gflux = targets['FLUX_G']
-            true_rflux = targets['FLUX_R']
+        true_gflux = targets['FLUX_G']
+        true_rflux = targets['FLUX_R']
+        true_rflux = targets['FLUX_Z']
+
     except:
         raise Exception('Missing photometry needed to estimate redshift efficiency!')
 
@@ -385,57 +380,62 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions, param
     true_gflux[true_gflux<a_small_flux]=a_small_flux
     true_rflux[true_rflux<a_small_flux]=a_small_flux
     
-    zout = truez.copy()
-    zerr = np.zeros(len(truez), dtype=np.float32)
+    zout  = truez.copy()
+    zerr  = np.zeros(len(truez), dtype=np.float32)
     zwarn = np.zeros(len(truez), dtype=np.int32)
 
     objtypes = list(set(simtype))
-    n_tiles = len(np.unique(obsconditions['TILEID']))
+    n_tiles  = len(np.unique(obsconditions['TILEID']))
 
     if(n_tiles!=len(targets_in_tile)):
         raise ValueError('Number of obsconditions {} != len(targets_in_tile) {}'.format(n_tiles, len(targets_in_tile)))
 
     for objtype in objtypes:
-
         ii=(simtype==objtype)
 
         ###################################
         # redshift errors
         ###################################
         if objtype =='ELG' :
-
             sigma         = params["ELG"]["UNCERTAINTY"]["SIGMA_17"]
             powerlawindex = params["ELG"]["UNCERTAINTY"]["POWER_LAW_INDEX"]
             oiiflux       = truth['OIIFLUX'][ii]*1e17
             zerr[ii]      = sigma/(1.e-9+oiiflux**powerlawindex)*(1.+truez[ii])
+
+            assert  np.all(zerr[ii] > 0.0), "{} {}".format(objtype, zerr[ii].min())  
+
             zout[ii]     += np.random.normal(scale=zerr[ii])
-            
+
             log.info("ELG sigma={:6.5f} index={:3.2f} median zerr={:6.5f}".format(sigma,powerlawindex,np.median(zerr[ii])))
                 
         elif objtype == 'LRG' :
+            sigma         = np.float(params["LRG"]["UNCERTAINTY"]["SIGMA_17"])
+            powerlawindex = params["LRG"]["UNCERTAINTY"]["POWER_LAW_INDEX"]            
+            zerr[ii]      = sigma/(1.e-9 + true_rflux[ii]**powerlawindex)*(1. + truez[ii])
 
-            sigma         = params["LRG"]["UNCERTAINTY"]["SIGMA_17"]
-            powerlawindex = params["LRG"]["UNCERTAINTY"]["POWER_LAW_INDEX"]
+            assert  np.all(zerr[ii] > 0.0), "{} {} {} {} {}".format(objtype, zerr[ii].min(), sigma,  true_rflux[ii].min(), truez[ii].min())
+
+            zout[ii]     += np.random.normal(scale=zerr[ii])
             
-            zerr[ii]  = sigma/(1.e-9+true_rflux[ii]**powerlawindex)*(1.+truez[ii])
-            zout[ii] += np.random.normal(scale=zerr[ii])
-                
             log.info("LRG sigma={:6.5f} index={:3.2f} median zerr={:6.5f}".format(sigma,powerlawindex,np.median(zerr[ii])))
 
         elif objtype == 'QSO' :
-
-            zsplit = params['QSO_ZSPLIT']
+            zsplit        = params['QSO_ZSPLIT']
             sigma         = params["LOWZ_QSO"]["UNCERTAINTY"]["SIGMA_17"]
             powerlawindex = params["LOWZ_QSO"]["UNCERTAINTY"]["POWER_LAW_INDEX"]                               
             jj=ii&(truth['TRUEZ']<=zsplit)
             zerr[jj]  = sigma/(1.e-9+(true_rflux[jj])**powerlawindex)*(1.+truez[jj])
 
+            assert  np.all(zerr[jj] > 0.0), "{} {}".format(objtype, zerr[ii].min())
+            
             log.info("LOWZ QSO sigma={:6.5f} index={:3.2f} median zerr={:6.5f}".format(sigma,powerlawindex,np.median(zerr[jj])))
             
             sigma         = params["LYA_QSO"]["UNCERTAINTY"]["SIGMA_17"]
             powerlawindex = params["LYA_QSO"]["UNCERTAINTY"]["POWER_LAW_INDEX"]
             jj=ii&(truth['TRUEZ']>zsplit)
             zerr[jj]  = sigma/(1.e-9+(true_rflux[jj])**powerlawindex)*(1.+truez[jj])
+
+            assert  np.all(zerr[jj] > 0.0), "{} {}".format(objtype, zerr[ii].min())
             
             log.info("LYA QSO sigma={:6.5f} index={:3.2f} median zerr={:6.5f}".format(sigma,powerlawindex,np.median(zerr[jj])))
             
@@ -445,7 +445,11 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions, param
             log.info("{} use constant sigmav = {} km/s".format(objtype,_sigma_v[objtype]))
             ii = (simtype == objtype)
             zerr[ii] = _sigma_v[objtype] * (1+truez[ii]) / c
+
+            assert  np.all(zerr[ii] > 0.0), "{}  {}".format(objtype, zerr[ii].min())
+
             zout[ii] += np.random.normal(scale=zerr[ii])
+
         else :
             log.info("{} no redshift error model, will use truth")
                 
