@@ -16,7 +16,7 @@ from time import asctime
 
 import numpy as np
 from astropy.io import fits
-from astropy.table import Table, Column, vstack
+from astropy.table import Table, Column, vstack, join
 import sys
 import scipy.special as sp
 import desisim
@@ -30,7 +30,7 @@ from desitarget.targetmask import desi_mask, bgs_mask, mws_mask
 from desiutil.log import get_logger
 log = get_logger()
 
-#- redshift errors, zwarn, cata fail rate fractions from
+#- redshift errors, zwarn, cata. fail rate fractions from
 #- /project/projectdirs/desi/datachallenge/redwood/spectro/redux/redwood/
 #- sigmav = c sigmaz / (1+z)
 _sigma_v = {
@@ -112,9 +112,10 @@ def get_zeff_obs(simtype, obsconditions):
     x = obsconditions['SEEING'] - np.mean(obsconditions['SEEING'])
     px = p_x[0] + p_x[1]*x + p_x[2] * (x**2 - np.mean(x**2))
 
-    # transparency
-    if 'LINTRANS' in obsconditions :
-        y = obsconditions['LINTRANS'] - np.mean(obsconditions['LINTRANS'])
+    # transparency;
+    # https://desidatamodel.readthedocs.io/en/latest/DESISURVEY_OUTPUT/exposures.html
+    if 'TRANSP' in obsconditions :
+        y = obsconditions['TRANSP'] - np.mean(obsconditions['TRANSP'])
         py = p_y[0] + p_y[1]*y + p_y[2] * (y**2 - np.mean(y**2))
     else :
         py = np.ones(ncond)
@@ -149,7 +150,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
            'TILEID': array of tile IDs
            'AIRMASS': array of airmass values on a tile
            'EBMV': array of E(B-V) values on a tile
-           'LINTRANS': array of atmospheric transparency during spectro obs; floats [0-1]
+           'TRANSP': array of atmospheric transparency during spectro obs; floats [0-1]
            'MOONFRAC': array of moonfraction values on a tile.
            'SEEING': array of FWHM seeing during spectroscopic observation on a tile.
         parameter_filename: yaml file with quickcat parameters
@@ -345,7 +346,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions, param
            'TILEID': array of tile IDs
            'AIRMASS': array of airmass values on a tile
            'EBMV': array of E(B-V) values on a tile
-           'LINTRANS': array of atmospheric transparency during spectro obs; floats [0-1]
+           'TRANSP': array of atmospheric transparency during spectro obs; floats [0-1]
            'MOONFRAC': array of moonfraction values on a tile.
            'SEEING': array of FWHM seeing during spectroscopic observation on a tile.
         parameter_filename: yaml file with quickcat parameters
@@ -512,7 +513,7 @@ def get_median_obsconditions(tileids):
            'TILEID': array of tile IDs
            'AIRMASS': array of airmass values on a tile
            'EBMV': array of E(B-V) values on a tile
-           'LINTRANS': array of atmospheric transparency during spectro obs; floats [0-1]
+           'TRANSP': array of atmospheric transparency during spectro obs; floats [0-1]
            'MOONFRAC': array of moonfraction values on a tile.
            'SEEING': array of FWHM seeing during spectroscopic observation on a tile.
     """
@@ -544,7 +545,7 @@ def get_median_obsconditions(tileids):
     obsconditions['TILEID'] = tileids
     obsconditions['AIRMASS'] = tiles['AIRMASS']
     obsconditions['EBMV'] = tiles['EBV_MED']
-    obsconditions['LINTRANS'] = np.ones(n)
+    obsconditions['TRANSP'] = np.ones(n)
     obsconditions['SEEING'] = np.ones(n) * 1.1
 
     #- Add lunar conditions, defaulting to dark time
@@ -564,6 +565,70 @@ def get_median_obsconditions(tileids):
     obsconditions['MOONSEP'][ii] = 50.0
 
     return obsconditions
+
+def exp_derivedprops(exposures, tiles=None): 
+     ''' 
+     Given RA, DEC, and MJD from exposures table, return derived proprs for Kitt Peak, e.g. MOONFRAC, MOONSEP etc.  
+     Note:  temporary copy of https://github.com/changhoonhahn/feasiBGS/blob/master/run/bright_exposure/surveysim_output.py, line 384.  
+     '''
+     import ephem 
+     import desisurvey.config
+     import desisurvey.utils   as      dutils
+     import astropy.units      as      u
+
+     from   astropy.time       import  Time
+
+
+     config           = desisurvey.config.Configuration()
+
+     mayall           = ephem.Observer()
+     mayall.lat       = config.location.latitude().to(u.rad).value
+     mayall.lon       = config.location.longitude().to(u.rad).value
+     mayall.elevation = config.location.elevation().to(u.m).value
+
+     ##  Observed time (MJD). 
+     mjd              = Time(exposures['MJD'].quantity.value, format='mjd')
+
+     exposures['MOONALT']  = np.zeros(len(mjd))
+     exposures['MOONRA']   = np.zeros(len(mjd))
+     exposures['MOONDEC']  = np.zeros(len(mjd))
+     exposures['MOONFRAC'] = np.zeros(len(mjd))
+
+     exposures['SUNALT']   = np.zeros(len(mjd))
+     exposures['SUNRA']    = np.zeros(len(mjd))
+     exposures['SUNDEC']   = np.zeros(len(mjd))
+
+     for i in range(len(mjd)):
+         mayall.date       = mjd.datetime[i] 
+
+         _moon = ephem.Moon()
+         _moon.compute(mayall) 
+
+         _sun = ephem.Sun()
+         _sun.compute(mayall) 
+
+         exposures['MOONALT'][i]  = 180./np.pi*_moon.alt
+         exposures['MOONRA'][i]   = 180./np.pi*_moon.ra
+         exposures['MOONDEC'][i]  = 180./np.pi*_moon.dec
+         exposures['MOONFRAC'][i] = _moon.moon_phase
+
+         exposures['SUNALT'][i]   = 180./np.pi*_sun.alt
+         exposures['SUNRA'][i]    = 180./np.pi*_sun.ra
+         exposures['SUNDEC'][i]   = 180./np.pi*_sun.dec
+
+     if tiles is not None:
+         exposures            = join(exposures, tiles, keys=['TILEID'], join_type='outer', table_names=['', '~'], uniq_col_name='{col_name}{table_name}')
+         exposures.remove_column('AIRMASS~')
+
+         exposures['MOONSEP'] = np.diag(dutils.separation_matrix(exposures['MOONRA'].quantity * u.deg, exposures['MOONDEC'].quantity * u.deg,\
+                                        np.atleast_1d(exposures['RA'].quantity * u.deg), np.atleast_1d(exposures['DEC'].quantity * u.deg)))
+
+         exposures['SUNSEP']  = np.diag(dutils.separation_matrix(exposures['SUNRA'].quantity * u.deg, exposures['SUNDEC'].quantity * u.deg,\
+                                        np.atleast_1d(exposures['RA'].quantity * u.deg), np.atleast_1d(exposures['DEC'].quantity * u.deg))) 
+
+     exposures.remove_rows(np.where(exposures['EXPTIME'].mask == True))
+
+     return  exposures
 
 def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=False):
     """
@@ -622,6 +687,16 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
     #- This might not be needed, but is fast for O(20k) tiles and may
     #- prevent future surprises if code expects them to be row aligned
     tileids = np.array(tileids)
+    
+    if (obsconditions is not None):
+        ##  Handle repeated TILEIDs for Cosmic splits.
+        order       = [list(np.where(obsconditions['TILEID'].quantity == x)[0]) for x in tileids]
+        order       = [item for sublist in order for item in sublist]    
+
+        obsconditions = obsconditions[order]
+
+
+
     if (obsconditions is not None) and \
        (np.any(tileids != obsconditions['TILEID'])):
 #        i = np.argsort(tileids)
