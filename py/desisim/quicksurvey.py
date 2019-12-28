@@ -254,15 +254,16 @@ class SimSetup(object):
         print("{} Launching fiberassign".format(asctime()))
         f    = open('fiberassign.log','a')
 
-        call = [self.fiberassign, '--mtl',  os.path.join(self.tmp_output_path, 'mtl.fits'), '--stdstar',  self.stdfile, '--sky',  self.skyfile,\
+        # Assume stds within mtl.  {'--stdstar',  self.stdfile} otherwise.         
+        call = [self.fiberassign, '--mtl',  os.path.join(self.tmp_output_path, 'mtl.fits'), '--sky',  self.skyfile,\
                  '--surveytiles',  self.surveyfile, '--footprint', self.footprint, '--outdir', os.path.join(self.tmp_output_path, 'fiberassign'), '--overwrite']
 
         if self.status is not None:
              call.append('--status')
              call.append(self.status)
 
-         ##  Doesn't catch no overwrite return on fiberassign. 
-         p = subprocess.call(call, stdout=f)
+        ##  Doesn't catch no overwrite return on fiberassign. 
+        p = subprocess.call(call, stdout=f)
         
         print("{} Finished fiberassign".format(asctime()))
         f.close()
@@ -297,7 +298,7 @@ class SimSetup(object):
             obsconditions['TILEID'] = self.exposures['TILEID']
             obsconditions['AIRMASS'] = self.exposures['AIRMASS']
             obsconditions['SEEING'] = self.exposures['SEEING']
-            obsconditions['LINTRANS'] = self.exposures['TRANSP']
+            obsconditions['TRANSP'] = self.exposures['TRANSP']
             obsconditions['MOONFRAC'] = self.exposures['MOONFRAC']
             obsconditions['MOONALT'] = self.exposures['MOONALT']
 

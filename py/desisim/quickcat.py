@@ -175,14 +175,10 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
     a_small_flux=1e-40
     true_gflux[true_gflux<a_small_flux]=a_small_flux
     true_rflux[true_rflux<a_small_flux]=a_small_flux
-    
-
-    
+        
     if (obsconditions is None) or ('OIIFLUX' not in truth.dtype.names):
         raise Exception('Missing obsconditions and flux information to estimate redshift efficiency')
 
-    
-    
     if (simtype == 'ELG'):
         # Read the model OII flux threshold (FDR fig 7.12 modified to fit redmonster efficiency on OAK)
         # filename = resource_filename('desisim', 'data/quickcat_elg_oii_flux_threshold.txt')
@@ -195,8 +191,7 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         oii_flux_limit = np.interp(truth['TRUEZ'],fdr_z,modified_fdr_oii_flux_threshold)
         oii_flux_limit[oii_flux_limit<1e-20]=1e-20
         
-        # efficiency is modeled as a function of flux_OII/f_OII_threshold(z) and an arbitrary sigma_fudge
-        
+        # efficiency is modeled as a function of flux_OII/f_OII_threshold(z) and an arbitrary sigma_fudge        
         snr_in_lines       = params["ELG"]["EFFICIENCY"]["SNR_LINES_SCALE"]*7*truth['OIIFLUX']/oii_flux_limit
         snr_in_continuum   = params["ELG"]["EFFICIENCY"]["SNR_CONTINUUM_SCALE"]*true_rflux
         snr_tot            = np.sqrt(snr_in_lines**2+snr_in_continuum**2)
@@ -204,19 +199,16 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
         nsigma             = 3.
         simulated_eff = eff_model(snr_tot,nsigma,sigma_fudge)
 
-    elif(simtype == 'LRG'):
-        
-       
-        r_mag = 22.5 - 2.5*np.log10(true_rflux)
+    elif(simtype == 'LRG'):       
+        r_mag          = 22.5 - 2.5*np.log10(true_rflux)
         
         sigmoid_cutoff = params["LRG"]["EFFICIENCY"]["SIGMOID_CUTOFF"]
         sigmoid_fudge  = params["LRG"]["EFFICIENCY"]["SIGMOID_FUDGE"]
-        simulated_eff = 1./(1.+np.exp((r_mag-sigmoid_cutoff)/sigmoid_fudge))
+        simulated_eff  = 1./(1.+np.exp((r_mag-sigmoid_cutoff)/sigmoid_fudge))
 
         log.info("{} eff = sigmoid with cutoff = {:4.3f} fudge = {:4.3f}".format(simtype,sigmoid_cutoff,sigmoid_fudge))
     
     elif(simtype == 'QSO'):
-        
         zsplit = params['QSO_ZSPLIT']
         r_mag = 22.5 - 2.5*np.log10(true_rflux) 
         simulated_eff = np.ones(r_mag.shape)
