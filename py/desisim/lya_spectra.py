@@ -107,14 +107,11 @@ def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False,add_l
         log.warning("I assume METADATA is HDU 1")
         meta = h[1].read()
 
-    if indices is not None :
-        trans = trans[indices]
-        meta=meta[:][indices]
-
     if (add_lyb):
         if ("F_LYB" in h) :
             lyb = h["F_LYB"].read()
             trans*=lyb
+            log.info("Added LYB from transmission file")
         else:
             nolyb="No HDU with EXTNAME='F_LYB' in transmission file {}".format(lyafile)
             log.error(nolyb)
@@ -128,7 +125,7 @@ def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False,add_l
           if "F_METALS" in h:
               metals = h["F_METALS"].read()
               trans *= metals
-              log.info('Added F_Metals from file')
+              log.info("Added F_Metals from transmision file")
           #For format london v<7.3
           elif "METALS" in h :
               metals = h["METALS"].read()
@@ -145,7 +142,7 @@ def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False,add_l
           else:      
              metal_list=['F_'+m for m in add_metals.split(',')]    
      
-          log.info('add {} metals from file'.format(metal_list))
+          log.info("add {} metals from transmision file".format(metal_list))
           for metal in metal_list:
               if (metal in h):
                   metals = h[metal].read()
@@ -155,11 +152,14 @@ def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False,add_l
                   log.error(nom)
                   raise KeyError(nom)
 
-              
+    if indices is not None :
+        trans = trans[indices]
+        meta=meta[:][indices]
 
     if (read_dlas):
         if "DLA" in h:
             dlas=h["DLA"].read()
+            log.info("Read DLAs from transmision file")
         else:
             mess="No HDU with EXTNAME='DLA' in transmission file {}".format(lyafile)
             log.error(mess)

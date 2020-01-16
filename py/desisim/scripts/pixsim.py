@@ -88,7 +88,9 @@ def parse(options=None):
         help="Include debug log info")
     parser.add_argument("--overwrite", action="store_true", 
         help="Overwrite existing raw and simpix files")
-    parser.add_argument("--seed", type=int, help="random number seed")
+
+    #- Not yet supported so don't pretend it is
+    ### parser.add_argument("--seed", type=int, help="random number seed")
 
     parser.add_argument("--ncpu", type=int, 
         help="Number of cpu cores per thread to use", default=0)

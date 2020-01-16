@@ -47,7 +47,7 @@ class TestPixsim(unittest.TestCase):
             os.environ[e] = cls.testEnv[e]
         if desi_templates_available:
             cls.cosmics = (os.environ['DESI_ROOT'] +
-                '/spectro/templates/cosmics/v0.2/cosmics-bias-r.fits')
+                '/spectro/templates/cosmics/v0.3/cosmics-bias-r.fits')
         else:
             cls.cosmics = None
 
@@ -152,7 +152,8 @@ class TestPixsim(unittest.TestCase):
         psf = desimodel.io.load_psf(camera[0])
         psf.npix_y, psf.npix_x = self.ccdshape
 
-        image, rawpix, truepix = pixsim.simulate(camera, simspec, psf, nspec=nspec)
+        image, rawpix, truepix = pixsim.simulate(camera, simspec, psf,
+            nspec=nspec, preproc=False)
 
         self.assertTrue(isinstance(image, desispec.image.Image))
         self.assertTrue(isinstance(rawpix, np.ndarray))
@@ -170,8 +171,9 @@ class TestPixsim(unittest.TestCase):
         self.assertEqual(pixsim.get_nodes_per_exp(17,3,17), 17)
         self.assertEqual(pixsim.get_nodes_per_exp(12,12,6), 6)
 
-        with self.assertRaises(ValueError):
-            pixsim.get_nodes_per_exp(34,3,17)   #- 3*17 % 34 != 0
+        #- Now prints warning but isn't an error
+        # with self.assertRaises(ValueError):
+        #     pixsim.get_nodes_per_exp(34,3,17)   #- 3*17 % 34 != 0
 
         #- TODO: add more failure cases
 
