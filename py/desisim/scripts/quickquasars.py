@@ -137,6 +137,7 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
 
     parser.add_argument('--nmax', type=int, default=None, help="Max number of QSO per input file, for debugging")
 
+
     if options is None:
         args = parser.parse_args()
     else:
@@ -816,9 +817,9 @@ def main(args=None):
     else:
         log.info("Load SIMQSO model")
         #lya_simqso_model.py is located in $DESISIM/py/desisim/scripts/.
-        #Uses a different emmision lines model than the default SIMQSO
+        #Uses a different emmision lines model than the default SIMQSO. 
+        #We will update this soon to match with the one used in select_mock_targets. 
         model=SIMQSO(nproc=1,sqmodel='lya_simqso_model')
-
     decam_and_wise_filters = None
     bassmzls_and_wise_filters = None
     if args.target_selection or args.bbflux :

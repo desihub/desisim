@@ -46,7 +46,7 @@ env:
         # - NUMPY_VERSION='<1.17'
         - NUMPY_VERSION=1.16.5
         # - SCIPY_VERSION=0.16
-        - ASTROPY_VERSION=lts
+        - ASTROPY_VERSION=2.0.16
         # - SPHINX_VERSION=1.6.6
         - DESIUTIL_VERSION=2.0.1
         - SPECLITE_VERSION=0.8
