@@ -2380,17 +2380,22 @@ class SIMQSO():
         from astropy import cosmology
         from speclite import filters
         log = get_logger()
-
         try:
             from simqso.sqbase import ContinuumKCorr, fixed_R_dispersion
-            #Added in order to use modified emision lines in quickquasars
-            if sqmodel is 'default':
-               from simqso.sqmodels import BOSS_DR9_PLEpivot as model_PLEpivot
-               from simqso.sqmodels import get_BossDr9_model_vars as sqmodel_vars
+            #Added in order to use modified emision lines in quickquasars and select_mock_targets.
+            if sqmodel=='lya_simqso_model_develop':
+                #Added in order to test a different model than the one currently used in quickquasars
+                from desisim.scripts.lya_simqso_model import model_PLEpivot as model_PLEpivot
+                from desisim.scripts.lya_simqso_model import model_vars_develop as sqmodel_vars
+                log.warning("Using simqso.sqmodel under development defined in desisim.scripts.lya_simqso_model")
+            elif sqmodel=='lya_simqso_model':
+                from desisim.scripts.lya_simqso_model import model_PLEpivot as model_PLEpivot
+                from desisim.scripts.lya_simqso_model import model_vars as sqmodel_vars
+                log.warning("Using modified simqso.sqmodel defined in desisim.scripts.lya_simqso_model")
             else:
-               from desisim.scripts.lya_simqso_model import model_PLEpivot as model_PLEpivot
-               from desisim.scripts.lya_simqso_model import model_vars as sqmodel_vars
-               log.warning("Using modified simqso.sqmodels defined in desisim.scripts.lya_simqso_model")
+                from simqso.sqmodels import BOSS_DR9_PLEpivot as model_PLEpivot
+                from simqso.sqmodels import get_BossDr9_model_vars as sqmodel_vars
+                log.warning("Using default SIMQSO model")
 
             self.sqmodel_vars=sqmodel_vars
         except ImportError:
@@ -2478,8 +2483,8 @@ class SIMQSO():
         """Wrapper function for actually generating the templates.
 
         """ 
+        from astropy.table import Column
         from desispec.interpolation import resample_flux
-
         if lyaforest:
             subtype = 'LYA'
         else:
@@ -2606,8 +2611,10 @@ class SIMQSO():
 
             objmeta['MABS_1450'][these] = qsometa.data['absMag'][these]
             objmeta['SLOPES'][these, :] = qsometa.data['slopes'][these, :]
+            #Added because some emision line model tables have different lenght than default.
+            if(objmeta['EMLINES'].shape!=qsometa.data['emLines'].shape):
+                objmeta.replace_column('EMLINES',np.zeros((nmodel,len(qsometa.data['emLines'][0, :, 0]), 3))-1)
             objmeta['EMLINES'][these, :, :] = qsometa.data['emLines'][these, :, :]
-            
         return outflux, meta, objmeta, qsometa
 
     def make_templates(self, nmodel=100, zrange=(0.5, 4.0), magrange=(17.0, 22.7),
@@ -2691,6 +2698,7 @@ class SIMQSO():
           ValueError
 
         """
+        from astropy.table import Column
         if verbose:
             log = get_logger(DEBUG)
         else:
@@ -2768,6 +2776,8 @@ class SIMQSO():
                     nocolorcuts=nocolorcuts, noresample=noresample, south=south)
 
                 outflux[need, :] = iterflux
+                if(objmeta['EMLINES'].shape!=iterobjmeta['EMLINES'].shape):
+                    objmeta.replace_column('EMLINES',np.zeros((nmodel,len(iterobjmeta['EMLINES'][0, :, 0]), 3))-1)
                 meta[need] = itermeta
                 objmeta[need] = iterobjmeta
                 if qsometa is None:

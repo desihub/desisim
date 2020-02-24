@@ -8,6 +8,9 @@ import datetime, time
 import numpy as np
 
 import astropy.table
+# See pixsim.py
+from desisurvey.utils import freeze_iers
+freeze_iers()
 import astropy.time
 from astropy.io import fits
 import fitsio
@@ -853,10 +856,10 @@ def read_mock_spectra(truthfile, targetids, mockdir=None):
 
         if 'OBJTYPE' in truth.dtype.names:
             # output of desisim.obs.new_exposure
-            objtype = [oo.decode('ascii').strip().upper() for oo in truth['OBJTYPE']] 
+            objtype = [oo.decode('ascii').strip().upper() for oo in truth['OBJTYPE']]
         else:
             # output of desitarget.mock.build.write_targets_truth
-            objtype = [oo.decode('ascii').strip().upper() for oo in truth['TEMPLATETYPE']] 
+            objtype = [oo.decode('ascii').strip().upper() for oo in truth['TEMPLATETYPE']]
         for obj in set(objtype):
             extname = 'TRUTH_{}'.format(obj)
             if extname in fx:

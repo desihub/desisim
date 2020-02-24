@@ -58,10 +58,10 @@ def main(args=None):
 
     if os.path.isdir(args.fiberassign):
         #- TODO: move file location logic to desispec / desitarget / fiberassign
-        args.fiberassign = os.path.join(args.fiberassign, 'tile-{:06d}.fits'.format(tileid))
+        args.fiberassign = os.path.join(args.fiberassign, 'fiberassign-{:06d}.fits'.format(tileid))
         if not os.path.exists(args.fiberassign):
             #- try previous name
-            args.fiberassign = os.path.join(os.path.dirname(args.fiberassign), 'tile_{:06d}.fits'.format(tileid))
+            args.fiberassign = os.path.join(os.path.dirname(args.fiberassign), 'tile-{:06d}.fits'.format(tileid))
 
     fiberassign = astropy.table.Table.read(args.fiberassign, 'FIBERASSIGN')
 

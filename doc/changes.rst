@@ -2,15 +2,31 @@
 desisim change log
 ==================
 
-0.34.1 (unreleased)
+0.35.0 (unreleased)
 -------------------
 
-* Use `desitarget.io.find_target_files` to find (mock) target catalogs (`PR
-  #514`_).  
-* Update `desisim.module` to use latest `v3.2` basis templates (`PR #513`_). 
+* No changes yet.
+
+0.34.2 (2019-12-27)
+-------------------
+
+* Add ``desisurvey.utils.freeze_iers()`` to any code that uses
+  ``astropy.time`` (`PR #520`_).
+
+.. _`PR #520`: https://github.com/desihub/desisim/pull/520
+
+0.34.1 (2019-12-20)
+-------------------
+
+* New fiberassign file names (`PR #519`_).
+* Minor change to DLA metadata (`PR #517`_).
+* Use `desitarget.io.find_target_files` to find (mock) target catalogs (`PR #514`_).
+* Update `desisim.module` to use latest `v3.2` basis templates (`PR #513`_).
 
 .. _`PR #513`: https://github.com/desihub/desisim/pull/513
 .. _`PR #514`: https://github.com/desihub/desisim/pull/514
+.. _`PR #517`: https://github.com/desihub/desisim/pull/517
+.. _`PR #519`: https://github.com/desihub/desisim/pull/519
 
 
 0.34.0 (2019-10-17)
