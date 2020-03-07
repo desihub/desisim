@@ -10,8 +10,8 @@ import healpy as hp
 from desisim.templates import BGS
 from desisim.transients import transients
 
-from desitarget.mock.mockmaker import BGSMaker
-from desitarget.cuts import isBGS_colors
+from desitarget.mock.mockmaker import BGSMaker, ELGMaker, LRGMaker
+from desitarget.cuts import isBGS_colors, isELG_colors, isLRG_colors
 
 from desisim.simexp import reference_conditions
 from desisim.scripts.quickspectra import sim_spectra
@@ -129,6 +129,8 @@ def parse(options=None):
                       help='Number of simulations')
     sims.add_argument('--seed', type=int, default=None,
                       help='RNG seed')
+    sims.add_argument('--host', choices=['bgs','elg','lrg'], default='bgs',
+                      help='Host galaxy type')
 
     # Set up transient model as a simulation setting. None==no transient.
     modelnames = []
@@ -165,7 +167,14 @@ def main(args=None):
     ipix = iter(pixels)
 
     # Set up the template generator.
-    maker = BGSMaker(seed=args.seed)
+    if args.host == 'bgs':
+        maker = BGSMaker(seed=args.seed)
+    elif args.host == 'elg':
+        maker = ELGMaker(seed=args.seed)
+    elif args.host = 'lrg':
+        maker = LRGMaker(seed=args.seed)
+    else:
+        raise ValueError('Unusable host type {}'.format(args.host))
 
     for j in range(args.nsim):
         # Loop until finding a non-empty healpixel with mock galaxies.
@@ -255,7 +264,8 @@ def main(args=None):
                      EBV=targ['EBV']
                      )
 
-        sim_spectra(wave, flux, 'bgs', 'testspec.fits', sourcetype='bgs',
+        sim_spectra(wave, flux, args.host, 'testspec.fits',
+                    sourcetype=args.host,
                     obsconditions=obs, meta=obs, fibermap_columns=fcols,
                     targetid=truth['TARGETID'], redshift=truth['TRUEZ'],
                     ra=targ['RA'], dec=targ['DEC'],
