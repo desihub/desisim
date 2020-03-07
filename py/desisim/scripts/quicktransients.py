@@ -14,8 +14,11 @@ from desitarget.mock.mockmaker import BGSMaker
 from desitarget.cuts import isBGS_colors
 
 from desisim.simexp import reference_conditions
+from desisim.scripts.quickspectra import sim_spectra
 
 from desiutil.log import get_logger, DEBUG
+
+from astropy.table import Table, hstack, vstack
 
 from argparse import ArgumentParser
 
@@ -50,16 +53,59 @@ def _get_healpixels_in_footprint(nside=64):
     return healpixels
 
 
-def _default_wave(wavemin=None, wavemax=None, dw=0.2):
-    """Generate a default wavelength vector for the output spectra."""
-    from desimodel.io import load_throughput
+def write_templates(filename, flux, wave, target, truth, objtruth):
+    """Write galaxy templates to a FITS file.
+    Parameters
+    ----------
+    filename : str
+        Path to output file.
+    flux : ndarray
+        Array of flux data for template spectra.
+    wave : ndarray
+        Array of wavelengths.
+    target : Table
+        Target information.
+    truth : Table
+        Template simulation truth.
+    objtruth : Table
+        Object-specific truth data.
+    """
+    import astropy.units as u
+    from astropy.io import fits
 
-    if wavemin is None:
-        wavemin = load_throughput('b').wavemin - 10.0
-    if wavemax is None:
-        wavemax = load_throughput('z').wavemax + 10.0
+    hx = fits.HDUList()
 
-    return np.arange(round(wavemin, 1), wavemax, dw)
+    # Write the wavelength table.
+    hdu_wave = fits.PrimaryHDU(wave)
+    hdu_wave.header['EXTNAME'] = 'WAVE'
+    hdu_wave.header['BUNIT'] = 'Angstrom'
+    hdu_wave.header['AIRORVAC'] = ('vac', 'Vacuum wavelengths')
+    hx.append(hdu_wave)
+
+    # Write the flux table.
+    fluxunits = 1e-17 * u.erg / (u.s * u.cm**2 * u.Angstrom)
+    hdu_flux = fits.ImageHDU(flux)
+    hdu_flux.header['EXTNAME'] = 'FLUX'
+    hdu_flux.header['BUNIT'] = str(fluxunits)
+    hx.append(hdu_flux)
+
+    # Write targets table.
+    hdu_targets = fits.table_to_hdu(target)
+    hdu_targets.header['EXTNAME'] = 'TARGETS'
+    hx.append(hdu_targets)
+
+    # Write truth table.
+    hdu_truth = fits.table_to_hdu(truth)
+    hdu_truth.header['EXTNAME'] = 'TRUTH'
+    hx.append(hdu_truth)
+
+    # Write objtruth table.
+    hdu_objtruth = fits.table_to_hdu(objtruth)
+    hdu_objtruth.header['EXTNAME'] = 'OBJTRUTH'
+    hx.append(hdu_objtruth)
+
+    print('Writing {}'.format(filename))
+    hx.writeto(filename, overwrite=True)
 
 
 def parse(options=None):
@@ -120,7 +166,6 @@ def main(args=None):
 
     # Set up the template generator.
     maker = BGSMaker(seed=args.seed)
-#    maker.template_maker = BGS(wave=_default_wave())
 
     for j in range(args.nsim):
         # Loop until finding a non-empty healpixel with mock galaxies.
@@ -132,7 +177,7 @@ def main(args=None):
         # Generate spectral templates and write them to truth files.
         # Keep producing templates until we have enough to pass brightness cuts.
         wave = None
-        flux, targ, truth, obj = [], [], [], []
+        flux, targ, truth, objtr = [], [], [], []
         
         ntosim = np.min([args.nspec, len(tdata['RA'])])
         ngood = 0
@@ -143,7 +188,7 @@ def main(args=None):
 
             g, r, z, w1, w2 = [ttruth['FLUX_{}'.format(_)] for _ in ['G','R','Z','W1','W2']]
             rfib = ttarg['FIBERFLUX_R']
-            print(g, r, z, w1, w2, rfib)
+#            print(g, r, z, w1, w2, rfib)
 
             # Apply color cuts.
             is_bright = isBGS_colors(rfib, g, r, z, w1, w2, targtype='bright')
@@ -158,4 +203,61 @@ def main(args=None):
                 flux.append(tflux[keep, :])
                 targ.append(ttarg[keep])
                 truth.append(ttruth[keep])
-                obj.append(tobj[keep])
+                objtr.append(tobj[keep])
+
+        wave = maker.wave
+        flux = np.vstack(flux)[:args.nspec, :]
+        targ = vstack(targ)[:args.nspec]
+        truth = vstack(truth)[:args.nspec]
+        objtr = vstack(objtr)[:args.nspec]
+
+        # Set up and verify the TARGETID across all truth tables.
+        n = len(truth)
+        new_id = 10000*pixel + 100*j + np.arange(1, n+1)
+        targ['OBJID'][:] = new_id
+        truth['TARGETID'][:] = new_id
+        objtr['TARGETID'][:] = new_id
+
+        assert(len(truth) == args.nspec)
+        assert(np.all(targ['OBJID'] == truth['TARGETID']))
+        assert(len(targ) == len(np.unique(targ['OBJID'])))
+        assert(len(truth) == len(np.unique(truth['TARGETID'])))
+        assert(len(objtr) == len(np.unique(objtr['TARGETID'])))
+
+        write_templates('test.fits', flux, wave, targ, truth, objtr)
+
+        # Get observing conditions and generate spectra.
+        obs = dict(AIRMASS=args.airmass, EXPTIME=args.exptime,
+                   MOONALT=args.moonalt, MOONFRAC=args.moonfrac,
+                   MOONSEP=args.moonsep, SEEING=args.seeing)
+
+        fcols = dict(BRICKID=targ['BRICKID'],
+                     BRICK_OBJID=targ['OBJID'],
+                     FLUX_G=targ['FLUX_G'],
+                     FLUX_R=targ['FLUX_R'],
+                     FLUX_Z=targ['FLUX_Z'],
+                     FLUX_W1=targ['FLUX_W1'],
+                     FLUX_W2=targ['FLUX_W2'],
+                     FLUX_IVAR_G=targ['FLUX_IVAR_G'],
+                     FLUX_IVAR_R=targ['FLUX_IVAR_R'],
+                     FLUX_IVAR_Z=targ['FLUX_IVAR_Z'],
+                     FLUX_IVAR_W1=targ['FLUX_IVAR_W1'],
+                     FLUX_IVAR_W2=targ['FLUX_IVAR_W2'],
+                     FIBERFLUX_G=targ['FIBERFLUX_G'],
+                     FIBERFLUX_R=targ['FIBERFLUX_R'],
+                     FIBERFLUX_Z=targ['FIBERFLUX_Z'],
+                     FIBERTOTFLUX_G=targ['FIBERTOTFLUX_G'],
+                     FIBERTOTFLUX_R=targ['FIBERTOTFLUX_R'],
+                     FIBERTOTFLUX_Z=targ['FIBERTOTFLUX_Z'],
+                     MW_TRANSMISSION_G=targ['MW_TRANSMISSION_G'],
+                     MW_TRANSMISSION_R=targ['MW_TRANSMISSION_R'],
+                     MW_TRANSMISSION_Z=targ['MW_TRANSMISSION_Z'],
+                     EBV=targ['EBV']
+                     )
+
+        sim_spectra(wave, flux, 'bgs', 'testspec.fits', sourcetype='bgs',
+                    obsconditions=obs, meta=obs, fibermap_columns=fcols,
+                    targetid=truth['TARGETID'], redshift=truth['TRUEZ'],
+                    ra=targ['RA'], dec=targ['DEC'],
+                    seed=args.seed, expid=j)
+
