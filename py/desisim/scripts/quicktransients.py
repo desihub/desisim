@@ -133,15 +133,18 @@ def parse(options=None):
                       help='Host galaxy type')
 
     # Set up transient model as a simulation setting. None==no transient.
+    tran = parser.add_argument_group('Transient settings')
+    tran.add_argument('--magrange', nargs=2, type=float, default=[0.,5.],
+                      help='Transient-host mag range; e.g., 0, 5')
+    tran.add_argument('--epochrange', nargs=2, type=float, default=[-10.,10.],
+                      help='Epoch range w.r.t. t0 in days; e.g., -10, 10')
     modelnames = []
     mdict = transients.get_type_dict()
     for t, models in mdict.items():
         for m in models:
             modelnames.append(m)
-    sims.add_argument('--transient', default=None,
-                      help='Models: {}'.format(transients.get_type_dict()))
-    sims.add_argument('--deltamag', nargs=2, type=float, default=[0.,5.],
-                      help='Transient-host mag range; e.g., 0, 5')
+    tran.add_argument('--transient', default=None,
+                      help='None or one of these models: {}'.format(transients.get_type_dict()))
 
     if options is None:
         args = parser.parse_args()
@@ -171,7 +174,7 @@ def main(args=None):
         maker = BGSMaker(seed=args.seed)
     elif args.host == 'elg':
         maker = ELGMaker(seed=args.seed)
-    elif args.host = 'lrg':
+    elif args.host == 'lrg':
         maker = LRGMaker(seed=args.seed)
     else:
         raise ValueError('Unusable host type {}'.format(args.host))
@@ -261,8 +264,7 @@ def main(args=None):
                      MW_TRANSMISSION_G=targ['MW_TRANSMISSION_G'],
                      MW_TRANSMISSION_R=targ['MW_TRANSMISSION_R'],
                      MW_TRANSMISSION_Z=targ['MW_TRANSMISSION_Z'],
-                     EBV=targ['EBV']
-                     )
+                     EBV=targ['EBV'])
 
         sim_spectra(wave, flux, args.host, 'testspec.fits',
                     sourcetype=args.host,
