@@ -6,6 +6,7 @@ desisim.scripts.quicktransients
 import os
 import numpy as np
 import healpy as hp
+from datetime import datetime
 
 from desisim.templates import BGS
 from desisim.transients import transients
@@ -131,6 +132,8 @@ def parse(options=None):
                       help='RNG seed')
     sims.add_argument('--host', choices=['bgs','elg','lrg'], default='bgs',
                       help='Host galaxy type')
+    sims.add_argument('--outdir', default='',
+                      help='Absolute path to simulation output')
 
     # Set up transient model as a simulation setting. None==no transient.
     tran = parser.add_argument_group('Transient settings')
@@ -160,6 +163,8 @@ def main(args=None):
 
     if isinstance(args, (list, tuple, type(None))):
         args = parse(args)
+
+    thedate = datetime.now().strftime('%Y-%m-%d')
 
     # Generate list of HEALPix pixels to randomly sample the mocks.
     rng = np.random.RandomState(args.seed)
@@ -236,7 +241,9 @@ def main(args=None):
         assert(len(truth) == len(np.unique(truth['TARGETID'])))
         assert(len(objtr) == len(np.unique(objtr['TARGETID'])))
 
-        write_templates('test.fits', flux, wave, targ, truth, objtr)
+        truthfile = os.path.join(args.outdir,
+                     '{}_{}_{:03d}_truth.fits'.format(args.host, thedate, j+1))
+        write_templates(truthfile, flux, wave, targ, truth, objtr)
 
         # Get observing conditions and generate spectra.
         obs = dict(AIRMASS=args.airmass, EXPTIME=args.exptime,
@@ -266,7 +273,10 @@ def main(args=None):
                      MW_TRANSMISSION_Z=targ['MW_TRANSMISSION_Z'],
                      EBV=targ['EBV'])
 
-        sim_spectra(wave, flux, args.host, 'testspec.fits',
+        specfile = os.path.join(args.outdir,
+                    '{}_{}_{:03d}_spect.fits'.format(args.host, thedate, j+1))
+
+        sim_spectra(wave, flux, args.host, specfile,
                     sourcetype=args.host,
                     obsconditions=obs, meta=obs, fibermap_columns=fcols,
                     targetid=truth['TARGETID'], redshift=truth['TRUEZ'],
