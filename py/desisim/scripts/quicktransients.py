@@ -276,10 +276,12 @@ def main(args=None):
         specfile = os.path.join(args.outdir,
                     '{}_{}_{:03d}_spect.fits'.format(args.host, thedate, j+1))
 
+        redshifts = truth['TRUEZ'] if args.host=='bgs' else None
+
         sim_spectra(wave, flux, args.host, specfile,
                     sourcetype=args.host,
                     obsconditions=obs, meta=obs, fibermap_columns=fcols,
-                    targetid=truth['TARGETID'], redshift=truth['TRUEZ'],
+                    targetid=truth['TARGETID'], redshift=redshifts,
                     ra=targ['RA'], dec=targ['DEC'],
                     seed=args.seed, expid=j)
 
