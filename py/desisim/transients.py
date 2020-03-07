@@ -198,6 +198,16 @@ class TransientModels:
             raise ValueError(modelname)
         return builder(modelpars)
 
+    def get_type_dict(self):
+        """Return a dictionary of registered model types.
+
+        Returns
+        -------
+        types : dict
+            Dictionary of types and models.
+        """
+        return self._types
+
     def get_type(self, modeltype):
         """Given a Transient type, randomly return a registered model of that
         type.
