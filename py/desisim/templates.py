@@ -657,6 +657,7 @@ class GALAXY(object):
 
             meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
         else:
+            log.info('HEY: {}'.format(self.transient is not None))
             meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
 
             # Initialize the random seed.
@@ -744,14 +745,10 @@ class GALAXY(object):
                 log.debug('Generated epochs: {}'.format(trans_epoch))
 
                 # Populate the object metadata table.
-                objmeta.add_column(Column(name='TRANSIENT_MODEL',
-                                          data=np.full(nmodel, self.transient.model)))
-                objmeta.add_column(Column(name='TRANSIENT_TYPE',
-                                          data=np.full(nmodel, self.transient.type)))
-                objmeta.add_column(Column(name='TRANSIENT_EPOCH',
-                                          data=trans_epoch))
-                objmeta.add_column(Column(name='TRANSIENT_RFLUXRATIO',
-                                          data=trans_rfluxratio))
+                objmeta['TRANSIENT_MODEL'][:] = np.full(nmodel, self.transient.model)
+                objmeta['TRANSIENT_TYPE'][:] = np.full(nmodel, self.transient.type)
+                objmeta['TRANSIENT_EPOCH'][:] = trans_epoch
+                objmeta['TRANSIENT_RFLUXRATIO'][:] = trans_rfluxratio
 
 #                snemeta['SNE_TEMPLATEID'] = sne_tempid
 #                snemeta['SNE_EPOCH'] = self.sne_basemeta['EPOCH'][sne_tempid]
