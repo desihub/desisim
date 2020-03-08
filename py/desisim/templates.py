@@ -32,15 +32,6 @@ def _check_input_meta(input_meta, ignore_templateid=False):
             required_cols))
         raise ValueError
 
-def _check_input_snemeta(input_snemeta):
-    log = get_logger()
-    cols = input_snemeta.colnames
-    required_cols = ('SNE_TEMPLATEID', 'SNE_EPOCH', 'SNE_FLUXRATIO', 'SNE_FILTER')
-    if not np.all(np.in1d(required_cols, cols)):
-        log.warning('Input SNe metadata table (input_snemeta) is missing one or more required columns {}'.format(
-            required_cols))
-        raise ValueError
-
 def _check_star_properties(star_properties, WD=False):
     log = get_logger()
     cols = star_properties.colnames
@@ -515,7 +506,7 @@ class GALAXY(object):
                               oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
                               minlineflux=0.0, trans_filter='decam2014-r',
                               seed=None, redshift=None, mag=None, vdisp=None,
-                              input_meta=None, input_snemeta=None, nocolorcuts=False,
+                              input_meta=None, nocolorcuts=False,
                               nocontinuum=False, agnlike=False, novdisp=False, south=True,
                               restframe=False, verbose=False):
         """Build Monte Carlo galaxy spectra/templates.
@@ -582,10 +573,6 @@ class GALAXY(object):
             spectra, then VDISP must also be passed (normally returned in the
             OBJMETA table).  If present, then all other optional inputs (nmodel,
             redshift, mag, zrange, logvdisp_meansig, etc.) are ignored.
-          input_snemeta (astropy.Table): *Input* table of SN properties with
-            required columns SNE_TEMPLATEID, SNE_EPOCH, SNE_FLUXRATIO, and
-            SNE_FILTER.  Only used if transient is True.  Also, if present then
-            all other optional inputs pertaining to SNe are ignored.
 
           nocolorcuts (bool, optional): Do not apply the color-cuts specified by
             the self.colorcuts_function function (default False).
@@ -613,9 +600,6 @@ class GALAXY(object):
           * meta (astropy.Table): Table of meta-data [nmodel] for each output spectrum.
           * objmeta (astropy.Table): Additional objtype-specific table data
             [nmodel] for each spectrum.
-
-        In addition, if transient=True then a third astropy.Table object,
-        snemeta, is returned with the properties of the simulated SNe.
 
         Raises:
           ValueError
@@ -718,41 +702,29 @@ class GALAXY(object):
         # Generate the (optional) distribution of transient model brightness
         # and epoch priors or read them from the input table.
         if self.transient is not None:
-            if input_snemeta is not None:
-                _check_input_snemeta(input_snemeta)
-                sne_tempid = input_snemeta['SNE_TEMPLATEID']
-                sne_epoch = input_snemeta['SNE_EPOCH']
-                sne_fluxratio = input_snemeta['SNE_FLUXRATIO']
-                trans_filter = np.char.strip(input_snemeta['SNE_FILTER'])
-            else:
-                trans_rfluxratio = rand.uniform(self.trans_fluxratiorange[0], self.trans_fluxratiorange[1], nmodel)
-                log.debug('Flux ratio range: {:g} to {:g}'.format(self.trans_fluxratiorange[0], self.trans_fluxratiorange[1]))
-                log.debug('Generated ratios: {}'.format(trans_rfluxratio))
+            trans_rfluxratio = rand.uniform(self.trans_fluxratiorange[0], self.trans_fluxratiorange[1], nmodel)
+            log.debug('Flux ratio range: {:g} to {:g}'.format(self.trans_fluxratiorange[0], self.trans_fluxratiorange[1]))
+            log.debug('Generated ratios: {}'.format(trans_rfluxratio))
 
-                tmin = self.trans_epochrange[0]
-                if tmin < self.transient.mintime().to('day').value:
-                    tmin = self.transient.mintime().to('day').value
-                tmin = int(tmin)
+            tmin = self.trans_epochrange[0]
+            if tmin < self.transient.mintime().to('day').value:
+                tmin = self.transient.mintime().to('day').value
+            tmin = int(tmin)
 
-                tmax = self.trans_epochrange[1]
-                if tmax > self.transient.maxtime().to('day').value:
-                    tmax = self.transient.maxtime().to('day').value
-                tmax = int(tmax)
+            tmax = self.trans_epochrange[1]
+            if tmax > self.transient.maxtime().to('day').value:
+                tmax = self.transient.maxtime().to('day').value
+            tmax = int(tmax)
 
-                trans_epoch = rand.randint(tmin, tmax, nmodel)
-                log.debug('Epoch range: {:d} d to {:d} d'.format(tmin, tmax))
-                log.debug('Generated epochs: {}'.format(trans_epoch))
+            trans_epoch = rand.randint(tmin, tmax, nmodel)
+            log.debug('Epoch range: {:d} d to {:d} d'.format(tmin, tmax))
+            log.debug('Generated epochs: {}'.format(trans_epoch))
 
-                # Populate the object metadata table.
-                objmeta['TRANSIENT_MODEL'][:] = np.full(nmodel, self.transient.model)
-                objmeta['TRANSIENT_TYPE'][:] = np.full(nmodel, self.transient.type)
-                objmeta['TRANSIENT_EPOCH'][:] = trans_epoch
-                objmeta['TRANSIENT_RFLUXRATIO'][:] = trans_rfluxratio
-
-#                snemeta['SNE_TEMPLATEID'] = sne_tempid
-#                snemeta['SNE_EPOCH'] = self.sne_basemeta['EPOCH'][sne_tempid]
-#                snemeta['SNE_FLUXRATIO'] = sne_fluxratio
-#                snemeta['SNE_FILTER'] = trans_filter
+            # Populate the object metadata table.
+            objmeta['TRANSIENT_MODEL'][:] = np.full(nmodel, self.transient.model)
+            objmeta['TRANSIENT_TYPE'][:] = np.full(nmodel, self.transient.type)
+            objmeta['TRANSIENT_EPOCH'][:] = trans_epoch
+            objmeta['TRANSIENT_RFLUXRATIO'][:] = trans_rfluxratio
 
         # Precompute the velocity dispersion convolution matrix for each unique
         # value of vdisp.
@@ -954,10 +926,7 @@ class GALAXY(object):
         else:
             outwave = self.wave
 
-        if self.transient is not None:
-            return 1e17 * outflux, outwave, meta, objmeta#, snemeta
-        else:
-            return 1e17 * outflux, outwave, meta, objmeta
+        return 1e17 * outflux, outwave, meta, objmeta
 
 class ELG(GALAXY):
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs)."""
@@ -998,7 +967,7 @@ class ELG(GALAXY):
                        oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
                        minoiiflux=0.0, trans_filter='decam2014-r',
                        redshift=None, mag=None, vdisp=None, seed=None, input_meta=None,
-                       input_snemeta=None, nocolorcuts=False, nocontinuum=False, agnlike=False,
+                       nocolorcuts=False, nocontinuum=False, agnlike=False,
                        novdisp=False, south=True, restframe=False, verbose=False):
         """Build Monte Carlo ELG spectra/templates.
 
@@ -1025,9 +994,6 @@ class ELG(GALAXY):
           * objmeta (astropy.Table): Additional objtype-specific table data
             [nmodel] for each spectrum.
 
-          In addition, if transient=True then a third astropy.Table object,
-          snemeta, is returned with the properties of the simulated SNe.
-
         Raises:
 
         """
@@ -1035,7 +1001,7 @@ class ELG(GALAXY):
                                             oiiihbrange=oiiihbrange, logvdisp_meansig=logvdisp_meansig,
                                             minlineflux=minoiiflux, redshift=redshift, vdisp=vdisp,
                                             mag=mag, trans_filter=trans_filter,
-                                            seed=seed, input_meta=input_meta, input_snemeta=input_snemeta,
+                                            seed=seed, input_meta=input_meta,
                                             nocolorcuts=nocolorcuts, nocontinuum=nocontinuum, agnlike=agnlike,
                                             novdisp=novdisp, south=south, restframe=restframe, verbose=verbose)
         return result
@@ -1079,7 +1045,7 @@ class BGS(GALAXY):
                        oiiihbrange=(-1.3, 0.6), logvdisp_meansig=(2.0, 0.17),
                        minhbetaflux=0.0, trans_filter='decam2014-r',
                        redshift=None, mag=None, vdisp=None, seed=None, input_meta=None,
-                       input_snemeta=None, nocolorcuts=False, nocontinuum=False, agnlike=False,
+                       nocolorcuts=False, nocontinuum=False, agnlike=False,
                        novdisp=False, south=True, restframe=False, verbose=False):
         """Build Monte Carlo BGS spectra/templates.
 
@@ -1106,9 +1072,6 @@ class BGS(GALAXY):
           * objmeta (astropy.Table): Additional objtype-specific table data
             [nmodel] for each spectrum.
 
-          In addition, if transient=True then a third astropy.Table object,
-          snemeta, is returned with the properties of the simulated SNe.
-
         Raises:
 
         """
@@ -1116,7 +1079,7 @@ class BGS(GALAXY):
                                             oiiihbrange=oiiihbrange, logvdisp_meansig=logvdisp_meansig,
                                             minlineflux=minhbetaflux, redshift=redshift, vdisp=vdisp,
                                             mag=mag, trans_filter=trans_filter,
-                                            seed=seed, input_meta=input_meta, input_snemeta=input_snemeta,
+                                            seed=seed, input_meta=input_meta,
                                             nocolorcuts=nocolorcuts, nocontinuum=nocontinuum, agnlike=agnlike,
                                             novdisp=novdisp, south=south, restframe=restframe, verbose=verbose)
         return result
@@ -1155,7 +1118,7 @@ class LRG(GALAXY):
     def make_templates(self, nmodel=100, zrange=(0.5, 1.0), magrange=(19.0, 20.2),
                        logvdisp_meansig=(2.3, 0.1),
                        trans_filter='decam2014-r', redshift=None, mag=None, vdisp=None,
-                       seed=None, input_meta=None, input_snemeta=None, nocolorcuts=False,
+                       seed=None, input_meta=None, nocolorcuts=False,
                        novdisp=False, agnlike=False, south=True, restframe=False, verbose=False):
         """Build Monte Carlo BGS spectra/templates.
 
@@ -1179,9 +1142,6 @@ class LRG(GALAXY):
           * objmeta (astropy.Table): Additional objtype-specific table data
             [nmodel] for each spectrum.
 
-          In addition, if transient=True then a third astropy.Table object,
-          snemeta, is returned with the properties of the simulated SNe.
-
         Raises:
 
         """
@@ -1189,7 +1149,7 @@ class LRG(GALAXY):
                                             logvdisp_meansig=logvdisp_meansig, redshift=redshift,
                                             vdisp=vdisp, mag=mag,
                                             trans_filter=trans_filter, seed=seed, input_meta=input_meta,
-                                            input_snemeta=input_snemeta, nocolorcuts=nocolorcuts,
+                                            nocolorcuts=nocolorcuts,
                                             agnlike=agnlike, novdisp=novdisp, south=south,
                                             restframe=restframe, verbose=verbose)
 
