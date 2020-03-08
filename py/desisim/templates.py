@@ -332,7 +332,7 @@ class GALAXY(object):
 
     """
     def __init__(self, objtype='ELG', minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 transient=None, tr_fluxratio=(0.01, 1.),
+                 transient=None, tr_fluxratio=(0.01, 1.), tr_epoch=(-10,10),
                  include_mgii=False, colorcuts_function=None,
                  normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  normline='OII', fracvdisp=(0.1, 40), 
@@ -378,6 +378,8 @@ class GALAXY(object):
             into the spectrum (default None).
           tr_fluxratio (tuple): optional flux ratio range for transient
             and host spectrum. Default is (0.01, 1).
+          tr_epoch (tuple): optional epoch range for uniformly sampling a
+            transient spectrum, in days. Default is (-10, 10).
           include_mgii (bool, optional): Include Mg II in emission (default False).  
 
         Attributes:
@@ -442,6 +444,7 @@ class GALAXY(object):
         # Optionally access a transient model.
         self.transient = transient
         self.trans_fluxratiorange = tr_fluxratio
+        self.trans_epochrange = tr_epoch
 
         if self.transient is not None:
             self.rfilt_north = filters.load_filters('BASS-r')
@@ -726,9 +729,22 @@ class GALAXY(object):
 #                snemeta = empty_snemetatable(nmodel)
                 
                 trans_rfluxratio = rand.uniform(self.trans_fluxratiorange[0], self.trans_fluxratiorange[1], nmodel)
-                print(self.trans_fluxratiorange[0], self.trans_fluxratiorange[1])
-                print(trans_rfluxratio)
-                trans_epoch = rand.randint(-10, 10, nmodel)
+                log.debug('Flux ratio range: {:g} to {:g}'.format(self.trans_fluxratiorange[0], self.trans_fluxratiorange[1]))
+                log.debug('Generated ratios: {}'.format(trans_rfluxratio))
+
+                tmin = self.trans_epochrange[0]
+                if tmin < self.transient.mintime().to('day').value:
+                    tmin = self.transient.mintime().to('day').value
+                tmin = int(tmin)
+
+                tmax = self.trans_epochrange[1]
+                if tmax > self.transient.maxtime().to('day').value:
+                    tmax = self.transient.maxtime().to('day').value
+                tmax = int(tmax)
+
+                trans_epoch = rand.randint(tmin, tmax, nmodel)
+                log.debug('Epoch range: {:d} d to {:d} d'.format(tmin, tmax))
+                log.debug('Generated epochs: {}'.format(trans_epoch))
                 
 #                snemeta['SNE_TEMPLATEID'] = sne_tempid
 #                snemeta['SNE_EPOCH'] = self.sne_basemeta['EPOCH'][sne_tempid]
@@ -944,7 +960,7 @@ class ELG(GALAXY):
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 transient=None, tr_fluxratio=(0.01, 1.), include_mgii=False, colorcuts_function=None,
+                 transient=None, tr_fluxratio=(0.01, 1.), tr_epoch=(-10,10), include_mgii=False, colorcuts_function=None,
                  normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the ELG class.  See the GALAXY.__init__ method for documentation
@@ -971,7 +987,7 @@ class ELG(GALAXY):
                                   colorcuts_function=colorcuts_function,
                                   normfilter_north=normfilter_north, normfilter_south=normfilter_south,
                                   baseflux=baseflux, basewave=basewave, basemeta=basemeta,
-                                  transient=transient, tr_fluxratio=tr_fluxratio, include_mgii=include_mgii)
+                                  transient=transient, tr_fluxratio=tr_fluxratio, tr_epoch=tr_epoch, include_mgii=include_mgii)
 
         self.ewoiicoeff = [1.34323087, -5.02866474, 5.43842874]
 
@@ -1025,7 +1041,7 @@ class BGS(GALAXY):
     """Generate Monte Carlo spectra of bright galaxy survey galaxies (BGSs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 transient=None, tr_fluxratio=(0.01, 1.), include_mgii=False, colorcuts_function=None,
+                 transient=None, tr_fluxratio=(0.01, 1.), tr_epoch=(-10,10), include_mgii=False, colorcuts_function=None,
                  normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the BGS class.  See the GALAXY.__init__ method for documentation
@@ -1052,7 +1068,7 @@ class BGS(GALAXY):
                                   colorcuts_function=colorcuts_function,
                                   normfilter_north=normfilter_north, normfilter_south=normfilter_south,
                                   baseflux=baseflux, basewave=basewave, basemeta=basemeta,
-                                  transient=transient, tr_fluxratio=tr_fluxratio,  include_mgii=include_mgii)
+                                  transient=transient, tr_fluxratio=tr_fluxratio, tr_epoch=tr_epoch, include_mgii=include_mgii)
 
         self.ewhbetacoeff = [1.28520974, -4.94408026, 4.9617704]
 
@@ -1106,7 +1122,7 @@ class LRG(GALAXY):
     """Generate Monte Carlo spectra of luminous red galaxies (LRGs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 transient=None, tr_fluxratio=(0.01, 1.), colorcuts_function=None,
+                 transient=None, tr_fluxratio=(0.01, 1.), tr_epoch=(-10,10), colorcuts_function=None,
                  normfilter_north='MzLS-z', normfilter_south='decam2014-z',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the LRG class.  See the GALAXY.__init__ method for documentation
@@ -1131,7 +1147,7 @@ class LRG(GALAXY):
                                   colorcuts_function=colorcuts_function,
                                   normfilter_north=normfilter_north, normfilter_south=normfilter_south,
                                   baseflux=baseflux, basewave=basewave, basemeta=basemeta,
-                                  transient=transient, tr_fluxratio=tr_fluxratio)
+                                  transient=transient, tr_fluxratio=tr_fluxratio, tr_epoch=tr_epoch)
 
     def make_templates(self, nmodel=100, zrange=(0.5, 1.0), magrange=(19.0, 20.2),
                        logvdisp_meansig=(2.3, 0.1),

@@ -213,18 +213,19 @@ def main(args=None):
 
     if args.host == 'bgs':
         maker = BGSMaker(seed=args.seed)
-        maker.template_maker = BGS(transient=trans_model,
-                                   tr_fluxratio=fluxratio_range)
+        tmpl_maker = BGS
     elif args.host == 'elg':
         maker = ELGMaker(seed=args.seed)
-        maker.template_maker = ELG(transient=trans_model,
-                                   tr_fluxratio=fluxratio_range)
+        tmpl_maker = ELG
     elif args.host == 'lrg':
         maker = LRGMaker(seed=args.seed)
-        maker.template_maker = LRG(transient=trans_model,
-                                   tr_fluxratio=fluxratio_range)
+        tmpl_maker = LRG
     else:
         raise ValueError('Unusable host type {}'.format(args.host))
+
+    maker.template_maker = tmpl_maker(transient=trans_model,
+                                      tr_fluxratio=fluxratio_range,
+                                      tr_epoch=epoch_range)
 
     for j in range(args.nsim):
         # Loop until finding a non-empty healpixel with mock galaxies.
