@@ -8,7 +8,7 @@ import numpy as np
 import healpy as hp
 from datetime import datetime
 
-from desisim.templates import BGS
+from desisim.templates import BGS, ELG, LRG
 from desisim.transients import transients
 
 from desitarget.mock.mockmaker import BGSMaker, ELGMaker, LRGMaker
@@ -22,6 +22,33 @@ from desiutil.log import get_logger, DEBUG
 from astropy.table import Table, hstack, vstack
 
 from argparse import ArgumentParser
+
+
+def _set_wave(wavemin=None, wavemax=None, dw=0.8):
+    """Set default wavelength grid for simulations.
+
+    Parameters
+    ----------
+    wavemin : float or None
+        Minimum wavelength, in Angstroms.
+    wavemax : float or None
+        Maximum wavelength, in Angstroms.
+    dw : float
+        Bin size.
+
+    Returns
+    -------
+    wave : ndarray
+        Grid of wavelength values.
+    """
+    from desimodel.io import load_throughput
+
+    if wavemin is None:
+        wavemin = load_throughput('b').wavemin - 10.0
+    if wavemax is None:
+        wavemax = load_throughput('z').wavemax + 10.0
+
+    return np.arange(round(wavemin, 1), wavemax, dw)
 
 
 def _get_healpixels_in_footprint(nside=64):
@@ -166,6 +193,11 @@ def main(args=None):
 
     thedate = datetime.now().strftime('%Y-%m-%d')
 
+    # Generate transient model if one is specified.
+    trans_model = None
+    if args.transient is not None:
+        trans_model = transient.get_model(args.transient)
+
     # Generate list of HEALPix pixels to randomly sample the mocks.
     rng = np.random.RandomState(args.seed)
     nside = args.nside
@@ -177,10 +209,13 @@ def main(args=None):
     # Set up the template generator.
     if args.host == 'bgs':
         maker = BGSMaker(seed=args.seed)
+        maker.template_maker = BGS(transient=trans_model)
     elif args.host == 'elg':
         maker = ELGMaker(seed=args.seed)
+        maker.template_maker = ELG(transient=trans_model)
     elif args.host == 'lrg':
         maker = LRGMaker(seed=args.seed)
+        maker.template_maker = LRG(transient=trans_model)
     else:
         raise ValueError('Unusable host type {}'.format(args.host))
 

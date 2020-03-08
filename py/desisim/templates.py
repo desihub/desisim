@@ -330,7 +330,7 @@ class GALAXY(object):
 
     """
     def __init__(self, objtype='ELG', minwave=3600.0, maxwave=10000.0, cdelt=0.2,
-                 wave=None, add_SNeIa=False, include_mgii=False, colorcuts_function=None,
+                 wave=None, transient=None, include_mgii=False, colorcuts_function=None,
                  normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  normline='OII', fracvdisp=(0.1, 40), 
                  baseflux=None, basewave=None, basemeta=None):
@@ -371,8 +371,8 @@ class GALAXY(object):
             the default (0.1, 40) means there will be either int(0.1*nmodel) or
             40 unique values, where nmodel is defined in
             GALAXY.make_galaxy_templates, below.
-          add_SNeIa (boolean, optional): optionally include a random-epoch SNe
-            Ia spectrum in the integrated spectrum (default False).
+          transient (Transient, None): optional Transient object to integrate
+            into the spectrum (default None).
           include_mgii (bool, optional): Include Mg II in emission (default False).  
 
         Attributes:
@@ -434,9 +434,9 @@ class GALAXY(object):
 
             self.EM = EMSpectrum(log10wave=np.log10(self.basewave), include_mgii=include_mgii)
 
-        # Optionally read the SNe Ia basis templates and resample.
-        self.add_SNeIa = add_SNeIa
-        if self.add_SNeIa:
+        # Optionally access a transient model.
+        self.transient = transient
+        if self.transient is not None:
             from desispec.interpolation import resample_flux
             sne_baseflux1, sne_basewave, sne_basemeta = read_basis_templates(objtype='SNE')
             sne_baseflux = np.zeros((len(sne_basemeta), len(self.basewave)))
@@ -588,14 +588,14 @@ class GALAXY(object):
             redshift, mag, zrange, logvdisp_meansig, etc.) are ignored.
           input_snemeta (astropy.Table): *Input* table of SN properties with
             required columns SNE_TEMPLATEID, SNE_EPOCH, SNE_FLUXRATIO, and
-            SNE_FILTER.  Only used if add_SNeIa is True.  Also, if present then
+            SNE_FILTER.  Only used if transient is True.  Also, if present then
             all other optional inputs pertaining to SNe are ignored.
 
           nocolorcuts (bool, optional): Do not apply the color-cuts specified by
             the self.colorcuts_function function (default False).
           nocontinuum (bool, optional): Do not include the stellar continuum in
             the output spectrum (useful for testing; default False).  Note that
-            this option automatically sets nocolorcuts to True and add_SNeIa to
+            this option automatically sets nocolorcuts to True and transient to
             False.
           novdisp (bool, optional): Do not velocity-blur the spectrum (default
             False).
@@ -618,7 +618,7 @@ class GALAXY(object):
           * objmeta (astropy.Table): Additional objtype-specific table data
             [nmodel] for each spectrum.
 
-        In addition, if add_SNeIa=True then a third astropy.Table object,
+        In addition, if transient=True then a third astropy.Table object,
         snemeta, is returned with the properties of the simulated SNe.
 
         Raises:
@@ -635,9 +635,9 @@ class GALAXY(object):
 
         # Basic error checking and some preliminaries.
         if nocontinuum:
-            log.warning('Forcing nocolorcuts=True, add_SNeIa=False since nocontinuum=True.')
+            log.warning('Forcing nocolorcuts=True, transient=False since nocontinuum=True.')
             nocolorcuts = True
-            self.add_SNeIa = False
+            self.transient = False
 
         npix = len(self.basewave)
         nbase = len(self.basemeta)
@@ -717,9 +717,9 @@ class GALAXY(object):
                 log.fatal('Velocity dispersion is zero or negative!')
                 raise ValueError
 
-        # Generate the (optional) distribution of SNe Ia priors or read them
-        # from the input table.
-        if self.add_SNeIa:
+        # Generate the (optional) distribution of transient model brightness
+        # and epoch priors or read them from the input table.
+        if self.transient is not None:
             if input_snemeta is not None:
                 _check_input_snemeta(input_snemeta)
                 sne_tempid = input_snemeta['SNE_TEMPLATEID']
@@ -811,8 +811,8 @@ class GALAXY(object):
 
                 emflux /= (1+redshift[ii]) # [erg/s/cm2/A, @redshift[ii]]
 
-            # Optionally get the SN spectrum and normalization factor.
-            if self.add_SNeIa:
+            # Optionally get the transient spectrum and normalization factor.
+            if self.transient is not None:
                 sne_restflux = self.sne_baseflux[sne_tempid[ii], :]
                 snenorm = self.rfilt.get_ab_maggies(sne_restflux, zwave)
 
@@ -830,8 +830,8 @@ class GALAXY(object):
                     restflux = self.baseflux[templateid, :] + np.tile(emflux, (nbasechunk, 1)) * \
                       np.tile(normlineflux[templateid], (npix, 1)).T
 
-                # Optionally add in the SN spectrum.
-                if self.add_SNeIa:
+                # Optionally add in the transient spectrum.
+                if self.transient is not None:
                     galnorm = self.rfilt.get_ab_maggies(restflux, zwave)
                     snefactor = galnorm['decam2014-r'].data * sne_rfluxratio[ii]/snenorm['decam2014-r'].data
                     restflux += np.tile(sne_restflux, (nbasechunk, 1)) * np.tile(snefactor, (npix, 1)).T
@@ -930,7 +930,7 @@ class GALAXY(object):
         else:
             outwave = self.wave
             
-        if self.add_SNeIa:
+        if self.transient is not None:
             return 1e17 * outflux, outwave, meta, objmeta, snemeta
         else:
             return 1e17 * outflux, outwave, meta, objmeta
@@ -939,7 +939,7 @@ class ELG(GALAXY):
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 add_SNeIa=False, include_mgii=False, colorcuts_function=None,
+                 transient=None, include_mgii=False, colorcuts_function=None,
                  normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the ELG class.  See the GALAXY.__init__ method for documentation
@@ -966,7 +966,7 @@ class ELG(GALAXY):
                                   colorcuts_function=colorcuts_function,
                                   normfilter_north=normfilter_north, normfilter_south=normfilter_south,
                                   baseflux=baseflux, basewave=basewave, basemeta=basemeta,
-                                  add_SNeIa=add_SNeIa, include_mgii=include_mgii)
+                                  transient=transient, include_mgii=include_mgii)
 
         self.ewoiicoeff = [1.34323087, -5.02866474, 5.43842874]
 
@@ -1001,7 +1001,7 @@ class ELG(GALAXY):
           * objmeta (astropy.Table): Additional objtype-specific table data
             [nmodel] for each spectrum.
 
-          In addition, if add_SNeIa=True then a third astropy.Table object,
+          In addition, if transient=True then a third astropy.Table object,
           snemeta, is returned with the properties of the simulated SNe.
 
         Raises:
@@ -1020,7 +1020,7 @@ class BGS(GALAXY):
     """Generate Monte Carlo spectra of bright galaxy survey galaxies (BGSs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 add_SNeIa=False, include_mgii=False, colorcuts_function=None,
+                 transient=None, include_mgii=False, colorcuts_function=None,
                  normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the BGS class.  See the GALAXY.__init__ method for documentation
@@ -1047,7 +1047,7 @@ class BGS(GALAXY):
                                   colorcuts_function=colorcuts_function,
                                   normfilter_north=normfilter_north, normfilter_south=normfilter_south,
                                   baseflux=baseflux, basewave=basewave, basemeta=basemeta,
-                                  add_SNeIa=add_SNeIa, include_mgii=include_mgii)
+                                  transient=transient, include_mgii=include_mgii)
 
         self.ewhbetacoeff = [1.28520974, -4.94408026, 4.9617704]
 
@@ -1082,7 +1082,7 @@ class BGS(GALAXY):
           * objmeta (astropy.Table): Additional objtype-specific table data
             [nmodel] for each spectrum.
 
-          In addition, if add_SNeIa=True then a third astropy.Table object,
+          In addition, if transient=True then a third astropy.Table object,
           snemeta, is returned with the properties of the simulated SNe.
 
         Raises:
@@ -1101,7 +1101,7 @@ class LRG(GALAXY):
     """Generate Monte Carlo spectra of luminous red galaxies (LRGs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 add_SNeIa=False, colorcuts_function=None,
+                 transient=None, colorcuts_function=None,
                  normfilter_north='MzLS-z', normfilter_south='decam2014-z',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the LRG class.  See the GALAXY.__init__ method for documentation
@@ -1126,7 +1126,7 @@ class LRG(GALAXY):
                                   colorcuts_function=colorcuts_function,
                                   normfilter_north=normfilter_north, normfilter_south=normfilter_south,
                                   baseflux=baseflux, basewave=basewave, basemeta=basemeta,
-                                  add_SNeIa=add_SNeIa)
+                                  transient=transient)
 
     def make_templates(self, nmodel=100, zrange=(0.5, 1.0), magrange=(19.0, 20.2),
                        logvdisp_meansig=(2.3, 0.1), sne_fluxratiorange=(0.1, 1.0),
@@ -1155,7 +1155,7 @@ class LRG(GALAXY):
           * objmeta (astropy.Table): Additional objtype-specific table data
             [nmodel] for each spectrum.
 
-          In addition, if add_SNeIa=True then a third astropy.Table object,
+          In addition, if transient=True then a third astropy.Table object,
           snemeta, is returned with the properties of the simulated SNe.
 
         Raises:
@@ -2834,7 +2834,7 @@ def specify_galparams_dict(templatetype, zrange=None, magrange=None,
             size must equal nmodel.  Ignores magrange input.
         * input_meta (astropy.Table): *Input* metadata table with the following
             required columns: TEMPLATEID, SEED, REDSHIFT, VDISP, MAG (where mag
-            is specified by self.normfilter).  In addition, if add_SNeIa is True
+            is specified by self.normfilter).  In addition, if transient is True
             then the table must also contain SNE_TEMPLATEID, SNE_EPOCH, and
             SNE_RFLUXRATIO columns.  See desisim.io.empty_metatable for the
             required data type for each column.  If this table is passed then
@@ -2844,7 +2844,7 @@ def specify_galparams_dict(templatetype, zrange=None, magrange=None,
             the self.colorcuts_function function (default False).
         * nocontinuum (bool, optional): Do not include the stellar continuum in
             the output spectrum (useful for testing; default False).  Note that
-            this option automatically sets nocolorcuts to True and add_SNeIa to
+            this option automatically sets nocolorcuts to True and transient to
             False.
         * novdisp (bool, optional): Do not velocity-blur the spectrum (default False).
         * agnlike (bool, optional): Adopt AGN-like emission-line ratios (e.g.,
