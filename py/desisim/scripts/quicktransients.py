@@ -285,7 +285,7 @@ def main(args=None):
         assert(len(objtr) == len(np.unique(objtr['TARGETID'])))
 
         truthfile = os.path.join(args.outdir,
-                     '{}_{}_{:03d}_truth.fits'.format(args.host, thedate, j+1))
+                     '{}_{}_{:04d}s_{:03d}_truth.fits'.format(args.host, thedate, int(args.exptime), j+1))
         write_templates(truthfile, flux, wave, targ, truth, objtr)
 
         # Get observing conditions and generate spectra.
@@ -317,7 +317,7 @@ def main(args=None):
                      EBV=targ['EBV'])
 
         specfile = os.path.join(args.outdir,
-                    '{}_{}_{:03d}_spect.fits'.format(args.host, thedate, j+1))
+                    '{}_{}_{:04d}s_{:03d}_spect.fits'.format(args.host, thedate, int(args.exptime), j+1))
 
         redshifts = truth['TRUEZ'] if args.host=='bgs' else None
 
