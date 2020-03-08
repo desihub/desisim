@@ -516,7 +516,7 @@ class GALAXY(object):
 
     def make_galaxy_templates(self, nmodel=100, zrange=(0.6, 1.6), magrange=(20.0, 22.0),
                               oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
-                              minlineflux=0.0, sne_fluxratiorange=(0.01, 0.1), sne_filter='decam2014-r',
+                              minlineflux=0.0, trans_fluxratiorange=(0.01, 0.1), trans_filter='decam2014-r',
                               seed=None, redshift=None, mag=None, vdisp=None,
                               input_meta=None, input_snemeta=None, nocolorcuts=False,
                               nocontinuum=False, agnlike=False, novdisp=False, south=True,
@@ -565,10 +565,11 @@ class GALAXY(object):
           minlineflux (float, optional): Minimum emission-line flux in the line
             specified by self.normline (default 0 erg/s/cm2).
         
-          sne_fluxratiorange (float, optional): flux ratio of the SNeIa spectrum
-            with respect to the underlying galaxy in the filter specified in
-            sne_filter.  Defaults to a uniform distribution between (0.01, 0.1).
-          sne_filter (str): filter corresponding to SNE_FLUXRATIORANGE (default
+          trans_fluxratiorange (float, optional): flux ratio of the transient
+            spectrum with respect to the underlying galaxy in the filter
+            specified in trans_filter. Defaults to a uniform distribution
+            between (0.1, 1).
+          trans_filter (str): filter corresponding to TRANS_FLUXRATIORANGE (default
             'decam2014-r').
         
           seed (int, optional): Input seed for the random numbers.
@@ -727,18 +728,20 @@ class GALAXY(object):
                 sne_tempid = input_snemeta['SNE_TEMPLATEID']
                 sne_epoch = input_snemeta['SNE_EPOCH']
                 sne_fluxratio = input_snemeta['SNE_FLUXRATIO']
-                sne_filter = np.char.strip(input_snemeta['SNE_FILTER'])
+                trans_filter = np.char.strip(input_snemeta['SNE_FILTER'])
             else:
 #                from desisim.io import empty_snemetatable
 #                snemeta = empty_snemetatable(nmodel)
                 
-                trans_rfluxratio = rand.uniform(sne_fluxratiorange[0], sne_fluxratiorange[1], nmodel)
+                trans_rfluxratio = rand.uniform(trans_fluxratiorange[0], trans_fluxratiorange[1], nmodel)
+                print(trans_fluxratiorange[0], trans_fluxratiorange[1])
+                print(trans_rfluxratio)
                 trans_epoch = rand.randint(-10, 10, nmodel)
                 
 #                snemeta['SNE_TEMPLATEID'] = sne_tempid
 #                snemeta['SNE_EPOCH'] = self.sne_basemeta['EPOCH'][sne_tempid]
 #                snemeta['SNE_FLUXRATIO'] = sne_fluxratio
-#                snemeta['SNE_FILTER'] = sne_filter
+#                snemeta['SNE_FILTER'] = trans_filter
 
         # Precompute the velocity dispersion convolution matrix for each unique
         # value of vdisp.
@@ -824,12 +827,7 @@ class GALAXY(object):
                 k = np.argwhere(self.basewave <= maxw)[-1,0]
 
                 trans_restflux[j:k] = self.transient.flux(trans_epoch[ii], self.basewave[j:k]*units.Angstrom)
-                print(trans_epoch[ii])
-                print(zwave)
-                print(len(zwave), len(self.basewave), len(trans_restflux))
                 trans_norm = normfilt[magfilter[ii]].get_ab_maggies(trans_restflux, zwave)
-#                sne_restflux = self.sne_baseflux[sne_tempid[ii], :]
-#                snenorm = self.rfilt.get_ab_maggies(sne_restflux, zwave)
 
             for ichunk in range(nchunk):
                 if ii % 100 == 0 and ii > 0:
@@ -987,7 +985,7 @@ class ELG(GALAXY):
 
     def make_templates(self, nmodel=100, zrange=(0.6, 1.6), magrange=(21.0, 23.4),
                        oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
-                       minoiiflux=0.0, sne_fluxratiorange=(0.1, 1.0), sne_filter='decam2014-r',
+                       minoiiflux=0.0, trans_fluxratiorange=(0.1, 1.0), trans_filter='decam2014-r',
                        redshift=None, mag=None, vdisp=None, seed=None, input_meta=None,
                        input_snemeta=None, nocolorcuts=False, nocontinuum=False, agnlike=False,
                        novdisp=False, south=True, restframe=False, verbose=False):
@@ -1025,7 +1023,7 @@ class ELG(GALAXY):
         result = self.make_galaxy_templates(nmodel=nmodel, zrange=zrange, magrange=magrange,
                                             oiiihbrange=oiiihbrange, logvdisp_meansig=logvdisp_meansig,
                                             minlineflux=minoiiflux, redshift=redshift, vdisp=vdisp,
-                                            mag=mag, sne_fluxratiorange=sne_fluxratiorange, sne_filter=sne_filter,
+                                            mag=mag, trans_fluxratiorange=trans_fluxratiorange, trans_filter=trans_filter,
                                             seed=seed, input_meta=input_meta, input_snemeta=input_snemeta,
                                             nocolorcuts=nocolorcuts, nocontinuum=nocontinuum, agnlike=agnlike,
                                             novdisp=novdisp, south=south, restframe=restframe, verbose=verbose)
@@ -1068,7 +1066,7 @@ class BGS(GALAXY):
 
     def make_templates(self, nmodel=100, zrange=(0.01, 0.4), magrange=(15.0, 20.0),
                        oiiihbrange=(-1.3, 0.6), logvdisp_meansig=(2.0, 0.17),
-                       minhbetaflux=0.0, sne_fluxratiorange=(0.1, 1.0), sne_filter='decam2014-r',
+                       minhbetaflux=0.0, trans_fluxratiorange=(0.1, 1.0), trans_filter='decam2014-r',
                        redshift=None, mag=None, vdisp=None, seed=None, input_meta=None,
                        input_snemeta=None, nocolorcuts=False, nocontinuum=False, agnlike=False,
                        novdisp=False, south=True, restframe=False, verbose=False):
@@ -1106,7 +1104,7 @@ class BGS(GALAXY):
         result = self.make_galaxy_templates(nmodel=nmodel, zrange=zrange, magrange=magrange,
                                             oiiihbrange=oiiihbrange, logvdisp_meansig=logvdisp_meansig,
                                             minlineflux=minhbetaflux, redshift=redshift, vdisp=vdisp,
-                                            mag=mag, sne_fluxratiorange=sne_fluxratiorange, sne_filter=sne_filter,
+                                            mag=mag, trans_fluxratiorange=trans_fluxratiorange, trans_filter=trans_filter,
                                             seed=seed, input_meta=input_meta, input_snemeta=input_snemeta,
                                             nocolorcuts=nocolorcuts, nocontinuum=nocontinuum, agnlike=agnlike,
                                             novdisp=novdisp, south=south, restframe=restframe, verbose=verbose)
@@ -1144,8 +1142,8 @@ class LRG(GALAXY):
                                   transient=transient)
 
     def make_templates(self, nmodel=100, zrange=(0.5, 1.0), magrange=(19.0, 20.2),
-                       logvdisp_meansig=(2.3, 0.1), sne_fluxratiorange=(0.1, 1.0),
-                       sne_filter='decam2014-r', redshift=None, mag=None, vdisp=None,
+                       logvdisp_meansig=(2.3, 0.1), trans_fluxratiorange=(0.1, 1.0),
+                       trans_filter='decam2014-r', redshift=None, mag=None, vdisp=None,
                        seed=None, input_meta=None, input_snemeta=None, nocolorcuts=False,
                        novdisp=False, agnlike=False, south=True, restframe=False, verbose=False):
         """Build Monte Carlo BGS spectra/templates.
@@ -1178,8 +1176,8 @@ class LRG(GALAXY):
         """
         result = self.make_galaxy_templates(nmodel=nmodel, zrange=zrange, magrange=magrange,
                                             logvdisp_meansig=logvdisp_meansig, redshift=redshift,
-                                            vdisp=vdisp, mag=mag, sne_fluxratiorange=sne_fluxratiorange,
-                                            sne_filter=sne_filter, seed=seed, input_meta=input_meta,
+                                            vdisp=vdisp, mag=mag, trans_fluxratiorange=trans_fluxratiorange,
+                                            trans_filter=trans_filter, seed=seed, input_meta=input_meta,
                                             input_snemeta=input_snemeta, nocolorcuts=nocolorcuts,
                                             agnlike=agnlike, novdisp=novdisp, south=south,
                                             restframe=restframe, verbose=verbose)
@@ -2801,7 +2799,7 @@ class SIMQSO():
 
 def specify_galparams_dict(templatetype, zrange=None, magrange=None,
                             oiiihbrange=None, logvdisp_meansig=None,
-                            minlineflux=None, sne_rfluxratiorange=None,
+                            minlineflux=None, trans_rfluxratiorange=None,
                             redshift=None, mag=None, vdisp=None,
                             nocolorcuts=None, nocontinuum=None,
                             agnlike=None, novdisp=None, restframe=None):
@@ -2815,7 +2813,7 @@ def specify_galparams_dict(templatetype, zrange=None, magrange=None,
         
         * nmodel=100, zrange=(0.6, 1.6), magrange=(21.0, 23.5),
         * oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
-        * minlineflux=0.0, sne_rfluxratiorange=(0.01, 0.1),
+        * minlineflux=0.0, trans_rfluxratiorange=(0.01, 0.1),
         * seed=None, redshift=None, mag=None, vdisp=None,
         * input_meta=None, nocolorcuts=False, nocontinuum=False,
         * agnlike=False, novdisp=False, restframe=False, verbose=False
@@ -2836,7 +2834,7 @@ def specify_galparams_dict(templatetype, zrange=None, magrange=None,
             Defaults to log10-sigma=1.9+/-0.15 km/s.
         * minlineflux (float, optional): Minimum emission-line flux in the line
             specified by self.normline (default 0 erg/s/cm2).
-        * sne_rfluxratiorange (float, optional): r-band flux ratio of the SNeIa
+        * trans_rfluxratiorange (float, optional): r-band flux ratio of the SNeIa
             spectrum with respect to the underlying galaxy.  Defaults to a
             uniform distribution between (0.01, 0.1).
         * seed (int, optional): Input seed for the random numbers.
@@ -2888,8 +2886,8 @@ def specify_galparams_dict(templatetype, zrange=None, magrange=None,
         fulldef_dict['logvdisp_meansig'] = logvdisp_meansig
     if minlineflux is not None:
         fulldef_dict['minlineflux'] = minlineflux
-    if sne_rfluxratiorange is not None:
-        fulldef_dict['sne_rfluxratiorange'] = sne_rfluxratiorange
+    if trans_rfluxratiorange is not None:
+        fulldef_dict['trans_rfluxratiorange'] = trans_rfluxratiorange
     if redshift is not None:
         fulldef_dict['redshift'] = redshift
     if mag is not None:
