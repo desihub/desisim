@@ -14,8 +14,6 @@ import multiprocessing
 from desiutil.log import get_logger, DEBUG
 from desisim.io import empty_metatable
 
-from astropy import units
-
 try:
     from scipy import constants
     C_LIGHT = constants.c/1000.0
@@ -625,6 +623,8 @@ class GALAXY(object):
         """
         from speclite import filters
         from desispec.interpolation import resample_flux
+        from astropy.table import Column
+        from astropy import units
 
         if verbose:
             log = get_logger(DEBUG)
@@ -725,9 +725,6 @@ class GALAXY(object):
                 sne_fluxratio = input_snemeta['SNE_FLUXRATIO']
                 trans_filter = np.char.strip(input_snemeta['SNE_FILTER'])
             else:
-#                from desisim.io import empty_snemetatable
-#                snemeta = empty_snemetatable(nmodel)
-                
                 trans_rfluxratio = rand.uniform(self.trans_fluxratiorange[0], self.trans_fluxratiorange[1], nmodel)
                 log.debug('Flux ratio range: {:g} to {:g}'.format(self.trans_fluxratiorange[0], self.trans_fluxratiorange[1]))
                 log.debug('Generated ratios: {}'.format(trans_rfluxratio))
@@ -745,7 +742,17 @@ class GALAXY(object):
                 trans_epoch = rand.randint(tmin, tmax, nmodel)
                 log.debug('Epoch range: {:d} d to {:d} d'.format(tmin, tmax))
                 log.debug('Generated epochs: {}'.format(trans_epoch))
-                
+
+                # Populate the object metadata table.
+                objmeta.add_column(Column(name='TRANSIENT_MODEL',
+                                          data=np.full(nmodel, self.transient.model)))
+                objmeta.add_column(Column(name='TRANSIENT_TYPE',
+                                          data=np.full(nmodel, self.transient.type)))
+                objmeta.add_column(Column(name='TRANSIENT_EPOCH',
+                                          data=trans_epoch))
+                objmeta.add_column(Column(name='TRANSIENT_RFLUXRATIO',
+                                          data=trans_rfluxratio))
+
 #                snemeta['SNE_TEMPLATEID'] = sne_tempid
 #                snemeta['SNE_EPOCH'] = self.sne_basemeta['EPOCH'][sne_tempid]
 #                snemeta['SNE_FLUXRATIO'] = sne_fluxratio
@@ -950,7 +957,7 @@ class GALAXY(object):
             outwave = self.basewave
         else:
             outwave = self.wave
-            
+
         if self.transient is not None:
             return 1e17 * outflux, outwave, meta, objmeta#, snemeta
         else:
