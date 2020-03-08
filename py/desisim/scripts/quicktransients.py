@@ -165,10 +165,10 @@ def parse(options=None):
 
     # Set up transient model as a simulation setting. None==no transient.
     tran = parser.add_argument_group('Transient settings')
-    tran.add_argument('--magrange', nargs=2, type=float, default=[0.,5.],
-                      help='Transient-host mag range; e.g., 0, 5')
+    tran.add_argument('--magrange', nargs=2, type=float, default=[0.,2.5],
+                      help='Transient-host mag range; e.g., 0 5')
     tran.add_argument('--epochrange', nargs=2, type=float, default=[-10.,10.],
-                      help='Epoch range w.r.t. t0 in days; e.g., -10, 10')
+                      help='Epoch range w.r.t. t0 in days; e.g., -10 10')
     modelnames = []
     mdict = transients.get_type_dict()
     for t, models in mdict.items():
@@ -208,15 +208,21 @@ def main(args=None):
     ipix = iter(pixels)
 
     # Set up the template generator.
+    fluxratio_range = 10**(-np.sort(args.magrange)[::-1] / 2.5)
+    epoch_range = np.sort(args.epochrange)
+
     if args.host == 'bgs':
         maker = BGSMaker(seed=args.seed)
-        maker.template_maker = BGS(transient=trans_model)
+        maker.template_maker = BGS(transient=trans_model,
+                                   tr_fluxratio=fluxratio_range)
     elif args.host == 'elg':
         maker = ELGMaker(seed=args.seed)
-        maker.template_maker = ELG(transient=trans_model)
+        maker.template_maker = ELG(transient=trans_model,
+                                   tr_fluxratio=fluxratio_range)
     elif args.host == 'lrg':
         maker = LRGMaker(seed=args.seed)
-        maker.template_maker = LRG(transient=trans_model)
+        maker.template_maker = LRG(transient=trans_model,
+                                   tr_fluxratio=fluxratio_range)
     else:
         raise ValueError('Unusable host type {}'.format(args.host))
 

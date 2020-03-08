@@ -331,8 +331,9 @@ class GALAXY(object):
        galaxies (ELG, BGS, and LRG).
 
     """
-    def __init__(self, objtype='ELG', minwave=3600.0, maxwave=10000.0, cdelt=0.2,
-                 wave=None, transient=None, include_mgii=False, colorcuts_function=None,
+    def __init__(self, objtype='ELG', minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
+                 transient=None, tr_fluxratio=(0.01, 1.),
+                 include_mgii=False, colorcuts_function=None,
                  normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  normline='OII', fracvdisp=(0.1, 40), 
                  baseflux=None, basewave=None, basemeta=None):
@@ -375,6 +376,8 @@ class GALAXY(object):
             GALAXY.make_galaxy_templates, below.
           transient (Transient, None): optional Transient object to integrate
             into the spectrum (default None).
+          tr_fluxratio (tuple): optional flux ratio range for transient
+            and host spectrum. Default is (0.01, 1).
           include_mgii (bool, optional): Include Mg II in emission (default False).  
 
         Attributes:
@@ -438,16 +441,9 @@ class GALAXY(object):
 
         # Optionally access a transient model.
         self.transient = transient
-        if self.transient is not None:
-#            from desispec.interpolation import resample_flux
-#            sne_baseflux1, sne_basewave, sne_basemeta = read_basis_templates(objtype='SNE')
-#            sne_baseflux = np.zeros((len(sne_basemeta), len(self.basewave)))
-#            for ii in range(len(sne_basemeta)):
-#                sne_baseflux[ii, :] = resample_flux(self.basewave, sne_basewave,
-#                                                    sne_baseflux1[ii, :], extrapolate=True)
-#            self.sne_baseflux = sne_baseflux
-#            self.sne_basemeta = sne_basemeta
+        self.trans_fluxratiorange = tr_fluxratio
 
+        if self.transient is not None:
             self.rfilt_north = filters.load_filters('BASS-r')
             self.rfilt_south = filters.load_filters('decam2014-r')
 
@@ -516,7 +512,7 @@ class GALAXY(object):
 
     def make_galaxy_templates(self, nmodel=100, zrange=(0.6, 1.6), magrange=(20.0, 22.0),
                               oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
-                              minlineflux=0.0, trans_fluxratiorange=(0.01, 0.1), trans_filter='decam2014-r',
+                              minlineflux=0.0, trans_filter='decam2014-r',
                               seed=None, redshift=None, mag=None, vdisp=None,
                               input_meta=None, input_snemeta=None, nocolorcuts=False,
                               nocontinuum=False, agnlike=False, novdisp=False, south=True,
@@ -565,10 +561,6 @@ class GALAXY(object):
           minlineflux (float, optional): Minimum emission-line flux in the line
             specified by self.normline (default 0 erg/s/cm2).
         
-          trans_fluxratiorange (float, optional): flux ratio of the transient
-            spectrum with respect to the underlying galaxy in the filter
-            specified in trans_filter. Defaults to a uniform distribution
-            between (0.1, 1).
           trans_filter (str): filter corresponding to TRANS_FLUXRATIORANGE (default
             'decam2014-r').
         
@@ -733,8 +725,8 @@ class GALAXY(object):
 #                from desisim.io import empty_snemetatable
 #                snemeta = empty_snemetatable(nmodel)
                 
-                trans_rfluxratio = rand.uniform(trans_fluxratiorange[0], trans_fluxratiorange[1], nmodel)
-                print(trans_fluxratiorange[0], trans_fluxratiorange[1])
+                trans_rfluxratio = rand.uniform(self.trans_fluxratiorange[0], self.trans_fluxratiorange[1], nmodel)
+                print(self.trans_fluxratiorange[0], self.trans_fluxratiorange[1])
                 print(trans_rfluxratio)
                 trans_epoch = rand.randint(-10, 10, nmodel)
                 
@@ -952,7 +944,7 @@ class ELG(GALAXY):
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 transient=None, include_mgii=False, colorcuts_function=None,
+                 transient=None, tr_fluxratio=(0.01, 1.), include_mgii=False, colorcuts_function=None,
                  normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the ELG class.  See the GALAXY.__init__ method for documentation
@@ -979,13 +971,13 @@ class ELG(GALAXY):
                                   colorcuts_function=colorcuts_function,
                                   normfilter_north=normfilter_north, normfilter_south=normfilter_south,
                                   baseflux=baseflux, basewave=basewave, basemeta=basemeta,
-                                  transient=transient, include_mgii=include_mgii)
+                                  transient=transient, tr_fluxratio=tr_fluxratio, include_mgii=include_mgii)
 
         self.ewoiicoeff = [1.34323087, -5.02866474, 5.43842874]
 
     def make_templates(self, nmodel=100, zrange=(0.6, 1.6), magrange=(21.0, 23.4),
                        oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
-                       minoiiflux=0.0, trans_fluxratiorange=(0.1, 1.0), trans_filter='decam2014-r',
+                       minoiiflux=0.0, trans_filter='decam2014-r',
                        redshift=None, mag=None, vdisp=None, seed=None, input_meta=None,
                        input_snemeta=None, nocolorcuts=False, nocontinuum=False, agnlike=False,
                        novdisp=False, south=True, restframe=False, verbose=False):
@@ -1023,7 +1015,7 @@ class ELG(GALAXY):
         result = self.make_galaxy_templates(nmodel=nmodel, zrange=zrange, magrange=magrange,
                                             oiiihbrange=oiiihbrange, logvdisp_meansig=logvdisp_meansig,
                                             minlineflux=minoiiflux, redshift=redshift, vdisp=vdisp,
-                                            mag=mag, trans_fluxratiorange=trans_fluxratiorange, trans_filter=trans_filter,
+                                            mag=mag, trans_filter=trans_filter,
                                             seed=seed, input_meta=input_meta, input_snemeta=input_snemeta,
                                             nocolorcuts=nocolorcuts, nocontinuum=nocontinuum, agnlike=agnlike,
                                             novdisp=novdisp, south=south, restframe=restframe, verbose=verbose)
@@ -1033,7 +1025,7 @@ class BGS(GALAXY):
     """Generate Monte Carlo spectra of bright galaxy survey galaxies (BGSs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 transient=None, include_mgii=False, colorcuts_function=None,
+                 transient=None, tr_fluxratio=(0.01, 1.), include_mgii=False, colorcuts_function=None,
                  normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the BGS class.  See the GALAXY.__init__ method for documentation
@@ -1060,13 +1052,13 @@ class BGS(GALAXY):
                                   colorcuts_function=colorcuts_function,
                                   normfilter_north=normfilter_north, normfilter_south=normfilter_south,
                                   baseflux=baseflux, basewave=basewave, basemeta=basemeta,
-                                  transient=transient, include_mgii=include_mgii)
+                                  transient=transient, tr_fluxratio=tr_fluxratio,  include_mgii=include_mgii)
 
         self.ewhbetacoeff = [1.28520974, -4.94408026, 4.9617704]
 
     def make_templates(self, nmodel=100, zrange=(0.01, 0.4), magrange=(15.0, 20.0),
                        oiiihbrange=(-1.3, 0.6), logvdisp_meansig=(2.0, 0.17),
-                       minhbetaflux=0.0, trans_fluxratiorange=(0.1, 1.0), trans_filter='decam2014-r',
+                       minhbetaflux=0.0, trans_filter='decam2014-r',
                        redshift=None, mag=None, vdisp=None, seed=None, input_meta=None,
                        input_snemeta=None, nocolorcuts=False, nocontinuum=False, agnlike=False,
                        novdisp=False, south=True, restframe=False, verbose=False):
@@ -1104,7 +1096,7 @@ class BGS(GALAXY):
         result = self.make_galaxy_templates(nmodel=nmodel, zrange=zrange, magrange=magrange,
                                             oiiihbrange=oiiihbrange, logvdisp_meansig=logvdisp_meansig,
                                             minlineflux=minhbetaflux, redshift=redshift, vdisp=vdisp,
-                                            mag=mag, trans_fluxratiorange=trans_fluxratiorange, trans_filter=trans_filter,
+                                            mag=mag, trans_filter=trans_filter,
                                             seed=seed, input_meta=input_meta, input_snemeta=input_snemeta,
                                             nocolorcuts=nocolorcuts, nocontinuum=nocontinuum, agnlike=agnlike,
                                             novdisp=novdisp, south=south, restframe=restframe, verbose=verbose)
@@ -1114,7 +1106,7 @@ class LRG(GALAXY):
     """Generate Monte Carlo spectra of luminous red galaxies (LRGs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 transient=None, colorcuts_function=None,
+                 transient=None, tr_fluxratio=(0.01, 1.), colorcuts_function=None,
                  normfilter_north='MzLS-z', normfilter_south='decam2014-z',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the LRG class.  See the GALAXY.__init__ method for documentation
@@ -1139,10 +1131,10 @@ class LRG(GALAXY):
                                   colorcuts_function=colorcuts_function,
                                   normfilter_north=normfilter_north, normfilter_south=normfilter_south,
                                   baseflux=baseflux, basewave=basewave, basemeta=basemeta,
-                                  transient=transient)
+                                  transient=transient, tr_fluxratio=tr_fluxratio)
 
     def make_templates(self, nmodel=100, zrange=(0.5, 1.0), magrange=(19.0, 20.2),
-                       logvdisp_meansig=(2.3, 0.1), trans_fluxratiorange=(0.1, 1.0),
+                       logvdisp_meansig=(2.3, 0.1),
                        trans_filter='decam2014-r', redshift=None, mag=None, vdisp=None,
                        seed=None, input_meta=None, input_snemeta=None, nocolorcuts=False,
                        novdisp=False, agnlike=False, south=True, restframe=False, verbose=False):
@@ -1176,7 +1168,7 @@ class LRG(GALAXY):
         """
         result = self.make_galaxy_templates(nmodel=nmodel, zrange=zrange, magrange=magrange,
                                             logvdisp_meansig=logvdisp_meansig, redshift=redshift,
-                                            vdisp=vdisp, mag=mag, trans_fluxratiorange=trans_fluxratiorange,
+                                            vdisp=vdisp, mag=mag,
                                             trans_filter=trans_filter, seed=seed, input_meta=input_meta,
                                             input_snemeta=input_snemeta, nocolorcuts=nocolorcuts,
                                             agnlike=agnlike, novdisp=novdisp, south=south,
