@@ -15,6 +15,7 @@ from desitarget.mock.mockmaker import BGSMaker, ELGMaker, LRGMaker
 from desitarget.cuts import isBGS_colors, isELG_colors, isLRG_colors
 
 from desisim.simexp import reference_conditions
+from desisim.transients import transients
 from desisim.scripts.quickspectra import sim_spectra
 
 from desiutil.log import get_logger, DEBUG
@@ -196,7 +197,7 @@ def main(args=None):
     # Generate transient model if one is specified.
     trans_model = None
     if args.transient is not None:
-        trans_model = transient.get_model(args.transient)
+        trans_model = transients.get_model(args.transient)
 
     # Generate list of HEALPix pixels to randomly sample the mocks.
     rng = np.random.RandomState(args.seed)
