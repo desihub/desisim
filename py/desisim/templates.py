@@ -657,7 +657,6 @@ class GALAXY(object):
 
             meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
         else:
-            log.info('HEY: {}'.format(self.transient is not None))
             meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
 
             # Initialize the random seed.
