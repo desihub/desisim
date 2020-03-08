@@ -14,6 +14,8 @@ import multiprocessing
 from desiutil.log import get_logger, DEBUG
 from desisim.io import empty_metatable
 
+from astropy import units
+
 try:
     from scipy import constants
     C_LIGHT = constants.c/1000.0
@@ -437,14 +439,14 @@ class GALAXY(object):
         # Optionally access a transient model.
         self.transient = transient
         if self.transient is not None:
-            from desispec.interpolation import resample_flux
-            sne_baseflux1, sne_basewave, sne_basemeta = read_basis_templates(objtype='SNE')
-            sne_baseflux = np.zeros((len(sne_basemeta), len(self.basewave)))
-            for ii in range(len(sne_basemeta)):
-                sne_baseflux[ii, :] = resample_flux(self.basewave, sne_basewave,
-                                                    sne_baseflux1[ii, :], extrapolate=True)
-            self.sne_baseflux = sne_baseflux
-            self.sne_basemeta = sne_basemeta
+#            from desispec.interpolation import resample_flux
+#            sne_baseflux1, sne_basewave, sne_basemeta = read_basis_templates(objtype='SNE')
+#            sne_baseflux = np.zeros((len(sne_basemeta), len(self.basewave)))
+#            for ii in range(len(sne_basemeta)):
+#                sne_baseflux[ii, :] = resample_flux(self.basewave, sne_basewave,
+#                                                    sne_baseflux1[ii, :], extrapolate=True)
+#            self.sne_baseflux = sne_baseflux
+#            self.sne_basemeta = sne_basemeta
 
             self.rfilt_north = filters.load_filters('BASS-r')
             self.rfilt_south = filters.load_filters('decam2014-r')
@@ -635,9 +637,9 @@ class GALAXY(object):
 
         # Basic error checking and some preliminaries.
         if nocontinuum:
-            log.warning('Forcing nocolorcuts=True, transient=False since nocontinuum=True.')
+            log.warning('Forcing nocolorcuts=True, transient=None since nocontinuum=True.')
             nocolorcuts = True
-            self.transient = False
+            self.transient = None
 
         npix = len(self.basewave)
         nbase = len(self.basemeta)
@@ -727,16 +729,16 @@ class GALAXY(object):
                 sne_fluxratio = input_snemeta['SNE_FLUXRATIO']
                 sne_filter = np.char.strip(input_snemeta['SNE_FILTER'])
             else:
-                from desisim.io import empty_snemetatable
-                snemeta = empty_snemetatable(nmodel)
+#                from desisim.io import empty_snemetatable
+#                snemeta = empty_snemetatable(nmodel)
                 
-                sne_fluxratio = rand.uniform(sne_fluxratiorange[0], sne_fluxratiorange[1], nmodel)
-                sne_tempid = rand.randint(0, len(self.sne_basemeta)-1, nmodel)
+                trans_rfluxratio = rand.uniform(sne_fluxratiorange[0], sne_fluxratiorange[1], nmodel)
+                trans_epoch = rand.randint(-10, 10, nmodel)
                 
-                snemeta['SNE_TEMPLATEID'] = sne_tempid
-                snemeta['SNE_EPOCH'] = self.sne_basemeta['EPOCH'][sne_tempid]
-                snemeta['SNE_FLUXRATIO'] = sne_fluxratio
-                snemeta['SNE_FILTER'] = sne_filter
+#                snemeta['SNE_TEMPLATEID'] = sne_tempid
+#                snemeta['SNE_EPOCH'] = self.sne_basemeta['EPOCH'][sne_tempid]
+#                snemeta['SNE_FLUXRATIO'] = sne_fluxratio
+#                snemeta['SNE_FILTER'] = sne_filter
 
         # Precompute the velocity dispersion convolution matrix for each unique
         # value of vdisp.
@@ -813,8 +815,21 @@ class GALAXY(object):
 
             # Optionally get the transient spectrum and normalization factor.
             if self.transient is not None:
-                sne_restflux = self.sne_baseflux[sne_tempid[ii], :]
-                snenorm = self.rfilt.get_ab_maggies(sne_restflux, zwave)
+                # Evaluate the flux where the model has defined wavelengths.
+                # Zero-pad all other wavelength values.
+                trans_restflux = np.zeros_like(self.basewave, dtype=float)
+                minw = self.transient.minwave().to('Angstrom').value
+                maxw = self.transient.maxwave().to('Angstrom').value
+                j = np.argwhere(self.basewave >= minw)[0,0]
+                k = np.argwhere(self.basewave <= maxw)[-1,0]
+
+                trans_restflux[j:k] = self.transient.flux(trans_epoch[ii], self.basewave[j:k]*units.Angstrom)
+                print(trans_epoch[ii])
+                print(zwave)
+                print(len(zwave), len(self.basewave), len(trans_restflux))
+                trans_norm = normfilt[magfilter[ii]].get_ab_maggies(trans_restflux, zwave)
+#                sne_restflux = self.sne_baseflux[sne_tempid[ii], :]
+#                snenorm = self.rfilt.get_ab_maggies(sne_restflux, zwave)
 
             for ichunk in range(nchunk):
                 if ii % 100 == 0 and ii > 0:
@@ -832,9 +847,9 @@ class GALAXY(object):
 
                 # Optionally add in the transient spectrum.
                 if self.transient is not None:
-                    galnorm = self.rfilt.get_ab_maggies(restflux, zwave)
-                    snefactor = galnorm['decam2014-r'].data * sne_rfluxratio[ii]/snenorm['decam2014-r'].data
-                    restflux += np.tile(sne_restflux, (nbasechunk, 1)) * np.tile(snefactor, (npix, 1)).T
+                    galnorm = normfilt[magfilter[ii]].get_ab_maggies(restflux, zwave)
+                    trans_factor = galnorm[magfilter[ii]].data * trans_rfluxratio[ii]/trans_norm[magfilter[ii]].data
+                    restflux += np.tile(trans_restflux, (nbasechunk, 1)) * np.tile(trans_factor, (npix, 1)).T
 
                 # Synthesize photometry to determine which models will pass the
                 # color-cuts.
@@ -931,7 +946,7 @@ class GALAXY(object):
             outwave = self.wave
             
         if self.transient is not None:
-            return 1e17 * outflux, outwave, meta, objmeta, snemeta
+            return 1e17 * outflux, outwave, meta, objmeta#, snemeta
         else:
             return 1e17 * outflux, outwave, meta, objmeta
 
