@@ -245,7 +245,6 @@ def main(args=None):
         while ngood < args.nspec:
             idx = rng.choice(len(tdata['RA']), ntosim)
             tflux, twave, ttarg, ttruth, tobj = maker.make_spectra(tdata, indx=idx)
-
             g, r, z, w1, w2 = [ttruth['FLUX_{}'.format(_)] for _ in ['G','R','Z','W1','W2']]
             rfib = ttarg['FIBERFLUX_R']
 #            print(g, r, z, w1, w2, rfib)
