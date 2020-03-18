@@ -137,6 +137,8 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
 
     parser.add_argument('--nmax', type=int, default=None, help="Max number of QSO per input file, for debugging")
 
+    parser.add_argument('--max_mag',type=float,default=21.3,help="set maximum magnitude")
+
     if options is None:
         args = parser.parse_args()
     else:
@@ -508,7 +510,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
         if not eboss is None:
             # for eBOSS, generate only quasars with r<22
-            magrange = (17.0, 21.3)
+            magrange = (17.0, args.max_mag)
             _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
                 = model.make_templates(nmodel=nt,
                     redshift=metadata['Z'][these], magrange=magrange,
