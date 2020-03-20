@@ -45,10 +45,28 @@ class BAL(object):
         if qsoredshift is not None:
             balmeta['REDSHIFT'] = qsoredshift
 
-        return balmeta        
+        return balmeta
+
+    #Since we want to store most of the balmeta table it seemed better to copy the template balmeta and complement it with the missing columns
+    #And remove those that are not used...
+    def template_balmeta(self,indx):
+        """Initialize an empty metadata table for BALs."""
+
+        from astropy.table import Table, Column
+        from desisim.io import find_basis_template
+
+        balmeta=self.balmeta.copy()
+        balmeta.remove_columns(['SDSS_NAME', 'RA', 'DEC', 'PLATE', 'MJD', 'FIBERID'])
+        balmeta=balmeta[indx]
+        nbal=len(balmeta)
+        balmeta.add_column(Column(name='BAL_TEMPLATEID',length=nbal, dtype='i4', data=np.zeros(nbal)-1),index=0)
+        balmeta.add_column(Column(name='BALPROB',length=nbal, dtype='f4', data=np.ones(nbal)),index=0)
+        balmeta.add_column(Column(name='Z',length=nbal, dtype='f4', data=np.zeros(nbal)),index=0)
+        balmeta.add_column(Column(name='TARGETID',length=nbal, dtype='i4', data=np.zeros(nbal)-1),index=0)
+        return balmeta
         
     def insert_bals(self, qsowave, qsoflux, qsoredshift, balprob=0.12,
-                    seed=None, verbose=False):
+                    seed=None, verbose=False,qsoid=None):
         """Probabilistically inserts BALs into one or more QSO spectra.
 
         Args:
@@ -97,7 +115,7 @@ class BAL(object):
                 log.fatal('Dimensions of qsoflux and qsowave do not agree!')
                 raise ValueError
         
-        balmeta = self.empty_balmeta(qsoredshift)
+#        balmeta = self.empty_balmeta(qsoredshift)
 
         # Determine which QSO spectrum has BAL(s) and then loop on each. 
         hasbal = rand.random_sample(nqso) < balprob
@@ -105,10 +123,16 @@ class BAL(object):
 
         # Should probably return a BAL metadata table, too.
         if len(ihasbal) == 0:
+            balmeta=self.empty_balmeta()
             return qsoflux, balmeta
 
         balindx = rand.choice( len(self.balmeta), len(ihasbal) )
-        balmeta['TEMPLATEID'][ihasbal] = balindx
+#        balmeta['TEMPLATEID'][ihasbal] = balindx
+        #before it was convenient to have the balmeta of size  nqso's and remove non-BALs after... Now I think is easier to return the balmeta for BALs only.
+        balmeta = self.template_balmeta(balindx)
+        balmeta['Z']=qsoredshift[ihasbal]
+        balmeta['BAL_TEMPLATEID'] = balindx
+        balmeta['TARGETID'] = qsoid[ihasbal]
 
         bal_qsoflux = qsoflux.copy()
         if qsowave.ndim == 2:

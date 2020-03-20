@@ -136,7 +136,7 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
 
     parser.add_argument('--nmax', type=int, default=None, help="Max number of QSO per input file, for debugging")
-
+    parser.add_argument('--meta',action='store_true',help="Save BAL/DLA metadata for each pixel individually. Currently only works for BALs")
 
     if options is None:
         args = parser.parse_args()
@@ -381,7 +381,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         if args.nmax < nqso :
             log.info("Limit number of QSOs from {} to nmax={} (random subsample)".format(nqso,args.nmax))
             # take a random subsample
-            indices = np.random.choice(np.arange(nqso),args.nmax,replace=False)  ##Use random.choice instead of random.uniform (rarely but it does cause a duplication of qsos) 
+            ##Use random.choice instead of random.uniform (rarely but it does cause a duplication of qsos)
+            indices = np.random.choice(np.arange(nqso),args.nmax,replace=False)
             transmission = transmission[indices]
             metadata = metadata[:][indices]
             DZ_FOG = DZ_FOG[indices]
@@ -466,7 +467,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         wanted_max_wave = 55501. # needed to compute magnitudes for wise2010-W2
 
         if trans_wave[0]>wanted_min_wave :
-            log.info("Increase wavelength range from {}:{} to {}:{} to compute magnitudes".format(int(trans_wave[0]),int(trans_wave[-1]),int(wanted_min_wave),int(trans_wave[-1])))
+            log.info("Increase wavelength range from {}:{} to {}:{} to compute magnitudes".format\
+                     (int(trans_wave[0]),int(trans_wave[-1]),int(wanted_min_wave),int(trans_wave[-1])))
             # pad with ones at short wavelength, we assume F = 1 for z <~ 1.7
             # we don't need any wavelength resolution here
             new_trans_wave = np.append([wanted_min_wave,trans_wave[0]-0.01],trans_wave)
@@ -476,7 +478,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             transmission = new_transmission
 
         if trans_wave[-1]<wanted_max_wave :
-            log.info("Increase wavelength range from {}:{} to {}:{} to compute magnitudes".format(int(trans_wave[0]),int(trans_wave[-1]),int(trans_wave[0]),int(wanted_max_wave)))
+            log.info("Increase wavelength range from {}:{} to {}:{} to compute magnitudes".\
+                     format(int(trans_wave[0]),int(trans_wave[-1]),int(trans_wave[0]),int(wanted_max_wave)))
             # pad with ones at long wavelength because we assume F = 1
             coarse_dwave = 2. # we don't care about resolution, we just need a decent QSO spectrum, there is no IGM transmission in this range
             n = int((wanted_max_wave-trans_wave[-1])/coarse_dwave)+1
@@ -546,18 +549,26 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     # if requested, add BAL features to the quasar continua
     if args.balprob:
         if args.balprob<=1. and args.balprob >0:
+            from desisim.io import find_basis_template
             log.info("Adding BALs with probability {}".format(args.balprob))
             # save current random state
             rnd_state = np.random.get_state()
             tmp_qso_flux,meta_bal=bal.insert_bals(tmp_qso_wave,tmp_qso_flux, metadata['Z'],
-                                                  balprob=args.balprob,seed=seed)
+                                                  balprob=args.balprob,seed=seed,qsoid=metadata['MOCKID'])
             # restore random state to get the same random numbers later
             # as when we don't insert BALs
             np.random.set_state(rnd_state)
-            meta_bal['TARGETID'] = metadata['MOCKID']
-            w = meta_bal['TEMPLATEID']!=-1
-            meta_bal = meta_bal[:][w]
+            #w = meta_bal['TEMPLATEID']!=-1
+           # meta_bal['TARGETID'] = metadata['MOCKID']
+            #meta_bal = meta_bal[:][w]
+            #Only needed if we want to save BAL_TEMPLATEID in truth_qso (or previously named QSO_META)
+            w=np.in1d(qsometa['TARGETID'],meta_bal['TARGETID'])
+            #Can BALTEMPLATEID(from P.Martini example) be named BAL_TEMPLATEID instead?both are more tha 8-characters anyway
+            qsometa['BAL_TEMPLATEID'][w] = meta_bal['BAL_TEMPLATEID']
+
             hdu_bal=pyfits.convenience.table_to_hdu(meta_bal); hdu_bal.name="BAL_META"
+            #Trim to only show the version, assuming it is located in os.environ['DESI_BASIS_TEMPLATES']
+            hdu_bal.header["BALTEMPL"]=find_basis_template(objtype='BAL').split('basis_templates/')[1]
             del meta_bal
         else:
             balstr=str(args.balprob)
@@ -726,11 +737,11 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     hdu = pyfits.convenience.table_to_hdu(meta)
     hdu.header['EXTNAME'] = 'TRUTH'
     hduqso=pyfits.convenience.table_to_hdu(qsometa)
-    hduqso.header['EXTNAME'] = 'QSO_META'
+    hduqso.header['EXTNAME'] = 'TRUTH_QSO'
     hdulist=pyfits.HDUList([pyfits.PrimaryHDU(header=hdr),hdu,hduqso])
-    if args.dla:
+    if args.dla :              #I'll probably change this as with the BALs
         hdulist.append(hdu_dla)
-    if args.balprob:
+    if (args.balprob) and (args.meta is True):
         hdulist.append(hdu_bal)
     hdulist.writeto(truth_filename, overwrite=True)
     hdulist.close()
