@@ -801,8 +801,8 @@ def main(args=None):
     exptime = args.exptime
     if exptime is None :
         exptime = 1000. # sec
-        if args.eboss:
-            exptime = 1000. # sec (added here in case we change the default)
+        '''if args.eboss:
+            exptime = 1000. # sec (added here in case we change the default)'''
 
     #- Generate obsconditions with args.program, then override as needed
     obsconditions = reference_conditions[args.program.upper()]
