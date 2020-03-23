@@ -136,7 +136,6 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
 
     parser.add_argument('--nmax', type=int, default=None, help="Max number of QSO per input file, for debugging")
-    parser.add_argument('--meta',action='store_true',help="Save BAL/DLA metadata for each pixel individually. Currently only works for BALs")
 
     if options is None:
         args = parser.parse_args()
@@ -741,7 +740,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     hdulist=pyfits.HDUList([pyfits.PrimaryHDU(header=hdr),hdu,hduqso])
     if args.dla :              #I'll probably change this as with the BALs
         hdulist.append(hdu_dla)
-    if (args.balprob) and (args.meta is True):
+    if  args.balprob:
         hdulist.append(hdu_bal)
     hdulist.writeto(truth_filename, overwrite=True)
     hdulist.close()
