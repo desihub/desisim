@@ -5,7 +5,10 @@ desisim change log
 0.35.0 (unreleased)
 -------------------
 
-* No changes yet.
+* Add functionality to simulate transients into galaxy spectra; includes several
+  example notebooks (`PR #525`_).
+
+.. _`PR #525`: https://github.com/desihub/desisim/pull/525
 
 0.34.2 (2019-12-27)
 -------------------
