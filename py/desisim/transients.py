@@ -162,6 +162,106 @@ if use_sncosmo:
             return self._instance
 
 
+class TabularModel(Transient):
+
+    def __init__(self, modelname, modeltype, filename, filefmt):
+        """Initialize a model from tabular data in an external file.
+
+        Parameters
+        ----------
+        modelname : str
+            Name of the model.
+        modeltype : str
+            Type or class of the model [TDE, AGN, ...].
+        filename : str
+            File with columns of wavelength and flux.
+        filefmt : str
+            File format (ascii, csv, fits, hdf5, ...).
+        """
+        super().__init__(modelname, modeltype)
+
+        from astropy.table import Table
+        data = Table.read(filename, format=filefmt, names=['wavelength','flux'])
+        self.wave_ = data['wavelength'].data
+        self.flux_ = data['flux'].data
+        
+        from scipy.interpolate import PchipInterpolator
+        self.fvsw_ = PchipInterpolator(self.wave_, self.flux_)
+
+    def minwave(self):
+        """Return minimum wavelength stored in model."""
+        return self.wave_[0] * u.Angstrom
+
+    def maxwave(self):
+        """Return maximum wavelength stored in model."""
+        return self.wave_[-1] * u.Angstrom
+
+    def mintime(self):
+        """Return minimum time used in model (peak light at t=0)."""
+        return 0 * u.day
+
+    def maxtime(self):
+        """Return maximum time used in model (peak light at t=0)."""
+        return 1 * u.day
+
+    def set_model_pars(self, modelpars):
+        """Set model parameters.
+
+        Parameters
+        ----------
+        modelpars : dict
+            Parameters used to initialize the internal model.
+        """
+        pass
+
+    def flux(self, t, wl):
+        """Return flux vs wavelength at a given time t.
+
+        Parameters
+        ----------
+        t : float or astropy.units.quantity.Quantity
+            Time of observation, with t=0 representing max light.
+        wl : list or ndarray
+            Wavelength array to compute the flux.
+
+        Returns
+        -------
+        flux : list or ndarray
+            Normalized flux array as a function of wavelength.
+        """
+        # Convert wavelength to angstroms.
+        wave_ = wl.to('Angstrom').value if type(wl) is u.quantity.Quantity else wl
+        flux = self.fvsw_(wave_)
+        return flux / np.sum(flux)
+
+
+class TabularModelBuilder:
+    """A class which can build a TabularModel. This allows the TransientModels
+    object registry to register the model without instantiating it until it's
+    needed. This is handy because some models take time and memory to
+    instantiate.
+    """
+
+    def __init__(self):
+        self._instance = None
+
+    def __call__(self, modelpars):
+        """Instantiate a TabularModel using a list of modelpars.
+
+        Parameters
+        ----------
+        modelpars : dict
+            Parameters needed to create a TabularModel (modelname, modeltype, filename, filefmt).
+
+        Returns
+        -------
+        instance : TabularModel
+        """
+        if self._instance is None:
+            self._instance = TabularModel(**modelpars)
+        return self._instance
+
+
 class TransientModels:
 
     def __init__(self):
@@ -555,4 +655,3 @@ if use_sncosmo:
                                   'modeltype': 'II-pec',
                                   'modelpars': {'z':0., 't0':0., 'amplitude':1.} },
                                 SupernovaBuilder())
-
