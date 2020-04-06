@@ -82,8 +82,6 @@ env:
         # Debug the Travis install process.
         - DEBUG=False
     matrix:
-        - PYTHON_VERSION=3.5 NUMPY_VERSION=1.15.4 SETUP_CMD='egg_info'
-        - PYTHON_VERSION=3.5 NUMPY_VERSION=1.15.4 SETUP_CMD='bdist_egg'
         - PYTHON_VERSION=3.6 SETUP_CMD='egg_info'
         - PYTHON_VERSION=3.6 SETUP_CMD='bdist_egg'
 
@@ -110,13 +108,6 @@ matrix:
           env: PYTHON_VERSION=3.6 SETUP_CMD='build_sphinx --warning-is-error'
 
         # Try multiple python versions with the latest numpy
-        - os: linux
-          env: PYTHON_VERSION=3.5 SETUP_CMD='test'
-               NUMPY_VERSION=1.15.4
-               CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
-               PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
-               DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES
-
         - os: linux
           env: PYTHON_VERSION=3.6 SETUP_CMD='test --coverage'
                CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
