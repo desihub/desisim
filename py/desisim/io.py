@@ -1172,6 +1172,12 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype='', simqso=False, input_met
                                   data=np.zeros(nmodel)-1, unit='Dex'))
         objmeta.add_column(Column(name='SIIHBETA', length=nmodel, dtype='f4',
                                   data=np.zeros(nmodel)-1, unit='Dex'))
+        objmeta.add_column(Column(name='TRANSIENT_MODEL', length=nmodel, dtype='U20'))
+        objmeta.add_column(Column(name='TRANSIENT_TYPE', length=nmodel, dtype='U10'))
+        objmeta.add_column(Column(name='TRANSIENT_EPOCH', length=nmodel, dtype='f4',
+                                  data=np.zeros(nmodel)-1, unit='day'))
+        objmeta.add_column(Column(name='TRANSIENT_RFLUXRATIO', length=nmodel, dtype='f4',
+                                  data=np.zeros(nmodel)-1))
 
     elif objtype.upper() == 'QSO':
         objmeta.add_column(Column(name='TARGETID', data=targetid))
@@ -1234,6 +1240,6 @@ def empty_snemetatable(nmodel=1):
                               data=np.zeros(nmodel)-1))
     snemeta.add_column(Column(name='SNE_EPOCH', length=nmodel, dtype='f4',
                               data=np.zeros(nmodel)-1, unit='days'))
-    SNEmeta.add_column(Column(name='SNE_FILTER', length=nmodel, dtype='U15')) # normalization filter
+    snemeta.add_column(Column(name='SNE_FILTER', length=nmodel, dtype='U15')) # normalization filter
     
     return snemeta
