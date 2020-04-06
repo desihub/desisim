@@ -57,8 +57,7 @@ env:
         - DESISIM_TESTDATA_VERSION=master
         - SPECSIM_VERSION=v0.12
         - DESISURVEY_VERSION=0.12.1
-        # - DESISPEC_VERSION=0.26.0
-        - DESISPEC_VERSION=master
+        - DESISPEC_VERSION=0.33.0
         - DESITARGET_VERSION=master
         - SIMQSO_VERSION=v1.2.3
         - DESI_LOGLEVEL=DEBUG
@@ -70,7 +69,7 @@ env:
         # These packages will only be installed for documentation builds.
         # - CONDA_SPHINX_DEPENDENCIES="scipy pyyaml sphinx==1.5"
         # These packages will only be installed if we really need them.
-        - CONDA_ALL_DEPENDENCIES="scipy matplotlib coverage pyyaml numba"
+        - CONDA_ALL_DEPENDENCIES="scipy matplotlib coverage pyyaml numba pytz"
         # These packages will always be installed.
         - PIP_DEPENDENCIES=""
         # These packages will only be installed if we really need them.
@@ -83,8 +82,6 @@ env:
         # Debug the Travis install process.
         - DEBUG=False
     matrix:
-        - PYTHON_VERSION=3.5 NUMPY_VERSION=1.15.4 SETUP_CMD='egg_info'
-        - PYTHON_VERSION=3.5 NUMPY_VERSION=1.15.4 SETUP_CMD='bdist_egg'
         - PYTHON_VERSION=3.6 SETUP_CMD='egg_info'
         - PYTHON_VERSION=3.6 SETUP_CMD='bdist_egg'
 
@@ -111,13 +108,6 @@ matrix:
           env: PYTHON_VERSION=3.6 SETUP_CMD='build_sphinx --warning-is-error'
 
         # Try multiple python versions with the latest numpy
-        - os: linux
-          env: PYTHON_VERSION=3.5 SETUP_CMD='test'
-               NUMPY_VERSION=1.15.4
-               CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
-               PIP_DEPENDENCIES=$PIP_ALL_DEPENDENCIES
-               DESIHUB_PIP_DEPENDENCIES=$DESIHUB_PIP_ALL_DEPENDENCIES
-
         - os: linux
           env: PYTHON_VERSION=3.6 SETUP_CMD='test --coverage'
                CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
