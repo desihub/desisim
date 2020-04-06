@@ -69,7 +69,7 @@ env:
         # These packages will only be installed for documentation builds.
         # - CONDA_SPHINX_DEPENDENCIES="scipy pyyaml sphinx==1.5"
         # These packages will only be installed if we really need them.
-        - CONDA_ALL_DEPENDENCIES="scipy matplotlib coverage pyyaml numba"
+        - CONDA_ALL_DEPENDENCIES="scipy matplotlib coverage pyyaml numba pytz"
         # These packages will always be installed.
         - PIP_DEPENDENCIES=""
         # These packages will only be installed if we really need them.
