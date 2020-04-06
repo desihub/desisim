@@ -380,7 +380,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         if args.nmax < nqso :
             log.info("Limit number of QSOs from {} to nmax={} (random subsample)".format(nqso,args.nmax))
             # take a random subsample
-            ##Use random.choice instead of random.uniform (rarely but it does cause a duplication of qsos)
             indices = np.random.choice(np.arange(nqso),args.nmax,replace=False)
             transmission = transmission[indices]
             metadata = metadata[:][indices]
@@ -545,24 +544,18 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     # if requested, add BAL features to the quasar continua
     if args.balprob:
-        if args.balprob<=1. and args.balprob >0:
+        if args.balprob <= 1. and args.balprob > 0:
             from desisim.io import find_basis_template
             log.info("Adding BALs with probability {}".format(args.balprob))
             # save current random state
             rnd_state = np.random.get_state()
-            tmp_qso_flux,meta_bal=bal.insert_bals(tmp_qso_wave,tmp_qso_flux, metadata['Z'],
-                                                  balprob=args.balprob,seed=seed,qsoid=metadata['MOCKID'])
+            tmp_qso_flux,meta_bal = bal.insert_bals(tmp_qso_wave, tmp_qso_flux, metadata['Z'],
+                                                  balprob= args.balprob, seed=seed, qsoid=metadata['MOCKID'])
             # restore random state to get the same random numbers later
             # as when we don't insert BALs
             np.random.set_state(rnd_state)
-            #w = meta_bal['TEMPLATEID']!=-1
-           # meta_bal['TARGETID'] = metadata['MOCKID']
-            #meta_bal = meta_bal[:][w]
-            #Only needed if we want to save BAL_TEMPLATEID in truth_qso (or previously named QSO_META)
-            w=np.in1d(qsometa['TARGETID'],meta_bal['TARGETID'])
-            #Can BALTEMPLATEID(from P.Martini example) be named BAL_TEMPLATEID instead?both are more tha 8-characters anyway
+            w = np.in1d(qsometa['TARGETID'], meta_bal['TARGETID'])
             qsometa['BAL_TEMPLATEID'][w] = meta_bal['BAL_TEMPLATEID']
-
             hdu_bal=pyfits.convenience.table_to_hdu(meta_bal); hdu_bal.name="BAL_META"
             #Trim to only show the version, assuming it is located in os.environ['DESI_BASIS_TEMPLATES']
             hdu_bal.header["BALTEMPL"]=find_basis_template(objtype='BAL').split('basis_templates/')[1]
