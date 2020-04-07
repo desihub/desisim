@@ -5,10 +5,17 @@ desisim change log
 0.35.0 (unreleased)
 -------------------
 
+* No changes yet.
+
+0.34.3 (2020-04-07)
+-------------------
+
 * Add functionality to simulate transients into galaxy spectra; includes several
   example notebooks (`PR #525`_).
+* Added a new table with a development emission line table  (`PR #523`_).
 
 .. _`PR #525`: https://github.com/desihub/desisim/pull/525
+.. _`PR #523`: https://github.com/desihub/desisim/pull/523
 
 0.34.2 (2019-12-27)
 -------------------
