@@ -40,8 +40,8 @@ class BAL(object):
             nqso = len(np.atleast_1d(qsoredshift))
 
         balmeta = Table()
-        balmeta.add_column(Column(name='BAL_TEMPLATEID', length=nbal, dtype='i4', data=np.zeros(nqso)-1),index=0)
-        balmeta.add_column(Column(name='Z',length=nbal, dtype='f4', data=np.zeros(nqso)),index=0)
+        balmeta.add_column(Column(name='BAL_TEMPLATEID', length=nqso, dtype='i4', data=np.zeros(nqso)-1))
+        balmeta.add_column(Column(name='Z',length=nqso, dtype='f4', data=np.zeros(nqso)))
         if qsoredshift is not None:
             balmeta['REDSHIFT'] = qsoredshift
 
