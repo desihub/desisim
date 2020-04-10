@@ -31,8 +31,13 @@ from speclite import filters
 from desitarget.cuts import isQSO_colors
 from desiutil.dust import SFDMap, ext_odonnell
 
-c = speed_of_light/1000. #- km/s
-
+try:
+    c = speed_of_light/1000. #- km/s
+except TypeError:
+    #
+    # This can happen in documentation builds.
+    #
+    c = 299792458.0/1000.0
 
 def parse(options=None):
     parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -98,11 +103,14 @@ def parse(options=None):
     parser.add_argument('--mags', action = "store_true", help="DEPRECATED; use --bbflux")
 
     parser.add_argument('--bbflux', action = "store_true", help="compute and write the QSO broad-band fluxes in the fibermap")
+    parser.add_argument('--add-LYB', action='store_true', help = "Add LYB absorption from transmision file")
 
     parser.add_argument('--metals', type=str, default=None, required=False, help = "list of metals to get the\
         transmission from, if 'all' runs on all metals", nargs='*')
 
-    parser.add_argument('--metals-from-file', action = 'store_true', help = "add metals from HDU in file")
+    #parser.add_argument('--metals-from-file', action = 'store_true', help = "add metals from HDU in file")
+    parser.add_argument('--metals-from-file',type=str,const='all',help = "list of metals,'SI1260,SI1207' etc, to get from HDUs in file. \
+Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?')
 
     parser.add_argument('--dla',type=str,required=False, help="Add DLA to simulated spectra either randonmly\
         (--dla random) or from transmision file (--dla file)")
@@ -128,6 +136,7 @@ def parse(options=None):
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
 
     parser.add_argument('--nmax', type=int, default=None, help="Max number of QSO per input file, for debugging")
+
 
     if options is None:
         args = parser.parse_args()
@@ -173,11 +182,11 @@ def is_south(dec):
 
 
 def get_healpix_info(ifilename):
-    """
-    Read the header of the tranmission file to find the healpix pixel, nside
+    """Read the header of the tranmission file to find the healpix pixel, nside
     and if we are lucky the scheme. If it fails, try to guess it from the
     filename (for backward compatibility).
-    Inputs:
+
+    Args:
         ifilename: full path to input transmission file
     Returns:
         healpix: HEALPix pixel corresponding to the file
@@ -296,7 +305,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     # Read transmission from files. It might include DLA information, and it
     # might add metal transmission as well (from the HDU file).
     log.info("Read transmission file {}".format(ifilename))
-    trans_wave, transmission, metadata, dla_info = read_lya_skewers(ifilename,read_dlas=(args.dla=='file'),add_metals=args.metals_from_file)
+
+    trans_wave, transmission, metadata, dla_info = read_lya_skewers(ifilename,read_dlas=(args.dla=='file'),add_metals=args.metals_from_file,add_lyb=args.add_LYB)
 
     ### Add Finger-of-God, before generate the continua
     log.info("Add FOG to redshift with sigma {} to quasar redshift".format(args.sigma_kms_fog))
@@ -371,7 +381,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         if args.nmax < nqso :
             log.info("Limit number of QSOs from {} to nmax={} (random subsample)".format(nqso,args.nmax))
             # take a random subsample
-            indices = (np.random.uniform(size=args.nmax)*nqso).astype(int)
+            indices = np.random.choice(np.arange(nqso),args.nmax,replace=False)  ##Use random.choice instead of random.uniform (rarely but it does cause a duplication of qsos) 
             transmission = transmission[indices]
             metadata = metadata[:][indices]
             DZ_FOG = DZ_FOG[indices]
@@ -564,7 +574,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     # if requested, compute metal transmission on the fly
     # (if not included already from the transmission file)
     if args.metals is not None:
-        if args.metals_from_file:
+        if args.metals_from_file :
             log.error('you cannot add metals twice')
             raise ValueError('you cannot add metals twice')
         if args.no_transmission:
@@ -617,9 +627,10 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         meta         = meta[:][selection]
         qsometa      = qsometa[:][selection]
         DZ_FOG      = DZ_FOG[selection]
-
         for band in bands :
             bbflux[band] = bbflux[band][selection]
+        bbflux['SOUTH']=bbflux['SOUTH'][selection]  
+            
         nqso         = selection.size
 
     log.info("Resample to a linear wavelength grid (needed by DESI sim.)")
@@ -708,11 +719,15 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     else:
         log.info('Z_noRSD field not present in transmission file. Z_NORSD not saved to truth file')
 
+    #Save global seed and pixel seed to primary header
+    hdr=pyfits.Header()
+    hdr['GSEED']=global_seed
+    hdr['PIXSEED']=seed
     hdu = pyfits.convenience.table_to_hdu(meta)
     hdu.header['EXTNAME'] = 'TRUTH'
     hduqso=pyfits.convenience.table_to_hdu(qsometa)
     hduqso.header['EXTNAME'] = 'QSO_META'
-    hdulist=pyfits.HDUList([pyfits.PrimaryHDU(),hdu,hduqso])
+    hdulist=pyfits.HDUList([pyfits.PrimaryHDU(header=hdr),hdu,hduqso])
     if args.dla:
         hdulist.append(hdu_dla)
     if args.balprob:
@@ -802,9 +817,9 @@ def main(args=None):
     else:
         log.info("Load SIMQSO model")
         #lya_simqso_model.py is located in $DESISIM/py/desisim/scripts/.
-        #Uses a different emmision lines model than the default SIMQSO
+        #Uses a different emmision lines model than the default SIMQSO. 
+        #We will update this soon to match with the one used in select_mock_targets. 
         model=SIMQSO(nproc=1,sqmodel='lya_simqso_model')
-
     decam_and_wise_filters = None
     bassmzls_and_wise_filters = None
     if args.target_selection or args.bbflux :

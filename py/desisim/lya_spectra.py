@@ -53,7 +53,7 @@ absorber_IGM = {
     'LY5'         : { 'LRF':937.8035, 'COEF':0.0187 },
 }
 
-def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False) :
+def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False,add_lyb=False) :
     '''
     Reads Lyman alpha transmission skewers (from CoLoRe, format v2.x.y)
 
@@ -78,14 +78,18 @@ def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False) :
 
     import fitsio
     h = fitsio.FITS(lyafile)
+
+
     if "WAVELENGTH" in h :
         wave  = h["WAVELENGTH"].read()
     else :
         log.warning("I assume WAVELENGTH is HDU 2")
         wave  = h[2].read()
 
-    if "TRANSMISSION" in h :
-        trans = h["TRANSMISSION"].read()
+    if "F_LYA" in h :
+        trans = h["F_LYA"].read()
+    elif "TRANSMISSION" in h:
+        trans=h["TRANSMISSION"].read()
     else :
         log.warning("I assume TRANSMISSION is HDU 3")
         trans = h[3].read()
@@ -103,22 +107,59 @@ def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False) :
         log.warning("I assume METADATA is HDU 1")
         meta = h[1].read()
 
+    if (add_lyb):
+        if ("F_LYB" in h) :
+            lyb = h["F_LYB"].read()
+            trans*=lyb
+            log.info("Added LYB from transmission file")
+        else:
+            nolyb="No HDU with EXTNAME='F_LYB' in transmission file {}".format(lyafile)
+            log.error(nolyb)
+            raise KeyError(nolyb) 
+    
+
+    if add_metals:
+
+       if add_metals=='all':
+          #For format london v>7.3
+          if "F_METALS" in h:
+              metals = h["F_METALS"].read()
+              trans *= metals
+              log.info("Added F_Metals from transmision file")
+          #For format london v<7.3
+          elif "METALS" in h :
+              metals = h["METALS"].read()
+              trans *= metals
+              log.info('Added Metals from file')
+          else:
+              nom="No HDU with EXTNAME='METALS' or EXTNAME='F_METALS' in transmission file {}".format(lyafile)
+              log.error(nom)
+              raise KeyError(nom)
+                     
+       else: 
+          if add_metals=='all-dev':
+             metal_list=['F_SI1260','F_SI1207','F_SI1193','F_SI1190']
+          else:      
+             metal_list=['F_'+m for m in add_metals.split(',')]    
+     
+          log.info("add {} metals from transmision file".format(metal_list))
+          for metal in metal_list:
+              if (metal in h):
+                  metals = h[metal].read()
+                  trans *= metals
+              else:
+                  nom="No HDU with EXTNAME={} in transmission file {} ".format(metal,lyafile)
+                  log.error(nom)
+                  raise KeyError(nom)
+
     if indices is not None :
         trans = trans[indices]
         meta=meta[:][indices]
 
-    if (add_metals):
-        if "METALS" in h :
-            metals = h["METALS"].read()
-            trans *= metals
-        else :
-            nom="No HDU with EXTNAME='METALS' in transmission file {}".format(lyafile)
-            log.error(nom)
-            raise KeyError(nom)
-
     if (read_dlas):
         if "DLA" in h:
             dlas=h["DLA"].read()
+            log.info("Read DLAs from transmision file")
         else:
             mess="No HDU with EXTNAME='DLA' in transmission file {}".format(lyafile)
             log.error(mess)

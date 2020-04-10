@@ -1,6 +1,6 @@
 """
 desisim.eboss
-===========
+=============
 
 Functions and methods for mimicking eBOSS survey.
 
@@ -99,8 +99,9 @@ class FootprintEBOSS(object):
         return dens
 
 def sdss_subsample(ra,dec,input_highz_density,eboss_footprint):
-    """ Downsample input list of angular positions based on SDSS footprint
+    """Downsample input list of angular positions based on SDSS footprint
         and input density of all quasars .
+
     Args:
         ra (ndarray): Right ascension (degrees)
         dec (ndarray): Declination (degrees)
@@ -232,14 +233,14 @@ def create_sdss2desi_redshift_distribution_ratio(sdss_cat,desi_cat,out,dz=0.04,m
 
     f.write('#\n')
     f.write('# Low density HEALPix list\n')
-    f.write('# ')
+    f.write('#')
     for el in ratio['LOWD']['PIXS']:
         f.write(str(el)+' ')
     f.write('\n')
 
     f.write('#\n')
     f.write('# High density HEALPix list\n')
-    f.write('# ')
+    f.write('#')
     for el in ratio['HIGHD']['PIXS']:
         f.write(str(el)+' ')
     f.write('\n')

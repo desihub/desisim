@@ -120,8 +120,10 @@ else:
 if comm is not None:
     todo = comm.bcast(todo, root=0)
 
-#- Proceed with simulating exposures, using all ranks
+#- Track failures from each rank, starting out optimistically
+failed = False
 
+#- Proceed with simulating exposures, using all ranks
 if rank == 0:
     print('{} MPI ranks processing {}/{} exposures'.format(size, len(todo), len(obs)))
 
@@ -168,6 +170,7 @@ if rank < len(todo):
                     print("SUCCESS: {} night {} expid {} took {:.1f} seconds".format(
                         cmd.split()[0], thisobs['NIGHT'], thisobs['EXPID'],  runtime))
                 else:
+                    failed = True
                     print('FAILED: night {} expid {}; see {}'.format(
                         thisobs['NIGHT'], thisobs['EXPID'], logfile))
 
@@ -179,7 +182,7 @@ if rank < len(todo):
             sys.stdout.flush()
 
 if comm is not None:
-    comm.barrier()
+    failed = comm.gather(failed, root=0)
 
 if rank == 0:
     import collections
@@ -188,6 +191,13 @@ if rank == 0:
     print('{:.1f} minutes for {} arc, {} flat, {} science exposures'.format(
         tottime/60, nflavor['arc'], nflavor['flat'], nflavor['science']
     ))
+    if np.any(failed):
+        print('Some ranks had failures')
 
 if comm is not None:
     MPI.Finalize()
+
+if np.any(failed):
+    sys.exit(1)
+else:
+    sys.exit(0)

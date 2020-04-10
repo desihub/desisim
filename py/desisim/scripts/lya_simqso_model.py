@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import os
 import numpy as np
+from pkg_resources import resource_filename
 from astropy.cosmology import FlatLambdaCDM
 import simqso.sqgrids  as grids
 from simqso.lumfun import QlfEvolParam,PolyEvolParam,DoublePowerLawLF
@@ -8,8 +9,6 @@ from simqso.hiforest import IGMTransmissionGrid
 
 
 ##This script basically duplicates simqso_model.py in SIMQSO https://github.com/imcgreer/simqso/blob/master/simqso/sqmodels.py. It defines the emmision lines. This needs the fits table os.environ['DESISIM']+'/py/desisim/data/emlinetrends_Harris2016mod' based on Table 4 of https://iopscience.iop.org/article/10.3847/0004-6256/151/6/155/pdf. Only the Lya line does not correspond to such reference, but to the values originally defined in SIMQSO. Basically the only modified function is EmLineTemplate_modified. But needs all the others definitions to work.
-
-
 
 WP11_model = {
  'forest0':{'zrange':(0.0,1.5),
@@ -60,11 +59,9 @@ WP11_model = {
             'bsig':24.0},
 }
 
-
 forestModels = {
         'Worseck&Prochaska2011':WP11_model,
                 }
-
 
 BossDr9_fiducial_continuum = grids.BrokenPowerLawContinuumVar([
                                     grids.GaussianSampler(-1.50,0.3),
@@ -85,6 +82,49 @@ BossDr9_expDust_cont = grids.BrokenPowerLawContinuumVar([
 BossDr9_FeScalings = [ (0,1540,0.5),(1540,1680,2.0),(1680,1868,1.6),
                        (1868,2140,1.0),(2140,3500,1.0) ]
 
+
+def model_vars_develop(qsoGrid,wave,nSightLines=0,
+                           noforest=False,forestseed=None,verbose=0):
+
+    if not noforest:
+        if nSightLines <= 0:
+            nSightLines = len(qsoGrid.z)
+        subsample = nSightLines < len(qsoGrid.z)
+        igmGrid = IGMTransmissionGrid(wave,
+                                      forestModels['Worseck&Prochaska2011'],
+                                      nSightLines,zmax=qsoGrid.z.max(),
+                                      subsample=subsample,seed=forestseed,
+                                      verbose=verbose)
+
+    fetempl = grids.VW01FeTemplateGrid(qsoGrid.z,wave,
+                                       scales=BossDr9_FeScalings)
+    mvars = [ BossDr9_fiducial_continuum,
+              EmLineTemplate_modified_develop(qsoGrid.absMag),
+              grids.FeTemplateVar(fetempl)]
+    if not noforest:
+        mvars.append( grids.HIAbsorptionVar(igmGrid,subsample=subsample) )
+    return mvars
+
+
+
+def EmLineTemplate_modified_develop(*args,**kwargs):
+    #This development table differes from the SIMQSO one only for wavelengths smaller than Lya wavelenght (Using parameters from https://iopscience.iop.org/article/10.3847/0004-6256/151/6/155/pdf). This is to preserve the colors in select_mock_targets, until further testing.
+    kwargs.setdefault('scaleEWs',{
+                                  'Lyepsdel':1,
+                                  'CIII':0.3,
+                                  'NII':1.1,
+                                  'LyB/OIVn':0.7,
+                                  'LyB/OIVb':1.1,
+                                  'CIII*':1.8,
+                                  'LyAb':1.1,'LyAn':1.1,
+                                  'CIVb':0.75,'CIVn':0.75,
+                                  'CIII]b':0.8,'CIII]n':0.8,
+                                  'MgIIb':0.8,'MgIIn':0.8
+                                  #Add more lines if needed.
+                                  }) 
+    kwargs['EmissionLineTrendFilename']=resource_filename('desisim', 'data/emlinetrends_develop')
+    return grids.generateBEffEmissionLines(*args,**kwargs)
+
 def EmLineTemplate_modified(*args,**kwargs):
     kwargs.setdefault('scaleEWs',{
                                   'Lyepsdel':1,
@@ -96,7 +136,7 @@ def EmLineTemplate_modified(*args,**kwargs):
                                   'LyAb':1.1,'LyAn':1.1
                                   #Add more lines if needed.
                                   })
-    kwargs['EmissionLineTrendFilename']=os.environ['DESISIM']+'/py/desisim/data/emlinetrends_Harris2016mod'
+    kwargs['EmissionLineTrendFilename']=resource_filename('desisim', 'data/emlinetrends_Harris2016mod')
     return grids.generateBEffEmissionLines(*args,**kwargs)
 
 def model_vars(qsoGrid,wave,nSightLines=0,
@@ -120,7 +160,6 @@ def model_vars(qsoGrid,wave,nSightLines=0,
     if not noforest:
         mvars.append( grids.HIAbsorptionVar(igmGrid,subsample=subsample) )
     return mvars
-
 
 def model_PLEpivot(**kwargs):
     # the 0.3 makes the PLE and LEDE models align at the pivot redshift

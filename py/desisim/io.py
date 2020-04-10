@@ -704,7 +704,7 @@ def find_cosmics(camera, exptime=1000, cosmics_dir=None):
         exptime (int, optional): exposure time in seconds
         cosmics_dir (str, optional): directory to look for cosmics templates; defaults to
             $DESI_COSMICS_TEMPLATES if set or otherwise
-            $DESI_ROOT/spectro/templates/cosmics/v0.2  (note HARDCODED version)
+            $DESI_ROOT/spectro/templates/cosmics/v0.3  (note HARDCODED version)
 
     Exposure times <120 sec will use the bias templates; otherwise they will
     use the dark cosmics templates
@@ -713,7 +713,7 @@ def find_cosmics(camera, exptime=1000, cosmics_dir=None):
         if 'DESI_COSMICS_TEMPLATES' in os.environ:
             cosmics_dir = os.environ['DESI_COSMICS_TEMPLATES']
         else:
-            cosmics_dir = os.environ['DESI_ROOT']+'/spectro/templates/cosmics/v0.2/'
+            cosmics_dir = os.environ['DESI_ROOT']+'/spectro/templates/cosmics/v0.3/'
 
     if exptime < 120:
         exptype = 'bias'
@@ -806,29 +806,29 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
 
     if 'RDNOISE0' in meta :
         del meta['RDNOISE0']
-    #- Amp 1 lower left
+    #- Amp A lower left
     nx = pix.shape[1] // 2
     ny = pix.shape[0] // 2
     iixy = np.s_[0:ny, 0:nx]
     cx = pix[iixy][mask[iixy] == 0]
     mean, median, std = sigma_clipped_stats(cx, sigma=3, iters=5)
-    meta['RDNOISE1'] = std
+    meta['RDNOISEA'] = std
 
-    #- Amp 2 lower right
+    #- Amp B lower right
     iixy = np.s_[0:ny, nx:2*nx]
     cx = pix[iixy][mask[iixy] == 0]
     mean, median, std = sigma_clipped_stats(cx, sigma=3, iters=5)
-    meta['RDNOISE2'] = std
+    meta['RDNOISEB'] = std
 
-    #- Amp 3 upper left
+    #- Amp C upper left
     iixy = np.s_[ny:2*ny, 0:nx]
     mean, median, std = sigma_clipped_stats(pix[iixy], sigma=3, iters=5)
-    meta['RDNOISE3'] = std
+    meta['RDNOISEC'] = std
 
-    #- Amp 4 upper right
+    #- Amp D upper right
     iixy = np.s_[ny:2*ny, nx:2*nx]
     mean, median, std = sigma_clipped_stats(pix[iixy], sigma=3, iters=5)
-    meta['RDNOISE4'] = std
+    meta['RDNOISED'] = std
     fx.close()
 
     return Image(pix, ivar, mask, meta=meta)
@@ -1172,6 +1172,12 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype='', simqso=False, input_met
                                   data=np.zeros(nmodel)-1, unit='Dex'))
         objmeta.add_column(Column(name='SIIHBETA', length=nmodel, dtype='f4',
                                   data=np.zeros(nmodel)-1, unit='Dex'))
+        objmeta.add_column(Column(name='TRANSIENT_MODEL', length=nmodel, dtype='U20'))
+        objmeta.add_column(Column(name='TRANSIENT_TYPE', length=nmodel, dtype='U10'))
+        objmeta.add_column(Column(name='TRANSIENT_EPOCH', length=nmodel, dtype='f4',
+                                  data=np.zeros(nmodel)-1, unit='day'))
+        objmeta.add_column(Column(name='TRANSIENT_RFLUXRATIO', length=nmodel, dtype='f4',
+                                  data=np.zeros(nmodel)-1))
 
     elif objtype.upper() == 'QSO':
         objmeta.add_column(Column(name='TARGETID', data=targetid))
@@ -1186,7 +1192,7 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype='', simqso=False, input_met
             objmeta.add_column(Column(name='PCA_COEFF', length=nmodel, dtype='f4',
                                       data=np.zeros( (nmodel, 4) )))
         objmeta.add_column(Column(name='BAL_TEMPLATEID', length=nmodel, dtype='i2', data=np.zeros(nmodel)-1))
-        #objmeta.add_column(Column(name='DLA', length=nmodel, dtype=bool))
+        objmeta.add_column(Column(name='DLA', length=nmodel, dtype=bool))
         #objmeta.add_column(Column(name='METALS', length=nmodel, dtype=bool))
 
     elif objtype.upper() == 'STAR' or objtype.upper() == 'STD' or objtype.upper() == 'MWS_STAR':
@@ -1234,6 +1240,6 @@ def empty_snemetatable(nmodel=1):
                               data=np.zeros(nmodel)-1))
     snemeta.add_column(Column(name='SNE_EPOCH', length=nmodel, dtype='f4',
                               data=np.zeros(nmodel)-1, unit='days'))
-    SNEmeta.add_column(Column(name='SNE_FILTER', length=nmodel, dtype='U15')) # normalization filter
+    snemeta.add_column(Column(name='SNE_FILTER', length=nmodel, dtype='U15')) # normalization filter
     
     return snemeta
