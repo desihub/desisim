@@ -80,15 +80,14 @@ if rank == 0:
                 assert logfile != filename
 
                 if args.outdir:
-                  ##  If outdir provided, log files inherit /night/exposure structure of simspec files but in outdir.                                                                                          
-                  ##  Else placed in original dir. with simspecs.                                                                                                                                              
-
-                  logfile = logfile.replace(desisim.io.simdir(), args.outdir)
+                    ##  If outdir provided, log files inherit /night/exposure structure of simspec files but in outdir.                            
+                    ##  Else placed in original dir. with simspecs.                                                                                                                                              
+                    logfile = logfile.replace(desisim.io.simdir(), args.outdir)
                 
                 try:
-                  os.makedirs(os.path.dirname(logfile), exist_ok=args.clobber)
+                    os.makedirs(os.path.dirname(logfile), exist_ok=args.clobber)
                 except:
-                  print('Pass --clobber to replace previously created logfile for {}.'.format(expid))
+                    print('Pass --clobber to replace previously created logfile for {}.'.format(expid))
 
                 with open(logfile, "w") as openfile:
                     print('night {} expid {} is {}; skipping'.format(night, expid, flavor), file=openfile)
@@ -128,7 +127,7 @@ if rank < len(simspecfiles):
     for flavor, filename in simspecfiles[rank::size]:
         cmd = "fastframe --simspec {}".format(filename)
         if args.outdir:
-           cmd = cmd + " --outdir {}".format(args.outdir)
+            cmd = cmd + " --outdir {}".format(args.outdir)
         if args.clobber:
             pass 
             ##  clobber not supported by fastframe (it clobbers by default)
@@ -154,9 +153,9 @@ if rank < len(simspecfiles):
                 logfile = logfile.replace(desisim.io.simdir(), args.outdir)
 
             try:
-              os.makedirs(os.path.dirname(logfile), exist_ok=args.clobber)
+                os.makedirs(os.path.dirname(logfile), exist_ok=args.clobber)
             except:
-              print('Pass --clobber to replace previously created logfile: {}.'.format(logfile))
+                print('Pass --clobber to replace previously created logfile: {}.'.format(logfile))
 
             #- Use subprocess.call instead of fastframe.main() to avoid
             #- potential memory leaks and separate logging; this does incur
