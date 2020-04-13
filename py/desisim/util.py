@@ -86,7 +86,7 @@ def dateobs2night(dateobs):
         otherwise questioning the dateobs format
     '''
     # See pixsim.py
-    from desisurvey.utils import freeze_iers
+    from desiutil.iers import freeze_iers
     freeze_iers()
     import astropy.time
     import datetime
