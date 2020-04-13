@@ -9,8 +9,6 @@ import numpy as np
 
 import astropy.table
 # See pixsim.py
-from desiutil.iers import freeze_iers
-freeze_iers()
 import astropy.time
 from astropy.io import fits
 import fitsio
@@ -395,6 +393,9 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, redshift=Non
 
     from desiutil.log import get_logger
     log = get_logger('DEBUG')
+
+    from desiutil.iers import freeze_iers
+    freeze_iers()
 
     # Input cosmology to calculate the angular diameter distance of the galaxy's redshift
     from astropy.cosmology import FlatLambdaCDM
