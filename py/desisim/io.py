@@ -939,8 +939,11 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
         log.info('Reading {} metadata.'.format(infile))
 
         if objtype.upper() == 'BAL': # non-standard data model
-            meta = Table(fitsio.read(infile, ext=1, upper=True, columns=(
-                'SDSS_NAME', 'RA', 'DEC', 'PLATE', 'MJD', 'FIBERID')))
+            meta = Table(fitsio.read(infile, ext=1, upper=True,
+                                     columns=('BI_CIV','ERR_BI_CIV', 'NCIV_2000', 'VMIN_CIV_2000',
+                                          'VMAX_CIV_2000', 'POSMIN_CIV_2000','FMIN_CIV_2000',
+                                          'AI_CIV', 'ERR_AI_CIV','NCIV_450', 'VMIN_CIV_450',
+                                          'VMAX_CIV_450', 'POSMIN_CIV_450', 'FMIN_CIV_450')))
         else:
             meta = Table(fitsio.read(infile, ext=1, upper=True))
 
@@ -977,8 +980,11 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
         w2 = w1 + dw*flux.shape[1]
         wave = np.arange(w1, w2, dw)
 
-        meta = Table(fitsio.read(infile, ext=1, upper=True, columns=(
-            'SDSS_NAME', 'RA', 'DEC', 'PLATE', 'MJD', 'FIBERID')))
+        meta = Table(fitsio.read(infile, ext=1, upper=True,
+                                 columns=('BI_CIV','ERR_BI_CIV', 'NCIV_2000', 'VMIN_CIV_2000',
+                                          'VMAX_CIV_2000', 'POSMIN_CIV_2000','FMIN_CIV_2000',
+                                          'AI_CIV', 'ERR_AI_CIV','NCIV_450', 'VMIN_CIV_450',
+                                          'VMAX_CIV_450', 'POSMIN_CIV_450', 'FMIN_CIV_450')))
     else:
         with fits.open(infile) as fx:
             try:
