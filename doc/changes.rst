@@ -2,10 +2,20 @@
 desisim change log
 ==================
 
-0.35.0 (unreleased)
+0.35.1 (unreleased)
 -------------------
 
 * No changes yet.
+
+0.35.0 (2020-04-13)
+-------------------
+
+* Use desiutil.iers.freeze_iers instead of desisurvey (requires
+  desiutil >= 2.0.3) (`PR #530`_).
+* Update BAL_META columns (`PR #527`_).
+
+.. _`PR #527`: https://github.com/desihub/desisim/pull/527
+.. _`PR #530`: https://github.com/desihub/desisim/pull/530
 
 0.34.3 (2020-04-07)
 -------------------
