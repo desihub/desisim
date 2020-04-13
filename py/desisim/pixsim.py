@@ -31,7 +31,7 @@ log = get_logger()
 # Note that this is triggered by a call to astropy.time.Time(),
 # which is subsequently used to compute sidereal_time().
 # It's the initialization of astropy.time.Time() itself that makes the call.
-from desisurvey.utils import freeze_iers
+from desiutil.iers import freeze_iers
 freeze_iers()
 from astropy.time import Time
 

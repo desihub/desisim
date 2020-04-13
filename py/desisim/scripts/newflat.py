@@ -8,7 +8,7 @@ import warnings
 import numpy as np
 import astropy.table
 # See pixsim.py
-from desisurvey.utils import freeze_iers
+from desiutil.iers import freeze_iers
 freeze_iers()
 import astropy.time
 from astropy.io import fits
