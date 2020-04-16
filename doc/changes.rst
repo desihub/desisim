@@ -2,7 +2,12 @@
 desisim change log
 ==================
 
-0.35.1 (unreleased)
+0.35.2 (unreleased)
+-------------------
+
+* No changes yet.
+
+0.35.1 (2020-04-15)
 -------------------
 
 * Add freeze_iers to quickgen (direct fix to master).
