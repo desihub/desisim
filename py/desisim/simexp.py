@@ -21,6 +21,7 @@ import desispec.io.util
 import desimodel.io
 from desimodel.focalplane import fiber_area_arcsec2
 import desiutil.depend
+from desiutil.iers import freeze_iers
 import desispec.interpolation
 import desisim.io
 import desisim.specsim
@@ -131,6 +132,7 @@ def simflat(flatfile, nspec=5000, nonuniform=False, exptime=10, testslit=False,
     import specsim.simulator
     from desiutil.log import get_logger
     log = get_logger()
+    freeze_iers()
 
     log.info('Reading flat lamp spectrum from {}'.format(flatfile))
     sbflux, hdr = fits.getdata(flatfile, header=True)
@@ -243,6 +245,7 @@ def simscience(targets, fiberassign, obsconditions='DARK', expid=None,
     '''
     from desiutil.log import get_logger
     log = get_logger()
+    freeze_iers()
 
     flux, wave, meta = targets
 
@@ -393,8 +396,6 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, redshift=Non
 
     from desiutil.log import get_logger
     log = get_logger('DEBUG')
-
-    from desiutil.iers import freeze_iers
     freeze_iers()
 
     # Input cosmology to calculate the angular diameter distance of the galaxy's redshift

@@ -5,7 +5,7 @@ desisim change log
 0.35.2 (unreleased)
 -------------------
 
-* No changes yet.
+* Add freeze_iers to more functions in simexp (direct to master).
 
 0.35.1 (2020-04-15)
 -------------------
