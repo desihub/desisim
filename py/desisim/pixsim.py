@@ -31,8 +31,7 @@ log = get_logger()
 # Note that this is triggered by a call to astropy.time.Time(),
 # which is subsequently used to compute sidereal_time().
 # It's the initialization of astropy.time.Time() itself that makes the call.
-from desisurvey.utils import freeze_iers
-freeze_iers()
+from desiutil.iers import freeze_iers
 from astropy.time import Time
 
 def simulate_exposure(simspecfile, rawfile, cameras=None,
@@ -214,6 +213,7 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
             of truth for image.pix
     """
 
+    freeze_iers()
     if (comm is None) or (comm.rank == 0):
         log.info('Starting pixsim.simulate camera {} at {}'.format(camera,
             asctime()))

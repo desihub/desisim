@@ -2,10 +2,35 @@
 desisim change log
 ==================
 
-0.35.0 (unreleased)
+0.35.2 (unreleased)
 -------------------
 
-* No changes yet.
+* Add freeze_iers to more functions in simexp (direct to master).
+
+0.35.1 (2020-04-15)
+-------------------
+
+* Add freeze_iers to quickgen (direct fix to master).
+
+0.35.0 (2020-04-13)
+-------------------
+
+* Use desiutil.iers.freeze_iers instead of desisurvey (requires
+  desiutil >= 2.0.3) (`PR #530`_).
+* Update BAL_META columns (`PR #527`_).
+
+.. _`PR #527`: https://github.com/desihub/desisim/pull/527
+.. _`PR #530`: https://github.com/desihub/desisim/pull/530
+
+0.34.3 (2020-04-07)
+-------------------
+
+* Add functionality to simulate transients into galaxy spectra; includes several
+  example notebooks (`PR #525`_).
+* Added a new table with a development emission line table  (`PR #523`_).
+
+.. _`PR #525`: https://github.com/desihub/desisim/pull/525
+.. _`PR #523`: https://github.com/desihub/desisim/pull/523
 
 0.34.2 (2019-12-27)
 -------------------

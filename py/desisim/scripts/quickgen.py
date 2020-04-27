@@ -154,6 +154,9 @@ def parse(options=None):
 
 def main(args):
 
+    from desiutil.iers import freeze_iers
+    freeze_iers()
+
     # Set up the logger
     if args.verbose:
         log = get_logger(DEBUG)
