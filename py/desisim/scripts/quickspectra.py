@@ -23,7 +23,7 @@ from desispec.spectra import Spectra
 from desispec.resolution import Resolution
 
 def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
-                sourcetype=None, targetid=None, redshift=None, expid=0, seed=0, skyerr=0.0, ra=None, dec=None, meta=None, fibermap_columns=None, fullsim=False,use_poisson=True):
+                sourcetype=None, targetid=None, redshift=None, expid=0, seed=0, skyerr=0.0, ra=None, dec=None, meta=None, fibermap_columns=None, fullsim=False, use_poisson=True, dwave_out=None):
     """
     Simulate spectra from an input set of wavelength and flux and writes a FITS file in the Spectra format that can
     be used as input to the redshift fitter.
@@ -176,7 +176,7 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
 
     sim = desisim.simexp.simulate_spectra(wave, flux, fibermap=frame_fibermap,
         obsconditions=obsconditions, redshift=redshift, seed=seed,
-        psfconvolve=True)
+        psfconvolve=True, dwave_out=dwave_out)
 
     random_state = np.random.RandomState(seed)
     sim.generate_random_noise(random_state,use_poisson=use_poisson)

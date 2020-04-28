@@ -75,17 +75,19 @@ def parse(options=None):
 
     parser.add_argument('--downsampling', type=float, default=None,help="fractional random down-sampling (value between 0 and 1)")
 
-    parser.add_argument('--zmin', type=float, default=0,help="Min redshift")
+    parser.add_argument('--zmin', type=float, default=0, help="Min redshift")
 
-    parser.add_argument('--zmax', type=float, default=10,help="Max redshift")
+    parser.add_argument('--zmax', type=float, default=10, help="Max redshift")
 
-    parser.add_argument('--wmin', type=float, default=3500,help="Min wavelength (obs. frame)")
+    parser.add_argument('--wmin', type=float, default=3500, help="Min wavelength (obs. frame)")
 
-    parser.add_argument('--wmax', type=float, default=10000,help="Max wavelength (obs. frame)")
+    parser.add_argument('--wmax', type=float, default=10000, help="Max wavelength (obs. frame)")
 
-    parser.add_argument('--dwave', type=float, default=0.2,help="Internal wavelength step (don't change this)")
+    parser.add_argument('--dwave', type=float, default=0.2, help="Internal wavelength step (don't change this)")
 
-    parser.add_argument('--zbest', action = "store_true",help="add a zbest file per spectrum either with the truth\
+    parser.add_argument('--dwave_out', type=float, default=0.8, help="Output wavelength step")
+
+    parser.add_argument('--zbest', action = "store_true", help="add a zbest file per spectrum either with the truth\
         redshift or adding some error (optionally use it with --sigma_kms_fog and/or --gamma_kms_zfit)")
 
     parser.add_argument('--sigma_kms_fog',type=float,default=150, help="Adds a gaussian error to the quasar \
@@ -299,6 +301,11 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             log.info("Creating dir {}".format(pixdir))
             os.makedirs(pixdir)
 
+    if not eboss is None:
+        dwave_out=None
+    else:
+        dwave_out=args.dwave_out
+
     log.info("Read skewers in {}, random seed = {}".format(ifilename,seed))
 
     # Read transmission from files. It might include DLA information, and it
@@ -323,7 +330,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         if args.downsampling or args.desi_footprint:
             raise ValueError("eboss option can not be run with "
                     +"desi_footprint or downsampling")
-
         # Get the redshift distribution from SDSS
         selection = sdss_subsample_redshift(metadata["RA"],metadata["DEC"],metadata['Z'],eboss['redshift'])
         log.info("Select QSOs in BOSS+eBOSS redshift distribution {} -> {}".format(metadata['Z'].size,selection.sum()))
@@ -687,7 +693,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
                 sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
-                meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False) # use Poisson = False to get reproducible results.
+                meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False, dwave_out=dwave_out) # use Poisson = False to get reproducible results.
 
     ### Keep input redshift
     Z_spec = metadata['Z'].copy()
