@@ -104,7 +104,7 @@ def parse(options=None):
 
     parser.add_argument('--mags', action = "store_true", help="DEPRECATED; use --bbflux")
 
-    parser.add_argument('--bbflux', action = "store_true", help="compute and write the QSO broad-band fluxes in the fibermap")
+    parser.add_argument('--bbflux', action = "store_true", help="compute and write the QSO broad-band fluxes in the fibermap ")
     parser.add_argument('--add-LYB', action='store_true', help = "Add LYB absorption from transmision file")
 
     parser.add_argument('--metals', type=str, default=None, required=False, help = "list of metals to get the\
@@ -302,7 +302,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             os.makedirs(pixdir)
 
     if not eboss is None:
-        dwave_out=None
+        dwave_out=1.   #to keep the same value used for DR16
     else:
         dwave_out=args.dwave_out
 
@@ -691,9 +691,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
        log.info("Dust extinction added")
        log.info('exposure time adjusted to {}'.format(obsconditions['EXPTIME']))
 
-    sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
-                sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
-                meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False, dwave_out=dwave_out) # use Poisson = False to get reproducible results.
+    sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions, spectra_filename=ofilename,
+                sourcetype="qso", skyerr=args.skyerr, ra=metadata["RA"], dec=metadata["DEC"], targetid=targetid,
+                meta=specmeta, seed=seed, fibermap_columns=fibermap_columns, use_poisson=False, dwave_out=dwave_out) # use Poisson = False to get reproducible results.
 
     ### Keep input redshift
     Z_spec = metadata['Z'].copy()
