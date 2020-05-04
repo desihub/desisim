@@ -85,7 +85,7 @@ def parse(options=None):
 
     parser.add_argument('--dwave', type=float, default=0.2, help="Internal wavelength step (don't change this)")
 
-    parser.add_argument('--dwave_out', type=float, default=0.8, help="Output wavelength step")
+    parser.add_argument('--dwave_desi', type=float, default=0.8, help="Output wavelength step for DESI mocks)")
 
     parser.add_argument('--zbest', action = "store_true", help="add a zbest file per spectrum either with the truth\
         redshift or adding some error (optionally use it with --sigma_kms_fog and/or --gamma_kms_zfit)")
@@ -104,7 +104,7 @@ def parse(options=None):
 
     parser.add_argument('--mags', action = "store_true", help="DEPRECATED; use --bbflux")
 
-    parser.add_argument('--bbflux', action = "store_true", help="compute and write the QSO broad-band fluxes in the fibermap ")
+    parser.add_argument('--bbflux', type=bool, default=True, help="compute and write the QSO broad-band fluxes in the fibermap ")
     parser.add_argument('--add-LYB', action='store_true', help = "Add LYB absorption from transmision file")
 
     parser.add_argument('--metals', type=str, default=None, required=False, help = "list of metals to get the\
@@ -302,9 +302,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             os.makedirs(pixdir)
 
     if not eboss is None:
-        dwave_out=1.   #to keep the same value used for DR16
+        dwave_out=None
     else:
-        dwave_out=args.dwave_out
+        dwave_out=args.dwave_desi
 
     log.info("Read skewers in {}, random seed = {}".format(ifilename,seed))
 
