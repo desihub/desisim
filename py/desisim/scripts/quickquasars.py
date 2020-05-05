@@ -104,9 +104,7 @@ def parse(options=None):
 
     parser.add_argument('--mags', action = "store_true", help="DEPRECATED; use --bbflux")
 
-    parser.add_argument('--bbflux', action="store_true", dest='bbflux', default=True, help="compute and write the QSO broad-band fluxes in the fibermap ")
-
-    parser.add_argument('--no-bbflux', action="store_false", dest='bbflux', help="don't compute and write the QSO broad-band fluxes in the fibermap ")
+    parser.add_argument('--bbflux', action = "store_true", help="compute and write the QSO broad-band fluxes in the fibermap")
 
     parser.add_argument('--add-LYB', action='store_true', help = "Add LYB absorption from transmision file")
 
@@ -794,13 +792,9 @@ def main(args=None):
         log.info("Creating dir {}".format(args.outdir))
         os.makedirs(args.outdir)
 
-    if args.mags:
-        if args.bbflux is False:
-            log.error('--mags is deprecated; --bbflux is used by default but can not be used together with --no-bbflux')
-            return 1
-        else:
-            log.warning('--mags is deprecated; --bbflux  is used by default, if it is not what you want use --no-bbflux')
-            args.bbflux = True
+    if args.mags :
+        log.warning('--mags is deprecated; please use --bbflux instead')
+        args.bbflux = True
 
     exptime = args.exptime
     if exptime is None :
