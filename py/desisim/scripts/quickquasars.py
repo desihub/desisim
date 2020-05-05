@@ -104,7 +104,10 @@ def parse(options=None):
 
     parser.add_argument('--mags', action = "store_true", help="DEPRECATED; use --bbflux")
 
-    parser.add_argument('--bbflux', type=bool, default=True, help="compute and write the QSO broad-band fluxes in the fibermap ")
+    parser.add_argument('--bbflux', action="store_true", dest='bbflux', default=True, help="compute and write the QSO broad-band fluxes in the fibermap ")
+
+    parser.add_argument('--no-bbflux', action="store_false", dest='bbflux', help="don't compute and write the QSO broad-band fluxes in the fibermap ")
+
     parser.add_argument('--add-LYB', action='store_true', help = "Add LYB absorption from transmision file")
 
     parser.add_argument('--metals', type=str, default=None, required=False, help = "list of metals to get the\
@@ -272,7 +275,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     seed = get_pixel_seed(pixel, nside, global_seed)
     # use this seed to generate future random numbers
     np.random.seed(seed)
-
     # get output file (we will write there spectra for this HEALPix pixel)
     ofilename = get_spectra_filename(args,nside,pixel)
     # get directory name (we will also write there zbest file)
@@ -302,10 +304,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             os.makedirs(pixdir)
 
     if not eboss is None:
-        dwave_out=None
+        dwave_out = None
     else:
-        dwave_out=args.dwave_desi
-
+        dwave_out = args.dwave_desi
     log.info("Read skewers in {}, random seed = {}".format(ifilename,seed))
 
     # Read transmission from files. It might include DLA information, and it
@@ -794,8 +795,12 @@ def main(args=None):
         os.makedirs(args.outdir)
 
     if args.mags:
-        log.warning('--mags is deprecated; please use --bbflux instead')
-        args.bbflux = True
+        if args.bbflux is False:
+            log.error('--mags is deprecated; --bbflux is used by default but can not be used together with --no-bbflux')
+            return 1
+        else:
+            log.warning('--mags is deprecated; --bbflux  is used by default, if it is not what you want use --no-bbflux')
+            args.bbflux = True
 
     exptime = args.exptime
     if exptime is None :
@@ -829,6 +834,7 @@ def main(args=None):
         model=SIMQSO(nproc=1,sqmodel='lya_simqso_model')
     decam_and_wise_filters = None
     bassmzls_and_wise_filters = None
+
     if args.target_selection or args.bbflux :
         log.info("Load DeCAM and WISE filters for target selection sim.")
         # ToDo @moustakas -- load north/south filters
