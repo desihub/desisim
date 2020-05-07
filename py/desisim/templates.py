@@ -608,7 +608,7 @@ class GALAXY(object):
         from speclite import filters
         from desispec.interpolation import resample_flux
         from astropy.table import Column
-        from astropy import units
+        from astropy import units as u
 
         if verbose:
             log = get_logger(DEBUG)
@@ -747,7 +747,7 @@ class GALAXY(object):
             normfilt[mfilter] = filters.load_filters(mfilter)
 
         # Optionally initialize the emission-line objects and line-ratios.
-        d4000 = self.basemeta['D4000']
+        d4000 = self.basemeta['D4000'].data
 
         # Build each spectrum in turn.
         if restframe:
@@ -809,7 +809,7 @@ class GALAXY(object):
                 j = np.argwhere(self.basewave >= minw)[0,0]
                 k = np.argwhere(self.basewave <= maxw)[-1,0]
 
-                trans_restflux[j:k] = self.transient.flux(trans_epoch[ii], self.basewave[j:k]*units.Angstrom)
+                trans_restflux[j:k] = self.transient.flux(trans_epoch[ii], self.basewave[j:k] * u.Angstrom) 
                 trans_norm = normfilt[magfilter[ii]].get_ab_maggies(trans_restflux, zwave)
 
             for ichunk in range(nchunk):
@@ -844,6 +844,7 @@ class GALAXY(object):
                 else:
                     normmaggies = np.array(normfilt[magfilter[ii]].get_ab_maggies(
                         restflux, zwave, mask_invalid=True)[magfilter[ii]])
+                    assert(np.all(normmaggies > 0))
                     magnorm = 10**(-0.4*mag[ii]) / normmaggies
 
                 synthnano = dict()
