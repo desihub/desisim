@@ -1483,6 +1483,7 @@ class SUPERSTAR(object):
 
                 normmaggies = np.array(normfilt[magfilter[ii]].get_ab_maggies(
                     padflux, padzwave, mask_invalid=True)[magfilter[ii]])
+                assert(np.all(normmaggies > 0))
                 magnorm = 10**(-0.4*mag[ii]) / normmaggies
 
                 synthnano = dict()
@@ -2207,6 +2208,7 @@ class QSO():
 
                 normmaggies = np.array(normfilt[magfilter[ii]].get_ab_maggies(
                     padflux, padzwave, mask_invalid=True)[magfilter[ii]])
+                assert(np.all(normmaggies > 0))
                 magnorm = 10**(-0.4*mag[ii]) / normmaggies
 
                 synthnano = dict()
@@ -2511,6 +2513,7 @@ class SIMQSO():
             maggies = self.bassmzlswise.get_ab_maggies(flux, self.basewave.copy(), mask_invalid=True)
 
         normmaggies = np.array(magfilt.get_ab_maggies(flux, self.basewave.copy(), mask_invalid=True)[magfilter])
+        assert(np.all(normmaggies > 0))
 
         synthnano = dict()
         for key in maggies.columns:
