@@ -2208,7 +2208,7 @@ class QSO():
 
                 normmaggies = np.array(normfilt[magfilter[ii]].get_ab_maggies(
                     padflux, padzwave, mask_invalid=True)[magfilter[ii]])
-                assert(np.all(normmaggies > 0))
+                assert(np.all(normmaggies[np.where(nonegflux)[0]] > 0))
                 magnorm = 10**(-0.4*mag[ii]) / normmaggies
 
                 synthnano = dict()
