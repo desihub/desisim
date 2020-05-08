@@ -124,7 +124,20 @@ class TestObs(unittest.TestCase):
             sky_mws = mws['num_sky_electrons_'+channel]
             sky_dark = dark['num_sky_electrons_'+channel]
             nonzero = (sky_mws != 0.0)
-            self.assertTrue(np.all(sky_mws[nonzero] > sky_dark[nonzero]))
+            try:
+                self.assertTrue(np.all(sky_mws[nonzero] > sky_dark[nonzero]))
+            except:
+                import matplotlib.pyplot as plt
+                ww = np.where(sky_mws[:, 0] < sky_dark[:, 0])[0]
+                plt.clf()
+                plt.plot(dark['wavelength'][ww], sky_dark[ww, 0], label='dark')
+                plt.plot(dark['wavelength'][ww], sky_mws[ww, 0], alpha=0.5, label='MWS')
+                plt.xlabel('Wavelength (Angstrom)')
+                plt.ylabel('Simulated sky (electron)')
+                plt.legend()
+                plt.subplots_adjust(left=0.2)
+                plt.show()
+                import pdb ; pdb.set_trace()
 
     @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
     def test_update_obslog(self):

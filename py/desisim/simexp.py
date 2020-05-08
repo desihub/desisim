@@ -589,6 +589,11 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, redshift=Non
                   source_position_angle=source_position_angle)
     np.random.set_state(randstate)
 
+    #try:
+    #    assert(np.all(desi.simulated['num_sky_electrons_z'] >= 0))
+    #except:
+    #    import pdb ; pdb.set_trace()            
+
     return desi
 
 def _specsim_config_for_wave(wave, dwave_out=None, specsim_config_file = "desi"):
