@@ -934,7 +934,7 @@ class ELG(GALAXY):
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
                  transient=None, tr_fluxratio=(0.01, 1.), tr_epoch=(-10,10), include_mgii=False, colorcuts_function=None,
-                 normfilter_north='BASS-r', normfilter_south='decam2014-r',
+                 normfilter_north='BASS-g', normfilter_south='decam2014-g',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the ELG class.  See the GALAXY.__init__ method for documentation
          on the arguments plus the inherited attributes.
@@ -964,7 +964,7 @@ class ELG(GALAXY):
 
         self.ewoiicoeff = [1.34323087, -5.02866474, 5.43842874]
 
-    def make_templates(self, nmodel=100, zrange=(0.6, 1.6), magrange=(21.0, 23.4),
+    def make_templates(self, nmodel=100, zrange=(0.6, 1.6), magrange=(20.0, 23.5),
                        oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
                        minoiiflux=0.0, trans_filter='decam2014-r',
                        redshift=None, mag=None, vdisp=None, seed=None, input_meta=None,
@@ -1116,7 +1116,7 @@ class LRG(GALAXY):
                                   baseflux=baseflux, basewave=basewave, basemeta=basemeta,
                                   transient=transient, tr_fluxratio=tr_fluxratio, tr_epoch=tr_epoch)
 
-    def make_templates(self, nmodel=100, zrange=(0.5, 1.0), magrange=(19.0, 20.2),
+    def make_templates(self, nmodel=100, zrange=(0.5, 1.0), magrange=(19.0, 21.5),
                        logvdisp_meansig=(2.3, 0.1),
                        trans_filter='decam2014-r', redshift=None, mag=None, vdisp=None,
                        seed=None, input_meta=None, nocolorcuts=False,
@@ -1923,7 +1923,7 @@ class QSO():
         x = samplerand.uniform(0.0, 1.0, size=nsample)
         return coeff[np.interp(x, cdf, np.arange(0, len(coeff), 1)).astype('int')]
 
-    def make_templates(self, nmodel=100, zrange=(0.5, 4.0), magrange=(17.0, 22.7),
+    def make_templates(self, nmodel=100, zrange=(0.5, 4.0), magrange=(17.5, 22.7),
                        seed=None, redshift=None, mag=None, input_meta=None, N_perz=40, 
                        maxiter=20, uniform=False, balprob=0.12, lyaforest=True,
                        noresample=False, nocolorcuts=False, south=True, verbose=False):
