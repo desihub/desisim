@@ -124,6 +124,8 @@ class TestObs(unittest.TestCase):
             sky_mws = mws['num_sky_electrons_'+channel]
             sky_dark = dark['num_sky_electrons_'+channel]
             nonzero = (sky_mws != 0.0)
+            self.assertTrue(np.all(sky_mws >= 0))
+            self.assertTrue(np.all(sky_dark >= 0))
             self.assertTrue(np.all(sky_mws[nonzero] > sky_dark[nonzero]))
 
     @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
