@@ -2011,17 +2011,6 @@ class QSO():
         else:
             log = get_logger()
 
-        if redshift is not None:
-            if len(redshift) != nmodel:
-                log.fatal('Redshift must be an nmodel-length array')
-                raise ValueError
-            zrange = (np.min(redshift), np.max(redshift))
-
-        if mag is not None:
-            if len(mag) != nmodel:
-                log.fatal('Mag must be an nmodel-length array')
-                raise ValueError
-
         if self.balqso:
             if balprob < 0:
                 log.warning('Balprob {} is negative; setting to zero.'.format(balprob))
@@ -2057,9 +2046,13 @@ class QSO():
             # Assign redshift and magnitude priors.
             if redshift is None:
                 redshift = rand.uniform(zrange[0], zrange[1], nmodel)
+            else:
+                redshift = np.atleast_1d(redshift)
 
             if mag is None:
                 mag = rand.uniform(magrange[0], magrange[1], nmodel).astype('f4')
+            else:
+                mag = np.atleast_1d(mag)
 
             if south:
                 magfilter = np.repeat(self.normfilter_south, nmodel)
@@ -2070,6 +2063,7 @@ class QSO():
             if len(redshift) != nmodel:
                 log.fatal('Redshift must be an nmodel-length array')
                 raise ValueError
+            zrange = (np.min(redshift), np.max(redshift))
 
         if mag is not None:
             if len(mag) != nmodel:
