@@ -50,7 +50,7 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
         fibermap_columns : add these columns to the fibermap
         fullsim : if True, write full simulation data in extra file per camera
         use_poisson : if False, do not use numpy.random.poisson to simulate the Poisson noise. This is useful to get reproducible random realizations.
-    """
+    """ 
     log = get_logger()
     
     if len(flux.shape)==1 :
@@ -140,6 +140,10 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
         wavemin = desimodel.io.load_throughput('b').wavemin
         wavemax = desimodel.io.load_throughput('z').wavemax
 
+    if specsim_config_file == "eboss":
+        wavemin = 3500
+        wavemax = 10000
+    
     if wave[0] > wavemin:
         log.warning('Minimum input wavelength {}>{}; padding with zeros'.format(
                 wave[0], wavemin))
@@ -377,7 +381,7 @@ def main(args=None):
     if sourcetype is not None and len(input_flux.shape)>1 :
         nspec=input_flux.shape[0]
         sourcetype=np.array([sourcetype for i in range(nspec)])
-    
+   
     sim_spectra(input_wave, input_flux, args.program, obsconditions=obsconditions,
         spectra_filename=args.out_spectra,seed=args.seed,sourcetype=sourcetype,
         skyerr=args.skyerr,fullsim=args.fullsim)
