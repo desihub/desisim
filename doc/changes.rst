@@ -11,6 +11,7 @@ desisim change log
 * Add the option to run quickquasars in eBOSS mode (`PR #481`_)
 
 .. _`PR #536`: https://github.com/desihub/desisim/pull/536
+.. _`PR #481`: https://github.com/desihub/desisim/pull/481
 
 0.35.1 (2020-04-15)
 -------------------
