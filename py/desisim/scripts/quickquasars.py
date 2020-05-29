@@ -690,9 +690,16 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
        log.info("Dust extinction added")
        log.info('exposure time adjusted to {}'.format(obsconditions['EXPTIME']))
 
-    sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions, spectra_filename=ofilename,
-                sourcetype="qso", skyerr=args.skyerr, ra=metadata["RA"], dec=metadata["DEC"], targetid=targetid,
-                meta=specmeta, seed=seed, fibermap_columns=fibermap_columns, use_poisson=False, dwave_out=dwave_out) # use Poisson = False to get reproducible results.
+    if args.eboss:
+        specsim_config_file = 'eboss'
+    else:
+        specsim_config_file = 'desi'
+
+    ### use Poisson = False to get reproducible results.
+    sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
+        sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
+        meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False,
+        specsim_config_file=specsim_config_file, dwave_out=dwave_out)
 
     ### Keep input redshift
     Z_spec = metadata['Z'].copy()
