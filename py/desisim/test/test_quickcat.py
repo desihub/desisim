@@ -1,10 +1,10 @@
 import os
 import numpy as np
 import unittest
-from astropy.table import Table, Column
-from astropy.io import fits
-from desisim.quickcat import quickcat
-from desitarget.targetmask import desi_mask, bgs_mask, mws_mask
+from   astropy.table import Table, Column
+from   astropy.io import fits
+from   desisim.quickcat import quickcat
+from   desitarget.targetmask import desi_mask, bgs_mask, mws_mask
 import desimodel.io
 
 class TestQuickCat(unittest.TestCase):
@@ -20,10 +20,12 @@ class TestQuickCat(unittest.TestCase):
 
         cls.nspec = n = 5000
         targets = Table()
-        targets['TARGETID'] = np.random.randint(0,2**60, size=n)
+        targets['TARGETID']    = np.random.randint(0,2**60, size=n)
+        targets['RA']          = np.random.uniform(0,360., size=n)
+        targets['DEC']         = np.random.uniform(-90.,90., size=n)
         targets['DESI_TARGET'] = 2**np.random.randint(0,3,size=n)
-        targets['BGS_TARGET'] = np.zeros(n, dtype=int)
-        targets['MWS_TARGET'] = np.zeros(n, dtype=int)
+        targets['BGS_TARGET']  = np.zeros(n, dtype=int)
+        targets['MWS_TARGET']  = np.zeros(n, dtype=int)
         isLRG = (targets['DESI_TARGET'] & desi_mask.LRG) != 0
         isELG = (targets['DESI_TARGET'] & desi_mask.ELG) != 0
         isQSO = (targets['DESI_TARGET'] & desi_mask.QSO) != 0
@@ -44,16 +46,22 @@ class TestQuickCat(unittest.TestCase):
             targets['MWS_TARGET'][isMWS] = mws_mask.MWS_MAIN
 
         #- Add some fake photometry; no attempt to get colors right
+        #- https://portal.nersc.gov/project/desi/users/adamyers/0.31.1/desitargetQA-dr8-0.31.1/LRG.html
         flux = np.zeros((n, 6))  #- ugrizY; DESI has grz
-        flux[isLRG, 1] = np.random.uniform(0, 1.0, np.count_nonzero(isLRG))
-        flux[isLRG, 2] = np.random.uniform(0, 5.0, np.count_nonzero(isLRG))
-        flux[isLRG, 4] = np.random.uniform(0, 5.0, np.count_nonzero(isLRG))
+
+        #- Assumed nanomaggies.
+        flux[isLRG, 1] = np.random.uniform(19., 20., np.count_nonzero(isLRG))
+        flux[isLRG, 2] = np.random.uniform(19., 20., np.count_nonzero(isLRG))
+        flux[isLRG, 4] = np.random.uniform(19., 20., np.count_nonzero(isLRG))
+
         flux[isELG, 1] = np.random.uniform(0, 4.0, np.count_nonzero(isELG))
         flux[isELG, 2] = np.random.uniform(0, 4.0, np.count_nonzero(isELG))
         flux[isELG, 4] = np.random.uniform(0, 10.0, np.count_nonzero(isELG))
+
         flux[isQSO, 1] = np.random.uniform(0, 4.0, np.count_nonzero(isQSO))
         flux[isQSO, 2] = np.random.uniform(0, 4.0, np.count_nonzero(isQSO))
         flux[isQSO, 4] = np.random.uniform(0, 6.0, np.count_nonzero(isQSO))
+
         # isBGS and isMWS are arrays of indices, not arrays of booleans
         flux[isBGS, 1] = np.random.uniform(10, 600, isBGS.size)
         flux[isBGS, 2] = np.random.uniform(15, 1000, isBGS.size)
@@ -61,12 +69,28 @@ class TestQuickCat(unittest.TestCase):
         flux[isMWS, 1] = np.random.uniform(10, 150, isMWS.size)
         flux[isMWS, 2] = np.random.uniform(15, 350, isMWS.size)
         flux[isMWS, 4] = np.random.uniform(10, 1500, isMWS.size)
-        targets['DECAM_FLUX'] = flux
 
+        targets['FLUX_G'] = flux[:,1]
+        targets['FLUX_R'] = flux[:,2]
+        targets['FLUX_Z'] = flux[:,4]
+        
         truth = Table()
         truth['TARGETID'] = targets['TARGETID'].copy()
+
+        truth['FLUX_G']   = targets['FLUX_G'].copy()
+        truth['FLUX_R']   = targets['FLUX_R'].copy()
+        truth['FLUX_Z']   = targets['FLUX_Z'].copy()
+        
         truth['TRUEZ'] = np.random.uniform(0, 1.5, size=n)
         truth['TRUESPECTYPE'] = np.zeros(n, dtype=(str, 10))
+
+        truth['TEMPLATETYPE'] = np.zeros(n, dtype=(str, 10))
+        truth['TEMPLATETYPE'][isLRG] = 'LRG'
+        truth['TEMPLATETYPE'][isELG] = 'ELG'
+        truth['TEMPLATETYPE'][isQSO] = 'QSO'
+        truth['TEMPLATETYPE'][isBGS] = 'BGS'
+        truth['TEMPLATETYPE'][isMWS] = 'MWS'
+        
         truth['GMAG'] = np.random.uniform(18.0, 24.0, size=n)
         ii = (targets['DESI_TARGET'] & desi_mask.mask('LRG|ELG|BGS_ANY')) != 0
         truth['TRUESPECTYPE'][ii] = 'GALAXY'
@@ -87,7 +111,7 @@ class TestQuickCat(unittest.TestCase):
         fiberassign = truth['TARGETID',]
         fiberassign['RA'] = np.random.uniform(0,5, size=n)
         fiberassign['DEC'] = np.random.uniform(0,5, size=n)
-        fiberassign.meta['EXTNAME'] = 'FIBERASSIGN'
+        fiberassign.meta['EXTNAME'] = 'FASSIGN'
         nx = cls.nspec // cls.ntiles
         cls.targets_in_tile = dict()
         for i, filename in enumerate(cls.tilefiles):
@@ -132,7 +156,7 @@ class TestQuickCat(unittest.TestCase):
         zcat2 = quickcat(self.tilefiles[0:2], self.targets, truth=self.truth, perfect=False)
         zcat2_sorted = zcat2.copy()
         zcat2_sorted.sort(keys='TARGETID')
-        self.assertTrue(np.all(zcat2_sorted['TARGETID'] == truth_01['TARGETID']))
+        self.assertTrue(np.all(zcat2_sorted['TARGETID'] == truth_01['TARGETID']))        
         self.assertTrue(np.all(zcat2_sorted['Z'] != truth_01['TRUEZ']))
         self.assertTrue(np.any(zcat2_sorted['ZWARN'] != 0))
 
