@@ -8,6 +8,7 @@ desisim change log
 * Fix sky level Travis test failure (#534) and "low QSO flux" template unit test
   failure (#507) (`PR #536`_).
 * Add freeze_iers to more functions in simexp (direct to master).
+* Add the option to run quickquasars in eBOSS mode (`PR #481`_)
 
 .. _`PR #536`: https://github.com/desihub/desisim/pull/536
 
