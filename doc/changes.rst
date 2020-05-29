@@ -5,7 +5,11 @@ desisim change log
 0.35.2 (unreleased)
 -------------------
 
+* Fix sky level Travis test failure (#534) and "low QSO flux" template unit test
+  failure (#507) (`PR #536`_).
 * Add freeze_iers to more functions in simexp (direct to master).
+
+.. _`PR #536`: https://github.com/desihub/desisim/pull/536
 
 0.35.1 (2020-04-15)
 -------------------

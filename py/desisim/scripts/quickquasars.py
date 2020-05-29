@@ -75,17 +75,19 @@ def parse(options=None):
 
     parser.add_argument('--downsampling', type=float, default=None,help="fractional random down-sampling (value between 0 and 1)")
 
-    parser.add_argument('--zmin', type=float, default=0,help="Min redshift")
+    parser.add_argument('--zmin', type=float, default=0, help="Min redshift")
 
-    parser.add_argument('--zmax', type=float, default=10,help="Max redshift")
+    parser.add_argument('--zmax', type=float, default=10, help="Max redshift")
 
-    parser.add_argument('--wmin', type=float, default=3500,help="Min wavelength (obs. frame)")
+    parser.add_argument('--wmin', type=float, default=3500, help="Min wavelength (obs. frame)")
 
-    parser.add_argument('--wmax', type=float, default=10000,help="Max wavelength (obs. frame)")
+    parser.add_argument('--wmax', type=float, default=10000, help="Max wavelength (obs. frame)")
 
-    parser.add_argument('--dwave', type=float, default=0.2,help="Internal wavelength step (don't change this)")
+    parser.add_argument('--dwave', type=float, default=0.2, help="Internal wavelength step (don't change this)")
 
-    parser.add_argument('--zbest', action = "store_true",help="add a zbest file per spectrum either with the truth\
+    parser.add_argument('--dwave_desi', type=float, default=0.8, help="Output wavelength step for DESI mocks)")
+
+    parser.add_argument('--zbest', action = "store_true", help="add a zbest file per spectrum either with the truth\
         redshift or adding some error (optionally use it with --sigma_kms_fog and/or --gamma_kms_zfit)")
 
     parser.add_argument('--sigma_kms_fog',type=float,default=150, help="Adds a gaussian error to the quasar \
@@ -103,6 +105,7 @@ def parse(options=None):
     parser.add_argument('--mags', action = "store_true", help="DEPRECATED; use --bbflux")
 
     parser.add_argument('--bbflux', action = "store_true", help="compute and write the QSO broad-band fluxes in the fibermap")
+
     parser.add_argument('--add-LYB', action='store_true', help = "Add LYB absorption from transmision file")
 
     parser.add_argument('--metals', type=str, default=None, required=False, help = "list of metals to get the\
@@ -270,7 +273,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     seed = get_pixel_seed(pixel, nside, global_seed)
     # use this seed to generate future random numbers
     np.random.seed(seed)
-
     # get output file (we will write there spectra for this HEALPix pixel)
     ofilename = get_spectra_filename(args,nside,pixel)
     # get directory name (we will also write there zbest file)
@@ -299,6 +301,10 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             log.info("Creating dir {}".format(pixdir))
             os.makedirs(pixdir)
 
+    if not eboss is None:
+        dwave_out = None
+    else:
+        dwave_out = args.dwave_desi
     log.info("Read skewers in {}, random seed = {}".format(ifilename,seed))
 
     # Read transmission from files. It might include DLA information, and it
@@ -323,7 +329,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         if args.downsampling or args.desi_footprint:
             raise ValueError("eboss option can not be run with "
                     +"desi_footprint or downsampling")
-
         # Get the redshift distribution from SDSS
         selection = sdss_subsample_redshift(metadata["RA"],metadata["DEC"],metadata['Z'],eboss['redshift'])
         log.info("Select QSOs in BOSS+eBOSS redshift distribution {} -> {}".format(metadata['Z'].size,selection.sum()))
@@ -694,7 +699,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
         sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
         meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False,
-        specsim_config_file=specsim_config_file)
+        specsim_config_file=specsim_config_file, dwave_out=dwave_out)
 
     ### Keep input redshift
     Z_spec = metadata['Z'].copy()
@@ -794,7 +799,7 @@ def main(args=None):
         log.info("Creating dir {}".format(args.outdir))
         os.makedirs(args.outdir)
 
-    if args.mags:
+    if args.mags :
         log.warning('--mags is deprecated; please use --bbflux instead')
         args.bbflux = True
 
@@ -830,6 +835,7 @@ def main(args=None):
         model=SIMQSO(nproc=1,sqmodel='lya_simqso_model')
     decam_and_wise_filters = None
     bassmzls_and_wise_filters = None
+
     if args.target_selection or args.bbflux :
         log.info("Load DeCAM and WISE filters for target selection sim.")
         # ToDo @moustakas -- load north/south filters
