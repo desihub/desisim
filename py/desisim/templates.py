@@ -2089,7 +2089,7 @@ class QSO():
             meta['SUBTYPE'][:] = 'LYA'
             
         if self.balqso:
-            balmeta['REDSHIFT'][:] = redshift
+            balmeta['Z'][:] = redshift
             if lyaforest: 
                 meta['SUBTYPE'][:] = 'LYA+BAL'
             else:
@@ -2130,7 +2130,7 @@ class QSO():
             if hasbal:
                 balindx = templaterand.choice(len(self.bal_basemeta))
                 balflux = self.bal_baseflux[balindx, :]
-                balmeta['TEMPLATEID'][ii] = balindx
+                balmeta['BAL_TEMPLATEID'][ii] = balindx
 
             # BOSS or SDSS?
             if redshift[ii] > 2.15:
