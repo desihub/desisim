@@ -560,7 +560,7 @@ def get_median_obsconditions(tileids):
 
     return obsconditions
 
-def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=False):
+def quickcat(tilefiles, targets, truth, fassignhdu='FIBERASSIGN', zcat=None, obsconditions=None, perfect=False):
     """
     Generates quick output zcatalog
 
@@ -588,7 +588,7 @@ def quickcat(tilefiles, targets, truth, zcat=None, obsconditions=None, perfect=F
     tileids = list()
     for infile in tilefiles:
         
-        fibassign, header = fits.getdata(infile, 'FIBERASSIGN', header=True)
+        fibassign, header = fits.getdata(infile, fassignhdu, header=True)
  
         # hack needed here rnc 7/26/18
         if 'TILEID' in header:
