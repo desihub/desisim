@@ -82,6 +82,8 @@ class BAL(object):
         """
         from desiutil.log import get_logger, DEBUG
         from desispec.interpolation import resample_flux
+        from astropy.table import Table
+
 
         if verbose:
             log = get_logger(DEBUG)
