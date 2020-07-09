@@ -5,11 +5,13 @@ desisim change log
 0.35.2 (unreleased)
 -------------------
 
+* New keyword in quickcat to indicate which HDU to read in fba files (`PR #538`_)
 * Fix sky level Travis test failure (#534) and "low QSO flux" template unit test
   failure (#507) (`PR #536`_).
 * Add freeze_iers to more functions in simexp (direct to master).
 * Add the option to run quickquasars in eBOSS mode (`PR #481`_)
 
+.. _`PR #538`: https://github.com/desihub/desisim/pull/538
 .. _`PR #536`: https://github.com/desihub/desisim/pull/536
 .. _`PR #481`: https://github.com/desihub/desisim/pull/481
 
