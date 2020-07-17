@@ -126,7 +126,7 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, objmeta=None,
     import warnings
     warnings.filterwarnings("ignore", message=".*Dex.* did not parse as fits unit")
     warnings.filterwarnings("ignore", message=".*nanomaggies.* did not parse as fits unit")
-    warnings.filterwarnings("ignore", message=".*10\*\*6 arcsec.* did not parse as fits unit")
+    warnings.filterwarnings("ignore", message=r".*10\*\*6 arcsec.* did not parse as fits unit")
 
     if filename is None:
         filename = findfile('simspec', night, expid, outdir=outdir)
@@ -276,7 +276,7 @@ def write_simspec_arc(filename, wave, phot, header, fibermap, overwrite=False):
     import warnings
     warnings.filterwarnings("ignore", message=".*Dex.* did not parse as fits unit")
     warnings.filterwarnings("ignore", message=".*nanomaggies.* did not parse as fits unit")
-    warnings.filterwarnings("ignore", message=".*10\*\*6 arcsec.* did not parse as fits unit")
+    warnings.filterwarnings("ignore", message=r".*10\*\*6 arcsec.* did not parse as fits unit")
                     
     hx = fits.HDUList()
     hdr = desispec.io.util.fitsheader(header)
