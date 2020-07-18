@@ -3,6 +3,7 @@ from __future__ import absolute_import, division, print_function
 import sys, os
 import argparse
 import time
+import warnings
 
 import numpy as np
 from scipy.constants import speed_of_light
@@ -736,7 +737,10 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     hdr=pyfits.Header()
     hdr['GSEED']=global_seed
     hdr['PIXSEED']=seed
-    hdu = pyfits.convenience.table_to_hdu(meta)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message=".*nanomaggies.*")
+        hdu = pyfits.convenience.table_to_hdu(meta)
+
     hdu.header['EXTNAME'] = 'TRUTH'
     hduqso=pyfits.convenience.table_to_hdu(qsometa)
     hduqso.header['EXTNAME'] = 'TRUTH_QSO'
