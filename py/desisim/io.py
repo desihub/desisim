@@ -15,7 +15,6 @@ import warnings
 import fitsio
 from astropy.io import fits
 from astropy.table import Table
-from astropy.stats import sigma_clipped_stats
 import numpy as np
 
 from desispec.interpolation import resample_flux
@@ -30,6 +29,14 @@ from desiutil.log import get_logger
 log = get_logger()
 
 from desisim.util import spline_medfilt2d
+
+#- support API change from astropy 2 -> 4
+import astropy
+from astropy.stats import sigma_clipped_stats
+if astropy.__version__.startswith('2.'):
+    astropy_sigma_clipped_stats = sigma_clipped_stats
+    def sigma_clipped_stats(data, sigma=3.0, maxiters=5):
+        return astropy_sigma_clipped_stats(data, sigma=sigma, iters=maxiters)
 
 #-------------------------------------------------------------------------
 def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
@@ -119,7 +126,7 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, objmeta=None,
     import warnings
     warnings.filterwarnings("ignore", message=".*Dex.* did not parse as fits unit")
     warnings.filterwarnings("ignore", message=".*nanomaggies.* did not parse as fits unit")
-    warnings.filterwarnings("ignore", message=".*10\*\*6 arcsec.* did not parse as fits unit")
+    warnings.filterwarnings("ignore", message=r".*10\*\*6 arcsec.* did not parse as fits unit")
 
     if filename is None:
         filename = findfile('simspec', night, expid, outdir=outdir)
@@ -269,7 +276,7 @@ def write_simspec_arc(filename, wave, phot, header, fibermap, overwrite=False):
     import warnings
     warnings.filterwarnings("ignore", message=".*Dex.* did not parse as fits unit")
     warnings.filterwarnings("ignore", message=".*nanomaggies.* did not parse as fits unit")
-    warnings.filterwarnings("ignore", message=".*10\*\*6 arcsec.* did not parse as fits unit")
+    warnings.filterwarnings("ignore", message=r".*10\*\*6 arcsec.* did not parse as fits unit")
                     
     hx = fits.HDUList()
     hdr = desispec.io.util.fitsheader(header)
@@ -811,23 +818,23 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
     ny = pix.shape[0] // 2
     iixy = np.s_[0:ny, 0:nx]
     cx = pix[iixy][mask[iixy] == 0]
-    mean, median, std = sigma_clipped_stats(cx, sigma=3, iters=5)
+    mean, median, std = sigma_clipped_stats(cx, sigma=3, maxiters=5)
     meta['RDNOISEA'] = std
 
     #- Amp B lower right
     iixy = np.s_[0:ny, nx:2*nx]
     cx = pix[iixy][mask[iixy] == 0]
-    mean, median, std = sigma_clipped_stats(cx, sigma=3, iters=5)
+    mean, median, std = sigma_clipped_stats(cx, sigma=3, maxiters=5)
     meta['RDNOISEB'] = std
 
     #- Amp C upper left
     iixy = np.s_[ny:2*ny, 0:nx]
-    mean, median, std = sigma_clipped_stats(pix[iixy], sigma=3, iters=5)
+    mean, median, std = sigma_clipped_stats(pix[iixy], sigma=3, maxiters=5)
     meta['RDNOISEC'] = std
 
     #- Amp D upper right
     iixy = np.s_[ny:2*ny, nx:2*nx]
-    mean, median, std = sigma_clipped_stats(pix[iixy], sigma=3, iters=5)
+    mean, median, std = sigma_clipped_stats(pix[iixy], sigma=3, maxiters=5)
     meta['RDNOISED'] = std
     fx.close()
 

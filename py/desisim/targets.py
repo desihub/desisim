@@ -301,7 +301,7 @@ def get_targets(nspec, program, tileid=None, seed=None, specify_targets=dict(), 
         ii = np.where(true_objtype == objtype)[0]
         nobj = len(ii)
 
-        fibermap['OBJTYPE'][ii] = target_objtype[ii]
+        fibermap['OBJTYPE'][ii] = target_objtype[ii].astype(fibermap['OBJTYPE'].dtype)
 
         if objtype in specify_targets.keys():
             obj_kwargs = specify_targets[objtype]

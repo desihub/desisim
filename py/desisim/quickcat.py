@@ -101,10 +101,12 @@ def get_zeff_obs(simtype, obsconditions):
     pv  = p_v[0] + p_v[1] * v + p_v[2] * (v**2. - np.mean(v**2))
 
     # ebmv
-    if 'EBMV' in obsconditions : 
+    # KeyError if dict or Table is missing EBMV
+    # ValueError if ndarray is missing EBMV
+    try:
         w = obsconditions['EBMV'] - np.mean(obsconditions['EBMV'])
         pw = p_w[0] + p_w[1] * w + p_w[2] * (w**2 - np.mean(w**2))
-    else :
+    except (KeyError, ValueError):
         pw = np.ones(ncond)
     
     # seeing
@@ -112,10 +114,10 @@ def get_zeff_obs(simtype, obsconditions):
     px = p_x[0] + p_x[1]*x + p_x[2] * (x**2 - np.mean(x**2))
 
     # transparency
-    if 'LINTRANS' in obsconditions :
+    try:
         y = obsconditions['LINTRANS'] - np.mean(obsconditions['LINTRANS'])
         py = p_y[0] + p_y[1]*y + p_y[2] * (y**2 - np.mean(y**2))
-    else :
+    except (KeyError, ValueError):
         py = np.ones(ncond)
     
     # moon illumination fraction
@@ -436,7 +438,12 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions, param
             jj=ii&(truth['TRUEZ']>zsplit)
             zerr[jj]  = sigma/(1.e-9+(true_rflux[jj])**powerlawindex)*(1.+truez[jj])
             
-            log.info("LYA QSO sigma={:6.5f} index={:3.2f} median zerr={:6.5f}".format(sigma,powerlawindex,np.median(zerr[jj])))
+            if np.count_nonzero(jj) > 0:
+                log.info("LYA QSO sigma={:6.5f} index={:3.2f} median zerr={:6.5f}".format(
+                    sigma,powerlawindex,np.median(zerr[jj])))
+            else:
+                log.warning("No LyA QSO generated")
+
             
             zout[ii] += np.random.normal(scale=zerr[ii])
         elif objtype in _sigma_v.keys() :
