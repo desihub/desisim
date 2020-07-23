@@ -153,6 +153,8 @@ install:
     # Install desimodel and desisim test data
     - if [[ $SETUP_CMD == test* ]]; then source etc/get_testdata.sh; fi
     - df -h
+    - python -c "import astropy; print('astropy version {}'.format(astropy.__version__))"
+    - python -c "import numpy; print('numpy version {}'.format(numpy.__version__))"
 
 script:
     - $MAIN_CMD $SETUP_CMD
