@@ -22,7 +22,7 @@ from desiutil.log import get_logger, DEBUG
 
 from astropy.table import Table, hstack, vstack
 
-from argparse import ArgumentParser
+import argparse
 
 
 def _set_wave(wavemin=None, wavemax=None, dw=0.8):
@@ -140,7 +140,9 @@ def write_templates(filename, flux, wave, target, truth, objtruth):
 def parse(options=None):
     """Parse command line options.
     """
-    parser = ArgumentParser(description='Fast galaxy + transient simulator')
+    parser = argparse.ArgumentParser(
+                formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                description='Fast galaxy + transient simulator')
 
     # Set up observing conditions.
     cond = parser.add_argument_group('Observing conditions')
