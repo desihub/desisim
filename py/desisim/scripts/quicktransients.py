@@ -136,7 +136,6 @@ def write_templates(filename, flux, wave, target, truth, objtruth):
     hdu_objtruth.header['EXTNAME'] = 'OBJTRUTH'
     hx.append(hdu_objtruth)
 
-    print('Writing {}'.format(filename))
     hx.writeto(filename, overwrite=True)
 
 
@@ -293,6 +292,7 @@ def main(args=None):
         truthfile = os.path.join(args.outdir,
                      '{}_{}_{:04d}s_{:03d}_truth.fits'.format(args.host, thedate, int(args.exptime), j+1))
         write_templates(truthfile, flux, wave, targ, truth, objtr)
+        log.info('Wrote {}'.format(truthfile))
 
         # Get observing conditions and generate spectra.
         obs = dict(AIRMASS=args.airmass, EXPTIME=args.exptime,
@@ -339,5 +339,7 @@ def main(args=None):
             coaddfile = specfile.replace('spect', 'coadd')
             spectra = read_spectra(specfile)
             spectra = coadd_cameras(spectra)
+
             write_spectra(coaddfile, spectra)
+            log.info('Wrote {}'.format(coaddfile))
 
