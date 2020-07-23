@@ -318,7 +318,8 @@ def main(args=None):
         specfile = os.path.join(args.outdir,
                     '{}_{}_{:04d}s_{:03d}_spect.fits'.format(args.host, thedate, int(args.exptime), j+1))
 
-        redshifts = truth['TRUEZ'] if args.host=='bgs' else None
+        # redshifts = truth['TRUEZ'] if args.host=='bgs' else None
+        redshifts = None
 
         sim_spectra(wave, flux, args.host, specfile,
                     sourcetype=args.host,
