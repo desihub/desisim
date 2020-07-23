@@ -18,6 +18,9 @@ from desisim.simexp import reference_conditions
 from desisim.transients import transients
 from desisim.scripts.quickspectra import sim_spectra
 
+from desispec.io import read_spectra, write_spectra
+from desispec.coaddition import coadd_cameras
+
 from desiutil.log import get_logger, DEBUG
 
 from astropy.table import Table, hstack, vstack
@@ -164,6 +167,8 @@ def parse(options=None):
                       help='Host galaxy type')
     sims.add_argument('--outdir', default='',
                       help='Absolute path to simulation output')
+    sims.add_argument('--coadd_cameras', action='store_true',
+                      help='If true, coadd cameras in generated spectra')
 
     # Set up transient model as a simulation setting. None==no transient.
     tran = parser.add_argument_group('Transient settings')
@@ -329,4 +334,10 @@ def main(args=None):
                     targetid=truth['TARGETID'], redshift=redshifts,
                     ra=targ['RA'], dec=targ['DEC'],
                     seed=args.seed, expid=j)
+
+        if args.coadd_cameras:
+            coaddfile = specfile.replace('spect', 'coadd')
+            spectra = read_spectra(specfile)
+            spectra = coadd_cameras(spectra)
+            write_spectra(coaddfile, spectra)
 
