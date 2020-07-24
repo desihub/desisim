@@ -47,6 +47,8 @@ env:
         - NUMPY_VERSION=1.16.5
         # - SCIPY_VERSION=0.16
         - ASTROPY_VERSION=2.0.16
+        #- Old healpy version needed as long as we pin old astropy too
+        - HEALPY_VERSION=1.12.9
         # - SPHINX_VERSION=1.6.6
         - DESIUTIL_VERSION=2.0.3
         - SPECLITE_VERSION=0.8
@@ -148,7 +150,7 @@ install:
     # packages are installed, thus desiutil is not installed in that script.
     # - if [[ $SETUP_CMD == test* ]]; then pip install git+https://github.com/dkirkby/speclite.git@${SPECLITE_VERSION}#egg=speclite; fi
     - for p in $DESIHUB_PIP_DEPENDENCIES; do r=$(echo $p | cut -d= -f1); v=$(echo $p | cut -d= -f2); pip install git+https://github.com/desihub/${r}.git@${v}#egg=${r}; done
-    - "if [[ $SETUP_CMD == test* ]]; then pip install --no-binary :all: healpy; fi"
+    - "if [[ $SETUP_CMD == test* ]]; then pip install --no-binary :all: healpy==${HEALPY_VERSION}; fi"
     - if [[ $SETUP_CMD == test* ]]; then pip install git+https://github.com/imcgreer/simqso.git@${SIMQSO_VERSION}#egg=simqso; fi
     # Install desimodel and desisim test data
     - if [[ $SETUP_CMD == test* ]]; then source etc/get_testdata.sh; fi
