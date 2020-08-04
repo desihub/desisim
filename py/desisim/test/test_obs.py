@@ -1,6 +1,7 @@
 import unittest, os
 from uuid import uuid1
 from shutil import rmtree
+from pkg_resources import resource_filename
 
 import numpy as np
 from astropy.io import fits
@@ -188,6 +189,24 @@ class TestObs(unittest.TestCase):
         for i in range(10):
             self.assertIn(i*500, fm['FIBER'])
             self.assertIn(i*500+499, fm['FIBER'])
+
+    def test_read_mock_spectra(self):
+        #- piggyback on desitarget mock data
+        truthfile = resource_filename('desitarget', 'test/t/truth-mocks.fits')
+        if not os.path.exists(truthfile):
+            print(f"Please update desitarget to get {truthfile}")
+            return
+
+        truth = Table.read(truthfile, 'TRUTH')
+        targetids = truth['TARGETID'][0::2]
+        flux, wave, truth2, objtruth = \
+                desisim.simexp.read_mock_spectra(truthfile, targetids)
+
+        self.assertEqual(flux.shape[0], len(targetids))
+        self.assertEqual(flux.shape[1], len(wave))
+        self.assertEqual(len(truth2), len(targetids))
+        self.assertTrue(np.all(truth2['TARGETID'] == targetids))
+
     
 
 #- This runs all test* functions in any TestCase class in this file
