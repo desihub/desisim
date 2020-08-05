@@ -2,7 +2,12 @@
 desisim change log
 ==================
 
-0.35.3 (unreleased)
+0.35.4 (unreleased)
+-------------------
+
+* No changes yet.
+
+0.35.3 (2020-08-04)
 -------------------
 
 * desisim.spec_qa.redshifts.zstats support for astropy 4 (hotfix to master).
