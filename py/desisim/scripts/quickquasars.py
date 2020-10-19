@@ -125,6 +125,8 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
     parser.add_argument('--no-simqso',action = "store_true", help="Does not use desisim.templates.SIMQSO\
         to generate templates, and uses desisim.templates.QSO instead.")
 
+    parser.add_argument('--save-continuum',action = "store_true", help="Save true continum to file")
+
     parser.add_argument('--desi-footprint', action = "store_true" ,help="select QSOs in DESI footprint")
 
     parser.add_argument('--eboss',action = 'store_true', help='Setup footprint, number density, redshift distribution,\
@@ -548,6 +550,23 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     tmp_qso_flux = qso_flux
     tmp_qso_wave = trans_wave
 
+    if args.save_continuum :
+        true_wave=np.linspace(args.wmin,args.wmax,int((args.wmax-args.wmin)/args.dwave)+1)
+        true_flux=np.zeros((tmp_qso_flux.shape[0],true_wave.size))
+        for q in range(tmp_qso_flux.shape[0]) :
+            true_flux[q]=resample_flux(true_wave,tmp_qso_wave,tmp_qso_flux[q])
+        continum_meta=Table()
+        continum_meta['TARGETID'] = qsometa['TARGETID']
+        continum_meta['TRUE_CONT'] = true_flux
+        hdu_trueCont = pyfits.convenience.table_to_hdu(continum_meta)
+        hdu_trueCont.name = "TRUE_CONT"
+        hdu_trueCont.header['wmin'] = args.wmin
+        hdu_trueCont.header['wmax'] = args.wmax
+        hdu_trueCont.header['dwave'] = args.dwave
+
+        del(continum_meta,true_wave,true_flux)
+        log.info("True continum to be saved in {}".format(truth_filename))
+
     # if requested, add BAL features to the quasar continua
     if args.balprob:
         if args.balprob <= 1. and args.balprob > 0:
@@ -574,6 +593,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     # Multiply quasar continua by transmitted flux fraction
     # (at this point transmission file might include Ly-beta, metals and DLAs)
     log.info("Apply transmitted flux fraction")
+    
     if not args.no_transmission:
         tmp_qso_flux = apply_lya_transmission(tmp_qso_wave,tmp_qso_flux,
                             trans_wave,transmission)
@@ -749,6 +769,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         hdulist.append(hdu_dla)
     if  args.balprob :
         hdulist.append(hdu_bal)
+    if args.save_continuum :
+        hdulist.append(hdu_trueCont)
+    
     hdulist.writeto(truth_filename, overwrite=True)
     hdulist.close()
 
