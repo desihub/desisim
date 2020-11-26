@@ -117,7 +117,6 @@ class BAL(object):
         # Determine which QSO spectrum has BAL(s) and then loop on each. 
         hasbal = rand.random_sample(nqso) < balprob
         ihasbal = np.where(hasbal)[0]
-
         # Should probably return a BAL metadata table, too.
         if len(ihasbal) == 0:
             #Return a fully empy balmeta table
