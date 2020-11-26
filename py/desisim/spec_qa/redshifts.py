@@ -468,7 +468,7 @@ def zstats(simz_tab, objtype=None, dvlimit=None, count=False, survey=False):
     if count:
         return ngood, nfail, nmiss, nlost
     elif ntot == 0:
-        return (np.nan, np.nan, np.nan, np.nan)
+        return (np.nan, np.nan, np.nan, np.nan, 0)
     else:
         return 100*ngood/ntot, 100*nfail/ntot, 100*nmiss/ntot, 100*nlost/ntot, ntot
 
@@ -497,7 +497,7 @@ def criteria(simz_tab, objtype=None, dvlimit=None):
     """
     # Init
     nrow = len(simz_tab)
-    stypes = np.char.rstrip(simz_tab['TEMPLATETYPE'])
+    stypes = np.char.rstrip(simz_tab['TEMPLATETYPE'].astype(str))
 
     # Object type
     if objtype is None:

@@ -3,6 +3,7 @@ from __future__ import absolute_import, division, print_function
 import sys, os
 import argparse
 import time
+import warnings
 
 import numpy as np
 from scipy.constants import speed_of_light
@@ -690,9 +691,16 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
        log.info("Dust extinction added")
        log.info('exposure time adjusted to {}'.format(obsconditions['EXPTIME']))
 
-    sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions, spectra_filename=ofilename,
-                sourcetype="qso", skyerr=args.skyerr, ra=metadata["RA"], dec=metadata["DEC"], targetid=targetid,
-                meta=specmeta, seed=seed, fibermap_columns=fibermap_columns, use_poisson=False, dwave_out=dwave_out) # use Poisson = False to get reproducible results.
+    if args.eboss:
+        specsim_config_file = 'eboss'
+    else:
+        specsim_config_file = 'desi'
+
+    ### use Poisson = False to get reproducible results.
+    sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
+        sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
+        meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False,
+        specsim_config_file=specsim_config_file, dwave_out=dwave_out)
 
     ### Keep input redshift
     Z_spec = metadata['Z'].copy()
@@ -729,7 +737,10 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     hdr=pyfits.Header()
     hdr['GSEED']=global_seed
     hdr['PIXSEED']=seed
-    hdu = pyfits.convenience.table_to_hdu(meta)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message=".*nanomaggies.*")
+        hdu = pyfits.convenience.table_to_hdu(meta)
+
     hdu.header['EXTNAME'] = 'TRUTH'
     hduqso=pyfits.convenience.table_to_hdu(qsometa)
     hduqso.header['EXTNAME'] = 'TRUTH_QSO'
