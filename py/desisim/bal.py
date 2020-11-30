@@ -43,7 +43,7 @@ class BAL(object):
         balmeta.add_column(Column(name='BAL_TEMPLATEID', length=nqso, dtype='i4', data=np.zeros(nqso)-1))
         balmeta.add_column(Column(name='Z',length=nqso, dtype='f4', data=np.zeros(nqso)))
         if qsoredshift is not None:
-            balmeta['REDSHIFT'] = qsoredshift
+            balmeta['Z'] = qsoredshift
 
         return balmeta
 
@@ -82,6 +82,8 @@ class BAL(object):
         """
         from desiutil.log import get_logger, DEBUG
         from desispec.interpolation import resample_flux
+        from astropy.table import Table
+
 
         if verbose:
             log = get_logger(DEBUG)
@@ -115,10 +117,10 @@ class BAL(object):
         # Determine which QSO spectrum has BAL(s) and then loop on each. 
         hasbal = rand.random_sample(nqso) < balprob
         ihasbal = np.where(hasbal)[0]
-
         # Should probably return a BAL metadata table, too.
         if len(ihasbal) == 0:
-            balmeta = self.empty_balmeta()
+            #Return a fully empy balmeta table
+            balmeta=Table(names=('TARGETID','Z','BAL_PROB','BAL_TEMPLATEID'), dtype=('i4', 'f4', 'f4','i4'))
             return qsoflux, balmeta
 
         balindx = rand.choice( len(self.balmeta), len(ihasbal) )
