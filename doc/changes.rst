@@ -2,10 +2,56 @@
 desisim change log
 ==================
 
-0.35.0 (unreleased)
+0.35.4 (unreleased)
 -------------------
 
 * No changes yet.
+
+0.35.3 (2020-08-04)
+-------------------
+
+* desisim.spec_qa.redshifts.zstats support for astropy 4 (hotfix to master).
+
+0.35.2 (2020-08-04)
+-------------------
+
+* Support astropy/4.x and fitsio/1.x (`PR #539`_ and `PR #542`_).
+* New keyword in quickcat to indicate which HDU to read in fba files (`PR #538`_)
+* Fix sky level Travis test failure (#534) and "low QSO flux" template unit test
+  failure (#507) (`PR #536`_).
+* Add freeze_iers to more functions in simexp (direct to master).
+* Add the option to run quickquasars in eBOSS mode (`PR #481`_)
+
+.. _`PR #542`: https://github.com/desihub/desisim/pull/542
+.. _`PR #539`: https://github.com/desihub/desisim/pull/539
+.. _`PR #538`: https://github.com/desihub/desisim/pull/538
+.. _`PR #536`: https://github.com/desihub/desisim/pull/536
+.. _`PR #481`: https://github.com/desihub/desisim/pull/481
+
+0.35.1 (2020-04-15)
+-------------------
+
+* Add freeze_iers to quickgen (direct fix to master).
+
+0.35.0 (2020-04-13)
+-------------------
+
+* Use desiutil.iers.freeze_iers instead of desisurvey (requires
+  desiutil >= 2.0.3) (`PR #530`_).
+* Update BAL_META columns (`PR #527`_).
+
+.. _`PR #527`: https://github.com/desihub/desisim/pull/527
+.. _`PR #530`: https://github.com/desihub/desisim/pull/530
+
+0.34.3 (2020-04-07)
+-------------------
+
+* Add functionality to simulate transients into galaxy spectra; includes several
+  example notebooks (`PR #525`_).
+* Added a new table with a development emission line table  (`PR #523`_).
+
+.. _`PR #525`: https://github.com/desihub/desisim/pull/525
+.. _`PR #523`: https://github.com/desihub/desisim/pull/523
 
 0.34.2 (2019-12-27)
 -------------------

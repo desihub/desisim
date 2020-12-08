@@ -40,15 +40,30 @@ class BAL(object):
             nqso = len(np.atleast_1d(qsoredshift))
 
         balmeta = Table()
-        balmeta.add_column(Column(name='TEMPLATEID', length=nqso, dtype='i4', data=np.zeros(nqso)-1))
-        balmeta.add_column(Column(name='REDSHIFT', length=nqso, dtype='f4', data=np.zeros(nqso)))
+        balmeta.add_column(Column(name='BAL_TEMPLATEID', length=nqso, dtype='i4', data=np.zeros(nqso)-1))
+        balmeta.add_column(Column(name='Z',length=nqso, dtype='f4', data=np.zeros(nqso)))
         if qsoredshift is not None:
-            balmeta['REDSHIFT'] = qsoredshift
+            balmeta['Z'] = qsoredshift
 
-        return balmeta        
+        return balmeta
+
+    def template_balmeta(self,indx):
+        """Initialize an empty metadata table for BALs."""
+
+        from astropy.table import Table, Column
+        from desisim.io import find_basis_template
+
+        balmeta = self.balmeta.copy()
+        balmeta = balmeta[indx]
+        nbal = len(balmeta)
+        balmeta.add_column(Column(name='BAL_TEMPLATEID', length=nbal, dtype='i4', data=np.zeros(nbal)-1), index=0)
+        balmeta.add_column(Column(name='BAL_PROB', length=nbal, dtype='f4', data=np.ones(nbal)), index=0)
+        balmeta.add_column(Column(name='Z', length=nbal, dtype='f4', data=np.zeros(nbal)), index=0)
+        balmeta.add_column(Column(name='TARGETID', length=nbal, dtype='i4', data=np.zeros(nbal)-1), index=0)
+        return balmeta
         
     def insert_bals(self, qsowave, qsoflux, qsoredshift, balprob=0.12,
-                    seed=None, verbose=False):
+                    seed=None, verbose=False, qsoid=None):
         """Probabilistically inserts BALs into one or more QSO spectra.
 
         Args:
@@ -67,6 +82,8 @@ class BAL(object):
         """
         from desiutil.log import get_logger, DEBUG
         from desispec.interpolation import resample_flux
+        from astropy.table import Table
+
 
         if verbose:
             log = get_logger(DEBUG)
@@ -97,18 +114,21 @@ class BAL(object):
                 log.fatal('Dimensions of qsoflux and qsowave do not agree!')
                 raise ValueError
         
-        balmeta = self.empty_balmeta(qsoredshift)
-
         # Determine which QSO spectrum has BAL(s) and then loop on each. 
         hasbal = rand.random_sample(nqso) < balprob
         ihasbal = np.where(hasbal)[0]
-
         # Should probably return a BAL metadata table, too.
         if len(ihasbal) == 0:
+            #Return a fully empy balmeta table
+            balmeta=Table(names=('TARGETID','Z','BAL_PROB','BAL_TEMPLATEID'), dtype=('i4', 'f4', 'f4','i4'))
             return qsoflux, balmeta
 
         balindx = rand.choice( len(self.balmeta), len(ihasbal) )
-        balmeta['TEMPLATEID'][ihasbal] = balindx
+        #before it was convenient to have the balmeta of size  nqso's and remove non-BALs after. Now I think is easier to return the balmeta for BALs only.
+        balmeta = self.template_balmeta(balindx)
+        balmeta['Z'] = qsoredshift[ihasbal]
+        balmeta['BAL_TEMPLATEID'] = balindx
+        balmeta['TARGETID'] = qsoid[ihasbal]
 
         bal_qsoflux = qsoflux.copy()
         if qsowave.ndim == 2:

@@ -143,9 +143,10 @@ if rank < len(simspecfiles):
 
             runtime = time.time() - t0
             if err != 0:
-                print("ERROR: rank {} simspec {} error code {} after {:.1f} sec".format(
-                    rank, os.path.basename(filename), err, runtime))
-                raise RuntimeError
+                msg = "ERROR: rank {} simspec {} error code {} after {:.1f} sec; see {}".format(
+                    rank, os.path.basename(filename), err, runtime, logfile)
+                print(msg)
+                raise RuntimeError(msg)
 
             print("rank {} took {:.1f} seconds for {} frame".format(rank, runtime, flavor))
             sys.stdout.flush()

@@ -9,8 +9,6 @@ import numpy as np
 
 import astropy.table
 # See pixsim.py
-from desisurvey.utils import freeze_iers
-freeze_iers()
 import astropy.time
 from astropy.io import fits
 import fitsio
@@ -23,6 +21,7 @@ import desispec.io.util
 import desimodel.io
 from desimodel.focalplane import fiber_area_arcsec2
 import desiutil.depend
+from desiutil.iers import freeze_iers
 import desispec.interpolation
 import desisim.io
 import desisim.specsim
@@ -133,6 +132,7 @@ def simflat(flatfile, nspec=5000, nonuniform=False, exptime=10, testslit=False,
     import specsim.simulator
     from desiutil.log import get_logger
     log = get_logger()
+    freeze_iers()
 
     log.info('Reading flat lamp spectrum from {}'.format(flatfile))
     sbflux, hdr = fits.getdata(flatfile, header=True)
@@ -245,6 +245,7 @@ def simscience(targets, fiberassign, obsconditions='DARK', expid=None,
     '''
     from desiutil.log import get_logger
     log = get_logger()
+    freeze_iers()
 
     flux, wave, meta = targets
 
@@ -395,6 +396,7 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, redshift=Non
 
     from desiutil.log import get_logger
     log = get_logger('DEBUG')
+    freeze_iers()
 
     # Input cosmology to calculate the angular diameter distance of the galaxy's redshift
     from astropy.cosmology import FlatLambdaCDM
@@ -825,7 +827,7 @@ def get_mock_spectra(fiberassign, mockdir=None, nside=64, obscon=None):
     return flux, wave, astropy.table.Table(meta), objmeta
 
 def read_mock_spectra(truthfile, targetids, mockdir=None):
-    '''
+    r'''
     Reads mock spectra from a truth file
 
     Args:
@@ -837,6 +839,7 @@ def read_mock_spectra(truthfile, targetids, mockdir=None):
         flux[nspec, nwave]: flux in 1e-17 erg/s/cm2/Angstrom
         wave[nwave]: wavelengths in Angstroms
         truth[nspec]: metadata truth table
+        objtruth: dictionary keyed by objtype type with type-specific truth
     '''
     if len(targetids) != len(np.unique(targetids)):
         from desiutil.log import get_logger
@@ -858,10 +861,19 @@ def read_mock_spectra(truthfile, targetids, mockdir=None):
 
         if 'OBJTYPE' in truth.dtype.names:
             # output of desisim.obs.new_exposure
-            objtype = [oo.decode('ascii').strip().upper() for oo in truth['OBJTYPE']]
+            if isinstance(truth['OBJTYPE'][0], bytes):
+                objtype = [oo.decode('ascii').strip().upper() \
+                        for oo in truth['OBJTYPE']]
+            else:
+                objtype = [oo.strip().upper() for oo in truth['OBJTYPE']]
         else:
             # output of desitarget.mock.build.write_targets_truth
-            objtype = [oo.decode('ascii').strip().upper() for oo in truth['TEMPLATETYPE']]
+            if isinstance(truth['TEMPLATETYPE'][0], bytes):
+                objtype = [oo.decode('ascii').strip().upper() \
+                        for oo in truth['TEMPLATETYPE']]
+            else:
+                objtype = [oo.strip().upper() for oo in truth['TEMPLATETYPE']]
+
         for obj in set(objtype):
             extname = 'TRUTH_{}'.format(obj)
             if extname in fx:

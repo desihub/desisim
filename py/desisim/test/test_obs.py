@@ -1,6 +1,7 @@
 import unittest, os
 from uuid import uuid1
 from shutil import rmtree
+from pkg_resources import resource_filename
 
 import numpy as np
 from astropy.io import fits
@@ -119,11 +120,13 @@ class TestObs(unittest.TestCase):
         sim_dark, fmap_dark, meta_dark, obscond_dark, objmeta_dark = obs.new_exposure('dark', nspec=10, night=night, expid=0, exptime=1000)
         dark = sim_dark.simulated.copy()
         sim_mws, fmap_mws, meta_mws, obscond_mws, objmeta_mws = obs.new_exposure('mws', nspec=10, night=night, expid=1, exptime=1000)
-        mws = sim_dark.simulated.copy()
+        mws = sim_mws.simulated.copy()
         for channel in ['b', 'r', 'z']:
             sky_mws = mws['num_sky_electrons_'+channel]
             sky_dark = dark['num_sky_electrons_'+channel]
             nonzero = (sky_mws != 0.0)
+            self.assertTrue(np.all(sky_mws >= 0))
+            self.assertTrue(np.all(sky_dark >= 0))
             self.assertTrue(np.all(sky_mws[nonzero] > sky_dark[nonzero]))
 
     @unittest.skipUnless(desimodel_data_available, 'The desimodel data/ directory was not detected.')
@@ -186,6 +189,24 @@ class TestObs(unittest.TestCase):
         for i in range(10):
             self.assertIn(i*500, fm['FIBER'])
             self.assertIn(i*500+499, fm['FIBER'])
+
+    def test_read_mock_spectra(self):
+        #- piggyback on desitarget mock data
+        truthfile = resource_filename('desitarget', 'test/t/truth-mocks.fits')
+        if not os.path.exists(truthfile):
+            print(f"Please update desitarget to get {truthfile}")
+            return
+
+        truth = Table.read(truthfile, 'TRUTH')
+        targetids = truth['TARGETID'][0::2]
+        flux, wave, truth2, objtruth = \
+                desisim.simexp.read_mock_spectra(truthfile, targetids)
+
+        self.assertEqual(flux.shape[0], len(targetids))
+        self.assertEqual(flux.shape[1], len(wave))
+        self.assertEqual(len(truth2), len(targetids))
+        self.assertTrue(np.all(truth2['TARGETID'] == targetids))
+
     
 
 #- This runs all test* functions in any TestCase class in this file

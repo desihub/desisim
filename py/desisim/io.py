@@ -15,7 +15,6 @@ import warnings
 import fitsio
 from astropy.io import fits
 from astropy.table import Table
-from astropy.stats import sigma_clipped_stats
 import numpy as np
 
 from desispec.interpolation import resample_flux
@@ -30,6 +29,14 @@ from desiutil.log import get_logger
 log = get_logger()
 
 from desisim.util import spline_medfilt2d
+
+#- support API change from astropy 2 -> 4
+import astropy
+from astropy.stats import sigma_clipped_stats
+if astropy.__version__.startswith('2.'):
+    astropy_sigma_clipped_stats = sigma_clipped_stats
+    def sigma_clipped_stats(data, sigma=3.0, maxiters=5):
+        return astropy_sigma_clipped_stats(data, sigma=sigma, iters=maxiters)
 
 #-------------------------------------------------------------------------
 def findfile(filetype, night, expid, camera=None, outdir=None, mkdir=True):
@@ -119,7 +126,7 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, objmeta=None,
     import warnings
     warnings.filterwarnings("ignore", message=".*Dex.* did not parse as fits unit")
     warnings.filterwarnings("ignore", message=".*nanomaggies.* did not parse as fits unit")
-    warnings.filterwarnings("ignore", message=".*10\*\*6 arcsec.* did not parse as fits unit")
+    warnings.filterwarnings("ignore", message=r".*10\*\*6 arcsec.* did not parse as fits unit")
 
     if filename is None:
         filename = findfile('simspec', night, expid, outdir=outdir)
@@ -256,8 +263,13 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, objmeta=None,
                     objhdu.header['EXTNAME'] = extname
                     hx.append(objhdu)
 
-    log.info('Writing {}'.format(filename))
-    hx.writeto(filename, overwrite=overwrite)
+    tmpfilename = filename + '.tmp'
+    if not overwrite and os.path.exists(filename):
+        os.rename(filename, tmpfilename)
+
+    hx.writeto(tmpfilename, overwrite=overwrite)
+    os.rename(tmpfilename, filename)
+    log.info(f'Wrote {filename}')
 
 def write_simspec_arc(filename, wave, phot, header, fibermap, overwrite=False):
     '''
@@ -269,7 +281,7 @@ def write_simspec_arc(filename, wave, phot, header, fibermap, overwrite=False):
     import warnings
     warnings.filterwarnings("ignore", message=".*Dex.* did not parse as fits unit")
     warnings.filterwarnings("ignore", message=".*nanomaggies.* did not parse as fits unit")
-    warnings.filterwarnings("ignore", message=".*10\*\*6 arcsec.* did not parse as fits unit")
+    warnings.filterwarnings("ignore", message=r".*10\*\*6 arcsec.* did not parse as fits unit")
                     
     hx = fits.HDUList()
     hdr = desispec.io.util.fitsheader(header)
@@ -811,23 +823,23 @@ def read_cosmics(filename, expid=1, shape=None, jitter=True):
     ny = pix.shape[0] // 2
     iixy = np.s_[0:ny, 0:nx]
     cx = pix[iixy][mask[iixy] == 0]
-    mean, median, std = sigma_clipped_stats(cx, sigma=3, iters=5)
+    mean, median, std = sigma_clipped_stats(cx, sigma=3, maxiters=5)
     meta['RDNOISEA'] = std
 
     #- Amp B lower right
     iixy = np.s_[0:ny, nx:2*nx]
     cx = pix[iixy][mask[iixy] == 0]
-    mean, median, std = sigma_clipped_stats(cx, sigma=3, iters=5)
+    mean, median, std = sigma_clipped_stats(cx, sigma=3, maxiters=5)
     meta['RDNOISEB'] = std
 
     #- Amp C upper left
     iixy = np.s_[ny:2*ny, 0:nx]
-    mean, median, std = sigma_clipped_stats(pix[iixy], sigma=3, iters=5)
+    mean, median, std = sigma_clipped_stats(pix[iixy], sigma=3, maxiters=5)
     meta['RDNOISEC'] = std
 
     #- Amp D upper right
     iixy = np.s_[ny:2*ny, nx:2*nx]
-    mean, median, std = sigma_clipped_stats(pix[iixy], sigma=3, iters=5)
+    mean, median, std = sigma_clipped_stats(pix[iixy], sigma=3, maxiters=5)
     meta['RDNOISED'] = std
     fx.close()
 
@@ -939,8 +951,11 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
         log.info('Reading {} metadata.'.format(infile))
 
         if objtype.upper() == 'BAL': # non-standard data model
-            meta = Table(fitsio.read(infile, ext=1, upper=True, columns=(
-                'SDSS_NAME', 'RA', 'DEC', 'PLATE', 'MJD', 'FIBERID')))
+            meta = Table(fitsio.read(infile, ext=1, upper=True,
+                                     columns=('BI_CIV','ERR_BI_CIV', 'NCIV_2000', 'VMIN_CIV_2000',
+                                          'VMAX_CIV_2000', 'POSMIN_CIV_2000','FMIN_CIV_2000',
+                                          'AI_CIV', 'ERR_AI_CIV','NCIV_450', 'VMIN_CIV_450',
+                                          'VMAX_CIV_450', 'POSMIN_CIV_450', 'FMIN_CIV_450')))
         else:
             meta = Table(fitsio.read(infile, ext=1, upper=True))
 
@@ -977,8 +992,11 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
         w2 = w1 + dw*flux.shape[1]
         wave = np.arange(w1, w2, dw)
 
-        meta = Table(fitsio.read(infile, ext=1, upper=True, columns=(
-            'SDSS_NAME', 'RA', 'DEC', 'PLATE', 'MJD', 'FIBERID')))
+        meta = Table(fitsio.read(infile, ext=1, upper=True,
+                                 columns=('BI_CIV','ERR_BI_CIV', 'NCIV_2000', 'VMIN_CIV_2000',
+                                          'VMAX_CIV_2000', 'POSMIN_CIV_2000','FMIN_CIV_2000',
+                                          'AI_CIV', 'ERR_AI_CIV','NCIV_450', 'VMIN_CIV_450',
+                                          'VMAX_CIV_450', 'POSMIN_CIV_450', 'FMIN_CIV_450')))
     else:
         with fits.open(infile) as fx:
             try:
@@ -1172,6 +1190,12 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype='', simqso=False, input_met
                                   data=np.zeros(nmodel)-1, unit='Dex'))
         objmeta.add_column(Column(name='SIIHBETA', length=nmodel, dtype='f4',
                                   data=np.zeros(nmodel)-1, unit='Dex'))
+        objmeta.add_column(Column(name='TRANSIENT_MODEL', length=nmodel, dtype='U20'))
+        objmeta.add_column(Column(name='TRANSIENT_TYPE', length=nmodel, dtype='U10'))
+        objmeta.add_column(Column(name='TRANSIENT_EPOCH', length=nmodel, dtype='f4',
+                                  data=np.zeros(nmodel)-1, unit='day'))
+        objmeta.add_column(Column(name='TRANSIENT_RFLUXRATIO', length=nmodel, dtype='f4',
+                                  data=np.zeros(nmodel)-1))
 
     elif objtype.upper() == 'QSO':
         objmeta.add_column(Column(name='TARGETID', data=targetid))
@@ -1234,6 +1258,6 @@ def empty_snemetatable(nmodel=1):
                               data=np.zeros(nmodel)-1))
     snemeta.add_column(Column(name='SNE_EPOCH', length=nmodel, dtype='f4',
                               data=np.zeros(nmodel)-1, unit='days'))
-    SNEmeta.add_column(Column(name='SNE_FILTER', length=nmodel, dtype='U15')) # normalization filter
+    snemeta.add_column(Column(name='SNE_FILTER', length=nmodel, dtype='U15')) # normalization filter
     
     return snemeta
