@@ -2,10 +2,17 @@
 desisim change log
 ==================
 
-0.35.4 (unreleased)
+0.35.5 (unreleased)
 -------------------
 
 * No changes yet.
+
+0.35.4 (2020-11-12)
+-------------------
+
+* QSO BAL bug fix (`PR #545`_).
+
+.. _`PR #545`: https://github.com/desihub/desisim/pull/545
 
 0.35.3 (2020-08-04)
 -------------------
