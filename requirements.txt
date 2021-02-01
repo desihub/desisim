@@ -1,6 +1,7 @@
 astropy==4.0.1.post1
 healpy
 speclite
+fitsio
 # Install desiutil separately since it is needed for the other installs.
 # git+https://github.com/desihub/desiutil.git@3.1.0#egg=desiutil
 git+https://github.com/desihub/specter.git@0.9.4#egg=specter
