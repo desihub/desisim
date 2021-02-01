@@ -76,10 +76,16 @@ desisim API
 .. automodule:: desisim.scripts
     :members:
 
+.. automodule:: desisim.scripts.brightsims_aug2017
+    :members:
+
 .. automodule:: desisim.scripts.brightsims
     :members:
 
 .. automodule:: desisim.scripts.fastframe
+    :members:
+
+.. automodule:: desisim.scripts.lya_simqso_model
     :members:
 
 .. automodule:: desisim.scripts.newarc
@@ -106,6 +112,9 @@ desisim API
 .. automodule:: desisim.scripts.qa_zfind
     :members:
 
+.. automodule:: desisim.scripts.quickgalaxies
+    :members:
+
 .. automodule:: desisim.scripts.quickgen
     :members:
 
@@ -113,6 +122,9 @@ desisim API
     :members:
 
 .. automodule:: desisim.scripts.quickspectra
+    :members:
+
+.. automodule:: desisim.scripts.quicktransients
     :members:
 
 .. automodule:: desisim.simexp
@@ -140,6 +152,9 @@ desisim API
     :members:
 
 .. automodule:: desisim.templates
+    :members:
+
+.. automodule:: desisim.transients
     :members:
 
 .. automodule:: desisim.util

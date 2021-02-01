@@ -2,14 +2,18 @@
 desisim
 =======
 
-.. image:: https://img.shields.io/travis/desihub/desisim.svg
-    :target: https://travis-ci.org/desihub/desisim
-    :alt: Travis Build Status
-.. image:: https://coveralls.io/repos/desihub/desisim/badge.svg?service=github
+|Actions Status| |Coveralls Status| |Documentation Status|
+
+.. |Actions Status| image:: https://github.com/desihub/desisim/workflows/CI/badge.svg
+    :target: https://github.com/desihub/desisim/actions
+    :alt: GitHub Actions CI Status
+
+.. |Coveralls Status| image:: https://coveralls.io/repos/desihub/desisim/badge.svg
     :target: https://coveralls.io/github/desihub/desisim
     :alt: Test Coverage Status
-.. image:: https://readthedocs.org/projects/desisim/badge/?version=latest
-    :target: http://desisim.readthedocs.org/en/latest/
+
+.. |Documentation Status| image:: https://readthedocs.org/projects/desisim/badge/?version=latest
+    :target: https://desisim.readthedocs.io/en/latest/
     :alt: Documentation Status
 
 Introduction
@@ -18,7 +22,7 @@ Introduction
 This package contains scripts and packages for simulating DESI spectra.
 For full documentation, please visit `desisim on Read the Docs`_
 
-.. _`desisim on Read the Docs`: http://desisim.readthedocs.org/en/latest/
+.. _`desisim on Read the Docs`: https://desisim.readthedocs.io/en/latest/
 
 License
 -------
