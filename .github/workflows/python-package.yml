@@ -44,7 +44,7 @@ jobs:
             - name: Install Test Data
               run: source etc/get_testdata.sh
             - name: Run the test
-              run: DESIMODEL=$(pwd) pytest
+              run: pytest
 
     coverage:
         name: Test coverage
@@ -79,7 +79,7 @@ jobs:
             - name: Install Test Data
               run: source etc/get_testdata.sh
             - name: Run the test with coverage
-              run: DESIMODEL=$(pwd) pytest --cov
+              run: pytest --cov
             - name: Coveralls
               env:
                 COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
