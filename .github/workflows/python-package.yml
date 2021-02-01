@@ -22,6 +22,7 @@ jobs:
         env:
             DESIUTIL_VERSION: 3.1.0
             DESIMODEL_DATA: branches/test-0.12
+            DESISIM_TESTDATA_VERSION: master
 
         steps:
             - name: Checkout code
@@ -38,7 +39,8 @@ jobs:
                 python -m pip install pytest
                 python -m pip install git+https://github.com/desihub/desiutil.git@${DESIUTIL_VERSION}#egg=desiutil
                 python -m pip install -r requirements.txt
-                svn export https://desi.lbl.gov/svn/code/desimodel/${DESIMODEL_DATA}/data
+            - name: Install Test Data
+              run: source etc/get_testdata.sh
             - name: Run the test
               run: DESIMODEL=$(pwd) pytest
 
@@ -53,6 +55,7 @@ jobs:
         env:
             DESIUTIL_VERSION: 3.1.0
             DESIMODEL_DATA: branches/test-0.12
+            DESISIM_TESTDATA_VERSION: master
 
         steps:
             - name: Checkout code
@@ -70,6 +73,8 @@ jobs:
                 python -m pip install git+https://github.com/desihub/desiutil.git@${DESIUTIL_VERSION}#egg=desiutil
                 python -m pip install -r requirements.txt
                 svn export https://desi.lbl.gov/svn/code/desimodel/${DESIMODEL_DATA}/data
+            - name: Install Test Data
+              run: source etc/get_testdata.sh
             - name: Run the test with coverage
               run: DESIMODEL=$(pwd) pytest --cov
             - name: Coveralls
