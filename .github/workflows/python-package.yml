@@ -45,11 +45,13 @@ jobs:
                 python -m pip install git+https://github.com/desihub/desiutil.git@${DESIUTIL_VERSION}#egg=desiutil
                 python -m pip install -r requirements.txt
                 python -m pip install git+https://github.com/imcgreer/simqso.git@${SIMQSO_VERSION}#egg=simqso
+            - name: Verify Installation
+              run: pip list
             - name: Install desimodel Data
               run: |
                 mkdir -p ${DESIMODEL}
                 svn export https://desi.lbl.gov/svn/code/desimodel/${DESIMODEL_DATA}/data ${DESIMODEL}/data
-            - name: Instal desisim Data
+            - name: Install desisim Data
               run: |
                 mkdir -p ${DESISIM}
                 cd ${DESISIM}
@@ -68,8 +70,12 @@ jobs:
                 python-version: [3.8]
         env:
             DESIUTIL_VERSION: 3.1.0
+            DESIMODEL: ${GITHUB_WORKSPACE}/desimodel
             DESIMODEL_DATA: branches/test-0.12
+            DESISIM: ${GITHUB_WORKSPACE}/desisim
             DESISIM_TESTDATA_VERSION: master
+            DESI_ROOT: ${DESISIM}/desi
+            DESI_BASIS_TEMPLATES: ${DESI_ROOT}/spectro/templates/basis_templates/v3.2
             SIMQSO_VERSION: v1.2.4
 
         steps:
@@ -88,10 +94,18 @@ jobs:
                 python -m pip install git+https://github.com/desihub/desiutil.git@${DESIUTIL_VERSION}#egg=desiutil
                 python -m pip install -r requirements.txt
                 python -m pip install git+https://github.com/imcgreer/simqso.git@${SIMQSO_VERSION}#egg=simqso
-            - name: Install Test Data
-              run: source etc/get_testdata.sh
-            - name: Run the test with coverage
-              run: pytest --cov
+            - name: Verify Installation
+              run: pip list
+            - name: Install desimodel Data
+              run: |
+                mkdir -p ${DESIMODEL}
+                svn export https://desi.lbl.gov/svn/code/desimodel/${DESIMODEL_DATA}/data ${DESIMODEL}/data
+            - name: Install desisim Data
+              run: |
+                mkdir -p ${DESISIM}
+                cd ${DESISIM}
+                wget https://github.com/desihub/desisim-testdata/archive/${DESISIM_TESTDATA_VERSION}.zip
+                unzip ${DESISIM_TESTDATA_VERSION}.zip
             - name: Coveralls
               env:
                 COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
