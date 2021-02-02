@@ -53,12 +53,10 @@ jobs:
                 svn export https://desi.lbl.gov/svn/code/desimodel/${DESIMODEL_DATA}/data ${GITHUB_WORKSPACE}/desimodel/data
             - name: Install desisim Data
               run: |
-                mkdir -p ${GITHUB_WORKSPACE}/desisim
-                cd ${GITHUB_WORKSPACE}/desisim
                 wget https://github.com/desihub/desisim-testdata/archive/${DESISIM_TESTDATA_VERSION}.zip
                 unzip ${DESISIM_TESTDATA_VERSION}.zip
             - name: Run the test
-              run: DESIMODEL=${GITHUB_WORKSPACE}/desimodel DESISIM=${GITHUB_WORKSPACE}/desisim DESI_ROOT=${GITHUB_WORKSPACE}/desisim/desi DESI_BASIS_TEMPLATES=${GITHUB_WORKSPACE}/desisim/desi/spectro/templates/basis_templates/v3.2 pytest
+              run: DESIMODEL=${GITHUB_WORKSPACE}/desimodel DESISIM=${GITHUB_WORKSPACE} DESI_ROOT=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi DESI_BASIS_TEMPLATES=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi/spectro/templates/basis_templates/v3.2 pytest
 
     coverage:
         name: Test coverage
@@ -102,12 +100,10 @@ jobs:
                 svn export https://desi.lbl.gov/svn/code/desimodel/${DESIMODEL_DATA}/data ${GITHUB_WORKSPACE}/desimodel/data
             - name: Install desisim Data
               run: |
-                mkdir -p ${GITHUB_WORKSPACE}/desisim
-                cd ${GITHUB_WORKSPACE}/desisim
                 wget https://github.com/desihub/desisim-testdata/archive/${DESISIM_TESTDATA_VERSION}.zip
                 unzip ${DESISIM_TESTDATA_VERSION}.zip
             - name: Run the test
-              run: DESIMODEL=${GITHUB_WORKSPACE}/desimodel DESISIM=${GITHUB_WORKSPACE}/desisim DESI_ROOT=${GITHUB_WORKSPACE}/desisim/desi DESI_BASIS_TEMPLATES=${GITHUB_WORKSPACE}/desisim/desi/spectro/templates/basis_templates/v3.2 pytest --cov
+              run: DESIMODEL=${GITHUB_WORKSPACE}/desimodel DESISIM=${GITHUB_WORKSPACE} DESI_ROOT=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi DESI_BASIS_TEMPLATES=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi/spectro/templates/basis_templates/v3.2 pytest --cov
             - name: Coveralls
               env:
                 COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
