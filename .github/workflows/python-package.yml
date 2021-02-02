@@ -58,7 +58,7 @@ jobs:
                 wget https://github.com/desihub/desisim-testdata/archive/${DESISIM_TESTDATA_VERSION}.zip
                 unzip ${DESISIM_TESTDATA_VERSION}.zip
             - name: Run the test
-              run: pytest
+              run: DESIMODEL=${GITHUB_WORKSPACE}/desimodel DESISIM=${GITHUB_WORKSPACE}/desisim DESI_ROOT=${GITHUB_WORKSPACE}/desisim/desi DESI_BASIS_TEMPLATES=${GITHUB_WORKSPACE}/desisim/desi/spectro/templates/basis_templates/v3.2 pytest
 
     coverage:
         name: Test coverage
@@ -70,12 +70,12 @@ jobs:
                 python-version: [3.8]
         env:
             DESIUTIL_VERSION: 3.1.0
-            DESIMODEL: ${GITHUB_WORKSPACE}/desimodel
+            # DESIMODEL: ${GITHUB_WORKSPACE}/desimodel
             DESIMODEL_DATA: branches/test-0.12
-            DESISIM: ${GITHUB_WORKSPACE}/desisim
+            # DESISIM: ${GITHUB_WORKSPACE}/desisim
             DESISIM_TESTDATA_VERSION: master
-            DESI_ROOT: ${DESISIM}/desi
-            DESI_BASIS_TEMPLATES: ${DESI_ROOT}/spectro/templates/basis_templates/v3.2
+            # DESI_ROOT: ${DESISIM}/desi
+            # DESI_BASIS_TEMPLATES: ${DESI_ROOT}/spectro/templates/basis_templates/v3.2
             SIMQSO_VERSION: v1.2.4
 
         steps:
@@ -106,6 +106,8 @@ jobs:
                 cd ${DESISIM}
                 wget https://github.com/desihub/desisim-testdata/archive/${DESISIM_TESTDATA_VERSION}.zip
                 unzip ${DESISIM_TESTDATA_VERSION}.zip
+            - name: Run the test
+              run: pytest --cov
             - name: Coveralls
               env:
                 COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
