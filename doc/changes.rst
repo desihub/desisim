@@ -5,7 +5,9 @@ desisim change log
 0.35.5 (unreleased)
 -------------------
 
-* No changes yet.
+* Migrated unit tests to GitHub Actions (`PR #546`_).
+
+.. _`PR #546`: https://github.com/desihub/desisim/pull/546
 
 0.35.4 (2020-11-12)
 -------------------

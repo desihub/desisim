@@ -1,2 +1,18 @@
-setuptools
-git+https://github.com/desihub/desiutil.git@2.0.1#egg=desiutil
+# numpy<1.20
+pytz
+requests
+astropy==4.0.1.post1
+numba
+healpy
+speclite
+fitsio
+# Install desiutil separately since it is needed for the other installs.
+# git+https://github.com/desihub/desiutil.git@3.1.0#egg=desiutil
+git+https://github.com/desihub/specter.git@0.9.4#egg=specter
+git+https://github.com/desihub/desimodel.git@0.13.0#egg=desimodel
+# Don't forget to install desimodel test data.
+git+https://github.com/desihub/desispec.git@0.36.1#egg=desispec
+git+https://github.com/desihub/desitarget.git@0.50.0#egg=desitarget
+git+https://github.com/desihub/specsim.git@v0.14#egg=specsim
+# simqso install script requires numpy, so install separately.
+# git+https://github.com/imcgreer/simqso.git@v1.2.4#egg=simqso
