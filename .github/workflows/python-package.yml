@@ -59,57 +59,57 @@ jobs:
               run: PYTHONPATH=${GITHUB_WORKSPACE}/py DESIMODEL=${GITHUB_WORKSPACE}/desimodel DESISIM=${GITHUB_WORKSPACE} DESI_ROOT=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi DESI_BASIS_TEMPLATES=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi/spectro/templates/basis_templates/v3.2 pytest
 
     ### SJB: comment out coverage, docs, and style tests to focus on failures while debugging ###
-#   coverage:
-#       name: Test coverage
-#       runs-on: ${{ matrix.os }}
-#       strategy:
-#           fail-fast: true
-#           matrix:
-#               os: [ubuntu-latest]
-#               python-version: [3.8]
-#       env:
-#           DESIUTIL_VERSION: 3.1.0
-#           # DESIMODEL: ${GITHUB_WORKSPACE}/desimodel
-#           DESIMODEL_DATA: branches/test-0.12
-#           # DESISIM: ${GITHUB_WORKSPACE}/desisim
-#           DESISIM_TESTDATA_VERSION: master
-#           # DESI_ROOT: ${DESISIM}/desi
-#           # DESI_BASIS_TEMPLATES: ${DESI_ROOT}/spectro/templates/basis_templates/v3.2
-#           SIMQSO_VERSION: v1.2.4
+    coverage:
+        name: Test coverage
+        runs-on: ${{ matrix.os }}
+        strategy:
+            fail-fast: true
+            matrix:
+                os: [ubuntu-latest]
+                python-version: [3.8]
+        env:
+            DESIUTIL_VERSION: 3.1.0
+            # DESIMODEL: ${GITHUB_WORKSPACE}/desimodel
+            DESIMODEL_DATA: branches/test-0.12
+            # DESISIM: ${GITHUB_WORKSPACE}/desisim
+            DESISIM_TESTDATA_VERSION: master
+            # DESI_ROOT: ${DESISIM}/desi
+            # DESI_BASIS_TEMPLATES: ${DESI_ROOT}/spectro/templates/basis_templates/v3.2
+            SIMQSO_VERSION: v1.2.4
 
-#       steps:
-#           - name: Checkout code
-#             uses: actions/checkout@v2
-#             with:
-#               fetch-depth: 0
-#           - name: Set up Python ${{ matrix.python-version }}
-#             uses: actions/setup-python@v2
-#             with:
-#               python-version: ${{ matrix.python-version }}
-#           - name: Install Python dependencies
-#             run: |
-#               python -m pip install --upgrade pip wheel
-#               python -m pip install pytest pytest-cov coveralls
-#               python -m pip install git+https://github.com/desihub/desiutil.git@${DESIUTIL_VERSION}#egg=desiutil
-#               python -m pip install -r requirements.txt
-#               python -m pip install git+https://github.com/imcgreer/simqso.git@${SIMQSO_VERSION}#egg=simqso
-#           - name: Verify Installation
-#             run: pip list
-#           - name: Install desimodel Data
-#             run: |
-#               mkdir -p ${GITHUB_WORKSPACE}/desimodel
-#               svn export https://desi.lbl.gov/svn/code/desimodel/${DESIMODEL_DATA}/data ${GITHUB_WORKSPACE}/desimodel/data
-#           - name: Install desisim Data
-#             run: |
-#               wget https://github.com/desihub/desisim-testdata/archive/${DESISIM_TESTDATA_VERSION}.zip
-#               unzip ${DESISIM_TESTDATA_VERSION}.zip
-#           - name: Run the test
-#             run: PYTHONPATH=${GITHUB_WORKSPACE}/py DESIMODEL=${GITHUB_WORKSPACE}/desimodel DESISIM=${GITHUB_WORKSPACE} DESI_ROOT=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi DESI_BASIS_TEMPLATES=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi/spectro/templates/basis_templates/v3.2 pytest --cov
-#           - name: Coveralls
-#             env:
-#               COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
-#               GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#             run: coveralls
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v2
+              with:
+                fetch-depth: 0
+            - name: Set up Python ${{ matrix.python-version }}
+              uses: actions/setup-python@v2
+              with:
+                python-version: ${{ matrix.python-version }}
+            - name: Install Python dependencies
+              run: |
+                python -m pip install --upgrade pip wheel
+                python -m pip install pytest pytest-cov coveralls
+                python -m pip install git+https://github.com/desihub/desiutil.git@${DESIUTIL_VERSION}#egg=desiutil
+                python -m pip install -r requirements.txt
+                python -m pip install git+https://github.com/imcgreer/simqso.git@${SIMQSO_VERSION}#egg=simqso
+            - name: Verify Installation
+              run: pip list
+            - name: Install desimodel Data
+              run: |
+                mkdir -p ${GITHUB_WORKSPACE}/desimodel
+                svn export https://desi.lbl.gov/svn/code/desimodel/${DESIMODEL_DATA}/data ${GITHUB_WORKSPACE}/desimodel/data
+            - name: Install desisim Data
+              run: |
+                wget https://github.com/desihub/desisim-testdata/archive/${DESISIM_TESTDATA_VERSION}.zip
+                unzip ${DESISIM_TESTDATA_VERSION}.zip
+            - name: Run the test
+              run: PYTHONPATH=${GITHUB_WORKSPACE}/py DESIMODEL=${GITHUB_WORKSPACE}/desimodel DESISIM=${GITHUB_WORKSPACE} DESI_ROOT=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi DESI_BASIS_TEMPLATES=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi/spectro/templates/basis_templates/v3.2 pytest --cov
+            - name: Coveralls
+              env:
+                COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
+                GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: coveralls
 
 #   docs:
 #       name: Doc test
