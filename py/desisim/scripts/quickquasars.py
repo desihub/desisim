@@ -144,6 +144,8 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
     parser.add_argument('--nmax', type=int, default=None, help="Max number of QSO per input file, for debugging")
 
     parser.add_argument('--max_mag',type=float,default=21.3,help="set maximum magnitude")
+    
+    parser.add_argument('--no-spec-div', action = "store_true" ,help="impose continuum = 1")
 
     if options is None:
         args = parser.parse_args()
@@ -548,8 +550,12 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     else:
         for q in range(tmp_qso_flux.shape[0]) :
             qso_flux[q]=np.interp(trans_wave,tmp_qso_wave,tmp_qso_flux[q])
-
+    
     tmp_qso_flux = qso_flux
+    
+    if args.no_spec_div:
+        tmp_qso_flux = tmp_qso_flux *0 +1 ## test no qso diversity quickquasars
+    
     tmp_qso_wave = trans_wave
 
     if args.save_continuum :
