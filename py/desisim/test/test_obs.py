@@ -81,6 +81,7 @@ class TestObs(unittest.TestCase):
                 maxphot = camera.phot.max()
                 self.assertTrue(maxphot > 1, 'suspiciously few {} photons ({}); wrong units?'.format(program, maxphot))
                 self.assertTrue(maxphot < 1e6, 'suspiciously many {} photons ({}); wrong units?'.format(program, maxphot))
+
                 if program not in ('arc', 'flat'):
                     self.assertTrue(camera.skyphot.max() > 1, 'suspiciously few sky photons; wrong units?')
                     self.assertTrue(camera.skyphot.max() < 1e6, 'suspiciously many sky photons; wrong units?')
