@@ -126,6 +126,8 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
         to generate templates, and uses desisim.templates.QSO instead.")
 
     parser.add_argument('--save-continuum',action = "store_true", help="Save true continum to file")
+    
+    parser.add_argument('--save-continuum-dwave',type=float, default=10, help="Delta wavelength to save true continum")
 
     parser.add_argument('--desi-footprint', action = "store_true" ,help="select QSOs in DESI footprint")
 
@@ -142,6 +144,8 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
 
     parser.add_argument('--nmax', type=int, default=None, help="Max number of QSO per input file, for debugging")
+    
+    parser.add_argument('--save-disk-space',action='store_true', help="Don't save full output for spectra files.")
 
     if options is None:
         args = parser.parse_args()
@@ -551,7 +555,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     tmp_qso_wave = trans_wave
 
     if args.save_continuum :
-        true_wave=np.linspace(args.wmin,args.wmax,int((args.wmax-args.wmin)/args.dwave)+1)
+        true_wave=np.linspace(args.wmin,args.wmax,int((args.wmax-args.wmin)/args.save_continuum_dwave)+1)
         true_flux=np.zeros((tmp_qso_flux.shape[0],true_wave.size))
         for q in range(tmp_qso_flux.shape[0]) :
             true_flux[q]=resample_flux(true_wave,tmp_qso_wave,tmp_qso_flux[q])
@@ -562,7 +566,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         hdu_trueCont.name = "TRUE_CONT"
         hdu_trueCont.header['wmin'] = args.wmin
         hdu_trueCont.header['wmax'] = args.wmax
-        hdu_trueCont.header['dwave'] = args.dwave
+        hdu_trueCont.header['dwave'] = args.save_continuum_dwave
 
         del(continum_meta,true_wave,true_flux)
         log.info("True continum to be saved in {}".format(truth_filename))
@@ -717,11 +721,13 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         specsim_config_file = 'desi'
 
     ### use Poisson = False to get reproducible results.
-    sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
-        sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
-        meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False,
-        specsim_config_file=specsim_config_file, dwave_out=dwave_out)
+    
 
+    #We can also reduce the fibermap columns.
+    resolution=sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
+    sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
+    meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False,
+    specsim_config_file=specsim_config_file, dwave_out=dwave_out, save_space=args.save_disk_space)
     ### Keep input redshift
     Z_spec = metadata['Z'].copy()
     Z_input = metadata['Z'].copy()-DZ_FOG
@@ -772,6 +778,12 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     if args.save_continuum :
         hdulist.append(hdu_trueCont)
     
+    if args.save_disk_space:
+        for band in resolution.keys():
+            hdu = pyfits.ImageHDU(name="{}_RESOLUTION".format(band.upper()))
+            hdu.data = resolution[band].astype("f4")
+            hdulist.append(hdu)
+   
     hdulist.writeto(truth_filename, overwrite=True)
     hdulist.close()
 
