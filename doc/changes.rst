@@ -2,12 +2,22 @@
 desisim change log
 ==================
 
-0.35.5 (unreleased)
+0.35.6 (unreleased)
+-------------------
+
+* No changes yet
+
+0.35.5 (2021-02-15)
 -------------------
 
 * Migrated unit tests to GitHub Actions (`PR #546`_).
+* Fix negative arc line ringing (`PR #548`_).
+* Fix sim header keywords for TSNR calc (`PR #550`_, `PR #551`_).
 
 .. _`PR #546`: https://github.com/desihub/desisim/pull/546
+.. _`PR #548`: https://github.com/desihub/desisim/pull/548
+.. _`PR #550`: https://github.com/desihub/desisim/pull/550
+.. _`PR #551`: https://github.com/desihub/desisim/pull/551
 
 0.35.4 (2020-11-12)
 -------------------
