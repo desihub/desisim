@@ -52,7 +52,8 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
         fullsim : if True, write full simulation data in extra file per camera
         use_poisson : if False, do not use numpy.random.poisson to simulate the Poisson noise. This is useful to get reproducible random
         realizations.
-        save_resolution : if True it will save the Resolution matrix for each spectra. False is useful for mocks to save diskspace.
+        save_resolution : if True it will save the Resolution matrix for each spectra.
+        If False returns a resolution matrix (useful for mocks to save disk space).
     """ 
     log = get_logger()
     

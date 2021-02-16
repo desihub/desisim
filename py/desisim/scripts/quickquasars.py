@@ -721,10 +721,11 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         specsim_config_file = 'desi'
 
     ### use Poisson = False to get reproducible results.
+    ### use args.save_resolution = False to not save the matrix resolution per quasar in spectra files.
     resolution=sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
-    sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
-    meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False,
-    specsim_config_file=specsim_config_file, dwave_out=dwave_out, save_resolution=args.save_resolution)
+                           sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
+                           meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False,
+                           specsim_config_file=specsim_config_file, dwave_out=dwave_out, save_resolution=args.save_resolution)
 
     ### Keep input redshift
     Z_spec = metadata['Z'].copy()
@@ -778,6 +779,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     if args.save_continuum :
         hdulist.append(hdu_trueCont)
 
+# Save one resolution matrix per camera to the truth file instead of one per quasar to the spectra files.
     if not args.save_resolution:
         for band in resolution.keys():
             hdu = pyfits.ImageHDU(name="{}_RESOLUTION".format(band.upper()))
