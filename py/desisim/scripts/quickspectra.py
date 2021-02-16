@@ -24,7 +24,7 @@ from desispec.resolution import Resolution
 
 def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
                 sourcetype=None, targetid=None, redshift=None, expid=0, seed=0, skyerr=0.0, ra=None,
-                dec=None, meta=None, fibermap_columns=None, fullsim=False, use_poisson=True, specsim_config_file="desi", dwave_out=None, save_space=False):
+                dec=None, meta=None, fibermap_columns=None, fullsim=False, use_poisson=True, specsim_config_file="desi", dwave_out=None, save_resolution=True):
     """
     Simulate spectra from an input set of wavelength and flux and writes a FITS file in the Spectra format that can
     be used as input to the redshift fitter.
@@ -50,9 +50,9 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
         meta : dictionnary, saved in primary fits header of the spectra file 
         fibermap_columns : add these columns to the fibermap
         fullsim : if True, write full simulation data in extra file per camera
-        use_poisson : if False, do not use numpy.random.poisson to simulate the Poisson noise. This is useful to get reproducible random 
+        use_poisson : if False, do not use numpy.random.poisson to simulate the Poisson noise. This is useful to get reproducible random
         realizations.
-        save_space: if True it will not save the Resolution matrix for each spectra (used for simulated spectra). 
+        save_resolution : if True it will save the Resolution matrix for each spectra. False is useful for mocks to save diskspace.
     """ 
     log = get_logger()
     
@@ -191,13 +191,11 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
     scale=1e17
     specdata = None
 
-    resolution = {}
-    _resolution = {}
-    
+    resolution={}
     for camera in sim.instrument.cameras:
         R = Resolution(camera.get_output_resolution_matrix())
         resolution[camera.name] = np.tile(R.to_fits_array(), [nspec, 1, 1])
-        if save_space:
+        if not save_resolution :
             resolution[camera.name] = R.to_fits_array()
 
     skyscale = skyerr * random_state.normal(size=sim.num_fibers)
@@ -251,18 +249,18 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
             ivar = ivar / scale**2
             mask  = np.zeros(flux.shape).astype(int)
             
-            if save_space:  
-                spec = Spectra([band], {band : wave}, {band : flux}, {band : ivar}, 
-                        resolution_data=None, 
-                        mask={band : mask}, 
-                        fibermap=spectra_fibermap, 
+            if not save_resolution :
+                spec = Spectra([band], {band : wave}, {band : flux}, {band : ivar},
+                        resolution_data=None,
+                        mask={band : mask},
+                        fibermap=spectra_fibermap,
                         meta=meta,
                         single=True)
-            else :   
-                spec = Spectra([band], {band : wave}, {band : flux}, {band : ivar}, 
-                        resolution_data={band : resolution[band]}, 
-                        mask={band : mask}, 
-                        fibermap=spectra_fibermap, 
+            else :
+                spec = Spectra([band], {band : wave}, {band : flux}, {band : ivar},
+                        resolution_data={band : resolution[band]},
+                        mask={band : mask},
+                        fibermap=spectra_fibermap,
                         meta=meta,
                         single=True)
             
@@ -278,8 +276,8 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
     # because of a different number of fibers each time ...
     desisim.specsim._simulators.clear()
     desisim.specsim._simdefaults.clear()
-    
-    if save_space:
+
+    if not save_resolution :
         return resolution
 
 
