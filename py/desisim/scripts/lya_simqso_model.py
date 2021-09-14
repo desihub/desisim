@@ -72,15 +72,15 @@ BossDr9_fiducial_continuum = grids.BrokenPowerLawContinuumVar([
                                     [1100.,5700.,9730.,22300.])
 
 BossDr9_expDust_cont = grids.BrokenPowerLawContinuumVar([
-                                    grids.GaussianSampler(-0.50,0.2),
-                                    grids.GaussianSampler(-0.30,0.2),
-                                    grids.GaussianSampler(-0.37,0.3),
-                                    grids.GaussianSampler(-1.70,0.3),
-                                    grids.GaussianSampler(-1.03,0.3) ],
+                                    grids.GaussianSampler(-0.50,0.),
+                                    grids.GaussianSampler(-0.30,0.),
+                                    grids.GaussianSampler(-0.37,0.),
+                                    grids.GaussianSampler(-1.70,0.),
+                                    grids.GaussianSampler(-1.03,0.) ],
                                     [1100.,5700.,9730.,22300.])
 
-BossDr9_FeScalings = [ (0,1540,0.5),(1540,1680,2.0),(1680,1868,1.6),
-                       (1868,2140,1.0),(2140,3500,1.0) ]
+BossDr9_FeScalings = [ (0,1540,0.),(1540,1680,.0),(1680,1868,0.),
+                       (1868,2140,0.0),(2140,3500,0.0) ]
 
 
 def model_vars_develop(qsoGrid,wave,nSightLines=0,
@@ -136,7 +136,8 @@ def EmLineTemplate_modified(*args,**kwargs):
                                   'LyAb':1.1,'LyAn':1.1
                                   #Add more lines if needed.
                                   })
-    kwargs['EmissionLineTrendFilename']=resource_filename('desisim', 'data/emlinetrends_Harris2016mod')
+    kwargs['EmissionLineTrendFilename']=resource_filename('desisim', 'data/emlinetrends_Harris2016unique')
+    #    kwargs['EmissionLineTrendFilename']=resource_filename('desisim', 'data/emlinetrends_Harris2016mod')
     kwargs['NoScatter']=True
     kwargs['EmLineIndependentScatter']=True
     return grids.generateBEffEmissionLines(*args,**kwargs)
