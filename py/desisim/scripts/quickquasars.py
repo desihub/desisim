@@ -147,6 +147,8 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
 
     parser.add_argument('--save-resolution',action='store_true', help="Save full resolution in spectra file. By default only one matrix is saved in the truth file.")
 
+    parser.add_argument('--p1d_survey',action='store_true', help="Reads transmision files with same ra,dec,mag and exposure time as in everest.")
+    
     if options is None:
         args = parser.parse_args()
     else:
@@ -290,6 +292,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     # get filename for zbest file
     zbest_filename = get_zbest_filename(args,pixdir,nside,pixel)
+
+
 
     if not args.overwrite :
         # check whether output exists or not
@@ -527,11 +531,20 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                     lyaforest=False, nocolorcuts=True,
                     noresample=True, seed=seed, south=issouth)
         else:
-            _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
+            if args.p1d_survey:
+                mags=22.5-2.5*np.log10(metadata['Z'][these])
+                _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
                 = model.make_templates(nmodel=nt,
-                    redshift=metadata['Z'][these],
+                    redshift=metadata['Z'][these],mag=mags,
                     lyaforest=False, nocolorcuts=True,
                     noresample=True, seed=seed, south=issouth)
+                log.info("Assigned magnitudes from file")
+            else:
+                _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
+                    = model.make_templates(nmodel=nt,
+                        redshift=metadata['Z'][these],
+                        lyaforest=False, nocolorcuts=True,
+                        noresample=True, seed=seed, south=issouth)
 
         _meta['TARGETID'] = metadata['MOCKID'][these]
         _qsometa['TARGETID'] = metadata['MOCKID'][these]
@@ -720,6 +733,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     else:
         specsim_config_file = 'desi'
 
+    if args.p1d_survey:
+        obsconditions['EXPTIME']=metadata['COADD_EXPTIME']
+        log.info(f"Set exptime to {obsconditions['EXPTIME']}")
     ### use Poisson = False to get reproducible results.
     ### use args.save_resolution = False to not save the matrix resolution per quasar in spectra files.
     resolution=sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
@@ -850,6 +866,10 @@ def main(args=None):
         if args.eboss:
             exptime = 1000. # sec (added here in case we change the default)
 
+    if args.p1d_survey: 
+        args.desi_footprint=False
+        args.downsampling=None
+        
     #- Generate obsconditions with args.program, then override as needed
     obsconditions = reference_conditions[args.program.upper()]
     if args.airmass is not None:
@@ -899,6 +919,7 @@ def main(args=None):
         footprint_healpix_nside=256 # same resolution as original map so we don't loose anything
         footprint_healpix_weight = load_pixweight(footprint_healpix_nside, pixmap=pixmap)
 
+        
     if args.gamma_kms_zfit and not args.zbest:
        log.info("Setting --zbest to true as required by --gamma_kms_zfit")
        args.zbest = True
