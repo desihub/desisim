@@ -147,8 +147,8 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
 
     parser.add_argument('--save-resolution',action='store_true', help="Save full resolution in spectra file. By default only one matrix is saved in the truth file.")
 
-    parser.add_argument('--p1d_survey',action='store_true', help="Reads transmision files with same ra,dec,mag and exposure time as in everest.")
-    
+    parser.add_argument('--p1d-survey',action='store_true', help="Reads transmision files with same ra,dec,flux_r and exposure time as in.")
+
     if options is None:
         args = parser.parse_args()
     else:
@@ -532,7 +532,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                     noresample=True, seed=seed, south=issouth)
         else:
             if args.p1d_survey:
-                mags=22.5-2.5*np.log10(metadata['Z'][these])
+                mags=22.5-2.5*np.log10(metadata['FLUX_R'][these])
                 _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
                 = model.make_templates(nmodel=nt,
                     redshift=metadata['Z'][these],mag=mags,
@@ -866,10 +866,10 @@ def main(args=None):
         if args.eboss:
             exptime = 1000. # sec (added here in case we change the default)
 
-    if args.p1d_survey: 
+    if args.p1d_survey:
         args.desi_footprint=False
         args.downsampling=None
-        
+
     #- Generate obsconditions with args.program, then override as needed
     obsconditions = reference_conditions[args.program.upper()]
     if args.airmass is not None:
@@ -919,7 +919,7 @@ def main(args=None):
         footprint_healpix_nside=256 # same resolution as original map so we don't loose anything
         footprint_healpix_weight = load_pixweight(footprint_healpix_nside, pixmap=pixmap)
 
-        
+    
     if args.gamma_kms_zfit and not args.zbest:
        log.info("Setting --zbest to true as required by --gamma_kms_zfit")
        args.zbest = True
