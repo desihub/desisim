@@ -869,11 +869,12 @@ class GALAXY(object):
                         for targtype in ('bright', 'faint', 'wise'):
                             _colormask.append(self.colorcuts_function(
                                 gflux=gflux, rflux=rflux, zflux=zflux,
-                                w1flux=w1flux, w2flux=w2flux, south=south,
-                                targtype=targtype))
+                                w1flux=w1flux, rfiberflux=rflux, rfibertotflux=rflux,
+                                south=south, targtype=targtype))
                         colormask = np.any( np.ma.getdata(np.vstack(_colormask)), axis=0 )
                     else:
                         colormask = self.colorcuts_function(gflux=gflux, rflux=rflux, zflux=zflux,
+                                                            gfiberflux=gflux, rfiberflux=rflux, zfiberflux=zflux,
                                                             w1flux=w1flux, w2flux=w2flux, south=south)
                         
                 # If the color-cuts pass then populate the output flux vector
@@ -1011,8 +1012,8 @@ class BGS(GALAXY):
     """Generate Monte Carlo spectra of bright galaxy survey galaxies (BGSs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 transient=None, tr_fluxratio=(0.01, 1.), tr_epoch=(-10,10), include_mgii=False, colorcuts_function=None,
-                 normfilter_north='BASS-r', normfilter_south='decam2014-r',
+                 transient=None, tr_fluxratio=(0.01, 1.), tr_epoch=(-10,10), include_mgii=False,
+                 colorcuts_function=None, normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the BGS class.  See the GALAXY.__init__ method for documentation
          on the arguments plus the inherited attributes.
