@@ -451,6 +451,9 @@ class GALAXY(object):
         self.bassmzlswise = filters.load_filters('BASS-g', 'BASS-r', 'MzLS-z',
                                                  'wise2010-W1', 'wise2010-W2')
 
+        # Default fiber fractions based on https://github.com/desihub/desisim/pull/550
+        self.fiberflux_fraction = {'ELG': 0.6, 'LRG': 0.4, 'BGS': 0.3}
+
     def _blurmatrix(self, vdisp, log=None):
         """Pre-compute the blur_matrix as a dictionary keyed by each unique value of
         vdisp.
@@ -755,6 +758,8 @@ class GALAXY(object):
         else:
             outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
 
+        fiberflux_fraction = self.fiberflux_fraction[self.objtype]
+
         for ii in range(nmodel):
             templaterand = np.random.RandomState(templateseed[ii])
 
@@ -869,12 +874,15 @@ class GALAXY(object):
                         for targtype in ('bright', 'faint', 'wise'):
                             _colormask.append(self.colorcuts_function(
                                 gflux=gflux, rflux=rflux, zflux=zflux,
-                                w1flux=w1flux, rfiberflux=rflux, rfibertotflux=rflux,
+                                w1flux=w1flux, rfiberflux=fiberflux_fraction*rflux, 
+                                rfibertotflux=fiberflux_fraction*rflux,
                                 south=south, targtype=targtype))
                         colormask = np.any( np.ma.getdata(np.vstack(_colormask)), axis=0 )
                     else:
                         colormask = self.colorcuts_function(gflux=gflux, rflux=rflux, zflux=zflux,
-                                                            gfiberflux=gflux, rfiberflux=rflux, zfiberflux=zflux,
+                                                            gfiberflux=fiberflux_fraction*gflux, 
+                                                            rfiberflux=fiberflux_fraction*rflux, 
+                                                            zfiberflux=fiberflux_fraction*zflux,
                                                             w1flux=w1flux, w2flux=w2flux, south=south)
                         
                 # If the color-cuts pass then populate the output flux vector
