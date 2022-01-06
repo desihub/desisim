@@ -112,50 +112,50 @@ jobs:
                 GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: coveralls
 
-    docs:
-        name: Doc test
-        runs-on: ${{ matrix.os }}
-        strategy:
-            fail-fast: false
-            matrix:
-                os: [ubuntu-latest]
-                python-version: [3.8]
-
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v2
-              with:
-                fetch-depth: 0
-            - name: Set up Python ${{ matrix.python-version }}
-              uses: actions/setup-python@v2
-              with:
-                python-version: ${{ matrix.python-version }}
-            - name: Install Python dependencies
-              run: python -m pip install --upgrade pip wheel Sphinx
-            - name: Test the documentation
-              run: sphinx-build -W --keep-going -b html doc doc/_build/html
-
-    style:
-        name: Style check
-        runs-on: ${{ matrix.os }}
-        strategy:
-            fail-fast: false
-            matrix:
-                os: [ubuntu-latest]
-                python-version: [3.8]
-
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v2
-              with:
-                fetch-depth: 0
-            - name: Set up Python ${{ matrix.python-version }}
-              uses: actions/setup-python@v2
-              with:
-                python-version: ${{ matrix.python-version }}
-            - name: Install Python dependencies
-              run: python -m pip install --upgrade pip wheel pycodestyle
-            - name: Test the style; failures are allowed
-              # This is equivalent to an allowed falure.
-              continue-on-error: true
-              run: pycodestyle --count py/desisim
+#     docs:
+#         name: Doc test
+#         runs-on: ${{ matrix.os }}
+#         strategy:
+#             fail-fast: false
+#             matrix:
+#                 os: [ubuntu-latest]
+#                 python-version: [3.8]
+# 
+#         steps:
+#             - name: Checkout code
+#               uses: actions/checkout@v2
+#               with:
+#                 fetch-depth: 0
+#             - name: Set up Python ${{ matrix.python-version }}
+#               uses: actions/setup-python@v2
+#               with:
+#                 python-version: ${{ matrix.python-version }}
+#             - name: Install Python dependencies
+#               run: python -m pip install --upgrade pip wheel Sphinx
+#             - name: Test the documentation
+#               run: sphinx-build -W --keep-going -b html doc doc/_build/html
+# 
+#     style:
+#         name: Style check
+#         runs-on: ${{ matrix.os }}
+#         strategy:
+#             fail-fast: false
+#             matrix:
+#                 os: [ubuntu-latest]
+#                 python-version: [3.8]
+# 
+#         steps:
+#             - name: Checkout code
+#               uses: actions/checkout@v2
+#               with:
+#                 fetch-depth: 0
+#             - name: Set up Python ${{ matrix.python-version }}
+#               uses: actions/setup-python@v2
+#               with:
+#                 python-version: ${{ matrix.python-version }}
+#             - name: Install Python dependencies
+#               run: python -m pip install --upgrade pip wheel pycodestyle
+#             - name: Test the style; failures are allowed
+#               # This is equivalent to an allowed falure.
+#               continue-on-error: true
+#               run: pycodestyle --count py/desisim
