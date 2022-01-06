@@ -858,13 +858,13 @@ class GALAXY(object):
                 zlineflux = normlineflux[templateid] * magnorm
 
                 if south:
-                    gflux, rflux, zflux, w1flux, w2flux = synthnano['decam2014-g'], \
-                      synthnano['decam2014-r'], synthnano['decam2014-z'], \
-                      synthnano['wise2010-W1'], synthnano['wise2010-W2']
+                    gflux, rflux, zflux, w1flux, w2flux = np.ma.getdata(synthnano['decam2014-g']), \
+                      np.ma.getdata(synthnano['decam2014-r']), np.ma.getdata(synthnano['decam2014-z']), \
+                      np.ma.getdata(synthnano['wise2010-W1']), np.ma.getdata(synthnano['wise2010-W2'])
                 else:
-                    gflux, rflux, zflux, w1flux, w2flux = synthnano['BASS-g'], \
-                      synthnano['BASS-r'], synthnano['MzLS-z'], \
-                      synthnano['wise2010-W1'], synthnano['wise2010-W2']
+                    gflux, rflux, zflux, w1flux, w2flux = np.ma.getdata(synthnano['BASS-g']), \
+                      np.ma.getdata(synthnano['BASS-r']), np.ma.getdata(synthnano['MzLS-z']), \
+                      np.ma.getdata(synthnano['wise2010-W1']), np.ma.getdata(synthnano['wise2010-W2'])
 
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, nbasechunk)
@@ -1500,13 +1500,13 @@ class SUPERSTAR(object):
                     synthnano[key] = 1E9 * maggies[key] * magnorm
 
                 if south:
-                    gflux, rflux, zflux, w1flux, w2flux = synthnano['decam2014-g'], \
-                      synthnano['decam2014-r'], synthnano['decam2014-z'], \
-                      synthnano['wise2010-W1'], synthnano['wise2010-W2']
+                    gflux, rflux, zflux, w1flux, w2flux = np.ma.getdata(synthnano['decam2014-g']), \
+                      np.ma.getdata(synthnano['decam2014-r']), np.ma.getdata(synthnano['decam2014-z']), \
+                      np.ma.getdata(synthnano['wise2010-W1']), np.ma.getdata(synthnano['wise2010-W2'])
                 else:
-                    gflux, rflux, zflux, w1flux, w2flux = synthnano['BASS-g'], \
-                      synthnano['BASS-r'], synthnano['MzLS-z'], \
-                      synthnano['wise2010-W1'], synthnano['wise2010-W2']
+                    gflux, rflux, zflux, w1flux, w2flux = np.ma.getdata(synthnano['BASS-g']), \
+                      np.ma.getdata(synthnano['BASS-r']), np.ma.getdata(synthnano['MzLS-z']), \
+                      np.ma.getdata(synthnano['wise2010-W1']), np.ma.getdata(synthnano['wise2010-W2'])
 
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, nbasechunk)
@@ -1846,7 +1846,6 @@ class QSO():
 
         """
         from astropy.io import fits
-        from astropy import cosmology
         from speclite import filters
         from desisim.io import find_basis_template, read_basis_templates
         from desisim import lya_mock_p1d as lyamock
@@ -1869,7 +1868,11 @@ class QSO():
             wave = np.linspace(minwave, maxwave, npix)
         self.wave = wave
 
-        self.cosmo = cosmology.core.FlatLambdaCDM(70.0, 0.3)
+        try:
+            from astropy.cosmology import FlatLambdaCDM # astropy >v5.0
+        except:
+            from astropy.cosmology.core import FlatLambdaCDM
+        self.cosmo = FlatLambdaCDM(70.0, 0.3)
 
         self.lambda_lylimit = 911.76
         self.lambda_lyalpha = 1215.67
@@ -2219,13 +2222,13 @@ class QSO():
                     synthnano[key] = 1E9 * maggies[key] * magnorm
 
                 if south:
-                    gflux, rflux, zflux, w1flux, w2flux = synthnano['decam2014-g'], \
-                      synthnano['decam2014-r'], synthnano['decam2014-z'], \
-                      synthnano['wise2010-W1'], synthnano['wise2010-W2']
+                    gflux, rflux, zflux, w1flux, w2flux = np.ma.getdata(synthnano['decam2014-g']), \
+                      np.ma.getdata(synthnano['decam2014-r']), np.ma.getdata(synthnano['decam2014-z']), \
+                      np.ma.getdata(synthnano['wise2010-W1']), np.ma.getdata(synthnano['wise2010-W2'])
                 else:
-                    gflux, rflux, zflux, w1flux, w2flux = synthnano['BASS-g'], \
-                      synthnano['BASS-r'], synthnano['MzLS-z'], \
-                      synthnano['wise2010-W1'], synthnano['wise2010-W2']
+                    gflux, rflux, zflux, w1flux, w2flux = np.ma.getdata(synthnano['BASS-g']), \
+                      np.ma.getdata(synthnano['BASS-r']), np.ma.getdata(synthnano['MzLS-z']), \
+                      np.ma.getdata(synthnano['wise2010-W1']), np.ma.getdata(synthnano['wise2010-W2'])
                           
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, N_perz)
@@ -2335,7 +2338,6 @@ class SIMQSO():
             WISE2010-[W1,W2] FilterSequence.
 
         """
-        from astropy import cosmology
         from speclite import filters
         log = get_logger()
         try:
@@ -2393,7 +2395,11 @@ class SIMQSO():
         else:
             self.basewave = fixed_R_dispersion(basewave_min, basewave_max, basewave_R)
             
-        self.cosmo = cosmology.core.FlatLambdaCDM(70.0, 0.3)
+        try:
+            from astropy.cosmology import FlatLambdaCDM # astropy >v5.0
+        except:
+            from astropy.cosmology.core import FlatLambdaCDM
+        self.cosmo = FlatLambdaCDM(70.0, 0.3)
 
         self.lambda_lylimit = 911.76
         self.lambda_lyalpha = 1215.67
@@ -2523,13 +2529,13 @@ class SIMQSO():
             synthnano[key] = 1E9 * maggies[key]
 
         if south:
-            gflux, rflux, zflux, w1flux, w2flux = synthnano['decam2014-g'], \
-              synthnano['decam2014-r'], synthnano['decam2014-z'], \
-              synthnano['wise2010-W1'], synthnano['wise2010-W2']
+            gflux, rflux, zflux, w1flux, w2flux = np.ma.getdata(synthnano['decam2014-g']), \
+              np.ma.getdata(synthnano['decam2014-r']), np.ma.getdata(synthnano['decam2014-z']), \
+              np.ma.getdata(synthnano['wise2010-W1']), np.ma.getdata(synthnano['wise2010-W2'])
         else:
-            gflux, rflux, zflux, w1flux, w2flux = synthnano['BASS-g'], \
-              synthnano['BASS-r'], synthnano['MzLS-z'], \
-              synthnano['wise2010-W1'], synthnano['wise2010-W2']
+            gflux, rflux, zflux, w1flux, w2flux = np.ma.getdata(synthnano['BASS-g']), \
+              np.ma.getdata(synthnano['BASS-r']), np.ma.getdata(synthnano['MzLS-z']), \
+              np.ma.getdata(synthnano['wise2010-W1']), np.ma.getdata(synthnano['wise2010-W2'])
 
         if nocolorcuts or self.colorcuts_function is None:
             colormask = np.repeat(1, nmodel)
