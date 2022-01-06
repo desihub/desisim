@@ -44,7 +44,8 @@ jobs:
                 python -m pip install pytest
                 python -m pip install git+https://github.com/desihub/desiutil.git@${DESIUTIL_VERSION}#egg=desiutil
                 python -m pip install -r requirements.txt
-                python -m pip install git+https://github.com/imcgreer/simqso.git@${SIMQSO_VERSION}#egg=simqso
+                # python -m pip install git+https://github.com/imcgreer/simqso.git@${SIMQSO_VERSION}#egg=simqso
+                python -m pip install git+https://github.com/moustakas/simqso/tree/astropy-updates
             - name: Verify Installation
               run: pip list
             - name: Install desimodel Data
