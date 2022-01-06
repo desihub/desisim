@@ -1,7 +1,7 @@
 # %ECSV 0.9
 # ---
 # datatype:
-# - {name: name, datatype: str}
+# - {name: name, datatype: string}
 # - {name: wave, datatype: float64}
 # - {name: ratio, datatype: float32}
 # meta: !!omap
