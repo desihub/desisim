@@ -869,7 +869,8 @@ class GALAXY(object):
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, nbasechunk)
                 else:
-                    if self.objtype == 'BGS':
+                    # differentiate the different selections for BGS and ELG targets
+                    if self.objtype == 'BGS': 
                         _colormask = []
                         for targtype in ('bright', 'faint', 'wise'):
                             _colormask.append(self.colorcuts_function(
@@ -878,13 +879,21 @@ class GALAXY(object):
                                 rfibertotflux=fiberflux_fraction*rflux,
                                 south=south, targtype=targtype))
                         colormask = np.any( np.ma.getdata(np.vstack(_colormask)), axis=0 )
+                    elif self.objtype == 'ELG': # 
+                        colormask_vlo, _colormask = self.colorcuts_function(
+                            gflux=gflux, rflux=rflux, zflux=zflux,
+                            gfiberflux=fiberflux_fraction*gflux, 
+                            rfiberflux=fiberflux_fraction*rflux, 
+                            zfiberflux=fiberflux_fraction*zflux,
+                            w1flux=w1flux, w2flux=w2flux, south=south)
+                        colormask = np.any( np.ma.getdata(np.vstack([colormask_vlo, _colormask])), axis=0 )
                     else:
                         colormask = self.colorcuts_function(gflux=gflux, rflux=rflux, zflux=zflux,
                                                             gfiberflux=fiberflux_fraction*gflux, 
                                                             rfiberflux=fiberflux_fraction*rflux, 
                                                             zfiberflux=fiberflux_fraction*zflux,
                                                             w1flux=w1flux, w2flux=w2flux, south=south)
-                        
+
                 # If the color-cuts pass then populate the output flux vector
                 # (suitably normalized) and metadata table, convolve with the
                 # velocity dispersion, resample, and finish up.  Note that the
