@@ -12,7 +12,7 @@ desisim change log
 
 * lighterweight quickquasars (PR `#552`_).
 
-.. _`PR #552`: https://github.com/desihub/desisim/pull/552
+.. _`#552`: https://github.com/desihub/desisim/pull/552
 
 0.35.5 (2021-02-15)
 -------------------
