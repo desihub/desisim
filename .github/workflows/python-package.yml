@@ -47,7 +47,7 @@ jobs:
                 python -m pip install -r requirements.txt
                 python -m pip install -U 'astropy${{ matrix.astropy-version }}'
                 # python -m pip install git+https://github.com/imcgreer/simqso.git@${SIMQSO_VERSION}#egg=simqso
-                python -m pip install git+https://github.com/moustakas/simqso.git@astropy-updates#egg=simqso
+                python -m pip install git+https://github.com/desihub/simqso.git@master#egg=simqso
                 python -m pip cache remove fitsio
                 python -m pip install --no-deps --force-reinstall --ignore-installed 'fitsio${{ matrix.fitsio-version }}'
             - name: Verify Installation
@@ -98,7 +98,7 @@ jobs:
                 python -m pip install git+https://github.com/desihub/desiutil.git@${DESIUTIL_VERSION}#egg=desiutil
                 python -m pip install -r requirements.txt
                 # python -m pip install git+https://github.com/imcgreer/simqso.git@${SIMQSO_VERSION}#egg=simqso
-                python -m pip install git+https://github.com/moustakas/simqso.git@astropy-updates#egg=simqso
+                python -m pip install git+https://github.com/desihub/simqso.git@master#egg=simqso
                 python -m pip cache remove fitsio
                 python -m pip install --no-deps --force-reinstall --ignore-installed 'fitsio${{ matrix.fitsio-version }}'
             - name: Verify Installation
