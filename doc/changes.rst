@@ -5,7 +5,10 @@ desisim change log
 0.35.7 (unreleased)
 -------------------
 
-* No changes yet
+* Restore template-generating code to a working state (PR `#556`_).
+
+.. _`#556`: https://github.com/desihub/desisim/pull/556
+
 
 0.35.6 (2021-03-31)
 -------------------
