@@ -96,13 +96,13 @@ def simulate_exposure(simspecfile, rawfile, cameras=None,
     if rank == 0 and os.path.exists(rawfile):
         from astropy.io import fits
         err = False
-        fx = fits.open(rawfile)
-        for camera in cameras:
-            if camera in fx:
-                log.error('Camera {} already in {}'.format(camera, rawfile))
-                err = True
-        if err:
-            raise ValueError('Some cameras already in output file')
+        with fits.open(rawfile) as fx:
+            for camera in cameras:
+                if camera in fx:
+                    log.error('Camera {} already in {}'.format(camera, rawfile))
+                    err = True
+            if err:
+                raise ValueError('Some cameras already in output file')
 
     #- Read simspec input; I/O layer handles MPI broadcasting
     if rank == 0:

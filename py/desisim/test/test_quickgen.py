@@ -266,6 +266,10 @@ class TestQuickgen(unittest.TestCase):
         self.assertTrue(np.all(s0['WAVE'].data == s1['WAVE'].data))
         self.assertTrue(np.all(s0['FLUX'].data == s1['FLUX'].data))
 
+        s0.close()
+        s1.close()
+        s2.close()
+
         # generate quickgen output for each exposure
         # spawn with subprocess so that it will really be restarting fresh;
         # using quickgen.main re-uses a specsim Simulator that consumes random
