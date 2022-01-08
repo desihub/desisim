@@ -232,6 +232,7 @@ def get_healpix_info(ifilename):
                     hpxnest=bool(head[k])
                 log.info("hpxnest from {} = {}".format(k,hpxnest))
                 break
+    hdulist.close()
 
     if healpix >= 0 and nside < 0 :
         log.error("Read healpix in header but not nside.")
