@@ -508,7 +508,7 @@ class GALAXY(object):
     def make_galaxy_templates(self, nmodel=100, zrange=(0.6, 1.6), magrange=(20.0, 22.0),
                               oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
                               minlineflux=0.0, trans_filter='decam2014-r',
-                              maxiter=20, seed=None, redshift=None, mag=None, vdisp=None,
+                              maxiter=5, seed=None, redshift=None, mag=None, vdisp=None,
                               input_meta=None, nocolorcuts=False,
                               nocontinuum=False, agnlike=False, novdisp=False, south=True,
                               restframe=False, verbose=False):
@@ -611,6 +611,7 @@ class GALAXY(object):
           ValueError
 
         """
+        from copy import copy
         from speclite import filters
         from desispec.interpolation import resample_flux
         from astropy.table import Column
@@ -634,21 +635,30 @@ class GALAXY(object):
             if len(redshift) != nmodel:
                 log.fatal('Redshift must be an nmodel-length array')
                 raise ValueError
+            use_redshift = copy(redshift)
+        else:
+            use_redshift = None
 
         if mag is not None:
             if len(mag) != nmodel:
                 log.fatal('Mag must be an nmodel-length array')
                 raise ValueError
+            use_mag = copy(mag)
+        else:
+            use_mag = None
 
         if vdisp is not None:
             if len(vdisp) != nmodel:
                 log.fatal('Vdisp must be an nmodel-length array')
                 raise ValueError
+            use_vdisp = copy(vdisp)
 
             vzero = np.where(vdisp <= 0)[0]
             if len(vzero) > 0:
                 log.fatal('Velocity dispersion is zero or negative!')
                 raise ValueError
+        else:
+            use_vdisp = None
 
         # Optionally unpack a metadata table.
         if input_meta is not None:
@@ -769,200 +779,214 @@ class GALAXY(object):
 
         fiberflux_fraction = self.fiberflux_fraction[self.objtype]
 
-        # Iterate up to maxiter.
-        #makemore, itercount, ii = True, 0, 0
-        #while makemore:
         for ii in range(nmodel):
             templaterand = np.random.RandomState(templateseed[ii])
 
-            if input_meta is not None:
-                redshift = use_redshift[ii]
-                mag = use_mag[ii]
-            else:
-                if redshift is None:
-                    redshift = templaterand.uniform(zrange[0], zrange[1])
-                if mag is None:
-                    mag = templaterand.uniform(magrange[0], magrange[1])#.astype('f4')
-
-            print('Fix me')
-            vdisp = 75.0
-
-            zwave = self.basewave.astype(float) * (1.0 + redshift)
-
-            # Optionally generate the emission-line spectrum for this model.
-            if self.normline is None:
-                emflux = np.zeros(npix)
-                normlineflux = np.zeros(nbase)
-            else:
-                # For speed, build just a single emission-line spectrum for all
-                # continuum templates. In detail the line-ratios should
-                # correlate with D(4000) or something else.
-                oiidoublet, oiihbeta, niihbeta, siihbeta, oiiihbeta = \
-                  self.lineratios(nobj=1, oiiihbrange=oiiihbrange,
-                                  rand=templaterand, agnlike=agnlike)
-
-                for key, value in zip(('OIIIHBETA', 'OIIHBETA', 'NIIHBETA', 'SIIHBETA', 'OIIDOUBLET'),
-                                      (oiiihbeta, oiihbeta, niihbeta, siihbeta, oiidoublet)):
-                    objmeta[key][ii] = value
-
-                if self.normline.upper() == 'OII':
-                    ewoii = 10.0**(np.polyval(self.ewoiicoeff, d4000) + # rest-frame EW([OII]), Angstrom
-                                   templaterand.normal(0.0, 0.3, nbase))
-                    normlineflux = self.basemeta['OII_CONTINUUM'].data * ewoii
-
-                    emflux, emwave, emline = self.EM.spectrum(linesigma=vdisp, seed=templateseed[ii],
-                                                              oiidoublet=oiidoublet, oiiihbeta=oiiihbeta,
-                                                              oiihbeta=oiihbeta, niihbeta=niihbeta,
-                                                              siihbeta=siihbeta, oiiflux=1.0)
-
-                elif self.normline.upper() == 'HBETA':
-                    ewhbeta = 10.0**(np.polyval(self.ewhbetacoeff, d4000) + \
-                                     templaterand.normal(0.0, 0.2, nbase)) * \
-                                     (self.basemeta['HBETA_LIMIT'].data == 0) # rest-frame H-beta, Angstrom
-                    normlineflux = self.basemeta['HBETA_CONTINUUM'].data * ewhbeta
-
-                    emflux, emwave, emline = self.EM.spectrum(linesigma=vdisp, seed=templateseed[ii],
-                                                              oiidoublet=oiidoublet, oiiihbeta=oiiihbeta,
-                                                              oiihbeta=oiihbeta, niihbeta=niihbeta,
-                                                              siihbeta=siihbeta, hbetaflux=1.0)
-
-                emflux /= (1+redshift) # [erg/s/cm2/A, @redshift]
-
-            # Optionally get the transient spectrum and normalization factor.
-            if self.transient is not None:
-                # Evaluate the flux where the model has defined wavelengths.
-                # Zero-pad all other wavelength values.
-                trans_restflux = np.zeros_like(self.basewave, dtype=float)
-                minw = self.transient.minwave().to('Angstrom').value
-                maxw = self.transient.maxwave().to('Angstrom').value
-                j = np.argwhere(self.basewave >= minw)[0,0]
-                k = np.argwhere(self.basewave <= maxw)[-1,0]
-
-                trans_restflux[j:k] = self.transient.flux(trans_epoch[ii], self.basewave[j:k] * u.Angstrom) 
-                trans_norm = normfilt[magfilter[ii]].get_ab_maggies(trans_restflux, zwave)
-
-            # Assign the emission-line spectrum to chunks of continuum spectra
-            # until we simulate all the models requested.
-
-            for ichunk in range(nchunk):
-                if ii % 100 == 0 and ii > 0:
-                    log.debug('Simulating {} template {}/{} in chunk {}/{}.'. \
-                              format(self.objtype, ii, nmodel, ichunk+1, nchunk))
-                templateid = alltemplateid_chunk[ichunk][ii, :]
-                nbasechunk = len(templateid)
-
-                if nocontinuum:
-                    restflux = np.tile(emflux, (nbasechunk, 1)) * \
-                      np.tile(normlineflux[templateid], (npix, 1)).T
+            # Iterate up to maxiter.
+            makemore, itercount = True, 0
+            while makemore:
+                if input_meta is not None:
+                    redshift = use_redshift[ii]
+                    mag = use_mag[ii]
                 else:
-                    restflux = self.baseflux[templateid, :] + np.tile(emflux, (nbasechunk, 1)) * \
-                      np.tile(normlineflux[templateid], (npix, 1)).T
-
-                # Optionally add in the transient spectrum.
+                    if use_redshift is None:
+                        redshift = templaterand.uniform(zrange[0], zrange[1])
+                    else:
+                        redshift = use_redshift[ii]
+                    if use_mag is None:
+                        mag = templaterand.uniform(magrange[0], magrange[1])#.astype('f4')
+                    else:
+                        mag = use_mag[ii]
+                    if use_vdisp is None:
+                        vdisp = 75.0
+                        #vdisp = templaterand.uniform(magrange[0], magrange[1])#.astype('f4')
+                    else:
+                        vdisp = use_vdisp[ii]
+    
+                meta['REDSHIFT'][ii] = redshift
+                meta['MAG'][ii] = mag
+    
+                zwave = self.basewave.astype(float) * (1.0 + redshift)
+    
+                # Optionally generate the emission-line spectrum for this model.
+                if self.normline is None:
+                    emflux = np.zeros(npix)
+                    normlineflux = np.zeros(nbase)
+                else:
+                    # For speed, build just a single emission-line spectrum for all
+                    # continuum templates. In detail the line-ratios should
+                    # correlate with D(4000) or something else.
+                    oiidoublet, oiihbeta, niihbeta, siihbeta, oiiihbeta = \
+                      self.lineratios(nobj=1, oiiihbrange=oiiihbrange,
+                                      rand=templaterand, agnlike=agnlike)
+    
+                    for key, value in zip(('OIIIHBETA', 'OIIHBETA', 'NIIHBETA', 'SIIHBETA', 'OIIDOUBLET'),
+                                          (oiiihbeta, oiihbeta, niihbeta, siihbeta, oiidoublet)):
+                        objmeta[key][ii] = value
+    
+                    if self.normline.upper() == 'OII':
+                        ewoii = 10.0**(np.polyval(self.ewoiicoeff, d4000) + # rest-frame EW([OII]), Angstrom
+                                       templaterand.normal(0.0, 0.3, nbase))
+                        normlineflux = self.basemeta['OII_CONTINUUM'].data * ewoii
+    
+                        emflux, emwave, emline = self.EM.spectrum(linesigma=vdisp, seed=templateseed[ii],
+                                                                  oiidoublet=oiidoublet, oiiihbeta=oiiihbeta,
+                                                                  oiihbeta=oiihbeta, niihbeta=niihbeta,
+                                                                  siihbeta=siihbeta, oiiflux=1.0)
+    
+                    elif self.normline.upper() == 'HBETA':
+                        ewhbeta = 10.0**(np.polyval(self.ewhbetacoeff, d4000) + \
+                                         templaterand.normal(0.0, 0.2, nbase)) * \
+                                         (self.basemeta['HBETA_LIMIT'].data == 0) # rest-frame H-beta, Angstrom
+                        normlineflux = self.basemeta['HBETA_CONTINUUM'].data * ewhbeta
+    
+                        emflux, emwave, emline = self.EM.spectrum(linesigma=vdisp, seed=templateseed[ii],
+                                                                  oiidoublet=oiidoublet, oiiihbeta=oiiihbeta,
+                                                                  oiihbeta=oiihbeta, niihbeta=niihbeta,
+                                                                  siihbeta=siihbeta, hbetaflux=1.0)
+    
+                    emflux /= (1+redshift) # [erg/s/cm2/A, @redshift]
+    
+                # Optionally get the transient spectrum and normalization factor.
                 if self.transient is not None:
-                    galnorm = normfilt[magfilter[ii]].get_ab_maggies(restflux, zwave)
-                    trans_factor = galnorm[magfilter[ii]].data * trans_rfluxratio[ii]/trans_norm[magfilter[ii]].data
-                    restflux += np.tile(trans_restflux, (nbasechunk, 1)) * np.tile(trans_factor, (npix, 1)).T
-
-                # Synthesize photometry to determine which models will pass the
-                # color-cuts.
-                if south:
-                    maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
-                else:
-                    maggies = self.bassmzlswise.get_ab_maggies(restflux, zwave, mask_invalid=True)
-
-                if nocontinuum:
-                    magnorm = np.repeat(10**(-0.4*mag), nbasechunk)
-                else:
-                    normmaggies = np.array(normfilt[magfilter[ii]].get_ab_maggies(
-                        restflux, zwave, mask_invalid=True)[magfilter[ii]])
-                    assert(np.all(normmaggies > 0))
-                    magnorm = 10**(-0.4*mag) / normmaggies
-
-                synthnano = dict()
-                for key in maggies.columns:
-                    synthnano[key] = 1E9 * maggies[key] * magnorm # nanomaggies
-                zlineflux = normlineflux[templateid] * magnorm
-
-                if south:
-                    gflux, rflux, zflux, w1flux, w2flux = np.ma.getdata(synthnano['decam2014-g']), \
-                      np.ma.getdata(synthnano['decam2014-r']), np.ma.getdata(synthnano['decam2014-z']), \
-                      np.ma.getdata(synthnano['wise2010-W1']), np.ma.getdata(synthnano['wise2010-W2'])
-                else:
-                    gflux, rflux, zflux, w1flux, w2flux = np.ma.getdata(synthnano['BASS-g']), \
-                      np.ma.getdata(synthnano['BASS-r']), np.ma.getdata(synthnano['MzLS-z']), \
-                      np.ma.getdata(synthnano['wise2010-W1']), np.ma.getdata(synthnano['wise2010-W2'])
-
-                if nocolorcuts or self.colorcuts_function is None:
-                    colormask = np.repeat(1, nbasechunk)
-                else:
-                    # differentiate the different selections for BGS, ELG, and LRG targets
-                    if self.objtype == 'BGS': 
-                        _colormask = []
-                        for targtype in ('bright', 'faint', 'wise'):
-                            _colormask.append(self.colorcuts_function(
+                    # Evaluate the flux where the model has defined wavelengths.
+                    # Zero-pad all other wavelength values.
+                    trans_restflux = np.zeros_like(self.basewave, dtype=float)
+                    minw = self.transient.minwave().to('Angstrom').value
+                    maxw = self.transient.maxwave().to('Angstrom').value
+                    j = np.argwhere(self.basewave >= minw)[0,0]
+                    k = np.argwhere(self.basewave <= maxw)[-1,0]
+    
+                    trans_restflux[j:k] = self.transient.flux(trans_epoch[ii], self.basewave[j:k] * u.Angstrom) 
+                    trans_norm = normfilt[magfilter[ii]].get_ab_maggies(trans_restflux, zwave)
+    
+                # Assign the emission-line spectrum to chunks of continuum spectra
+                # until we simulate all the models requested.
+    
+                for ichunk in range(nchunk):
+                    if ii % 100 == 0 and ii > 0:
+                        log.debug('Simulating {} template {}/{} in chunk {}/{}.'. \
+                                  format(self.objtype, ii, nmodel, ichunk+1, nchunk))
+                    templateid = alltemplateid_chunk[ichunk][ii, :]
+                    nbasechunk = len(templateid)
+    
+                    if nocontinuum:
+                        restflux = np.tile(emflux, (nbasechunk, 1)) * \
+                          np.tile(normlineflux[templateid], (npix, 1)).T
+                    else:
+                        restflux = self.baseflux[templateid, :] + np.tile(emflux, (nbasechunk, 1)) * \
+                          np.tile(normlineflux[templateid], (npix, 1)).T
+    
+                    # Optionally add in the transient spectrum.
+                    if self.transient is not None:
+                        galnorm = normfilt[magfilter[ii]].get_ab_maggies(restflux, zwave)
+                        trans_factor = galnorm[magfilter[ii]].data * trans_rfluxratio[ii]/trans_norm[magfilter[ii]].data
+                        restflux += np.tile(trans_restflux, (nbasechunk, 1)) * np.tile(trans_factor, (npix, 1)).T
+    
+                    # Synthesize photometry to determine which models will pass the
+                    # color-cuts.
+                    if south:
+                        maggies = self.decamwise.get_ab_maggies(restflux, zwave, mask_invalid=True)
+                    else:
+                        maggies = self.bassmzlswise.get_ab_maggies(restflux, zwave, mask_invalid=True)
+    
+                    if nocontinuum:
+                        magnorm = np.repeat(10**(-0.4*mag), nbasechunk)
+                    else:
+                        normmaggies = np.array(normfilt[magfilter[ii]].get_ab_maggies(
+                            restflux, zwave, mask_invalid=True)[magfilter[ii]])
+                        assert(np.all(normmaggies > 0))
+                        magnorm = 10**(-0.4*mag) / normmaggies
+    
+                    synthnano = dict()
+                    for key in maggies.columns:
+                        synthnano[key] = 1E9 * maggies[key] * magnorm # nanomaggies
+                    zlineflux = normlineflux[templateid] * magnorm
+    
+                    if south:
+                        gflux, rflux, zflux, w1flux, w2flux = np.ma.getdata(synthnano['decam2014-g']), \
+                          np.ma.getdata(synthnano['decam2014-r']), np.ma.getdata(synthnano['decam2014-z']), \
+                          np.ma.getdata(synthnano['wise2010-W1']), np.ma.getdata(synthnano['wise2010-W2'])
+                    else:
+                        gflux, rflux, zflux, w1flux, w2flux = np.ma.getdata(synthnano['BASS-g']), \
+                          np.ma.getdata(synthnano['BASS-r']), np.ma.getdata(synthnano['MzLS-z']), \
+                          np.ma.getdata(synthnano['wise2010-W1']), np.ma.getdata(synthnano['wise2010-W2'])
+    
+                    if nocolorcuts or self.colorcuts_function is None:
+                        colormask = np.repeat(1, nbasechunk)
+                    else:
+                        # differentiate the different selections for BGS, ELG, and LRG targets
+                        if self.objtype == 'BGS': 
+                            _colormask = []
+                            for targtype in ('bright', 'faint', 'wise'):
+                                _colormask.append(self.colorcuts_function(
+                                    gflux=gflux, rflux=rflux, zflux=zflux,
+                                    w1flux=w1flux, rfiberflux=fiberflux_fraction*rflux, 
+                                    rfibertotflux=fiberflux_fraction*rflux,
+                                    south=south, targtype=targtype))
+                            colormask = np.any( np.ma.getdata(np.vstack(_colormask)), axis=0 )
+                        elif self.objtype == 'ELG': # 
+                            colormask_vlo, _colormask = self.colorcuts_function(
                                 gflux=gflux, rflux=rflux, zflux=zflux,
-                                w1flux=w1flux, rfiberflux=fiberflux_fraction*rflux, 
-                                rfibertotflux=fiberflux_fraction*rflux,
-                                south=south, targtype=targtype))
-                        colormask = np.any( np.ma.getdata(np.vstack(_colormask)), axis=0 )
-                    elif self.objtype == 'ELG': # 
-                        colormask_vlo, _colormask = self.colorcuts_function(
-                            gflux=gflux, rflux=rflux, zflux=zflux,
-                            gfiberflux=fiberflux_fraction*gflux, 
-                            rfiberflux=fiberflux_fraction*rflux, 
-                            zfiberflux=fiberflux_fraction*zflux,
-                            w1flux=w1flux, w2flux=w2flux, south=south)
-                        colormask = np.any( np.ma.getdata(np.vstack([colormask_vlo, _colormask])), axis=0 )
-                    else:
-                        colormask = self.colorcuts_function(gflux=gflux, rflux=rflux, zflux=zflux,
-                                                            gfiberflux=fiberflux_fraction*gflux, 
-                                                            rfiberflux=fiberflux_fraction*rflux, 
-                                                            zfiberflux=fiberflux_fraction*zflux,
-                                                            w1flux=w1flux, w2flux=w2flux, south=south)
+                                gfiberflux=fiberflux_fraction*gflux, 
+                                rfiberflux=fiberflux_fraction*rflux, 
+                                zfiberflux=fiberflux_fraction*zflux,
+                                w1flux=w1flux, w2flux=w2flux, south=south)
+                            colormask = np.any( np.ma.getdata(np.vstack([colormask_vlo, _colormask])), axis=0 )
+                        else:
+                            colormask = self.colorcuts_function(gflux=gflux, rflux=rflux, zflux=zflux,
+                                                                gfiberflux=fiberflux_fraction*gflux, 
+                                                                rfiberflux=fiberflux_fraction*rflux, 
+                                                                zfiberflux=fiberflux_fraction*zflux,
+                                                                w1flux=w1flux, w2flux=w2flux, south=south)
+    
+                    # If the color-cuts pass then populate the output flux vector
+                    # (suitably normalized) and metadata table, convolve with the
+                    # velocity dispersion, resample, and finish up.  Note that the
+                    # emission lines already have the velocity dispersion
+                    # line-width.
+                    if np.any(colormask*(zlineflux >= minlineflux)):
+                        this = templaterand.choice(np.where(colormask * (zlineflux >= minlineflux))[0]) # Pick one randomly.
+                        tempid = templateid[this]
+    
+                        thisemflux = emflux * normlineflux[templateid[this]]
+                        if nocontinuum or novdisp:
+                            blurflux = restflux[this, :] * magnorm[this]
+                        else:
+                            blurflux = ((blurmatrix[vdisp[ii]] * (restflux[this, :] - thisemflux)) +
+                                        thisemflux) * magnorm[this]
+    
+                        if restframe:
+                            outflux[ii, :] = blurflux
+                        else:
+                            outflux[ii, :] = resample_flux(self.wave, zwave, blurflux, extrapolate=True)
+    
+                        meta['TEMPLATEID'][ii] = tempid
+                        meta['FLUX_G'][ii] = gflux[this]
+                        meta['FLUX_R'][ii] = rflux[this]
+                        meta['FLUX_Z'][ii] = zflux[this]
+                        meta['FLUX_W1'][ii] = w1flux[this]
+                        meta['FLUX_W2'][ii] = w2flux[this]
+    
+                        objmeta['D4000'][ii] = d4000[tempid]
+    
+                        if self.normline is not None:
+                            if self.normline == 'OII':
+                                objmeta['OIIFLUX'][ii] = zlineflux[this]
+                                objmeta['EWOII'][ii] = ewoii[tempid]
+                            elif self.normline == 'HBETA':
+                                objmeta['HBETAFLUX'][ii] = zlineflux[this]
+                                objmeta['EWHBETA'][ii] = ewhbeta[tempid]
+    
+                        # We succeeded modeling this object!
+                        makemore = False
+                        break
 
-                # If the color-cuts pass then populate the output flux vector
-                # (suitably normalized) and metadata table, convolve with the
-                # velocity dispersion, resample, and finish up.  Note that the
-                # emission lines already have the velocity dispersion
-                # line-width.
-                if np.any(colormask*(zlineflux >= minlineflux)):
-                    this = templaterand.choice(np.where(colormask * (zlineflux >= minlineflux))[0]) # Pick one randomly.
-                    tempid = templateid[this]
-
-                    thisemflux = emflux * normlineflux[templateid[this]]
-                    if nocontinuum or novdisp:
-                        blurflux = restflux[this, :] * magnorm[this]
-                    else:
-                        blurflux = ((blurmatrix[vdisp[ii]] * (restflux[this, :] - thisemflux)) +
-                                    thisemflux) * magnorm[this]
-
-                    if restframe:
-                        outflux[ii, :] = blurflux
-                    else:
-                        outflux[ii, :] = resample_flux(self.wave, zwave, blurflux, extrapolate=True)
-
-                    meta['TEMPLATEID'][ii] = tempid
-                    meta['FLUX_G'][ii] = gflux[this]
-                    meta['FLUX_R'][ii] = rflux[this]
-                    meta['FLUX_Z'][ii] = zflux[this]
-                    meta['FLUX_W1'][ii] = w1flux[this]
-                    meta['FLUX_W2'][ii] = w2flux[this]
-
-                    objmeta['D4000'][ii] = d4000[tempid]
-
-                    if self.normline is not None:
-                        if self.normline == 'OII':
-                            objmeta['OIIFLUX'][ii] = zlineflux[this]
-                            objmeta['EWOII'][ii] = ewoii[tempid]
-                        elif self.normline == 'HBETA':
-                            objmeta['HBETAFLUX'][ii] = zlineflux[this]
-                            objmeta['EWHBETA'][ii] = ewhbeta[tempid]
-
-                    # We succeeded modeling this object!
-                    break
-
-        #import pdb ; pdb.set_trace()
+                print(itercount, ii, redshift, mag)
+                itercount += 1
+                if itercount == maxiter:
+                    log.warning('Maximum number of iterations reached on {} model {}'.format(self.objtype, ii))
+                    makemore = False
 
         # Check to see if any spectra could not be computed.
         success = (np.sum(outflux, axis=1) > 0)*1
@@ -1013,7 +1037,7 @@ class ELG(GALAXY):
 
         self.ewoiicoeff = [1.34323087, -5.02866474, 5.43842874]
 
-    def make_templates(self, nmodel=100, zrange=(0.6, 1.6), magrange=(20.0, 23.5),
+    def make_templates(self, nmodel=100, zrange=(0.2, 1.6), magrange=(20.0, 23.5),
                        oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
                        minoiiflux=0.0, trans_filter='decam2014-r',
                        redshift=None, mag=None, vdisp=None, seed=None, input_meta=None,
@@ -1091,7 +1115,7 @@ class BGS(GALAXY):
 
         self.ewhbetacoeff = [1.28520974, -4.94408026, 4.9617704]
 
-    def make_templates(self, nmodel=100, zrange=(0.01, 0.4), magrange=(15.0, 20.0),
+    def make_templates(self, nmodel=100, zrange=(0.01, 0.45), magrange=(17.0, 20.2),
                        oiiihbrange=(-1.3, 0.6), logvdisp_meansig=(2.0, 0.17),
                        minhbetaflux=0.0, trans_filter='decam2014-r',
                        redshift=None, mag=None, vdisp=None, seed=None, input_meta=None,
@@ -1165,7 +1189,7 @@ class LRG(GALAXY):
                                   baseflux=baseflux, basewave=basewave, basemeta=basemeta,
                                   transient=transient, tr_fluxratio=tr_fluxratio, tr_epoch=tr_epoch)
 
-    def make_templates(self, nmodel=100, zrange=(0.5, 1.0), magrange=(19.0, 20.6),
+    def make_templates(self, nmodel=100, zrange=(0.35, 1.0), magrange=(18.2, 21.1),
                        logvdisp_meansig=(2.3, 0.1),
                        trans_filter='decam2014-r', redshift=None, mag=None, vdisp=None,
                        seed=None, input_meta=None, nocolorcuts=False,
