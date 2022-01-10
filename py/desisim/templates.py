@@ -669,27 +669,24 @@ class GALAXY(object):
             else:
                 magfilter = np.repeat(self.normfilter_north, nmodel)
 
-        if redshift is not None:
-            if len(redshift) != nmodel:
-                log.fatal('Redshift must be an nmodel-length array')
-                raise ValueError
-            use_redshift = copy(redshift)
-        else:
-            if input_meta is not None:
+            if redshift is not None:
+                if len(redshift) != nmodel:
+                    log.fatal('Redshift must be an nmodel-length array')
+                    raise ValueError
+                use_redshift = copy(redshift)
+            else:
                 use_redshift = None
-
-        if mag is not None:
-            if len(mag) != nmodel:
-                log.fatal('Mag must be an nmodel-length array')
-                raise ValueError
-            use_mag = copy(mag)
-        else:
-            if input_meta is not None:
+    
+            if mag is not None:
+                if len(mag) != nmodel:
+                    log.fatal('Mag must be an nmodel-length array')
+                    raise ValueError
+                use_mag = copy(mag)
+            else:
                 use_mag = None
 
         if vdisp is not None:
             if len(vdisp) != nmodel:
-                import pdb ; pdb.set_trace()
                 log.fatal('Vdisp must be an nmodel-length array')
                 raise ValueError
             use_vdisp = copy(vdisp)
@@ -699,8 +696,7 @@ class GALAXY(object):
                 log.fatal('Velocity dispersion is zero or negative!')
                 raise ValueError
         else:
-            if input_meta is not None:
-                use_vdisp = None
+            use_vdisp = None
 
         # Generate the (optional) distribution of transient model brightness
         # and epoch priors or read them from the input table.
@@ -762,23 +758,18 @@ class GALAXY(object):
             # Iterate up to maxiter.
             makemore, itercount = True, 0
             while makemore:
-                if input_meta is not None:
-                    import pdb ; pdb.set_trace()
-                    redshift = use_redshift[ii]
-                    mag = use_mag[ii]
+                if use_redshift is None:
+                    redshift = templaterand.uniform(zrange[0], zrange[1])
                 else:
-                    if use_redshift is None:
-                        redshift = templaterand.uniform(zrange[0], zrange[1])
-                    else:
-                        redshift = use_redshift[ii]
-                    if use_mag is None:
-                        mag = templaterand.uniform(magrange[0], magrange[1])#.astype('f4')
-                    else:
-                        mag = use_mag[ii]
-                    if use_vdisp is None:
-                        vdisp = templaterand.uniform(vdisprange[0], vdisprange[1])
-                    else:
-                        vdisp = use_vdisp[ii]
+                    redshift = use_redshift[ii]
+                if use_mag is None:
+                    mag = templaterand.uniform(magrange[0], magrange[1])#.astype('f4')
+                else:
+                    mag = use_mag[ii]
+                if use_vdisp is None:
+                    vdisp = templaterand.uniform(vdisprange[0], vdisprange[1])
+                else:
+                    vdisp = use_vdisp[ii]
     
                 zwave = self.basewave.astype(float) * (1.0 + redshift)
     
@@ -932,7 +923,7 @@ class GALAXY(object):
                         else:
                             sigma = 1.0 + (self.basewave[self.imidwave] * vdisp / C_LIGHT) # [pixels]
                             blurflux = ((gaussian_filter1d(restflux[this, :] - thisemflux, sigma=sigma)) + thisemflux) * magnorm[this]
-    
+
                         if restframe:
                             outflux[ii, :] = blurflux
                         else:
@@ -960,6 +951,7 @@ class GALAXY(object):
     
                         # We succeeded modeling this object!
                         makemore = False
+                        print(ii, ichunk, itercount)
                         break
 
                 itercount += 1
