@@ -420,6 +420,7 @@ class GALAXY(object):
         self.baseflux = baseflux
         self.basewave = basewave
         self.basemeta = basemeta
+        self.imidwave = np.argmin(np.abs(basewave-5500.0)) # index closest to 5500 Angstrom
 
         # Initialize the EMSpectrum object with the same wavelength array as
         # the "base" (continuum) templates so that we don't have to resample.
@@ -506,7 +507,7 @@ class GALAXY(object):
         return oiidoublet, oiihbeta, niihbeta, siihbeta, oiiihbeta
 
     def make_galaxy_templates(self, nmodel=100, zrange=(0.6, 1.6), magrange=(20.0, 22.0),
-                              oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
+                              oiiihbrange=(-0.5, 0.2), vdisprange=(100.0, 300.0),
                               minlineflux=0.0, trans_filter='decam2014-r',
                               maxiter=10, seed=None, redshift=None, mag=None, vdisp=None,
                               input_meta=None, nocolorcuts=False,
@@ -616,6 +617,7 @@ class GALAXY(object):
         from desispec.interpolation import resample_flux
         from astropy.table import Column
         from astropy import units as u
+        from scipy.ndimage import gaussian_filter1d
 
         if verbose:
             log = get_logger(DEBUG)
@@ -696,16 +698,6 @@ class GALAXY(object):
             else:
                 magfilter = np.repeat(self.normfilter_north, nmodel)
 
-        if vdisp is None:
-            # Limit the number of unique velocity dispersion values.
-            nvdisp = int(np.max( ( np.min(
-                ( np.round(nmodel * self.fracvdisp[0]), self.fracvdisp[1] ) ), 1 ) ))
-            if logvdisp_meansig[1] > 0:
-                vvdisp = 10**rand.normal(logvdisp_meansig[0], logvdisp_meansig[1], nvdisp)
-            else:
-                vvdisp = 10**np.repeat(logvdisp_meansig[0], nvdisp)
-            vdisp = rand.choice(vvdisp, nmodel)
-
         # Generate the (optional) distribution of transient model brightness
         # and epoch priors or read them from the input table.
         if self.transient is not None:
@@ -734,15 +726,7 @@ class GALAXY(object):
             objmeta['TRANSIENT_EPOCH'][:] = trans_epoch
             objmeta['TRANSIENT_RFLUXRATIO'][:] = trans_rfluxratio
 
-        # Precompute the velocity dispersion convolution matrix for each unique
-        # value of vdisp.
-        if nocontinuum or novdisp:
-            pass
-        else:
-            blurmatrix = self._blurmatrix(vdisp, log=log)
-
         # Populate some of the metadata table.
-        objmeta['VDISP'][:] = vdisp
         for key, value in zip(('MAGFILTER', 'SEED'),(magfilter, templateseed)):
             meta[key][:] = value
 
@@ -786,10 +770,10 @@ class GALAXY(object):
                         mag = templaterand.uniform(magrange[0], magrange[1])#.astype('f4')
                     else:
                         mag = use_mag[ii]
-                    #if use_vdisp is None:
-                    #    vdisp = templaterand.uniform(vdisprange[0], vdisprange[1])
-                    #else:
-                    #    vdisp = use_vdisp[ii]
+                    if use_vdisp is None:
+                        vdisp = templaterand.uniform(vdisprange[0], vdisprange[1])
+                    else:
+                        vdisp = use_vdisp[ii]
     
                 zwave = self.basewave.astype(float) * (1.0 + redshift)
     
@@ -814,7 +798,7 @@ class GALAXY(object):
                                        templaterand.normal(0.0, 0.3, nbase))
                         normlineflux = self.basemeta['OII_CONTINUUM'].data * ewoii
     
-                        emflux, emwave, emline = self.EM.spectrum(linesigma=vdisp[ii], seed=templateseed[ii],
+                        emflux, emwave, emline = self.EM.spectrum(linesigma=vdisp, seed=templateseed[ii],
                                                                   oiidoublet=oiidoublet, oiiihbeta=oiiihbeta,
                                                                   oiihbeta=oiihbeta, niihbeta=niihbeta,
                                                                   siihbeta=siihbeta, oiiflux=1.0)
@@ -825,7 +809,7 @@ class GALAXY(object):
                                          (self.basemeta['HBETA_LIMIT'].data == 0) # rest-frame H-beta, Angstrom
                         normlineflux = self.basemeta['HBETA_CONTINUUM'].data * ewhbeta
     
-                        emflux, emwave, emline = self.EM.spectrum(linesigma=vdisp[ii], seed=templateseed[ii],
+                        emflux, emwave, emline = self.EM.spectrum(linesigma=vdisp, seed=templateseed[ii],
                                                                   oiidoublet=oiidoublet, oiiihbeta=oiiihbeta,
                                                                   oiihbeta=oiihbeta, niihbeta=niihbeta,
                                                                   siihbeta=siihbeta, hbetaflux=1.0)
@@ -941,8 +925,8 @@ class GALAXY(object):
                         if nocontinuum or novdisp:
                             blurflux = restflux[this, :] * magnorm[this]
                         else:
-                            blurflux = ((blurmatrix[vdisp[ii]] * (restflux[this, :] - thisemflux)) +
-                                        thisemflux) * magnorm[this]
+                            sigma = 1.0 + (self.basewave[self.imidwave] * vdisp / C_LIGHT) # [pixels]
+                            blurflux = ((gaussian_filter1d(restflux[this, :] - thisemflux, sigma=sigma)) + thisemflux) * magnorm[this]
     
                         if restframe:
                             outflux[ii, :] = blurflux
@@ -958,6 +942,7 @@ class GALAXY(object):
                         meta['FLUX_W1'][ii] = w1flux[this]
                         meta['FLUX_W2'][ii] = w2flux[this]
     
+                        objmeta['VDISP'][ii] = vdisp
                         objmeta['D4000'][ii] = d4000[tempid]
     
                         if self.normline is not None:
@@ -995,7 +980,8 @@ class ELG(GALAXY):
     """Generate Monte Carlo spectra of emission-line galaxies (ELGs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 transient=None, tr_fluxratio=(0.01, 1.), tr_epoch=(-10,10), include_mgii=False, colorcuts_function=None,
+                 transient=None, tr_fluxratio=(0.01, 1.), tr_epoch=(-10,10), 
+                 include_mgii=False, colorcuts_function=None,
                  normfilter_north='BASS-g', normfilter_south='decam2014-g',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the ELG class.  See the GALAXY.__init__ method for documentation
@@ -1027,7 +1013,7 @@ class ELG(GALAXY):
         self.ewoiicoeff = [1.34323087, -5.02866474, 5.43842874]
 
     def make_templates(self, nmodel=100, zrange=(0.2, 1.6), magrange=(20.0, 23.5),
-                       oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
+                       oiiihbrange=(-0.5, 0.2), vdisprange=(50.0, 150.0),
                        minoiiflux=0.0, trans_filter='decam2014-r',
                        redshift=None, mag=None, vdisp=None, seed=None, input_meta=None,
                        nocolorcuts=False, nocontinuum=False, agnlike=False,
@@ -1061,7 +1047,7 @@ class ELG(GALAXY):
 
         """
         result = self.make_galaxy_templates(nmodel=nmodel, zrange=zrange, magrange=magrange,
-                                            oiiihbrange=oiiihbrange, logvdisp_meansig=logvdisp_meansig,
+                                            oiiihbrange=oiiihbrange, vdisprange=vdisprange,
                                             minlineflux=minoiiflux, redshift=redshift, vdisp=vdisp,
                                             mag=mag, trans_filter=trans_filter,
                                             seed=seed, input_meta=input_meta,
@@ -1105,7 +1091,7 @@ class BGS(GALAXY):
         self.ewhbetacoeff = [1.28520974, -4.94408026, 4.9617704]
 
     def make_templates(self, nmodel=100, zrange=(0.01, 0.45), magrange=(17.0, 20.2),
-                       oiiihbrange=(-1.3, 0.6), logvdisp_meansig=(2.0, 0.17),
+                       oiiihbrange=(-1.3, 0.6), vdisprange=(120.0, 300.0),
                        minhbetaflux=0.0, trans_filter='decam2014-r',
                        redshift=None, mag=None, vdisp=None, seed=None, input_meta=None,
                        nocolorcuts=False, nocontinuum=False, agnlike=False,
@@ -1139,7 +1125,7 @@ class BGS(GALAXY):
 
         """
         result = self.make_galaxy_templates(nmodel=nmodel, zrange=zrange, magrange=magrange,
-                                            oiiihbrange=oiiihbrange, logvdisp_meansig=logvdisp_meansig,
+                                            oiiihbrange=oiiihbrange, vdisprange=vdisprange, 
                                             minlineflux=minhbetaflux, redshift=redshift, vdisp=vdisp,
                                             mag=mag, trans_filter=trans_filter,
                                             seed=seed, input_meta=input_meta,
@@ -1179,10 +1165,10 @@ class LRG(GALAXY):
                                   transient=transient, tr_fluxratio=tr_fluxratio, tr_epoch=tr_epoch)
 
     def make_templates(self, nmodel=100, zrange=(0.35, 1.0), magrange=(18.2, 21.1),
-                       logvdisp_meansig=(2.3, 0.1),
-                       trans_filter='decam2014-r', redshift=None, mag=None, vdisp=None,
-                       seed=None, input_meta=None, nocolorcuts=False,
-                       novdisp=False, agnlike=False, south=True, restframe=False, verbose=False):
+                       vdisprange=(150.0, 300.0), trans_filter='decam2014-r', 
+                       redshift=None, mag=None, vdisp=None, seed=None, input_meta=None, 
+                       nocolorcuts=False, novdisp=False, agnlike=False, south=True, 
+                       restframe=False, verbose=False):
         """Build Monte Carlo BGS spectra/templates.
 
          See the GALAXY.make_galaxy_templates function for documentation on the
@@ -1209,10 +1195,9 @@ class LRG(GALAXY):
 
         """
         result = self.make_galaxy_templates(nmodel=nmodel, zrange=zrange, magrange=magrange,
-                                            logvdisp_meansig=logvdisp_meansig, redshift=redshift,
-                                            vdisp=vdisp, mag=mag,
-                                            trans_filter=trans_filter, seed=seed, input_meta=input_meta,
-                                            nocolorcuts=nocolorcuts,
+                                            vdisprange=vdisprange, redshift=redshift,
+                                            vdisp=vdisp, mag=mag, trans_filter=trans_filter, 
+                                            seed=seed, input_meta=input_meta, nocolorcuts=nocolorcuts,
                                             agnlike=agnlike, novdisp=novdisp, south=south,
                                             restframe=restframe, verbose=verbose)
 
