@@ -508,7 +508,7 @@ class GALAXY(object):
     def make_galaxy_templates(self, nmodel=100, zrange=(0.6, 1.6), magrange=(20.0, 22.0),
                               oiiihbrange=(-0.5, 0.2), logvdisp_meansig=(1.9, 0.15),
                               minlineflux=0.0, trans_filter='decam2014-r',
-                              maxiter=10, seed=None, shuffleseed=1, redshift=None, mag=None, vdisp=None,
+                              maxiter=10, seed=None, redshift=None, mag=None, vdisp=None,
                               input_meta=None, nocolorcuts=False,
                               nocontinuum=False, agnlike=False, novdisp=False, south=True,
                               restframe=False, verbose=False):
@@ -686,18 +686,10 @@ class GALAXY(object):
             else:
                 templateseed = rand.randint(2**32, size=nmodel)
 
-            # Shuffle the basis templates and then split them into ~equal
-            # chunks, so we can speed up the calculations below.
+            # Divide the basis templates into chunks, so we can speed up the
+            # calculations below.
             chunksize = np.min((nbase, 50))
             nchunk = int(np.ceil(nbase / chunksize))
-
-            #alltemplateid = np.tile(np.arange(nbase), (nmodel, 1))
-            #shufflerand = np.random.RandomState(shuffleseed)
-            ## I would like to keep this bit of code but it prevents
-            ## reproducibility when passing seed.
-            #for tempid in alltemplateid:
-            #    shufflerand.shuffle(tempid)
-            #alltemplateid_chunk = np.array_split(alltemplateid, nchunk, axis=1)
 
             if south:
                 magfilter = np.repeat(self.normfilter_south, nmodel)
@@ -755,9 +747,6 @@ class GALAXY(object):
         #objmeta['VDISP'][:] = vdisp
         for key, value in zip(('MAGFILTER', 'SEED'),(magfilter, templateseed)):
             meta[key][:] = value
-        #for key, value in zip(('REDSHIFT', 'MAG', 'MAGFILTER', 'SEED'),
-        #                       (redshift, mag, magfilter, templateseed)):
-        #    meta[key][:] = value
 
         # Load the unique set of MAGFILTERs.  We could check against
         # self.decamwise.names and self.bassmzlswise to see if the filters have
@@ -781,14 +770,8 @@ class GALAXY(object):
             templaterand = np.random.RandomState(templateseed[ii])
 
             # Shuffle the templates in order to add some variety to the selection.
-            
             print(ii, 'Shuffle')
             alltemplateid = templaterand.choice(nbase, size=nbase, replace=False)
-            #alltemplateid = np.tile(templaterand.choice(nbase, size=nbase, replace=False), (nmodel, 1))
-            #_alltemplateid = copy(alltemplateid)
-            #for tempid in _alltemplateid:
-            #    templaterand.shuffle(tempid)
-            #import pdb ; pdb.set_trace()
             alltemplateid_chunk = np.array_split(alltemplateid, nchunk)
             
             # Iterate up to maxiter.
@@ -799,13 +782,13 @@ class GALAXY(object):
                     mag = use_mag[ii]
                 else:
                     if use_redshift is None:
-                        print(ii, itercount, 'Redshift')
                         redshift = templaterand.uniform(zrange[0], zrange[1])
+                        print(ii, itercount, 'Redshift', redshift)
                     else:
                         redshift = use_redshift[ii]
                     if use_mag is None:
-                        print(ii, itercount, 'Mag')
                         mag = templaterand.uniform(magrange[0], magrange[1])#.astype('f4')
+                        print(ii, itercount, 'Mag', mag)
                     else:
                         mag = use_mag[ii]
                     if use_vdisp is None:
@@ -813,16 +796,6 @@ class GALAXY(object):
                         #vdisp = templaterand.uniform(magrange[0], magrange[1])#.astype('f4')
                     else:
                         vdisp = use_vdisp[ii]
-    
-                meta['REDSHIFT'][ii] = redshift
-                meta['MAG'][ii] = mag
-
-                #if itercount == 0:
-                #    print(ii, 'Shuffle')
-                #    _alltemplateid = copy(alltemplateid)
-                #    for tempid in _alltemplateid:
-                #        templaterand.shuffle(tempid)
-                #    alltemplateid_chunk = np.array_split(_alltemplateid, nchunk, axis=1)
     
                 zwave = self.basewave.astype(float) * (1.0 + redshift)
     
@@ -984,6 +957,8 @@ class GALAXY(object):
                             outflux[ii, :] = resample_flux(self.wave, zwave, blurflux, extrapolate=True)
     
                         meta['TEMPLATEID'][ii] = tempid
+                        meta['REDSHIFT'][ii] = redshift
+                        meta['MAG'][ii] = mag
                         meta['FLUX_G'][ii] = gflux[this]
                         meta['FLUX_R'][ii] = rflux[this]
                         meta['FLUX_Z'][ii] = zflux[this]
