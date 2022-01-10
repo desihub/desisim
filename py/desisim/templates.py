@@ -770,7 +770,6 @@ class GALAXY(object):
             templaterand = np.random.RandomState(templateseed[ii])
 
             # Shuffle the templates in order to add some variety to the selection.
-            print(ii, 'Shuffle')
             alltemplateid = templaterand.choice(nbase, size=nbase, replace=False)
             alltemplateid_chunk = np.array_split(alltemplateid, nchunk)
             
@@ -783,12 +782,10 @@ class GALAXY(object):
                 else:
                     if use_redshift is None:
                         redshift = templaterand.uniform(zrange[0], zrange[1])
-                        print(ii, itercount, 'Redshift', redshift)
                     else:
                         redshift = use_redshift[ii]
                     if use_mag is None:
                         mag = templaterand.uniform(magrange[0], magrange[1])#.astype('f4')
-                        print(ii, itercount, 'Mag', mag)
                     else:
                         mag = use_mag[ii]
                     if use_vdisp is None:
@@ -940,7 +937,6 @@ class GALAXY(object):
                     #if ii == 0:
                     #    import pdb ; pdb.set_trace()
                     if np.any(colormask*(zlineflux >= minlineflux)):
-                        print(ii, itercount, 'Choose template')
                         this = templaterand.choice(np.where(colormask * (zlineflux >= minlineflux))[0]) # Pick one randomly.
                         tempid = templateid[this]
     
@@ -979,8 +975,6 @@ class GALAXY(object):
                         makemore = False
                         break
 
-                #print(itercount, ii, redshift, mag)
-                print()
                 itercount += 1
                 if itercount == maxiter:
                     log.warning('Maximum number of iterations reached on {} model {}'.format(self.objtype, ii))
@@ -991,7 +985,7 @@ class GALAXY(object):
         if ~np.all(success):
             log.warning('{} spectra could not be computed given the input priors!'.\
                         format(np.sum(success == 0)))
-            import pdb ; pdb.set_trace()
+            raise ValueError
 
         if restframe:
             outwave = self.basewave
