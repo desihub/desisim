@@ -696,16 +696,15 @@ class GALAXY(object):
             else:
                 magfilter = np.repeat(self.normfilter_north, nmodel)
 
-        print('Fix me')
-        #if vdisp is None:
-        #    # Limit the number of unique velocity dispersion values.
-        #    nvdisp = int(np.max( ( np.min(
-        #        ( np.round(nmodel * self.fracvdisp[0]), self.fracvdisp[1] ) ), 1 ) ))
-        #    if logvdisp_meansig[1] > 0:
-        #        vvdisp = 10**rand.normal(logvdisp_meansig[0], logvdisp_meansig[1], nvdisp)
-        #    else:
-        #        vvdisp = 10**np.repeat(logvdisp_meansig[0], nvdisp)
-        #    vdisp = rand.choice(vvdisp, nmodel)
+        if vdisp is None:
+            # Limit the number of unique velocity dispersion values.
+            nvdisp = int(np.max( ( np.min(
+                ( np.round(nmodel * self.fracvdisp[0]), self.fracvdisp[1] ) ), 1 ) ))
+            if logvdisp_meansig[1] > 0:
+                vvdisp = 10**rand.normal(logvdisp_meansig[0], logvdisp_meansig[1], nvdisp)
+            else:
+                vvdisp = 10**np.repeat(logvdisp_meansig[0], nvdisp)
+            vdisp = rand.choice(vvdisp, nmodel)
 
         # Generate the (optional) distribution of transient model brightness
         # and epoch priors or read them from the input table.
@@ -743,8 +742,7 @@ class GALAXY(object):
             blurmatrix = self._blurmatrix(vdisp, log=log)
 
         # Populate some of the metadata table.
-        print('Fix vdisp')
-        #objmeta['VDISP'][:] = vdisp
+        objmeta['VDISP'][:] = vdisp
         for key, value in zip(('MAGFILTER', 'SEED'),(magfilter, templateseed)):
             meta[key][:] = value
 
@@ -788,11 +786,10 @@ class GALAXY(object):
                         mag = templaterand.uniform(magrange[0], magrange[1])#.astype('f4')
                     else:
                         mag = use_mag[ii]
-                    if use_vdisp is None:
-                        vdisp = 75.0
-                        #vdisp = templaterand.uniform(magrange[0], magrange[1])#.astype('f4')
-                    else:
-                        vdisp = use_vdisp[ii]
+                    #if use_vdisp is None:
+                    #    vdisp = templaterand.uniform(vdisprange[0], vdisprange[1])
+                    #else:
+                    #    vdisp = use_vdisp[ii]
     
                 zwave = self.basewave.astype(float) * (1.0 + redshift)
     
@@ -817,7 +814,7 @@ class GALAXY(object):
                                        templaterand.normal(0.0, 0.3, nbase))
                         normlineflux = self.basemeta['OII_CONTINUUM'].data * ewoii
     
-                        emflux, emwave, emline = self.EM.spectrum(linesigma=vdisp, seed=templateseed[ii],
+                        emflux, emwave, emline = self.EM.spectrum(linesigma=vdisp[ii], seed=templateseed[ii],
                                                                   oiidoublet=oiidoublet, oiiihbeta=oiiihbeta,
                                                                   oiihbeta=oiihbeta, niihbeta=niihbeta,
                                                                   siihbeta=siihbeta, oiiflux=1.0)
@@ -828,7 +825,7 @@ class GALAXY(object):
                                          (self.basemeta['HBETA_LIMIT'].data == 0) # rest-frame H-beta, Angstrom
                         normlineflux = self.basemeta['HBETA_CONTINUUM'].data * ewhbeta
     
-                        emflux, emwave, emline = self.EM.spectrum(linesigma=vdisp, seed=templateseed[ii],
+                        emflux, emwave, emline = self.EM.spectrum(linesigma=vdisp[ii], seed=templateseed[ii],
                                                                   oiidoublet=oiidoublet, oiiihbeta=oiiihbeta,
                                                                   oiihbeta=oiihbeta, niihbeta=niihbeta,
                                                                   siihbeta=siihbeta, hbetaflux=1.0)
@@ -1609,6 +1606,7 @@ class SUPERSTAR(object):
         if ~np.all(success):
             log.warning('{} spectra could not be computed given the input priors!'.\
                         format(np.sum(success == 0)))
+            raise ValueError
 
         if restframe:
             return 1e17 * outflux, self.basewave, meta, objmeta
@@ -2325,6 +2323,7 @@ class QSO():
         if ~np.all(success):
             log.warning('{} spectra could not be computed given the input priors!'.\
                         format(np.sum(success == 0)))
+            raise ValueError
 
         if noresample:
             outwave = zwave.T
@@ -2822,6 +2821,7 @@ class SIMQSO():
         if ~np.all(success):
             log.warning('{} spectra could not be computed given the input priors!'.\
                         format(np.sum(success == 0)))
+            raise ValueError
 
         meta['TEMPLATEID'] = np.arange(nmodel)
 
