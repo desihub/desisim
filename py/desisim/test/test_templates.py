@@ -79,9 +79,9 @@ class TestTemplates(unittest.TestCase):
         '''Confirm that ELG [OII] flux matches meta table description'''
         print('In function test_OII, seed = {}'.format(self.seed))
         wave = np.arange(5000, 9800.1, 0.2)
-        flux, ww, meta, objmeta = ELG(wave=wave).make_templates(seed=self.seed,
-            nmodel=10, zrange=(0.6, 1.6),
-            logvdisp_meansig = [np.log10(75), 0.0],
+        flux, ww, meta, objmeta = ELG(wave=wave).make_templates(
+            seed=self.seed, nmodel=10, zrange=(0.6, 1.6), 
+            vdisprange=(75.0, 75.0),
             nocolorcuts=True, nocontinuum=True)
     
         for i in range(len(meta)):
@@ -103,7 +103,7 @@ class TestTemplates(unittest.TestCase):
                   basemeta=basemeta[keep])
         flux, ww, meta, objmeta = bgs.make_templates(seed=self.seed,
             nmodel=10, zrange=(0.05, 0.4),
-            logvdisp_meansig=[np.log10(75),0.0], 
+            vdisprange=(75.0, 75.0),
             nocolorcuts=True, nocontinuum=True)
 
         for i in range(len(meta)):

@@ -626,41 +626,12 @@ class GALAXY(object):
 
         # Basic error checking and some preliminaries.
         if nocontinuum:
-            log.warning('Forcing nocolorcuts=True, transient=None since nocontinuum=True.')
+            log.debug('Forcing nocolorcuts=True, transient=None since nocontinuum=True.')
             nocolorcuts = True
             self.transient = None
 
         npix = len(self.basewave)
         nbase = len(self.basemeta)
-
-        if redshift is not None:
-            if len(redshift) != nmodel:
-                log.fatal('Redshift must be an nmodel-length array')
-                raise ValueError
-            use_redshift = copy(redshift)
-        else:
-            use_redshift = None
-
-        if mag is not None:
-            if len(mag) != nmodel:
-                log.fatal('Mag must be an nmodel-length array')
-                raise ValueError
-            use_mag = copy(mag)
-        else:
-            use_mag = None
-
-        if vdisp is not None:
-            if len(vdisp) != nmodel:
-                log.fatal('Vdisp must be an nmodel-length array')
-                raise ValueError
-            use_vdisp = copy(vdisp)
-
-            vzero = np.where(vdisp <= 0)[0]
-            if len(vzero) > 0:
-                log.fatal('Velocity dispersion is zero or negative!')
-                raise ValueError
-        else:
-            use_vdisp = None
 
         # Optionally unpack a metadata table.
         if input_meta is not None:
@@ -697,6 +668,39 @@ class GALAXY(object):
                 magfilter = np.repeat(self.normfilter_south, nmodel)
             else:
                 magfilter = np.repeat(self.normfilter_north, nmodel)
+
+        if redshift is not None:
+            if len(redshift) != nmodel:
+                log.fatal('Redshift must be an nmodel-length array')
+                raise ValueError
+            use_redshift = copy(redshift)
+        else:
+            if input_meta is not None:
+                use_redshift = None
+
+        if mag is not None:
+            if len(mag) != nmodel:
+                log.fatal('Mag must be an nmodel-length array')
+                raise ValueError
+            use_mag = copy(mag)
+        else:
+            if input_meta is not None:
+                use_mag = None
+
+        if vdisp is not None:
+            if len(vdisp) != nmodel:
+                import pdb ; pdb.set_trace()
+                log.fatal('Vdisp must be an nmodel-length array')
+                raise ValueError
+            use_vdisp = copy(vdisp)
+
+            vzero = np.where(vdisp <= 0)[0]
+            if len(vzero) > 0:
+                log.fatal('Velocity dispersion is zero or negative!')
+                raise ValueError
+        else:
+            if input_meta is not None:
+                use_vdisp = None
 
         # Generate the (optional) distribution of transient model brightness
         # and epoch priors or read them from the input table.
@@ -759,6 +763,7 @@ class GALAXY(object):
             makemore, itercount = True, 0
             while makemore:
                 if input_meta is not None:
+                    import pdb ; pdb.set_trace()
                     redshift = use_redshift[ii]
                     mag = use_mag[ii]
                 else:
