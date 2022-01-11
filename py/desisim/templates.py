@@ -614,7 +614,8 @@ class GALAXY(object):
         """
         from copy import copy
         from speclite import filters
-        from desispec.interpolation import resample_flux
+        #from desispec.interpolation import resample_flux
+        from redrock.rebin import trapz_rebin
         from astropy.table import Column
         from astropy import units as u
         from scipy.ndimage import gaussian_filter1d
@@ -646,7 +647,6 @@ class GALAXY(object):
             
             nchunk = 1
             nmodel = len(input_meta)
-            alltemplateid_chunk = [input_meta['TEMPLATEID'].data.reshape(nmodel, 1)]
 
             meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
         else:
@@ -661,7 +661,7 @@ class GALAXY(object):
 
             # Divide the basis templates into chunks, so we can speed up the
             # calculations below.
-            chunksize = np.min((nbase, 50))
+            chunksize = np.min((nbase, 100))
             nchunk = int(np.ceil(nbase / chunksize))
 
             if south:
@@ -752,9 +752,12 @@ class GALAXY(object):
             templaterand = np.random.RandomState(templateseed[ii])
 
             # Shuffle the templates in order to add some variety to the selection.
-            alltemplateid = templaterand.choice(nbase, size=nbase, replace=False)
-            alltemplateid_chunk = np.array_split(alltemplateid, nchunk)
-            
+            if input_meta is None:
+                alltemplateid = templaterand.choice(nbase, size=nbase, replace=False)
+                alltemplateid_chunk = np.array_split(alltemplateid, nchunk)
+            else:
+                alltemplateid_chunk = [np.atleast_1d(input_meta['TEMPLATEID'][ii])]
+
             # Iterate up to maxiter.
             makemore, itercount = True, 0
             while makemore:
@@ -827,7 +830,6 @@ class GALAXY(object):
     
                 # Assign the emission-line spectrum to chunks of continuum spectra
                 # until we simulate all the models requested.
-    
                 for ichunk in range(nchunk):
                     if ii % 100 == 0 and ii > 0:
                         log.debug('Simulating {} template {}/{} in chunk {}/{}.'. \
@@ -841,7 +843,7 @@ class GALAXY(object):
                           np.tile(normlineflux[templateid], (npix, 1)).T
                     else:
                         restflux = self.baseflux[templateid, :] + np.tile(emflux, (nbasechunk, 1)) * \
-                          np.tile(normlineflux[templateid], (npix, 1)).T
+                            np.tile(normlineflux[templateid], (npix, 1)).T
     
                     # Optionally add in the transient spectrum.
                     if self.transient is not None:
@@ -927,7 +929,9 @@ class GALAXY(object):
                         if restframe:
                             outflux[ii, :] = blurflux
                         else:
-                            outflux[ii, :] = resample_flux(self.wave, zwave, blurflux, extrapolate=True)
+                            trim = (zwave > (self.wave.min()-10.0)) * (zwave < (self.wave.max()+10.0))
+                            outflux[ii, :] = trapz_rebin(zwave[trim], blurflux[trim], self.wave)
+                            #outflux[ii, :] = resample_flux(self.wave, zwave, blurflux, extrapolate=True)
     
                         meta['TEMPLATEID'][ii] = tempid
                         meta['REDSHIFT'][ii] = redshift
@@ -951,9 +955,9 @@ class GALAXY(object):
     
                         # We succeeded modeling this object!
                         makemore = False
-                        print(ii, ichunk, itercount)
                         break
 
+                print(ii, ichunk, itercount)
                 itercount += 1
                 if itercount == maxiter:
                     log.warning('Maximum number of iterations reached on {} model {}'.format(self.objtype, ii))
@@ -1009,7 +1013,7 @@ class ELG(GALAXY):
 
         self.ewoiicoeff = [1.34323087, -5.02866474, 5.43842874]
 
-    def make_templates(self, nmodel=100, zrange=(0.2, 1.6), magrange=(20.0, 23.5),
+    def make_templates(self, nmodel=100, zrange=(0.6, 1.6), magrange=(20.0, 23.4),
                        oiiihbrange=(-0.5, 0.2), vdisprange=(50.0, 150.0),
                        minoiiflux=0.0, trans_filter='decam2014-r',
                        redshift=None, mag=None, vdisp=None, seed=None, input_meta=None,
