@@ -668,7 +668,7 @@ class GALAXY(object):
 
             # Initialize the random seed. If nmodel=1, use the input seed itself.
             rand = np.random.RandomState(seed)
-            if nmodel == 1:
+            if nmodel == 1 and seed is not None:
                 templateseed = np.atleast_1d(seed)
             else:
                 templateseed = rand.randint(2**32, size=nmodel)
@@ -1449,7 +1449,10 @@ class SUPERSTAR(object):
                     templateseed = star_properties['SEED'].data
                 else:
                     rand = np.random.RandomState(seed)
-                    templateseed = rand.randint(2**32, size=nmodel)
+                    if nmodel == 1 and seed is not None:
+                        templateseed = np.atleast_1d(seed)
+                    else:
+                        templateseed = rand.randint(2**32, size=nmodel)
 
                 if 'FEH' in self.basemeta.columns:
                     base_properties  = np.array([self.basemeta['LOGG'], self.basemeta['TEFF'],
@@ -1465,7 +1468,10 @@ class SUPERSTAR(object):
             else:
                 # Initialize the random seed.
                 rand = np.random.RandomState(seed)
-                templateseed = rand.randint(2**32, size=nmodel)
+                if nmodel == 1 and seed is not None:
+                    templateseed = np.atleast_1d(seed)
+                else:
+                    templateseed = rand.randint(2**32, size=nmodel)
 
                 # Shuffle the basis templates and then split them into ~equal chunks, so
                 # we can speed up the calculations below.
@@ -2132,7 +2138,7 @@ class QSO():
 
             # Initialize the random seed.
             rand = np.random.RandomState(seed)
-            if nmodel == 1:
+            if nmodel == 1 and seed is not None:
                 templateseed = np.atleast_1d(seed)
             else:
                 templateseed = rand.randint(2**32, size=nmodel)
