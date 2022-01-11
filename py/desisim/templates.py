@@ -766,7 +766,7 @@ class GALAXY(object):
                 else:
                     redshift = use_redshift[ii]
                 if use_mag is None:
-                    mag = templaterand.uniform(magrange[0], magrange[1])#.astype('f4')
+                    mag = templaterand.uniform(magrange[0], magrange[1])
                 else:
                     mag = use_mag[ii]
                 if use_vdisp is None:
@@ -957,7 +957,7 @@ class GALAXY(object):
                         makemore = False
                         break
 
-                print(ii, ichunk, itercount)
+                #print(ii, ichunk, itercount)
                 itercount += 1
                 if itercount == maxiter:
                     log.warning('Maximum number of iterations reached on {} model {}'.format(self.objtype, ii))
@@ -1455,7 +1455,7 @@ class SUPERSTAR(object):
                     redshift = np.array(vrad) / C_LIGHT
 
                 if mag is None:
-                    mag = rand.uniform(magrange[0], magrange[1], nmodel).astype('f4')
+                    mag = rand.uniform(magrange[0], magrange[1], nmodel)
 
                 if south:
                     magfilter = np.repeat(self.normfilter_south, nmodel)
@@ -2102,7 +2102,7 @@ class QSO():
                 redshift = np.atleast_1d(redshift)
 
             if mag is None:
-                mag = rand.uniform(magrange[0], magrange[1], nmodel).astype('f4')
+                mag = rand.uniform(magrange[0], magrange[1], nmodel)
             else:
                 mag = np.atleast_1d(mag)
 
