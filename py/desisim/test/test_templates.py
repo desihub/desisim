@@ -154,12 +154,7 @@ class TestTemplates(unittest.TestCase):
             print('Working on {} templates'.format(T.__name__))
             Tx = T(wave=self.wave)
             flux1, wave1, meta1, objmeta1 = Tx.make_templates(self.nspec, seed=self.seed)
-            import pdb ; pdb.set_trace()
-            if 'VDISP' in objmeta1.colnames:
-                vdisp = objmeta1['VDISP'].data
-                flux2, wave2, meta2, objmeta2 = Tx.make_templates(input_meta=meta1, vdisp=vdisp)
-            else:
-                flux2, wave2, meta2, objmeta2 = Tx.make_templates(input_meta=meta1)
+            flux2, wave2, meta2, objmeta2 = Tx.make_templates(input_meta=meta1, input_objmeta=objmeta1)
 
             badkeys = list()
             for key in meta1.colnames:
@@ -167,89 +162,87 @@ class TestTemplates(unittest.TestCase):
                            'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2'):
                     #- not sure why the tolerances aren't closer
                     if not np.allclose(meta1[key], meta2[key], rtol=1e-4):
-                        import pdb ; pdb.set_trace()
-                        print(meta1['OBJTYPE'][0], key, meta1[key], meta2[key])
+                        #print(meta1['OBJTYPE'][0], key, meta1[key], meta2[key])
                         badkeys.append(key)
+                        print(key, meta1[key][0], meta2[key][0])
                 else:
                     if not np.all(meta1[key] == meta2[key]):
                         badkeys.append(key)
 
             self.assertEqual(len(badkeys), 0, 'mismatch for spectral type {} in keys {}'.format(meta1['OBJTYPE'][0], badkeys))
-            #if np.all(np.allclose(flux1, flux2, atol=1e-3)) is False:
-            #    import pdb ; pdb.set_trace()
-            self.assertTrue(np.all(np.isclose(flux1, flux2, atol=1e-3)))
-            #self.assertTrue(np.allclose(flux1, flux2, rtol=1e-4))
+            #self.assertTrue(np.all(np.isclose(flux1, flux2, atol=1e-3)))
+            self.assertTrue(np.allclose(flux1, flux2, rtol=1e-4))
             self.assertTrue(np.all(wave1 == wave2))
 
-    @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
-    def test_star_properties(self):
-        '''Test that input data table option works.'''
-        #print('In function test_star_properties, seed = {}'.format(self.seed))
-        star_properties = Table()
-        star_properties.add_column(Column(name='REDSHIFT', length=self.nspec, dtype='f4'))
-        star_properties.add_column(Column(name='MAG', length=self.nspec, dtype='f4'))
-        star_properties.add_column(Column(name='MAGFILTER', length=self.nspec, dtype='U15'))
-        star_properties.add_column(Column(name='TEFF', length=self.nspec, dtype='f4'))
-        star_properties.add_column(Column(name='LOGG', length=self.nspec, dtype='f4'))
-        star_properties.add_column(Column(name='FEH', length=self.nspec, dtype='f4'))
-        star_properties['REDSHIFT'] = self.rand.uniform(-5E-4, 5E-4, self.nspec)
-        star_properties['MAG'] = self.rand.uniform(16, 19, self.nspec)
-        star_properties['MAGFILTER'][:] = 'decam2014-r'
-        star_properties['TEFF'] = self.rand.uniform(4000, 10000, self.nspec)
-        star_properties['LOGG'] = self.rand.uniform(0.5, 5.0, self.nspec)
-        star_properties['FEH'] = self.rand.uniform(-2.0, 0.0, self.nspec)
-        for T in [STAR]:
-            Tx = T(wave=self.wave)
-            flux, wave, meta, objmeta = Tx.make_templates(star_properties=star_properties, seed=self.seed)
-            badkeys = list()
-            for key in ('REDSHIFT', 'MAG'):
-                if not np.allclose(meta[key], star_properties[key]):
-                    badkeys.append(key)
-            for key in ('TEFF', 'LOGG', 'FEH'):
-                if not np.allclose(objmeta[key], star_properties[key]):
-                    badkeys.append(key)
-            self.assertEqual(len(badkeys), 0, 'mismatch for spectral type {} in keys {}'.format(meta['OBJTYPE'][0], badkeys))
-
-    def test_lyamock_seed(self):
-        '''Test that random seed works to get the same results back'''
-        #print('In function test_lyamock_seed, seed = {}'.format(self.seed))
-        mock = lyamock.MockMaker()
-        wave1, flux1 = mock.get_lya_skewers(self.nspec, new_seed=1)
-        wave2, flux2 = mock.get_lya_skewers(self.nspec, new_seed=1)
-        wave3, flux3 = mock.get_lya_skewers(self.nspec, new_seed=2)
-        self.assertTrue(np.all(flux1==flux2))
-        self.assertTrue(np.any(flux1!=flux3))
-        self.assertTrue(np.all(wave1==wave2))
-
-    @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
-    def test_meta(self):
-        '''Test the metadata tables have the columns we expect'''
-        #print('In function test_meta, seed = {}'.format(self.seed))
-        for T in [ELG, LRG, BGS, STAR, STD, MWS_STAR, WD, QSO]:
-            template_factory = T(wave=self.wave)
-            flux, wave, meta, objmeta = template_factory.make_templates(self.nspec, seed=self.seed)
-
-            self.assertTrue(np.all(np.in1d(['TARGETID', 'OBJTYPE', 'SUBTYPE', 'TEMPLATEID', 'SEED',
-                                            'REDSHIFT', 'MAG', 'MAGFILTER', 'FLUX_G', 'FLUX_R',
-                                            'FLUX_Z', 'FLUX_W1', 'FLUX_W2'],
-                                            meta.colnames)))
-
-            if ( isinstance(template_factory, ELG) or isinstance(template_factory, LRG) or
-                 isinstance(template_factory, BGS) ):
-                self.assertTrue(np.all(np.in1d(['TARGETID', 'OIIFLUX', 'HBETAFLUX', 'EWOII', 'EWHBETA',
-                                                'D4000', 'VDISP', 'OIIDOUBLET', 'OIIIHBETA', 'OIIHBETA',
-                                                'NIIHBETA', 'SIIHBETA'],
-                                                objmeta.colnames)))
-                
-            if (isinstance(template_factory, STAR) or isinstance(template_factory, STD) or
-                isinstance(template_factory, MWS_STAR) ):
-                self.assertTrue(np.all(np.in1d(['TARGETID', 'TEFF', 'LOGG', 'FEH'], objmeta.colnames)))
-
-            if isinstance(template_factory, WD):
-                self.assertTrue(np.all(np.in1d(['TARGETID', 'TEFF', 'LOGG'], objmeta.colnames)))
-
-            if isinstance(template_factory, QSO):
-                self.assertTrue(np.all(np.in1d(['TARGETID', 'PCA_COEFF'], objmeta.colnames)))
+    #@unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
+    #def test_star_properties(self):
+    #    '''Test that input data table option works.'''
+    #    #print('In function test_star_properties, seed = {}'.format(self.seed))
+    #    star_properties = Table()
+    #    star_properties.add_column(Column(name='REDSHIFT', length=self.nspec, dtype='f4'))
+    #    star_properties.add_column(Column(name='MAG', length=self.nspec, dtype='f4'))
+    #    star_properties.add_column(Column(name='MAGFILTER', length=self.nspec, dtype='U15'))
+    #    star_properties.add_column(Column(name='TEFF', length=self.nspec, dtype='f4'))
+    #    star_properties.add_column(Column(name='LOGG', length=self.nspec, dtype='f4'))
+    #    star_properties.add_column(Column(name='FEH', length=self.nspec, dtype='f4'))
+    #    star_properties['REDSHIFT'] = self.rand.uniform(-5E-4, 5E-4, self.nspec)
+    #    star_properties['MAG'] = self.rand.uniform(16, 19, self.nspec)
+    #    star_properties['MAGFILTER'][:] = 'decam2014-r'
+    #    star_properties['TEFF'] = self.rand.uniform(4000, 10000, self.nspec)
+    #    star_properties['LOGG'] = self.rand.uniform(0.5, 5.0, self.nspec)
+    #    star_properties['FEH'] = self.rand.uniform(-2.0, 0.0, self.nspec)
+    #    for T in [STAR]:
+    #        Tx = T(wave=self.wave)
+    #        flux, wave, meta, objmeta = Tx.make_templates(star_properties=star_properties, seed=self.seed)
+    #        badkeys = list()
+    #        for key in ('REDSHIFT', 'MAG'):
+    #            if not np.allclose(meta[key], star_properties[key]):
+    #                badkeys.append(key)
+    #        for key in ('TEFF', 'LOGG', 'FEH'):
+    #            if not np.allclose(objmeta[key], star_properties[key]):
+    #                badkeys.append(key)
+    #        self.assertEqual(len(badkeys), 0, 'mismatch for spectral type {} in keys {}'.format(meta['OBJTYPE'][0], badkeys))
+    #
+    #def test_lyamock_seed(self):
+    #    '''Test that random seed works to get the same results back'''
+    #    #print('In function test_lyamock_seed, seed = {}'.format(self.seed))
+    #    mock = lyamock.MockMaker()
+    #    wave1, flux1 = mock.get_lya_skewers(self.nspec, new_seed=1)
+    #    wave2, flux2 = mock.get_lya_skewers(self.nspec, new_seed=1)
+    #    wave3, flux3 = mock.get_lya_skewers(self.nspec, new_seed=2)
+    #    self.assertTrue(np.all(flux1==flux2))
+    #    self.assertTrue(np.any(flux1!=flux3))
+    #    self.assertTrue(np.all(wave1==wave2))
+    #
+    #@unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
+    #def test_meta(self):
+    #    '''Test the metadata tables have the columns we expect'''
+    #    #print('In function test_meta, seed = {}'.format(self.seed))
+    #    for T in [ELG, LRG, BGS, STAR, STD, MWS_STAR, WD, QSO]:
+    #        template_factory = T(wave=self.wave)
+    #        flux, wave, meta, objmeta = template_factory.make_templates(self.nspec, seed=self.seed)
+    #
+    #        self.assertTrue(np.all(np.in1d(['TARGETID', 'OBJTYPE', 'SUBTYPE', 'TEMPLATEID', 'SEED',
+    #                                        'REDSHIFT', 'MAG', 'MAGFILTER', 'FLUX_G', 'FLUX_R',
+    #                                        'FLUX_Z', 'FLUX_W1', 'FLUX_W2'],
+    #                                        meta.colnames)))
+    #
+    #        if ( isinstance(template_factory, ELG) or isinstance(template_factory, LRG) or
+    #             isinstance(template_factory, BGS) ):
+    #            self.assertTrue(np.all(np.in1d(['TARGETID', 'OIIFLUX', 'HBETAFLUX', 'EWOII', 'EWHBETA',
+    #                                            'D4000', 'VDISP', 'OIIDOUBLET', 'OIIIHBETA', 'OIIHBETA',
+    #                                            'NIIHBETA', 'SIIHBETA'],
+    #                                            objmeta.colnames)))
+    #            
+    #        if (isinstance(template_factory, STAR) or isinstance(template_factory, STD) or
+    #            isinstance(template_factory, MWS_STAR) ):
+    #            self.assertTrue(np.all(np.in1d(['TARGETID', 'TEFF', 'LOGG', 'FEH'], objmeta.colnames)))
+    #
+    #        if isinstance(template_factory, WD):
+    #            self.assertTrue(np.all(np.in1d(['TARGETID', 'TEFF', 'LOGG'], objmeta.colnames)))
+    #
+    #        if isinstance(template_factory, QSO):
+    #            self.assertTrue(np.all(np.in1d(['TARGETID', 'PCA_COEFF'], objmeta.colnames)))
 
 if __name__ == '__main__':
     unittest.main()

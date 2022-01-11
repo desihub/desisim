@@ -32,6 +32,17 @@ def _check_input_meta(input_meta, ignore_templateid=False):
             required_cols))
         raise ValueError
 
+def _check_input_objmeta(input_objmeta, objtype):
+    log = get_logger()
+    cols = input_objmeta.colnames
+    _, ref = empty_metatable(objtype=objtype)
+
+    required_cols = ref.colnames
+    if not np.all(np.in1d(required_cols, cols)):
+        log.warning('Input object metadata table (input_objmeta) is missing one or more required columns {}'.format(
+            required_cols))
+        raise ValueError
+
 def _check_star_properties(star_properties, WD=False):
     log = get_logger()
     cols = star_properties.colnames
@@ -510,7 +521,7 @@ class GALAXY(object):
                               oiiihbrange=(-0.5, 0.2), vdisprange=(100.0, 300.0),
                               minlineflux=0.0, trans_filter='decam2014-r',
                               maxiter=10, seed=None, redshift=None, mag=None, vdisp=None,
-                              input_meta=None, nocolorcuts=False,
+                              input_meta=None, input_objmeta=None, nocolorcuts=False,
                               nocontinuum=False, agnlike=False, novdisp=False, south=True,
                               restframe=False, verbose=False):
         """Build Monte Carlo galaxy spectra/templates.
@@ -637,6 +648,9 @@ class GALAXY(object):
         # Optionally unpack a metadata table.
         if input_meta is not None:
             _check_input_meta(input_meta)
+            if input_objmeta is not None:
+                _check_input_objmeta(input_objmeta, self.objtype)
+                vdisp = input_objmeta['VDISP']
 
             templateseed = input_meta['SEED'].data
             rand = np.random.RandomState(templateseed[0])
@@ -781,39 +795,51 @@ class GALAXY(object):
                     emflux = np.zeros(npix)
                     normlineflux = np.zeros(nbase)
                 else:
-                    # For speed, build just a single emission-line spectrum for all
-                    # continuum templates. In detail the line-ratios should
-                    # correlate with D(4000) or something else.
-                    oiidoublet, oiihbeta, niihbeta, siihbeta, oiiihbeta = \
-                      self.lineratios(nobj=1, oiiihbrange=oiiihbrange,
-                                      rand=templaterand, agnlike=agnlike)
-    
-                    for key, value in zip(('OIIIHBETA', 'OIIHBETA', 'NIIHBETA', 'SIIHBETA', 'OIIDOUBLET'),
-                                          (oiiihbeta, oiihbeta, niihbeta, siihbeta, oiidoublet)):
-                        objmeta[key][ii] = value
-    
+                    # Build the emission-line spectrum for this object. In
+                    # detail the line-ratios should correlate with D(4000) or
+                    # something else.
+                    if input_objmeta is not None:
+                        oiidoublet = input_objmeta['OIIDOUBLET'][ii]
+                        oiihbeta = input_objmeta['OIIHBETA'][ii]
+                        niihbeta = input_objmeta['NIIHBETA'][ii]
+                        siihbeta = input_objmeta['SIIHBETA'][ii]
+                        oiiihbeta = input_objmeta['OIIIHBETA'][ii]
+                        oiiflux = input_objmeta['OIIFLUX'][ii]
+                        hbetaflux = input_objmeta['HBETAFLUX'][ii]
+                        ewoii = input_objmeta['EWOII'][ii]
+                        ewhbeta = input_objmeta['EWHBETA'][ii]
+                    else:
+                        oiidoublet, oiihbeta, niihbeta, siihbeta, oiiihbeta = \
+                            self.lineratios(nobj=1, oiiihbrange=oiiihbrange,
+                                            rand=templaterand, agnlike=agnlike)
+
+                        if self.normline.upper() == 'OII':
+                            ewoii = 10.0**(np.polyval(self.ewoiicoeff, d4000) + # rest-frame EW([OII]), Angstrom
+                                           templaterand.normal(0.0, 0.3, nbase))
+                        elif self.normline.upper() == 'HBETA':
+                            ewhbeta = 10.0**(np.polyval(self.ewhbetacoeff, d4000) + \
+                                             templaterand.normal(0.0, 0.2, nbase)) * \
+                                             (self.basemeta['HBETA_LIMIT'].data == 0) # rest-frame H-beta, Angstrom
+
                     if self.normline.upper() == 'OII':
-                        ewoii = 10.0**(np.polyval(self.ewoiicoeff, d4000) + # rest-frame EW([OII]), Angstrom
-                                       templaterand.normal(0.0, 0.3, nbase))
                         normlineflux = self.basemeta['OII_CONTINUUM'].data * ewoii
-    
                         emflux, emwave, emline = self.EM.spectrum(linesigma=vdisp, seed=templateseed[ii],
                                                                   oiidoublet=oiidoublet, oiiihbeta=oiiihbeta,
                                                                   oiihbeta=oiihbeta, niihbeta=niihbeta,
                                                                   siihbeta=siihbeta, oiiflux=1.0)
     
                     elif self.normline.upper() == 'HBETA':
-                        ewhbeta = 10.0**(np.polyval(self.ewhbetacoeff, d4000) + \
-                                         templaterand.normal(0.0, 0.2, nbase)) * \
-                                         (self.basemeta['HBETA_LIMIT'].data == 0) # rest-frame H-beta, Angstrom
                         normlineflux = self.basemeta['HBETA_CONTINUUM'].data * ewhbeta
-    
                         emflux, emwave, emline = self.EM.spectrum(linesigma=vdisp, seed=templateseed[ii],
                                                                   oiidoublet=oiidoublet, oiiihbeta=oiiihbeta,
                                                                   oiihbeta=oiihbeta, niihbeta=niihbeta,
                                                                   siihbeta=siihbeta, hbetaflux=1.0)
     
                     emflux /= (1+redshift) # [erg/s/cm2/A, @redshift]
+
+                    for key, value in zip(('OIIIHBETA', 'OIIHBETA', 'NIIHBETA', 'SIIHBETA', 'OIIDOUBLET'),
+                                          (oiiihbeta, oiihbeta, niihbeta, siihbeta, oiidoublet)):
+                        objmeta[key][ii] = value
     
                 # Optionally get the transient spectrum and normalization factor.
                 if self.transient is not None:
@@ -946,13 +972,19 @@ class GALAXY(object):
                         objmeta['D4000'][ii] = d4000[tempid]
     
                         if self.normline is not None:
-                            if self.normline == 'OII':
-                                objmeta['OIIFLUX'][ii] = zlineflux[this]
-                                objmeta['EWOII'][ii] = ewoii[tempid]
-                            elif self.normline == 'HBETA':
-                                objmeta['HBETAFLUX'][ii] = zlineflux[this]
-                                objmeta['EWHBETA'][ii] = ewhbeta[tempid]
-    
+                            if input_objmeta is not None:
+                                objmeta['OIIFLUX'][ii] = oiiflux
+                                objmeta['EWOII'][ii] = ewoii
+                                objmeta['HBETAFLUX'][ii] = hbetaflux
+                                objmeta['EWHBETA'][ii] = ewhbeta
+                            else:
+                                if self.normline == 'OII':
+                                    objmeta['OIIFLUX'][ii] = zlineflux[this]
+                                    objmeta['EWOII'][ii] = ewoii[tempid]
+                                elif self.normline == 'HBETA':
+                                    objmeta['HBETAFLUX'][ii] = zlineflux[this]
+                                    objmeta['EWHBETA'][ii] = ewhbeta[tempid]
+        
                         # We succeeded modeling this object!
                         makemore = False
                         break
@@ -1017,7 +1049,7 @@ class ELG(GALAXY):
                        oiiihbrange=(-0.5, 0.2), vdisprange=(50.0, 150.0),
                        minoiiflux=0.0, trans_filter='decam2014-r',
                        redshift=None, mag=None, vdisp=None, seed=None, input_meta=None,
-                       nocolorcuts=False, nocontinuum=False, agnlike=False,
+                       input_objmeta=None, nocolorcuts=False, nocontinuum=False, agnlike=False,
                        novdisp=False, south=True, restframe=False, verbose=False):
         """Build Monte Carlo ELG spectra/templates.
 
@@ -1051,7 +1083,7 @@ class ELG(GALAXY):
                                             oiiihbrange=oiiihbrange, vdisprange=vdisprange,
                                             minlineflux=minoiiflux, redshift=redshift, vdisp=vdisp,
                                             mag=mag, trans_filter=trans_filter,
-                                            seed=seed, input_meta=input_meta,
+                                            seed=seed, input_meta=input_meta, input_objmeta=input_objmeta,
                                             nocolorcuts=nocolorcuts, nocontinuum=nocontinuum, agnlike=agnlike,
                                             novdisp=novdisp, south=south, restframe=restframe, verbose=verbose)
         return result
@@ -1095,7 +1127,7 @@ class BGS(GALAXY):
                        oiiihbrange=(-1.3, 0.6), vdisprange=(120.0, 300.0),
                        minhbetaflux=0.0, trans_filter='decam2014-r',
                        redshift=None, mag=None, vdisp=None, seed=None, input_meta=None,
-                       nocolorcuts=False, nocontinuum=False, agnlike=False,
+                       input_objmeta=None, nocolorcuts=False, nocontinuum=False, agnlike=False,
                        novdisp=False, south=True, restframe=False, verbose=False):
         """Build Monte Carlo BGS spectra/templates.
 
@@ -1129,7 +1161,7 @@ class BGS(GALAXY):
                                             oiiihbrange=oiiihbrange, vdisprange=vdisprange, 
                                             minlineflux=minhbetaflux, redshift=redshift, vdisp=vdisp,
                                             mag=mag, trans_filter=trans_filter,
-                                            seed=seed, input_meta=input_meta,
+                                            seed=seed, input_meta=input_meta, input_objmeta=input_objmeta,
                                             nocolorcuts=nocolorcuts, nocontinuum=nocontinuum, agnlike=agnlike,
                                             novdisp=novdisp, south=south, restframe=restframe, verbose=verbose)
         return result
@@ -1168,8 +1200,8 @@ class LRG(GALAXY):
     def make_templates(self, nmodel=100, zrange=(0.35, 1.0), magrange=(18.2, 21.1),
                        vdisprange=(150.0, 300.0), trans_filter='decam2014-r', 
                        redshift=None, mag=None, vdisp=None, seed=None, input_meta=None, 
-                       nocolorcuts=False, novdisp=False, agnlike=False, south=True, 
-                       restframe=False, verbose=False):
+                       input_objmeta=None, nocolorcuts=False, novdisp=False, agnlike=False, 
+                       south=True, restframe=False, verbose=False):
         """Build Monte Carlo BGS spectra/templates.
 
          See the GALAXY.make_galaxy_templates function for documentation on the
@@ -1198,9 +1230,9 @@ class LRG(GALAXY):
         result = self.make_galaxy_templates(nmodel=nmodel, zrange=zrange, magrange=magrange,
                                             vdisprange=vdisprange, redshift=redshift,
                                             vdisp=vdisp, mag=mag, trans_filter=trans_filter, 
-                                            seed=seed, input_meta=input_meta, nocolorcuts=nocolorcuts,
-                                            agnlike=agnlike, novdisp=novdisp, south=south,
-                                            restframe=restframe, verbose=verbose)
+                                            seed=seed, input_meta=input_meta, input_objmeta=input_objmeta,
+                                            nocolorcuts=nocolorcuts, agnlike=agnlike, novdisp=novdisp, 
+                                            south=south, restframe=restframe, verbose=verbose)
 
         # Pre-v2.4 templates:
         if 'ZMETAL' in self.basemeta.colnames:
@@ -1298,9 +1330,9 @@ class SUPERSTAR(object):
 
     def make_star_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                             magrange=(18.0, 22.0), seed=None, redshift=None,
-                            mag=None, input_meta=None, star_properties=None,
-                            nocolorcuts=False, south=True, restframe=False,
-                            verbose=False):
+                            mag=None, input_meta=None, input_objmeta=None, 
+                            star_properties=None, nocolorcuts=False, south=True, 
+                            restframe=False, verbose=False):
 
         """Build Monte Carlo spectra/templates for various flavors of stars.
 
@@ -1620,8 +1652,9 @@ class STAR(SUPERSTAR):
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0),
                        magrange=(18.0, 23.5), seed=None, redshift=None,
-                       mag=None, input_meta=None, star_properties=None,
-                       south=True, restframe=False, verbose=False):
+                       mag=None, input_meta=None, input_objmeta=None, 
+                       star_properties=None, south=True, restframe=False, 
+                       verbose=False):
         """Build Monte Carlo spectra/templates for generic stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
@@ -1644,7 +1677,7 @@ class STAR(SUPERSTAR):
         """
         result = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
                                           magrange=magrange, seed=seed, redshift=redshift,
-                                          mag=mag, input_meta=input_meta,
+                                          mag=mag, input_meta=input_meta, input_objmeta=input_objmeta,
                                           star_properties=star_properties,
                                           restframe=restframe, verbose=verbose)
         return result
@@ -1676,8 +1709,9 @@ class STD(SUPERSTAR):
                                    baseflux=baseflux, basewave=basewave, basemeta=basemeta)
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), magrange=(16.0, 19.0),
-                       seed=None, redshift=None, mag=None, input_meta=None, star_properties=None,
-                       nocolorcuts=False, south=True, restframe=False, verbose=False):
+                       seed=None, redshift=None, mag=None, input_meta=None, input_objmeta=None, 
+                       star_properties=None, nocolorcuts=False, south=True, restframe=False, 
+                       verbose=False):
         """Build Monte Carlo spectra/templates for STD stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
@@ -1700,7 +1734,7 @@ class STD(SUPERSTAR):
         """
         result = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
                                           magrange=magrange, seed=seed, redshift=redshift,
-                                          mag=mag, input_meta=input_meta,
+                                          mag=mag, input_meta=input_meta, input_objmeta=input_objmeta,
                                           star_properties=star_properties,
                                           nocolorcuts=nocolorcuts, south=south,
                                           restframe=restframe, verbose=verbose)
@@ -1733,8 +1767,9 @@ class MWS_STAR(SUPERSTAR):
                                        baseflux=baseflux, basewave=basewave, basemeta=basemeta)
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), magrange=(16.0, 20.0),
-                       seed=None, redshift=None, mag=None, input_meta=None, star_properties=None,
-                       nocolorcuts=False, south=True, restframe=False, verbose=False):
+                       seed=None, redshift=None, mag=None, input_meta=None, input_objmeta=None, 
+                       star_properties=None, nocolorcuts=False, south=True, restframe=False, 
+                       verbose=False):
         """Build Monte Carlo spectra/templates for MWS_STAR stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
@@ -1757,7 +1792,7 @@ class MWS_STAR(SUPERSTAR):
         """
         result = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
                                           magrange=magrange, seed=seed, redshift=redshift,
-                                          mag=mag, input_meta=input_meta,
+                                          mag=mag, input_meta=input_meta, input_objmeta=input_objmeta,
                                           star_properties=star_properties,
                                           nocolorcuts=nocolorcuts, south=south,
                                           restframe=restframe, verbose=verbose)
@@ -1786,8 +1821,9 @@ class WD(SUPERSTAR):
                                  baseflux=baseflux, basewave=basewave, basemeta=basemeta)
 
     def make_templates(self, nmodel=100, vrad_meansig=(0.0, 200.0), magrange=(16.0, 19.0),
-                       seed=None, redshift=None, mag=None, input_meta=None, star_properties=None,
-                       nocolorcuts=False, south=True, restframe=False, verbose=False):
+                       seed=None, redshift=None, mag=None, input_meta=None, input_objmeta=None, 
+                       star_properties=None, nocolorcuts=False, south=True, restframe=False, 
+                       verbose=False):
         """Build Monte Carlo spectra/templates for WD stars.
 
         See the SUPERSTAR.make_star_templates function for documentation on the
@@ -1822,7 +1858,7 @@ class WD(SUPERSTAR):
         
         result = self.make_star_templates(nmodel=nmodel, vrad_meansig=vrad_meansig,
                                           magrange=magrange, seed=seed, redshift=redshift,
-                                          mag=mag, input_meta=input_meta,
+                                          mag=mag, input_meta=input_meta, input_objmeta=input_objmeta,
                                           star_properties=star_properties,
                                           nocolorcuts=nocolorcuts, south=south,
                                           restframe=restframe, verbose=verbose)
