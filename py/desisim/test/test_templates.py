@@ -150,11 +150,13 @@ class TestTemplates(unittest.TestCase):
     def test_input_meta(self):
         '''Test that input meta table option works.'''
         #print('In function test_input_meta, seed = {}'.format(self.seed))
-        for T in [ELG, LRG, BGS, QSO, STAR, MWS_STAR, WD]:
+        for T in [QSO, STAR, MWS_STAR, WD]:
+        #for T in [ELG, LRG, BGS, QSO, STAR, MWS_STAR, WD]:
             print('Working on {} templates'.format(T.__name__))
             Tx = T(wave=self.wave)
             flux1, wave1, meta1, objmeta1 = Tx.make_templates(self.nspec, seed=self.seed)
             flux2, wave2, meta2, objmeta2 = Tx.make_templates(input_meta=meta1, input_objmeta=objmeta1)
+            import pdb ; pdb.set_trace()
 
             badkeys = list()
             for key in meta1.colnames:

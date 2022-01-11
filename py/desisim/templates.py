@@ -2169,21 +2169,10 @@ class QSO():
                 log.fatal('Mag must be an nmodel-length array')
                 raise ValueError
 
-        #import pdb ; pdb.set_trace()
-
-        # Pre-compute the Lyman-alpha skewers.
-        if lyaforest:
-            for ii in range(nmodel):
-                skewer_wave, skewer_flux1 = self.lyamock_maker.get_lya_skewers(
-                    1, new_seed=templateseed[ii])
-                if ii == 0:
-                    skewer_flux = np.zeros( (nmodel, len(skewer_wave)) )
-                skewer_flux[ii, :] = skewer_flux1
-
         # Populate some of the metadata table.
         meta['TEMPLATEID'][:] = np.arange(nmodel)
-        for key, value in zip(('REDSHIFT', 'MAG', 'MAGFILTER', 'SEED'),
-                               (redshift, mag, magfilter, templateseed)):
+        for key, value in zip(('MAGFILTER', 'SEED'),
+                               (magfilter, templateseed)):
             meta[key][:] = value
 
         if lyaforest: 
@@ -2204,9 +2193,12 @@ class QSO():
             normfilt[mfilter] = filters.load_filters(mfilter)
 
         # Build each spectrum in turn.
-        PCA_rand = np.zeros( (4, N_perz) )
+        if input_objmeta is not None:
+            N_perz = 1
+        else:
+            PCA_rand = np.zeros((4, N_perz))
         nonegflux = np.zeros(N_perz)
-        flux = np.zeros( (N_perz, npix) )
+        flux = np.zeros((N_perz, npix))
 
         #zwave = np.outer(self.eigenwave, 1+redshift) # [observed-frame, Angstrom]
         if noresample:
@@ -2254,12 +2246,13 @@ class QSO():
                 zQSO = self.sdss_zQSO
                 pca_coeff = self.sdss_pca_coeff
 
-            # Interpolate the Lya forest spectrum.
+            # Compute and interpolate the Lya forest spectrum.
             if lyaforest:
+                skewer_wave, _skewer_flux = self.lyamock_maker.get_lya_skewers(Ns=1, new_seed=templateseed[ii])
+                skewer_flux = _skewer_flux[0]
                 no_forest = ( skewer_wave > self.lambda_lyalpha * (1 + redshift) )
-                skewer_flux[ii, no_forest] = 1.0
-                qso_skewer_flux = resample_flux(zwave, skewer_wave, skewer_flux[ii, :],
-                                                extrapolate=True)
+                skewer_flux[no_forest] = 1.0
+                qso_skewer_flux = resample_flux(zwave, skewer_wave, skewer_flux, extrapolate=True)
                 w = zwave > self.lambda_lyalpha * (1 + redshift)
                 qso_skewer_flux[w] = 1.0
 
@@ -2273,30 +2266,33 @@ class QSO():
             # Need these arrays for the MFP, below.
             if redshift > 2.39:
                 z912 = zwave[:pix912] / self.lambda_lylimit - 1.0
-                phys_dist = np.fabs( self.cosmo.lookback_distance(z912) - zlook[ii] ) # [Mpc]
+                phys_dist = np.fabs( self.cosmo.lookback_distance(z912) - zlook ) # [Mpc]
                     
             # Iterate up to maxiter.
             makemore, itercount = True, 0
             while makemore:
-                # Gather N_perz sets of coefficients.
-                for jj, ipca in enumerate(self.pca_list):
-                    if uniform:
-                        if jj == 0:  # Use bounds for PCA0 [avoids negative values]
-                            xmnx = perc(pca_coeff[ipca][idx], per=95)
-                            PCA_rand[jj, :] = templaterand.uniform(xmnx[0], xmnx[1], N_perz)
+                if input_objmeta is not None:
+                    PCA_rand = input_objmeta['PCA_COEFF'][ii].reshape(4, 1)
+                else:
+                    # Gather N_perz sets of coefficients.
+                    for jj, ipca in enumerate(self.pca_list):
+                        if uniform:
+                            if jj == 0:  # Use bounds for PCA0 [avoids negative values]
+                                xmnx = perc(pca_coeff[ipca][idx], per=95)
+                                PCA_rand[jj, :] = templaterand.uniform(xmnx[0], xmnx[1], N_perz)
+                            else:
+                                mn = np.mean(pca_coeff[ipca][idx])
+                                sig = np.std(pca_coeff[ipca][idx])
+                                PCA_rand[jj, :] = templaterand.uniform( mn - 2*sig, mn + 2*sig, N_perz)
                         else:
-                            mn = np.mean(pca_coeff[ipca][idx])
-                            sig = np.std(pca_coeff[ipca][idx])
-                            PCA_rand[jj, :] = templaterand.uniform( mn - 2*sig, mn + 2*sig, N_perz)
-                    else:
-                        PCA_rand[jj, :] = self._sample_pcacoeff(N_perz, pca_coeff[ipca][idx], templaterand)
-
+                            PCA_rand[jj, :] = self._sample_pcacoeff(N_perz, pca_coeff[ipca][idx], templaterand)
+    
                 # Instantiate the templates, including attenuation below the
                 # Lyman-limit based on the MFP, and the Lyman-alpha forest.
                 for kk in range(N_perz):
                     flux[kk, :] = np.dot(self.eigenflux.T, PCA_rand[:, kk]).flatten()
                     if redshift > 2.39:
-                         flux[kk, :pix912] *= np.exp(-phys_dist.value / mfp[ii])
+                         flux[kk, :pix912] *= np.exp(-phys_dist.value / mfp)
 
                     if lyaforest:
                         flux[kk, :] *= qso_skewer_flux                    
