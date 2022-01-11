@@ -13,6 +13,7 @@ class Testquickquasars(unittest.TestCase):
         cls.origdir = os.getcwd()
         cls.testdir =tempfile.mkdtemp()
         os.chdir(cls.testdir)
+        #cls.infile = resource_filename('desisim','test/data/transmission-16-1630.fits.gz')       #London mock
         cls.infile = resource_filename('desisim','test/data/Lv5-transmission-16-1531.fits')       #London mock
         cls.infile2 = resource_filename('desisim','test/data/transmission-16-1747.fits.gz')    #Saclay mock
         cls.outspec1 = os.path.join(cls.testdir, 'spectra-16-1531.fits')
