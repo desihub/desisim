@@ -2456,7 +2456,7 @@ class SIMQSO():
             else:
                 from simqso.sqmodels import BOSS_DR9_PLEpivot as model_PLEpivot
                 from simqso.sqmodels import get_BossDr9_model_vars as sqmodel_vars
-                log.warning("Using default SIMQSO model")
+                log.info("Note: using default SIMQSO model")
 
             self.sqmodel_vars=sqmodel_vars
         except ImportError:
