@@ -441,7 +441,11 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
         #- Convert DATE-OBS to sexigesimal (sigh) Local Sidereal Time
         #- Use mean ST as close enough for sims to avoid nutation calc
         t = Time(header['DATE-OBS'])
-        st = t.sidereal_time('mean', kpno_longitude).to('deg').value
+        # This calculation can raise a non-catastrophic "overflow encountered in
+        # double_scalars" error in astropy (see
+        # https://github.com/desihub/specsim/pull/120); catch it here.
+        with np.errstate(all='ignore'):
+            st = t.sidereal_time('mean', kpno_longitude).to('deg').value
         hour = st/15
         minute = (hour % 1)*60
         second = (minute % 1)*60
