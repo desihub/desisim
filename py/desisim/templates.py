@@ -11,6 +11,7 @@ import os
 import sys
 import numpy as np
 import multiprocessing
+from copy import copy
 from desiutil.log import get_logger, DEBUG
 from desisim.io import empty_metatable
 
@@ -623,10 +624,9 @@ class GALAXY(object):
           ValueError
 
         """
-        from copy import copy
         from speclite import filters
-        #from desispec.interpolation import resample_flux
-        from redrock.rebin import trapz_rebin
+        from desispec.interpolation import resample_flux
+        #from redrock.rebin import trapz_rebin
         from astropy.table import Column
         from astropy import units as u
         from scipy.ndimage import gaussian_filter1d
@@ -956,8 +956,8 @@ class GALAXY(object):
                             outflux[ii, :] = blurflux
                         else:
                             trim = (zwave > (self.wave.min()-10.0)) * (zwave < (self.wave.max()+10.0))
-                            outflux[ii, :] = trapz_rebin(zwave[trim], blurflux[trim], self.wave)
-                            #outflux[ii, :] = resample_flux(self.wave, zwave, blurflux, extrapolate=True)
+                            #outflux[ii, :] = trapz_rebin(zwave[trim], blurflux[trim], self.wave)
+                            outflux[ii, :] = resample_flux(self.wave, zwave, blurflux, extrapolate=True)
     
                         meta['TEMPLATEID'][ii] = tempid
                         meta['REDSHIFT'][ii] = redshift
