@@ -132,6 +132,17 @@ def main(args=None):
                 xivar *= dwave**2
 
             meta['BUNIT']=units
+            meta['DETECTOR'] = 'SIM'
+            if camera[0] == 'b':
+                meta['CCDSIZE'] = '4162,4232'
+            else:
+                meta['CCDSIZE'] = '4194,4256'
+
+            readnoise = sim.instrument.cameras[i].read_noise.value
+            meta['OBSRDNA'] = readnoise
+            meta['OBSRDNB'] = readnoise
+            meta['OBSRDNC'] = readnoise
+            meta['OBSRDND'] = readnoise
 
             frame = Frame(wave, xphot, xivar, resolution_data=Rdata[0:imax-imin],
                           spectrograph=spectro, fibermap=xfibermap, meta=meta)

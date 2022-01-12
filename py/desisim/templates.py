@@ -451,6 +451,9 @@ class GALAXY(object):
         self.bassmzlswise = filters.load_filters('BASS-g', 'BASS-r', 'MzLS-z',
                                                  'wise2010-W1', 'wise2010-W2')
 
+        # Default fiber fractions based on https://github.com/desihub/desisim/pull/550
+        self.fiberflux_fraction = {'ELG': 0.6, 'LRG': 0.4, 'BGS': 0.3}
+
     def _blurmatrix(self, vdisp, log=None):
         """Pre-compute the blur_matrix as a dictionary keyed by each unique value of
         vdisp.
@@ -755,6 +758,8 @@ class GALAXY(object):
         else:
             outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
 
+        fiberflux_fraction = self.fiberflux_fraction[self.objtype]
+
         for ii in range(nmodel):
             templaterand = np.random.RandomState(templateseed[ii])
 
@@ -853,29 +858,42 @@ class GALAXY(object):
                 zlineflux = normlineflux[templateid] * magnorm
 
                 if south:
-                    gflux, rflux, zflux, w1flux, w2flux = synthnano['decam2014-g'], \
-                      synthnano['decam2014-r'], synthnano['decam2014-z'], \
-                      synthnano['wise2010-W1'], synthnano['wise2010-W2']
+                    gflux, rflux, zflux, w1flux, w2flux = np.ma.getdata(synthnano['decam2014-g']), \
+                      np.ma.getdata(synthnano['decam2014-r']), np.ma.getdata(synthnano['decam2014-z']), \
+                      np.ma.getdata(synthnano['wise2010-W1']), np.ma.getdata(synthnano['wise2010-W2'])
                 else:
-                    gflux, rflux, zflux, w1flux, w2flux = synthnano['BASS-g'], \
-                      synthnano['BASS-r'], synthnano['MzLS-z'], \
-                      synthnano['wise2010-W1'], synthnano['wise2010-W2']
+                    gflux, rflux, zflux, w1flux, w2flux = np.ma.getdata(synthnano['BASS-g']), \
+                      np.ma.getdata(synthnano['BASS-r']), np.ma.getdata(synthnano['MzLS-z']), \
+                      np.ma.getdata(synthnano['wise2010-W1']), np.ma.getdata(synthnano['wise2010-W2'])
 
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, nbasechunk)
                 else:
-                    if self.objtype == 'BGS':
+                    # differentiate the different selections for BGS and ELG targets
+                    if self.objtype == 'BGS': 
                         _colormask = []
                         for targtype in ('bright', 'faint', 'wise'):
                             _colormask.append(self.colorcuts_function(
                                 gflux=gflux, rflux=rflux, zflux=zflux,
-                                w1flux=w1flux, w2flux=w2flux, south=south,
-                                targtype=targtype))
+                                w1flux=w1flux, rfiberflux=fiberflux_fraction*rflux, 
+                                rfibertotflux=fiberflux_fraction*rflux,
+                                south=south, targtype=targtype))
                         colormask = np.any( np.ma.getdata(np.vstack(_colormask)), axis=0 )
+                    elif self.objtype == 'ELG': # 
+                        colormask_vlo, _colormask = self.colorcuts_function(
+                            gflux=gflux, rflux=rflux, zflux=zflux,
+                            gfiberflux=fiberflux_fraction*gflux, 
+                            rfiberflux=fiberflux_fraction*rflux, 
+                            zfiberflux=fiberflux_fraction*zflux,
+                            w1flux=w1flux, w2flux=w2flux, south=south)
+                        colormask = np.any( np.ma.getdata(np.vstack([colormask_vlo, _colormask])), axis=0 )
                     else:
                         colormask = self.colorcuts_function(gflux=gflux, rflux=rflux, zflux=zflux,
+                                                            gfiberflux=fiberflux_fraction*gflux, 
+                                                            rfiberflux=fiberflux_fraction*rflux, 
+                                                            zfiberflux=fiberflux_fraction*zflux,
                                                             w1flux=w1flux, w2flux=w2flux, south=south)
-                        
+
                 # If the color-cuts pass then populate the output flux vector
                 # (suitably normalized) and metadata table, convolve with the
                 # velocity dispersion, resample, and finish up.  Note that the
@@ -1011,8 +1029,8 @@ class BGS(GALAXY):
     """Generate Monte Carlo spectra of bright galaxy survey galaxies (BGSs)."""
 
     def __init__(self, minwave=3600.0, maxwave=10000.0, cdelt=0.2, wave=None,
-                 transient=None, tr_fluxratio=(0.01, 1.), tr_epoch=(-10,10), include_mgii=False, colorcuts_function=None,
-                 normfilter_north='BASS-r', normfilter_south='decam2014-r',
+                 transient=None, tr_fluxratio=(0.01, 1.), tr_epoch=(-10,10), include_mgii=False,
+                 colorcuts_function=None, normfilter_north='BASS-r', normfilter_south='decam2014-r',
                  baseflux=None, basewave=None, basemeta=None):
         """Initialize the BGS class.  See the GALAXY.__init__ method for documentation
          on the arguments plus the inherited attributes.
@@ -1491,13 +1509,13 @@ class SUPERSTAR(object):
                     synthnano[key] = 1E9 * maggies[key] * magnorm
 
                 if south:
-                    gflux, rflux, zflux, w1flux, w2flux = synthnano['decam2014-g'], \
-                      synthnano['decam2014-r'], synthnano['decam2014-z'], \
-                      synthnano['wise2010-W1'], synthnano['wise2010-W2']
+                    gflux, rflux, zflux, w1flux, w2flux = np.ma.getdata(synthnano['decam2014-g']), \
+                      np.ma.getdata(synthnano['decam2014-r']), np.ma.getdata(synthnano['decam2014-z']), \
+                      np.ma.getdata(synthnano['wise2010-W1']), np.ma.getdata(synthnano['wise2010-W2'])
                 else:
-                    gflux, rflux, zflux, w1flux, w2flux = synthnano['BASS-g'], \
-                      synthnano['BASS-r'], synthnano['MzLS-z'], \
-                      synthnano['wise2010-W1'], synthnano['wise2010-W2']
+                    gflux, rflux, zflux, w1flux, w2flux = np.ma.getdata(synthnano['BASS-g']), \
+                      np.ma.getdata(synthnano['BASS-r']), np.ma.getdata(synthnano['MzLS-z']), \
+                      np.ma.getdata(synthnano['wise2010-W1']), np.ma.getdata(synthnano['wise2010-W2'])
 
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, nbasechunk)
@@ -1837,7 +1855,6 @@ class QSO():
 
         """
         from astropy.io import fits
-        from astropy import cosmology
         from speclite import filters
         from desisim.io import find_basis_template, read_basis_templates
         from desisim import lya_mock_p1d as lyamock
@@ -1860,7 +1877,11 @@ class QSO():
             wave = np.linspace(minwave, maxwave, npix)
         self.wave = wave
 
-        self.cosmo = cosmology.core.FlatLambdaCDM(70.0, 0.3)
+        try:
+            from astropy.cosmology import FlatLambdaCDM # astropy >v5.0
+        except:
+            from astropy.cosmology.core import FlatLambdaCDM
+        self.cosmo = FlatLambdaCDM(70.0, 0.3)
 
         self.lambda_lylimit = 911.76
         self.lambda_lyalpha = 1215.67
@@ -2089,7 +2110,7 @@ class QSO():
             meta['SUBTYPE'][:] = 'LYA'
             
         if self.balqso:
-            balmeta['REDSHIFT'][:] = redshift
+            balmeta['Z'][:] = redshift
             if lyaforest: 
                 meta['SUBTYPE'][:] = 'LYA+BAL'
             else:
@@ -2130,7 +2151,7 @@ class QSO():
             if hasbal:
                 balindx = templaterand.choice(len(self.bal_basemeta))
                 balflux = self.bal_baseflux[balindx, :]
-                balmeta['TEMPLATEID'][ii] = balindx
+                balmeta['BAL_TEMPLATEID'][ii] = balindx
 
             # BOSS or SDSS?
             if redshift[ii] > 2.15:
@@ -2210,13 +2231,13 @@ class QSO():
                     synthnano[key] = 1E9 * maggies[key] * magnorm
 
                 if south:
-                    gflux, rflux, zflux, w1flux, w2flux = synthnano['decam2014-g'], \
-                      synthnano['decam2014-r'], synthnano['decam2014-z'], \
-                      synthnano['wise2010-W1'], synthnano['wise2010-W2']
+                    gflux, rflux, zflux, w1flux, w2flux = np.ma.getdata(synthnano['decam2014-g']), \
+                      np.ma.getdata(synthnano['decam2014-r']), np.ma.getdata(synthnano['decam2014-z']), \
+                      np.ma.getdata(synthnano['wise2010-W1']), np.ma.getdata(synthnano['wise2010-W2'])
                 else:
-                    gflux, rflux, zflux, w1flux, w2flux = synthnano['BASS-g'], \
-                      synthnano['BASS-r'], synthnano['MzLS-z'], \
-                      synthnano['wise2010-W1'], synthnano['wise2010-W2']
+                    gflux, rflux, zflux, w1flux, w2flux = np.ma.getdata(synthnano['BASS-g']), \
+                      np.ma.getdata(synthnano['BASS-r']), np.ma.getdata(synthnano['MzLS-z']), \
+                      np.ma.getdata(synthnano['wise2010-W1']), np.ma.getdata(synthnano['wise2010-W2'])
                           
                 if nocolorcuts or self.colorcuts_function is None:
                     colormask = np.repeat(1, N_perz)
@@ -2326,7 +2347,6 @@ class SIMQSO():
             WISE2010-[W1,W2] FilterSequence.
 
         """
-        from astropy import cosmology
         from speclite import filters
         log = get_logger()
         try:
@@ -2384,7 +2404,11 @@ class SIMQSO():
         else:
             self.basewave = fixed_R_dispersion(basewave_min, basewave_max, basewave_R)
             
-        self.cosmo = cosmology.core.FlatLambdaCDM(70.0, 0.3)
+        try:
+            from astropy.cosmology import FlatLambdaCDM # astropy >v5.0
+        except:
+            from astropy.cosmology.core import FlatLambdaCDM
+        self.cosmo = FlatLambdaCDM(70.0, 0.3)
 
         self.lambda_lylimit = 911.76
         self.lambda_lyalpha = 1215.67
@@ -2514,13 +2538,13 @@ class SIMQSO():
             synthnano[key] = 1E9 * maggies[key]
 
         if south:
-            gflux, rflux, zflux, w1flux, w2flux = synthnano['decam2014-g'], \
-              synthnano['decam2014-r'], synthnano['decam2014-z'], \
-              synthnano['wise2010-W1'], synthnano['wise2010-W2']
+            gflux, rflux, zflux, w1flux, w2flux = np.ma.getdata(synthnano['decam2014-g']), \
+              np.ma.getdata(synthnano['decam2014-r']), np.ma.getdata(synthnano['decam2014-z']), \
+              np.ma.getdata(synthnano['wise2010-W1']), np.ma.getdata(synthnano['wise2010-W2'])
         else:
-            gflux, rflux, zflux, w1flux, w2flux = synthnano['BASS-g'], \
-              synthnano['BASS-r'], synthnano['MzLS-z'], \
-              synthnano['wise2010-W1'], synthnano['wise2010-W2']
+            gflux, rflux, zflux, w1flux, w2flux = np.ma.getdata(synthnano['BASS-g']), \
+              np.ma.getdata(synthnano['BASS-r']), np.ma.getdata(synthnano['MzLS-z']), \
+              np.ma.getdata(synthnano['wise2010-W1']), np.ma.getdata(synthnano['wise2010-W2'])
 
         if nocolorcuts or self.colorcuts_function is None:
             colormask = np.repeat(1, nmodel)

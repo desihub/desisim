@@ -2,15 +2,57 @@
 desisim change log
 ==================
 
-0.35.2 (unreleased)
+0.35.7 (unreleased)
 -------------------
 
+* Restore template-generating code to a working state (PR `#556`_).
+
+.. _`#556`: https://github.com/desihub/desisim/pull/556
+
+
+0.35.6 (2021-03-31)
+-------------------
+
+* lighterweight quickquasars (PR `#552`_).
+
+.. _`#552`: https://github.com/desihub/desisim/pull/552
+
+0.35.5 (2021-02-15)
+-------------------
+
+* Migrated unit tests to GitHub Actions (`PR #546`_).
+* Fix negative arc line ringing (`PR #548`_).
+* Fix sim header keywords for TSNR calc (`PR #550`_, `PR #551`_).
+
+.. _`PR #546`: https://github.com/desihub/desisim/pull/546
+.. _`PR #548`: https://github.com/desihub/desisim/pull/548
+.. _`PR #550`: https://github.com/desihub/desisim/pull/550
+.. _`PR #551`: https://github.com/desihub/desisim/pull/551
+
+0.35.4 (2020-11-12)
+-------------------
+
+* QSO BAL bug fix (`PR #545`_).
+
+.. _`PR #545`: https://github.com/desihub/desisim/pull/545
+
+0.35.3 (2020-08-04)
+-------------------
+
+* desisim.spec_qa.redshifts.zstats support for astropy 4 (hotfix to master).
+
+0.35.2 (2020-08-04)
+-------------------
+
+* Support astropy/4.x and fitsio/1.x (`PR #539`_ and `PR #542`_).
 * New keyword in quickcat to indicate which HDU to read in fba files (`PR #538`_)
 * Fix sky level Travis test failure (#534) and "low QSO flux" template unit test
   failure (#507) (`PR #536`_).
 * Add freeze_iers to more functions in simexp (direct to master).
 * Add the option to run quickquasars in eBOSS mode (`PR #481`_)
 
+.. _`PR #542`: https://github.com/desihub/desisim/pull/542
+.. _`PR #539`: https://github.com/desihub/desisim/pull/539
 .. _`PR #538`: https://github.com/desihub/desisim/pull/538
 .. _`PR #536`: https://github.com/desihub/desisim/pull/536
 .. _`PR #481`: https://github.com/desihub/desisim/pull/481

@@ -125,6 +125,10 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
     parser.add_argument('--no-simqso',action = "store_true", help="Does not use desisim.templates.SIMQSO\
         to generate templates, and uses desisim.templates.QSO instead.")
 
+    parser.add_argument('--save-continuum',action = "store_true", help="Save true continum to file")
+
+    parser.add_argument('--save-continuum-dwave',type=float, default=2, help="Delta wavelength to save true continum")
+
     parser.add_argument('--desi-footprint', action = "store_true" ,help="select QSOs in DESI footprint")
 
     parser.add_argument('--eboss',action = 'store_true', help='Setup footprint, number density, redshift distribution,\
@@ -140,6 +144,8 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
 
     parser.add_argument('--nmax', type=int, default=None, help="Max number of QSO per input file, for debugging")
+
+    parser.add_argument('--save-resolution',action='store_true', help="Save full resolution in spectra file. By default only one matrix is saved in the truth file.")
 
     if options is None:
         args = parser.parse_args()
@@ -226,6 +232,7 @@ def get_healpix_info(ifilename):
                     hpxnest=bool(head[k])
                 log.info("hpxnest from {} = {}".format(k,hpxnest))
                 break
+    hdulist.close()
 
     if healpix >= 0 and nside < 0 :
         log.error("Read healpix in header but not nside.")
@@ -548,6 +555,23 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     tmp_qso_flux = qso_flux
     tmp_qso_wave = trans_wave
 
+    if args.save_continuum :
+        true_wave=np.linspace(args.wmin,args.wmax,int((args.wmax-args.wmin)/args.save_continuum_dwave)+1)
+        true_flux=np.zeros((tmp_qso_flux.shape[0],true_wave.size))
+        for q in range(tmp_qso_flux.shape[0]) :
+            true_flux[q]=resample_flux(true_wave,tmp_qso_wave,tmp_qso_flux[q])
+        continum_meta=Table()
+        continum_meta['TARGETID'] = qsometa['TARGETID']
+        continum_meta['TRUE_CONT'] = true_flux
+        hdu_trueCont = pyfits.convenience.table_to_hdu(continum_meta)
+        hdu_trueCont.name = "TRUE_CONT"
+        hdu_trueCont.header['wmin'] = args.wmin
+        hdu_trueCont.header['wmax'] = args.wmax
+        hdu_trueCont.header['dwave'] = args.save_continuum_dwave
+
+        del(continum_meta,true_wave,true_flux)
+        log.info("True continum to be saved in {}".format(truth_filename))
+
     # if requested, add BAL features to the quasar continua
     if args.balprob:
         if args.balprob <= 1. and args.balprob > 0:
@@ -574,6 +598,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     # Multiply quasar continua by transmitted flux fraction
     # (at this point transmission file might include Ly-beta, metals and DLAs)
     log.info("Apply transmitted flux fraction")
+    
     if not args.no_transmission:
         tmp_qso_flux = apply_lya_transmission(tmp_qso_wave,tmp_qso_flux,
                             trans_wave,transmission)
@@ -697,10 +722,11 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         specsim_config_file = 'desi'
 
     ### use Poisson = False to get reproducible results.
-    sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
-        sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
-        meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False,
-        specsim_config_file=specsim_config_file, dwave_out=dwave_out)
+    ### use args.save_resolution = False to not save the matrix resolution per quasar in spectra files.
+    resolution=sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
+                           sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
+                           meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False,
+                           specsim_config_file=specsim_config_file, dwave_out=dwave_out, save_resolution=args.save_resolution)
 
     ### Keep input redshift
     Z_spec = metadata['Z'].copy()
@@ -745,10 +771,22 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     hduqso=pyfits.convenience.table_to_hdu(qsometa)
     hduqso.header['EXTNAME'] = 'TRUTH_QSO'
     hdulist=pyfits.HDUList([pyfits.PrimaryHDU(header=hdr),hdu,hduqso])
+
+
     if args.dla :
         hdulist.append(hdu_dla)
     if  args.balprob :
         hdulist.append(hdu_bal)
+    if args.save_continuum :
+        hdulist.append(hdu_trueCont)
+
+# Save one resolution matrix per camera to the truth file instead of one per quasar to the spectra files.
+    if not args.save_resolution:
+        for band in resolution.keys():
+            hdu = pyfits.ImageHDU(name="{}_RESOLUTION".format(band.upper()))
+            hdu.data = resolution[band].astype("f4")
+            hdulist.append(hdu)
+
     hdulist.writeto(truth_filename, overwrite=True)
     hdulist.close()
 

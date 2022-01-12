@@ -404,7 +404,7 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
         header['SPECGRPH'] = ispec
         header['CCDNAME'] = 'CCDS' + str(ispec) + str(channel).upper()
         header['CCDPREP'] = 'purge,clear'
-        header['CCDSIZE'] = str(rawpix.shape)
+        header['CCDSIZE'] = '{},{}'.format(rawpix.shape[0], rawpix.shape[1])
         header['CCDTEMP'] = 850.0
         header['CPUTEMP'] = 63.7
         header['CASETEMP'] = 62.8

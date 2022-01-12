@@ -263,8 +263,13 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, objmeta=None,
                     objhdu.header['EXTNAME'] = extname
                     hx.append(objhdu)
 
-    log.info('Writing {}'.format(filename))
-    hx.writeto(filename, overwrite=overwrite)
+    tmpfilename = filename + '.tmp'
+    if not overwrite and os.path.exists(filename):
+        os.rename(filename, tmpfilename)
+
+    hx.writeto(tmpfilename, overwrite=overwrite)
+    os.rename(tmpfilename, filename)
+    log.info(f'Wrote {filename}')
 
 def write_simspec_arc(filename, wave, phot, header, fibermap, overwrite=False):
     '''

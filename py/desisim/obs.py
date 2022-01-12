@@ -121,6 +121,10 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         else :
             infile = arc_lines_filename
         arcdata = fits.getdata(infile, 1)
+
+        #- clip unphysical negative values in arc template
+        arcdata['ELECTRONS'] = arcdata['ELECTRONS'].clip(0)
+
         if exptime is None:
             exptime = 5
         wave, phot, fibermap = desisim.simexp.simarc(arcdata, nspec=nspec, testslit=testslit)
