@@ -63,59 +63,59 @@ class TestTemplates(unittest.TestCase):
     #    flux, wave, meta, _ = lrg.make_templates(self.nspec, seed=self.seed)
     #    self._check_output_size(flux, wave, meta)
     #
-    @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
-    def test_random_seed(self):
-        '''Test that random seed works to get the same results back'''
-        #print('In function test_input_random_seed, seed = {}'.format(self.seed))
-        for T in [ELG, LRG, BGS, MWS_STAR, QSO, SIMQSO]:
-            Tx = T(wave=self.wave)
-            flux1, wave1, meta1, objmeta1 = Tx.make_templates(self.nspec, seed=1)
-            flux2, wave2, meta2, objmeta2 = Tx.make_templates(self.nspec, seed=1)
-            flux3, wave3, meta3, objmeta3 = Tx.make_templates(self.nspec, seed=2)
-            self.assertTrue(np.all(flux1==flux2))
-            self.assertTrue(np.any(flux1!=flux3))
-            self.assertTrue(np.all(wave1==wave2))
-
-            # Build a model from one of the randomly generated seeds.
-            if self.nspec > 1:
-                checkoneseed = True
-                I = 1
-            else:
-                checkoneseed = False
-
-            if checkoneseed and T.__name__ != 'SIMQSO':
-                flux4, wave4, meta4, objmeta4 = Tx.make_templates(1, seed=meta1['SEED'][I])
-                self.assertTrue(np.all(flux1[I, :]==flux4))
-
-            for key in meta1.colnames:
-                if checkoneseed and T.__name__ != 'SIMQSO':
-                    # this won't match for simulated templates
-                    if key == 'TARGETID' or (key == 'TEMPLATEID' and 'QSO' in T.__name__): 
-                        continue
-                    #print(T.__name__, key, meta1[key][I], meta4[key])
-                    self.assertTrue(np.all(meta1[key][I]==meta4[key]))
-
-                if key in ['TARGETID', 'OBJTYPE', 'SUBTYPE', 'MAGFILTER']:
-                    continue
-                # TEMPLATEID is identical for (SIM)QSO templates
-                if 'QSO' in T.__name__ and key == 'TEMPLATEID': 
-                    continue
-                self.assertTrue(np.all(meta1[key]==meta2[key]))
-                self.assertTrue(np.any(meta1[key]!=meta3[key]))
-
-            for key in objmeta1.colnames:
-                #print(T.__name__, key, objmeta1[key].data, objmeta3[key].data)
-                self.assertTrue(np.all(objmeta1[key]==objmeta2[key]))
-                if checkoneseed and T.__name__ != 'SIMQSO':
-                    if key == 'TARGETID' or (key == 'TEMPLATEID' and 'QSO' in T.__name__): 
-                        continue
-                    #print(T.__name__, key, objmeta1[key][I], objmeta4[key])
-                    self.assertTrue(np.all(objmeta1[I][key]==objmeta4[key]))
-
-                # Skip null value columns (would be -1 or '' for all rows)
-                if (key != 'TARGETID' and objmeta1[key].ndim == 1 and objmeta1[key][0] != -1 and 
-                    objmeta1[key][0] != '' and objmeta1[key].dtype != bool):
-                    self.assertTrue(np.any(objmeta1[key]!=objmeta3[key]))
+    #@unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
+    #def test_random_seed(self):
+    #    '''Test that random seed works to get the same results back'''
+    #    #print('In function test_input_random_seed, seed = {}'.format(self.seed))
+    #    for T in [ELG, LRG, BGS, MWS_STAR, QSO, SIMQSO]:
+    #        Tx = T(wave=self.wave)
+    #        flux1, wave1, meta1, objmeta1 = Tx.make_templates(self.nspec, seed=1)
+    #        flux2, wave2, meta2, objmeta2 = Tx.make_templates(self.nspec, seed=1)
+    #        flux3, wave3, meta3, objmeta3 = Tx.make_templates(self.nspec, seed=2)
+    #        self.assertTrue(np.all(flux1==flux2))
+    #        self.assertTrue(np.any(flux1!=flux3))
+    #        self.assertTrue(np.all(wave1==wave2))
+    #
+    #        # Build a model from one of the randomly generated seeds.
+    #        if self.nspec > 1:
+    #            checkoneseed = True
+    #            I = 1
+    #        else:
+    #            checkoneseed = False
+    #
+    #        if checkoneseed and T.__name__ != 'SIMQSO':
+    #            flux4, wave4, meta4, objmeta4 = Tx.make_templates(1, seed=meta1['SEED'][I])
+    #            self.assertTrue(np.all(flux1[I, :]==flux4))
+    #
+    #        for key in meta1.colnames:
+    #            if checkoneseed and T.__name__ != 'SIMQSO':
+    #                # this won't match for simulated templates
+    #                if key == 'TARGETID' or (key == 'TEMPLATEID' and 'QSO' in T.__name__): 
+    #                    continue
+    #                #print(T.__name__, key, meta1[key][I], meta4[key])
+    #                self.assertTrue(np.all(meta1[key][I]==meta4[key]))
+    #
+    #            if key in ['TARGETID', 'OBJTYPE', 'SUBTYPE', 'MAGFILTER']:
+    #                continue
+    #            # TEMPLATEID is identical for (SIM)QSO templates
+    #            if 'QSO' in T.__name__ and key == 'TEMPLATEID': 
+    #                continue
+    #            self.assertTrue(np.all(meta1[key]==meta2[key]))
+    #            self.assertTrue(np.any(meta1[key]!=meta3[key]))
+    #
+    #        for key in objmeta1.colnames:
+    #            #print(T.__name__, key, objmeta1[key].data, objmeta3[key].data)
+    #            self.assertTrue(np.all(objmeta1[key]==objmeta2[key]))
+    #            if checkoneseed and T.__name__ != 'SIMQSO':
+    #                if key == 'TARGETID' or (key == 'TEMPLATEID' and 'QSO' in T.__name__): 
+    #                    continue
+    #                #print(T.__name__, key, objmeta1[key][I], objmeta4[key])
+    #                self.assertTrue(np.all(objmeta1[I][key]==objmeta4[key]))
+    #
+    #            # Skip null value columns (would be -1 or '' for all rows)
+    #            if (key != 'TARGETID' and objmeta1[key].ndim == 1 and objmeta1[key][0] != -1 and 
+    #                objmeta1[key][0] != '' and objmeta1[key].dtype != bool):
+    #                self.assertTrue(np.any(objmeta1[key]!=objmeta3[key]))
 
     #@unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     #def test_OII(self):
@@ -179,16 +179,6 @@ class TestTemplates(unittest.TestCase):
     #    flux, wave, meta, _ = wd.make_templates(self.nspec, seed=self.seed, nocolorcuts=True)
     #    np.all(meta['SUBTYPE'] == 'DB')
     #
-    #@unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
-    #@unittest.expectedFailure
-    #def test_wd_subtype_failure(self):
-    #    '''Test a known failure of specifying the white dwarf subtype.'''
-    #    #print('In function test_wd_subtype_failure, seed = {}'.format(self.seed))
-    #    wd = WD(wave=self.wave, subtype='DA')
-    #    flux1, wave1, meta1, _ = wd.make_templates(self.nspec, seed=self.seed, nocolorcuts=True)
-    #    meta1['SUBTYPE'][0] = 'DB'
-    #    flux2, wave2, meta2, _ = wd.make_templates(input_meta=meta1)
-    #    
     #@unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
     #def test_input_meta(self):
     #    '''Test that input meta table option works.'''
