@@ -336,8 +336,7 @@ class GALAXY(object):
                  transient=None, tr_fluxratio=(0.01, 1.), tr_epoch=(-10,10),
                  include_mgii=False, colorcuts_function=None,
                  normfilter_north='BASS-r', normfilter_south='decam2014-r',
-                 normline='OII', fracvdisp=(0.1, 40), 
-                 baseflux=None, basewave=None, basemeta=None):
+                 normline='OII', baseflux=None, basewave=None, basemeta=None):
         """Read the appropriate basis continuum templates, filter profiles and
         initialize the output wavelength array.
 
@@ -370,11 +369,6 @@ class GALAXY(object):
           normline (str): normalize the emission-line spectrum to the flux in
             this emission line.  The options are 'OII' (for ELGs, the default),
             'HBETA' (for BGS), or None (for LRGs).
-          fracvdisp (tuple): two-element array which gives the fraction and
-            absolute number of unique velocity dispersion values.  For example,
-            the default (0.1, 40) means there will be either int(0.1*nmodel) or
-            40 unique values, where nmodel is defined in
-            GALAXY.make_galaxy_templates, below.
           transient (Transient, None): optional Transient object to integrate
             into the spectrum (default None).
           tr_fluxratio (tuple): optional flux ratio range for transient
@@ -453,8 +447,7 @@ class GALAXY(object):
             self.rfilt_south = filters.load_filters('decam2014-r')
 
         # Pixel boundaries
-        self.pixbound = pxs.cen2bound(basewave)
-        self.fracvdisp = fracvdisp
+        #self.pixbound = pxs.cen2bound(basewave)
 
         # Initialize the filter profiles.
         self.normfilt_north = filters.load_filters(self.normfilter_north)
@@ -563,9 +556,8 @@ class GALAXY(object):
           oiiihbrange (float, optional): Minimum and maximum logarithmic
             [OIII] 5007/H-beta line-ratio.  Defaults to a uniform distribution
             between (-0.5, 0.2).
-          logvdisp_meansig (float, optional): Logarithmic mean and sigma values
-            for the (Gaussian) stellar velocity dispersion distribution.
-            Defaults to log10-sigma=1.9+/-0.15 km/s.
+          vdisprange (float, optional): Minimum and maximum velocity dispersion
+            range. Defaults to (100, 300) km/s.
           minlineflux (float, optional): Minimum emission-line flux in the line
             specified by self.normline (default 0 erg/s/cm2).
         
@@ -592,6 +584,7 @@ class GALAXY(object):
             spectra, then VDISP must also be passed (normally returned in the
             OBJMETA table).  If present, then all other optional inputs (nmodel,
             redshift, mag, zrange, logvdisp_meansig, etc.) are ignored.
+          input_objmeta (astropy.Table): *Input* object-specific metadata table.
 
           nocolorcuts (bool, optional): Do not apply the color-cuts specified by
             the self.colorcuts_function function (default False).
@@ -1059,9 +1052,8 @@ class ELG(GALAXY):
           oiiihbrange (float, optional): Minimum and maximum logarithmic [OIII]
             5007/H-beta line-ratio.  Defaults to a uniform distribution between
             (-0.5, 0.2).
-          logvdisp_meansig (float, optional): Logarithmic mean and sigma values
-            for the (Gaussian) stellar velocity dispersion distribution.
-            Defaults to log10-sigma=(1.9+/-0.15) km/s
+          vdisprange (float, optional): Minimum and maximum velocity dispersion
+            range. Defaults to (50, 150) km/s.
           minoiiflux (float, optional): Minimum [OII] 3727 flux (default 0.0
             erg/s/cm2).
 
@@ -1137,9 +1129,8 @@ class BGS(GALAXY):
           oiiihbrange (float, optional): Minimum and maximum logarithmic [OIII]
             5007/H-beta line-ratio.  Defaults to a uniform distribution between
             (-1.3, 0.6).
-          logvdisp_meansig (float, optional): Logarithmic mean and sigma values
-            for the (Gaussian) stellar velocity dispersion distribution.
-            Defaults to log10-sigma=(2.0+/-0.17) km/s
+          vdisprange (float, optional): Minimum and maximum velocity dispersion
+            range. Defaults to (120, 300) km/s.
           minhbetaflux (float, optional): Minimum H-beta flux (default 0.0
             erg/s/cm2).
 
@@ -1207,9 +1198,8 @@ class LRG(GALAXY):
          arguments that are specific to the LRG class.
 
         Args:
-          logvdisp_meansig (float, optional): Logarithmic mean and sigma values
-            for the (Gaussian) stellar velocity dispersion distribution.
-            Defaults to log10-sigma=(2.3+/-0.1) km/s
+          vdisprange (float, optional): Minimum and maximum velocity dispersion
+            range. Defaults to (150, 300) km/s.
           agnlike (bool, optional): adopt AGN-like emission-line ratios (not yet
             supported; defaults False).
 
@@ -1381,6 +1371,7 @@ class SUPERSTAR(object):
             (see desisim.io.empty_metatable for the expected data types).  If
             present, then all other optional inputs (nmodel, redshift, mag,
             zrange, vrad_meansig, etc.) are ignored.
+          input_objmeta (astropy.Table): *Input* object-specific metadata table.
           star_properties (astropy.Table): *Input* table with the following
             required columns: REDSHIFT, MAG, MAGFILTER, TEFF, LOGG, and FEH
             (except for WDs, which don't need to have an FEH column).
@@ -2077,6 +2068,7 @@ class QSO():
             zrange, etc.) are ignored.  Note that this argument cannot be used
             (at this time) to precisely reproduce templates that have had BALs
             inserted.
+          input_objmeta (astropy.Table): *Input* object-specific metadata table.
           N_perz (int, optional): Number of templates per redshift redshift
             value to generate (default 20).
           maxiter (int): maximum number of iterations for findng a non-negative
