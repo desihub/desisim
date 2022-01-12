@@ -123,7 +123,6 @@ class TestQuickgen(unittest.TestCase):
             else:
                 os.environ[e] = cls.origEnv[e]
         if os.path.exists(cls.testDir):
-            pass
             rmtree(cls.testDir)
 
     def tearDown(self):
