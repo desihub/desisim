@@ -5,9 +5,14 @@ desisim change log
 0.35.7 (unreleased)
 -------------------
 
+* Major fixes to desisim unit tests, particularly for templates (see PR thread
+  for details about algorithmic changes; PR `#559`_).
 * Restore template-generating code to a working state (PR `#556`_).
+* Flux bug fix in quicktransients simulator (PR `#541`_).
 
+.. _`#541`: https://github.com/desihub/desisim/pull/541
 .. _`#556`: https://github.com/desihub/desisim/pull/556
+.. _`#559`: https://github.com/desihub/desisim/pull/559
 
 
 0.35.6 (2021-03-31)
