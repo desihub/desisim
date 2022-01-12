@@ -1506,10 +1506,10 @@ class SUPERSTAR(object):
         else:
             from scipy.interpolate import griddata
             baseflux = griddata(base_properties, self.baseflux,
-                                input_properties, method='linear')
+                                input_properties, method='nearest')
             interptemplateid = griddata(base_properties, np.arange(nbase),
-                                        input_properties, method='linear')
-            interptemplateid = np.array([int(tempid) for tempid in interptemplateid])
+                                        input_properties, method='nearest')
+            #interptemplateid = np.array([int(tempid) for tempid in interptemplateid])
 
         # Build each spectrum in turn.
         if restframe:
