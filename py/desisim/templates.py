@@ -661,9 +661,7 @@ class GALAXY(object):
             
             nchunk = 1
             nmodel = len(input_meta)
-            
         else:
-            
             # Initialize the random seed. If nmodel=1, use the input seed itself.
             rand = np.random.RandomState(seed)
             if nmodel == 1 and seed is not None:
@@ -1497,18 +1495,6 @@ class SUPERSTAR(object):
                 else:
                     use_mag = None
     
-                ## Assign radial velocity and magnitude priors.
-                #if redshift is None:
-                #    if vrad_meansig[1] > 0:
-                #        vrad = rand.normal(vrad_meansig[0], vrad_meansig[1], nmodel)
-                #    else:
-                #        vrad = np.repeat(vrad_meansig[0], nmodel)
-                #
-                #    redshift = np.array(vrad) / C_LIGHT
-                #
-                #if mag is None:
-                #    mag = rand.uniform(magrange[0], magrange[1], nmodel)
-
         # Initialize the metadata table.
         meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype, subtype=self.subtype)
 
@@ -1530,6 +1516,9 @@ class SUPERSTAR(object):
             from scipy.interpolate import griddata
             baseflux = griddata(base_properties, self.baseflux,
                                 input_properties, method='linear')
+            interptemplateid = griddata(base_properties, np.arange(nbase),
+                                        input_properties, method='linear')
+            interptemplateid = np.array([int(tempid) for tempid in interptemplateid])
 
         # Build each spectrum in turn.
         if restframe:
@@ -1542,8 +1531,11 @@ class SUPERSTAR(object):
 
             # Shuffle the templates in order to add some variety to the selection.
             if input_meta is None:
-                alltemplateid = templaterand.choice(nbase, size=nbase, replace=False)
-                alltemplateid_chunk = np.array_split(alltemplateid, nchunk)
+                if star_properties is None:
+                    alltemplateid = templaterand.choice(nbase, size=nbase, replace=False)
+                    alltemplateid_chunk = np.array_split(alltemplateid, nchunk)
+                else:
+                    alltemplateid_chunk = [np.atleast_1d(interptemplateid[ii])]
             else:
                 alltemplateid_chunk = [np.atleast_1d(input_meta['TEMPLATEID'][ii])]
 
@@ -1571,10 +1563,13 @@ class SUPERSTAR(object):
                 templateid = alltemplateid_chunk[ichunk]
                 nbasechunk = len(templateid)
 
-                restflux = baseflux[templateid, :]
+                if star_properties is None:
+                    restflux = baseflux[templateid, :]
+                else:
+                    restflux = baseflux[ii, :].reshape(1, npix)
 
                 # Synthesize photometry to determine which models will pass the
-                # color-cuts.  Also, with radial velocity shifts, the >v3.0
+                # color-cuts. Also, with radial velocity shifts, the >v3.0
                 # templates do not go red enough to cover the full r-band
                 # spectral range, so pad here.
                 if south:
@@ -1640,10 +1635,10 @@ class SUPERSTAR(object):
                         if 'FEH' in self.basemeta.columns:
                             objmeta['FEH'][ii] = self.basemeta['FEH'][tempid]
                     else:
-                        objmeta['TEFF'][ii] = input_properties[1][tempid]
-                        objmeta['LOGG'][ii] = input_properties[0][tempid]
+                        objmeta['TEFF'][ii] = input_properties[1][ii]
+                        objmeta['LOGG'][ii] = input_properties[0][ii]
                         if 'FEH' in self.basemeta.columns:
-                            objmeta['FEH'][ii] = input_properties[2][tempid]
+                            objmeta['FEH'][ii] = input_properties[2][ii]
 
                     break
 

@@ -184,7 +184,7 @@ class TestTemplates(unittest.TestCase):
     #    '''Test that input meta table option works.'''
     #    #print('In function test_input_meta, seed = {}'.format(self.seed))
     #    for T in [ELG, LRG, BGS, QSO, STAR, MWS_STAR, WD]:
-    #        print('Working on {} templates'.format(T.__name__))
+    #        #print('Working on {} templates'.format(T.__name__))
     #        Tx = T(wave=self.wave)
     #        flux1, wave1, meta1, objmeta1 = Tx.make_templates(self.nspec, seed=self.seed)
     #        flux2, wave2, meta2, objmeta2 = Tx.make_templates(input_meta=meta1, input_objmeta=objmeta1)
@@ -206,35 +206,35 @@ class TestTemplates(unittest.TestCase):
     #        self.assertTrue(np.allclose(flux1, flux2, rtol=1e-4))
     #        self.assertTrue(np.all(wave1 == wave2))
     #
-    #@unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
-    #def test_star_properties(self):
-    #    '''Test that input data table option works.'''
-    #    #print('In function test_star_properties, seed = {}'.format(self.seed))
-    #    star_properties = Table()
-    #    star_properties.add_column(Column(name='REDSHIFT', length=self.nspec, dtype='f4'))
-    #    star_properties.add_column(Column(name='MAG', length=self.nspec, dtype='f4'))
-    #    star_properties.add_column(Column(name='MAGFILTER', length=self.nspec, dtype='U15'))
-    #    star_properties.add_column(Column(name='TEFF', length=self.nspec, dtype='f4'))
-    #    star_properties.add_column(Column(name='LOGG', length=self.nspec, dtype='f4'))
-    #    star_properties.add_column(Column(name='FEH', length=self.nspec, dtype='f4'))
-    #    star_properties['REDSHIFT'] = self.rand.uniform(-5E-4, 5E-4, self.nspec)
-    #    star_properties['MAG'] = self.rand.uniform(16, 19, self.nspec)
-    #    star_properties['MAGFILTER'][:] = 'decam2014-r'
-    #    star_properties['TEFF'] = self.rand.uniform(4000, 10000, self.nspec)
-    #    star_properties['LOGG'] = self.rand.uniform(0.5, 5.0, self.nspec)
-    #    star_properties['FEH'] = self.rand.uniform(-2.0, 0.0, self.nspec)
-    #    for T in [STAR]:
-    #        Tx = T(wave=self.wave)
-    #        flux, wave, meta, objmeta = Tx.make_templates(star_properties=star_properties, seed=self.seed)
-    #        badkeys = list()
-    #        for key in ('REDSHIFT', 'MAG'):
-    #            if not np.allclose(meta[key], star_properties[key]):
-    #                badkeys.append(key)
-    #        for key in ('TEFF', 'LOGG', 'FEH'):
-    #            if not np.allclose(objmeta[key], star_properties[key]):
-    #                badkeys.append(key)
-    #        self.assertEqual(len(badkeys), 0, 'mismatch for spectral type {} in keys {}'.format(meta['OBJTYPE'][0], badkeys))
-    #
+    @unittest.skipUnless(desi_basis_templates_available, '$DESI_BASIS_TEMPLATES was not detected.')
+    def test_star_properties(self):
+        '''Test that input data table option works.'''
+        #print('In function test_star_properties, seed = {}'.format(self.seed))
+        star_properties = Table()
+        star_properties.add_column(Column(name='REDSHIFT', length=self.nspec, dtype='f4'))
+        star_properties.add_column(Column(name='MAG', length=self.nspec, dtype='f4'))
+        star_properties.add_column(Column(name='MAGFILTER', length=self.nspec, dtype='U15'))
+        star_properties.add_column(Column(name='TEFF', length=self.nspec, dtype='f4'))
+        star_properties.add_column(Column(name='LOGG', length=self.nspec, dtype='f4'))
+        star_properties.add_column(Column(name='FEH', length=self.nspec, dtype='f4'))
+        star_properties['REDSHIFT'] = self.rand.uniform(-5E-4, 5E-4, self.nspec)
+        star_properties['MAG'] = self.rand.uniform(16, 19, self.nspec)
+        star_properties['MAGFILTER'][:] = 'decam2014-r'
+        star_properties['TEFF'] = self.rand.uniform(4000, 10000, self.nspec)
+        star_properties['LOGG'] = self.rand.uniform(0.5, 5.0, self.nspec)
+        star_properties['FEH'] = self.rand.uniform(-2.0, 0.0, self.nspec)
+        for T in [STAR]:
+            Tx = T(wave=self.wave)
+            flux, wave, meta, objmeta = Tx.make_templates(star_properties=star_properties, seed=self.seed)
+            badkeys = list()
+            for key in ('REDSHIFT', 'MAG'):
+                if not np.allclose(meta[key], star_properties[key]):
+                    badkeys.append(key)
+            for key in ('TEFF', 'LOGG', 'FEH'):
+                if not np.allclose(objmeta[key], star_properties[key]):
+                    badkeys.append(key)
+            self.assertEqual(len(badkeys), 0, 'mismatch for spectral type {} in keys {}'.format(meta['OBJTYPE'][0], badkeys))
+    
     #def test_lyamock_seed(self):
     #    '''Test that random seed works to get the same results back'''
     #    #print('In function test_lyamock_seed, seed = {}'.format(self.seed))
