@@ -8,7 +8,7 @@ from __future__ import absolute_import, division, print_function
 #
 import unittest
 import re
-from desisim import __version__ as theVersion
+from .. import __version__ as theVersion
 #
 class TestTopLevel(unittest.TestCase):
 
