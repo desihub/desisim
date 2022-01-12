@@ -661,11 +661,9 @@ class GALAXY(object):
             
             nchunk = 1
             nmodel = len(input_meta)
-
-            meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
+            
         else:
-            meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
-
+            
             # Initialize the random seed. If nmodel=1, use the input seed itself.
             rand = np.random.RandomState(seed)
             if nmodel == 1 and seed is not None:
@@ -711,6 +709,8 @@ class GALAXY(object):
                 raise ValueError
         else:
             use_vdisp = None
+
+        meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype)
 
         # Generate the (optional) distribution of transient model brightness
         # and epoch priors or read them from the input table.
@@ -1426,23 +1426,22 @@ class SUPERSTAR(object):
 
         # Optionally unpack a metadata table.
         if input_meta is not None:
-            nmodel = len(input_meta)
             _check_input_meta(input_meta)
 
             templateseed = input_meta['SEED'].data
-            redshift = input_meta['REDSHIFT'].data
-            mag = input_meta['MAG'].data
+            use_redshift = input_meta['REDSHIFT'].data
+            use_mag = input_meta['MAG'].data
             magfilter = np.char.strip(input_meta['MAGFILTER'].data)
 
             nchunk = 1
-            alltemplateid_chunk = [input_meta['TEMPLATEID'].data.reshape(nmodel, 1)]
+            nmodel = len(input_meta)
         else:
             if star_properties is not None:
                 nmodel = len(star_properties)
                 _check_star_properties(star_properties, WD=self.objtype=='WD')
 
-                redshift = star_properties['REDSHIFT'].data
-                mag = star_properties['MAG'].data
+                use_redshift = star_properties['REDSHIFT'].data
+                use_mag = star_properties['MAG'].data
                 magfilter = np.char.strip(star_properties['MAGFILTER'].data)
 
                 if 'SEED' in star_properties.keys():
@@ -1464,7 +1463,6 @@ class SUPERSTAR(object):
                     input_properties = (star_properties['LOGG'].data, star_properties['TEFF'].data)
 
                 nchunk = 1
-                alltemplateid_chunk = [np.arange(nmodel).reshape(nmodel, 1)]
             else:
                 # Initialize the random seed.
                 rand = np.random.RandomState(seed)
@@ -1473,43 +1471,50 @@ class SUPERSTAR(object):
                 else:
                     templateseed = rand.randint(2**32, size=nmodel)
 
-                # Shuffle the basis templates and then split them into ~equal chunks, so
-                # we can speed up the calculations below.
+                # Divide the basis templates into chunks, so we can speed up the
+                # calculations below.
                 chunksize = np.min((nbase, 50))
                 nchunk = int(np.ceil(nbase / chunksize))
-
-                alltemplateid = np.tile(np.arange(nbase), (nmodel, 1))
-                for tempid in alltemplateid:
-                    rand.shuffle(tempid)
-                alltemplateid_chunk = np.array_split(alltemplateid, nchunk, axis=1)
-
-                # Assign radial velocity and magnitude priors.
-                if redshift is None:
-                    if vrad_meansig[1] > 0:
-                        vrad = rand.normal(vrad_meansig[0], vrad_meansig[1], nmodel)
-                    else:
-                        vrad = np.repeat(vrad_meansig[0], nmodel)
-
-                    redshift = np.array(vrad) / C_LIGHT
-
-                if mag is None:
-                    mag = rand.uniform(magrange[0], magrange[1], nmodel)
 
                 if south:
                     magfilter = np.repeat(self.normfilter_south, nmodel)
                 else:
                     magfilter = np.repeat(self.normfilter_north, nmodel)
 
-        # Basic error checking and some preliminaries.
-        if redshift is not None:
-            if len(redshift) != nmodel:
-                log.fatal('Redshift must be an nmodel-length array')
-                raise ValueError
+                if redshift is not None:
+                    if len(redshift) != nmodel:
+                        log.fatal('Redshift must be an nmodel-length array')
+                        raise ValueError
+                    use_redshift = copy(redshift)
+                else:
+                    use_redshift = None
+        
+                if mag is not None:
+                    if len(mag) != nmodel:
+                        log.fatal('Mag must be an nmodel-length array')
+                        raise ValueError
+                    use_mag = copy(mag)
+                else:
+                    use_mag = None
+    
+                ## Assign radial velocity and magnitude priors.
+                #if redshift is None:
+                #    if vrad_meansig[1] > 0:
+                #        vrad = rand.normal(vrad_meansig[0], vrad_meansig[1], nmodel)
+                #    else:
+                #        vrad = np.repeat(vrad_meansig[0], nmodel)
+                #
+                #    redshift = np.array(vrad) / C_LIGHT
+                #
+                #if mag is None:
+                #    mag = rand.uniform(magrange[0], magrange[1], nmodel)
 
-        if mag is not None:
-            if len(mag) != nmodel:
-                log.fatal('Mag must be an nmodel-length array')
-                raise ValueError
+        # Initialize the metadata table.
+        meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype, subtype=self.subtype)
+
+        # Populate some of the metadata table.
+        for key, value in zip(('MAGFILTER', 'SEED'),(magfilter, templateseed)):
+            meta[key][:] = value
 
         # Load the unique set of MAGFILTERs.  We could check against
         # self.decamwise.names and self.bassmzlswise to see if the filters have
@@ -1517,14 +1522,6 @@ class SUPERSTAR(object):
         normfilt = dict()
         for mfilter in np.unique(magfilter):
             normfilt[mfilter] = filters.load_filters(mfilter)
-
-        # Initialize the metadata table.
-        meta, objmeta = empty_metatable(nmodel=nmodel, objtype=self.objtype, subtype=self.subtype)
-
-        # Populate some of the metadata table.
-        for key, value in zip(('REDSHIFT', 'MAG', 'MAGFILTER', 'SEED'),
-                               (redshift, mag, magfilter, templateseed)):
-            meta[key][:] = value
 
         # Optionally interpolate onto a non-uniform grid.
         if star_properties is None:
@@ -1539,14 +1536,39 @@ class SUPERSTAR(object):
             outflux = np.zeros([nmodel, len(self.basewave)]) # [erg/s/cm2/A]
         else:
             outflux = np.zeros([nmodel, len(self.wave)]) # [erg/s/cm2/A]
+
         for ii in range(nmodel):
-            zwave = self.basewave.astype(float)*(1.0 + redshift[ii])
+            templaterand = np.random.RandomState(templateseed[ii])
+
+            # Shuffle the templates in order to add some variety to the selection.
+            if input_meta is None:
+                alltemplateid = templaterand.choice(nbase, size=nbase, replace=False)
+                alltemplateid_chunk = np.array_split(alltemplateid, nchunk)
+            else:
+                alltemplateid_chunk = [np.atleast_1d(input_meta['TEMPLATEID'][ii])]
+
+            if use_redshift is None:
+                if vrad_meansig[1] > 0:
+                    vrad = templaterand.normal(vrad_meansig[0], vrad_meansig[1])
+                else:
+                    vrad = vrad_meansig[0]
+                redshift = np.array(vrad) / C_LIGHT
+            else:
+                redshift = use_redshift[ii]
+
+            if use_mag is None:
+                mag = templaterand.uniform(magrange[0], magrange[1])
+            else:
+                mag = use_mag[ii]
+
+            zwave = self.basewave.astype(float)*(1.0 + redshift)
 
             for ichunk in range(nchunk):
                 if ii % 100 == 0 and ii > 0:
                     log.debug('Simulating {} template {}/{} in chunk {}/{}.'. \
                               format(self.objtype, ii, nmodel, ichunk+1, nchunk))
-                templateid = alltemplateid_chunk[ichunk][ii, :]
+
+                templateid = alltemplateid_chunk[ichunk]
                 nbasechunk = len(templateid)
 
                 restflux = baseflux[templateid, :]
@@ -1570,7 +1592,7 @@ class SUPERSTAR(object):
                 normmaggies = np.array(normfilt[magfilter[ii]].get_ab_maggies(
                     padflux, padzwave, mask_invalid=True)[magfilter[ii]])
                 assert(np.all(normmaggies > 0))
-                magnorm = 10**(-0.4*mag[ii]) / normmaggies
+                magnorm = 10**(-0.4*mag) / normmaggies
 
                 synthnano = dict()
                 for key in maggies.columns:
@@ -1594,8 +1616,6 @@ class SUPERSTAR(object):
                 # If the color-cuts pass then populate the output flux vector
                 # (suitably normalized) and metadata table and finish up.
                 if np.any(colormask):
-                    templaterand = np.random.RandomState(templateseed[ii])
-
                     this = templaterand.choice(np.where(colormask)[0]) # Pick one randomly.
                     tempid = templateid[this]
 
@@ -1606,6 +1626,8 @@ class SUPERSTAR(object):
                                                        extrapolate=True) * magnorm[this]
 
                     meta['TEMPLATEID'][ii] = tempid
+                    meta['REDSHIFT'][ii] = redshift
+                    meta['MAG'][ii] = mag
                     meta['FLUX_G'][ii] = gflux[this]
                     meta['FLUX_R'][ii] = rflux[this]
                     meta['FLUX_Z'][ii] = zflux[this]

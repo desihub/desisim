@@ -67,8 +67,7 @@ class TestTemplates(unittest.TestCase):
     def test_random_seed(self):
         '''Test that random seed works to get the same results back'''
         #print('In function test_input_random_seed, seed = {}'.format(self.seed))
-        for T in [QSO, MWS_STAR, SIMQSO]:
-        #for T in [ELG, LRG, BGS, QSO, MWS_STAR, SIMQSO]:
+        for T in [ELG, LRG, BGS, MWS_STAR, QSO, SIMQSO]:
             Tx = T(wave=self.wave)
             flux1, wave1, meta1, objmeta1 = Tx.make_templates(self.nspec, seed=1)
             flux2, wave2, meta2, objmeta2 = Tx.make_templates(self.nspec, seed=1)
@@ -84,19 +83,16 @@ class TestTemplates(unittest.TestCase):
             else:
                 checkoneseed = False
 
-            if checkoneseed:
+            if checkoneseed and T.__name__ != 'SIMQSO':
                 flux4, wave4, meta4, objmeta4 = Tx.make_templates(1, seed=meta1['SEED'][I])
-                try:
-                    self.assertTrue(np.all(flux1[I, :]==flux4))
-                except:
-                    import pdb ; pdb.set_trace()
+                self.assertTrue(np.all(flux1[I, :]==flux4))
 
             for key in meta1.colnames:
-                if checkoneseed:
+                if checkoneseed and T.__name__ != 'SIMQSO':
                     # this won't match for simulated templates
                     if key == 'TARGETID' or (key == 'TEMPLATEID' and 'QSO' in T.__name__): 
                         continue
-                    print(T.__name__, key, meta1[key][I], meta4[key])
+                    #print(T.__name__, key, meta1[key][I], meta4[key])
                     self.assertTrue(np.all(meta1[key][I]==meta4[key]))
 
                 if key in ['TARGETID', 'OBJTYPE', 'SUBTYPE', 'MAGFILTER']:
@@ -110,10 +106,10 @@ class TestTemplates(unittest.TestCase):
             for key in objmeta1.colnames:
                 #print(T.__name__, key, objmeta1[key].data, objmeta3[key].data)
                 self.assertTrue(np.all(objmeta1[key]==objmeta2[key]))
-                if checkoneseed:                    
+                if checkoneseed and T.__name__ != 'SIMQSO':
                     if key == 'TARGETID' or (key == 'TEMPLATEID' and 'QSO' in T.__name__): 
                         continue
-                    print(T.__name__, key, objmeta1[key][I], objmeta4[key])
+                    #print(T.__name__, key, objmeta1[key][I], objmeta4[key])
                     self.assertTrue(np.all(objmeta1[I][key]==objmeta4[key]))
 
                 # Skip null value columns (would be -1 or '' for all rows)
