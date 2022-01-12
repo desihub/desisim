@@ -18,12 +18,12 @@ jobs:
             matrix:
                 os: [ubuntu-latest]
                 python-version: [3.8]  # fitsio does not like Python < 3.7, astropy does not like Python < 3.8, might be too soon for 3.9.
-                astropy-version: ['==4.0.1.post1']  #, '==5.0']  # everest & fuji versions
+                astropy-version: ['==4.0.1.post1', '==5.0']  # everest & fuji versions
                 fitsio-version: ['==1.1.2', '==1.1.6']  # everest & fuji versions
         env:
             DESIUTIL_VERSION: 3.2.3
             # DESIMODEL: ${GITHUB_WORKSPACE}/desimodel
-            DESIMODEL_DATA: branches/test-0.12
+            DESIMODEL_DATA: branches/test-0.17
             # DESISIM: ${GITHUB_WORKSPACE}/desisim
             DESISIM_TESTDATA_VERSION: master
             # DESI_ROOT: ${DESISIM}/desi
@@ -71,11 +71,11 @@ jobs:
             matrix:
                 os: [ubuntu-latest]
                 python-version: [3.8]
-                fitsio-version: ['==1.1.2']  # everest version
+                fitsio-version: ['==1.1.6']  # fuji version
         env:
             DESIUTIL_VERSION: 3.2.3
             # DESIMODEL: ${GITHUB_WORKSPACE}/desimodel
-            DESIMODEL_DATA: branches/test-0.12
+            DESIMODEL_DATA: branches/test-0.17
             # DESISIM: ${GITHUB_WORKSPACE}/desisim
             DESISIM_TESTDATA_VERSION: master
             # DESI_ROOT: ${DESISIM}/desi

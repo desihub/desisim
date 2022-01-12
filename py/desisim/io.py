@@ -1057,8 +1057,8 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
             args.append((outwave, wave, flux[jj,:]))
         import multiprocessing
         ncpu = multiprocessing.cpu_count() // 2   #- avoid hyperthreading
-        pool = multiprocessing.Pool(ncpu)
-        outflux = pool.map(_resample_flux, args)
+        with multiprocessing.Pool(ncpu) as P:
+            outflux = P.map(_resample_flux, args)
         outflux = np.array(outflux)
 
     return outflux, outwave, meta
@@ -1144,7 +1144,7 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype='', simqso=False, input_met
     if input_meta:
         meta.add_column(Column(name='TEMPLATEID', length=nmodel, dtype='i2', data=np.zeros(nmodel)-1))
         meta.add_column(Column(name='SEED', length=nmodel, dtype='int64', data=np.zeros(nmodel)-1))
-        meta.add_column(Column(name='REDSHIFT', length=nmodel, dtype='f4', data=np.zeros(nmodel)))
+        meta.add_column(Column(name='REDSHIFT', length=nmodel, dtype='f8', data=np.zeros(nmodel)))
         meta.add_column(Column(name='MAG', length=nmodel, dtype='f4', data=np.zeros(nmodel)-1, unit='mag')) # normalization magnitude
         meta.add_column(Column(name='MAGFILTER', length=nmodel, dtype='U15')) # normalization filter
         return meta
@@ -1154,7 +1154,7 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype='', simqso=False, input_met
         meta.add_column(Column(name='SUBTYPE', length=nmodel, dtype='U10'))
         meta.add_column(Column(name='TEMPLATEID', length=nmodel, dtype='i2', data=np.zeros(nmodel)-1))
         meta.add_column(Column(name='SEED', length=nmodel, dtype='int64', data=np.zeros(nmodel)-1))
-        meta.add_column(Column(name='REDSHIFT', length=nmodel, dtype='f4', data=np.zeros(nmodel)))
+        meta.add_column(Column(name='REDSHIFT', length=nmodel, dtype='f8', data=np.zeros(nmodel)))
         meta.add_column(Column(name='MAG', length=nmodel, dtype='f4', data=np.zeros(nmodel)-1, unit='mag')) # normalization magnitude
         meta.add_column(Column(name='MAGFILTER', length=nmodel, dtype='U15')) # normalization filter
         meta.add_column(Column(name='FLUX_G', length=nmodel, dtype='f4', unit='nanomaggies'))
