@@ -272,12 +272,12 @@ class TestTemplates(unittest.TestCase):
         self.assertTrue(np.all(wave1==wave2))
 
         for key in meta2.colnames:
-            if key == 'TARGETID': # this won't match in this test
+            if key in ['TARGETID', 'TEMPLATEID']: # this won't match in this test
                 continue
             self.assertTrue(np.all(meta2[key]==meta1[key][I]))
             
         for key in objmeta2.colnames:
-            if key == 'TARGETID':
+            if key in ['TARGETID', 'TEMPLATEID']: # this won't match in this test
                 continue
             self.assertTrue(np.all(objmeta2[key]==objmeta1[key][I]))
 
