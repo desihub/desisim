@@ -18,11 +18,14 @@ from desisim.simexp import reference_conditions
 from desisim.transients import transients
 from desisim.scripts.quickspectra import sim_spectra
 
+from desispec.io import read_spectra, write_spectra
+from desispec.coaddition import coadd_cameras
+
 from desiutil.log import get_logger, DEBUG
 
 from astropy.table import Table, hstack, vstack
 
-from argparse import ArgumentParser
+import argparse
 
 
 def _set_wave(wavemin=None, wavemax=None, dw=0.8):
@@ -133,14 +136,15 @@ def write_templates(filename, flux, wave, target, truth, objtruth):
     hdu_objtruth.header['EXTNAME'] = 'OBJTRUTH'
     hx.append(hdu_objtruth)
 
-    print('Writing {}'.format(filename))
     hx.writeto(filename, overwrite=True)
 
 
 def parse(options=None):
     """Parse command line options.
     """
-    parser = ArgumentParser(description='Fast galaxy + transient simulator')
+    parser = argparse.ArgumentParser(
+                formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                description='Fast galaxy + transient simulator')
 
     # Set up observing conditions.
     cond = parser.add_argument_group('Observing conditions')
@@ -162,6 +166,8 @@ def parse(options=None):
                       help='Host galaxy type')
     sims.add_argument('--outdir', default='',
                       help='Absolute path to simulation output')
+    sims.add_argument('--coadd_cameras', action='store_true',
+                      help='If true, coadd cameras in generated spectra')
 
     # Set up transient model as a simulation setting. None==no transient.
     tran = parser.add_argument_group('Transient settings')
@@ -286,6 +292,7 @@ def main(args=None):
         truthfile = os.path.join(args.outdir,
                      '{}_{}_{:04d}s_{:03d}_truth.fits'.format(args.host, thedate, int(args.exptime), j+1))
         write_templates(truthfile, flux, wave, targ, truth, objtr)
+        log.info('Wrote {}'.format(truthfile))
 
         # Get observing conditions and generate spectra.
         obs = dict(AIRMASS=args.airmass, EXPTIME=args.exptime,
@@ -318,7 +325,8 @@ def main(args=None):
         specfile = os.path.join(args.outdir,
                     '{}_{}_{:04d}s_{:03d}_spect.fits'.format(args.host, thedate, int(args.exptime), j+1))
 
-        redshifts = truth['TRUEZ'] if args.host=='bgs' else None
+        # redshifts = truth['TRUEZ'] if args.host=='bgs' else None
+        redshifts = None
 
         sim_spectra(wave, flux, args.host, specfile,
                     sourcetype=args.host,
@@ -326,4 +334,12 @@ def main(args=None):
                     targetid=truth['TARGETID'], redshift=redshifts,
                     ra=targ['RA'], dec=targ['DEC'],
                     seed=args.seed, expid=j)
+
+        if args.coadd_cameras:
+            coaddfile = specfile.replace('spect', 'coadd')
+            spectra = read_spectra(specfile)
+            spectra = coadd_cameras(spectra)
+
+            write_spectra(coaddfile, spectra)
+            log.info('Wrote {}'.format(coaddfile))
 
