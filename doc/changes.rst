@@ -2,7 +2,12 @@
 desisim change log
 ==================
 
-0.35.7 (unreleased)
+0.36.1 (unreleased)
+-------------------
+
+* No changes yet.
+
+0.36.0 (2022-01-20)
 -------------------
 
 * Major fixes to desisim unit tests, particularly for templates (see PR thread
