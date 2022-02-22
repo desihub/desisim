@@ -22,9 +22,47 @@ import desitarget
 from desispec.spectra import Spectra
 from desispec.resolution import Resolution
 
+def _fft_gaussian_smooth(array, sigmapix, pad_size=10):
+    iwavesize, nspec = array.shape
+    # Pad the input array to get rid of annoying edge effects
+    # Pad values are set to the edge value
+    arrsize    = iwavesize+2*pad_size
+    padded_arr = np.empty((arrsize, nspec))
+    padded_arr[:pad_size, :] = array[0, :]
+    padded_arr[iwavesize+pad_size:, :] = array[-1, :]
+    padded_arr[pad_size:iwavesize+pad_size, :] = array
+
+    kvals        = np.fft.rfftfreq(arrsize)
+    kernel_k     = np.exp(-(kvals*sigmapix)**2/2.)
+    snumsource_k = np.fft.rfft(padded_arr, axis=0)*kernel_k[:, None]
+
+    return np.fft.irfft(snumsource_k, n=arrsize, axis=0)[pad_size:-pad_size]
+
+# camera_output seems to change without assignment
+# Assignment yields attribute error
+# assumes dwave_out is not None
+def _smooth_source_variance(camera_output, sigma_A, dwave_out):
+    # arm_output shape is (wave.size, nspec)
+    for i in range(3):
+        arm_output = camera_output[i]
+
+        # num_source_electrons goes into poisson noise
+        # Remove it from the variance first
+        arm_output['variance_electrons'] -= arm_output['num_source_electrons']
+
+        sigmapix = sigma_A/dwave_out
+        arm_output['num_source_electrons'] = _fft_gaussian_smooth(arm_output['num_source_electrons'], sigmapix)
+
+        # add smoothed source electrons back to variance
+        arm_output['variance_electrons'] += arm_output['num_source_electrons']
+
+        arm_output['flux_inverse_variance'] = (
+            arm_output['flux_calibration'] ** -2 *
+            arm_output['variance_electrons'] ** -1)
+
 def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
                 sourcetype=None, targetid=None, redshift=None, expid=0, seed=0, skyerr=0.0, ra=None,
-                dec=None, meta=None, fibermap_columns=None, fullsim=False, use_poisson=True, specsim_config_file="desi", dwave_out=None, save_resolution=True):
+                dec=None, meta=None, fibermap_columns=None, fullsim=False, use_poisson=True, specsim_config_file="desi", dwave_out=None, save_resolution=True, source_contribution_smoothing=0):
     """
     Simulate spectra from an input set of wavelength and flux and writes a FITS file in the Spectra format that can
     be used as input to the redshift fitter.
@@ -54,6 +92,8 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
         realizations.
         save_resolution : if True it will save the Resolution matrix for each spectra.
         If False returns a resolution matrix (useful for mocks to save disk space).
+        source_contribution_smoothing : If > 0, contribution of source electrons to the noise and variance is
+            Gaussian smoothed by this value. This reduces signal-noise coupling especially for Lya forest.
     """ 
     log = get_logger()
     
@@ -185,6 +225,10 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
     sim = desisim.simexp.simulate_spectra(wave, flux, fibermap=frame_fibermap,
         obsconditions=obsconditions, redshift=redshift, seed=seed,
         psfconvolve=True, specsim_config_file=specsim_config_file, dwave_out=dwave_out)
+
+    # Smoothing source electron numbers only works for DESI mocks
+    if specsim_config_file != "eboss" and source_contribution_smoothing > 0:
+        _smooth_source_variance(sim.camera_output, source_contribution_smoothing, dwave_out)
 
     random_state = np.random.RandomState(seed)
     sim.generate_random_noise(random_state,use_poisson=use_poisson)
