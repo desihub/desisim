@@ -8,7 +8,7 @@ import warnings
 import numpy as np
 from scipy.constants import speed_of_light
 from scipy.stats import cauchy
-from astropy.table import Table,Column
+from astropy.table import Table,Column,join
 import astropy.io.fits as pyfits
 import multiprocessing
 import healpy
@@ -54,7 +54,6 @@ def parse(options=None):
     parser.add_argument('-o','--outfile', type=str, required=False, help="Output spectra (only used if single input file)")
 
     parser.add_argument('--outdir', type=str, default=".", required=False, help="Output directory")
-
     #- Optional observing conditions to override program defaults
     parser.add_argument('--program', type=str, default="DARK", help="Program (DARK, GRAY or BRIGHT)")
 
@@ -147,7 +146,10 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
 
     parser.add_argument('--save-resolution',action='store_true', help="Save full resolution in spectra file. By default only one matrix is saved in the truth file.")
 
-    parser.add_argument('--p1d-survey',action='store_true', help="Reads transmision files with same ra,dec,flux_r and exposure time as in.")
+    parser.add_argument('--p1d-survey',action='store_true', help="Reads transmision files with same ra, dec, flux_r and exposure time as in the survey.")
+
+    parser.add_argument('--obj_catalog', type=str, default=None, required=False, help="catalog of objetcs to simulate,\
+                        use it to simulate a subsample of objects from the original transmision files and/or overwrite the exposure time, magnitude, etc. ")
 
     if options is None:
         args = parser.parse_args()
@@ -323,6 +325,33 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     log.info("Read transmission file {}".format(ifilename))
 
     trans_wave, transmission, metadata, dla_info = read_lya_skewers(ifilename,read_dlas=(args.dla=='file'),add_metals=args.metals_from_file,add_lyb=args.add_LYB)
+
+    if args.p1d_survey:
+        w = metadata["FLUX_R"]>0
+        metadata = metadata[w]
+        transmission = transmission[w]
+        if dla_info is not None:
+                dla_info = dla_info[w]
+
+        obsconditions["EXPTIME"] = metadata["COADD_EXPTIME"]
+
+    if args.obj_catalog :
+        objcat = Table.read(args.obj_catalog)
+        w = np.in1d(metadata["MOCKID"],objcat["MOCKID"])
+        metadata = metadata[w]
+        transmission = transmission[w]
+        if dla_info is not None:
+            dla_info = dla_info[w]
+
+        if "EFFTIME" in objcat.colnames:
+            print("read efftime")
+            efftime = []
+            for i,tid in enumerate(metadata["MOCKID"]):
+                efftime.append(objcat[np.where(objcat["MOCKID"] == tid)]["EFFTIME"].value[0])
+            obsconditions["EXPTIME"] = efftime
+
+        del objcat
+
 
     ### Add Finger-of-God, before generate the continua
     log.info("Add FOG to redshift with sigma {} to quasar redshift".format(args.sigma_kms_fog))
@@ -533,18 +562,14 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         else:
             if args.p1d_survey:
                 mags=22.5-2.5*np.log10(metadata['FLUX_R'][these])
-                _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
-                = model.make_templates(nmodel=nt,
-                    redshift=metadata['Z'][these],mag=mags,
-                    lyaforest=False, nocolorcuts=True,
-                    noresample=True, seed=seed, south=issouth)
-                log.info("Assigned magnitudes from file")
+                log.info("Assign magnitudes from file")
             else:
-                _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
-                    = model.make_templates(nmodel=nt,
-                        redshift=metadata['Z'][these],
-                        lyaforest=False, nocolorcuts=True,
-                        noresample=True, seed=seed, south=issouth)
+                mags=None
+            _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
+            = model.make_templates(nmodel=nt,
+                                   redshift=metadata['Z'][these],mag=mags,
+                                   lyaforest=False, nocolorcuts=True,
+                                   noresample=True, seed=seed, south=issouth)
 
         _meta['TARGETID'] = metadata['MOCKID'][these]
         _qsometa['TARGETID'] = metadata['MOCKID'][these]
@@ -733,9 +758,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     else:
         specsim_config_file = 'desi'
 
-    if args.p1d_survey:
-        obsconditions['EXPTIME']=metadata['COADD_EXPTIME']
-        log.info(f"Set exptime to {obsconditions['EXPTIME']}")
     ### use Poisson = False to get reproducible results.
     ### use args.save_resolution = False to not save the matrix resolution per quasar in spectra files.
     resolution=sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,

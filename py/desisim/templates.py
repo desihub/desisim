@@ -2473,22 +2473,28 @@ class SIMQSO():
 
             # Sample from the QLF, using the input redshifts.
             zrange = (np.min(redshift), np.max(redshift))
-            if south:
-                if mag is not None:
-                    from simqso.sqgrids import AbsMagVar,AppMagVar,RedshiftVar,FixedSampler
-                    _M=mag - self.m2M(mag,redshift)
+
+            if mag is not None:
+                from simqso.sqgrids import AbsMagVar,AppMagVar,RedshiftVar,FixedSampler
+                _M=mag - self.m2M(mag,redshift)
+                if south:
                     _M=AbsMagVar(FixedSampler(_M),self.kcorr_south.restBand)
                     _m=AppMagVar(FixedSampler(mag),self.kcorr_south.obsBand)
-                    _z=RedshiftVar(FixedSampler(redshift))
+                else:
+                    _M=AbsMagVar(FixedSampler(_M),self.kcorr_north.restBand)
+                    _m=AppMagVar(FixedSampler(mag),self.kcorr_north.obsBand)
 
-                    qsometa=QsoSimPoints([_M,_m,_z],cosmo=self.cosmo,units='flux',
-                           seed=seed)
+                _z=RedshiftVar(FixedSampler(redshift))
+
+                qsometa=QsoSimPoints([_M,_m,_z],cosmo=self.cosmo,units='flux',
+                       seed=seed)
+            else:
+                if south:
+                    qsometa = generateQlfPoints(self.qlf, magrange, zrange, zin=redshift,
+                                                kcorr=self.kcorr_south, qlfseed=seed, gridseed=seed)
                 else:
                     qsometa = generateQlfPoints(self.qlf, magrange, zrange, zin=redshift,
-                                            kcorr=self.kcorr_south, qlfseed=seed, gridseed=seed)
-            else:
-                qsometa = generateQlfPoints(self.qlf, magrange, zrange, zin=redshift,
-                                            kcorr=self.kcorr_north, qlfseed=seed, gridseed=seed)
+                                                kcorr=self.kcorr_north, qlfseed=seed, gridseed=seed)
 
             # Add the fiducial quasar SED model from BOSS/DR9, optionally
             # without IGM absorption. This step adds a fiducial continuum,
