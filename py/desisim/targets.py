@@ -211,8 +211,8 @@ def get_targets_parallel(nspec, program, tileid=None, nproc=None, seed=None, spe
             else:
                 args.append( (nspec-i, program, tileid, seeds[i], specify_targets, i) )
 
-        pool = mp.Pool(nproc)
-        results = pool.map(_wrap_get_targets, args)
+        with mp.Pool(nproc) as P:
+            results = P.map(_wrap_get_targets, args)
         fibermaps, targets = list(zip(*results))
         fibermap = np.concatenate(fibermaps)
 
