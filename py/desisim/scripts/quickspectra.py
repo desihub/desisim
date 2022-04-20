@@ -226,12 +226,12 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
         obsconditions=obsconditions, redshift=redshift, seed=seed,
         psfconvolve=True, specsim_config_file=specsim_config_file, dwave_out=dwave_out)
 
+    random_state = np.random.RandomState(seed)
+    sim.generate_random_noise(random_state,use_poisson=use_poisson)
+
     # Smoothing source electron numbers only works for DESI mocks
     if specsim_config_file != "eboss" and source_contribution_smoothing > 0:
         _smooth_source_variance(sim.camera_output, source_contribution_smoothing, dwave_out)
-
-    random_state = np.random.RandomState(seed)
-    sim.generate_random_noise(random_state,use_poisson=use_poisson)
 
     scale=1e17
     specdata = None
