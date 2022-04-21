@@ -61,6 +61,7 @@ class TestQuickgen(unittest.TestCase):
         global desi_templates_available
         cls.testfile = 'test-{uuid}/test-{uuid}.fits'.format(uuid=uuid1())
         cls.testDir = os.path.join(os.environ['HOME'],'desi_test_io')
+
         cls.origEnv = dict(
             PIXPROD = None,
             SPECPROD = None,
@@ -126,7 +127,7 @@ class TestQuickgen(unittest.TestCase):
 
     def tearDown(self):
         for expid in [self.expid, 100, 101, 102]:
-            fibermap = desispec.io.findfile('fibermap', self.night, expid)
+            fibermap = io.findfile('simfibermap', self.night, expid)
             if os.path.exists(fibermap):
                 os.remove(fibermap)
             simspecfile = io.findfile('simspec', self.night, expid)
@@ -152,7 +153,7 @@ class TestQuickgen(unittest.TestCase):
         obs.new_exposure('dark', night=night, expid=expid, nspec=4)
 
         simspec = io.findfile('simspec', self.night, self.expid)
-        fibermap = desispec.io.findfile('fibermap', self.night, self.expid)
+        fibermap = io.findfile('simfibermap', self.night, self.expid)
         opts = ['--simspec', simspec, '--fibermap', fibermap]
         opts += ['--spectrograph', '3', '--config', 'desi']
         args = quickgen.parse(opts)
@@ -161,6 +162,12 @@ class TestQuickgen(unittest.TestCase):
         self.assertEqual(args.spectrograph, 3)
         self.assertEqual(args.config, 'desi')
 
+        # The two lines below create a confusing error but I guess it's intentional.
+        #   usage: test_quickgen.py [-h] --simspec SIMSPEC [--fibermap FIBERMAP] [-n NSPEC] [--nstart NSTART] [--spectrograph SPECTROGRAPH]
+        #     [--config CONFIG] [-s SEED] [--frameonly] [--moon-phase] [--moon-angle] [--moon-zenith] [--objtype] [-a] [-e]
+        #     [-o] [-v] [--outdir-truth] [--zrange-qso ] [--zrange-elg ] [--zrange-lrg ] [--zrange-bgs ] [--rmagrange-bgs ]
+        #     [--sne-rfluxratiorange ] [--add-SNeIa]
+        #   test_quickgen.py: error: the following arguments are required: --simspec
         with self.assertRaises(SystemExit):
             quickgen.parse([])
 
@@ -170,7 +177,7 @@ class TestQuickgen(unittest.TestCase):
         obs.new_exposure('arc', night=night, expid=expid, nspec=4)
 
         simspec = io.findfile('simspec', self.night, self.expid)
-        fibermap = desispec.io.findfile('fibermap', self.night, self.expid)
+        fibermap = io.findfile('simfibermap', self.night, self.expid)
         opts = ['--simspec', simspec, '--fibermap', fibermap]
         args = quickgen.parse(opts)
         self.assertEqual(args.simspec, simspec)
@@ -239,13 +246,13 @@ class TestQuickgen(unittest.TestCase):
         # generate exposures seed 1 & 2
         obs.new_exposure('dark',night=night,expid=expid0,nspec=1,seed=1)
         simspec0 = io.findfile('simspec', night, expid0)
-        fibermap0 = desispec.io.findfile('fibermap', night, expid0)
+        fibermap0 = io.findfile('simfibermap', night, expid0)
         obs.new_exposure('dark',night=night,expid=expid1,nspec=1,seed=1)
         simspec1 = io.findfile('simspec', night, expid1)
-        fibermap1 = desispec.io.findfile('fibermap', night, expid1)
+        fibermap1 = io.findfile('simfibermap', night, expid1)
         obs.new_exposure('dark',night=night,expid=expid2,nspec=1,seed=2)
         simspec2 = io.findfile('simspec', night, expid2)
-        fibermap2 = desispec.io.findfile('fibermap', night, expid2)
+        fibermap2 = io.findfile('simfibermap', night, expid2)
 
         s0=fits.open(simspec0)
         s1=fits.open(simspec1)
@@ -257,6 +264,10 @@ class TestQuickgen(unittest.TestCase):
 
         self.assertTrue(np.all(s0['WAVE'].data == s1['WAVE'].data))
         self.assertTrue(np.all(s0['FLUX'].data == s1['FLUX'].data))
+
+        s0.close()
+        s1.close()
+        s2.close()
 
         # generate quickgen output for each exposure
         # spawn with subprocess so that it will really be restarting fresh;
@@ -302,11 +313,11 @@ class TestQuickgen(unittest.TestCase):
         obscond['AIRMASS'] = 1.5
         obs.new_exposure('dark',night=night,expid=expid0,nspec=1,seed=1,obsconditions=obscond)
         simspec0 = io.findfile('simspec', night, expid0)
-        fibermap0 = desispec.io.findfile('fibermap', night, expid0)
+        fibermap0 = io.findfile('simfibermap', night, expid0)
         obscond['AIRMASS'] = 1.0
         obs.new_exposure('dark',night=night,expid=expid1,nspec=1,seed=1,obsconditions=obscond)
         simspec1 = io.findfile('simspec', night, expid1)
-        fibermap1 = desispec.io.findfile('fibermap', night, expid1)
+        fibermap1 = io.findfile('simfibermap', night, expid1)
 
         # generate quickgen output for each airmass
         cmd = "quickgen --simspec {} --fibermap {}".format(simspec0,fibermap0)
@@ -331,10 +342,10 @@ class TestQuickgen(unittest.TestCase):
         # generate exposures of varying exposure times
         obs.new_exposure('dark',exptime=100,night=night,expid=expid0,nspec=1,seed=1)
         simspec0 = io.findfile('simspec', night, expid0)
-        fibermap0 = desispec.io.findfile('fibermap', night, expid0)
+        fibermap0 = io.findfile('simfibermap', night, expid0)
         obs.new_exposure('dark',exptime=1000,night=night,expid=expid1,nspec=1,seed=1)
         simspec1 = io.findfile('simspec', night, expid1)
-        fibermap1 = desispec.io.findfile('fibermap', night, expid1)
+        fibermap1 = io.findfile('simfibermap', night, expid1)
 
         # generate quickgen output for each exposure time
         cmd = "quickgen --simspec {} --fibermap {}".format(simspec0,fibermap0)
@@ -359,10 +370,10 @@ class TestQuickgen(unittest.TestCase):
         # generate exposures
         obs.new_exposure('bgs',night=night,expid=expid0,nspec=1,seed=1)
         simspec0 = io.findfile('simspec', night, expid0)
-        fibermap0 = desispec.io.findfile('fibermap', night, expid0)
+        fibermap0 = io.findfile('simfibermap', night, expid0)
         obs.new_exposure('bgs',night=night,expid=expid1,nspec=1,seed=1)
         simspec1 = io.findfile('simspec', night, expid1)
-        fibermap1 = desispec.io.findfile('fibermap', night, expid1)
+        fibermap1 = io.findfile('simfibermap', night, expid1)
 
         # generate quickgen output for each moon phase
         cmd = "quickgen --simspec {} --fibermap {} --moon-phase 0.0".format(simspec0,fibermap0)
@@ -387,10 +398,10 @@ class TestQuickgen(unittest.TestCase):
         # generate exposures
         obs.new_exposure('bgs',night=night,expid=expid0,nspec=1,seed=1)
         simspec0 = io.findfile('simspec', night, expid0)
-        fibermap0 = desispec.io.findfile('fibermap', night, expid0)
+        fibermap0 = io.findfile('simfibermap', night, expid0)
         obs.new_exposure('bgs',night=night,expid=expid1,nspec=1,seed=1)
         simspec1 = io.findfile('simspec', night, expid1)
-        fibermap1 = desispec.io.findfile('fibermap', night, expid1)
+        fibermap1 = io.findfile('simfibermap', night, expid1)
 
         # generate quickgen output for each moon phase
         cmd = "quickgen --simspec {} --fibermap {} --moon-angle 0".format(simspec0,fibermap0)
@@ -415,10 +426,10 @@ class TestQuickgen(unittest.TestCase):
         # generate exposures
         obs.new_exposure('bgs',night=night,expid=expid0,nspec=1,seed=1)
         simspec0 = io.findfile('simspec', night, expid0)
-        fibermap0 = desispec.io.findfile('fibermap', night, expid0)
+        fibermap0 = io.findfile('simfibermap', night, expid0)
         obs.new_exposure('bgs',night=night,expid=expid1,nspec=1,seed=1)
         simspec1 = io.findfile('simspec', night, expid1)
-        fibermap1 = desispec.io.findfile('fibermap', night, expid1)
+        fibermap1 = io.findfile('simfibermap', night, expid1)
 
         # generate quickgen output for each moon phase
         cmd = "quickgen --simspec {} --fibermap {} --moon-zenith 0".format(simspec0,fibermap0)

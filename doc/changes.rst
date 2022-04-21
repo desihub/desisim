@@ -2,17 +2,30 @@
 desisim change log
 ==================
 
-0.35.7 (unreleased)
+0.36.1 (unreleased)
 -------------------
 
-* No changes yet
+* No changes yet.
+
+0.36.0 (2022-01-20)
+-------------------
+
+* Major fixes to desisim unit tests, particularly for templates (see PR thread
+  for details about algorithmic changes; PR `#559`_).
+* Restore template-generating code to a working state (PR `#556`_).
+* Flux bug fix in quicktransients simulator (PR `#541`_).
+
+.. _`#541`: https://github.com/desihub/desisim/pull/541
+.. _`#556`: https://github.com/desihub/desisim/pull/556
+.. _`#559`: https://github.com/desihub/desisim/pull/559
+
 
 0.35.6 (2021-03-31)
 -------------------
 
 * lighterweight quickquasars (PR `#552`_).
 
-.. _`PR #552`: https://github.com/desihub/desisim/pull/552
+.. _`#552`: https://github.com/desihub/desisim/pull/552
 
 0.35.5 (2021-02-15)
 -------------------

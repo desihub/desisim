@@ -96,13 +96,13 @@ def simulate_exposure(simspecfile, rawfile, cameras=None,
     if rank == 0 and os.path.exists(rawfile):
         from astropy.io import fits
         err = False
-        fx = fits.open(rawfile)
-        for camera in cameras:
-            if camera in fx:
-                log.error('Camera {} already in {}'.format(camera, rawfile))
-                err = True
-        if err:
-            raise ValueError('Some cameras already in output file')
+        with fits.open(rawfile) as fx:
+            for camera in cameras:
+                if camera in fx:
+                    log.error('Camera {} already in {}'.format(camera, rawfile))
+                    err = True
+            if err:
+                raise ValueError('Some cameras already in output file')
 
     #- Read simspec input; I/O layer handles MPI broadcasting
     if rank == 0:
@@ -441,7 +441,11 @@ def simulate(camera, simspec, psf, nspec=None, ncpu=None,
         #- Convert DATE-OBS to sexigesimal (sigh) Local Sidereal Time
         #- Use mean ST as close enough for sims to avoid nutation calc
         t = Time(header['DATE-OBS'])
-        st = t.sidereal_time('mean', kpno_longitude).to('deg').value
+        # This calculation can raise a non-catastrophic "overflow encountered in
+        # double_scalars" error in astropy (see
+        # https://github.com/desihub/specsim/pull/120); catch it here.
+        with np.errstate(all='ignore'):
+            st = t.sidereal_time('mean', kpno_longitude).to('deg').value
         hour = st/15
         minute = (hour % 1)*60
         second = (minute % 1)*60
