@@ -146,9 +146,9 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
 
     parser.add_argument('--save-resolution',action='store_true', help="Save full resolution in spectra file. By default only one matrix is saved in the truth file.")
 
-    parser.add_argument('--p1d-survey',action='store_true', help="Reads transmision files with same ra, dec, flux_r and exposure time as in the survey.")
+    parser.add_argument('--replicate-survey-p1d',action='store_true', help="Reads transmision files with same ra, dec, flux_r and exposure time as in the survey.")
 
-    parser.add_argument('--obj_catalog', type=str, default=None, required=False, help="catalog of objetcs to simulate,\
+    parser.add_argument('--use-obj-catalog', type=str, default=None, required=False, help="catalog of objetcs to simulate,\
                         use it to simulate a subsample of objects from the original transmision files and/or overwrite the exposure time, magnitude, etc. ")
 
     if options is None:
@@ -327,7 +327,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     trans_wave, transmission, metadata, dla_info = read_lya_skewers(ifilename,read_dlas=(args.dla=='file'),add_metals=args.metals_from_file,add_lyb=args.add_LYB)
 
-    if args.p1d_survey:
+    if args.replicate_survey_p1d:
         w = metadata["FLUX_R"]>0
         metadata = metadata[w]
         transmission = transmission[w]
@@ -336,8 +336,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
         obsconditions["EXPTIME"] = metadata["COADD_EXPTIME"]
 
-    if args.obj_catalog :
-        objcat = Table.read(args.obj_catalog)
+    if args.use_obj_catalog :
+        objcat = Table.read(args.use_obj_catalog)
         w = np.in1d(metadata["MOCKID"],objcat["MOCKID"])
         metadata = metadata[w]
         transmission = transmission[w]
@@ -345,14 +345,17 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             dla_info = dla_info[w]
 
         if "EFFTIME" in objcat.colnames:
-            print("read efftime")
+            log.info("Reading EFFTIME exposure")
             efftime = []
             for i,tid in enumerate(metadata["MOCKID"]):
                 efftime.append(objcat[np.where(objcat["MOCKID"] == tid)]["EFFTIME"].value[0])
             obsconditions["EXPTIME"] = efftime
 
         del objcat
-
+        
+        if transmission.size == 0 :
+            log.warning("No intersection with catalog provided")
+            return
 
     ### Add Finger-of-God, before generate the continua
     log.info("Add FOG to redshift with sigma {} to quasar redshift".format(args.sigma_kms_fog))
@@ -561,7 +564,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                     lyaforest=False, nocolorcuts=True,
                     noresample=True, seed=seed, south=issouth)
         else:
-            if args.p1d_survey:
+            if args.replicate_survey_p1d:
                 mags=22.5-2.5*np.log10(metadata['FLUX_R'][these])
                 log.info("Assign magnitudes from file")
             else:
@@ -889,7 +892,7 @@ def main(args=None):
         if args.eboss:
             exptime = 1000. # sec (added here in case we change the default)
 
-    if args.p1d_survey:
+    if args.replicate_survey_p1d:
         args.desi_footprint=False
         args.downsampling=None
 
