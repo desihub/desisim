@@ -17,8 +17,12 @@ def parse(options=None):
     parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     #- Required
-    parser.add_argument('--program', type=str, required=True, help="Program name, e.g. dark, bright, gray")
+    parser.add_argument('--program', type=str, required=False, default='qso',
+        help="Program name, e.g. dark, bright, gray. Default: %(default)s")
+
     parser.add_argument('--add-lyaforest', action='store_true', help="Add Lya forest to QSO spectra.")
+    # parser.add_argument('--dla')
+    # parser.add_argument('--bal')
 
     #- Optional observing conditions to override program defaults
     parser.add_argument('--seeing', type=float, default=None, help="Seeing FWHM [arcsec]")
