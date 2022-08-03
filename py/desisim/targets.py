@@ -335,7 +335,7 @@ def get_targets(nspec, program, tileid=None, seed=None, specify_targets=dict(), 
         elif objtype == 'QSO':
             from desisim.templates import QSO
             qso = QSO(wave=wave)
-            if 'lyaforest' is not in obj_kwargs.keys():
+            if 'lyaforest' not in obj_kwargs.keys():
                 obj_kwargs['lyaforest'] = False
             simflux, wave1, meta1, objmeta1 = qso.make_templates(nmodel=nobj, seed=seed, **obj_kwargs)
             fibermap['DESI_TARGET'][ii] = desi_mask.QSO
