@@ -2263,7 +2263,7 @@ class QSO():
 
             # Compute and interpolate the Lya forest spectrum.
             if lyaforest:
-                skewer_wave, _skewer_flux = self.lyamock_maker.get_lya_skewers(Ns=1, new_seed=templateseed[ii])
+                skewer_wave, _skewer_flux = self.lyamock_maker.get_lya_skewers(n_spectra=1, new_seed=templateseed[ii])
                 skewer_flux = _skewer_flux[0]
                 no_forest = ( skewer_wave > self.lambda_lyalpha * (1 + redshift) )
                 skewer_flux[no_forest] = 1.0
