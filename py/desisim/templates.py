@@ -2029,7 +2029,7 @@ class QSO():
                        seed=None, redshift=None, mag=None, input_meta=None, 
                        input_objmeta=None, N_perz=40, maxiter=20, uniform=False, 
                        balprob=0.12, lyaforest=True, noresample=False, nocolorcuts=False, 
-                       south=True, verbose=False):
+                       south=True, verbose=False, add_forest_after_magnorm=False):
         """Build Monte Carlo QSO spectra/templates.
 
         This function generates QSO spectra on-the-fly using PCA decomposition
@@ -2087,6 +2087,8 @@ class QSO():
             filter system, otherwise apply the "north" (MzLS+BASS) color-cuts.
             Defaults to True.
           verbose (bool, optional): Be verbose!
+          add_forest_after_magnorm (bool, optional): Adds the forest after magnitude
+            normalization. This helps recover the same continuum for the same seed.
 
         Returns (outflux, wave, meta, objmeta) tuple where:
 
@@ -2309,7 +2311,7 @@ class QSO():
                     if redshift > 2.39:
                          flux[kk, :pix912] *= np.exp(-phys_dist.value / mfp)
 
-                    if lyaforest:
+                    if lyaforest and not add_forest_after_magnorm:
                         flux[kk, :] *= qso_skewer_flux                    
                     if hasbal:
                         flux[kk, :] *= balflux
@@ -2354,6 +2356,8 @@ class QSO():
                 # (suitably normalized) and metadata table and finish up.
                 if np.any(colormask * nonegflux):
                     this = templaterand.choice(np.where(colormask * nonegflux)[0]) # Pick one randomly.
+                    if lyaforest and add_forest_after_magnorm:
+                        flux[this, :] *= qso_skewer_flux
                     if noresample:
                         outflux[ii, :] = flux[this, :] * magnorm[this]
                     else:

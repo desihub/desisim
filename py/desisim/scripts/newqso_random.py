@@ -23,7 +23,8 @@ def parse(options=None):
     parser.add_argument('--zrange', type=str, required=False, default='2.6:3.6',
         help="Quasar redshift range distribution (uniformly sampled).")
     parser.add_argument('--colorcut', action='store_true', help="Apply a colorcut, which would randomize continua.")
-    parser.add_argument('--add-lyaforest', action='store_true', help="Add Lya forest to QSO spectra.")
+    parser.add_argument('--add-lyaforest', action='store_true',
+        help="Adds Lya forest to QSO spectra AFTER magnitude normalization.")
     # parser.add_argument('--dla')
     # parser.add_argument('--bal')
 
@@ -80,7 +81,8 @@ def main(args):
     specify_targets['QSO'] = {
         'lyaforest':args.add_lyaforest,
         'zrange':zrange,
-        'nocolorcuts': not args.colorcut
+        'nocolorcuts': not args.colorcut,
+        'add_forest_after_magnorm': True
         }
 
     sim, fibermap, meta, obs, objmeta = desisim.obs.new_exposure(args.program,
