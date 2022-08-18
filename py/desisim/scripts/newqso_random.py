@@ -76,7 +76,7 @@ def main(args):
             obsconditions['MOONSEP'] = args.moonsep
 
     specify_targets = dict({})
-    zrange = tuple([float(z) for z in args.zrange.split(:)])
+    zrange = tuple([float(z) for z in args.zrange.split(':')])
     specify_targets['QSO'] = {
         'lyaforest':args.add_lyaforest,
         'zrange':zrange,
