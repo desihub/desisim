@@ -18,8 +18,11 @@ def parse(options=None):
 
     #- Required
     parser.add_argument('--program', type=str, required=False, default='qso',
-        help="Program name, e.g. dark, bright, gray. Default: %(default)s")
+        help="Program name, e.g. dark, bright, gray.")
 
+    parser.add_argument('--zrange', type=str, required=False, default='2.6:3.6',
+        help="Quasar redshift range distribution (uniformly sampled).")
+    parser.add_argument('--colorcut', action='store_true', help="Apply a colorcut, which would randomize continua.")
     parser.add_argument('--add-lyaforest', action='store_true', help="Add Lya forest to QSO spectra.")
     # parser.add_argument('--dla')
     # parser.add_argument('--bal')
@@ -73,7 +76,12 @@ def main(args):
             obsconditions['MOONSEP'] = args.moonsep
 
     specify_targets = dict({})
-    specify_targets['QSO'] = {'lyaforest':args.add_lyaforest}
+    zrange = tuple([float(z) for z in args.zrange.split(:)])
+    specify_targets['QSO'] = {
+        'lyaforest':args.add_lyaforest,
+        'zrange':zrange,
+        'nocolorcuts': not args.colorcut
+        }
 
     sim, fibermap, meta, obs, objmeta = desisim.obs.new_exposure(args.program,
         specify_targets=specify_targets, nspec=args.nspec, night=args.night, expid=args.expid, 
