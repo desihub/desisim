@@ -146,6 +146,8 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
     parser.add_argument('--nmax', type=int, default=None, help="Max number of QSO per input file, for debugging")
 
     parser.add_argument('--save-resolution',action='store_true', help="Save full resolution in spectra file. By default only one matrix is saved in the truth file.")
+    
+    parser.add_argument('--dn_dzdm', type=str, default=None, help="File containing the number of quasars by redshift and magnitude (dN/dzdM) bin to be sampled")
 
     if options is None:
         args = parser.parse_args()
@@ -372,8 +374,38 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         transmission = transmission[selection]
         metadata = metadata[:][selection]
         DZ_FOG = DZ_FOG[selection]
+    
+    # Redshift distribution resample to match the one in file give by args.dn_dzdm
+    log.info("Resampling to redshift distribution from {}".format(args.dn_dzdm))
+    rnd_state = np.random.get_state()
+    hdul_dn_dzdm=pyfits.open(args.dn_dzdm)
+    zcenters=hdul_dn_dzdm['Z_CENTERS'].data
+    dz = 0.5*(zcenters[1]-zcenters[0]) # Get bin size of the distribution
+    dn_dzdm=hdul_dn_dzdm['dn_dzdm'].data
+    dn_dz=dn_dzdm.sum(axis=1) # Table has a redshift bin by row.
 
-
+    z=metadata['Z']
+    pixarea=healpy.pixelfunc.nside2pixarea(nside,degrees=True) 
+    # Turn old distribution into new distribution
+    selection_z=[] #Initialize array to select qsos
+    for z_bin, dndz_bin in zip(zcenters,dn_dz):
+        nqso_bin=np.ceil(pixarea*dndz_bin).astype(int)
+        w_z = (z>=z_bin-dz)&(z<=z_bin+dz)
+        nqso_orig = len(z[w_z])
+        if nqso_orig==0:
+            continue # If no QSOs in that bin, skip
+        idx = np.where(w_z)[0]
+        downsampling_bin = nqso_bin/nqso_orig
+        if downsampling_bin<1:
+            # Drop QSOs if the number of disponible QSOs exceeds the wanted distribution
+            w_idx = np.random.uniform(size=nqso_orig)<downsampling_bin
+            idx = idx[w_idx]
+        selection_z+=list(idx) 
+    np.random.set_state(rnd_state)
+    log.info("Resampling redshift distribution {}->{}".format(len(z),len(selection_z)))
+    transmission = transmission[selection_z]
+    metadata = metadata[:][selection_z]
+    DZ_FOG = DZ_FOG[selection_z]
 
     nqso=transmission.shape[0]
     if args.downsampling is not None :
@@ -398,6 +430,32 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             metadata = metadata[:][indices]
             DZ_FOG = DZ_FOG[indices]
             nqso = args.nmax
+            
+    log.info("Reading R-band magnitude distribution from {}".format(args.dn_dzdm))
+    rmagcenters=hdul_dn_dzdm['RMAG_CENTERS'].data
+    drmag = 0.5*(rmagcenters[1]-rmagcenters[0])
+    
+    rmin = np.min(rmagcenters-drmag)
+    rmax = np.max(rmagcenters+drmag)
+
+    z = metadata['Z']
+    mag_pdfs=dn_dzdm/dn_dz[:,None] #Getting a probability distribution for each redshift bin
+    mags = np.zeros(len(z))
+    log.info("Generating random magnitudes according to distribution".format(args.dn_dzdm))
+    rnd_state = np.random.get_state()
+    for i,z_bin in enumerate(zcenters):
+        w_z = (z>=z_bin-dz)&(z<=z_bin+dz)
+        if sum(w_z)==0: continue
+        mags_selected=np.array([])
+        while mags_selected.size!=mags[w_z].size:
+            n_todo=mags[w_z].size-mags_selected.size
+            mag_tmp = np.random.uniform(rmin,rmax,n_todo)
+            pdf = np.interp(mag_tmp,rmagcenters,mag_pdfs[i])
+            w_r = np.random.uniform(0,1,n_todo)<pdf/np.max(mag_pdfs[i])
+            mags_selected=np.concatenate((mags_selected,mag_tmp[w_r]))
+        mags[w_z] = np.array(mags_selected)
+    np.random.set_state(rnd_state)
+    assert not np.any(mags==0)
 
     # In previous versions of the London mocks we needed to enforce F=1 for
     # z > z_qso here, but this is not needed anymore. Moreover, now we also
@@ -530,9 +588,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         else:
             _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
                 = model.make_templates(nmodel=nt,
-                    redshift=metadata['Z'][these],
-                    lyaforest=False, nocolorcuts=True,
-                    noresample=True, seed=seed, south=issouth)
+                        redshift=metadata['Z'][these],mag=mags[these],
+                        lyaforest=False, nocolorcuts=True,
+                        noresample=True, seed=seed, south=issouth)
 
         _meta['TARGETID'] = metadata['MOCKID'][these]
         _qsometa['TARGETID'] = metadata['MOCKID'][these]
@@ -918,6 +976,9 @@ def main(args=None):
         eboss = { 'footprint':FootprintEBOSS(), 'redshift':RedshiftDistributionEBOSS() }
     else:
         eboss = None
+        
+    if args.dn_dzdm is None:
+        args.dn_dzdm=os.path.join(os.environ['DESISIM'],'py/desisim/data/dn_dzdM_EDR.fits')
 
     if args.nproc > 1:
         func_args = [ {"ifilename":filename , \
