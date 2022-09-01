@@ -376,36 +376,37 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         DZ_FOG = DZ_FOG[selection]
     
     # Redshift distribution resample to match the one in file give by args.dn_dzdm
-    log.info("Resampling to redshift distribution from {}".format(args.dn_dzdm))
-    rnd_state = np.random.get_state()
-    hdul_dn_dzdm=pyfits.open(args.dn_dzdm)
-    zcenters=hdul_dn_dzdm['Z_CENTERS'].data
-    dz = 0.5*(zcenters[1]-zcenters[0]) # Get bin size of the distribution
-    dn_dzdm=hdul_dn_dzdm['dn_dzdm'].data
-    dn_dz=dn_dzdm.sum(axis=1) # Table has a redshift bin by row.
+    if eboss is None:
+        log.info("Resampling to redshift distribution from {}".format(args.dn_dzdm))
+        rnd_state = np.random.get_state()
+        hdul_dn_dzdm=pyfits.open(args.dn_dzdm)
+        zcenters=hdul_dn_dzdm['Z_CENTERS'].data
+        dz = 0.5*(zcenters[1]-zcenters[0]) # Get bin size of the distribution
+        dn_dzdm=hdul_dn_dzdm['dn_dzdm'].data
+        dn_dz=dn_dzdm.sum(axis=1) # Table has a redshift bin by row.
 
-    z=metadata['Z']
-    pixarea=healpy.pixelfunc.nside2pixarea(nside,degrees=True) 
-    # Turn old distribution into new distribution
-    selection_z=[] #Initialize array to select qsos
-    for z_bin, dndz_bin in zip(zcenters,dn_dz):
-        nqso_bin=np.ceil(pixarea*dndz_bin).astype(int)
-        w_z = (z>=z_bin-dz)&(z<=z_bin+dz)
-        nqso_orig = len(z[w_z])
-        if nqso_orig==0:
-            continue # If no QSOs in that bin, skip
-        idx = np.where(w_z)[0]
-        downsampling_bin = nqso_bin/nqso_orig
-        if downsampling_bin<1:
-            # Drop QSOs if the number of disponible QSOs exceeds the wanted distribution
-            w_idx = np.random.uniform(size=nqso_orig)<downsampling_bin
-            idx = idx[w_idx]
-        selection_z+=list(idx) 
-    np.random.set_state(rnd_state)
-    log.info("Resampling redshift distribution {}->{}".format(len(z),len(selection_z)))
-    transmission = transmission[selection_z]
-    metadata = metadata[:][selection_z]
-    DZ_FOG = DZ_FOG[selection_z]
+        z=metadata['Z']
+        pixarea=healpy.pixelfunc.nside2pixarea(nside,degrees=True) 
+        # Turn old distribution into new distribution
+        selection_z=[] #Initialize array to select qsos
+        for z_bin, dndz_bin in zip(zcenters,dn_dz):
+            nqso_bin=np.ceil(pixarea*dndz_bin).astype(int)
+            w_z = (z>=z_bin-dz)&(z<=z_bin+dz)
+            nqso_orig = len(z[w_z])
+            if nqso_orig==0:
+                continue # If no QSOs in that bin, skip
+            idx = np.where(w_z)[0]
+            downsampling_bin = nqso_bin/nqso_orig
+            if downsampling_bin<1:
+                # Drop QSOs if the number of disponible QSOs exceeds the wanted distribution
+                w_idx = np.random.uniform(size=nqso_orig)<downsampling_bin
+                idx = idx[w_idx]
+            selection_z+=list(idx) 
+        np.random.set_state(rnd_state)
+        log.info("Resampling redshift distribution {}->{}".format(len(z),len(selection_z)))
+        transmission = transmission[selection_z]
+        metadata = metadata[:][selection_z]
+        DZ_FOG = DZ_FOG[selection_z]
 
     nqso=transmission.shape[0]
     if args.downsampling is not None :
@@ -431,31 +432,32 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             DZ_FOG = DZ_FOG[indices]
             nqso = args.nmax
             
-    log.info("Reading R-band magnitude distribution from {}".format(args.dn_dzdm))
-    rmagcenters=hdul_dn_dzdm['RMAG_CENTERS'].data
-    drmag = 0.5*(rmagcenters[1]-rmagcenters[0])
-    
-    rmin = np.min(rmagcenters-drmag)
-    rmax = np.max(rmagcenters+drmag)
+    if eboss is None:
+        log.info("Reading R-band magnitude distribution from {}".format(args.dn_dzdm))
+        rmagcenters=hdul_dn_dzdm['RMAG_CENTERS'].data
+        drmag = 0.5*(rmagcenters[1]-rmagcenters[0])
 
-    z = metadata['Z']
-    mag_pdfs=dn_dzdm/dn_dz[:,None] #Getting a probability distribution for each redshift bin
-    mags = np.zeros(len(z))
-    log.info("Generating random magnitudes according to distribution".format(args.dn_dzdm))
-    rnd_state = np.random.get_state()
-    for i,z_bin in enumerate(zcenters):
-        w_z = (z>=z_bin-dz)&(z<=z_bin+dz)
-        if sum(w_z)==0: continue
-        mags_selected=np.array([])
-        while mags_selected.size!=mags[w_z].size:
-            n_todo=mags[w_z].size-mags_selected.size
-            mag_tmp = np.random.uniform(rmin,rmax,n_todo)
-            pdf = np.interp(mag_tmp,rmagcenters,mag_pdfs[i])
-            w_r = np.random.uniform(0,1,n_todo)<pdf/np.max(mag_pdfs[i])
-            mags_selected=np.concatenate((mags_selected,mag_tmp[w_r]))
-        mags[w_z] = np.array(mags_selected)
-    np.random.set_state(rnd_state)
-    assert not np.any(mags==0)
+        rmin = np.min(rmagcenters-drmag)
+        rmax = np.max(rmagcenters+drmag)
+
+        z = metadata['Z']
+        mag_pdfs=dn_dzdm/dn_dz[:,None] #Getting a probability distribution for each redshift bin
+        mags = np.zeros(len(z))
+        log.info("Generating random magnitudes according to distribution".format(args.dn_dzdm))
+        rnd_state = np.random.get_state()
+        for i,z_bin in enumerate(zcenters):
+            w_z = (z>=z_bin-dz)&(z<=z_bin+dz)
+            if sum(w_z)==0: continue
+            mags_selected=np.array([])
+            while mags_selected.size!=mags[w_z].size:
+                n_todo=mags[w_z].size-mags_selected.size
+                mag_tmp = np.random.uniform(rmin,rmax,n_todo)
+                pdf = np.interp(mag_tmp,rmagcenters,mag_pdfs[i])
+                w_r = np.random.uniform(0,1,n_todo)<pdf/np.max(mag_pdfs[i])
+                mags_selected=np.concatenate((mags_selected,mag_tmp[w_r]))
+            mags[w_z] = np.array(mags_selected)
+        np.random.set_state(rnd_state)
+        assert not np.any(mags==0)
 
     # In previous versions of the London mocks we needed to enforce F=1 for
     # z > z_qso here, but this is not needed anymore. Moreover, now we also
@@ -588,9 +590,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         else:
             _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
                 = model.make_templates(nmodel=nt,
-                        redshift=metadata['Z'][these],mag=mags[these],
-                        lyaforest=False, nocolorcuts=True,
-                        noresample=True, seed=seed, south=issouth)
+                    redshift=metadata['Z'][these],mag=mags[these],
+                    lyaforest=False, nocolorcuts=True,
+                    noresample=True, seed=seed, south=issouth)
 
         _meta['TARGETID'] = metadata['MOCKID'][these]
         _qsometa['TARGETID'] = metadata['MOCKID'][these]
@@ -676,6 +678,14 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
         tmp_qso_flux = apply_metals_transmission(tmp_qso_wave,tmp_qso_flux,
                             trans_wave,transmission,args.metals)
+    # Attenuate the spectra for extinction
+    if not sfdmap is None:
+        Rv=3.1   #set by default
+        indx=np.arange(metadata['RA'].size)
+        extinction =Rv*ext_odonnell(tmp_qso_wave)
+        EBV = sfdmap.ebv(metadata['RA'],metadata['DEC'], scaling=1.0)
+        tmp_qso_flux *=10**( -0.4 * EBV[indx, np.newaxis] * extinction)
+        log.info("Dust extinction added")
 
     # if requested, compute magnitudes and apply target selection.  Need to do
     # this calculation separately for QSOs in the north vs south.
@@ -722,6 +732,18 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         bbflux['SOUTH']=bbflux['SOUTH'][selection]  
             
         nqso         = selection.size
+        
+    if not sfdmap is None and eboss is None: 
+        flux_assigned = 10**((22.5-mags)/2.5)
+        scalefac=flux_assigned/bbflux['FLUX_R']
+        tmp_qso_flux=scalefac[:,None]*tmp_qso_flux
+        for these, filters in zip( (~bbflux['SOUTH'], bbflux['SOUTH']),
+                                   (bassmzls_and_wise_filters, decam_and_wise_filters) ):
+            if np.count_nonzero(these) > 0:
+                maggies = filters.get_ab_maggies(1e-17 * tmp_qso_flux[these, :], tmp_qso_wave)
+                for band, filt in zip( bands, maggies.colnames ):
+                    bbflux[band][these] = np.ma.getdata(1e9 * maggies[filt])
+        log.info("Rescaling flux to match magnitudes")
 
     log.info("Resample to a linear wavelength grid (needed by DESI sim.)")
     # careful integration of bins, not just a simple interpolation
@@ -756,23 +778,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         fibermap_columns['PHOTSYS'] = photsys
     else :
         fibermap_columns=None
-
-    # Attenuate the spectra for extinction
-    if not sfdmap is None:
-       Rv=3.1   #set by default
-       indx=np.arange(metadata['RA'].size)
-       extinction =Rv*ext_odonnell(qso_wave)
-       EBV = sfdmap.ebv(metadata['RA'],metadata['DEC'], scaling=1.0)
-       qso_flux *=10**( -0.4 * EBV[indx, np.newaxis] * extinction)
-       if fibermap_columns is not None:
-          fibermap_columns['EBV']=EBV
-       EBV0=0.0
-       EBV_med=np.median(EBV)
-       Ag = 3.303 * (EBV_med - EBV0)
-       exptime_fact=np.power(10.0, (2.0 * Ag / 2.5))
-       obsconditions['EXPTIME']*=exptime_fact
-       log.info("Dust extinction added")
-       log.info('exposure time adjusted to {}'.format(obsconditions['EXPTIME']))
 
     if args.eboss:
         specsim_config_file = 'eboss'
