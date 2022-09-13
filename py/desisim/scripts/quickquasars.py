@@ -391,7 +391,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         selection_z=[] #Initialize array to select qsos
         for z_bin, dndz_bin in zip(zcenters,dn_dz):
             nqso_bin=np.ceil(pixarea*dndz_bin).astype(int)
-            w_z = (z>=z_bin-dz)&(z<=z_bin+dz)
+            w_z = (z>=z_bin-dz)&(z<z_bin+dz)
             nqso_orig = len(z[w_z])
             if nqso_orig==0:
                 continue # If no QSOs in that bin, skip
