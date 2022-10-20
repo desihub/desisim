@@ -929,6 +929,8 @@ def main(args=None):
                        "footprint_healpix_nside": footprint_healpix_nside , \
                        "bal":bal,"sfdmap":sfdmap,"eboss":eboss \
                    } for i,filename in enumerate(args.infile) ]
+        
+        # Run in parallel
         with multiprocessing.Pool(args.nproc) as pool:
             pool.map(_func, func_args)
     else:
