@@ -73,6 +73,7 @@ jobs:
                 os: [ubuntu-latest]
                 python-version: [3.8]
                 fitsio-version: ['==1.1.6']  # fuji version
+                numpy-version: ['<1.23']  # to keep asscalar, used by astropy
         env:
             DESIUTIL_VERSION: 3.2.3
             # DESIMODEL: ${GITHUB_WORKSPACE}/desimodel
