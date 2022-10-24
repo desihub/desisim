@@ -25,7 +25,7 @@ jobs:
             # DESIMODEL: ${GITHUB_WORKSPACE}/desimodel
             DESIMODEL_DATA: branches/test-0.17
             # DESISIM: ${GITHUB_WORKSPACE}/desisim
-            DESISIM_TESTDATA_VERSION: master
+            DESISIM_TESTDATA_VERSION: main
             # DESI_ROOT: ${DESISIM}/desi
             # DESI_BASIS_TEMPLATES: ${DESI_ROOT}/spectro/templates/basis_templates/v3.2
             SIMQSO_VERSION: v1.2.4
@@ -47,7 +47,7 @@ jobs:
                 python -m pip install -r requirements.txt
                 python -m pip install -U 'astropy${{ matrix.astropy-version }}'
                 # python -m pip install git+https://github.com/imcgreer/simqso.git@${SIMQSO_VERSION}#egg=simqso
-                python -m pip install git+https://github.com/desihub/simqso.git@master#egg=simqso
+                python -m pip install git+https://github.com/desihub/simqso.git@main#egg=simqso
                 python -m pip cache remove fitsio
                 python -m pip install --no-deps --force-reinstall --ignore-installed 'fitsio${{ matrix.fitsio-version }}'
             - name: Verify Installation
@@ -77,7 +77,7 @@ jobs:
             # DESIMODEL: ${GITHUB_WORKSPACE}/desimodel
             DESIMODEL_DATA: branches/test-0.17
             # DESISIM: ${GITHUB_WORKSPACE}/desisim
-            DESISIM_TESTDATA_VERSION: master
+            DESISIM_TESTDATA_VERSION: main
             # DESI_ROOT: ${DESISIM}/desi
             # DESI_BASIS_TEMPLATES: ${DESI_ROOT}/spectro/templates/basis_templates/v3.2
             SIMQSO_VERSION: v1.2.4
@@ -98,7 +98,7 @@ jobs:
                 python -m pip install git+https://github.com/desihub/desiutil.git@${DESIUTIL_VERSION}#egg=desiutil
                 python -m pip install -r requirements.txt
                 # python -m pip install git+https://github.com/imcgreer/simqso.git@${SIMQSO_VERSION}#egg=simqso
-                python -m pip install git+https://github.com/desihub/simqso.git@master#egg=simqso
+                python -m pip install git+https://github.com/desihub/simqso.git@main#egg=simqso
                 python -m pip cache remove fitsio
                 python -m pip install --no-deps --force-reinstall --ignore-installed 'fitsio${{ matrix.fitsio-version }}'
             - name: Verify Installation
