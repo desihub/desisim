@@ -401,6 +401,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                 # Drop QSOs if the number of disponible QSOs exceeds the wanted distribution
                 w_idx = np.random.uniform(size=nqso_orig)<downsampling_bin
                 idx = idx[w_idx]
+            else: 
+                log.warning("QSOs in redshift bin {} for pixel {} not enough for sampling distribution".format(z_bin, pixel))
             selection_z+=list(idx) 
         np.random.set_state(rnd_state)
         log.info("Resampling redshift distribution {}->{}".format(len(z),len(selection_z)))
