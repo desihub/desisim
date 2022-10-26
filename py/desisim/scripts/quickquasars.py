@@ -997,8 +997,8 @@ def main(args=None):
                        "footprint_healpix_nside": footprint_healpix_nside , \
                        "bal":bal,"sfdmap":sfdmap,"eboss":eboss \
                    } for i,filename in enumerate(args.infile) ]
-        pool = multiprocessing.Pool(args.nproc)
-        pool.map(_func, func_args)
+        with multiprocessing.Pool(args.nproc) as pool:
+            pool.map(_func, func_args)
     else:
         for i,ifilename in enumerate(args.infile) :
             simulate_one_healpix(ifilename,args,model,obsconditions,
