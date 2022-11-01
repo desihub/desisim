@@ -1205,7 +1205,7 @@ def empty_metatable(nmodel=1, objtype='ELG', subtype='', simqso=False, input_met
             objmeta.add_column(Column(name='SLOPES', length=nmodel, dtype='f4',
                                       data=np.zeros( (nmodel, 5) )-1))
             objmeta.add_column(Column(name='EMLINES', length=nmodel, dtype='f4',
-                                      data=np.zeros( (nmodel, 62, 3) )-1))
+                                      data=np.zeros( (nmodel, 73, 3) )-1))
         else:
             objmeta.add_column(Column(name='PCA_COEFF', length=nmodel, dtype='f4',
                                       data=np.zeros( (nmodel, 4) )))
