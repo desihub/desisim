@@ -35,8 +35,8 @@ from desiutil.iers import freeze_iers
 from astropy.time import Time
 
 def simulate_exposure(simspecfile, rawfile, cameras=None,
-        ccdshape=None, simpixfile=None, addcosmics=None, comm=None,
-        **kwargs):
+                      ccdshape=None, simpixfile=None, addcosmics=None, comm=None, keywords=None, outfibermap=None,
+                      **kwargs):
     """
     Simulate frames from an exposure, including I/O
 
@@ -50,6 +50,8 @@ def simulate_exposure(simspecfile, rawfile, cameras=None,
         simpixfile: output file for noiseless truth pixels
         addcosmics: if True (must be specified via command input), add cosmics from real data
         comm: MPI communicator object
+        keywords: dictionnary with keywords to add to the headers
+        outfibermap: output fibermap
 
     Additional keyword args are passed to pixsim.simulate()
 
@@ -79,10 +81,16 @@ def simulate_exposure(simspecfile, rawfile, cameras=None,
     if rank == 0:
         log.debug('Starting simulate_exposure at {}'.format(asctime()))
 
+
+    fibermap=desispec.io.read_fibermap(simspecfile)
+    log.info("Setting in fibermap PETAL_LOC=FIBER//500")
+    fibermap["PETAL_LOC"]=fibermap['FIBER']//500
+    if outfibermap is not None :
+        desispec.io.write_fibermap(outfibermap,fibermap)
+        log.info("Wrote "+outfibermap)
+
     if cameras is None:
         if rank == 0:
-            from astropy.io import fits
-            fibermap = fits.getdata(simspecfile, 'FIBERMAP')
             cameras = io.fibers2cameras(fibermap['FIBER'])
             log.debug('Found cameras {} in input simspec file'.format(cameras))
             if len(cameras) % num_nodes != 0:
@@ -156,6 +164,17 @@ def simulate_exposure(simspecfile, rawfile, cameras=None,
         if node_rank == 0:
             log.info("Starting simulate for camera {} on node {}".format(camera,node_index))
         image, rawpix, truepix = simulate(camera, simspec, psf, comm=comm_node, preproc=False, cosmics=cosmics, **kwargs)
+
+        if keywords is not None :
+            for k in keywords :
+                image.meta[k] = keywords[k]
+
+        if "OBSTYPE" not in image.meta :
+            image.meta["OBSTYPE"] = "SCIENCE"
+        if "FLAVOR" not in image.meta :
+            image.meta["FLAVOR"] = "science"
+        if "EXPID" not in image.meta :
+            image.meta["EXPID"] = 0
 
         #- Use input communicator as barrier since multiple sub-communicators
         #- will write to the same output file
