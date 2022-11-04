@@ -82,6 +82,13 @@ def simulate_exposure(simspecfile, rawfile, cameras=None,
         log.debug('Starting simulate_exposure at {}'.format(asctime()))
 
 
+    if keywords is None :
+        keywords = dict()
+    adds={"OBSTYPE":"SCIENCE","FLAVOR":"science"}
+    for k in adds :
+        if k not in keywords :
+            keywords[k]=adds[k]
+
     fibermap=desispec.io.read_fibermap(simspecfile)
     log.info("Setting in fibermap PETAL_LOC=FIBER//500")
     fibermap["PETAL_LOC"]=fibermap['FIBER']//500
@@ -169,13 +176,6 @@ def simulate_exposure(simspecfile, rawfile, cameras=None,
             for k in keywords :
                 image.meta[k] = keywords[k]
 
-        if "OBSTYPE" not in image.meta :
-            image.meta["OBSTYPE"] = "SCIENCE"
-        if "FLAVOR" not in image.meta :
-            image.meta["FLAVOR"] = "science"
-        if "EXPID" not in image.meta :
-            image.meta["EXPID"] = 0
-
         #- Use input communicator as barrier since multiple sub-communicators
         #- will write to the same output file
         if rank == 0:
@@ -186,13 +186,13 @@ def simulate_exposure(simspecfile, rawfile, cameras=None,
             for i in range(comm.size):
                 if (i == comm.rank) and (comm_node.rank == 0):
                     desispec.io.write_raw(tmprawfile, rawpix, image.meta,
-                                          camera=camera)
+                                          camera=camera, primary_header=keywords)
                     if simpixfile is not None:
                         io.write_simpix(simpixfile, truepix, camera=camera,
                                         meta=image.meta)
                 comm.barrier()
         else:
-            desispec.io.write_raw(tmprawfile, rawpix, image.meta, camera=camera)
+            desispec.io.write_raw(tmprawfile, rawpix, image.meta, camera=camera, primary_header=keywords)
             if simpixfile is not None:
                 io.write_simpix(simpixfile, truepix, camera=camera,
                                 meta=image.meta)
