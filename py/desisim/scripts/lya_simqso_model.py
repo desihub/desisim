@@ -129,17 +129,14 @@ def EmLineTemplate_modified(*args,**kwargs):
     kwargs.setdefault('scaleEWs',{
                                 'Lyepsdel':0.08,
                                 'CIII977':1.7,
-                                'NIII991':1.8,#2.2,
-                                #'unknownI':1.2,
-                                #'LyB/OIVn':1.2,'LyB/OIVb':1.2,
+                                'NIII991':1.8,
                                 'NII':0.8,
                                 'FeIII:UV1n':0.1,
                                 'FeIII:UV1b':0.1,
                                 'LyAb':1.2,'LyAn':1.2,
                                 'CIII*':1.7
                                 })
-    #kwargs['EmissionLineTrendFilename']=resource_filename('desisim', 'data/emlinetrends_Harris2016mod')
-    kwargs['EmissionLineTrendFilename']=resource_filename('desisim', 'data/emlinetrends_EDRv2')
+    kwargs['EmissionLineTrendFilename']=resource_filename('desisim', 'data/emlinetrends_Harris2016mod_v2')
     print('Using emission lines file: {}'.format(kwargs['EmissionLineTrendFilename']))
     return grids.generateBEffEmissionLines(*args,**kwargs)
 
