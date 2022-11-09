@@ -231,6 +231,7 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
 
     # Smoothing source electron numbers only works for DESI mocks
     if specsim_config_file != "eboss" and source_contribution_smoothing > 0:
+        log.info("Smoothing source contribution to noise estimates by {} A.".format(source_contribution_smoothing))
         _smooth_source_variance(sim.camera_output, source_contribution_smoothing, dwave_out)
 
     scale=1e17

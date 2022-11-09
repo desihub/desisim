@@ -149,9 +149,9 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
     
     parser.add_argument('--dn_dzdm', type=str, default=None, help="File containing the number of quasars by redshift and magnitude (dN/dzdM) bin to be sampled")
 
-    parser.add_argument('--source-contr-smoothing', type=float, default=0, \
+    parser.add_argument('--source-contr-smoothing', type=float, default=10., \
         help="When this argument > 0 A, source electrons' contribution to the noise is smoothed " \
-        "by a Gaussian kernel using FFT. Default is 0 (turned off). Pipeline does this by 10 A. " \
+        "by a Gaussian kernel using FFT. Pipeline does this by 10 A. " \
         "Larger smoothing might be needed for better decoupling. Does not apply to eBOSS mocks.")
 
     if options is None:
