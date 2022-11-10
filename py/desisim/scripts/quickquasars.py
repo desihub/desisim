@@ -149,6 +149,11 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
     
     parser.add_argument('--dn_dzdm', type=str, default=None, help="File containing the number of quasars by redshift and magnitude (dN/dzdM) bin to be sampled")
 
+    parser.add_argument('--source-contr-smoothing', type=float, default=10., \
+        help="When this argument > 0 A, source electrons' contribution to the noise is smoothed " \
+        "by a Gaussian kernel using FFT. Pipeline does this by 10 A. " \
+        "Larger smoothing might be needed for better decoupling. Does not apply to eBOSS mocks.")
+
     if options is None:
         args = parser.parse_args()
     else:
@@ -791,7 +796,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     resolution=sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
                            sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
                            meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False,
-                           specsim_config_file=specsim_config_file, dwave_out=dwave_out, save_resolution=args.save_resolution)
+                           specsim_config_file=specsim_config_file, dwave_out=dwave_out, save_resolution=args.save_resolution, source_contribution_smoothing=args.source_contr_smoothing)
 
     ### Keep input redshift
     Z_spec = metadata['Z'].copy()
