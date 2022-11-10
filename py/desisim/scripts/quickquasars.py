@@ -88,7 +88,7 @@ def parse(options=None):
 
     parser.add_argument('--dwave_desi', type=float, default=0.8, help="Output wavelength step for DESI mocks)")
 
-    parser.add_argument('--zbest', action = "store_true", help="add a zbest file per spectrum either with the truth\
+    parser.add_argument('--zbest',default=True, action=argparse.BooleanOptionalAction, help="add a zbest file per spectrum either with the truth\
         redshift or adding some error (optionally use it with --sigma_kms_fog and/or --gamma_kms_zfit)")
 
     parser.add_argument('--sigma_kms_fog',type=float,default=150, help="Adds a gaussian error to the quasar \
@@ -105,7 +105,7 @@ def parse(options=None):
 
     parser.add_argument('--mags', action = "store_true", help="DEPRECATED; use --bbflux")
 
-    parser.add_argument('--bbflux', action = "store_true", help="compute and write the QSO broad-band fluxes in the fibermap")
+    parser.add_argument('--bbflux', default=True, action=argparse.BooleanOptionalAction, help="compute and write the QSO broad-band fluxes in the fibermap")
 
     parser.add_argument('--add-LYB', action='store_true', help = "Add LYB absorption from transmision file")
 
@@ -129,7 +129,7 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
 
     parser.add_argument('--save-continuum-dwave',type=float, default=2, help="Delta wavelength to save true continum")
 
-    parser.add_argument('--desi-footprint', action = "store_true" ,help="select QSOs in DESI footprint")
+    parser.add_argument('--desi-footprint', default=True, action=argparse.BooleanOptionalAction ,help="select QSOs in DESI footprint")
 
     parser.add_argument('--eboss',action = 'store_true', help='Setup footprint, number density, redshift distribution,\
         and exposure time to generate eBOSS-like mocks')
