@@ -190,18 +190,20 @@ class TestPixsim(unittest.TestCase):
         obs.new_exposure('arc', night=night, expid=expid, nspec=nspec)
 
         #- run pixsim
-        opts = ['--night', night, '--expid', expid]
+        simspec = io.findfile('simspec', night, expid)
+        simpixfile = io.findfile('simpix', night, expid)
+        rawfile = desispec.io.findfile('raw', night, expid)
+        opts = ['--simspec', simspec,'--simpixfile', simpixfile, '--rawfile', rawfile]
+
         if ncpu is not None:
             opts.extend( ['--ncpu', ncpu] )
-            
+
         log.debug('testing pixsim.main({})'.format(opts))
         pixsimargs = desisim.scripts.pixsim.parse(opts)
         desisim.scripts.pixsim.main(pixsimargs)
 
         #- verify outputs
-        simpixfile = io.findfile('simpix', night, expid)
         self.assertTrue(os.path.exists(simpixfile))
-        rawfile = desispec.io.findfile('raw', night, expid)
         self.assertTrue(os.path.exists(rawfile))
         fx = fits.open(rawfile)
 
@@ -213,6 +215,7 @@ class TestPixsim(unittest.TestCase):
         #- cleanup as we go
         os.remove(simpixfile)
         os.remove(rawfile)
+
 
     def test_main_override(self):
         night = self.night
@@ -229,7 +232,7 @@ class TestPixsim(unittest.TestCase):
         altrawfile = desispec.io.findfile('raw', night, altexpid) + '.blat'
         opts = [
             '--simspec', simspecfile,
-            '--expid', altexpid,
+            '--keywords', f'EXPID={expid}',
             '--rawfile', altrawfile,
             '--cameras', 'b0,r0',
             '--wavemin', 5500, '--wavemax', 7000.0,
@@ -238,12 +241,14 @@ class TestPixsim(unittest.TestCase):
         if ncpu is not None:
             opts.extend( ['--ncpu', ncpu] )
 
+        dirname = os.path.dirname(altrawfile)
+        if not os.path.isdir(dirname) :
+            os.makedirs(dirname)
+
         log.debug('testing pixsim.main({})'.format(opts))
         pixsimargs = desisim.scripts.pixsim.parse(opts)
         desisim.scripts.pixsim.main(pixsimargs)
-        simpixfile = io.findfile('simpix', night, altexpid)
 
-        self.assertTrue(os.path.exists(simpixfile))
         self.assertTrue(os.path.exists(altrawfile))
         fx = fits.open(altrawfile)
         self.assertTrue('B0' in fx)
@@ -252,7 +257,6 @@ class TestPixsim(unittest.TestCase):
         fx.close()
 
         #- cleanup as we go
-        os.remove(simpixfile)
         os.remove(altrawfile)
 
     def test_project(self):
@@ -274,15 +278,15 @@ class TestPixsim(unittest.TestCase):
         night = self.night
         expid = self.expid
 
-        opts = ['--night', night, '--expid', expid, '--cameras', 'b0,r1']
+        simspec = io.findfile('simspec', night, expid)
+        simpixfile = io.findfile('simpix', night, expid)
+        rawfile = desispec.io.findfile('raw', night, expid)
+        opts = ['--simspec', simspec,'--simpixfile', simpixfile, '--rawfile', rawfile]
+        opts.extend(['--cameras', 'b0,r1'])
         args = desisim.scripts.pixsim.parse(opts)
-        self.assertEqual(args.rawfile, desispec.io.findfile('raw', night, expid))
-        self.assertEqual(args.simspec, io.findfile('simspec', night, expid))
+        self.assertEqual(args.rawfile, rawfile)
+        self.assertEqual(args.simspec, simspec)
         self.assertEqual(args.cameras, ['b0','r1'])
-
-        with self.assertRaises(ValueError):
-            desisim.scripts.pixsim.parse([])
-
 
 #- This runs all test* functions in any TestCase class in this file
 if __name__ == '__main__':
