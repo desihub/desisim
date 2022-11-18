@@ -64,8 +64,8 @@ forestModels = {
                 }
 
 BossDr9_fiducial_continuum = grids.BrokenPowerLawContinuumVar([
-                                    grids.GaussianSampler(-1.50,0.3),
-                                    grids.GaussianSampler(-0.50,0.3),
+                                    grids.GaussianSampler(-1.50,0.678),
+                                    grids.GaussianSampler(-0.50,0.678),
                                     grids.GaussianSampler(-0.37,0.3),
                                     grids.GaussianSampler(-1.70,0.3),
                                     grids.GaussianSampler(-1.03,0.3) ],
@@ -127,16 +127,17 @@ def EmLineTemplate_modified_develop(*args,**kwargs):
 
 def EmLineTemplate_modified(*args,**kwargs):
     kwargs.setdefault('scaleEWs',{
-                                  'Lyepsdel':1,
-                                  'CIII':0.3,
-                                  'NII':1.1,
-                                  'LyB/OIVn':0.7,
-                                  'LyB/OIVb':1.1,
-                                  'CIII*':1.8,
-                                  'LyAb':1.1,'LyAn':1.1
-                                  #Add more lines if needed.
-                                  })
-    kwargs['EmissionLineTrendFilename']=resource_filename('desisim', 'data/emlinetrends_Harris2016mod')
+                                'Lyepsdel':0.08,
+                                'CIII977':1.7,
+                                'NIII991':1.8,
+                                'NII':0.8,
+                                'FeIII:UV1n':0.1,
+                                'FeIII:UV1b':0.1,
+                                'LyAb':1.2,'LyAn':1.2,
+                                'CIII*':1.7
+                                })
+    kwargs['EmissionLineTrendFilename']=resource_filename('desisim', 'data/emlinetrends_Harris2016mod_v2')
+    print('Using emission lines file: {}'.format(kwargs['EmissionLineTrendFilename']))
     return grids.generateBEffEmissionLines(*args,**kwargs)
 
 def model_vars(qsoGrid,wave,nSightLines=0,
