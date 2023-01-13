@@ -881,6 +881,7 @@ def find_basis_template(objtype, indir=None):
 
     objfile_wild = os.path.join(indir, objtype.lower()+'_templates_*.fits')
     objfiles = glob(objfile_wild)
+    objfiles.sort(key=os.path.getmtime)
     if len(objfiles) > 0:
         return objfiles[-1]
     else:

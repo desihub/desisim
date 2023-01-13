@@ -2,10 +2,12 @@
 desisim change log
 ==================
 
-0.37.1 (unreleased)
+0.37.1 (2023-01-13) 
 -------------------
 
-* No changes yet.
+* Added sort to io.find_basis_template()
+
+.. _`#576`: https://github.com/desihub/desisim/pull/576
 
 0.37.0 (2023-01-12)
 -------------------
