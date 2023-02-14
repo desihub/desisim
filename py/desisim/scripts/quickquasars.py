@@ -368,7 +368,31 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         transmission = transmission[selection]
         metadata = metadata[:][selection]
         DZ_FOG = DZ_FOG[selection]
+    
+    # Redshift distribution resample to match the one in file give by args.dn_dzdm
+    if eboss is None:
+        log.info("Resampling to redshift distribution from {}".format(args.dn_dzdm))
+        rnd_state = np.random.get_state()
+        hdul_dn_dzdm=pyfits.open(args.dn_dzdm)
+        zcenters=hdul_dn_dzdm['Z_CENTERS'].data
+        
+        fraction=hdul_dn_dzdm['REDSHIFT_FRACTIONS'].data
+        dz = 0.5*(zcenters[1]-zcenters[0]) # Get bin size of the distribution
+        z=metadata['Z']
+        
+        zmin = zcenters[0] - dz
+        zmax = zcenters[-1] + dz
 
+        bins = ((z - zmin)/(zmax - zmin) * len(zcenters) + 0.5).astype(np.int64)
+        selection_z = np.random.uniform(size=z.size) < fraction[bins]
+
+        np.random.set_state(rnd_state)
+        log.info("Resampling redshift distribution {}->{}".format(len(z),len(selection_z)))
+        
+        transmission = transmission[selection_z]
+        metadata = metadata[:][selection_z]
+        DZ_FOG = DZ_FOG[selection_z]
+    
     if args.desi_footprint :
         footprint_healpix = footprint.radec2pix(footprint_healpix_nside, metadata["RA"], metadata["DEC"])
         selection = np.where(footprint_healpix_weight[footprint_healpix]>0.99)[0]
@@ -379,41 +403,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         transmission = transmission[selection]
         metadata = metadata[:][selection]
         DZ_FOG = DZ_FOG[selection]
-    
-    # Redshift distribution resample to match the one in file give by args.dn_dzdm
-    if eboss is None:
-        log.info("Resampling to redshift distribution from {}".format(args.dn_dzdm))
-        rnd_state = np.random.get_state()
-        hdul_dn_dzdm=pyfits.open(args.dn_dzdm)
-        zcenters=hdul_dn_dzdm['Z_CENTERS'].data
-        dz = 0.5*(zcenters[1]-zcenters[0]) # Get bin size of the distribution
-        dn_dzdm=hdul_dn_dzdm['dn_dzdm'].data
-        dn_dz=dn_dzdm.sum(axis=1) # Table has a redshift bin by row.
-
-        z=metadata['Z']
-        pixarea=healpy.pixelfunc.nside2pixarea(nside,degrees=True) 
-        # Turn old distribution into new distribution
-        selection_z=[] #Initialize array to select qsos
-        for z_bin, dndz_bin in zip(zcenters,dn_dz):
-            nqso_bin=np.ceil(pixarea*dndz_bin).astype(int)
-            w_z = (z>=z_bin-dz)&(z<z_bin+dz)
-            nqso_orig = len(z[w_z])
-            if nqso_orig==0:
-                continue # If no QSOs in that bin, skip
-            idx = np.where(w_z)[0]
-            downsampling_bin = nqso_bin/nqso_orig
-            if downsampling_bin<1:
-                # Drop QSOs if the number of disponible QSOs exceeds the wanted distribution
-                w_idx = np.random.uniform(size=nqso_orig)<downsampling_bin
-                idx = idx[w_idx]
-            else: 
-                log.warning("QSOs in redshift bin {} for pixel {} not enough for sampling distribution".format(z_bin, pixel))
-            selection_z+=list(idx) 
-        np.random.set_state(rnd_state)
-        log.info("Resampling redshift distribution {}->{}".format(len(z),len(selection_z)))
-        transmission = transmission[selection_z]
-        metadata = metadata[:][selection_z]
-        DZ_FOG = DZ_FOG[selection_z]
 
     nqso=transmission.shape[0]
     if args.downsampling is not None :
@@ -441,6 +430,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             
     if eboss is None:
         log.info("Reading R-band magnitude distribution from {}".format(args.dn_dzdm))
+        dn_dzdm=hdul_dn_dzdm['dn_dzdm'].data
+        dn_dz=dn_dzdm.sum(axis=1)
         rmagcenters=hdul_dn_dzdm['RMAG_CENTERS'].data
         drmag = 0.5*(rmagcenters[1]-rmagcenters[0])
 
