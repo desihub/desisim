@@ -74,7 +74,7 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
         spectra_filename : path to output FITS file in the Spectra format
         program : dark, lrg, qso, gray, grey, elg, bright, mws, bgs
             ignored if obsconditions is not None
-    
+
     Optional:
         obsconditions : dictionnary of observation conditions with SEEING EXPTIME AIRMASS MOONFRAC MOONALT MOONSEP
         sourcetype : list of string, allowed values are (sky,elg,lrg,qso,bgs,star), type of sources, used for fiber aperture loss , default is star
@@ -85,7 +85,7 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
         skyerr : fractional sky subtraction error
         ra : numpy array with targets RA (deg)
         dec : numpy array with targets Dec (deg)
-        meta : dictionnary, saved in primary fits header of the spectra file 
+        meta : dictionnary, saved in primary fits header of the spectra file
         fibermap_columns : add these columns to the fibermap
         fullsim : if True, write full simulation data in extra file per camera
         use_poisson : if False, do not use numpy.random.poisson to simulate the Poisson noise. This is useful to get reproducible random
@@ -93,34 +93,34 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
         save_resolution : if True it will save the Resolution matrix for each spectra.
         If False returns a resolution matrix (useful for mocks to save disk space).
         source_contribution_smoothing : If > 0, contribution of source electrons to the noise and variance is
-            Gaussian smoothed by this value. This reduces signal-noise coupling especially for Lya forest.
-    """ 
+        Gaussian smoothed by this value. This reduces signal-noise coupling especially for Lya forest.
+    """
     log = get_logger()
-    
+
     if len(flux.shape)==1 :
         flux=flux.reshape((1,flux.size))
     nspec=flux.shape[0]
-    
+
     log.info("Starting simulation of {} spectra".format(nspec))
-    
-    if sourcetype is None :        
+
+    if sourcetype is None :
         sourcetype = np.array(["star" for i in range(nspec)])
     log.debug("sourcetype = {}".format(sourcetype))
-    
+
     tileid  = 0
     telera  = 0
-    teledec = 0    
+    teledec = 0
     dateobs = time.gmtime()
     night   = desisim.obs.get_night(utc=dateobs)
     program = program.lower()
-        
-       
-    frame_fibermap = desispec.io.fibermap.empty_fibermap(nspec)    
+
+
+    frame_fibermap = desispec.io.fibermap.empty_fibermap(nspec)
     frame_fibermap.meta["FLAVOR"]="custom"
     frame_fibermap.meta["NIGHT"]=night
     frame_fibermap.meta["EXPID"]=expid
-    
-    # add DESI_TARGET 
+
+    # add DESI_TARGET
     tm = desitarget.targetmask.desi_mask
     frame_fibermap['DESI_TARGET'][sourcetype=="star"]=tm.STD_FAINT
     frame_fibermap['DESI_TARGET'][sourcetype=="lrg"]=tm.LRG
@@ -128,18 +128,18 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
     frame_fibermap['DESI_TARGET'][sourcetype=="qso"]=tm.QSO
     frame_fibermap['DESI_TARGET'][sourcetype=="sky"]=tm.SKY
     frame_fibermap['DESI_TARGET'][sourcetype=="bgs"]=tm.BGS_ANY
-    
-    
+
+
     if fibermap_columns is not None :
         for k in fibermap_columns.keys() :
             frame_fibermap[k] = fibermap_columns[k]
-        
+
     if targetid is None:
         targetid = np.arange(nspec).astype(int)
-        
+
     # add TARGETID
     frame_fibermap['TARGETID'] = targetid
-         
+
     # spectra fibermap has two extra fields : night and expid
     # This would be cleaner if desispec would provide the spectra equivalent
     # of desispec.io.empty_fibermap()
@@ -152,14 +152,14 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
     for s in range(nspec):
         for tp in frame_fibermap.dtype.fields:
             spectra_fibermap[s][tp] = frame_fibermap[s][tp]
- 
+
     if ra is not None :
         spectra_fibermap["TARGET_RA"] = ra
         spectra_fibermap["FIBER_RA"]    = ra
     if dec is not None :
         spectra_fibermap["TARGET_DEC"] = dec
         spectra_fibermap["FIBER_DEC"]    = dec
-            
+
     if obsconditions is None:
         if program in ['dark', 'lrg', 'qso']:
             obsconditions = desisim.simexp.reference_conditions['DARK']
@@ -187,7 +187,7 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
     if specsim_config_file == "eboss":
         wavemin = 3500
         wavemax = 10000
-    
+
     if wave[0] > wavemin:
         log.warning('Minimum input wavelength {}>{}; padding with zeros'.format(
                 wave[0], wavemin))
@@ -218,7 +218,7 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
     ii = (wavemin <= wave) & (wave <= wavemax)
 
     flux_unit = 1e-17 * u.erg / (u.Angstrom * u.s * u.cm ** 2 )
-    
+
     wave = wave[ii]*u.Angstrom
     flux = flux[:,ii]*flux_unit
 
@@ -261,25 +261,25 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
                 flux += ((table['num_sky_electrons']*skyscale)*table['flux_calibration']).T.astype(float)
 
             ivar = table['flux_inverse_variance'].T.astype(float)
-            
+
             band  = table.meta['name'].strip()[0]
-            
+
             flux = flux * scale
             ivar = ivar / scale**2
             mask  = np.zeros(flux.shape).astype(int)
-            
-            spec = Spectra([band], {band : wave}, {band : flux}, {band : ivar}, 
-                        resolution_data=None, 
-                        mask={band : mask}, 
-                        fibermap=spectra_fibermap, 
+
+            spec = Spectra([band], {band : wave}, {band : flux}, {band : ivar},
+                        resolution_data=None,
+                        mask={band : mask},
+                        fibermap=spectra_fibermap,
                         meta=meta,
                         single=True)
-            
+
             if specdata is None :
                 specdata = spec
             else :
                 specdata.update(spec)
-    
+
     else:
         for table in sim.camera_output :
             wave = table['wavelength'].astype(float)
@@ -288,13 +288,13 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
                 flux += ((table['num_sky_electrons']*skyscale)*table['flux_calibration']).T.astype(float)
 
             ivar = table['flux_inverse_variance'].T.astype(float)
-            
+
             band  = table.meta['name'].strip()[0]
-            
+
             flux = flux * scale
             ivar = ivar / scale**2
             mask  = np.zeros(flux.shape).astype(int)
-            
+
             if not save_resolution :
                 spec = Spectra([band], {band : wave}, {band : flux}, {band : ivar},
                         resolution_data=None,
@@ -309,15 +309,15 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
                         fibermap=spectra_fibermap,
                         meta=meta,
                         single=True)
-            
+
             if specdata is None :
                 specdata = spec
             else :
                 specdata.update(spec)
-    
-    desispec.io.write_spectra(spectra_filename, specdata)        
+
+    desispec.io.write_spectra(spectra_filename, specdata)
     log.info('Wrote '+spectra_filename)
-    
+
     # need to clear the simulation buffers that keeps growing otherwise
     # because of a different number of fibers each time ...
     desisim.specsim._simulators.clear()
@@ -335,9 +335,9 @@ def parse(options=None):
     #- Required
     parser.add_argument('-i','--input', type=str, required=True, help="Input spectra, ASCII or fits")
     parser.add_argument('-o','--out-spectra', type=str, required=True, help="Output spectra")
-    #- Optional 
+    #- Optional
     parser.add_argument('--repeat', type=int, default=1, help="Duplicate the input spectra to have several random realizations")
-    
+
     #- Optional observing conditions to override program defaults
     parser.add_argument('--program', type=str, default="DARK", help="Program (DARK, GRAY or BRIGHT)")
     parser.add_argument('--seeing', type=float, default=None, help="Seeing FWHM [arcsec]")
@@ -372,11 +372,11 @@ def main(args=None):
         if not args.source_type in allowed :
             log.error("source type has to be among {}".format(allowed))
             sys.exit(12)
-        
+
     exptime = args.exptime
     if exptime is None :
         exptime = 1000. # sec
-    
+
     #- Generate obsconditions with args.program, then override as needed
     obsconditions = desisim.simexp.reference_conditions[args.program.upper()]
     if args.airmass is not None:
@@ -391,7 +391,7 @@ def main(args=None):
         obsconditions['MOONALT'] = args.moonalt
     if args.moonsep is not None:
         obsconditions['MOONSEP'] = args.moonsep
-    
+
     # ascii version
     isfits=False
     hdulist=None
@@ -399,8 +399,8 @@ def main(args=None):
         hdulist=pyfits.open(args.input)
         isfits=True
     except (IOError,OSError) :
-        pass 
-    
+        pass
+
     if isfits :
         log.info("Reading an input FITS file")
         if 'WAVELENGTH' in hdulist:
@@ -417,7 +417,7 @@ def main(args=None):
         if input_wave.size != input_flux.shape[1] :
             log.error("WAVELENGTH size {} != FLUX shape[1] = {} (NAXIS1 in fits)")
         hdulist.close()
-    else : 
+    else :
         # read is ASCII
         try :
             tmp = np.loadtxt(args.input).T
@@ -425,26 +425,25 @@ def main(args=None):
             log.error("could not read ASCII file, need at least two columns, separated by ' ', the first one for wavelength in A in vacuum, the other ones for flux in units of 10^-17 ergs/s/cm2/A, one column per spectrum.")
             log.error("error message : {}".format(sys.exc_info()))
             sys.exit(12)
-        
+
         if tmp.shape[0]<2 :
             log.error("need at least two columns in ASCII file (one for wavelength in A in vacuum, one for flux in units of 10^-17 ergs/s/cm2/A")
             sys.exit(12)
-        
+
         input_wave = tmp[0]
         input_flux = tmp[1:]
-    
+
     if args.repeat>1 :
         input_flux = np.tile(input_flux, (args.repeat,1 ))
         log.info("input flux shape (after repeat) = {}".format(input_flux.shape))
     else :
         log.info("input flux shape = {}".format(input_flux.shape))
-    
+
     sourcetype=args.source_type
     if sourcetype is not None and len(input_flux.shape)>1 :
         nspec=input_flux.shape[0]
         sourcetype=np.array([sourcetype for i in range(nspec)])
-   
+
     sim_spectra(input_wave, input_flux, args.program, obsconditions=obsconditions,
         spectra_filename=args.out_spectra,seed=args.seed,sourcetype=sourcetype,
         skyerr=args.skyerr,fullsim=args.fullsim)
-    
