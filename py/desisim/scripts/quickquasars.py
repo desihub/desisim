@@ -147,8 +147,7 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
 
     parser.add_argument('--save-resolution',action='store_true', help="Save full resolution in spectra file. By default only one matrix is saved in the truth file.")
     
-    parser.add_argument('--dn_dzdm', type=str, default=None, help="File containing the number of quasars by redshift and magnitude (dN/dzdM) bin to be sampled")
-
+    parser.add_argument('--dn_dzdm', type=str, default=None,choices=["lyacolore","saclay","ohio"], help="Used to reproduce (dN/dzdM) of DESI main survey, applies a downsampling by redshift bin based on the raw mock used (lyacolore, saclay or ohio)")
     parser.add_argument('--source-contr-smoothing', type=float, default=10., \
         help="When this argument > 0 A, source electrons' contribution to the noise is smoothed " \
         "by a Gaussian kernel using FFT. Pipeline does this by 10 A. " \
@@ -368,15 +367,30 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         transmission = transmission[selection]
         metadata = metadata[:][selection]
         DZ_FOG = DZ_FOG[selection]
-    
-    # Redshift distribution resample to match the one in file give by args.dn_dzdm
-    if eboss is None:
-        log.info("Resampling to redshift distribution from {}".format(args.dn_dzdm))
+        
+    if args.desi_footprint :
+        footprint_healpix = footprint.radec2pix(footprint_healpix_nside, metadata["RA"], metadata["DEC"])
+        selection = np.where(footprint_healpix_weight[footprint_healpix]>0.99)[0]
+        log.info("Select QSOs in DESI footprint {} -> {}".format(transmission.shape[0],selection.size))
+        if selection.size == 0 :
+            log.warning("No intersection with DESI footprint")
+            return
+        transmission = transmission[selection]
+        metadata = metadata[:][selection]
+        DZ_FOG = DZ_FOG[selection]
+        
+    # Redshift distribution resample to match the one in file give by args.dn_dzdm for each type of raw mock
+    # Ohio mocks don't have a downsampling.
+    if args.dn_dzdm is not None and args.dn_dzdm!='ohio':
+        if args.downsampling or args.eboss:
+            raise ValueError("dn_dzdm option can not be run with downsampling or eboss options")
+        log.info("Resampling to redshift distribution for {} mocks".format(args.dn_dzdm))
         rnd_state = np.random.get_state()
-        hdul_dn_dzdm=pyfits.open(args.dn_dzdm)
+        dndzdm_file=os.path.join(os.environ['DESISIM'],'py/desisim/data/dn_dzdM_EDR.fits')
+        hdul_dn_dzdm=pyfits.open(dndzdm_file)
         zcenters=hdul_dn_dzdm['Z_CENTERS'].data
         
-        fraction=hdul_dn_dzdm['REDSHIFT_FRACTIONS'].data
+        fraction=hdul_dn_dzdm['FRACTIONS_{}'.format(args.dn_dzdm.upper())].data
         dz = 0.5*(zcenters[1]-zcenters[0]) # Get bin size of the distribution
         z=metadata['Z']
         
@@ -392,18 +406,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         transmission = transmission[selection_z]
         metadata = metadata[:][selection_z]
         DZ_FOG = DZ_FOG[selection_z]
-    
-    if args.desi_footprint :
-        footprint_healpix = footprint.radec2pix(footprint_healpix_nside, metadata["RA"], metadata["DEC"])
-        selection = np.where(footprint_healpix_weight[footprint_healpix]>0.99)[0]
-        log.info("Select QSOs in DESI footprint {} -> {}".format(transmission.shape[0],selection.size))
-        if selection.size == 0 :
-            log.warning("No intersection with DESI footprint")
-            return
-        transmission = transmission[selection]
-        metadata = metadata[:][selection]
-        DZ_FOG = DZ_FOG[selection]
-
+   
     nqso=transmission.shape[0]
     if args.downsampling is not None :
         if args.downsampling <= 0 or  args.downsampling > 1 :
@@ -428,7 +431,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             DZ_FOG = DZ_FOG[indices]
             nqso = args.nmax
             
-    if eboss is None:
+    if args.dn_dzdm is not None
         log.info("Reading R-band magnitude distribution from {}".format(args.dn_dzdm))
         dn_dzdm=hdul_dn_dzdm['dn_dzdm'].data
         dn_dz=dn_dzdm.sum(axis=1)
@@ -980,9 +983,6 @@ def main(args=None):
     else:
         eboss = None
         
-    if args.dn_dzdm is None:
-        args.dn_dzdm=os.path.join(os.environ['DESISIM'],'py/desisim/data/dn_dzdM_EDR.fits')
-
     if args.nproc > 1:
         func_args = [ {"ifilename":filename , \
                        "args":args, "model":model , \
