@@ -742,7 +742,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             
         nqso         = selection.size
         
-    if not sfdmap is None and eboss is None: 
+    if not sfdmap is None and args.dn_dzdm is not None: 
         flux_assigned = 10**((22.5-mags)/2.5)
         scalefac=flux_assigned/bbflux['FLUX_R']
         tmp_qso_flux=scalefac[:,None]*tmp_qso_flux
