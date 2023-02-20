@@ -148,7 +148,7 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
 
     parser.add_argument('--save-resolution',action='store_true', help="Save full resolution in spectra file. By default only one matrix is saved in the truth file.")
     
-    parser.add_argument('--dn_dzdm', type=str, default=None,choices=["lyacolore","saclay","ohio"], help="Applies a downsampling by redshift bin based on the raw mock used (lyacolore, saclay or ohio) in order to reproduce dn/dz of DESI's main survey. Additionally it randomly assigns a r-band magnitude that reproduces DESI's SV dn/dM. If None is chosen it uses the expected DESI redshift and magnitude distribution as reported in FDR2016.")
+    parser.add_argument('--dn_dzdm', type=str, default=None, choices=["lyacolore","saclay","ohio"], help="Applies a downsampling by redshift bin based on the raw mock used (lyacolore, saclay or ohio) in order to reproduce dn/dz of DESI's main survey. Additionally it randomly assigns a r-band magnitude that reproduces DESI's SV dn/dM. If None is chosen it uses the redshift distribution from the raw mock given and default  magnitude distribution from template generator (SIMQSO or QSO).")
     parser.add_argument('--source-contr-smoothing', type=float, default=10., \
         help="When this argument > 0 A, source electrons' contribution to the noise is smoothed " \
         "by a Gaussian kernel using FFT. Pipeline does this by 10 A. " \
