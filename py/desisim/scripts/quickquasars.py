@@ -13,6 +13,7 @@ import astropy.io.fits as pyfits
 import multiprocessing
 import healpy
 
+import desisim
 from desiutil.log import get_logger
 from desispec.io.util import write_bintable
 from desispec.io.fibermap import read_fibermap
@@ -147,8 +148,7 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
 
     parser.add_argument('--save-resolution',action='store_true', help="Save full resolution in spectra file. By default only one matrix is saved in the truth file.")
     
-    parser.add_argument('--dn_dzdm', type=str, default=None, help="File containing the number of quasars by redshift and magnitude (dN/dzdM) bin to be sampled")
-
+    parser.add_argument('--dn_dzdm', type=str, default=None, choices=["lyacolore","saclay","ohio"], help="Applies a downsampling by redshift bin based on the raw mock used (lyacolore, saclay or ohio) in order to reproduce dn/dz of DESI's main survey. Additionally it randomly assigns a r-band magnitude that reproduces DESI's SV dn/dM. If None is chosen it uses the redshift distribution from the raw mock given and default  magnitude distribution from template generator (SIMQSO or QSO).")
     parser.add_argument('--source-contr-smoothing', type=float, default=10., \
         help="When this argument > 0 A, source electrons' contribution to the noise is smoothed " \
         "by a Gaussian kernel using FFT. Pipeline does this by 10 A. " \
@@ -368,7 +368,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         transmission = transmission[selection]
         metadata = metadata[:][selection]
         DZ_FOG = DZ_FOG[selection]
-
+        
     if args.desi_footprint :
         footprint_healpix = footprint.radec2pix(footprint_healpix_nside, metadata["RA"], metadata["DEC"])
         selection = np.where(footprint_healpix_weight[footprint_healpix]>0.99)[0]
@@ -379,43 +379,37 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         transmission = transmission[selection]
         metadata = metadata[:][selection]
         DZ_FOG = DZ_FOG[selection]
-    
-    # Redshift distribution resample to match the one in file give by args.dn_dzdm
-    if eboss is None:
-        log.info("Resampling to redshift distribution from {}".format(args.dn_dzdm))
-        rnd_state = np.random.get_state()
-        hdul_dn_dzdm=pyfits.open(args.dn_dzdm)
+        
+    # Redshift distribution resample to match the one in file give by args.dn_dzdm for each type of raw mock
+    # Ohio mocks don't have a downsampling.
+    if args.dn_dzdm is not None:
+        if args.downsampling or args.eboss:
+            raise ValueError("dn_dzdm option can not be run with downsampling or eboss options")
+        dndzdm_file=os.path.join(os.path.dirname(desisim.__file__),'data/dn_dzdM_EDR.fits')
+        hdul_dn_dzdm=pyfits.open(dndzdm_file)
         zcenters=hdul_dn_dzdm['Z_CENTERS'].data
         dz = 0.5*(zcenters[1]-zcenters[0]) # Get bin size of the distribution
-        dn_dzdm=hdul_dn_dzdm['dn_dzdm'].data
-        dn_dz=dn_dzdm.sum(axis=1) # Table has a redshift bin by row.
 
-        z=metadata['Z']
-        pixarea=healpy.pixelfunc.nside2pixarea(nside,degrees=True) 
-        # Turn old distribution into new distribution
-        selection_z=[] #Initialize array to select qsos
-        for z_bin, dndz_bin in zip(zcenters,dn_dz):
-            nqso_bin=np.ceil(pixarea*dndz_bin).astype(int)
-            w_z = (z>=z_bin-dz)&(z<z_bin+dz)
-            nqso_orig = len(z[w_z])
-            if nqso_orig==0:
-                continue # If no QSOs in that bin, skip
-            idx = np.where(w_z)[0]
-            downsampling_bin = nqso_bin/nqso_orig
-            if downsampling_bin<1:
-                # Drop QSOs if the number of disponible QSOs exceeds the wanted distribution
-                w_idx = np.random.uniform(size=nqso_orig)<downsampling_bin
-                idx = idx[w_idx]
-            else: 
-                log.warning("QSOs in redshift bin {} for pixel {} not enough for sampling distribution".format(z_bin, pixel))
-            selection_z+=list(idx) 
-        np.random.set_state(rnd_state)
-        log.info("Resampling redshift distribution {}->{}".format(len(z),len(selection_z)))
-        transmission = transmission[selection_z]
-        metadata = metadata[:][selection_z]
-        DZ_FOG = DZ_FOG[selection_z]
+        if args.dn_dzdm!='ohio':
+            log.info("Resampling to redshift distribution for {} mocks".format(args.dn_dzdm))
+            rnd_state = np.random.get_state()
+            fraction=hdul_dn_dzdm['FRACTIONS_{}'.format(args.dn_dzdm.upper())].data
+            z=metadata['Z']
 
+            zmin = zcenters[0] - dz
+            zmax = zcenters[-1] + dz
+
+            bins = ((z - zmin)/(zmax - zmin) * len(zcenters) + 0.5).astype(np.int64)
+            selection_z = np.random.uniform(size=z.size) < fraction[bins]
+
+            np.random.set_state(rnd_state)
+            log.info("Resampling redshift distribution {}->{}".format(len(z),len(selection_z)))
+
+            transmission = transmission[selection_z]
+            metadata = metadata[:][selection_z]
+            DZ_FOG = DZ_FOG[selection_z]
     nqso=transmission.shape[0]
+    
     if args.downsampling is not None :
         if args.downsampling <= 0 or  args.downsampling > 1 :
            log.error("Down sampling fraction={} must be between 0 and 1".format(args.downsampling))
@@ -439,8 +433,10 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             DZ_FOG = DZ_FOG[indices]
             nqso = args.nmax
             
-    if eboss is None:
-        log.info("Reading R-band magnitude distribution from {}".format(args.dn_dzdm))
+    if args.dn_dzdm is not None:
+        log.info("Reading R-band magnitude distribution from {}".format(dndzdm_file))
+        dn_dzdm=hdul_dn_dzdm['dn_dzdm'].data
+        dn_dz=dn_dzdm.sum(axis=1)
         rmagcenters=hdul_dn_dzdm['RMAG_CENTERS'].data
         drmag = 0.5*(rmagcenters[1]-rmagcenters[0])
 
@@ -450,7 +446,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         z = metadata['Z']
         mag_pdfs=dn_dzdm/dn_dz[:,None] #Getting a probability distribution for each redshift bin
         mags = np.zeros(len(z))
-        log.info("Generating random magnitudes according to distribution".format(args.dn_dzdm))
+        log.info("Generating random magnitudes according to distribution")
         rnd_state = np.random.get_state()
         for i,z_bin in enumerate(zcenters):
             w_z = (z>=z_bin-dz)&(z<=z_bin+dz)
@@ -594,12 +590,18 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                     redshift=metadata['Z'][these], magrange=magrange,
                     lyaforest=False, nocolorcuts=True,
                     noresample=True, seed=seed, south=issouth)
-        else:
+        elif args.dn_dzdm is not None:
             _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
                 = model.make_templates(nmodel=nt,
                     redshift=metadata['Z'][these],mag=mags[these],
                     lyaforest=False, nocolorcuts=True,
                     noresample=True, seed=seed, south=issouth)
+        else:
+            _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
+                 = model.make_templates(nmodel=nt,
+                     redshift=metadata['Z'][these],
+                     lyaforest=False, nocolorcuts=True,
+                     noresample=True, seed=seed, south=issouth)
 
         _meta['TARGETID'] = metadata['MOCKID'][these]
         _qsometa['TARGETID'] = metadata['MOCKID'][these]
@@ -740,7 +742,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             
         nqso         = selection.size
         
-    if not sfdmap is None and eboss is None: 
+    if not sfdmap is None and args.dn_dzdm is not None: 
         flux_assigned = 10**((22.5-mags)/2.5)
         scalefac=flux_assigned/bbflux['FLUX_R']
         tmp_qso_flux=scalefac[:,None]*tmp_qso_flux
@@ -969,7 +971,7 @@ def main(args=None):
         pixmap=pyfits.open(footprint_filename)[0].data
         footprint_healpix_nside=256 # same resolution as original map so we don't loose anything
         footprint_healpix_weight = load_pixweight(footprint_healpix_nside, pixmap=pixmap)
-
+                
     if args.gamma_kms_zfit and not args.zbest:
        log.info("Setting --zbest to true as required by --gamma_kms_zfit")
        args.zbest = True
@@ -989,9 +991,6 @@ def main(args=None):
     else:
         eboss = None
         
-    if args.dn_dzdm is None:
-        args.dn_dzdm=os.path.join(os.environ['DESISIM'],'py/desisim/data/dn_dzdM_EDR.fits')
-
     if args.nproc > 1:
         func_args = [ {"ifilename":filename , \
                        "args":args, "model":model , \
