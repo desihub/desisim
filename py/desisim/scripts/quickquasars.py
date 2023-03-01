@@ -25,6 +25,7 @@ from desisim.dla import dla_spec,insert_dlas
 from desisim.bal import BAL
 from desisim.io import empty_metatable
 from desisim.eboss import FootprintEBOSS, sdss_subsample, RedshiftDistributionEBOSS, sdss_subsample_redshift
+from desisim.survey_release import survey_release, reproduce_release
 from desispec.interpolation import resample_flux
 
 from desimodel.io import load_pixweight
@@ -149,6 +150,7 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
     parser.add_argument('--save-resolution',action='store_true', help="Save full resolution in spectra file. By default only one matrix is saved in the truth file.")
     
     parser.add_argument('--dn_dzdm', type=str, default=None, choices=["lyacolore","saclay","ohio"], help="Applies a downsampling by redshift bin based on the raw mock used (lyacolore, saclay or ohio) in order to reproduce dn/dz of DESI's main survey. Additionally it randomly assigns a r-band magnitude that reproduces DESI's SV dn/dM. If None is chosen it uses the redshift distribution from the raw mock given and default  magnitude distribution from template generator (SIMQSO or QSO).")
+    parser.add_argument('--reproduce-release', type=str, default=None, help="Reproduces the footprint, object density and exposure time distribution of the given release.")
     parser.add_argument('--source-contr-smoothing', type=float, default=10., \
         help="When this argument > 0 A, source electrons' contribution to the noise is smoothed " \
         "by a Gaussian kernel using FFT. Pipeline does this by 10 A. " \
@@ -408,6 +410,24 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             transmission = transmission[selection_z]
             metadata = metadata[:][selection_z]
             DZ_FOG = DZ_FOG[selection_z]
+
+    if args.reproduce_release is not None:
+        if args.downsampling or args.nmax:
+            raise ValueError("--reproduce-release option can not be run with --downsampling or --nmax")
+        rnd_state = np.random.get_state()
+        release = survey_release(args.reproduce_release,pixel,nside,hpxnest)
+        selection, exptime = reproduce_release(metadata["Z"],release)
+        if selection.size == 0 :
+            log.warning("No intersection with {} footprint".format(args.reproduce_release))
+            return
+        log.info("Select QSOs in {} footprint {} -> {}".format(args.reproduce_release,transmission.shape[0],selection.size))
+        transmission = transmission[selection]
+        metadata = metadata[:][selection]
+        DZ_FOG = DZ_FOG[selection]       
+        if not args.exptime:
+            obsconditions['EXPTIME']=exptime
+        np.random.set_state(rnd_state)
+            
     nqso=transmission.shape[0]
     
     if args.downsampling is not None :
@@ -422,6 +442,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         metadata = metadata[:][indices]
         DZ_FOG = DZ_FOG[indices]
         nqso = transmission.shape[0]
+        
+
 
     if args.nmax is not None :
         if args.nmax < nqso :
@@ -790,6 +812,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     if args.eboss:
         specsim_config_file = 'eboss'
+    elif args.reproduce_release is not None:
+        specsim_config_file = 'desiY1'
     else:
         specsim_config_file = 'desi'
 
@@ -830,6 +854,10 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         meta.add_column(Column(metadata['Z_noRSD'],name='Z_NORSD'))
     else:
         log.info('Z_noRSD field not present in transmission file. Z_NORSD not saved to truth file')
+        
+    if args.reproduce_release is not None:
+        if args.exptime is None:
+            meta.add_column(Column(exptime,name='EXPTIME'))
 
     #Save global seed and pixel seed to primary header
     hdr=pyfits.Header()
