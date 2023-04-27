@@ -32,7 +32,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
                  nproc=None, seed=None, obsconditions=None,
                  specify_targets=dict(), testslit=False, exptime=None,
                  arc_lines_filename=None, flat_spectrum_filename=None,
-                 outdir=None, overwrite=False):
+                 outdir=None, overwrite=False, dwave_out=0.2):
     """
     Create a new exposure and output input simulation files.
     Does not generate pixel-level simulations or noisy spectra.
@@ -56,6 +56,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         flat_spectrum_filename (str, optional): use alternate flat spectrum filename (used if program="flat")
         outdir (str, optional): output directory
         overwrite (bool, optional): optionally clobber existing files
+        dwave_out (float, optional): Output wavelength step size 0.2 A.
 
     Returns:
         science: sim, fibermap, meta, obsconditions, objmeta
@@ -189,7 +190,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         obsconditions['EXPTIME'] = exptime
 
     sim = simulate_spectra(wave, flux, fibermap=fibermap,
-        obsconditions=obsconditions, psfconvolve=False)
+        obsconditions=obsconditions, dwave_out=dwave_out, psfconvolve=False)
 
     #- Write fibermap
     telera, teledec = io.get_tile_radec(tileid)

@@ -23,6 +23,9 @@ def parse(options=None):
     parser.add_argument('--zrange', type=str, required=False, default='2.6:3.6',
         help="Quasar redshift range distribution (uniformly sampled).")
     parser.add_argument('--colorcut', action='store_true', help="Apply a colorcut, which would randomize continua.")
+    parser.add_argument(
+        '--dwave-out', type=float, default=0.2,
+        help="Output wavelength step size in A.")
     # parser.add_argument('--add-lyaforest', action='store_true',
     #     help="Adds Lya forest to QSO spectra AFTER magnitude normalization.")
     # parser.add_argument('--dla')
@@ -88,4 +91,4 @@ def main(args):
     sim, fibermap, meta, obs, objmeta = desisim.obs.new_exposure(args.program,
         specify_targets=specify_targets, nspec=args.nspec, night=args.night, expid=args.expid, 
         tileid=args.tileid, nproc=args.nproc, seed=args.seed, 
-        obsconditions=obsconditions, outdir=args.outdir)
+        obsconditions=obsconditions, outdir=args.outdir, dwave_out=args.dwave_out)
