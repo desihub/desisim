@@ -180,8 +180,10 @@ def sample_objtype(nobj, program):
 
 #- multiprocessing needs one arg, not multiple args
 def _wrap_get_targets(args):
-    nspec, program, tileid, seed, specify_targets, specmin = args
-    return get_targets(nspec, program, tileid, seed=seed, specify_targets=specify_targets, specmin=specmin)
+    nspec, program, tileid, seed, specify_targets, specmin, dwave_out = args
+    return get_targets(
+        nspec, program, tileid, seed=seed, specify_targets=specify_targets, specmin=specmin,
+        dwave_out=dwave_out)
 
 def get_targets_parallel(
         nspec, program, tileid=None, nproc=None, seed=None, specify_targets=dict(),
@@ -199,7 +201,8 @@ def get_targets_parallel(
     #- don't bother with parallelism if there aren't many targets
     if nspec < 20:
         log.debug('Not Parallelizing get_targets for only {} targets'.format(nspec))
-        return get_targets(nspec, program, tileid, seed=seed, specify_targets=specify_targets)
+        return get_targets(nspec, program, tileid, seed=seed, specify_targets=specify_targets,
+            dwave_out=dwave_out)
     else:
         nproc = min(nproc, nspec//10)
         log.debug('Parallelizing get_targets using {} cores'.format(nproc))
