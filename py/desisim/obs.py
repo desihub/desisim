@@ -167,7 +167,8 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
 
     #- all other programs
     fibermap, (flux, wave, meta, objmeta) = get_targets_parallel(nspec, program,
-        tileid=tileid, nproc=nproc, seed=seed, specify_targets=specify_targets)
+        tileid=tileid, nproc=nproc, seed=seed, specify_targets=specify_targets,
+        dwave_out=dwave_out)
 
     fibermap["PETAL_LOC"] = fibermap["FIBER"]//500
 
@@ -192,7 +193,7 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
         obsconditions['EXPTIME'] = exptime
 
     sim = simulate_spectra(wave, flux, fibermap=fibermap,
-        obsconditions=obsconditions, dwave_out=dwave_out, psfconvolve=False)
+        obsconditions=obsconditions, psfconvolve=False)
 
     #- Write fibermap
     telera, teledec = io.get_tile_radec(tileid)

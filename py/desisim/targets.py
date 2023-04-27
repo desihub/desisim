@@ -183,7 +183,10 @@ def _wrap_get_targets(args):
     nspec, program, tileid, seed, specify_targets, specmin = args
     return get_targets(nspec, program, tileid, seed=seed, specify_targets=specify_targets, specmin=specmin)
 
-def get_targets_parallel(nspec, program, tileid=None, nproc=None, seed=None, specify_targets=dict()):
+def get_targets_parallel(
+        nspec, program, tileid=None, nproc=None, seed=None, specify_targets=dict(),
+        dwave_out=0.2
+):
     '''
     Parallel wrapper for get_targets()
 
@@ -207,9 +210,9 @@ def get_targets_parallel(nspec, program, tileid=None, nproc=None, seed=None, spe
         seeds = np.random.randint(2**32, size=nspec)
         for i in range(0, nspec, n):
             if i+n < nspec:
-                args.append( (n, program, tileid, seeds[i], specify_targets, i) )
+                args.append( (n, program, tileid, seeds[i], specify_targets, i, dwave_out) )
             else:
-                args.append( (nspec-i, program, tileid, seeds[i], specify_targets, i) )
+                args.append( (nspec-i, program, tileid, seeds[i], specify_targets, i, dwave_out) )
 
         with mp.Pool(nproc) as P:
             results = P.map(_wrap_get_targets, args)
@@ -243,7 +246,10 @@ def get_targets_parallel(nspec, program, tileid=None, nproc=None, seed=None, spe
 
         return fibermap, (flux, wave, meta, objmeta)
 
-def get_targets(nspec, program, tileid=None, seed=None, specify_targets=dict(), specmin=0):
+def get_targets(
+        nspec, program, tileid=None, seed=None, specify_targets=dict(), specmin=0,
+        dwave_out=0.2
+):
     """
     Generates a set of targets for the requested program
 
@@ -284,11 +290,10 @@ def get_targets(nspec, program, tileid=None, seed=None, specify_targets=dict(), 
     except KeyError:
         wavemin = desimodel.io.load_throughput('b').wavemin
         wavemax = desimodel.io.load_throughput('z').wavemax
-    dw = 0.2
-    wave = np.arange(round(wavemin, 1), wavemax, dw)
+    wave = np.arange(round(wavemin, 1), wavemax, dwave_out)
     nwave = len(wave)
 
-    flux = np.zeros( (nspec, len(wave)) )
+    flux = np.zeros( (nspec, nwave) )
     meta, _ = empty_metatable(nmodel=nspec, objtype='SKY')
     objmeta = dict()
     fibermap = empty_fibermap(nspec)
