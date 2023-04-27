@@ -2,10 +2,37 @@
 desisim change log
 ==================
 
-0.36.1 (unreleased)
+0.37.2 (unreleased) 
 -------------------
 
-* No changes yet.
+* Fixed bug on quickquasars quasar sampling method to reproduce z distribution 
+  from SV causing a wrong shape in cross-correlation (PR `#577`_).
+  
+.. _`#577`: https://github.com/desihub/desisim/pull/577
+0.37.1 (2023-01-13) 
+-------------------
+
+* Added sort to io.find_basis_template() (PR `#576`_).
+
+.. _`#576`: https://github.com/desihub/desisim/pull/576
+
+0.37.0 (2023-01-12)
+-------------------
+
+* Smoothing source contribution to noise in quickquasars (PR `#566`_).
+* Quickquasars updates to reproduce actual z and mag distribution
+  as obtained in SV for DESIY5 mocks (PR `#569`_).
+* Make multiprocessing Pool safe in quickquasars (PR `#570`_).
+* Renamed master -> main (PR `#571`_).
+* Updated emission line and continuum models (PR `#572`_).
+* Fix pixsim (PR `#573`_).
+
+.. _`#566`: https://github.com/desihub/desisim/pull/566
+.. _`#569`: https://github.com/desihub/desisim/pull/569
+.. _`#570`: https://github.com/desihub/desisim/pull/570
+.. _`#571`: https://github.com/desihub/desisim/pull/571
+.. _`#572`: https://github.com/desihub/desisim/pull/572
+.. _`#573`: https://github.com/desihub/desisim/pull/573
 
 0.36.0 (2022-01-20)
 -------------------

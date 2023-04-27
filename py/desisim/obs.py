@@ -169,6 +169,8 @@ def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None,
     fibermap, (flux, wave, meta, objmeta) = get_targets_parallel(nspec, program,
         tileid=tileid, nproc=nproc, seed=seed, specify_targets=specify_targets)
 
+    fibermap["PETAL_LOC"] = fibermap["FIBER"]//500
+
     if obsconditions is None:
         if program in ['dark', 'lrg', 'qso']:
             obsconditions = desisim.simexp.reference_conditions['DARK']

@@ -24,7 +24,7 @@ jobs:
         env:
             DESIUTIL_VERSION: 3.2.3
             # DESIMODEL: ${GITHUB_WORKSPACE}/desimodel
-            DESIMODEL_DATA: branches/test-0.17
+            DESIMODEL_DATA: branches/test-0.18
             # DESISIM: ${GITHUB_WORKSPACE}/desisim
             DESISIM_TESTDATA_VERSION: main
             # DESI_ROOT: ${DESISIM}/desi
