@@ -12,7 +12,9 @@ from desisim.dla import insert_dlas
 from desiutil.log import get_logger
 
 lambda_RF_LYA = 1215.67
-absorber_IGM = {
+
+absorber_IGM ={}
+absorber_IGM['lyacolore'] = {
     'MgI(2853)'   : { 'LRF':2852.96, 'COEF':1.e-4 },
     'MgII(2804)'  : { 'LRF':2803.5324, 'COEF':5.e-4 },
     'MgII(2796)'  : { 'LRF':2796.3511, 'COEF':9.e-4 },
@@ -41,6 +43,52 @@ absorber_IGM = {
     'NI(1200)'    : { 'LRF':1200., 'COEF':1.e-3 },
     'SiII(1193)'  : { 'LRF':1193.2897, 'COEF':9.0776e-4 },
     'SiII(1190)'  : { 'LRF':1190.4158, 'COEF':6.4239e-4 },
+    'OI(1039)'    : { 'LRF':1039.230, 'COEF':1.e-3 },
+    'OVI(1038)'   : { 'LRF':1037.613, 'COEF':3.382-3 },
+    'OVI(1032)'   : { 'LRF':1031.912, 'COEF':5.358e-3 },
+    'LYB'         : { 'LRF':1025.72, 'COEF':0.1901 },
+    'CIII(977)'   : { 'LRF':977.020, 'COEF':5.e-3 },
+    'OI(989)'     : { 'LRF':988.7, 'COEF':1.e-3 },
+    'SiII(990)'   : { 'LRF':989.8731, 'COEF':1.e-3 },
+    'LY3'         : { 'LRF':972.537, 'COEF':0.0697 },
+    'LY4'         : { 'LRF':949.7431, 'COEF':0.0335 },
+    'LY5'         : { 'LRF':937.8035, 'COEF':0.0187 },
+}
+
+# Coefficients are different for each raw mock type.
+absorber_IGM['saclay'] = {
+    'MgI(2853)'   : { 'LRF':2852.96, 'COEF':1.e-4 },
+    'MgII(2804)'  : { 'LRF':2803.5324, 'COEF':5.e-4 },
+    'MgII(2796)'  : { 'LRF':2796.3511, 'COEF':9.e-4 },
+    'FeII(2600)'  : { 'LRF':2600.1724835, 'COEF':1.e-4 },
+    'FeII(2587)'  : { 'LRF':2586.6495659, 'COEF':1.e-4 },
+    'MnII(2577)'  : { 'LRF':2576.877, 'COEF':1.e-4 },
+    'FeII(2383)'  : { 'LRF':2382.7641781, 'COEF':1.e-4 },
+    'FeII(2374)'  : { 'LRF':2374.4603294, 'COEF':1.e-4 },
+    'FeII(2344)'  : { 'LRF':2344.2129601, 'COEF':1.e-4 },
+    'AlIII(1863)' : { 'LRF':1862.79113, 'COEF':1.e-4 },
+    'AlIII(1855)' : { 'LRF':1854.71829, 'COEF':1.e-4 },
+    'AlII(1671)'  : { 'LRF':1670.7886, 'COEF':1.e-4 },
+    'FeII(1608)'  : { 'LRF':1608.4511, 'COEF':1.e-4 },
+    'CIV(1551)'   : { 'LRF':1550.77845, 'COEF':5.435e-4 },
+    'CIV(1548)'   : { 'LRF':1548.2049, 'COEF':1.487e-3 },
+    'SiII(1527)'  : { 'LRF':1526.70698, 'COEF':1.e-4 },
+    'SiIV(1403)'  : { 'LRF':1402.77291, 'COEF':5.e-4 },
+    'SiIV(1394)'  : { 'LRF':1393.76018, 'COEF':9.e-4 },
+    'CII(1335)'   : { 'LRF':1334.5323, 'COEF':1.e-4 },
+    'SiII(1304)'  : { 'LRF':1304.3702, 'COEF':1.e-4 },
+    'OI(1302)'    : { 'LRF':1302.1685, 'COEF':1.e-4 },
+    'SiII(1260)'  : { 'LRF':1260.4221, 'COEF':4.2504e-4 }, # DR14
+    #'SiII(1260)'  : { 'LRF':1260.4221, 'COEF':6.537e-4 }, # DR16
+    'NV(1243)'    : { 'LRF':1242.804, 'COEF':5.e-4 },
+    'NV(1239)'    : { 'LRF':1238.821, 'COEF':5.e-4 },
+    'SiIII(1207)' : { 'LRF':1206.500, 'COEF':9.4595e-3 }, #DR14
+    #'SiIII(1207)' : { 'LRF':1206.500, 'COEF':2.739e-3 }, #DR16
+    'NI(1200)'    : { 'LRF':1200., 'COEF':1.e-3 },
+    'SiII(1193)'  : { 'LRF':1193.2897, 'COEF':6.354e-4 }, #DR14
+    #'SiII(1193)'  : { 'LRF':1193.2897, 'COEF':7.488e-4 }, #DR16
+    'SiII(1190)'  : { 'LRF':1190.4158, 'COEF':4.496e-4 }, #DR14
+    #'SiII(1190)'  : { 'LRF':1190.4158, 'COEF':9.215e-4}, #DR16
     'OI(1039)'    : { 'LRF':1039.230, 'COEF':1.e-3 },
     'OVI(1038)'   : { 'LRF':1037.613, 'COEF':3.382-3 },
     'OVI(1032)'   : { 'LRF':1031.912, 'COEF':5.358e-3 },
@@ -202,7 +250,7 @@ def apply_lya_transmission(qso_wave,qso_flux,trans_wave,trans) :
 
     return output_flux
 
-def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals) :
+def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals,mocktype) :
     '''
     Apply metal transmission to input flux, interpolating if needed.
     The input transmission should be only due to lya, if not has no meaning.
@@ -221,11 +269,14 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals) :
         output_flux[nqso, nwave]
 
     '''
+    
+    log = get_logger()
+    
     if qso_flux.shape[0] != trans.shape[0] :
         raise(ValueError("not same number of qso {} {}".format(qso_flux.shape[0],trans.shape[0])))
 
     if 'all' in metals:
-        metals = [m for m in list(absorber_IGM.keys()) ]
+        metals = [m for m in list(absorber_IGM[mocktype].keys()) ]
 
     zPix = trans_wave*np.ones(qso_flux.shape[0])[:,None]/lambda_RF_LYA-1.
 
@@ -235,19 +286,20 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals) :
     tau[~w] = -np.log(1.e-100)
 
     try:
-        mtrans = { m:np.exp(-absorber_IGM[m]['COEF']*tau) for m in metals }
-        mtrans_wave = { m:(zPix+1.)*absorber_IGM[m]['LRF'] for m in metals }
+        log.info(f"Using metal coeffients for {mocktype} mocks")
+        mtrans = { m:np.exp(-absorber_IGM[mocktype][m]['COEF']*tau) for m in metals }
+        mtrans_wave = { m:(zPix+1.)*absorber_IGM[mocktype][m]['LRF'] for m in metals }
     except KeyError as e:
         lstMetals = ''
         nolstMetals = ''
-        for m in absorber_IGM.keys():
+        for m in absorber_IGM[mocktype].keys():
             lstMetals += m+', '
-        for m in np.array(metals)[~np.in1d(metals,[mm for mm in absorber_IGM.keys()])]:
+        for m in np.array(metals)[~np.in1d(metals,[mm for mm in absorber_IGM[mocktype].keys()])]:
             nolstMetals += m+', '
         raise Exception("Input metals {} are not in the list, available metals are {}".format(nolstMetals[:-2],lstMetals[:-2])) from e
     except TypeError as e:
         lstMetals = ''
-        for m in [ m for m in metals if absorber_IGM[m]['COEF'] is None ]:
+        for m in [ m for m in metals if absorber_IGM[mocktype][m]['COEF'] is None ]:
             lstMetals += m+', '
         raise Exception("Input metals {} have no values for COEF".format(lstMetals[:-2])) from e
 
