@@ -385,8 +385,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     # Redshift distribution resample to match the one in file give by args.dn_dzdm for each type of raw mock
     # Ohio mocks don't have a downsampling.
     if args.dn_dzdm is not None:
-        if args.downsampling or args.eboss:
-            raise ValueError("dn_dzdm option can not be run with downsampling or eboss options")
+        if args.eboss:
+            raise ValueError("dn_dzdm option can not be run with eboss options")
         dndzdm_file=os.path.join(os.path.dirname(desisim.__file__),'data/dn_dzdM_EDR.fits')
         hdul_dn_dzdm=pyfits.open(dndzdm_file)
         zcenters=hdul_dn_dzdm['Z_CENTERS'].data
