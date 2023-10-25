@@ -250,7 +250,7 @@ def apply_lya_transmission(qso_wave,qso_flux,trans_wave,trans) :
 
     return output_flux
 
-def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals,mocktype) :
+def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals,mocktype,strengths=None) :
     '''
     Apply metal transmission to input flux, interpolating if needed.
     The input transmission should be only due to lya, if not has no meaning.
@@ -286,8 +286,14 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals,mocktype
     tau[~w] = -np.log(1.e-100)
 
     try:
-        log.info(f"Using metal coeffients for {mocktype} mocks")
-        mtrans = { m:np.exp(-absorber_IGM[mocktype][m]['COEF']*tau) for m in metals }
+        if strengths is None:
+            log.info(f"Using metal coeffients for {mocktype} mocks")
+            mtrans = { m:np.exp(-absorber_IGM[mocktype][m]['COEF']*tau) for m in metals }
+        else: 
+            log.info(f"Applying metal strengths from arguments")
+            if len(metals)!=len(strengths):
+                raise ValueError("List in --metals should be the same size as --metal-strengths")
+            mtrans = { m:np.exp(-strength*tau) for m , strength in zip(metals,strengths) }
         mtrans_wave = { m:(zPix+1.)*absorber_IGM[mocktype][m]['LRF'] for m in metals }
     except KeyError as e:
         lstMetals = ''
