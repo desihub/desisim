@@ -29,11 +29,13 @@ class SurveyRelease(object):
     Args:
         mockteam (str): 'london' or 'saclay' for the moment.
         subversion (str): subversion of the mock catalog. e.g. 'v9.0.0' or 'v4.7.01'
+        data_file (str): path to the data catalog.
+        qso_only (bool): if True, will only keep QSO targets.
         seed (int): random seed for reproducibility
     """
     def __init__(self,mockteam, subversion,data_file=None,qso_only=True,seed=None):
         self.mockcatalog=Table.read(self.get_master_path(mockteam,subversion),hdu=1)
-        log.info(f"Obtained {len(self.mockcatalog)} objects from {self.get_master_path(mockteam,subversion)} master catalog.")
+        log.info(f"Obtained {len(self.mockcatalog)} objects from {self.get_master_path(mockteam,subversion)} master catalog")
         self.mockcatalog['TARGETID']=self.mockcatalog['MOCKID']
         self.mockcatalog['Z']=self.mockcatalog['Z_QSO_RSD']
         np.random.seed(seed)
@@ -120,31 +122,30 @@ class SurveyRelease(object):
             dz = zcenters[1] - zcenters[0]
             zmin = max(zcenters[0]-0.5*dz,zmin)
             zmax = min(zcenters[-1]+0.5*dz,zmax)
-            w_z = (zcenters-0.5*dz >= zmin) & (zcenters+0.5*dz < zmax)
+            w_z = (zcenters-0.5*dz > zmin) & (zcenters+0.5*dz <= zmax)
             dndz=dndz[w_z]
             zcenters=zcenters[w_z]
-            zbins = np.linspace(zmin,zmax,int((zmax-zmin)/dz))
+            zbins = np.arange(zmin,zmax+dz,dz,)
         elif distribution=='target_selection':
             # TODO: Implement this in desisim instead of local path
             dist = Table.read('/global/cfs/cdirs/desi/users/hiramk/desi/scripts/quickquasars_analysis/preprocessing/fig_21_data.ecsv') 
-            dz=(dist['z'][1]-dist['z'][0])
-            frac=0.1/dz
-            zbins = np.linspace(zmin,zmax+dz,int((zmax-zmin)/dz))
+            dz=dist['z'][1]-dist['z'][0]
+            factor=0.1/dz # Account for redshift bin width difference.
+            zbins = np.arange(0,10.1,0.1)
             zcenters=0.5*(zbins[1:]+zbins[:-1])
-            dndz=frac*np.interp(zcenters,dist['z'],dist['dndz_23'],left=0,right=0)
+            dndz=factor*np.interp(zcenters,dist['z'],dist['dndz_23'],left=0,right=0)
         elif distribution=='from_data':
-            raise NotImplementedError(f"Option {distribution} is not implemented yet.")
+            raise NotImplementedError(f"Option {distribution} is not implemented yet")
         
             if self.data is None:
-                raise ValueError("No data catalog was provided.")
+                raise ValueError("No data catalog was provided")
             dz = 0.1
             zbins = np.linspace(zmin,zmax,int((zmax-zmin)/dz))
             data_area = SurveyRelease.get_catalog_area(self.data,nside=256)
             zcenters=0.5*(zbins[1:]+zbins[:-1])
             dndz=np.histogram(self.data['Z'],bins=zbins,weights=np.repeat(1/data_area,len(self.data)))[0]
         else:
-            raise ValueError(f"Distribution option {distribution} not in available options: SV, target_selection, from_data.")
-
+            raise ValueError(f"Distribution option {distribution} not in available options: SV, target_selection, from_data")
         mock_area=SurveyRelease.get_catalog_area(self.mockcatalog,nside=16)
         dndz_mock=np.histogram(self.mockcatalog['Z_QSO_RSD'],bins=zbins,weights=np.repeat(1/mock_area,len(self.mockcatalog)))[0]
         fractions=np.divide(dndz,dndz_mock,where=dndz_mock>0,out=np.zeros_like(dndz_mock))
@@ -166,13 +167,12 @@ class SurveyRelease(object):
         mock=self.mockcatalog
         tiles=self.get_lya_tiles(release)
         mask_footprint=desimodel.footprint.is_point_in_desi(tiles,mock['RA'],mock['DEC'])
-        log.info(f"Keeping {sum(mask_footprint)}  mock QSOs in {release} TILES")
         mock=mock[mask_footprint]
-
+        log.info(f"Keeping {sum(mask_footprint)}  mock QSOs in footprint TILES")
         if release is not None:
             # TODO: THis only works for iron at the moment.
             # TODO 2: Add submoodules to generate the pixelmaps from data.
-            log.info(f"Downsampling by NPASSES fraction in {release} release.")
+            log.info(f"Downsampling by NPASSES fraction in {release} release")
             pixmap=Table.read('/global/cfs/cdirs/desi/users/hiramk/desi/quickquasars/sampling_tests/tile_map_pixmap.fits')
             mock_pixels = hp.ang2pix(1024, np.radians(90-mock['DEC']),np.radians(mock['RA']),nest=True)
             try:
@@ -198,6 +198,7 @@ class SurveyRelease(object):
             from_data (bool): if True, will use the data catalog to generate the distribution. Otherwise, will use the distribution in the default file.
         """
         if not from_data:
+            filename=os.path.join(os.path.dirname(desisim.__file__),'data/dn_dzdM_EDR.fits')
             zcenters=fitsio.FITS(filename)['Z_CENTERS'][:]
             dz = zcenters[1]-zcenters[0]
             rmagcenters=fitsio.FITS(filename)['RMAG_CENTERS'][:]
@@ -205,57 +206,53 @@ class SurveyRelease(object):
             log.info(f"Generating random magnitudes according to distribution in {filename}")
         else:
             if self.data is None:
-                raise ValueError("No data catalog was provided.")
+                raise ValueError("No data catalog was provided")
             dz = 0.1
             zbins = np.arange(0,10,dz)
             zcenters=0.5*(zbins[1:]+zbins[:-1])
             rmagbins = np.arange(15,25,0.1)
             rmagcenters=0.5*(rmagbins[1:]+rmagbins[:-1])
-            log.info("Generatinf random magnitudes according to distribution in data catalog.")
+            log.info("Generating random magnitudes according to distribution in data catalog")
             if 'RMAG' in self.data.colnames:
                 dn_dzdm=np.histogram2d(self.data['Z'],self.data['RMAG'],bins=(zbins,rmagbins))[0]
             elif 'FLUX_R' in self.data.colnames:
                 dn_dzdm=np.histogram2d(self.data['Z'],22.5-2.5*np.log10(self.data['FLUX_R']),bins=(zbins,rmagbins))[0]
             else:
-                raise ValueError("No magnitude information in data catalog.")
+                raise ValueError("No magnitude information in data catalog")
         cdf=np.cumsum(dn_dzdm,axis=1)
         cdf_norm=cdf/cdf[:,-1][:,None]
         mags=np.zeros(len(self.mockcatalog))
         for i,z_bin in enumerate(zcenters):
-            w_z = (self.mockcatalog['Z'] >= z_bin-0.5*dz) & (self.mockcatalog['Z'] < z_bin+0.5*dz)
+            w_z = (self.mockcatalog['Z'] > z_bin-0.5*dz) & (self.mockcatalog['Z'] <= z_bin+0.5*dz)
             if np.sum(w_z)==0: continue
             mags[w_z]=np.interp(np.random.uniform(size=np.sum(w_z)),cdf_norm[i],rmagcenters)  
         if np.sum(mags==0)!=0:
-            raise ValueError("Generated magnitudes contain zeros.")
+            print(self.mockcatalog[mags==0])
+            raise ValueError(f"Generated magnitudes contain zeros")
         self.mockcatalog['FLUX_R'] = 10**((22.5-mags)/2.5)
 
     def assign_exposures(self,exptime=None):
         """ Assign exposures to the catalog according to the distribution in the data release.
         
         Args:
-            uniform_exptime (float, optional): if not None, will assign the given exposure time in seconds uniformly to the catalog.
+            exptime (float, optional): if not None, will assign the given exposure time in seconds to all objects in the mock catalog.
         """
         if self.data is None:
             if exptime is None:
-                raise ValueError("No data catalog noor exptime was provided. Please provide one of those.")
-            log.info(f"Assigning uniform exposures {exptime} seconds.")
+                raise ValueError("No data catalog nor exptime was provided. Please provide one of those")
+            log.info(f"Assigning uniform exposures {exptime} seconds")
             self.mockcatalog['EXPTIME']=exptime
         else:
             log.info("Assigning exposures")
             # TODO: move this file to desisim/data
             filename='/global/cfs/cdirs/desi/users/hiramk/desi/quickquasars/sampling_tests/tile_map_pixmap.fits'
             pixmap=Table.read(filename)
-            pdfs_exptimes=np.zeros((7,6))
             mock=self.mockcatalog
-            mock_pixels = hp.ang2pix(1024, np.radians(90-mock['DEC']),np.radians(mock['RA']),nest=True)
             try:
                 data_pixels = hp.ang2pix(1024,np.radians(90-self.data['TARGET_DEC']),np.radians(self.data['TARGET_RA']),nest=True)
             except: 
                 data_pixels = hp.ang2pix(1024,np.radians(90-self.data['DEC']),np.radians(self.data['RA']),nest=True)
                 
-            data_passes = pixmap[data_pixels]['NPASS']
-            mock_passes = pixmap[mock_pixels]['NPASS']
-            
             is_lya_data=self.data['Z']>2.1    
             effective_exptime = lambda tsnr2_lrg: 12.25*tsnr2_lrg
             exptime_data = effective_exptime(self.data['TSNR2_LRG'])
