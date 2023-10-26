@@ -357,10 +357,14 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     
     mags = None
     if args.from_catalog is not None:
+        # Prevent other options from happening.
+        # TODO: This prevention should not be needed.
         eboss=None
         args.desi_footprint=False
+
         log.info(f"Getting objects from catalog {args.from_catalog}")
         catalog = Table.read(args.from_catalog)
+        # Get mockobjs in pixel that are in the catalog.
         selection = np.isin(metadata['MOCKID'],catalog['MOCKID'])
         if selection.sum()==0:
             log.warning(f'No intersectioon with catalog')
@@ -379,6 +383,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             args.exptime=True
         if 'FLUX_R' in catalog.colnames:
             mags = 22.5-2.5*np.log10(catalog['FLUX_R'][this_pixel_targets])
+            # Prevent QQ from assigning magnitudes again.
             args.dn_dzdm = None
         elif 'MAG_R' in catalog.colnames:
             mags=catalog['MAG_R'][this_pixel_targets]
@@ -427,6 +432,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     # Redshift distribution resample to match the one in file give by args.dn_dzdm for each type of raw mock
     # Ohio mocks don't have a downsampling.
     if args.dn_dzdm:
+        # TODO: Deprecate this option. It will be faster to do this on preprocessing.
         if args.eboss:
             raise ValueError("dn_dzdm option can not be run with eboss options")
         dndzdm_file=os.path.join(os.path.dirname(desisim.__file__),'data/dn_dzdM_EDR.fits')
@@ -436,7 +442,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         
         if args.from_catalog is None:
             if args.raw_mock is None:
-                raise ValueError("If dn_dzdm option is used the flag --raw-mock must be provided")
+                raise ValueError("If --dn_dzdm option is used the flag --raw-mock must be provided")
             if args.raw_mock!='ohio':
                 log.info("Resampling to redshift distribution for {} mocks".format(args.raw_mock))
                 rnd_state = np.random.get_state()
@@ -457,6 +463,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                 DZ_FOG = DZ_FOG[selection_z]
 
     if args.reproduce_release is not None:
+        # TODO: This flag should be deprecated. It is was used for the EDR+M2 mocks. 
+        # The SurveyRelease class has been reworked and this will no longer work.
+        # From catalog option is a better resource now.
         if args.downsampling or args.nmax:
             raise ValueError("--reproduce-release option can not be run with --downsampling or --nmax")
         rnd_state = np.random.get_state()
@@ -470,7 +479,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             transmission = transmission[selection]
             metadata = metadata[:][selection]
             DZ_FOG = DZ_FOG[selection] 
-        
         
         if not args.exptime:
             exptime = release.assign_exposures(metadata)
@@ -505,6 +513,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             nqso = args.nmax
             
     if args.dn_dzdm:
+        # TODO: Deprecate this option. It will be faster to do this on preprocessing.
         log.info("Reading R-band magnitude distribution from {}".format(dndzdm_file))
         dn_dzdm=hdul_dn_dzdm['dn_dzdm'].data
         dn_dz=dn_dzdm.sum(axis=1)

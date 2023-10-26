@@ -11,234 +11,306 @@ import os
 import desisim
 import numpy as np
 import healpy as hp
+import fitsio
 from astropy.io import fits
 from astropy.table import Table, vstack
 from desiutil.log import get_logger
+from scipy.stats import rv_discrete
+from desitarget.targetmask import desi_mask
 import desimodel.footprint
 
 
 log = get_logger()
 
-def get_lya_tiles(release):
-    """
-    Release observed DARK TILES containing Lyman-alpha.
-    
-    Args:
-        release (str): DESI's release to get the tiles from. 
-    Returns:
-        tiles: Astropy table containing the observed tiles
-    """
-    surveys=[b"main"]
-    if release.upper() != 'FUGU':
-        ifile=get_tiles_filename(release.lower())
-        tiles=Table.read(ifile)
-
-    else:
-        ifile_guadalupe=get_tiles_filename('guadalupe')
-        ifile_fuji=get_tiles_filename('fuji')
-        tiles=Table.read(ifile_guadalupe)
-        sv_tiles=Table.read(ifile_fuji)
-        tiles=vstack([tiles,sv_tiles])
-        surveys+=[b"sv1",b"sv3"]
-
-    mask_program=(tiles['PROGRAM']=='dark')
-    mask_survey=np.isin(tiles['SURVEY'],np.array(surveys))
-    tiles=tiles[mask_program&mask_survey]
-
-    # RENAME OTHERWISE THE IN_DESI_FOOTPRINT FUNCTION WONT WORK
-    tiles.rename_column('TILERA','RA')
-    tiles.rename_column('TILEDEC','DEC')
-    return tiles
-
-def get_tiles_filename(release):
-    filename=os.path.join(os.environ['DESI_SPECTRO_REDUX'],f'{release}/tiles-{release}.fits')
-    return filename
-    
-
-
-
 class SurveyRelease(object):
-    """
-    Class with functions to reproduce a DESI release.
-    In terms of footprint, object density and exposures.
-    
+    """ Generate a master catalog mimicking a DESI release footprint and object density with adequate exposure times.
+    To be inputted to quickquasars.
+
     Args:
-        release (str): DESI's release to be reproduced.
-        pixel (int): Input HPXPIXEL to get density and number of observations from.
-        nside (int): NSIDE for the sky.
-        hpxnest (int): NEST for the sky.
+        mockteam (str): 'london' or 'saclay' for the moment.
+        subversion (str): subversion of the mock catalog. e.g. 'v9.0.0' or 'v4.7.01'
+        seed (int): random seed for reproducibility
     """
-    def __init__(self,release,nside,hpxnest):
-        survey_releases_file=os.path.join(os.path.dirname(desisim.__file__),'data/releases_pixmap.fits')
-        self.fname = survey_releases_file
-        self.release = release
-        self.nside_input = nside
-        self.pixarea_input = hp.nside2pixarea(self.nside_input,degrees=True)
-        self.nest_input = hpxnest
-        self.tiles = get_lya_tiles(release)
-        self.target_density_map,self.numobs_prob = self.release_info()
-        
-    def release_info(self):
-        log.info(f'Reading {self.release} density pixel map from file {self.fname}')
-        hdul = fits.open(self.fname)
-        if self.release.upper() not in hdul:
-            raise ValueError(f'{self.release} not in an HDU of {self.fname}')
-        data = Table(hdul[self.release.upper()].data)
-        hdr = hdul[self.release.upper()].header
-        if 'NEST' not in hdr.keys():
-            log.warning(f"NEST not specified by file {self.fname}, assuming nested")
-            self.nest_file=True
-        else:
-            self.nest_file=hdr['NEST']
-            
-        if self.nest_input != self.nest_file:
-            raise ValueError(f'NEST option from file {self.fname} does not match NEST from transmission files')
-            
-        if 'NSIDE' not in hdr.keys():
-            log.warning(f"NSIDE not specified by file {self.fname}, getting from pixel map")
-            npix=len(data)
-            self.nside_file=hp.npix2nside(npix)
-        else:
-            self.nside_file=hdr['NSIDE']
-            
-        if self.nside_input!=self.nside_file:
-            # Nsides are not necesary the same, log if its not to be aware of this.
-            log.warning(f'Transmission nside={self.nside_input}, is different from density map nside={self.nside_file}')
-            
-        self.pix_area_file = hp.nside2pixarea(self.nside_file,degrees=True)
-        density = data['z<2.1','z>2.1']
-        prob_numobs = data['NUMOBS_PROBABILITY']
-        return density,prob_numobs
-    
-    @staticmethod
-    def get_pixels(ra,dec,nside,nest=True):
-        """
-        Get the pixels covered by the mock in the nside of the density map file
-        
-        Args:
-            ra (ndarray): Objects right ascension.
-            dec (ndarray): Objects declination.
-            nside (int): Healpix nside
-            nest (bool): Healpix nest
-        Returns:
-            pixels (ndarray): Pixels array in density map file nside 
-        """
-        pixels = hp.ang2pix(nside, np.radians(90-dec),np.radians(ra),nest=nest)
-        return pixels
-    
-    @staticmethod
-    def _zmask_dict(z):
-        is_lya = z>=2.1
-        zmask_dict = {'z>2.1':is_lya,
-                       'z<2.1':~is_lya}
-        return zmask_dict
-    
-    @staticmethod
-    def get_density_map(data,nside,nest=True):
-        """
-        Generate pixel density map
-        
-        Args:
-            data (ndarray): Table of objects containing RA, DEC and Z.
-            nside (int): Healpix nside
-            nest (bool): Healpix nest
-        Returns:
-            pixel_map (ndarray): Pixels array in density map file nside 
-        """
-        num_pixels = hp.nside2npix(nside)
-        
-        pixel_map={'HPXPIXEL':np.arange(num_pixels),
-                   'z<2.1':np.zeros(num_pixels),
-                   'z>2.1':np.zeros(num_pixels)}
-        pixel_area = hp.pixelfunc.nside2pixarea(nside, degrees=True)
-        pixels = SurveyRelease.get_pixels(data['RA'],data['DEC'],nside=nside,nest=nest)
-        zmask_dict=SurveyRelease._zmask_dict(data['Z'])
-        
-        for zbin, zmask in zmask_dict.items():
-            unique_pixels,pixel_count=np.unique(pixels[zmask],return_counts=True)
-            density=pixel_count/pixel_area 
-            pixel_map[zbin][unique_pixels]=density
+    def __init__(self,mockteam, subversion,data_file=None,qso_only=True,seed=None):
+        self.mockcatalog=Table.read(self.get_master_path(mockteam,subversion),hdu=1)
+        log.info(f"Obtained {len(self.mockcatalog)} objects from {self.get_master_path(mockteam,subversion)} master catalog.")
+        self.mockcatalog['TARGETID']=self.mockcatalog['MOCKID']
+        self.mockcatalog['Z']=self.mockcatalog['Z_QSO_RSD']
+        np.random.seed(seed)
 
-        return pixel_map
-    
-    def apply_geometry(self,metadata):
-        """ Selects QSOs to reproduce a data release.
+        self.data = None
+        if data_file is not None:
+            self.data = self.prepare_data_catalog(data_file,zmin=min(self.mockcatalog['Z']),zmax=max(self.mockcatalog['Z']),qsos_only=qso_only)
+        
+    @staticmethod
+    def get_master_path(mockteam,subversion):
+        """Return the path to the master mock catalog.
+        
         Args:
-            metadata (ndarray): Metadata of objects. Containing RA, DEC and Z.
-        Returns:
-            selection (ndarray): mask to apply to downsample input list
-        """
-        ids_initial = metadata['MOCKID']
-        in_tiles = desimodel.footprint.is_point_in_desi(self.tiles,metadata['RA'],metadata['DEC'])
-        if np.count_nonzero(in_tiles)==0: 
-            log.warning(f"No intersection with {self.release} footprint")
-            return in_tiles # Return all false to exit QSO generation cycle.
-        
-        metadata_intiles = metadata[in_tiles]
-        # Get pixel in density map nside for zbin
-        mock_pixels = SurveyRelease.get_pixels(metadata_intiles['RA'],metadata_intiles['DEC'],
-                                               nside=self.nside_file,nest=self.nest_file)
-        unique_pixels = np.unique(mock_pixels)
-        log.info(f"Selecting QSOs in pixels index {unique_pixels} of nside={self.nside_file}")
-        target_density_map = self.target_density_map   
-        
-        # Downsample objects 
-        selection=list()
-        zmask_dict = SurveyRelease._zmask_dict(metadata_intiles['Z'])
-        for z_mask_name, z_mask in zmask_dict.items():
-            N_targets = target_density_map[z_mask_name] 
-            if N_targets==0: continue
-            indices=np.where(z_mask)[0]
-            N_avail = np.count_nonzero(z_mask)
-            density_avail  = N_avail/self.pixarea_input
-            downsampling_fraction = N_targets/density_avail
-            selected_indices=np.random.uniform(size=N_avail)<downsampling_fraction[mock_pixels][z_mask]
-            selection.extend(indices[selected_indices])
+            mockteam (str): 'london' or 'saclay' for the moment.
+            subversion (str): subversion of the mock catalog. e.g. 'v9.0.0' or 'v4.7.01'
             
-        # Make sure objects are not repeated
-        assert len(selection)==len(np.unique(selection))
-        ids_selected = metadata_intiles['MOCKID'][selection]
-        # Get the selected objects from the original metadata
-        selection = np.isin(ids_initial,ids_selected)
-        return selection
-                
-    def assign_exposures(self,metadata):
-        
-        """
-        Assign one exposure to z<2.1 QSOs and random exposure times to z>2.1 QSOs based on survey release.
-        Args:
-            metadata (ndarray): Metadata of objects. Containing RA, DEC and Z.
         Returns:
-            exptime (ndarray): array of exposure time for each quasar.
-        """
+            str: path to the master mock catalog
+        """ 
+        # TODO: Don't hardcode the versions
+        if mockteam=='london':
+            version='v9.0'
+            rawdir = f"/global/cfs/cdirs/desi/mocks/lya_forest/{mockteam}/{version}/{subversion}/master.fits"
+        elif mockteam=='saclay':
+            version = 'v4.7'
+            rawdir = f"/global/cfs/cdirs/desi/mocks/lya_forest/develop/{mockteam}/{version}/{subversion}/master.fits"
+        return rawdir
 
-        exptime = np.full(len(metadata),1000)
-        z=metadata['Z']
-        is_lya = z>=2.1
-        num_lya = np.count_nonzero(is_lya)
-        if num_lya!=0:
-            mock_pixels = SurveyRelease.get_pixels(metadata['RA'],metadata['DEC'],
-                                          nside=self.nside_file,nest=self.nest_file)
-            unique_pixels = np.unique(mock_pixels)
-            for pixel in unique_pixels:
-                numobs_distribution = self.numobs_prob[pixel]
-                
-                isnan_numobs = np.isnan(numobs_distribution)
-                if isnan_numobs.sum()!=0:
-                    # Avoid NaNs (for some reason) in distribution
-                    log.warning(f"Probability distribution in pixel {pixel} of nside={self.nside_file} has NaNs, setting to zero.")
-                    numobs_distribution= np.nan_to_num(numobs_distribution, nan=0)
-                 
-      
-                if numobs_distribution.sum()==0:
-                    log.warning(f"All probabilities in pixel {pixel} of nside={self.nside_file} are zero, assigning one exposure")
-                    numobs_distribution[0]=1.
+    @staticmethod
+    def get_catalog_area(catalog, nside=256):
+        """Return the area of the catalog in square degrees.
+        
+        Args:
+            nside (int): HEALPix nside parameter
             
-                numobs = np.arange(1,len(numobs_distribution)+1)
-                in_pixel = mock_pixels==pixel
+        Returns:
+            float: area of the catalog in square degrees
+        """
+        try: 
+            pixels = hp.ang2pix(nside, np.radians(90-catalog['DEC']),np.radians(catalog['RA']),nest=True)
+        except KeyError:
+            pixels = hp.ang2pix(nside, np.radians(90-catalog['TARGET_DEC']),np.radians(catalog['TARGET_RA']),nest=True)
+        pixarea = hp.pixelfunc.nside2pixarea(nside, degrees=True)
+        npix = len(np.unique(pixels))
+        return npix*pixarea
+
+    @staticmethod
+    def prepare_data_catalog(cat_filename,zmin=None,zmax=None,qsos_only=True):
+        """Prepare the data catalog for the quickquasars pipeline.
+        Args:
+            cat_filename (str): path to the data catalog.
+            zmin (float): minimum redshift of the distribution
+            zmax (float): maximum redshift of the distribution
+            qsos_only (bool): if True, will only keep QSO targets.
+        """
+        log.info(f"Reading data catalog {cat_filename}")
+        cat = Table.read(cat_filename)
+        log.info(f"Found {len(cat)} targets in catalog")
+        w_z =(cat['Z']>=zmin)&(cat['Z']<=zmax)
+        log.info(f"Keeping {np.sum(w_z)} QSOs in redshift range ({zmin},{zmax}) in data catalog")
+        cat=cat[w_z]
+        if qsos_only: 
+            mask = desi_mask.mask('QSO|QSO_HIZ|QSO_NORTH|QSO_SOUTH')
+            qso_targets = ((cat["DESI_TARGET"]&mask)>0)
+            log.info(f"Keeping {np.sum(qso_targets)} ({np.sum(qso_targets)/len(cat):.2%}) QSO targets in data catalog")
+            log.info(f"{np.sum(~qso_targets)} ({np.sum(~qso_targets)/np.sum(w_z):.2%}) non QSO targets will be excluded from data catalog")
+            cat=cat[qso_targets]
+        return cat
+
+    def apply_redshift_dist(self,zmin=0,zmax=10,distribution='SV'):
+        """Apply a redshift distribution to the catalog.
+
+        Args:
+            zmin (float): minimum redshift of the distribution
+            zmax (float): maximum redshift of the distribution
+            distribution (str): 'SV' or 'target_selection' for the moment.
+        """
+        if distribution=='SV':
+            filename = os.path.join(os.path.dirname(desisim.__file__),'data/dn_dzdM_EDR.fits')
+            dn_dzdr=fitsio.FITS(filename)[3][:,:]
+            dndz=np.sum(dn_dzdr,axis=1)
+
+            zcenters=fitsio.FITS(filename)[1][:]
+            dz = zcenters[1] - zcenters[0]
+            zmin = max(zcenters[0]-0.5*dz,zmin)
+            zmax = min(zcenters[-1]+0.5*dz,zmax)
+            w_z = (zcenters-0.5*dz >= zmin) & (zcenters+0.5*dz < zmax)
+            dndz=dndz[w_z]
+            zcenters=zcenters[w_z]
+            zbins = np.linspace(zmin,zmax,int((zmax-zmin)/dz))
+        elif distribution=='target_selection':
+            # TODO: Implement this in desisim instead of local path
+            dist = Table.read('/global/cfs/cdirs/desi/users/hiramk/desi/scripts/quickquasars_analysis/preprocessing/fig_21_data.ecsv') 
+            dz=(dist['z'][1]-dist['z'][0])
+            frac=0.1/dz
+            zbins = np.linspace(zmin,zmax+dz,int((zmax-zmin)/dz))
+            zcenters=0.5*(zbins[1:]+zbins[:-1])
+            dndz=frac*np.interp(zcenters,dist['z'],dist['dndz_23'],left=0,right=0)
+        elif distribution=='from_data':
+            raise NotImplementedError(f"Option {distribution} is not implemented yet.")
+        
+            if self.data is None:
+                raise ValueError("No data catalog was provided.")
+            dz = 0.1
+            zbins = np.linspace(zmin,zmax,int((zmax-zmin)/dz))
+            data_area = SurveyRelease.get_catalog_area(self.data,nside=256)
+            zcenters=0.5*(zbins[1:]+zbins[:-1])
+            dndz=np.histogram(self.data['Z'],bins=zbins,weights=np.repeat(1/data_area,len(self.data)))[0]
+        else:
+            raise ValueError(f"Distribution option {distribution} not in available options: SV, target_selection, from_data.")
+
+        mock_area=SurveyRelease.get_catalog_area(self.mockcatalog,nside=16)
+        dndz_mock=np.histogram(self.mockcatalog['Z_QSO_RSD'],bins=zbins,weights=np.repeat(1/mock_area,len(self.mockcatalog)))[0]
+        fractions=np.divide(dndz,dndz_mock,where=dndz_mock>0,out=np.zeros_like(dndz_mock))
+        fractions[fractions>1]=1
+
+        local_z = self.mockcatalog['Z_QSO_RSD']
+        bin_index = np.digitize(local_z, zbins) - 1
+        selection = np.random.uniform(size=local_z.size) < fractions[bin_index]
+        log.info(f"Keeping {sum(selection)} mock QSOs to match {distribution} distribution")
+        self.mockcatalog=self.mockcatalog[selection]
+        
+    def apply_data_geometry(self, release='iron'):
+        """ Apply the geometry of a given data release to the mock catalog.
+        
+        Args:
+            data (astropy.table.Table): data catalog.
+            release (str,optional): release name. If None, will use the whole DESI footprint.
+        """
+        mock=self.mockcatalog
+        tiles=self.get_lya_tiles(release)
+        mask_footprint=desimodel.footprint.is_point_in_desi(tiles,mock['RA'],mock['DEC'])
+        log.info(f"Keeping {sum(mask_footprint)}  mock QSOs in {release} TILES")
+        mock=mock[mask_footprint]
+
+        if release is not None:
+            # TODO: THis only works for iron at the moment.
+            # TODO 2: Add submoodules to generate the pixelmaps from data.
+            log.info(f"Downsampling by NPASSES fraction in {release} release.")
+            pixmap=Table.read('/global/cfs/cdirs/desi/users/hiramk/desi/quickquasars/sampling_tests/tile_map_pixmap.fits')
+            mock_pixels = hp.ang2pix(1024, np.radians(90-mock['DEC']),np.radians(mock['RA']),nest=True)
+            try:
+                data_pixels = hp.ang2pix(1024,np.radians(90-self.data['TARGET_DEC']),np.radians(self.data['TARGET_RA']),nest=True)
+            except: 
+                data_pixels = hp.ang2pix(1024,np.radians(90-self.data['DEC']),np.radians(self.data['RA']),nest=True)
+            
+            data_passes = pixmap[data_pixels]['NPASS']
+            mock_passes = pixmap[mock_pixels]['NPASS']
+            data_pass_counts = np.bincount(data_passes,minlength=8) # Minlength = 7 passes + 1 (for bining)
+            mock_pass_counts = np.bincount(mock_passes,minlength=8)
+            mock['NPASS'] = mock_passes
+            downsampling=np.divide(data_pass_counts,mock_pass_counts,out=np.zeros(8),where=mock_pass_counts>0)
+            selection = np.random.uniform(size=len(mock))<downsampling[mock_passes]
+            log.info(f"Keeping {len(mock[selection])} mock QSOs out of {len(mock)} to match data")
+            mock = mock[selection]
+        self.mockcatalog=mock  
+
+    def assign_rband_magnitude(self,from_data=False):
+        """Assign r-band magnitudes to the catalog according to the distribution
+        
+        Args:
+            from_data (bool): if True, will use the data catalog to generate the distribution. Otherwise, will use the distribution in the default file.
+        """
+        if not from_data:
+            zcenters=fitsio.FITS(filename)['Z_CENTERS'][:]
+            dz = zcenters[1]-zcenters[0]
+            rmagcenters=fitsio.FITS(filename)['RMAG_CENTERS'][:]
+            dn_dzdm=fitsio.FITS(filename)['dn_dzdm'][:,:]
+            log.info(f"Generating random magnitudes according to distribution in {filename}")
+        else:
+            if self.data is None:
+                raise ValueError("No data catalog was provided.")
+            dz = 0.1
+            zbins = np.arange(0,10,dz)
+            zcenters=0.5*(zbins[1:]+zbins[:-1])
+            rmagbins = np.arange(15,25,0.1)
+            rmagcenters=0.5*(rmagbins[1:]+rmagbins[:-1])
+            log.info("Generatinf random magnitudes according to distribution in data catalog.")
+            if 'RMAG' in self.data.colnames:
+                dn_dzdm=np.histogram2d(self.data['Z'],self.data['RMAG'],bins=(zbins,rmagbins))[0]
+            elif 'FLUX_R' in self.data.colnames:
+                dn_dzdm=np.histogram2d(self.data['Z'],22.5-2.5*np.log10(self.data['FLUX_R']),bins=(zbins,rmagbins))[0]
+            else:
+                raise ValueError("No magnitude information in data catalog.")
+        cdf=np.cumsum(dn_dzdm,axis=1)
+        cdf_norm=cdf/cdf[:,-1][:,None]
+        mags=np.zeros(len(self.mockcatalog))
+        for i,z_bin in enumerate(zcenters):
+            w_z = (self.mockcatalog['Z'] >= z_bin-0.5*dz) & (self.mockcatalog['Z'] < z_bin+0.5*dz)
+            if np.sum(w_z)==0: continue
+            mags[w_z]=np.interp(np.random.uniform(size=np.sum(w_z)),cdf_norm[i],rmagcenters)  
+        if np.sum(mags==0)!=0:
+            raise ValueError("Generated magnitudes contain zeros.")
+        self.mockcatalog['FLUX_R'] = 10**((22.5-mags)/2.5)
+
+    def assign_exposures(self,exptime=None):
+        """ Assign exposures to the catalog according to the distribution in the data release.
+        
+        Args:
+            uniform_exptime (float, optional): if not None, will assign the given exposure time in seconds uniformly to the catalog.
+        """
+        if self.data is None:
+            if exptime is None:
+                raise ValueError("No data catalog noor exptime was provided. Please provide one of those.")
+            log.info(f"Assigning uniform exposures {exptime} seconds.")
+            self.mockcatalog['EXPTIME']=exptime
+        else:
+            log.info("Assigning exposures")
+            # TODO: move this file to desisim/data
+            filename='/global/cfs/cdirs/desi/users/hiramk/desi/quickquasars/sampling_tests/tile_map_pixmap.fits'
+            pixmap=Table.read(filename)
+            pdfs_exptimes=np.zeros((7,6))
+            mock=self.mockcatalog
+            mock_pixels = hp.ang2pix(1024, np.radians(90-mock['DEC']),np.radians(mock['RA']),nest=True)
+            try:
+                data_pixels = hp.ang2pix(1024,np.radians(90-self.data['TARGET_DEC']),np.radians(self.data['TARGET_RA']),nest=True)
+            except: 
+                data_pixels = hp.ang2pix(1024,np.radians(90-self.data['DEC']),np.radians(self.data['RA']),nest=True)
                 
-                num_lya_pixel = np.count_nonzero(is_lya&in_pixel)
-                log.info(f'Assigning {numobs} exposures with probabilities {numobs_distribution} to {num_lya_pixel} z>2.1 qsos')
-                exptime_lya = 1000*np.random.choice(numobs,size=num_lya_pixel,p=numobs_distribution)
-                exptime[is_lya&in_pixel]=exptime_lya
-        return exptime
+            data_passes = pixmap[data_pixels]['NPASS']
+            mock_passes = pixmap[mock_pixels]['NPASS']
+            
+            is_lya_data=self.data['Z']>2.1    
+            effective_exptime = lambda tsnr2_lrg: 12.25*tsnr2_lrg
+            exptime_data = effective_exptime(self.data['TSNR2_LRG'])
+            
+            exptime_mock = np.zeros(len(mock))
+            is_lya_mock = mock['Z']>2.1
+            exptime_mock[~is_lya_mock]=1000
+            for tile_pass in range(1,8):
+                w=pixmap[data_pixels]['NPASS'][is_lya_data] == tile_pass
+                pdf=np.histogram(exptime_data[is_lya_data][w]/1000,bins=np.arange(.5,7.5,1),density=True)[0]
+                random_variable = rv_discrete(values=(np.arange(1,len(pdf)+1),pdf))
+                is_pass = self.mockcatalog['NPASS'] == tile_pass
+                exptime_mock[is_lya_mock&is_pass]=1000*random_variable.rvs(size=np.sum(is_pass&is_lya_mock))
+            self.mockcatalog['EXPTIME']=exptime_mock
+
+    @staticmethod
+    def get_lya_tiles(release=None):
+        """Return the tiles that have been observed in a given release.
+        
+        Args:
+            release (str,optional): release name. If None, will return the tiles in the whole DESI footprint.
+            
+        Returns:
+            astropy.table.Table: Table containing the tiles.
+        """
+        if release is not None:
+            surveys=["main"]
+            if not release.upper()=='FUGU':
+                tiles_filename = os.path.join(os.environ['DESI_SPECTRO_REDUX'],f'{release}/tiles-{release}.fits')
+                tiles=Table.read(tiles_filename)
+
+            else:
+                tiles_filename=os.path.join(os.environ['DESI_SPECTRO_REDUX'],f'guadalupe/tiles-guadalupe.fits')
+                tiles=Table.read(tiles_filename)
+                sv_tiles_filename= os.path.join(os.environ['DESI_SPECTRO_REDUX'],f'fuji/tiles-fuji.fits')
+                sv_tiles=Table.read(sv_tiles_filename)
+                tiles=vstack([tiles,sv_tiles])
+                surveys+=["sv1","sv3"]
+            mask_survey=np.isin(np.char.decode(tiles['SURVEY']),np.array(surveys))
+            tiles = tiles [mask_survey]
+        else:
+            from desimodel.io import load_tiles
+            tiles = load_tiles()
+        
+        # Depending on the table version, the column names are different and need to be decoded.
+        try: program = np.char.decode(tiles['PROGRAM'])
+        except AttributeError: program = tiles['PROGRAM']
+        mask_program=(np.char.lower(program)=='dark')
+        tiles=tiles[mask_program]
+
+        # RENAME OTHERWISE THE IN_DESI_FOOTPRINT FUNCTION WONT WORK
+        if 'TILERA' in tiles.colnames:
+            tiles.rename_column('TILERA','RA')
+        if 'TILEDEC' in tiles.colnames:
+            tiles.rename_column('TILEDEC','DEC')
+        return tiles
+    
+            
