@@ -161,7 +161,7 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
     
     parser.add_argument('--raw-mock', type=str, default=None, choices=["lyacolore","saclay","ohio"], help="Input raw mock type (lyacolore, saclay or Ohio)")
         
-    parser.add_argument('--reproduce-release', type=str, default=None, help="Reproduces the footprint, object density and exposure time distribution of the given release.")
+    parser.add_argument('--year1-throughput', action='store_true', help="Use DESI-Y1 throughput including a dip at 440 nml.")
     
     parser.add_argument('--from-catalog', type=str, default=None, help="Input catalog of mock objects to simulate")
     
@@ -456,34 +456,11 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                 selection_z = np.random.uniform(size=z.size) < fraction[bins]
 
                 np.random.set_state(rnd_state)
-                log.info("Resampling redshift distribution {}->{}".format(len(z),len(selection_z)))
+                log.info("Resampling redshift distribution {}->{}".format(len(z),np.sum(selection_z)))
 
                 transmission = transmission[selection_z]
                 metadata = metadata[:][selection_z]
                 DZ_FOG = DZ_FOG[selection_z]
-
-    if args.reproduce_release is not None:
-        # TODO: This flag should be deprecated. It is was used for the EDR+M2 mocks. 
-        # The SurveyRelease class has been reworked and this will no longer work.
-        # From catalog option is a better resource now.
-        if args.downsampling or args.nmax:
-            raise ValueError("--reproduce-release option can not be run with --downsampling or --nmax")
-        rnd_state = np.random.get_state()
-        
-        release = SurveyRelease(args.reproduce_release,nside,hpxnest)
-        if args.from_catalog is None:
-            log.info(f"Applying {args.reproduce_release} geometry")
-            selection = release.apply_geometry(metadata)
-            if selection.sum()==0: return
-            log.info(f"Select QSOs in {args.reproduce_release} footprint {transmission.shape[0]} -> {selection.sum()}")
-            transmission = transmission[selection]
-            metadata = metadata[:][selection]
-            DZ_FOG = DZ_FOG[selection] 
-        
-        if not args.exptime:
-            exptime = release.assign_exposures(metadata)
-            obsconditions['EXPTIME']=exptime
-        np.random.set_state(rnd_state)
             
     nqso=transmission.shape[0]
     
@@ -875,7 +852,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     if args.eboss:
         specsim_config_file = 'eboss'
-    elif args.reproduce_release is not None:
+    elif args.year1_throughput:
         specsim_config_file = 'desiY1'
     else:
         specsim_config_file = 'desi'
