@@ -129,8 +129,7 @@ class SurveyRelease(object):
             zcenters=zcenters[w_z]
             zbins = np.arange(zmin,zmax+dz,dz,)
         elif distribution=='target_selection':
-            # TODO: Implement this in desisim instead of local path
-            dist = Table.read('/global/cfs/cdirs/desi/users/hiramk/desi/scripts/quickquasars_analysis/preprocessing/fig_21_data.ecsv') 
+            dist = Table.read(os.path.join(os.path.dirname(desisim.__file__),'data/redshift_dist_chaussidon2022.ecsv')) 
             dz=dist['z'][1]-dist['z'][0]
             factor=0.1/dz # Account for redshift bin width difference.
             zbins = np.arange(0,10.1,0.1)
@@ -178,7 +177,8 @@ class SurveyRelease(object):
             # TODO: THis only works for iron at the moment.
             # TODO 2: Add submoodules to generate the pixelmaps from data.
             log.info(f"Downsampling by NPASSES fraction in {release} release")
-            pixmap=Table.read('/global/cfs/cdirs/desi/users/hiramk/desi/quickquasars/sampling_tests/tile_map_pixmap.fits')
+            # TODO: Implement this in desimodel instead of local path
+            pixmap=Table.read('/global/cfs/cdirs/desi/users/hiramk/desi/quickquasars/sampling_tests/npass_pixmap.fits')
             mock_pixels = hp.ang2pix(1024, np.radians(90-mock['DEC']),np.radians(mock['RA']),nest=True)
             try:
                 data_pixels = hp.ang2pix(1024,np.radians(90-self.data['TARGET_DEC']),np.radians(self.data['TARGET_RA']),nest=True)
@@ -255,8 +255,7 @@ class SurveyRelease(object):
             self.mockcatalog['EXPTIME']=exptime
         else:
             log.info("Assigning exposures")
-            # TODO: move this file to desisim/data
-            filename='/global/cfs/cdirs/desi/users/hiramk/desi/quickquasars/sampling_tests/tile_map_pixmap.fits'
+            filename=os.path.join(os.path.dirname(desisim.__file__),'data/npass_pixmap.fits')
             pixmap=Table.read(filename)
             mock=self.mockcatalog
             try:
