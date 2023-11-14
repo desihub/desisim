@@ -32,12 +32,14 @@ class SurveyRelease(object):
         data_file (str): path to the data catalog.
         qso_only (bool): if True, will only keep QSO targets.
         seed (int): random seed for reproducibility
+        invert (bool): if True, will shuffle the random number generation by 1-random_number.
     """
-    def __init__(self,mockteam, subversion,data_file=None,qso_only=True,seed=None):
+    def __init__(self,mockteam, subversion,data_file=None,qso_only=True,seed=None,invert=False):
         self.mockcatalog=Table.read(self.get_master_path(mockteam,subversion),hdu=1)
         log.info(f"Obtained {len(self.mockcatalog)} objects from {self.get_master_path(mockteam,subversion)} master catalog")
         self.mockcatalog['TARGETID']=self.mockcatalog['MOCKID']
         self.mockcatalog['Z']=self.mockcatalog['Z_QSO_RSD']
+        self.invert=invert
         np.random.seed(seed)
 
         self.data = None
@@ -153,7 +155,10 @@ class SurveyRelease(object):
 
         local_z = self.mockcatalog['Z_QSO_RSD']
         bin_index = np.digitize(local_z, zbins) - 1
-        selection = np.random.uniform(size=local_z.size) < fractions[bin_index]
+        rand = np.random.uniform(size=local_z.size)
+        if self.invert:
+            rand = 1-rand
+        selection = rand < fractions[bin_index]
         log.info(f"Keeping {sum(selection)} mock QSOs to match {distribution} distribution")
         self.mockcatalog=self.mockcatalog[selection]
         
@@ -186,7 +191,10 @@ class SurveyRelease(object):
             mock_pass_counts = np.bincount(mock_passes,minlength=8)
             mock['NPASS'] = mock_passes
             downsampling=np.divide(data_pass_counts,mock_pass_counts,out=np.zeros(8),where=mock_pass_counts>0)
-            selection = np.random.uniform(size=len(mock))<downsampling[mock_passes]
+            rand = np.random.uniform(size=len(mock))
+            if self.invert:
+                rand = 1-rand
+            selection = rand<downsampling[mock_passes]
             log.info(f"Keeping {len(mock[selection])} mock QSOs out of {len(mock)} to match data")
             mock = mock[selection]
         self.mockcatalog=mock  
@@ -225,7 +233,10 @@ class SurveyRelease(object):
         for i,z_bin in enumerate(zcenters):
             w_z = (self.mockcatalog['Z'] > z_bin-0.5*dz) & (self.mockcatalog['Z'] <= z_bin+0.5*dz)
             if np.sum(w_z)==0: continue
-            mags[w_z]=np.interp(np.random.uniform(size=np.sum(w_z)),cdf_norm[i],rmagcenters)  
+            rand = np.random.uniform(size=np.sum(w_z))
+            if self.invert:
+                rand = 1-rand
+            mags[w_z]=np.interp(rand,cdf_norm[i],rmagcenters)  
         if np.sum(mags==0)!=0:
             print(self.mockcatalog[mags==0])
             raise ValueError(f"Generated magnitudes contain zeros")

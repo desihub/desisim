@@ -161,7 +161,7 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
     
     parser.add_argument('--raw-mock', type=str, default=None, choices=["lyacolore","saclay","ohio"], help="Input raw mock type (lyacolore, saclay or Ohio)")
         
-    parser.add_argument('--year1-throughput', action='store_true', help="Use DESI-Y1 throughput including a dip at 440 nml.")
+    parser.add_argument('--year1-throughput', action='store_true', help="Use DESI-Y1 throughput including a dip at 440 nm.")
     
     parser.add_argument('--from-catalog', type=str, default=None, help="Input catalog of mock objects to simulate")
     
