@@ -234,7 +234,7 @@ class SurveyRelease(object):
             self.mockcatalog['EXPTIME']=exptime
         else:
             log.info("Assigning exposures")
-            filename=os.path.join(os.path.dirname(desisim.__file__),'data/npass_pixmap.fits')
+            filename='/global/cfs/cdirs/desi/users/hiramk/desi/quickquasars/sampling_tests/npass_pixmap.fits'
             pixmap=Table.read(filename)
             mock=self.mockcatalog
             try:
