@@ -377,16 +377,16 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         
         this_pixel_targets = np.isin(catalog['MOCKID'],metadata['MOCKID'])
         if 'EXPTIME' in catalog.colnames:
-            exptime=catalog['EXPTIME'][this_pixel_targets]
+            exptime=np.array(catalog['EXPTIME'][this_pixel_targets])
             obsconditions['EXPTIME']=exptime
             args.exptime = exptime
-            args.exptime=True
+        # Prevent QQ from assigning magnitudes again.
         if 'FLUX_R' in catalog.colnames:
             mags = 22.5-2.5*np.log10(catalog['FLUX_R'][this_pixel_targets])
-            # Prevent QQ from assigning magnitudes again.
             args.dn_dzdm = None
         elif 'MAG_R' in catalog.colnames:
             mags=catalog['MAG_R'][this_pixel_targets]
+            args.dn_dzdm = None
 
     # option to make for BOSS+eBOSS
     if not eboss is None:
@@ -896,7 +896,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         log.info('Z_noRSD field not present in transmission file. Z_NORSD not saved to truth file')
         
     if args.exptime is not None:
-        meta.add_column(Column(exptime,name='EXPTIME'))
+        meta.add_column(Column(args.exptime,name='EXPTIME'))
 
     #Save global seed and pixel seed to primary header
     hdr=pyfits.Header()
