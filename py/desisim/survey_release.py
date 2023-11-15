@@ -27,16 +27,15 @@ class SurveyRelease(object):
     To be inputted to quickquasars.
 
     Args:
-        mockteam (str): 'london' or 'saclay' for the moment.
-        subversion (str): subversion of the mock catalog. e.g. 'v9.0.0' or 'v4.7.01'
+        mastercatalog (str): path to the master catalog.
         data_file (str): path to the data catalog.
         qso_only (bool): if True, will only keep QSO targets.
         seed (int): random seed for reproducibility
         invert (bool): if True, will shuffle the random number generation by 1-random_number.
     """
-    def __init__(self,mockteam, subversion,data_file=None,qso_only=True,seed=None,invert=False):
-        self.mockcatalog=Table.read(self.get_master_path(mockteam,subversion),hdu=1)
-        log.info(f"Obtained {len(self.mockcatalog)} objects from {self.get_master_path(mockteam,subversion)} master catalog")
+    def __init__(self,mastercatalog,data_file=None,qso_only=True,seed=None,invert=False):
+        self.mockcatalog=Table.read(mastercatalog,hdu=1) # Assumes master catalog is in HDU1
+        log.info(f"Obtained {len(self.mockcatalog)} objects from {mastercatalog} master catalog")
         self.mockcatalog['TARGETID']=self.mockcatalog['MOCKID']
         self.mockcatalog['Z']=self.mockcatalog['Z_QSO_RSD']
         self.invert=invert
@@ -46,26 +45,6 @@ class SurveyRelease(object):
         if data_file is not None:
             self.data = self.prepare_data_catalog(data_file,zmin=min(self.mockcatalog['Z']),zmax=max(self.mockcatalog['Z']),qsos_only=qso_only)
         
-    @staticmethod
-    def get_master_path(mockteam,subversion):
-        """Return the path to the master mock catalog.
-        
-        Args:
-            mockteam (str): 'london' or 'saclay' for the moment.
-            subversion (str): subversion of the mock catalog. e.g. 'v9.0.0' or 'v4.7.01'
-            
-        Returns:
-            str: path to the master mock catalog
-        """ 
-        # TODO: Don't hardcode the versions
-        if mockteam=='london':
-            version='v9.0'
-            rawdir = f"/global/cfs/cdirs/desi/mocks/lya_forest/{mockteam}/{version}/{subversion}/master.fits"
-        elif mockteam=='saclay':
-            version = 'v4.7'
-            rawdir = f"/global/cfs/cdirs/desi/mocks/lya_forest/develop/{mockteam}/{version}/{subversion}/master.fits"
-        return rawdir
-
     @staticmethod
     def get_catalog_area(catalog, nside=256):
         """Return the area of the catalog in square degrees.
