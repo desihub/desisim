@@ -744,10 +744,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
         tmp_qso_flux = apply_metals_transmission(tmp_qso_wave,tmp_qso_flux,
                             trans_wave,transmission,args.metals,mocktype=args.raw_mock,strengths=args.metal_strengths)
-        # hiramk: TODO Rightnow this only works if a dn_dzdm argument is given... this only works for
-        # DESI mocks with the observed redshift and magnitude distribution. Will not work for mocks using
-        # the nominal design distributions. Will also fail for Ohio mocks unless coeficients are added to
-        # lya_spectra.py file.
         
     # Attenuate the spectra for extinction
     if not sfdmap is None:
