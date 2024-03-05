@@ -2,14 +2,15 @@
 desisim change log
 ==================
 
-0.37.2 (unreleased) 
+0.37.2 (unreleased)
 -------------------
 
-* Fixed bug on quickquasars quasar sampling method to reproduce z distribution 
+* Fixed bug on quickquasars quasar sampling method to reproduce z distribution
   from SV causing a wrong shape in cross-correlation (PR `#577`_).
-  
+
 .. _`#577`: https://github.com/desihub/desisim/pull/577
-0.37.1 (2023-01-13) 
+
+0.37.1 (2023-01-13)
 -------------------
 
 * Added sort to io.find_basis_template() (PR `#576`_).
