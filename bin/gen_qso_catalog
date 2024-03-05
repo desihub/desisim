@@ -1,0 +1,9 @@
+#!/usr/bin/env python
+
+"""
+Generate the quasar catalog to input quickquasars
+"""
+
+import sys
+from desisim.scripts.gen_qso_catalog import main
+sys.exit(main())

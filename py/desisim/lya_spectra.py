@@ -12,46 +12,63 @@ from desisim.dla import insert_dlas
 from desiutil.log import get_logger
 
 lambda_RF_LYA = 1215.67
+
+# Default values for the IGM absorption.
 absorber_IGM = {
-    'MgI(2853)'   : { 'LRF':2852.96, 'COEF':1.e-4 },
-    'MgII(2804)'  : { 'LRF':2803.5324, 'COEF':5.e-4 },
-    'MgII(2796)'  : { 'LRF':2796.3511, 'COEF':9.e-4 },
-    'FeII(2600)'  : { 'LRF':2600.1724835, 'COEF':1.e-4 },
-    'FeII(2587)'  : { 'LRF':2586.6495659, 'COEF':1.e-4 },
-    'MnII(2577)'  : { 'LRF':2576.877, 'COEF':1.e-4 },
-    'FeII(2383)'  : { 'LRF':2382.7641781, 'COEF':1.e-4 },
-    'FeII(2374)'  : { 'LRF':2374.4603294, 'COEF':1.e-4 },
-    'FeII(2344)'  : { 'LRF':2344.2129601, 'COEF':1.e-4 },
-    'AlIII(1863)' : { 'LRF':1862.79113, 'COEF':1.e-4 },
-    'AlIII(1855)' : { 'LRF':1854.71829, 'COEF':1.e-4 },
-    'AlII(1671)'  : { 'LRF':1670.7886, 'COEF':1.e-4 },
-    'FeII(1608)'  : { 'LRF':1608.4511, 'COEF':1.e-4 },
-    'CIV(1551)'   : { 'LRF':1550.77845, 'COEF':5.435e-4 },
-    'CIV(1548)'   : { 'LRF':1548.2049, 'COEF':1.487e-3 },
-    'SiII(1527)'  : { 'LRF':1526.70698, 'COEF':1.e-4 },
-    'SiIV(1403)'  : { 'LRF':1402.77291, 'COEF':5.e-4 },
-    'SiIV(1394)'  : { 'LRF':1393.76018, 'COEF':9.e-4 },
-    'CII(1335)'   : { 'LRF':1334.5323, 'COEF':1.e-4 },
-    'SiII(1304)'  : { 'LRF':1304.3702, 'COEF':1.e-4 },
-    'OI(1302)'    : { 'LRF':1302.1685, 'COEF':1.e-4 },
-    'SiII(1260)'  : { 'LRF':1260.4221, 'COEF':3.542e-4 },
-    'NV(1243)'    : { 'LRF':1242.804, 'COEF':5.e-4 },
-    'NV(1239)'    : { 'LRF':1238.821, 'COEF':5.e-4 },
-    'SiIII(1207)' : { 'LRF':1206.500, 'COEF':1.8919e-3 },
-    'NI(1200)'    : { 'LRF':1200., 'COEF':1.e-3 },
-    'SiII(1193)'  : { 'LRF':1193.2897, 'COEF':9.0776e-4 },
-    'SiII(1190)'  : { 'LRF':1190.4158, 'COEF':6.4239e-4 },
-    'OI(1039)'    : { 'LRF':1039.230, 'COEF':1.e-3 },
-    'OVI(1038)'   : { 'LRF':1037.613, 'COEF':3.382-3 },
-    'OVI(1032)'   : { 'LRF':1031.912, 'COEF':5.358e-3 },
-    'LYB'         : { 'LRF':1025.72, 'COEF':0.1901 },
-    'CIII(977)'   : { 'LRF':977.020, 'COEF':5.e-3 },
-    'OI(989)'     : { 'LRF':988.7, 'COEF':1.e-3 },
-    'SiII(990)'   : { 'LRF':989.8731, 'COEF':1.e-3 },
-    'LY3'         : { 'LRF':972.537, 'COEF':0.0697 },
-    'LY4'         : { 'LRF':949.7431, 'COEF':0.0335 },
-    'LY5'         : { 'LRF':937.8035, 'COEF':0.0187 },
+    'MgI(2853)'   : { 'LRF':2852.96,        'COEF':1.e-4 },
+    'MgII(2804)'  : { 'LRF':2803.5324,      'COEF':5.e-4 },
+    'MgII(2796)'  : { 'LRF':2796.3511,      'COEF':9.e-4 },
+    'FeII(2600)'  : { 'LRF':2600.1724835,   'COEF':1.e-4 },
+    'FeII(2587)'  : { 'LRF':2586.6495659,   'COEF':1.e-4 },
+    'MnII(2577)'  : { 'LRF':2576.877,       'COEF':1.e-4 },
+    'FeII(2383)'  : { 'LRF':2382.7641781,   'COEF':1.e-4 },
+    'FeII(2374)'  : { 'LRF':2374.4603294,   'COEF':1.e-4 },
+    'FeII(2344)'  : { 'LRF':2344.2129601,   'COEF':1.e-4 },
+    'AlIII(1863)' : { 'LRF':1862.79113,     'COEF':1.e-4 },
+    'AlIII(1855)' : { 'LRF':1854.71829,     'COEF':1.e-4 },
+    'AlII(1671)'  : { 'LRF':1670.7886,      'COEF':1.e-4 },
+    'FeII(1608)'  : { 'LRF':1608.4511,      'COEF':1.e-4 },
+    'CIV(1551)'   : { 'LRF':1550.77845,     'COEF':5.435e-4},
+    'CIV(1548)'   : { 'LRF':1548.2049,      'COEF':1.487e-3},
+    'SiII(1527)'  : { 'LRF':1526.70698,     'COEF':1.e-4 },
+    'SiIV(1403)'  : { 'LRF':1402.77291,     'COEF':5.e-4 },
+    'SiIV(1394)'  : { 'LRF':1393.76018,     'COEF':9.e-4 },
+    'CII(1335)'   : { 'LRF':1334.5323,      'COEF':1.e-4 },
+    'SiII(1304)'  : { 'LRF':1304.3702,      'COEF':1.e-4 },
+    'OI(1302)'    : { 'LRF':1302.1685,      'COEF':1.e-4 },
+    'SiII(1260)'  : { 'LRF':1260.4221,      'COEF':None },
+    'NV(1243)'    : { 'LRF':1242.804,       'COEF':5.e-4 },
+    'NV(1239)'    : { 'LRF':1238.821,       'COEF':5.e-4 },
+    'SiIII(1207)' : { 'LRF':1206.500,       'COEF': None },
+    'NI(1200)'    : { 'LRF':1200.,          'COEF':1.e-3 },
+    'SiII(1193)'  : { 'LRF':1193.2897,      'COEF':None }, 
+    'SiII(1190)'  : { 'LRF':1190.4158,      'COEF':None }, 
+    'OI(1039)'    : { 'LRF':1039.230,       'COEF':1.e-3 },
+    'OVI(1038)'   : { 'LRF':1037.613,       'COEF':3.382e-3 },
+    'OVI(1032)'   : { 'LRF':1031.912,       'COEF':5.358e-3 },
+    'LYB'         : { 'LRF':1025.72,        'COEF':0.1901 },
+    'CIII(977)'   : { 'LRF':977.020,        'COEF':5.e-3 },
+    'OI(989)'     : { 'LRF':988.7,          'COEF':1.e-3 },
+    'SiII(990)'   : { 'LRF':989.8731,       'COEF':1.e-3 },
+    'LY3'         : { 'LRF':972.537,        'COEF':0.0697 },
+    'LY4'         : { 'LRF':949.7431,       'COEF':0.0335 },
+    'LY5'         : { 'LRF':937.8035,       'COEF':0.0187 },
 }
+
+# Coefficients are different for each raw mock type.
+metal_coefs = {'lyacolore':     {'SiII(1260)': 4.2504e-4,
+                                'SiIII(1207)': 9.4595e-4,
+                                'SiII(1193)' : 6.3540e-4,
+                                'SiII(1190)' : 4.4960e-4},
+                    'saclay':   {'SiII(1260)': 4.2504e-4, # DR14
+                                #'SiII(1260)': 6.537e-4, # DR16
+                                'SiIII(1207)': 9.4595e-4, #DR14
+                                #'SiIII(1207)': 2.739e-3, #DR16
+                                'SiII(1193)' : 6.354e-4, #DR14
+                                #'SiII(1193)':7.488e-4 , #DR16
+                                'SiII(1190)' : 4.496e-4} #DR14
+                                #'SiII(1190)':9.215e-4, #DR16
+                    }
 
 def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False,add_lyb=False) :
     '''
@@ -202,7 +219,7 @@ def apply_lya_transmission(qso_wave,qso_flux,trans_wave,trans) :
 
     return output_flux
 
-def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals) :
+def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals,mocktype,strengths=None) :
     '''
     Apply metal transmission to input flux, interpolating if needed.
     The input transmission should be only due to lya, if not has no meaning.
@@ -221,6 +238,9 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals) :
         output_flux[nqso, nwave]
 
     '''
+    
+    log = get_logger()
+    
     if qso_flux.shape[0] != trans.shape[0] :
         raise(ValueError("not same number of qso {} {}".format(qso_flux.shape[0],trans.shape[0])))
 
@@ -235,6 +255,20 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals) :
     tau[~w] = -np.log(1.e-100)
 
     try:
+        if strengths is None:
+            log.info(f"Using metal coeffients for {mocktype} mocks")
+            for m in metals:
+                if m not in metal_coefs[mocktype].keys(): 
+                    continue # use default value
+                log.info(f"Applying metal strength for {m} with value {metal_coefs[mocktype][m]}.")
+                absorber_IGM[m]['COEF']=metal_coefs[mocktype][m]
+        else: 
+            if len(metals)!=len(strengths):
+                raise ValueError("List in --metals should be the same size as --metal-strengths")
+            log.info(f"Applying metal strengths from arguments")
+            for m in metals:
+                absorber_IGM[m]['COEF']=strengths[metals.index(m)]
+                log.info(f"Applying metal strength for {m} with value {strengths[metals.index(m)]}.")
         mtrans = { m:np.exp(-absorber_IGM[m]['COEF']*tau) for m in metals }
         mtrans_wave = { m:(zPix+1.)*absorber_IGM[m]['LRF'] for m in metals }
     except KeyError as e:
@@ -255,7 +289,6 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals) :
     for q in range(qso_flux.shape[0]):
         for m in metals:
             output_flux[q,:] *= np.interp(qso_wave,mtrans_wave[m][q,:],mtrans[m][q,:],left=1.,right=1.)
-
     return output_flux
 
 def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss2010-g',

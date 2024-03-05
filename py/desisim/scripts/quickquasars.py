@@ -25,6 +25,7 @@ from desisim.dla import dla_spec,insert_dlas
 from desisim.bal import BAL
 from desisim.io import empty_metatable
 from desisim.eboss import FootprintEBOSS, sdss_subsample, RedshiftDistributionEBOSS, sdss_subsample_redshift
+from desisim.survey_release import SurveyRelease
 from desispec.interpolation import resample_flux
 
 from desimodel.io import load_pixweight
@@ -148,11 +149,26 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
 
     parser.add_argument('--save-resolution',action='store_true', help="Save full resolution in spectra file. By default only one matrix is saved in the truth file.")
     
-    parser.add_argument('--dn_dzdm', type=str, default=None, choices=["lyacolore","saclay","ohio"], help="Applies a downsampling by redshift bin based on the raw mock used (lyacolore, saclay or ohio) in order to reproduce dn/dz of DESI's main survey. Additionally it randomly assigns a r-band magnitude that reproduces DESI's SV dn/dM. If None is chosen it uses the redshift distribution from the raw mock given and default  magnitude distribution from template generator (SIMQSO or QSO).")
     parser.add_argument('--source-contr-smoothing', type=float, default=10., \
         help="When this argument > 0 A, source electrons' contribution to the noise is smoothed " \
         "by a Gaussian kernel using FFT. Pipeline does this by 10 A. " \
         "Larger smoothing might be needed for better decoupling. Does not apply to eBOSS mocks.")
+    
+    parser.add_argument('--dn_dzdm',action='store_true', help="Applies a downsampling by redshift in order to reproduce"  \
+            "the observed dn/dz of DESI's main survey. Additionally it randomly assigns a r-band magnitude that" \
+            "reproduces DESI's SV dn/dr. If None is chosen it uses the redshift distribution from the raw mock given" \
+            "and default magnitude distribution from template generator (SIMQSO or QSO).")
+    
+    parser.add_argument('--raw-mock', type=str, default=None, choices=["lyacolore","saclay","ohio"], help="Input raw mock type (lyacolore, saclay or Ohio)")
+        
+    parser.add_argument('--year1-throughput', action='store_true', help="Use DESI-Y1 throughput including a dip at 440 nm.")
+    
+    parser.add_argument('--from-catalog', type=str, default=None, help="Input catalog of mock objects to simulate")
+    
+    parser.add_argument('--metal-strengths', type=float, default=None, required=False, help = "list of strengths to appply\
+        to metals. Should correspond to the --metals flag", nargs='*')
+
+
 
     if options is None:
         args = parser.parse_args()
@@ -338,6 +354,39 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     transmission = transmission[w]
     metadata = metadata[:][w]
     DZ_FOG = DZ_FOG[w]
+    
+    mags = None
+    if args.from_catalog is not None:
+        # Prevent other options from happening.
+        # TODO: This prevention should not be needed.
+        eboss=None
+        args.desi_footprint=False
+
+        log.info(f"Getting objects from catalog {args.from_catalog}")
+        catalog = Table.read(args.from_catalog)
+        # Get mockobjs in pixel that are in the catalog.
+        selection = np.isin(metadata['MOCKID'],catalog['MOCKID'])
+        if selection.sum()==0:
+            log.warning(f'No intersectioon with catalog')
+            return
+        log.info(f'Catalog has {selection.sum()} QSOs in pixel {pixel}')
+        transmission = transmission[selection]
+        metadata = metadata[:][selection]
+        DZ_FOG = DZ_FOG[selection] 
+        
+        
+        this_pixel_targets = np.isin(catalog['MOCKID'],metadata['MOCKID'])
+        if 'EXPTIME' in catalog.colnames:
+            exptime=np.array(catalog['EXPTIME'][this_pixel_targets])
+            obsconditions['EXPTIME']=exptime
+            args.exptime = exptime
+        # Prevent QQ from assigning magnitudes again.
+        if 'FLUX_R' in catalog.colnames:
+            mags = 22.5-2.5*np.log10(catalog['FLUX_R'][this_pixel_targets])
+            args.dn_dzdm = None
+        elif 'MAG_R' in catalog.colnames:
+            mags=catalog['MAG_R'][this_pixel_targets]
+            args.dn_dzdm = None
 
     # option to make for BOSS+eBOSS
     if not eboss is None:
@@ -369,7 +418,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         metadata = metadata[:][selection]
         DZ_FOG = DZ_FOG[selection]
         
-    if args.desi_footprint :
+    if args.desi_footprint:
         footprint_healpix = footprint.radec2pix(footprint_healpix_nside, metadata["RA"], metadata["DEC"])
         selection = np.where(footprint_healpix_weight[footprint_healpix]>0.99)[0]
         log.info("Select QSOs in DESI footprint {} -> {}".format(transmission.shape[0],selection.size))
@@ -382,32 +431,37 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         
     # Redshift distribution resample to match the one in file give by args.dn_dzdm for each type of raw mock
     # Ohio mocks don't have a downsampling.
-    if args.dn_dzdm is not None:
-        if args.downsampling or args.eboss:
-            raise ValueError("dn_dzdm option can not be run with downsampling or eboss options")
+    if args.dn_dzdm:
+        # TODO: Deprecate this option. It will be faster to do this on preprocessing.
+        if args.eboss:
+            raise ValueError("dn_dzdm option can not be run with eboss options")
         dndzdm_file=os.path.join(os.path.dirname(desisim.__file__),'data/dn_dzdM_EDR.fits')
         hdul_dn_dzdm=pyfits.open(dndzdm_file)
         zcenters=hdul_dn_dzdm['Z_CENTERS'].data
         dz = 0.5*(zcenters[1]-zcenters[0]) # Get bin size of the distribution
+        
+        if args.from_catalog is None:
+            if args.raw_mock is None:
+                raise ValueError("If --dn_dzdm option is used the flag --raw-mock must be provided")
+            if args.raw_mock!='ohio':
+                log.info("Resampling to redshift distribution for {} mocks".format(args.raw_mock))
+                rnd_state = np.random.get_state()
+                fraction=hdul_dn_dzdm['FRACTIONS_{}'.format(args.raw_mock.upper())].data
+                z=metadata['Z']
 
-        if args.dn_dzdm!='ohio':
-            log.info("Resampling to redshift distribution for {} mocks".format(args.dn_dzdm))
-            rnd_state = np.random.get_state()
-            fraction=hdul_dn_dzdm['FRACTIONS_{}'.format(args.dn_dzdm.upper())].data
-            z=metadata['Z']
+                zmin = zcenters[0] - dz
+                zmax = zcenters[-1] + dz
 
-            zmin = zcenters[0] - dz
-            zmax = zcenters[-1] + dz
+                bins = ((z - zmin)/(zmax - zmin) * len(zcenters) + 0.5).astype(np.int64)
+                selection_z = np.random.uniform(size=z.size) < fraction[bins]
 
-            bins = ((z - zmin)/(zmax - zmin) * len(zcenters) + 0.5).astype(np.int64)
-            selection_z = np.random.uniform(size=z.size) < fraction[bins]
+                np.random.set_state(rnd_state)
+                log.info("Resampling redshift distribution {}->{}".format(len(z),np.sum(selection_z)))
 
-            np.random.set_state(rnd_state)
-            log.info("Resampling redshift distribution {}->{}".format(len(z),len(selection_z)))
-
-            transmission = transmission[selection_z]
-            metadata = metadata[:][selection_z]
-            DZ_FOG = DZ_FOG[selection_z]
+                transmission = transmission[selection_z]
+                metadata = metadata[:][selection_z]
+                DZ_FOG = DZ_FOG[selection_z]
+            
     nqso=transmission.shape[0]
     
     if args.downsampling is not None :
@@ -422,6 +476,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         metadata = metadata[:][indices]
         DZ_FOG = DZ_FOG[indices]
         nqso = transmission.shape[0]
+        
+
 
     if args.nmax is not None :
         if args.nmax < nqso :
@@ -433,7 +489,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             DZ_FOG = DZ_FOG[indices]
             nqso = args.nmax
             
-    if args.dn_dzdm is not None:
+    if args.dn_dzdm:
+        # TODO: Deprecate this option. It will be faster to do this on preprocessing.
         log.info("Reading R-band magnitude distribution from {}".format(dndzdm_file))
         dn_dzdm=hdul_dn_dzdm['dn_dzdm'].data
         dn_dz=dn_dzdm.sum(axis=1)
@@ -590,7 +647,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                     redshift=metadata['Z'][these], magrange=magrange,
                     lyaforest=False, nocolorcuts=True,
                     noresample=True, seed=seed, south=issouth)
-        elif args.dn_dzdm is not None:
+        elif mags is not None:
             _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa \
                 = model.make_templates(nmodel=nt,
                     redshift=metadata['Z'][these],mag=mags[these],
@@ -686,7 +743,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         log.info("Apply metals: {}".format(lstMetals[:-2]))
 
         tmp_qso_flux = apply_metals_transmission(tmp_qso_wave,tmp_qso_flux,
-                            trans_wave,transmission,args.metals)
+                            trans_wave,transmission,args.metals,mocktype=args.raw_mock,strengths=args.metal_strengths)
+        
     # Attenuate the spectra for extinction
     if not sfdmap is None:
         Rv=3.1   #set by default
@@ -742,7 +800,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             
         nqso         = selection.size
         
-    if not sfdmap is None and args.dn_dzdm is not None: 
+    if not sfdmap is None and mags is not None: 
         flux_assigned = 10**((22.5-mags)/2.5)
         scalefac=flux_assigned/bbflux['FLUX_R']
         tmp_qso_flux=scalefac[:,None]*tmp_qso_flux
@@ -790,6 +848,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     if args.eboss:
         specsim_config_file = 'eboss'
+    elif args.year1_throughput:
+        specsim_config_file = 'desiY1'
     else:
         specsim_config_file = 'desi'
 
@@ -830,6 +890,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         meta.add_column(Column(metadata['Z_noRSD'],name='Z_NORSD'))
     else:
         log.info('Z_noRSD field not present in transmission file. Z_NORSD not saved to truth file')
+        
+    if args.exptime is not None:
+        meta.add_column(Column(args.exptime,name='EXPTIME'))
 
     #Save global seed and pixel seed to primary header
     hdr=pyfits.Header()
