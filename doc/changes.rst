@@ -2,13 +2,20 @@
 desisim change log
 ==================
 
-0.37.2 (unreleased)
+0.38.1 (unreleased)
+-------------------
+
+* No changes yet
+
+0.38.0 (2024-03-05)
 -------------------
 
 * Fixed bug on quickquasars quasar sampling method to reproduce z distribution
   from SV causing a wrong shape in cross-correlation (PR `#577`_).
+* Updates for DESI-Y1 LyA mocks with quickquasars (PR `#578`_).
 
 .. _`#577`: https://github.com/desihub/desisim/pull/577
+.. _`#578`: https://github.com/desihub/desisim/pull/578
 
 0.37.1 (2023-01-13)
 -------------------
