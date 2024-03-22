@@ -55,10 +55,12 @@ class SurveyRelease(object):
         Returns:
             float: area of the catalog in square degrees
         """
-        try: 
+        if 'DEC' in catalog.colnames and 'RA' in catalog.colnames: 
             pixels = hp.ang2pix(nside, np.radians(90-catalog['DEC']),np.radians(catalog['RA']),nest=True)
-        except KeyError:
+        elif 'TARGET_DEC' in catalog.colnames and 'TARGET_RA' in catalog.colnames:
             pixels = hp.ang2pix(nside, np.radians(90-catalog['TARGET_DEC']),np.radians(catalog['TARGET_RA']),nest=True)
+        else:
+            raise ValueError("No RA,DEC or TARGET_RA,TARGET_DEC columns in catalog")
         pixarea = hp.pixelfunc.nside2pixarea(nside, degrees=True)
         npix = len(np.unique(pixels))
         return npix*pixarea
@@ -96,22 +98,23 @@ class SurveyRelease(object):
         """
         if distribution=='SV':
             filename = os.path.join(os.path.dirname(desisim.__file__),'data/dn_dzdM_EDR.fits')
-            dn_dzdr=fitsio.FITS(filename)[3][:,:]
-            dndz=np.sum(dn_dzdr,axis=1)
+            with fitsio.FITS(filename) as fts:
+                dn_dzdr=fts[3].read()
+                zcenters=fts[1].read()
 
-            zcenters=fitsio.FITS(filename)[1][:]
+            dndz=np.sum(dn_dzdr,axis=1)
             dz = zcenters[1] - zcenters[0]
             zmin = max(zcenters[0]-0.5*dz,zmin)
             zmax = min(zcenters[-1]+0.5*dz,zmax)
             w_z = (zcenters-0.5*dz > zmin) & (zcenters+0.5*dz <= zmax)
             dndz=dndz[w_z]
             zcenters=zcenters[w_z]
-            zbins = np.arange(zmin,zmax+dz,dz,)
+            zbins = np.linspace(zmin,zmax,len(zcenters)+1)
         elif distribution=='target_selection':
             dist = Table.read(os.path.join(os.path.dirname(desisim.__file__),'data/redshift_dist_chaussidon2022.ecsv')) 
             dz=dist['z'][1]-dist['z'][0]
             factor=0.1/dz # Account for redshift bin width difference.
-            zbins = np.arange(0,10.1,0.1)
+            zbins = np.linspace(0,10,100+1)
             zcenters=0.5*(zbins[1:]+zbins[:-1])
             dndz=factor*np.interp(zcenters,dist['z'],dist['dndz_23'],left=0,right=0)
         elif distribution=='from_data':
@@ -120,7 +123,7 @@ class SurveyRelease(object):
             if self.data is None:
                 raise ValueError("No data catalog was provided")
             dz = 0.1
-            zbins = np.linspace(zmin,zmax,int((zmax-zmin)/dz))
+            zbins = np.linspace(zmin,zmax,int((zmax-zmin)/dz)+1)
             data_area = SurveyRelease.get_catalog_area(self.data,nside=256)
             zcenters=0.5*(zbins[1:]+zbins[:-1])
             dndz=np.histogram(self.data['Z'],bins=zbins,weights=np.repeat(1/data_area,len(self.data)))[0]
@@ -137,7 +140,7 @@ class SurveyRelease(object):
         if self.invert:
             rand = 1-rand
         selection = rand < fractions[bin_index]
-        log.info(f"Keeping {sum(selection)} mock QSOs to match {distribution} distribution")
+        log.info(f"Keeping {sum(selection)} mock QSOs following the distribution in {distribution}")
         self.mockcatalog=self.mockcatalog[selection]
         
     def apply_data_geometry(self, release='iron'):
@@ -152,30 +155,38 @@ class SurveyRelease(object):
         mask_footprint=desimodel.footprint.is_point_in_desi(tiles,mock['RA'],mock['DEC'])
         mock=mock[mask_footprint]
         log.info(f"Keeping {sum(mask_footprint)}  mock QSOs in footprint TILES")
-        if release is not None:
-            # TODO: THis only works for iron at the moment.
-            # TODO 2: Add submoodules to generate the pixelmaps from data.
-            log.info(f"Downsampling by NPASSES fraction in {release} release")
-            # TODO: Implement this in desimodel instead of local path
-            pixmap=Table.read('/global/cfs/cdirs/desi/users/hiramk/desi/quickquasars/sampling_tests/npass_pixmap.fits')
-            mock_pixels = hp.ang2pix(1024, np.radians(90-mock['DEC']),np.radians(mock['RA']),nest=True)
-            try:
-                data_pixels = hp.ang2pix(1024,np.radians(90-self.data['TARGET_DEC']),np.radians(self.data['TARGET_RA']),nest=True)
-            except: 
-                data_pixels = hp.ang2pix(1024,np.radians(90-self.data['DEC']),np.radians(self.data['RA']),nest=True)
-            
-            data_passes = pixmap[data_pixels]['NPASS']
-            mock_passes = pixmap[mock_pixels]['NPASS']
-            data_pass_counts = np.bincount(data_passes,minlength=8) # Minlength = 7 passes + 1 (for bining)
-            mock_pass_counts = np.bincount(mock_passes,minlength=8)
-            mock['NPASS'] = mock_passes
-            downsampling=np.divide(data_pass_counts,mock_pass_counts,out=np.zeros(8),where=mock_pass_counts>0)
-            rand = np.random.uniform(size=len(mock))
-            if self.invert:
-                rand = 1-rand
-            selection = rand<downsampling[mock_passes]
-            log.info(f"Keeping {len(mock[selection])} mock QSOs out of {len(mock)} to match data")
-            mock = mock[selection]
+
+        # If 'Y5' is selected there is no need to downsample the mock catalog.
+        if release!='Y5':
+            if release=='iron':
+                # TODO: Add submodules to generate the pixelmaps from data.
+                log.info(f"Downsampling by NPASSES fraction in {release} release")
+                # TODO: Implement this in desimodel instead of local path
+                pixmap=Table.read('/global/cfs/cdirs/desi/users/hiramk/desi/quickquasars/sampling_tests/npass_pixmap.fits')
+                mock_pixels = hp.ang2pix(1024, np.radians(90-mock['DEC']),np.radians(mock['RA']),nest=True)
+                if self.data is None:
+                    raise ValueError("No data catalog was provided")
+                if 'TARGET_DEC' in self.data.colnames and 'TARGET_RA' in self.data.colnames:
+                    data_pixels = hp.ang2pix(1024,np.radians(90-self.data['TARGET_DEC']),np.radians(self.data['TARGET_RA']),nest=True)
+                elif 'DEC' in self.data.colnames and 'RA' in self.data.colnames: 
+                    data_pixels = hp.ang2pix(1024,np.radians(90-self.data['DEC']),np.radians(self.data['RA']),nest=True)
+                else:
+                    raise ValueError("No RA,DEC or TARGET_RA,TARGET_DEC columns in data catalog")
+                
+                data_passes = pixmap[data_pixels]['NPASS']
+                mock_passes = pixmap[mock_pixels]['NPASS']
+                data_pass_counts = np.bincount(data_passes,minlength=8) # Minlength = 7 passes + 1 (for bining)
+                mock_pass_counts = np.bincount(mock_passes,minlength=8)
+                mock['NPASS'] = mock_passes
+                downsampling=np.divide(data_pass_counts,mock_pass_counts,out=np.zeros(8),where=mock_pass_counts>0)
+                rand = np.random.uniform(size=len(mock))
+                if self.invert:
+                    rand = 1-rand
+                selection = rand<downsampling[mock_passes]
+                log.info(f"Keeping {len(mock[selection])} mock QSOs out of {len(mock)}")
+                mock = mock[selection]
+            else:
+                raise NotImplementedError(f"Release {release} is not implemented yet")
         self.mockcatalog=mock  
 
     def assign_rband_magnitude(self,from_data=False):
@@ -186,26 +197,28 @@ class SurveyRelease(object):
         """
         if not from_data:
             filename=os.path.join(os.path.dirname(desisim.__file__),'data/dn_dzdM_EDR.fits')
-            zcenters=fitsio.FITS(filename)['Z_CENTERS'][:]
+            with fitsio.FITS(filename) as fts:
+                zcenters=fts['Z_CENTERS'].read()
+                rmagcenters=fts['RMAG_CENTERS'].read()
+                dn_dzdm=fts['dn_dzdm'].read()
             dz = zcenters[1]-zcenters[0]
-            rmagcenters=fitsio.FITS(filename)['RMAG_CENTERS'][:]
-            dn_dzdm=fitsio.FITS(filename)['dn_dzdm'][:,:]
             log.info(f"Generating random magnitudes according to distribution in {filename}")
         else:
             if self.data is None:
                 raise ValueError("No data catalog was provided")
             dz = 0.1
-            zbins = np.arange(0,10,dz)
+            zbins = np.linspace(0,10,int(10/dz)+1)
             zcenters=0.5*(zbins[1:]+zbins[:-1])
-            rmagbins = np.arange(15,25,0.1)
+            rmagbins = np.linspace(15,25,100+1)
             rmagcenters=0.5*(rmagbins[1:]+rmagbins[:-1])
             log.info("Generating random magnitudes according to distribution in data catalog")
             if 'RMAG' in self.data.colnames:
-                dn_dzdm=np.histogram2d(self.data['Z'],self.data['RMAG'],bins=(zbins,rmagbins))[0]
+                data_rmag = self.data['RMAG']
             elif 'FLUX_R' in self.data.colnames:
-                dn_dzdm=np.histogram2d(self.data['Z'],22.5-2.5*np.log10(self.data['FLUX_R']),bins=(zbins,rmagbins))[0]
+                data_rmag = 22.5-2.5*np.log10(self.data['FLUX_R'])
             else:
                 raise ValueError("No magnitude information in data catalog")
+            dn_dzdm=np.histogram2d(self.data['Z'],data_rmag,bins=(zbins,rmagbins))[0]
         cdf=np.cumsum(dn_dzdm,axis=1)
         cdf_norm=cdf/cdf[:,-1][:,None]
         mags=np.zeros(len(self.mockcatalog))
@@ -227,20 +240,22 @@ class SurveyRelease(object):
         Args:
             exptime (float, optional): if not None, will assign the given exposure time in seconds to all objects in the mock catalog.
         """
-        if self.data is None:
-            if exptime is None:
-                raise ValueError("No data catalog nor exptime was provided. Please provide one of those")
+        if exptime is not None:
             log.info(f"Assigning uniform exposures {exptime} seconds")
             self.mockcatalog['EXPTIME']=exptime
         else:
+            if self.data is None:
+                raise ValueError("No data catalog nor exptime was provided. Please provide one of them")
             log.info("Assigning exposures")
             filename='/global/cfs/cdirs/desi/users/hiramk/desi/quickquasars/sampling_tests/npass_pixmap.fits'
             pixmap=Table.read(filename)
             mock=self.mockcatalog
-            try:
+            if 'TARGET_DEC' in self.data.colnames and 'TARGET_RA' in self.data.colnames:
                 data_pixels = hp.ang2pix(1024,np.radians(90-self.data['TARGET_DEC']),np.radians(self.data['TARGET_RA']),nest=True)
-            except: 
+            elif 'DEC' in self.data.colnames and 'RA' in self.data.colnames: 
                 data_pixels = hp.ang2pix(1024,np.radians(90-self.data['DEC']),np.radians(self.data['RA']),nest=True)
+            else:
+                raise ValueError("No RA,DEC or TARGET_RA,TARGET_DEC columns in data catalog")
                 
             is_lya_data=self.data['Z']>2.1    
             effective_exptime = lambda tsnr2_lrg: 12.25*tsnr2_lrg
@@ -258,7 +273,7 @@ class SurveyRelease(object):
             self.mockcatalog['EXPTIME']=exptime_mock
 
     @staticmethod
-    def get_lya_tiles(release=None):
+    def get_lya_tiles(release='Y5'):
         """Return the tiles that have been observed in a given release.
         
         Args:
@@ -267,7 +282,7 @@ class SurveyRelease(object):
         Returns:
             astropy.table.Table: Table containing the tiles.
         """
-        if release is not None:
+        if release !='Y5':
             surveys=["main"]
             if not release.upper()=='FUGU':
                 tiles_filename = os.path.join(os.environ['DESI_SPECTRO_REDUX'],f'{release}/tiles-{release}.fits')
@@ -293,9 +308,9 @@ class SurveyRelease(object):
         tiles=tiles[mask_program]
 
         # RENAME OTHERWISE THE IN_DESI_FOOTPRINT FUNCTION WONT WORK
-        if 'TILERA' in tiles.colnames:
+        if 'TILERA' in tiles.dtype.names:
             tiles.rename_column('TILERA','RA')
-        if 'TILEDEC' in tiles.colnames:
+        if 'TILEDEC' in tiles.dtype.names:
             tiles.rename_column('TILEDEC','DEC')
         return tiles
     

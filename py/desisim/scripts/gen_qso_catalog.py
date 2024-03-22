@@ -26,6 +26,15 @@ def main():
     parser.add_argument("--invert", action='store_true', default=False,
                         help='Invert the selection of the mock catalog')
 
+    parser.add_argument("--exptime", type=float, default=None, required=False,
+                        help='Exposure time to assign to all targets in the mock catalog')
+                    
+    parser.add_argument("--release", type=str, default='iron', choices=['iron','Y5'], required=False,
+                        help='DESI survey release to reproduce')
+    
+    parser.add_argument("--overwrite", action='store_true', default=False,
+                        help='Overwrite output file if it exists')
+    
     args = parser.parse_args()
 
     survey = SurveyRelease(mastercatalog=args.input_master,seed=args.seed, qso_only=True, data_file=args.input_data,invert=args.invert)
@@ -37,14 +46,18 @@ def main():
     survey.apply_redshift_dist(distribution='target_selection', zmin=1.8)
 
     # Apply NPASS geometry:
-    survey.apply_data_geometry(release='iron')  # Pass release = None for Y5 mocks.
+    survey.apply_data_geometry(release=args.release)  # Pass release = None for Y5 mocks.
 
     # Assign magnitudes
     # Pass from_data = False for Y5 mocks. Unless you want to use the Y1 magnitude distributions.
     survey.assign_rband_magnitude(from_data=True)
 
     # Assign exposures
-    survey.assign_exposures(exptime=None)  # Pass exptime = 4000 for Y5 mocks.
+    if args.release=='Y5' and args.exptime!=4000:
+        print('Warning: Exptime should be 4000 for Y5 mocks. Assigning exptime=4000')
+        args.exptime = 4000
+
+    survey.assign_exposures(exptime=args.exptime)  # Pass exptime = 4000 for Y5 mocks.
 
     # Write mock catalog
-    survey.mockcatalog.write(args.output)
+    survey.mockcatalog.write(args.output,overwrite=args.overwrite)
