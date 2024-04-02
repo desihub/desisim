@@ -374,19 +374,26 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         metadata = metadata[:][selection]
         DZ_FOG = DZ_FOG[selection] 
         
-        
         this_pixel_targets = np.isin(catalog['MOCKID'],metadata['MOCKID'])
+        catalog = catalog[this_pixel_targets]
+        ids_index = [np.where(catalog['MOCKID']==mockid)[0][0] for mockid in metadata['MOCKID']]
+        # Ensure catalog and metadata MOCKIDS are in the same order
+        catalog = catalog[ids_index]
         if 'EXPTIME' in catalog.colnames:
-            exptime=np.array(catalog['EXPTIME'][this_pixel_targets])
+            exptime=np.array(catalog['EXPTIME'])
             obsconditions['EXPTIME']=exptime
             args.exptime = exptime
+        else:
+            raise ValueError("Input catalog in --from-catalog must have EXPTIME column")
         # Prevent QQ from assigning magnitudes again.
         if 'FLUX_R' in catalog.colnames:
-            mags = 22.5-2.5*np.log10(catalog['FLUX_R'][this_pixel_targets])
+            mags = 22.5-2.5*np.log10(catalog['FLUX_R'])
             args.dn_dzdm = None
         elif 'MAG_R' in catalog.colnames:
-            mags=catalog['MAG_R'][this_pixel_targets]
+            mags=catalog['MAG_R']
             args.dn_dzdm = None
+        else:
+            raise ValueError("Input catalog in --from-catalog must have FLUX_R or MAG_R column")
 
     # option to make for BOSS+eBOSS
     if not eboss is None:
@@ -432,9 +439,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     # Redshift distribution resample to match the one in file give by args.dn_dzdm for each type of raw mock
     # Ohio mocks don't have a downsampling.
     if args.dn_dzdm:
-        # TODO: Deprecate this option. It will be faster to do this on preprocessing.
         if args.eboss:
             raise ValueError("dn_dzdm option can not be run with eboss options")
+        warnings.warn("--dn_dzdm option will be deprecated. It is faster to do this in preprocessing", DeprecationWarning)
         dndzdm_file=os.path.join(os.path.dirname(desisim.__file__),'data/dn_dzdM_EDR.fits')
         hdul_dn_dzdm=pyfits.open(dndzdm_file)
         zcenters=hdul_dn_dzdm['Z_CENTERS'].data
@@ -490,7 +497,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             nqso = args.nmax
             
     if args.dn_dzdm:
-        # TODO: Deprecate this option. It will be faster to do this on preprocessing.
         log.info("Reading R-band magnitude distribution from {}".format(dndzdm_file))
         dn_dzdm=hdul_dn_dzdm['dn_dzdm'].data
         dn_dz=dn_dzdm.sum(axis=1)
