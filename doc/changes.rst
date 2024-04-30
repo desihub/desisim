@@ -2,10 +2,17 @@
 desisim change log
 ==================
 
-0.38.1 (unreleased)
+0.38.2 (unreleased)
 -------------------
 
-* No changes yet
+* No changes yet.
+
+0.38.1 (2024-04-30)
+-------------------
+
+* Followup requested changes for DESI-Y1 LyA mocks (PR `#580`_).
+
+.. _`#580`: https://github.com/desihub/desisim/pull/580
 
 0.38.0 (2024-03-05)
 -------------------
