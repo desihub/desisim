@@ -296,7 +296,6 @@ class SurveyRelease(object):
                 log.warning('Effective exposure time TSNR2_LRG column not found in observed data catalog.') 
                 log.warning('Will compute effective exposure time from alternative templates.')
                 if 'TSNR2_LYA' in self.data.colnames:
-                    log.warning('TSNR2_LRG column not found in observed data catalog.')
                     log.info('Getting effective exposure time in data catalog by 11.8*TSNR2_LYA.')
                     exptime_data = 11.8*self.data['TSNR2_LYA']
                 elif 'TSNR2_QSO' in self.data.colnames:
@@ -418,7 +417,7 @@ def get_catalog_dndzdm(cat,zbins=np.linspace(0,10,100+1), rmagbins=np.linspace(1
     return dn_dzdm, zbins, rmagbins
 
 def generate_random_fluxes(dist, z, zcenters, rmagcenters,invert=False):
-    cdf=np.sum(dist,axis=1)
+    cdf=np.cumsum(dist,axis=1)
     cdf = np.divide(cdf,cdf[:,-1][:,None],where=cdf[:,-1][:,None]>0,out=np.zeros_like(cdf))
     dz = zcenters[1]-zcenters[0]
     mags=np.zeros(len(z))

@@ -24,6 +24,12 @@ def main():
 
     parser.add_argument("--exptime", type=float, default=None, required=False,
                         help='Exposure time to assign to all targets in the mock catalog')
+    
+    parser.add_argument("--zmin", type=float, default=1.7, required=False,
+                        help='Minimum redshift')
+    
+    parser.add_argument("--zmax", type=float, default=10.0, required=False,
+                        help='Maximum redshift')
                     
     parser.add_argument("--release", type=str, default='jura', choices=['iron','jura','Y5'], required=False,
                         help='DESI survey release to reproduce')
@@ -47,7 +53,7 @@ def main():
     # Note: For Y1 and Y3 mocks (and probably Y5 too) the target selection redshift distribution
     # from Chaussidon et al. 2022 works better to match QSO targets Iron catalog.
     # The option distribution='from_data' should be a better option once I finish implementing it.
-    survey.apply_redshift_dist(distribution='target_selection', zmin=1.8)
+    survey.apply_redshift_dist(distribution='target_selection', zmin=args.zmin, zmax=args.zmax)
 
     # Apply NPASS geometry either from a release or a custom tiles file.
     survey.apply_data_geometry(release=args.release, tilefile=args.tiles_file)
