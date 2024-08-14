@@ -33,8 +33,10 @@ class SurveyRelease(object):
     def __init__(self,mastercatalog,data_file=None,include_nonqso_targets=False,seed=None,invert=False):
         self.mockcatalog=Table.read(mastercatalog,hdu=1) # Assumes master catalog is in HDU1
         log.info(f"There are {len(self.mockcatalog)} targets in {mastercatalog} master catalog.")
-        if 'Z' not in self.mockcatalog.colnames:
-            self.mockcatalog['Z']=self.mockcatalog['Z_QSO_RSD']
+        if 'Z' not in self.mockcatalog.colnames and 'Z_QSO_RSD' in self.mockcatalog.colnames:
+            self.mockcatalog.rename_column('Z_QSO_RSD', 'Z')
+        else:
+            raise Exception("Mock catalog Z column not found")
         self.invert=invert
         self.include_nonqso_targets = include_nonqso_targets
         np.random.seed(seed)
@@ -147,7 +149,7 @@ class SurveyRelease(object):
         factor=0.1/dz_dist # Account for redshift bin width difference.
         zcenters=0.5*(lyabins[1:]+lyabins[:-1])
         expected_dndz=factor*np.interp(zcenters,expected_dist['z'],expected_dist['dndz_23'],left=0,right=0)
-        area = np.cumsum(dndz_data_qso)[-1]/np.cumsum(expected_dndz)[-1] 
+        area = np.sum(dndz_data_qso)/np.sum(expected_dndz)
         return dndz_data_nonqso/area
             
     def sample_redshift(self,target_dndz, zbins = np.linspace(0,10,100+1), mask=None):
@@ -290,14 +292,18 @@ class SurveyRelease(object):
             if 'TSNR2_LRG' in self.data.colnames:
                 log.info('Getting effective exposure time in data catalog by 12.15*TSNR2_LRG.')
                 exptime_data = 12.15*self.data['TSNR2_LRG']
-            elif 'TSNR2_LYA' in self.data.colnames:
-                log.info('Getting effective exposure time in data catalog by 11.8*TSNR2_LYA.')
-                exptime_data = 11.8*self.data['TSNR2_LYA']
-            elif 'TSNR2_QSO' in self.data.colnames:
-                log.info('Getting effective exposure time in data catalog by 33.61*TSNR2_QSO.')
-                exptime_data = 33.61*self.data['TSNR2_QSO']
-            else: 
-                raise ValueError("Can't compute effective exposure time. Data catalog columns should include TSNR2_LRG, TSNR2_LYA or TSNR2_QSO.")
+            else:
+                log.warning('Effective exposure time TSNR2_LRG column not found in observed data catalog.') 
+                log.warning('Will compute effective exposure time from alternative templates.')
+                if 'TSNR2_LYA' in self.data.colnames:
+                    log.warning('TSNR2_LRG column not found in observed data catalog.')
+                    log.info('Getting effective exposure time in data catalog by 11.8*TSNR2_LYA.')
+                    exptime_data = 11.8*self.data['TSNR2_LYA']
+                elif 'TSNR2_QSO' in self.data.colnames:
+                    log.info('Getting effective exposure time in data catalog by 33.61*TSNR2_QSO.')
+                    exptime_data = 33.61*self.data['TSNR2_QSO']
+                else: 
+                    raise ValueError("Can't compute effective exposure time. Data catalog columns should include TSNR2_LRG, TSNR2_LYA or TSNR2_QSO.")
             exptime_mock = np.zeros(len(mock))
             is_mock_qsotgt = mock['IS_QSO_TARGET']
             is_lya_mock = mock['Z']>2.1
@@ -412,7 +418,7 @@ def get_catalog_dndzdm(cat,zbins=np.linspace(0,10,100+1), rmagbins=np.linspace(1
     return dn_dzdm, zbins, rmagbins
 
 def generate_random_fluxes(dist, z, zcenters, rmagcenters,invert=False):
-    cdf=np.cumsum(dist,axis=1)
+    cdf=np.sum(dist,axis=1)
     cdf = np.divide(cdf,cdf[:,-1][:,None],where=cdf[:,-1][:,None]>0,out=np.zeros_like(cdf))
     dz = zcenters[1]-zcenters[0]
     mags=np.zeros(len(z))
