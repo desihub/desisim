@@ -33,10 +33,11 @@ class SurveyRelease(object):
     def __init__(self,mastercatalog,data_file=None,include_nonqso_targets=False,seed=None,invert=False):
         self.mockcatalog=Table.read(mastercatalog,hdu=1) # Assumes master catalog is in HDU1
         log.info(f"There are {len(self.mockcatalog)} targets in {mastercatalog} master catalog.")
-        if 'Z' not in self.mockcatalog.colnames and 'Z_QSO_RSD' in self.mockcatalog.colnames:
-            self.mockcatalog.rename_column('Z_QSO_RSD', 'Z')
-        else:
-            raise Exception("Mock catalog Z column not found")
+        if 'Z' not in self.mockcatalog.colnames:
+            if 'Z_QSO_RSD' in self.mockcatalog.colnames:
+                self.mockcatalog.rename_column('Z_QSO_RSD', 'Z')
+            else:
+                raise Exception("Mock catalog Z column not found")
         self.invert=invert
         self.include_nonqso_targets = include_nonqso_targets
         np.random.seed(seed)
