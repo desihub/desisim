@@ -17,7 +17,7 @@ from desiutil.log import get_logger
 
 c_cgs = const.c.to('cm/s').value
 
-def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, debug=False, **kwargs):
+def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, ndla_rescaling=1.0, **kwargs):
     """ Insert zero, one or more DLAs into a given spectrum towards a source
     with a given redshift
     Args:
@@ -26,6 +26,7 @@ def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, debug=False, **kwa
         rstate (numpy.random.rstate, optional): for random numberes
         seed (int, optional):
         fNHI (spline): f_NHI object
+        ndla_rescaling (float): the average number of DLAs drawn from a Poison law is rescaled by this number
         **kwargs: Passed to init_fNHI()
 
     Returns:
@@ -59,7 +60,7 @@ def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, debug=False, **kwa
     fzdla = interpolate.interp1d(cum_lz/tot_lz, zlya[gdz],
                                  bounds_error=False,fill_value=np.min(zlya[gdz]))#
     # n DLA
-    nDLA = rstate.poisson(tot_lz, 1)
+    nDLA = rstate.poisson(tot_lz * ndla_rescaling, 1)
 
     # Generate DLAs
     dlas = []

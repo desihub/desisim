@@ -121,6 +121,9 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
     parser.add_argument('--dla',type=str,required=False, help="Add DLA to simulated spectra either randonmly\
         (--dla random) or from transmision file (--dla file)")
 
+    parser.add_argument('--ndla-rescaling', type=float, default=1, help='When setting --dla random, the average\
+        number of DLA drawn from a Poison law is rescaled by this number')
+
     parser.add_argument('--balprob',type=float,required=False, help="To add BAL features with the specified probability\
         (e.g --balprob 0.5). Expect a number between 0 and 1 ")
 
@@ -571,7 +574,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                 transmission_dla = dla_spec(trans_wave,dlas)
 
             elif args.dla=='random':
-                dlas, transmission_dla = insert_dlas(trans_wave, metadata['Z'][ii], rstate=random_state_just_for_dlas)
+                dlas, transmission_dla = insert_dlas(trans_wave, metadata['Z'][ii],
+                    rstate=random_state_just_for_dlas, ndla_rescaling=args.ndla_rescaling)
                 for idla in dlas:
                    idla['dlaid']+=idd*1000      #Added to have unique DLA ids. Same format as DLAs from file.
 
