@@ -11,11 +11,7 @@ def main():
                         help="Input Master catalog")
 
     parser.add_argument("--input-data", type=str, required=False,
-                        default=str(
-                            '/global/cfs/cdirs/desi/science/lya/y1-kp6/iron-tests/catalogs/'
-                            'QSO_cat_iron_main_dark_healpix_zlya-altbal_zwarn_cut_20230918.fits'
-                        ),
-                        help="Input Iron catalog")
+                        default=None, help="Input observed data catalog")
 
     parser.add_argument("-o", "--output", type=str, required=True,
                         help="Path of output catalog")
@@ -28,29 +24,43 @@ def main():
 
     parser.add_argument("--exptime", type=float, default=None, required=False,
                         help='Exposure time to assign to all targets in the mock catalog')
+    
+    parser.add_argument("--zmin", type=float, default=1.7, required=False,
+                        help='Minimum redshift')
+    
+    parser.add_argument("--zmax", type=float, default=10.0, required=False,
+                        help='Maximum redshift')
                     
-    parser.add_argument("--release", type=str, default='iron', choices=['iron','Y5'], required=False,
+    parser.add_argument("--release", type=str, default='jura', choices=['iron','jura','Y5'], required=False,
                         help='DESI survey release to reproduce')
+    
+    parser.add_argument("--include-nonqso-targets", action='store_true', default=False, 
+                        help='Include nonqso targets on observed data catalog in the redshift and magnitude distributions.')
+    
+    parser.add_argument("--tiles-file", type=str, default=None, required=False,
+                        help='Input tile file to mimic. Overrides the default tile file for the release given by --release')
     
     parser.add_argument("--overwrite", action='store_true', default=False,
                         help='Overwrite output file if it exists')
     
     args = parser.parse_args()
 
-    survey = SurveyRelease(mastercatalog=args.input_master,seed=args.seed, qso_only=True, data_file=args.input_data,invert=args.invert)
+    survey = SurveyRelease(mastercatalog=args.input_master,seed=args.seed, 
+                           include_nonqso_targets=args.include_nonqso_targets, 
+                           data_file=args.input_data,invert=args.invert)
 
     # Apply redshift distribution
-    # Note: For Y1 mocks (and probably Y5 too) the target selection redshift distribution
+    # Note: For Y1 and Y3 mocks (and probably Y5 too) the target selection redshift distribution
     # from Chaussidon et al. 2022 works better to match QSO targets Iron catalog.
     # The option distribution='from_data' should be a better option once I finish implementing it.
-    survey.apply_redshift_dist(distribution='target_selection', zmin=1.8)
+    survey.apply_redshift_dist(distribution='target_selection', zmin=args.zmin, zmax=args.zmax)
 
-    # Apply NPASS geometry:
-    survey.apply_data_geometry(release=args.release)  # Pass release = None for Y5 mocks.
+    # Apply NPASS geometry either from a release or a custom tiles file.
+    survey.apply_data_geometry(release=args.release, tilefile=args.tiles_file)
 
     # Assign magnitudes
-    # Pass from_data = False for Y5 mocks. Unless you want to use the Y1 magnitude distributions.
-    survey.assign_rband_magnitude(from_data=True)
+    # Passes from_data = False for Y5 mocks. And from_data=True otherwise.
+    survey.assign_rband_magnitude(from_data=(args.release!='Y5'))
 
     # Assign exposures
     if args.release=='Y5' and args.exptime!=4000:
