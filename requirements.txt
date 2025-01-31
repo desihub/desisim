@@ -1,7 +1,8 @@
 # numpy<1.20
 pytz
 requests
-astropy==5.0
+scipy<1.9
+astropy
 numba
 healpy
 speclite
