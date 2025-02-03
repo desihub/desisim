@@ -2,7 +2,8 @@
 pytz
 requests
 scipy<1.9
-astropy<0.60
+astropy
+numba<0.60
 healpy
 speclite
 specsim
