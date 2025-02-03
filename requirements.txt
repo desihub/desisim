@@ -4,6 +4,7 @@ requests
 scipy<1.9
 astropy
 numba<0.60
+matplotlib<3.9
 healpy
 speclite
 specsim
