@@ -73,6 +73,7 @@ jobs:
             matrix:
                 os: [ubuntu-22.04]
                 python-version: ['3.10']
+                astropy-version: ['<6.1']
                 fitsio-version: ['<2']
                 numpy-version: ['<1.23']  # to keep asscalar, used by astropy
         env:
@@ -102,6 +103,7 @@ jobs:
                 python -m pip install git+https://github.com/desihub/desiutil.git@${DESIUTIL_VERSION}#egg=desiutil
                 python -m pip install -r requirements.txt
                 python -m pip install -U 'numpy${{ matrix.numpy-version }}'
+                python -m pip install -U 'astropy${{ matrix.astropy-version }}'
                 python -m pip install git+https://github.com/${SIMQSO_REPO}/simqso.git@${SIMQSO_VERSION}#egg=simqso
                 python -m pip cache remove fitsio
                 python -m pip install --no-deps --force-reinstall --ignore-installed 'fitsio${{ matrix.fitsio-version }}'
