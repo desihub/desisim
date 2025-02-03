@@ -1,13 +1,19 @@
-# numpy<1.20
 pytz
 requests
+# Ensure scipy dependency does not bring in a recent version of numpy.
 scipy<1.9
+# The version of astropy will be reset by GitHub Actions tests.
 astropy
+# Ensure compatibility with numpy <1.23.
 numba<0.60
+# Ensure compatibility with numpy <1.23.
 matplotlib<3.9
 healpy
+# It is becoming difficult to install speclite and specsim directly from
+# git+https, so installing from PyPI is definitely preferred here.
 speclite
 specsim
+# The version of fitsio will be reset by GitHub Actions tests.
 fitsio
 # Install desiutil separately since it is needed for the other installs.
 # git+https://github.com/desihub/desiutil.git@3.1.0#egg=desiutil

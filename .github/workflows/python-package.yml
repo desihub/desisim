@@ -18,9 +18,9 @@ jobs:
             matrix:
                 os: [ubuntu-22.04]
                 python-version: ['3.10']
-                astropy-version: ['<6.1']
+                astropy-version: ['<6.1']  # Compatilbilty with desiconda 20240425-2.2.0.
                 fitsio-version: ['==1.2.1', '<2']
-                numpy-version: ['<1.23']
+                numpy-version: ['<1.23']  # Compatilbilty with desiconda 20240425-2.2.0.
         env:
             DESIUTIL_VERSION: 3.4.3
             # DESIMODEL: ${GITHUB_WORKSPACE}/desimodel
@@ -73,9 +73,9 @@ jobs:
             matrix:
                 os: [ubuntu-22.04]
                 python-version: ['3.10']
-                astropy-version: ['<6.1']
+                astropy-version: ['<6.1']  # Compatilbilty with desiconda 20240425-2.2.0.
                 fitsio-version: ['<2']
-                numpy-version: ['<1.23']  # to keep asscalar, used by astropy
+                numpy-version: ['<1.23']  # Compatilbilty with desiconda 20240425-2.2.0.
         env:
             DESIUTIL_VERSION: 3.4.3
             # DESIMODEL: ${GITHUB_WORKSPACE}/desimodel
