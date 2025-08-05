@@ -121,6 +121,8 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
     parser.add_argument('--dla',type=str,required=False, help="Add DLA to simulated spectra either randonmly\
         (--dla random) or from transmision file (--dla file)")
 
+    parser.add_argument('--dlaplus',action='store_true', help="Add absorption in higher order Lyman lines for DLAs")
+
     parser.add_argument('--balprob',type=float,required=False, help="To add BAL features with the specified probability\
         (e.g --balprob 0.5). Expect a number between 0 and 1 ")
 
@@ -568,10 +570,10 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                     # Adding only DLAs with z < zqso
                     if dla['Z_DLA_RSD']>=metadata['Z'][ii]: continue
                     dlas.append(dict(z=dla['Z_DLA_RSD'],N=dla['N_HI_DLA'],dlaid=dla['DLAID']))
-                transmission_dla = dla_spec(trans_wave,dlas)
+                transmission_dla = dla_spec(trans_wave,dlas,dlaplus=args.dlaplus)
 
             elif args.dla=='random':
-                dlas, transmission_dla = insert_dlas(trans_wave, metadata['Z'][ii], rstate=random_state_just_for_dlas)
+                dlas, transmission_dla = insert_dlas(trans_wave, metadata['Z'][ii], rstate=random_state_just_for_dlas, dlaplus=args.dlaplus)
                 for idla in dlas:
                    idla['dlaid']+=idd*1000      #Added to have unique DLA ids. Same format as DLAs from file.
 
@@ -583,6 +585,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                 dla_id += [idla['dlaid'] for idla in dlas]
                 dla_qid += [idd]*len(dlas)
         log.info('Added {} DLAs'.format(len(dla_id)))
+        if args.dlaplus:
+            log.info('Added higher order lines to DLAs')
         # write file with DLA information
         if len(dla_id)>0:
             dla_meta=Table()
@@ -597,6 +601,10 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         else:
             hdu_dla=pyfits.PrimaryHDU()
             hdu_dla.name="DLA_META"
+        
+        # Add comment to DLA_META extension if dlaplus is enabled
+        if args.dlaplus:
+            hdu_dla.header['COMMENT'] = 'Added higher order lines to DLAs'
 
     # if requested, extend transmission skewers to cover full spectrum
     if args.target_selection or args.bbflux :

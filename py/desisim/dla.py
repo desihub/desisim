@@ -17,7 +17,7 @@ from desiutil.log import get_logger
 
 c_cgs = const.c.to('cm/s').value
 
-def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, debug=False, **kwargs):
+def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, debug=False, dlaplus=False, **kwargs):
     """ Insert zero, one or more DLAs into a given spectrum towards a source
     with a given redshift
     Args:
@@ -26,6 +26,7 @@ def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, debug=False, **kwa
         rstate (numpy.random.rstate, optional): for random numberes
         seed (int, optional):
         fNHI (spline): f_NHI object
+        dlaplus (bool): if True, include higher order Lyman lines
         **kwargs: Passed to init_fNHI()
 
     Returns:
@@ -73,35 +74,130 @@ def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, debug=False, **kwa
         dlas.append(dla)
 
     # Generate model of DLAs
-    dla_model = dla_spec(wave, dlas)
+    dla_model = dla_spec(wave, dlas, dlaplus=dlaplus)
 
     # Return
     return dlas, dla_model
 
 
-def dla_spec(wave, dlas):
+def dla_spec(wave, dlas, dlaplus=False):
     """ Generate spectrum absorbed by dlas
     Args:
         wave (ndarray):  observed wavelengths
         dlas (list):  DLA dicts
+        dlaplus (bool): if True, include higher order Lyman lines
 
     Returns:
         abs_flux: ndarray of absorbed flux
 
     """
-    flya = 0.4164
-    gamma_lya = 626500000.0
-    lyacm = 1215.6700 / 1e8
-    wavecm = wave / 1e8
+    
+    # Lyman series wavelengths in Angstroms
+    lya_wave = np.array([1215.6576708,
+        1025.71115974,
+        972.52613664,
+        949.73255531,
+        937.79306033,
+        930.73790421,
+        926.21536823,
+        923.14004376,
+        920.95278091,
+        919.34111354,
+        918.11908004,
+        917.17029627,
+        916.41885953,
+        915.81353548,
+        915.31871684,
+        914.90902828,
+        914.56598763,
+        914.27587325,
+        914.02832391,
+        913.81539686])
+
+    # Oscillator Strengths
+    #   Values from Baker (2008) NIST report
+    #   These also match Appendix D of Lee, Webb, and Carswell (2020) 
+    lya_f = np.array([0.41641,
+        0.079142,
+        0.029006,
+        0.013945,
+        0.0078035,
+        0.0048164,
+        0.0031850,
+        0.0022172,
+        0.0016062,
+        0.0012011,
+        0.00092190,
+        0.00072310, 
+        0.00057769, 
+        0.00046886,
+        0.00038577,
+        0.00032124,
+        0.00027035,
+        0.00022967,
+        0.00019677,
+        0.00016987])
+
+    # Damping constants from Lee et al. (2020)
+    # These have units of s^-1
+    lya_gamma = np.array([
+        6.265e8,
+        1.897e8,
+        8.127e7,
+        4.204e7,
+        2.450e7,
+        1.551e7,
+        1.043e7,
+        7.344e6,
+        5.366e6,
+        4.038e6,
+        3.115e6,
+        2.453e6,
+        1.966e6,
+        1.600e6,
+        1.319e6,
+        1.100e6,
+        9.275e5,
+        7.890e5,
+        6.767e5,
+        5.848e5]) 
+    
     tau = np.zeros(wave.size)
+    wavecm = wave / 1e8
+    maxn = 15 # highest lyman series line to include
+    lyman_limit = 912.*1e-8 # cm
+    b_value = 30*1e5 # cm/s
+    sigma_0_cont = 6.304e-18  # cm^2
+
     for dla in dlas:
-        par = [dla['N'],
-               dla['z'],
-               30*1e5,  # b value
-               lyacm,
-               flya,
-               gamma_lya]
-        tau += voigt_tau(wavecm, par)
+        # Cache DLA properties to avoid repeated dictionary lookups
+        dla_z = dla['z']
+        dla_N = dla['N']
+        
+        if not dlaplus: # default behavior
+            par = [dla_N,
+                   dla_z,
+                   b_value,
+                   lya_wave[0] / 1e8, # cm
+                   lya_f[0],
+                   lya_gamma[0]]
+            tau += voigt_tau(wavecm, par)
+        else: # add higher order Lyman series
+            # Find which Lyman lines are actually in the wavelength range
+            relevant_lines = []
+            for n in range(maxn):
+                line_wave_obs = lya_wave[n] * (1 + dla_z)  # observed wavelength
+                if line_wave_obs >= wave[0] and line_wave_obs <= wave[-1]:
+                    relevant_lines.append(n)
+            
+            # Only calculate absorption for relevant lines
+            for n in relevant_lines:
+                par = [dla_N, dla_z, b_value, lya_wave[n] / 1e8, lya_f[n], lya_gamma[n]]
+                tau += voigt_tau(wavecm, par)
+            
+            # Add continuum absorption to approximate higher-order lines not included
+            if wave[0] < lya_wave[maxn-1]:
+                tau[wave < lya_wave[maxn-1]] += sigma_0_cont * dla_N
     # Flux
     flux = np.exp(-1.0*tau)
     # Return
