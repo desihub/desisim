@@ -197,7 +197,7 @@ def dla_spec(wave, dlas, dlaplus=False):
             
             # Add continuum absorption to approximate higher-order lines not included
             if wave[0] < lya_wave[maxn-1]:
-                tau[wave < lya_wave[maxn-1]] += sigma_0_cont * dla_N
+                tau[wave < lya_wave[maxn-1]] += sigma_0_cont * 10**dla_N
     # Flux
     flux = np.exp(-1.0*tau)
     # Return
