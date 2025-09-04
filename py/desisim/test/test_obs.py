@@ -157,14 +157,12 @@ class TestObs(unittest.TestCase):
         
         #- different programs should be different tiles
         a = obs.get_next_tileid(program='dark')
-        b = obs.get_next_tileid(program='gray')
-        c = obs.get_next_tileid(program='bright')
+        b = obs.get_next_tileid(program='bright')
         self.assertNotEqual(a, b)
-        self.assertNotEqual(a, c)
         
         #- program is case insensitive
-        a = obs.get_next_tileid(program='GRAY')
-        b = obs.get_next_tileid(program='gray')
+        a = obs.get_next_tileid(program='dark')
+        b = obs.get_next_tileid(program='DARK')
         self.assertEqual(a, b)
 
     def test_specter_objtype(self):
