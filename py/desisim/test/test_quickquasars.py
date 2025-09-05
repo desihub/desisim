@@ -1,4 +1,4 @@
-from pkg_resources import resource_filename
+from importlib import resources
 import unittest, os, shutil, tempfile, subprocess
 import numpy as np
 from desisim.scripts import quickquasars
@@ -9,13 +9,13 @@ from astropy.io import fits
 class Testquickquasars(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        os.environ['DUST_DIR']=resource_filename('desisim','test/data/')
+        os.environ['DUST_DIR']=str(resources.files('desisim').joinpath('test', 'data'))
         cls.origdir = os.getcwd()
         cls.testdir =tempfile.mkdtemp()
         os.chdir(cls.testdir)
-        #cls.infile = resource_filename('desisim','test/data/transmission-16-1630.fits.gz')       #London mock
-        cls.infile = resource_filename('desisim','test/data/Lv5-transmission-16-1531.fits')       #London mock
-        cls.infile2 = resource_filename('desisim','test/data/transmission-16-1747.fits.gz')    #Saclay mock
+        # cls.infile  = str(resources.files('desisim').joinpath('test','data','transmission-16-1630.fits.gz'))   #London mock
+        cls.infile  = str(resources.files('desisim').joinpath('test','data','Lv5-transmission-16-1531.fits'))  #London mock
+        cls.infile2 = str(resources.files('desisim').joinpath('test','data','transmission-16-1747.fits.gz'))   #Saclay mock
         cls.outspec1 = os.path.join(cls.testdir, 'spectra-16-1531.fits')
         cls.outzbest = os.path.join(cls.testdir, 'zbest-16-1531.fits')
         cls.outspec1_s=os.path.join(cls.testdir, 'spectra-16-1747.fits')
