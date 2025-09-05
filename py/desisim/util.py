@@ -8,6 +8,39 @@ Utility functions for desisim.  These may belong elsewhere?
 from __future__ import print_function, division
 import numpy as np
 
+def hadec2airmass(ha, dec, latitude=31.96397222):
+    """
+    Return airmass of an observation at hour angle `ha` and declination `dec`
+
+    Args:
+        ha (float): hour angle in degrees
+        dec (float): declination in degrees
+
+    Options:
+        latitude (float): telescope latitude; defaults to Kitt Peak
+
+    Returns: airmass (float)
+
+    Code adapted from desisurvey.util
+    """
+    # convert inputs from degrees to radians
+    ha = np.radians(ha)
+    dec = np.radians(dec)
+    latitude = np.radians(latitude)
+
+    # cos(zenith)
+    cosZ = (np.sin(dec) * np.sin(latitude) +
+            np.cos(dec) * np.cos(latitude) * np.cos(ha))
+
+    # cos(zenith) -> airmass, following Rozenberg 1966
+    # see https://en.wikipedia.org/wiki/Air_mass_(astronomy)#Interpolative_formulas
+    airmass = 1. / (cosZ + 0.025 * np.exp(-11 * cosZ))
+
+    # ensure that rounding doesn't result in airmass<1
+    airmass = np.clip(airmass, 1.0, None)
+
+    return airmass
+
 
 def spline_medfilt2d(image, kernel_size=201):
     '''
