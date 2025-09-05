@@ -146,8 +146,8 @@ class TestQuickCat(unittest.TestCase):
         self.assertTrue(np.all(zcat3_sorted['Z'] != truth_sorted['TRUEZ']))
         
         #- successful targets in the first round of observations shouldn't be updated
-        ii2 = np.in1d(zcat2_sorted['TARGETID'], zcat3_sorted['TARGETID']) & (zcat2_sorted['ZWARN'] == 0)
-        ii3 = np.in1d(zcat3_sorted['TARGETID'], zcat2_sorted['TARGETID'][ii2])
+        ii2 = np.isin(zcat2_sorted['TARGETID'], zcat3_sorted['TARGETID']) & (zcat2_sorted['ZWARN'] == 0)
+        ii3 = np.isin(zcat3_sorted['TARGETID'], zcat2_sorted['TARGETID'][ii2])
         ii = zcat2_sorted['Z'][ii2] == zcat3_sorted['Z'][ii3]
         self.assertTrue(np.all(zcat2_sorted['Z'][ii2] == zcat3_sorted['Z'][ii3]))
         
@@ -161,8 +161,8 @@ class TestQuickCat(unittest.TestCase):
         self.assertTrue(np.all(zcat4_sorted['Z'] != truth_sorted['TRUEZ']))
 
         #- Check that NUMOBS was incremented
-        i3 = np.in1d(zcat3_sorted['TARGETID'], self.targets_in_tile[self.tileids[3]]) # ids observed in the last tile
-        i4 = np.in1d(zcat4_sorted['TARGETID'], self.targets_in_tile[self.tileids[3]]) # ids observed in the last tile
+        i3 = np.isin(zcat3_sorted['TARGETID'], self.targets_in_tile[self.tileids[3]]) # ids observed in the last tile
+        i4 = np.isin(zcat4_sorted['TARGETID'], self.targets_in_tile[self.tileids[3]]) # ids observed in the last tile
         self.assertTrue(np.all(zcat4_sorted['NUMOBS'][i4] == zcat3_sorted['NUMOBS'][i3]+1))
 
         #- ZWARN==0 targets should be preserved, while ZWARN!=0 updated

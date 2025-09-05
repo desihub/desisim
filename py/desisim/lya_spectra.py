@@ -276,7 +276,7 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals,mocktype
         nolstMetals = ''
         for m in absorber_IGM.keys():
             lstMetals += m+', '
-        for m in np.array(metals)[~np.in1d(metals,[mm for mm in absorber_IGM.keys()])]:
+        for m in np.array(metals)[~np.isin(metals,[mm for mm in absorber_IGM.keys()])]:
             nolstMetals += m+', '
         raise Exception("Input metals {} are not in the list, available metals are {}".format(nolstMetals[:-2],lstMetals[:-2])) from e
     except TypeError as e:

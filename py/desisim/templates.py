@@ -28,7 +28,7 @@ def _check_input_meta(input_meta, ignore_templateid=False):
         required_cols = ('SEED', 'REDSHIFT', 'MAG', 'MAGFILTER')
     else:
         required_cols = ('TEMPLATEID', 'SEED', 'REDSHIFT', 'MAG', 'MAGFILTER')
-    if not np.all(np.in1d(required_cols, cols)):
+    if not np.all(np.isin(required_cols, cols)):
         log.warning('Input metadata table (input_meta) is missing one or more required columns {}'.format(
             required_cols))
         raise ValueError
@@ -39,7 +39,7 @@ def _check_input_objmeta(input_objmeta, objtype):
     _, ref = empty_metatable(objtype=objtype)
 
     required_cols = ref.colnames
-    if not np.all(np.in1d(required_cols, cols)):
+    if not np.all(np.isin(required_cols, cols)):
         log.warning('Input object metadata table (input_objmeta) is missing one or more required columns {}'.format(
             required_cols))
         raise ValueError
@@ -50,7 +50,7 @@ def _check_star_properties(star_properties, WD=False):
     required_cols = ['REDSHIFT', 'MAG', 'MAGFILTER', 'TEFF', 'LOGG']
     if not WD:
         required_cols = required_cols + ['FEH']
-    if not np.all(np.in1d(required_cols, cols)):
+    if not np.all(np.isin(required_cols, cols)):
         log.warning('Input star_properties is missing one or more required columns {}'.format(
             required_cols))
         raise ValueError

@@ -432,7 +432,7 @@ def fibers2cameras(fibers):
     cameras = list()
     for spectrograph in range(10):
         ii = np.arange(500) + spectrograph*500
-        if np.any(np.in1d(ii, fibers)):
+        if np.any(np.isin(ii, fibers)):
             for channel in ['b', 'r', 'z']:
                 cameras.append(channel + str(spectrograph))
     return cameras
@@ -533,7 +533,7 @@ def read_simspec(filename, cameras=None, comm=None, readflux=True, readphot=True
     for camera in cameras:
         spectrograph = int(camera[1])   #- e.g. b0
         fibers = np.arange(500, dtype=int) + spectrograph*500
-        ii |= np.in1d(fibermap['FIBER'], fibers)
+        ii |= np.isin(fibermap['FIBER'], fibers)
 
     assert np.any(ii), "input simspec doesn't cover cameras {}".format(cameras)
 

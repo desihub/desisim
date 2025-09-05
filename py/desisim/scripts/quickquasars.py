@@ -716,7 +716,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             # restore random state to get the same random numbers later
             # as when we don't insert BALs
             np.random.set_state(rnd_state)
-            w = np.in1d(qsometa['TARGETID'], meta_bal['TARGETID'])
+            w = np.isin(qsometa['TARGETID'], meta_bal['TARGETID'])
             qsometa['BAL_TEMPLATEID'][w] = meta_bal['BAL_TEMPLATEID']
             hdu_bal=pyfits.convenience.table_to_hdu(meta_bal); hdu_bal.name="BAL_META"
             #Trim to only show the version, assuming it is located in os.environ['DESI_BASIS_TEMPLATES']

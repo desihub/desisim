@@ -264,7 +264,7 @@ class SimSetup(object):
 
         #update obsconditions from progress_data
 #        progress_data = Table.read(self.progress_files[epoch + 1])
-#        ii = np.in1d(progress_data['TILEID'], self.observed_tiles)
+#        ii = np.isin(progress_data['TILEID'], self.observed_tiles)
 #        obsconditions = progress_data[ii]
         obsconditions = None
         print('tilefiles', len(self.tilefiles))

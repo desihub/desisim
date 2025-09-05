@@ -450,7 +450,7 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, redshift=Non
     #- Set fiber locations from meta Table or default fiberpos
     fiberpos = desimodel.io.load_fiberpos()
     if fibermap is not None and len(fiberpos) != len(fibermap):
-        ii = np.in1d(fiberpos['FIBER'], fibermap['FIBER'])
+        ii = np.isin(fiberpos['FIBER'], fibermap['FIBER'])
         fiberpos = fiberpos[ii]
 
     if fibermap is None:
@@ -789,7 +789,7 @@ def get_mock_spectra(fiberassign, mockdir=None, nside=64, obscon=None):
                         obscon=obscon)):
 
         #- Sky fibers aren't in the truth files
-        ok = ~np.in1d(targetids, skyids)
+        ok = ~np.isin(targetids, skyids)
 
         tmpflux, tmpwave, tmpmeta, tmpobjmeta = read_mock_spectra(truthfile, targetids[ok])
 
@@ -803,7 +803,7 @@ def get_mock_spectra(fiberassign, mockdir=None, nside=64, obscon=None):
             for key in tmpobjmeta.keys():
                 objmeta[key] = list()
 
-        ii = np.in1d(fiberassign['TARGETID'], tmpmeta['TARGETID'])
+        ii = np.isin(fiberassign['TARGETID'], tmpmeta['TARGETID'])
         flux[ii] = tmpflux
         meta[ii] = tmpmeta
         assert np.all(wave == tmpwave)
@@ -879,18 +879,18 @@ def read_mock_spectra(truthfile, targetids, mockdir=None):
             if extname in fx:
                 objtruth[obj] = fx[extname].read()
 
-    missing = np.in1d(targetids, truth['TARGETID'], invert=True)
+    missing = np.isin(targetids, truth['TARGETID'], invert=True)
     if np.any(missing):
         missingids = targetids[missing]
         raise ValueError('Targets missing from {}: {}'.format(truthfile, missingids))
 
     #- Trim to just the spectra for these targetids
-    ii = np.in1d(truth['TARGETID'], targetids)
+    ii = np.isin(truth['TARGETID'], targetids)
     flux = flux[ii]
     truth = truth[ii]
     if bool(objtruth):
         for obj in objtruth.keys():
-            ii = np.in1d(objtruth[obj]['TARGETID'], targetids)
+            ii = np.isin(objtruth[obj]['TARGETID'], targetids)
             objtruth[obj] = objtruth[obj][ii]
 
     assert set(targetids) == set(truth['TARGETID'])
