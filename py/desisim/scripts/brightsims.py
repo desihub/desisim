@@ -5,8 +5,6 @@ desisim.scripts.brightsims
 Generate a canonical set of bright-time simulations.
 """
 
-from __future__ import division, print_function
-
 import os
 import sys
 import numpy as np

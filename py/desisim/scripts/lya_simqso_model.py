@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import os
 import numpy as np
-from pkg_resources import resource_filename
+from importlib import resources
 from astropy.cosmology import FlatLambdaCDM
 import simqso.sqgrids  as grids
 from simqso.lumfun import QlfEvolParam,PolyEvolParam,DoublePowerLawLF
@@ -122,7 +122,7 @@ def EmLineTemplate_modified_develop(*args,**kwargs):
                                   'MgIIb':0.8,'MgIIn':0.8
                                   #Add more lines if needed.
                                   }) 
-    kwargs['EmissionLineTrendFilename']=resource_filename('desisim', 'data/emlinetrends_develop')
+    kwargs['EmissionLineTrendFilename']=str(resources.files('desisim').joinpath('data','emlinetrends_develop'))
     return grids.generateBEffEmissionLines(*args,**kwargs)
 
 def EmLineTemplate_modified(*args,**kwargs):
@@ -136,7 +136,7 @@ def EmLineTemplate_modified(*args,**kwargs):
                                 'LyAb':1.2,'LyAn':1.2,
                                 'CIII*':1.7
                                 })
-    kwargs['EmissionLineTrendFilename']=resource_filename('desisim', 'data/emlinetrends_Harris2016mod_v2')
+    kwargs['EmissionLineTrendFilename']=str(resources.files('desisim').joinpath('data', 'emlinetrends_Harris2016mod_v2'))
     print('Using emission lines file: {}'.format(kwargs['EmissionLineTrendFilename']))
     return grids.generateBEffEmissionLines(*args,**kwargs)
 

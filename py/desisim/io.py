@@ -5,8 +5,6 @@ desisim.io
 I/O routines for desisim
 """
 
-from __future__ import absolute_import, division, print_function
-
 import os
 import time
 from glob import glob

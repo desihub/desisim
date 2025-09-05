@@ -5,8 +5,6 @@ desisim.templates
 Functions to simulate spectral templates for DESI.
 """
 
-from __future__ import division, print_function
-
 import os
 import sys
 import numpy as np
@@ -97,7 +95,7 @@ class EMSpectrum(object):
     def __init__(self, minwave=3650.0, maxwave=7075.0, cdelt_kms=20.0, log10wave=None,
                  include_mgii=False):
 
-        from pkg_resources import resource_filename
+        from importlib import resources
         from astropy.table import Table, Column, vstack
         from desiutil.sklearn import GaussianMixtureModel
 
@@ -112,9 +110,9 @@ class EMSpectrum(object):
             self.log10wave = log10wave
 
         # Read the files which contain the recombination and forbidden lines.
-        recombfile = resource_filename('desisim', 'data/recombination_lines.ecsv')
-        forbidfile = resource_filename('desisim', 'data/forbidden_lines.ecsv')
-        forbidmogfile = resource_filename('desisim','data/forbidden_mogs.fits')
+        recombfile = str(resources.files('desisim').joinpath('data', 'recombination_lines.ecsv'))
+        forbidfile = str(resources.files('desisim').joinpath('data', 'forbidden_lines.ecsv'))
+        forbidmogfile = str(resources.files('desisim').joinpath('data', 'forbidden_mogs.fits'))
 
         if not os.path.isfile(recombfile):
             log.fatal('Required data file {} not found!'.format(recombfile))

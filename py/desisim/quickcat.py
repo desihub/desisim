@@ -6,12 +6,10 @@ Code for quickly generating an output zcatalog given fiber assignment tiles,
 a truth catalog, and optionally a previous zcatalog.
 '''
 
-from __future__ import absolute_import, division, print_function
-
 import os
 import yaml
 from collections import Counter
-from pkg_resources import resource_filename
+from importlib import resources
 from time import asctime
 
 import numpy as np
@@ -190,10 +188,10 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
     
     if (simtype == 'ELG'):
         # Read the model OII flux threshold (FDR fig 7.12 modified to fit redmonster efficiency on OAK)
-        # filename = resource_filename('desisim', 'data/quickcat_elg_oii_flux_threshold.txt')
+        # filename = str(resources.files('desisim').joinpath('data', 'quickcat_elg_oii_flux_threshold.txt'))
         
         # Read the model OII flux threshold (FDR fig 7.12)
-        filename = resource_filename('desisim', 'data/elg_oii_flux_threshold_fdr.txt')
+        filename = str(resources.files('desisim').joinpath('data', 'elg_oii_flux_threshold_fdr.txt'))
         fdr_z, modified_fdr_oii_flux_threshold = np.loadtxt(filename, unpack=True)
         
         # Compute OII flux thresholds for truez
@@ -362,7 +360,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions, param
     
     if parameter_filename is None :
         # Load efficiency parameters yaml file
-        parameter_filename = resource_filename('desisim', 'data/quickcat.yaml')
+        parameter_filename = str(resources.files('desisim').joinpath('data', 'quickcat.yaml'))
     
     params=None
     with open(parameter_filename,"r") as file :

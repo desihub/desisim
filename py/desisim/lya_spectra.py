@@ -5,7 +5,6 @@ desisim.lya_spectra
 Function to simulate a QSO spectrum including Lyman-alpha absorption.
 
 """
-from __future__ import division, print_function
 
 import numpy as np
 from desisim.dla import insert_dlas

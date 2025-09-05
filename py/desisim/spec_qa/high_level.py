@@ -5,7 +5,6 @@ desisim.spec_qa.high_level
 Module to run high_level QA on a given DESI run
  Written by JXP on 3 Sep 2015
 """
-from __future__ import print_function, absolute_import, division
 
 import numpy as np
 import sys, os, pdb, glob

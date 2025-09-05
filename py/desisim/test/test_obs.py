@@ -1,7 +1,7 @@
 import unittest, os
 from uuid import uuid1
 from shutil import rmtree
-from pkg_resources import resource_filename
+from importlib import resources
 
 import numpy as np
 from astropy.io import fits
@@ -190,7 +190,7 @@ class TestObs(unittest.TestCase):
 
     def test_read_mock_spectra(self):
         #- piggyback on desitarget mock data
-        truthfile = resource_filename('desitarget', 'test/t/truth-mocks.fits')
+        truthfile = str(resources.files('desitarget').joinpath('test', 't', 'truth-mocks.fits'))
         if not os.path.exists(truthfile):
             print(f"Please update desitarget to get {truthfile}")
             return

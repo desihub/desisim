@@ -5,7 +5,6 @@ desisim.util
 Utility functions for desisim.  These may belong elsewhere?
 """
 
-from __future__ import print_function, division
 import numpy as np
 
 def hadec2airmass(ha, dec, latitude=31.96397222):

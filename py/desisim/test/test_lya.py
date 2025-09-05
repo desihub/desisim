@@ -1,5 +1,5 @@
 import unittest
-from pkg_resources import resource_filename
+from importlib import resources
 
 import numpy as np
 try:
@@ -14,7 +14,7 @@ class TestLya(unittest.TestCase):
     
     @classmethod
     def setUpClass(cls):
-        cls.infile = resource_filename('desisim', 'test/data/simpleLyaSpec.fits.gz')
+        cls.infile = str(resources.files('desisim').joinpath('test', 'data', 'simpleLyaSpec.fits.gz'))
         if not missing_fitsio:
             fx = fitsio.FITS(cls.infile)
             cls.nspec = len(fx) - 1

@@ -12,7 +12,6 @@ Directly depends on the following DESI products:
 * `fiberassign <https://github.com/desihub/fiberassign>`_
 '''
 
-from __future__ import absolute_import, division, print_function
 import gc
 import numpy as np
 import os

@@ -5,11 +5,10 @@ desisim.eboss
 Functions and methods for mimicking eBOSS survey.
 
 """
-from __future__ import division, print_function
 import numpy as np
 import os
 import healpy
-from pkg_resources import resource_filename
+from importlib import resources
 import astropy.io.fits as pyfits
 
 def create_sdss_footprint(sdss_cat,out,mjd_min=55000,zmin=1.8,nside=16,nest=True):
@@ -78,7 +77,7 @@ class FootprintEBOSS(object):
         if not nside==16:
             raise ValueError('add eBOSS footprint for nside='+str(nside))
 
-        fname=resource_filename('desisim','data/eboss_footprint_nside_16.txt')
+        fname=str(resources.files('desisim').joinpath('data', 'eboss_footprint_nside_16.txt'))
         print('in read_sdss_footprint from file',fname)
         if not os.path.isfile(fname):
             print('eBOSS footprint file',fname)
@@ -293,7 +292,7 @@ class RedshiftDistributionEBOSS(object):
         if not nside==16:
             raise ValueError('add eBOSS footprint for nside = {}'.format(nside))
 
-        fname = resource_filename('desisim','data/eboss_redshift_distributon_fraction_dz_004_nside_16.txt')
+        fname = str(resources.files('desisim').joinpath('data', 'eboss_redshift_distributon_fraction_dz_004_nside_16.txt'))
         print('in read_sdss_redshift_distribution from file {}'.format(fname))
         if not os.path.isfile(fname):
             print('eBOSS redshift distribution fraction file'.format(fname))

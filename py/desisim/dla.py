@@ -5,12 +5,10 @@ desisim.dla
 Functions and methods for inserting DLAs into QSO spectra.
 
 """
-from __future__ import division, print_function
-
 import numpy as np
 from scipy.special import wofz
 
-from pkg_resources import resource_filename
+from importlib import resources
 
 from astropy import constants as const
 from desiutil.log import get_logger
@@ -180,7 +178,7 @@ def init_fNHI(slls=False, mix=True):
     from astropy.io import fits
     from scipy import interpolate as scii
     # f(N)
-    fN_file = resource_filename('desisim','data/fN_spline_z24.fits.gz')
+    fN_file = str(resources.files('desisim').joinpath('data', 'fN_spline_z24.fits.gz'))
     hdu = fits.open(fN_file)
     fN_data = hdu[1].data
     # Instantiate

@@ -8,7 +8,6 @@ Module for generate QSO PCA templates
 
 I don't think the documentation of this module is correct.
 """
-from __future__ import print_function, absolute_import, division
 
 import numpy as np
 import os
