@@ -76,12 +76,5 @@ class TestLya(unittest.TestCase):
 
         #flux, wave, meta = lya_spectra.get_spectra(self.infile, nqso=nqso, first=2)
 
-def test_suite():
-    """Allows testing of only this module with the command::
-
-        python setup.py test -m <modulename>
-    """
-    return unittest.defaultTestLoader.loadTestsFromName(__name__)
-
 if __name__ == '__main__':
     unittest.main()

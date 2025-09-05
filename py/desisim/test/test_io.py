@@ -156,10 +156,3 @@ class TestIO(unittest.TestCase):
 #- This runs all test* functions in any TestCase class in this file
 if __name__ == '__main__':
     unittest.main()
-
-def test_suite():
-    """Allows testing of only this module with the command::
-
-        python setup.py test -m desisim.test.test_io
-    """
-    return unittest.defaultTestLoader.loadTestsFromName(__name__)
