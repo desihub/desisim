@@ -215,22 +215,22 @@ class EMSpectrum(object):
         nline = len(line)
 
         # Convenience variables.
-        is4959 = np.where(line['name'] == '[OIII]_4959')[0]
-        is5007 = np.where(line['name'] == '[OIII]_5007')[0]
-        is6548 = np.where(line['name'] == '[NII]_6548')[0]
-        is6584 = np.where(line['name'] == '[NII]_6584')[0]
-        is6716 = np.where(line['name'] == '[SII]_6716')[0]
-        is6731 = np.where(line['name'] == '[SII]_6731')[0]
-        #is3869 = np.where(line['name'] == '[NeIII]_3869')[0]
-        is3726 = np.where(line['name'] == '[OII]_3726')[0]
-        is3729 = np.where(line['name'] == '[OII]_3729')[0]
+        is4959 = np.where(line['name'] == '[OIII]_4959')[0][0]
+        is5007 = np.where(line['name'] == '[OIII]_5007')[0][0]
+        is6548 = np.where(line['name'] == '[NII]_6548')[0][0]
+        is6584 = np.where(line['name'] == '[NII]_6584')[0][0]
+        is6716 = np.where(line['name'] == '[SII]_6716')[0][0]
+        is6731 = np.where(line['name'] == '[SII]_6731')[0][0]
+        #is3869 = np.where(line['name'] == '[NeIII]_3869')[0][0]
+        is3726 = np.where(line['name'] == '[OII]_3726')[0][0]
+        is3729 = np.where(line['name'] == '[OII]_3729')[0][0]
 
-        is6300 = np.where(line['name'] == '[OI]_6300')[0]
-        is6363 = np.where(line['name'] == '[OI]_6363')[0]
-        is9532 = np.where(line['name'] == '[SIII]_9532')[0]
-        is9069 = np.where(line['name'] == '[SIII]_9069')[0]
-        is7135 = np.where(line['name'] == '[ArIII]_7135')[0]
-        is7751 = np.where(line['name'] == '[ArIII]_7751')[0]
+        is6300 = np.where(line['name'] == '[OI]_6300')[0][0]
+        is6363 = np.where(line['name'] == '[OI]_6363')[0][0]
+        is9532 = np.where(line['name'] == '[SIII]_9532')[0][0]
+        is9069 = np.where(line['name'] == '[SIII]_9069')[0][0]
+        is7135 = np.where(line['name'] == '[ArIII]_7135')[0][0]
+        is7751 = np.where(line['name'] == '[ArIII]_7751')[0][0]
 
         # Draw from the MoGs for forbidden lines.
         if oiiihbeta is None or oiihbeta is None or niihbeta is None or siihbeta is None:
@@ -801,6 +801,12 @@ class GALAXY(object):
                         oiidoublet, oiihbeta, niihbeta, siihbeta, oiiihbeta = \
                             self.lineratios(nobj=1, oiiihbrange=oiiihbrange,
                                             rand=templaterand, agnlike=agnlike)
+                        # convert length-1 arrays to scalars
+                        oiidoublet = oiidoublet[0]
+                        oiihbeta = oiihbeta[0]
+                        niihbeta = niihbeta[0]
+                        siihbeta = siihbeta[0]
+                        oiiihbeta = oiiihbeta[0]
 
                         if self.normline.upper() == 'OII':
                             ewoii = 10.0**(np.polyval(self.ewoiicoeff, d4000) + # rest-frame EW([OII]), Angstrom
@@ -1506,7 +1512,7 @@ class SUPERSTAR(object):
             baseflux = griddata(base_properties, self.baseflux,
                                 input_properties, method='nearest')
             interptemplateid = griddata(base_properties, np.arange(nbase),
-                                        input_properties, method='nearest')
+                                        input_properties, method='nearest').astype(int)
             #interptemplateid = np.array([int(tempid) for tempid in interptemplateid])
 
         # Build each spectrum in turn.
@@ -2229,12 +2235,12 @@ class QSO():
             if use_redshift is None:
                 redshift = templaterand.uniform(zrange[0], zrange[1])
             else:
-                redshift = np.atleast_1d(use_redshift[ii])
+                redshift = np.atleast_1d(use_redshift)[ii]
 
             if use_mag is None:
                 mag = templaterand.uniform(magrange[0], magrange[1])
             else:
-                mag = np.atleast_1d(use_mag[ii])
+                mag = np.atleast_1d(use_mag)[ii]
 
             zwave = self.eigenwave * (1+redshift) # [observed-frame, Angstrom]
 
