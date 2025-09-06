@@ -421,15 +421,14 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
                     dla_NHI += [idla['N'] for idla in dlas]
                     dla_id += [indx]*ndla
 
-        padflux, padwave = normfilt.pad_spectrum(flux1, wave, method='edge')
-        normmaggies = np.array(normfilt.get_ab_maggies(padflux, padwave,
-                                                       mask_invalid=True)[normfilter])
+        padflux, padwave = normfilt.pad_spectrum(flux1[0], wave, method='edge')
+        normmaggies = normfilt.get_ab_maggies(padflux, padwave, mask_invalid=True)[normfilter][0]
 
         factor = 10**(-0.4 * mag_g[ii]) / normmaggies
         flux1 *= factor
         for key in ('FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2'):
             meta[key][ii] *= factor
-        flux[ii, :] = flux1[:]
+        flux[ii, :] = flux1[0]
 
     h.close()
 
