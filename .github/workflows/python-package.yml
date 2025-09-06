@@ -16,13 +16,26 @@ jobs:
         strategy:
             fail-fast: true
             matrix:
-                os: [ubuntu-22.04]
-                python-version: ['3.10']
-                astropy-version: ['<6.1']  # Compatilbilty with desiconda 20240425-2.2.0.
-                fitsio-version: ['==1.2.1', '<2']
-                numpy-version: ['<1.23']  # Compatilbilty with desiconda 20240425-2.2.0.
+                include:
+                    - os: ubuntu-latest
+                      python-version: '3.13'
+                      numpy-version: '<3'
+                      astropy-version: '<8'
+                    - os: ubuntu-latest
+                      python-version: '3.12'
+                      numpy-version: '<2.3'
+                      astropy-version: '<7.1'
+                    - os: ubuntu-latest
+                      python-version: '3.11'
+                      numpy-version: '<2.1'
+                      astropy-version: '<7'
+                    # Similar to NERSC but with last NumPy < 2.
+                    - os: ubuntu-latest
+                      python-version: '3.10'
+                      numpy-version: '<2'
+                      astropy-version: '<6.1'
         env:
-            DESIUTIL_VERSION: 3.4.3
+            DESIUTIL_VERSION: 3.5.0
             # DESIMODEL: ${GITHUB_WORKSPACE}/desimodel
             DESIMODEL_DATA: branches/test-0.18
             # DESISIM: ${GITHUB_WORKSPACE}/desisim
@@ -47,11 +60,9 @@ jobs:
                 python -m pip install pytest
                 python -m pip install git+https://github.com/desihub/desiutil.git@${DESIUTIL_VERSION}#egg=desiutil
                 python -m pip install -r requirements.txt
-                python -m pip install -U 'numpy${{ matrix.numpy-version }}'
-                python -m pip install -U 'astropy${{ matrix.astropy-version }}'
+                python -m pip install --upgrade --upgrade-strategy only-if-needed 'numpy${{ matrix.numpy-version }}'
+                python -m pip install --upgrade --upgrade-strategy only-if-needed 'astropy${{ matrix.astropy-version }}'
                 python -m pip install git+https://github.com/${SIMQSO_REPO}/simqso.git@${SIMQSO_VERSION}#egg=simqso
-                python -m pip cache remove fitsio
-                python -m pip install --no-deps --force-reinstall --ignore-installed 'fitsio${{ matrix.fitsio-version }}'
             - name: Verify Installation
               run: pip list
             - name: Install desimodel Data
