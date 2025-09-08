@@ -76,12 +76,18 @@ jobs:
               run: |
                 mkdir -p ${GITHUB_WORKSPACE}/desimodel
                 svn export https://desi.lbl.gov/svn/code/desimodel/${DESIMODEL_DATA}/data ${GITHUB_WORKSPACE}/desimodel/data
+            - name: Install surveyops snapshot
+              env:
+                SURVEYOPS_VERSION: '2.0'
+              run: |
+                wget -nv https://data.desi.lbl.gov/public/epo/example_files/surveyops_${SURVEYOPS_VERSION}_ops.tar.gz
+                tar xzf surveyops_${SURVEYOPS_VERSION}_ops.tar.gz
             - name: Install desisim Data
               run: |
                 wget https://github.com/desihub/desisim-testdata/archive/${DESISIM_TESTDATA_VERSION}.zip
                 unzip ${DESISIM_TESTDATA_VERSION}.zip
             - name: Run the test
-              run: PYTHONPATH=${GITHUB_WORKSPACE}/py DESIMODEL=${GITHUB_WORKSPACE}/desimodel DESISIM=${GITHUB_WORKSPACE} DESI_ROOT=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi DESI_BASIS_TEMPLATES=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi/spectro/templates/basis_templates/v3.2 pytest
+              run: PYTHONPATH=${GITHUB_WORKSPACE}/py DESIMODEL=${GITHUB_WORKSPACE}/desimodel DESISIM=${GITHUB_WORKSPACE} DESI_ROOT=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi DESI_BASIS_TEMPLATES=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi/spectro/templates/basis_templates/v3.2 DESI_SURVEYOPS=$(pwd) pytest
 
     coverage:
         name: Test coverage
@@ -135,12 +141,18 @@ jobs:
               run: |
                 mkdir -p ${GITHUB_WORKSPACE}/desimodel
                 svn export https://desi.lbl.gov/svn/code/desimodel/${DESIMODEL_DATA}/data ${GITHUB_WORKSPACE}/desimodel/data
+            - name: Install surveyops snapshot
+              env:
+                SURVEYOPS_VERSION: '2.0'
+              run: |
+                wget -nv https://data.desi.lbl.gov/public/epo/example_files/surveyops_${SURVEYOPS_VERSION}_ops.tar.gz
+                tar xzf surveyops_${SURVEYOPS_VERSION}_ops.tar.gz
             - name: Install desisim Data
               run: |
                 wget https://github.com/desihub/desisim-testdata/archive/${DESISIM_TESTDATA_VERSION}.zip
                 unzip ${DESISIM_TESTDATA_VERSION}.zip
             - name: Run the test
-              run: PYTHONPATH=${GITHUB_WORKSPACE}/py DESIMODEL=${GITHUB_WORKSPACE}/desimodel DESISIM=${GITHUB_WORKSPACE} DESI_ROOT=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi DESI_BASIS_TEMPLATES=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi/spectro/templates/basis_templates/v3.2 pytest --cov
+              run: PYTHONPATH=${GITHUB_WORKSPACE}/py DESIMODEL=${GITHUB_WORKSPACE}/desimodel DESISIM=${GITHUB_WORKSPACE} DESI_ROOT=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi DESI_BASIS_TEMPLATES=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi/spectro/templates/basis_templates/v3.2 DESI_SURVEYOPS=$(pwd) pytest --cov
             - name: Coveralls
               env:
                 COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
