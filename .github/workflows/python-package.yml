@@ -22,12 +22,12 @@ jobs:
                       # numba doesn't yet support numpy/2.3; could be relaxed in the future
                       numpy-version: '<2.3'
                       scipy-version: ''
-                      astropy-version: '<8'
+                      astropy-version: '<7'
                     - os: ubuntu-latest
                       python-version: '3.12'
                       numpy-version: '<2.3'
                       scipy-version: '<2'
-                      astropy-version: '<7.1'
+                      astropy-version: '<7'
                     - os: ubuntu-latest
                       python-version: '3.11'
                       numpy-version: '<2.1'
@@ -42,7 +42,8 @@ jobs:
         env:
             DESIUTIL_VERSION: 3.5.0
             # DESIMODEL: ${GITHUB_WORKSPACE}/desimodel
-            DESIMODEL_DATA: branches/test-0.19
+            # desisim -> specsim needs data/specpsf/psf-quicksim-rebin.fits which isn't in trimmed down test data
+            DESIMODEL_DATA: trunk
             # DESISIM: ${GITHUB_WORKSPACE}/desisim
             DESISIM_TESTDATA_VERSION: main
             # DESI_ROOT: ${DESISIM}/desi
@@ -100,14 +101,15 @@ jobs:
             matrix:
                 os: [ubuntu-22.04]
                 python-version: ['3.10']
-                astropy-version: ['<6.1']  # Compatilbilty with desiconda 20240425-2.2.0.
+                astropy-version: ['<6.1']  # Compatibilty with desiconda 20240425-2.2.0.
                 fitsio-version: ['<2']
-                numpy-version: ['<1.23']  # Compatilbilty with desiconda 20240425-2.2.0.
+                numpy-version: ['<1.23']  # Compatibilty with desiconda 20240425-2.2.0.
                 scipy-version: ['<1.9']
         env:
             DESIUTIL_VERSION: 3.4.3
             # DESIMODEL: ${GITHUB_WORKSPACE}/desimodel
-            DESIMODEL_DATA: branches/test-0.19
+            # desisim -> specsim needs data/specpsf/psf-quicksim-rebin.fits which isn't in trimmed down test data
+            DESIMODEL_DATA: trunk
             # DESISIM: ${GITHUB_WORKSPACE}/desisim
             DESISIM_TESTDATA_VERSION: main
             # DESI_ROOT: ${DESISIM}/desi
