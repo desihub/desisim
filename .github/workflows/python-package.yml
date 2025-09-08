@@ -19,7 +19,8 @@ jobs:
                 include:
                     - os: ubuntu-latest
                       python-version: '3.13'
-                      numpy-version: '<3'
+                      # numba doesn't yet support numpy/2.3; could be relaxed in the future
+                      numpy-version: '<2.3'
                       scipy-version: ''
                       astropy-version: '<8'
                     - os: ubuntu-latest
