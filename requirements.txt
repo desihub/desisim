@@ -14,8 +14,8 @@ matplotlib
 healpy
 # It is becoming difficult to install speclite and specsim directly from
 # git+https, so installing from PyPI is definitely preferred here.
+# Update 2025-09-08: get specsim/main from github pending new tag
 speclite
-specsim
 fitsio
 # Install desiutil separately since it is needed for the other installs.
 # git+https://github.com/desihub/desiutil.git@3.1.0#egg=desiutil
@@ -25,6 +25,6 @@ git+https://github.com/desihub/desimodel.git@main#egg=desimodel
 git+https://github.com/desihub/desispec.git@main#egg=desispec
 # git+https://github.com/desihub/desitarget.git@0.50.0#egg=desitarget
 git+https://github.com/desihub/desitarget.git@main#egg=desitarget
-# git+https://github.com/desihub/specsim.git@main#egg=specsim
+git+https://github.com/desihub/specsim.git@main#egg=specsim
 # simqso install script requires numpy, so install separately.
 # git+https://github.com/imcgreer/simqso.git@v1.2.4#egg=simqso
