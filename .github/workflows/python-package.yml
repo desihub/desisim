@@ -20,19 +20,23 @@ jobs:
                     - os: ubuntu-latest
                       python-version: '3.13'
                       numpy-version: '<3'
+                      scipy-version: ''
                       astropy-version: '<8'
                     - os: ubuntu-latest
                       python-version: '3.12'
                       numpy-version: '<2.3'
+                      scipy-version: '<2'
                       astropy-version: '<7.1'
                     - os: ubuntu-latest
                       python-version: '3.11'
                       numpy-version: '<2.1'
+                      scipy-version: '<2'
                       astropy-version: '<7'
                     # Similar to NERSC but with last NumPy < 2.
                     - os: ubuntu-latest
                       python-version: '3.10'
                       numpy-version: '<2'
+                      scipy-version: '<1.9'
                       astropy-version: '<6.1'
         env:
             DESIUTIL_VERSION: 3.5.0
@@ -61,6 +65,7 @@ jobs:
                 python -m pip install git+https://github.com/desihub/desiutil.git@${DESIUTIL_VERSION}#egg=desiutil
                 python -m pip install -r requirements.txt
                 python -m pip install --upgrade --upgrade-strategy only-if-needed 'numpy${{ matrix.numpy-version }}'
+                python -m pip install --upgrade --upgrade-strategy only-if-needed 'scipy${{ matrix.scipy-version }}'
                 python -m pip install --upgrade --upgrade-strategy only-if-needed 'astropy${{ matrix.astropy-version }}'
                 python -m pip install git+https://github.com/${SIMQSO_REPO}/simqso.git@${SIMQSO_VERSION}#egg=simqso
             - name: Verify Installation
@@ -87,6 +92,7 @@ jobs:
                 astropy-version: ['<6.1']  # Compatilbilty with desiconda 20240425-2.2.0.
                 fitsio-version: ['<2']
                 numpy-version: ['<1.23']  # Compatilbilty with desiconda 20240425-2.2.0.
+                scipy-version: ['<1.9']
         env:
             DESIUTIL_VERSION: 3.4.3
             # DESIMODEL: ${GITHUB_WORKSPACE}/desimodel
@@ -114,6 +120,7 @@ jobs:
                 python -m pip install git+https://github.com/desihub/desiutil.git@${DESIUTIL_VERSION}#egg=desiutil
                 python -m pip install -r requirements.txt
                 python -m pip install -U 'numpy${{ matrix.numpy-version }}'
+                python -m pip install -U 'scipy${{ matrix.scipy-version }}'
                 python -m pip install -U 'astropy${{ matrix.astropy-version }}'
                 python -m pip install git+https://github.com/${SIMQSO_REPO}/simqso.git@${SIMQSO_VERSION}#egg=simqso
                 python -m pip cache remove fitsio
