@@ -19,10 +19,10 @@ specsim
 fitsio
 # Install desiutil separately since it is needed for the other installs.
 # git+https://github.com/desihub/desiutil.git@3.1.0#egg=desiutil
-git+https://github.com/desihub/specter.git@0.9.4#egg=specter
-git+https://github.com/desihub/desimodel.git@0.18.0#egg=desimodel
+git+https://github.com/desihub/specter.git@0.11.0#egg=specter
+git+https://github.com/desihub/desimodel.git@0.19.3#egg=desimodel
 # Don't forget to install desimodel test data.
-git+https://github.com/desihub/desispec.git@0.36.1#egg=desispec
+git+https://github.com/desihub/desispec.git@0.69.0#egg=desispec
 # git+https://github.com/desihub/desitarget.git@0.50.0#egg=desitarget
 git+https://github.com/desihub/desitarget.git@main#egg=desitarget
 # git+https://github.com/desihub/specsim.git@main#egg=specsim
