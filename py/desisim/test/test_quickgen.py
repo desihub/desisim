@@ -86,7 +86,8 @@ class TestQuickgen(unittest.TestCase):
         else:
             cls.cosmics = None
 
-        #- Try to locate where the quickgen script will be
+        #- Try to locate where the quickgen script will be.
+        #- first check for an installed location.
         cls.topDir = os.path.dirname( # top-level
             os.path.dirname( # build/
                 os.path.dirname( # lib/
@@ -96,14 +97,16 @@ class TestQuickgen(unittest.TestCase):
                     )
                 )
             )
+
         cls.binDir = os.path.join(cls.topDir,'bin')
 
-        if not os.path.isdir(cls.binDir):
+        #- if that doesn't exist, check the current directory
+        if not os.path.exists(cls.binDir+'/quickgen'):
             cls.topDir = os.getcwd()
             cls.binDir = os.path.join(cls.topDir, 'bin')
         
-        if not os.path.isdir(cls.binDir):
-            raise RuntimeError('Unable to auto-locate desisim/bin from {}'.format(__file__))
+        if not os.path.exists(cls.binDir+'/quickgen'):
+            raise RuntimeError('Unable to auto-locate desisim/bin/quickgen from {}'.format(__file__))
 
     def setUp(self):
         self.night = '20150105'
@@ -446,10 +449,3 @@ class TestQuickgen(unittest.TestCase):
 #- This runs all test* functions in any TestCase class in this file
 if __name__ == '__main__':
     unittest.main()
-
-def test_suite():
-    """Allows testing of only this module with the command::
-
-        python setup.py test -m desisim.test.test_io
-    """
-    return unittest.defaultTestLoader.loadTestsFromName(__name__)

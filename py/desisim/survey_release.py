@@ -5,7 +5,6 @@ desisim.survey_release
 Functions and methods for mimicking a DESI release footprint and object density with adequate exposure times.
 
 """
-from __future__ import division, print_function
 import os
 import desisim
 import numpy as np

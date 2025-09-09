@@ -5,11 +5,10 @@ desisim.eboss
 Functions and methods for mimicking eBOSS survey.
 
 """
-from __future__ import division, print_function
 import numpy as np
 import os
 import healpy
-from pkg_resources import resource_filename
+from importlib import resources
 import astropy.io.fits as pyfits
 
 def create_sdss_footprint(sdss_cat,out,mjd_min=55000,zmin=1.8,nside=16,nest=True):
@@ -78,7 +77,7 @@ class FootprintEBOSS(object):
         if not nside==16:
             raise ValueError('add eBOSS footprint for nside='+str(nside))
 
-        fname=resource_filename('desisim','data/eboss_footprint_nside_16.txt')
+        fname=str(resources.files('desisim').joinpath('data', 'eboss_footprint_nside_16.txt'))
         print('in read_sdss_footprint from file',fname)
         if not os.path.isfile(fname):
             print('eBOSS footprint file',fname)
@@ -178,14 +177,14 @@ def create_sdss2desi_redshift_distribution_ratio(sdss_cat,desi_cat,out,dz=0.04,m
 
     sdss['LOWD'] = {}
     pixLowD = unique_pix[density<densityCut]
-    w = np.in1d(pix,pixLowD)
+    w = np.isin(pix,pixLowD)
     sdss['LOWD']['HIST'], zhist = np.histogram(sdss['Z'][w],bins=bins,density=True)
     sdss['LOWD']['ZHIST'] = np.array([ zhist[i]+(zhist[i+1]-zhist[i])/2. for i in range(zhist.size-1) ])
     sdss['LOWD']['PIXS'] = pixLowD
 
     sdss['HIGHD'] = {}
     pixHighD = unique_pix[density>=densityCut]
-    w = np.in1d(pix,pixHighD)
+    w = np.isin(pix,pixHighD)
     sdss['HIGHD']['HIST'], zhist = np.histogram(sdss['Z'][w],bins=bins,density=True)
     sdss['HIGHD']['ZHIST'] = np.array([ zhist[i]+(zhist[i+1]-zhist[i])/2. for i in range(zhist.size-1) ])
     sdss['HIGHD']['PIXS'] = pixHighD
@@ -293,7 +292,7 @@ class RedshiftDistributionEBOSS(object):
         if not nside==16:
             raise ValueError('add eBOSS footprint for nside = {}'.format(nside))
 
-        fname = resource_filename('desisim','data/eboss_redshift_distributon_fraction_dz_004_nside_16.txt')
+        fname = str(resources.files('desisim').joinpath('data', 'eboss_redshift_distributon_fraction_dz_004_nside_16.txt'))
         print('in read_sdss_redshift_distribution from file {}'.format(fname))
         if not os.path.isfile(fname):
             print('eBOSS redshift distribution fraction file'.format(fname))
@@ -339,7 +338,7 @@ class RedshiftDistributionEBOSS(object):
 
         frac = np.ones(ra.size)
         for k in ['LOW_DENSITY','HIGH_DENSITY']:
-            w = np.in1d(pix,self.hist[k]['PIX'])
+            w = np.isin(pix,self.hist[k]['PIX'])
             frac[w] = self.hist[k]['HIST'][bins[w]]
 
         return frac

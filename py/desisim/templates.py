@@ -5,8 +5,6 @@ desisim.templates
 Functions to simulate spectral templates for DESI.
 """
 
-from __future__ import division, print_function
-
 import os
 import sys
 import numpy as np
@@ -28,7 +26,7 @@ def _check_input_meta(input_meta, ignore_templateid=False):
         required_cols = ('SEED', 'REDSHIFT', 'MAG', 'MAGFILTER')
     else:
         required_cols = ('TEMPLATEID', 'SEED', 'REDSHIFT', 'MAG', 'MAGFILTER')
-    if not np.all(np.in1d(required_cols, cols)):
+    if not np.all(np.isin(required_cols, cols)):
         log.warning('Input metadata table (input_meta) is missing one or more required columns {}'.format(
             required_cols))
         raise ValueError
@@ -39,7 +37,7 @@ def _check_input_objmeta(input_objmeta, objtype):
     _, ref = empty_metatable(objtype=objtype)
 
     required_cols = ref.colnames
-    if not np.all(np.in1d(required_cols, cols)):
+    if not np.all(np.isin(required_cols, cols)):
         log.warning('Input object metadata table (input_objmeta) is missing one or more required columns {}'.format(
             required_cols))
         raise ValueError
@@ -50,7 +48,7 @@ def _check_star_properties(star_properties, WD=False):
     required_cols = ['REDSHIFT', 'MAG', 'MAGFILTER', 'TEFF', 'LOGG']
     if not WD:
         required_cols = required_cols + ['FEH']
-    if not np.all(np.in1d(required_cols, cols)):
+    if not np.all(np.isin(required_cols, cols)):
         log.warning('Input star_properties is missing one or more required columns {}'.format(
             required_cols))
         raise ValueError
@@ -97,7 +95,7 @@ class EMSpectrum(object):
     def __init__(self, minwave=3650.0, maxwave=7075.0, cdelt_kms=20.0, log10wave=None,
                  include_mgii=False):
 
-        from pkg_resources import resource_filename
+        from importlib import resources
         from astropy.table import Table, Column, vstack
         from desiutil.sklearn import GaussianMixtureModel
 
@@ -112,9 +110,9 @@ class EMSpectrum(object):
             self.log10wave = log10wave
 
         # Read the files which contain the recombination and forbidden lines.
-        recombfile = resource_filename('desisim', 'data/recombination_lines.ecsv')
-        forbidfile = resource_filename('desisim', 'data/forbidden_lines.ecsv')
-        forbidmogfile = resource_filename('desisim','data/forbidden_mogs.fits')
+        recombfile = str(resources.files('desisim').joinpath('data', 'recombination_lines.ecsv'))
+        forbidfile = str(resources.files('desisim').joinpath('data', 'forbidden_lines.ecsv'))
+        forbidmogfile = str(resources.files('desisim').joinpath('data', 'forbidden_mogs.fits'))
 
         if not os.path.isfile(recombfile):
             log.fatal('Required data file {} not found!'.format(recombfile))
@@ -217,22 +215,22 @@ class EMSpectrum(object):
         nline = len(line)
 
         # Convenience variables.
-        is4959 = np.where(line['name'] == '[OIII]_4959')[0]
-        is5007 = np.where(line['name'] == '[OIII]_5007')[0]
-        is6548 = np.where(line['name'] == '[NII]_6548')[0]
-        is6584 = np.where(line['name'] == '[NII]_6584')[0]
-        is6716 = np.where(line['name'] == '[SII]_6716')[0]
-        is6731 = np.where(line['name'] == '[SII]_6731')[0]
-        #is3869 = np.where(line['name'] == '[NeIII]_3869')[0]
-        is3726 = np.where(line['name'] == '[OII]_3726')[0]
-        is3729 = np.where(line['name'] == '[OII]_3729')[0]
+        is4959 = np.where(line['name'] == '[OIII]_4959')[0][0]
+        is5007 = np.where(line['name'] == '[OIII]_5007')[0][0]
+        is6548 = np.where(line['name'] == '[NII]_6548')[0][0]
+        is6584 = np.where(line['name'] == '[NII]_6584')[0][0]
+        is6716 = np.where(line['name'] == '[SII]_6716')[0][0]
+        is6731 = np.where(line['name'] == '[SII]_6731')[0][0]
+        #is3869 = np.where(line['name'] == '[NeIII]_3869')[0][0]
+        is3726 = np.where(line['name'] == '[OII]_3726')[0][0]
+        is3729 = np.where(line['name'] == '[OII]_3729')[0][0]
 
-        is6300 = np.where(line['name'] == '[OI]_6300')[0]
-        is6363 = np.where(line['name'] == '[OI]_6363')[0]
-        is9532 = np.where(line['name'] == '[SIII]_9532')[0]
-        is9069 = np.where(line['name'] == '[SIII]_9069')[0]
-        is7135 = np.where(line['name'] == '[ArIII]_7135')[0]
-        is7751 = np.where(line['name'] == '[ArIII]_7751')[0]
+        is6300 = np.where(line['name'] == '[OI]_6300')[0][0]
+        is6363 = np.where(line['name'] == '[OI]_6363')[0][0]
+        is9532 = np.where(line['name'] == '[SIII]_9532')[0][0]
+        is9069 = np.where(line['name'] == '[SIII]_9069')[0][0]
+        is7135 = np.where(line['name'] == '[ArIII]_7135')[0][0]
+        is7751 = np.where(line['name'] == '[ArIII]_7751')[0][0]
 
         # Draw from the MoGs for forbidden lines.
         if oiiihbeta is None or oiihbeta is None or niihbeta is None or siihbeta is None:
@@ -803,6 +801,12 @@ class GALAXY(object):
                         oiidoublet, oiihbeta, niihbeta, siihbeta, oiiihbeta = \
                             self.lineratios(nobj=1, oiiihbrange=oiiihbrange,
                                             rand=templaterand, agnlike=agnlike)
+                        # convert length-1 arrays to scalars
+                        oiidoublet = oiidoublet[0]
+                        oiihbeta = oiihbeta[0]
+                        niihbeta = niihbeta[0]
+                        siihbeta = siihbeta[0]
+                        oiiihbeta = oiiihbeta[0]
 
                         if self.normline.upper() == 'OII':
                             ewoii = 10.0**(np.polyval(self.ewoiicoeff, d4000) + # rest-frame EW([OII]), Angstrom
@@ -1508,7 +1512,7 @@ class SUPERSTAR(object):
             baseflux = griddata(base_properties, self.baseflux,
                                 input_properties, method='nearest')
             interptemplateid = griddata(base_properties, np.arange(nbase),
-                                        input_properties, method='nearest')
+                                        input_properties, method='nearest').astype(int)
             #interptemplateid = np.array([int(tempid) for tempid in interptemplateid])
 
         # Build each spectrum in turn.
@@ -2231,12 +2235,12 @@ class QSO():
             if use_redshift is None:
                 redshift = templaterand.uniform(zrange[0], zrange[1])
             else:
-                redshift = np.atleast_1d(use_redshift[ii])
+                redshift = np.atleast_1d(use_redshift)[ii]
 
             if use_mag is None:
                 mag = templaterand.uniform(magrange[0], magrange[1])
             else:
-                mag = np.atleast_1d(use_mag[ii])
+                mag = np.atleast_1d(use_mag)[ii]
 
             zwave = self.eigenwave * (1+redshift) # [observed-frame, Angstrom]
 

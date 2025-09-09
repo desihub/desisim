@@ -5,7 +5,6 @@ desisim.batch
 Batch scripts.  Why exactly is this sub-package different from
 :mod:`desisim.scripts`?
 """
-from __future__ import absolute_import, division, print_function
 import math
 
 from desiutil.log import get_logger

@@ -4,8 +4,6 @@
 test top-level desisim functions
 """
 #
-from __future__ import absolute_import, division, print_function
-#
 import unittest
 import re
 from .. import __version__ as theVersion

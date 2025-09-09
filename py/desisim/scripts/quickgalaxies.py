@@ -2,7 +2,6 @@
 desisim.scripts.quickgalaxies
 =============================
 """
-from __future__ import absolute_import, division, print_function
 
 import healpy as hp
 import numpy as np

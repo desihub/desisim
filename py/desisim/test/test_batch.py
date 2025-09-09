@@ -36,7 +36,7 @@ class TestBatch(unittest.TestCase):
         self.assertEqual(calc_nodes(11, 10, 20), 6)
     
     def test_batch_newexp(self):
-        flavors = ['arc', 'flat', 'bright', 'gray', 'dark']
+        flavors = ['arc', 'flat', 'bright', 'dark']
         expids = list(range(len(flavors)))
         night = '20101020'
         if os.path.exists(self.batchfile):

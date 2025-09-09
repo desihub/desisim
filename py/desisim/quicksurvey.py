@@ -12,7 +12,6 @@ Directly depends on the following DESI products:
 * `fiberassign <https://github.com/desihub/fiberassign>`_
 '''
 
-from __future__ import absolute_import, division, print_function
 import gc
 import numpy as np
 import os
@@ -264,7 +263,7 @@ class SimSetup(object):
 
         #update obsconditions from progress_data
 #        progress_data = Table.read(self.progress_files[epoch + 1])
-#        ii = np.in1d(progress_data['TILEID'], self.observed_tiles)
+#        ii = np.isin(progress_data['TILEID'], self.observed_tiles)
 #        obsconditions = progress_data[ii]
         obsconditions = None
         print('tilefiles', len(self.tilefiles))

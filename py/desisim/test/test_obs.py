@@ -1,7 +1,7 @@
 import unittest, os
 from uuid import uuid1
 from shutil import rmtree
-from pkg_resources import resource_filename
+from importlib import resources
 
 import numpy as np
 from astropy.io import fits
@@ -157,14 +157,12 @@ class TestObs(unittest.TestCase):
         
         #- different programs should be different tiles
         a = obs.get_next_tileid(program='dark')
-        b = obs.get_next_tileid(program='gray')
-        c = obs.get_next_tileid(program='bright')
+        b = obs.get_next_tileid(program='bright')
         self.assertNotEqual(a, b)
-        self.assertNotEqual(a, c)
         
         #- program is case insensitive
-        a = obs.get_next_tileid(program='GRAY')
-        b = obs.get_next_tileid(program='gray')
+        a = obs.get_next_tileid(program='dark')
+        b = obs.get_next_tileid(program='DARK')
         self.assertEqual(a, b)
 
     def test_specter_objtype(self):
@@ -192,7 +190,7 @@ class TestObs(unittest.TestCase):
 
     def test_read_mock_spectra(self):
         #- piggyback on desitarget mock data
-        truthfile = resource_filename('desitarget', 'test/t/truth-mocks.fits')
+        truthfile = str(resources.files('desitarget').joinpath('test', 't', 'truth-mocks.fits'))
         if not os.path.exists(truthfile):
             print(f"Please update desitarget to get {truthfile}")
             return

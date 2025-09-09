@@ -23,7 +23,6 @@ Submitted batch job 233895
 Submitted batch job 233901
 '''
 
-from __future__ import absolute_import, division, print_function
 import os
 import numpy as np
 

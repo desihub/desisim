@@ -8,5 +8,3 @@ desisim.scripts
 
 Main functions and command-line parsing.
 """
-
-from __future__ import absolute_import, division

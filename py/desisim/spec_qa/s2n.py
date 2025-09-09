@@ -3,7 +3,6 @@ desisim.spec_qa.s2n
 =========================
 Module to examine S/N in object spectra
 """
-from __future__ import print_function, absolute_import, division
 
 import matplotlib
 # matplotlib.use('Agg')
