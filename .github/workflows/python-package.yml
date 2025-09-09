@@ -54,8 +54,6 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
-              with:
-                fetch-depth: 0
             - name: Install System Packages
               run: sudo apt install libbz2-dev subversion
             - name: Set up Python ${{ matrix.python-version }}
@@ -120,8 +118,6 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
-              with:
-                fetch-depth: 0
             - name: Install System Packages
               run: sudo apt install libbz2-dev subversion
             - name: Set up Python ${{ matrix.python-version }}
@@ -176,8 +172,6 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
-              with:
-                fetch-depth: 0
             - name: Set up Python ${{ matrix.python-version }}
               uses: actions/setup-python@v5
               with:
@@ -199,8 +193,6 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
-              with:
-                fetch-depth: 0
             - name: Set up Python ${{ matrix.python-version }}
               uses: actions/setup-python@v5
               with:
