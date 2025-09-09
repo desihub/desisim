@@ -2,10 +2,12 @@
 desisim change log
 ==================
 
-0.38.3 (unreleased)
+0.39.0 (unreleased)
 -------------------
 
-* No changes yet.
+* Add numpy/2.x and scipy/1.16.x support. General cleanup. (PR `#589`_).
+
+.. _`#589`: https://github.com/desihub/desisim/pull/589
 
 0.38.2 (2024-12-17)
 -------------------
