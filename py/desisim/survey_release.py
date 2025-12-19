@@ -364,6 +364,8 @@ def get_lya_tiles(release='Y5'):
         if release.upper() not in ['FUJI','FUGU']:
             surveys = ['main']
             redux_tiles_filename = os.path.join(os.environ['DESI_SPECTRO_REDUX'],f'{release}/tiles-{release}.fits')
+            if not os.path.exists(redux_tiles_filename):
+                raise ValueError(f"Tiles file for release {release} not found at {redux_tiles_filename}")
             redux_tiles=Table.read(redux_tiles_filename)
         else:
             fuji_tiles_filename= os.path.join(os.environ['DESI_SPECTRO_REDUX'],f'fuji/tiles-fuji.fits')
