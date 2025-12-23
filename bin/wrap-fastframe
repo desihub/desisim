@@ -15,6 +15,7 @@ parser.add_argument('--mpi', action='store_true', help="use MPI parallelism")
 parser.add_argument('--start', type=str, help="start date YEARMMDD")
 parser.add_argument('--stop', type=str, help="stop date YEARMMDD")
 parser.add_argument('--cframe',  action='store_true', help="directly write cframe")
+parser.add_argument('--exptypes', type=str, help="comma separated list of exposure types for processing", default='flat,science')
 args = parser.parse_args()
 
 #- Load MPI and establish communication
@@ -67,19 +68,39 @@ if rank == 0:
         night = os.path.basename(os.path.dirname(os.path.dirname(filename)))
         if (args.start <= night) & (night < args.stop):
             flavor = fits.getval(filename, 'FLAVOR')
+
             expid = fits.getval(filename, 'EXPID')
-            if flavor not in ('flat', 'science'):
+
+            if flavor not in tuple(args.exptypes.split(',')):
                 print('night {} expid {} is {}; skipping'.format(
                     night, expid, flavor))
+
+                logfile = filename.replace('simspec', 'fastframe').replace('.fits', '.log')
+
+                assert logfile != filename
+
+                if args.outdir:
+                    ##  If outdir provided, log files inherit /night/exposure structure of simspec files but in outdir.                            
+                    ##  Else placed in original dir. with simspecs.                                                                                                                                              
+                    logfile = logfile.replace(desisim.io.simdir(), args.outdir)
+                
+                try:
+                    os.makedirs(os.path.dirname(logfile), exist_ok=args.clobber)
+                except:
+                    print('Pass --clobber to replace previously created logfile for {}.'.format(expid))
+
+                with open(logfile, "w") as openfile:
+                    print('night {} expid {} is {}; skipping'.format(night, expid, flavor), file=openfile)
+
                 continue
 
             #- This precheck could get slow; consider caching differently
             done = True
             for camera in cameras:
                 if args.cframe :
-                    framefile = desispec.io.findfile('cframe', night, expid, camera)
+                    framefile = desispec.io.findfile('cframe', night, expid, camera, specprod_dir=args.outdir)
                 else :
-                    framefile = desispec.io.findfile('frame', night, expid, camera)
+                    framefile = desispec.io.findfile('frame', night, expid, camera, specprod_dir=args.outdir)
 
                 if args.clobber or not os.path.exists(framefile):
                     simspecfiles.append( (flavor, filename) )
@@ -106,7 +127,7 @@ if rank < len(simspecfiles):
     for flavor, filename in simspecfiles[rank::size]:
         cmd = "fastframe --simspec {}".format(filename)
         if args.outdir:
-           cmd = cmd + " --outdir {}".format(args.outdir)
+            cmd = cmd + " --outdir {}".format(args.outdir)
         if args.clobber:
             pass 
             ##  clobber not supported by fastframe (it clobbers by default)
@@ -130,7 +151,11 @@ if rank < len(simspecfiles):
                 ##  If outdir provided, log files inherit /night/exposure structure of simspec files but in outdir. 
                 ##  Else placed in original dir. with simspecs.
                 logfile = logfile.replace(desisim.io.simdir(), args.outdir)
+
+            try:
                 os.makedirs(os.path.dirname(logfile), exist_ok=args.clobber)
+            except:
+                print('Pass --clobber to replace previously created logfile: {}.'.format(logfile))
 
             #- Use subprocess.call instead of fastframe.main() to avoid
             #- potential memory leaks and separate logging; this does incur
@@ -169,4 +194,3 @@ if rank == 0:
 
 if comm is not None:
     MPI.Finalize()
-    
