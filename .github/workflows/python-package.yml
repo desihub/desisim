@@ -129,7 +129,7 @@ jobs:
                 python -m pip install --upgrade pip 'setuptools<80' wheel
                 python -m pip install pytest pytest-cov coveralls
                 python -m pip install git+https://github.com/desihub/desiutil.git@${DESIUTIL_VERSION}#egg=desiutil
-                python -m pip install -r requirements.txt
+                python -m pip install --no-build-isolation -r requirements.txt
                 python -m pip install --upgrade --upgrade-strategy only-if-needed 'numpy${{ matrix.numpy-version }}'
                 python -m pip install --upgrade --upgrade-strategy only-if-needed 'scipy${{ matrix.scipy-version }}'
                 python -m pip install --upgrade --upgrade-strategy only-if-needed 'astropy${{ matrix.astropy-version }}'
