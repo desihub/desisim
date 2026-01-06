@@ -71,7 +71,7 @@ jobs:
                 python -m pip install --upgrade --upgrade-strategy only-if-needed 'numpy${{ matrix.numpy-version }}'
                 python -m pip install --upgrade --upgrade-strategy only-if-needed 'scipy${{ matrix.scipy-version }}'
                 python -m pip install --upgrade --upgrade-strategy only-if-needed 'astropy${{ matrix.astropy-version }}'
-                python -m pip install git+https://github.com/${SIMQSO_REPO}/simqso.git@${SIMQSO_VERSION}#egg=simqso
+                python -m pip install --no-build-isolation git+https://github.com/${SIMQSO_REPO}/simqso.git@${SIMQSO_VERSION}#egg=simqso
             - name: Verify Installation
               run: pip list
             - name: Install desimodel Data
@@ -133,7 +133,7 @@ jobs:
                 python -m pip install --upgrade --upgrade-strategy only-if-needed 'numpy${{ matrix.numpy-version }}'
                 python -m pip install --upgrade --upgrade-strategy only-if-needed 'scipy${{ matrix.scipy-version }}'
                 python -m pip install --upgrade --upgrade-strategy only-if-needed 'astropy${{ matrix.astropy-version }}'
-                python -m pip install git+https://github.com/${SIMQSO_REPO}/simqso.git@${SIMQSO_VERSION}#egg=simqso
+                python -m pip install --no-build-isolation git+https://github.com/${SIMQSO_REPO}/simqso.git@${SIMQSO_VERSION}#egg=simqso
                 python -m pip cache remove fitsio
                 python -m pip install --no-deps --force-reinstall --ignore-installed 'fitsio${{ matrix.fitsio-version }}'
             - name: Verify Installation
