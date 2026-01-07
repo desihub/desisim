@@ -40,7 +40,7 @@ jobs:
                       scipy-version: '<1.9'
                       astropy-version: '<6.1'
         env:
-            DESIUTIL_VERSION: 3.5.2
+            DESIUTIL_VERSION: 3.6.0
             # DESIMODEL: ${GITHUB_WORKSPACE}/desimodel
             # desisim -> specsim needs data/specpsf/psf-quicksim-rebin.fits which isn't in trimmed down test data
             DESIMODEL_DATA: trunk
@@ -66,7 +66,7 @@ jobs:
               run: |
                 python -m pip install --upgrade pip 'setuptools<80' wheel
                 python -m pip install pytest
-                python -m pip install git+https://github.com/desihub/desiutil.git@${DESIUTIL_VERSION}#egg=desiutil
+                python -m pip install desiutil.git==${DESIUTIL_VERSION}
                 python -m pip install --no-build-isolation -r requirements.txt
                 python -m pip install --upgrade --upgrade-strategy only-if-needed 'numpy${{ matrix.numpy-version }}'
                 python -m pip install --upgrade --upgrade-strategy only-if-needed 'scipy${{ matrix.scipy-version }}'
@@ -104,7 +104,7 @@ jobs:
                 numpy-version: ['<2']
                 scipy-version: ['<1.9']
         env:
-            DESIUTIL_VERSION: 3.5.2
+            DESIUTIL_VERSION: 3.6.0
             # DESIMODEL: ${GITHUB_WORKSPACE}/desimodel
             # desisim -> specsim needs data/specpsf/psf-quicksim-rebin.fits which isn't in trimmed down test data
             DESIMODEL_DATA: trunk
@@ -128,7 +128,7 @@ jobs:
               run: |
                 python -m pip install --upgrade pip 'setuptools<80' wheel
                 python -m pip install pytest pytest-cov coveralls
-                python -m pip install git+https://github.com/desihub/desiutil.git@${DESIUTIL_VERSION}#egg=desiutil
+                python -m pip install desiutil==${DESIUTIL_VERSION}
                 python -m pip install --no-build-isolation -r requirements.txt
                 python -m pip install --upgrade --upgrade-strategy only-if-needed 'numpy${{ matrix.numpy-version }}'
                 python -m pip install --upgrade --upgrade-strategy only-if-needed 'scipy${{ matrix.scipy-version }}'
