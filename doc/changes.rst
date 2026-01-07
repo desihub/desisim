@@ -6,8 +6,10 @@ desisim change log
 -------------------
 
 * Add numpy/2.x and scipy/1.16.x support. General cleanup. (PR `#589`_).
+* Add astropy/7.x test support on GitHub (PR `#591`_).
 
 .. _`#589`: https://github.com/desihub/desisim/pull/589
+.. _`#591`: https://github.com/desihub/desisim/pull/591
 
 0.38.2 (2024-12-17)
 -------------------
