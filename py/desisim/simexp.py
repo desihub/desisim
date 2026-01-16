@@ -414,6 +414,9 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, redshift=Non
         wave = wave * u.Angstrom
 
     log.debug('loading specsim desi config {}'.format(specsim_config_file))
+
+    print("JULIEN DEBUG wave=",wave)
+    print("JULIEN DEBUG wave.to('Angstrom').value",wave)
     config = _specsim_config_for_wave(wave.to('Angstrom').value, dwave_out=dwave_out, specsim_config_file=specsim_config_file)
 
     #- Create simulator
@@ -421,6 +424,8 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, redshift=Non
     # desi = specsim.simulator.Simulator(config, num_fibers=nspec)
     desi = desisim.specsim.get_simulator(config, num_fibers=nspec,
         camera_output=psfconvolve)
+    print("JULIEN DEBUG config.wavelength=",config.wavelength)
+    print("JULIEN DEBUG desi._simulated.wavelength=",desi._simulated["wavelength"])
 
     if obsconditions is None:
         log.warning('Assuming DARK conditions')
@@ -612,7 +617,7 @@ def _specsim_config_for_wave(wave, dwave_out=None, specsim_config_file = "desi")
 
     config = specsim.config.load_config(specsim_config_file)
     config.wavelength_grid.min = wave[0]
-    config.wavelength_grid.max = wave[-1] + dwave/2.0
+    config.wavelength_grid.max = wave[-1] + dwave*1e-6
     config.wavelength_grid.step = dwave
 
     if dwave_out is None:
