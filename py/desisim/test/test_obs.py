@@ -1,6 +1,5 @@
 import unittest, os
-from uuid import uuid1
-from shutil import rmtree
+import tempfile
 from importlib import resources
 
 import numpy as np
@@ -15,45 +14,29 @@ desimodel_data_available = 'DESIMODEL' in os.environ
 desi_root_available = 'DESI_ROOT' in os.environ
 
 class TestObs(unittest.TestCase):
-    #- Create test subdirectory
-    @classmethod
-    def setUpClass(cls):
-        cls.night = '20150101'
-        cls.testfile = 'test-{uuid}/test-{uuid}.fits'.format(uuid=uuid1())
-        cls.testDir = os.path.join(os.environ['HOME'],'desi_test_io')
-        cls.origEnv = dict(PIXPROD = None, DESI_SPECTRO_SIM = None)
-        cls.testEnv = dict(
+    #- Create isolated test directory and environment for each test method
+    def setUp(self):
+        self.night = '20150101'
+        self._tempdir = tempfile.TemporaryDirectory(prefix='desi_test_obs-')
+        self.testDir = self._tempdir.name
+        self.origEnv = dict(PIXPROD = None, DESI_SPECTRO_SIM = None)
+        self.testEnv = dict(
             PIXPROD = 'test',
-            DESI_SPECTRO_SIM = os.path.join(cls.testDir,'spectro','sim'),
+            DESI_SPECTRO_SIM = os.path.join(self.testDir,'spectro','sim'),
             )
-        for e in cls.origEnv:
+        for e in self.origEnv:
             if e in os.environ:
-                cls.origEnv[e] = os.environ[e]
-            os.environ[e] = cls.testEnv[e]
+                self.origEnv[e] = os.environ[e]
+            os.environ[e] = self.testEnv[e]
 
-    #- Cleanup files but not directories after each test
+    #- Cleanup and restore environment after each test
     def tearDown(self):
-        for expid in range(5):
-            for filetype in ['simspec', 'simfibermap']:
-                filename = io.findfile('simspec', self.night, expid)
-                if os.path.exists(filename):
-                    os.remove(filename)
-
-    #- Cleanup test files if they exist
-    @classmethod
-    def tearDownClass(cls):
-        if os.path.exists(cls.testfile):
-            os.remove(cls.testfile)
-            testpath = os.path.normpath(os.path.dirname(cls.testfile))
-            if testpath != '.':
-                os.removedirs(testpath)
-        for e in cls.origEnv:
-            if cls.origEnv[e] is None:
-                del os.environ[e]
+        for e in self.origEnv:
+            if self.origEnv[e] is None:
+                os.environ.pop(e, None)
             else:
-                os.environ[e] = cls.origEnv[e]
-        if os.path.exists(cls.testDir):
-            rmtree(cls.testDir)
+                os.environ[e] = self.origEnv[e]
+        self._tempdir.cleanup()
 
     # def new_exposure(program, nspec=5000, night=None, expid=None, tileid=None, \
     #     airmass=1.0, exptime=None):

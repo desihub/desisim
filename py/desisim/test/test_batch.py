@@ -1,4 +1,5 @@
 import os
+import tempfile
 import unittest
 
 from desisim.batch import calc_nodes
@@ -7,25 +8,26 @@ from desisim.batch.pixsim import batch_newexp, batch_pixsim
 class TestBatch(unittest.TestCase):
     
     def setUp(self):
-        self.batchfile = 'batch-d4ae52ada252.sh'
-        self._PIXPROD = os.getenv('PIXPROD')
-        self._DESI_SPECTRO_SIM = os.getenv('DESI_SPECTRO_SIM')
-        self.testdir = 'test-jkhasnqwezzcqhehadzx'
-        os.environ['PIXPROD'] = 'test'
-        os.environ['DESI_SPECTRO_SIM'] = self.testdir+'/sim'
-        os.environ['DESI_SPECTRO_DATA'] = self.testdir+'/sim/test'
+        self._tempdir = tempfile.TemporaryDirectory(prefix='desi_test_batch-')
+        self.testdir = self._tempdir.name
+        self.batchfile = os.path.join(self.testdir, 'batch.sh')
+        pixprod = os.path.basename(self.testdir)
+        self._origEnv = dict(
+            PIXPROD=os.getenv('PIXPROD'),
+            DESI_SPECTRO_SIM=os.getenv('DESI_SPECTRO_SIM'),
+            DESI_SPECTRO_DATA=os.getenv('DESI_SPECTRO_DATA'),
+        )
+        os.environ['PIXPROD'] = pixprod
+        os.environ['DESI_SPECTRO_SIM'] = os.path.join(self.testdir, 'sim')
+        os.environ['DESI_SPECTRO_DATA'] = os.path.join(self.testdir, 'sim', pixprod)
 
     def tearDown(self):
-        if os.path.exists(self.batchfile):
-            os.remove(self.batchfile)
-        if self._PIXPROD is not None:
-            os.environ['PIXPROD'] = self._PIXPROD
-        if self._DESI_SPECTRO_SIM is not None:
-            os.environ['DESI_SPECTRO_SIM'] = os.getenv('DESI_SPECTRO_SIM')
-        if os.path.isdir(self.testdir):
-            import shutil
-            shutil.rmtree(self.testdir)
-            # os.removedirs(self.testdir)
+        for key, value in self._origEnv.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        self._tempdir.cleanup()
             
     def test_calc_nodes(self):
         self.assertEqual(calc_nodes(10, 1.5, 10), 4)
