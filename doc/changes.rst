@@ -5,10 +5,19 @@ desisim change log
 0.39.0 (unreleased)
 -------------------
 
+Features:
+
+* Support for more data releases on SurveyRelease/Quickquasars (PR `#590`_).
+
+Test infrastructure:
+
+* Remove DesiTest (PR `#582`_).
 * Add numpy/2.x and scipy/1.16.x support. General cleanup. (PR `#589`_).
 * Add astropy/7.x test support on GitHub (PR `#591`_).
 
+.. _`#582`: https://github.com/desihub/desisim/pull/582
 .. _`#589`: https://github.com/desihub/desisim/pull/589
+.. _`#590`: https://github.com/desihub/desisim/pull/590
 .. _`#591`: https://github.com/desihub/desisim/pull/591
 
 0.38.2 (2024-12-17)

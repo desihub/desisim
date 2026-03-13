@@ -1125,7 +1125,7 @@ def dz_summ(simz_tab, outfile=None, pdict=None, min_count=20):
             if col > 0:
                 plt.setp([axis.get_yticklabels()], visible=False)
             else:
-                axis.set_ylabel('Redshift fit residual $\Delta v$ [km/s]')
+                axis.set_ylabel(r'Redshift fit residual $\Delta v$ [km/s]')
 
             #if row < nrows - 1:
             #    plt.setp([axis.get_xticklabels()], visible=False)

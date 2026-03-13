@@ -9,7 +9,6 @@ Module for Fitting PCA to the BOSS QSOs
 
 import numpy as np
 import os
-import imp
 import pdb
 
 from scipy.interpolate import interp1d

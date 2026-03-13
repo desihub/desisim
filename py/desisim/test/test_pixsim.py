@@ -1,7 +1,5 @@
 import unittest, os, sys
 import tempfile
-from uuid import uuid1
-from shutil import rmtree
 
 import numpy as np
 from astropy.io import fits
@@ -21,30 +19,9 @@ desi_templates_available = 'DESI_ROOT' in os.environ
 desi_root_available = 'DESI_ROOT' in os.environ
 
 class TestPixsim(unittest.TestCase):
-    #- Create test subdirectory
+    #- Class-wide constants that do not write output
     @classmethod
     def setUpClass(cls):
-        global desi_templates_available
-        cls.testfile = 'test-{uuid}/test-{uuid}.fits'.format(uuid=uuid1())
-        cls.testdir = tempfile.mkdtemp()
-        cls.origEnv = dict(
-            PIXPROD = None,
-            SPECPROD = None,
-            DESI_SPECTRO_SIM = None,
-            DESI_SPECTRO_DATA = None,
-            DESI_SPECTRO_REDUX = None,
-        )
-        cls.testEnv = dict(
-            PIXPROD = 'test',
-            SPECPROD = 'test',
-            DESI_SPECTRO_SIM = os.path.join(cls.testdir,'spectro','sim'),
-            DESI_SPECTRO_DATA = os.path.join(cls.testdir,'spectro','sim', 'test'),
-            DESI_SPECTRO_REDUX = os.path.join(cls.testdir,'spectro','redux'),
-            )
-        for e in cls.origEnv:
-            if e in os.environ:
-                cls.origEnv[e] = os.environ[e]
-            os.environ[e] = cls.testEnv[e]
         if desi_templates_available:
             cls.cosmics = (os.environ['DESI_ROOT'] +
                 '/spectro/templates/cosmics/v0.3/cosmics-bias-r.fits')
@@ -54,23 +31,29 @@ class TestPixsim(unittest.TestCase):
         #- to save memory while testing
         cls.ccdshape = (2000,2000)
 
-    #- Cleanup test files if they exist
-    @classmethod
-    def tearDownClass(cls):
-        if os.path.exists(cls.testfile):
-            os.remove(cls.testfile)
-            testpath = os.path.normpath(os.path.dirname(cls.testfile))
-            if testpath != '.':
-                os.removedirs(testpath)
-        for e in cls.origEnv:
-            if cls.origEnv[e] is None:
-                del os.environ[e]
-            else:
-                os.environ[e] = cls.origEnv[e]
-        if os.path.exists(cls.testdir):
-            rmtree(cls.testdir)
-
     def setUp(self):
+        self._tempdir = tempfile.TemporaryDirectory(prefix='desi_test_pixsim-')
+        self.testdir = self._tempdir.name
+        pixprod = 'test-{}'.format(os.path.basename(self.testdir))
+        self.origEnv = dict(
+            PIXPROD = None,
+            SPECPROD = None,
+            DESI_SPECTRO_SIM = None,
+            DESI_SPECTRO_DATA = None,
+            DESI_SPECTRO_REDUX = None,
+        )
+        self.testEnv = dict(
+            PIXPROD = pixprod,
+            SPECPROD = pixprod,
+            DESI_SPECTRO_SIM = os.path.join(self.testdir,'spectro','sim'),
+            DESI_SPECTRO_DATA = os.path.join(self.testdir,'spectro','sim', pixprod),
+            DESI_SPECTRO_REDUX = os.path.join(self.testdir,'spectro','redux'),
+            )
+        for e in self.origEnv:
+            if e in os.environ:
+                self.origEnv[e] = os.environ[e]
+            os.environ[e] = self.testEnv[e]
+
         self.night = '20150105'
         self.expid = 124
         for expid in (self.expid, self.expid+1):
@@ -80,22 +63,12 @@ class TestPixsim(unittest.TestCase):
                 os.makedirs(pixdir)
 
     def tearDown(self):
-        rawfile = desispec.io.findfile('raw', self.night, self.expid)
-        if os.path.exists(rawfile):
-            os.remove(rawfile)
-        fibermap = desispec.io.findfile('fibermap', self.night, self.expid)
-        if os.path.exists(fibermap):
-            os.remove(fibermap)
-        simspecfile = io.findfile('simspec', self.night, self.expid)
-        if os.path.exists(simspecfile):
-            os.remove(simspecfile)
-        simpixfile = io.findfile('simpix', self.night, self.expid)
-        if os.path.exists(simpixfile):
-            os.remove(simpixfile)
-        for camera in ('b0', 'r0', 'z0'):
-            pixfile = desispec.io.findfile('preproc', self.night, self.expid, camera=camera)
-            if os.path.exists(pixfile):
-                os.remove(pixfile)
+        for e in self.origEnv:
+            if self.origEnv[e] is None:
+                os.environ.pop(e, None)
+            else:
+                os.environ[e] = self.origEnv[e]
+        self._tempdir.cleanup()
 
 
     @unittest.skipUnless(desi_root_available, '$DESI_ROOT not set')

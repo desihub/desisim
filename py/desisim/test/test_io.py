@@ -1,6 +1,6 @@
 import unittest, os
 from uuid import uuid1
-from shutil import rmtree
+import tempfile
 
 import numpy as np
 
@@ -14,36 +14,29 @@ desi_basis_templates_available = 'DESI_BASIS_TEMPLATES' in os.environ
 
 class TestIO(unittest.TestCase):
 
-    #- Create unique test filename in a subdirectory
-    @classmethod
-    def setUpClass(cls):
-        cls.testfile = 'test-{uuid}/test-{uuid}.fits'.format(uuid=uuid1())
-        cls.testDir = os.path.join(os.environ['HOME'],'desi_test_io')
-        cls.origEnv = dict(PIXPROD = None, DESI_SPECTRO_SIM = None)
-        cls.testEnv = dict(
+    #- Create a unique test directory and filename for each test method
+    def setUp(self):
+        self._tempdir = tempfile.TemporaryDirectory(prefix='desi_test_io-')
+        self.testDir = self._tempdir.name
+        self.testfile = os.path.join(self.testDir, 'test-{uuid}.fits'.format(uuid=uuid1()))
+        self.origEnv = dict(PIXPROD = None, DESI_SPECTRO_SIM = None)
+        self.testEnv = dict(
             PIXPROD = 'test',
-            DESI_SPECTRO_SIM = os.path.join(cls.testDir,'spectro','sim'),
+            DESI_SPECTRO_SIM = os.path.join(self.testDir,'spectro','sim'),
             )
-        for e in cls.origEnv:
+        for e in self.origEnv:
             if e in os.environ:
-                cls.origEnv[e] = os.environ[e]
-            os.environ[e] = cls.testEnv[e]
+                self.origEnv[e] = os.environ[e]
+            os.environ[e] = self.testEnv[e]
 
-    #- Cleanup test files if they exist
-    @classmethod
-    def tearDownClass(cls):
-        if os.path.exists(cls.testfile):
-            os.remove(cls.testfile)
-            testpath = os.path.normpath(os.path.dirname(cls.testfile))
-            if testpath != '.':
-                os.removedirs(testpath)
-        for e in cls.origEnv:
-            if cls.origEnv[e] is None:
-                del os.environ[e]
+    #- Cleanup test files and restore environment
+    def tearDown(self):
+        for e in self.origEnv:
+            if self.origEnv[e] is None:
+                os.environ.pop(e, None)
             else:
-                os.environ[e] = cls.origEnv[e]
-        if os.path.exists(cls.testDir):
-            rmtree(cls.testDir)
+                os.environ[e] = self.origEnv[e]
+        self._tempdir.cleanup()
 
     def test_simdir(self):
         x = io.simdir()

@@ -3,7 +3,7 @@ Run unit tests through quickgen
 """
 import unittest, os, sys
 from uuid import uuid1
-from shutil import rmtree
+import tempfile
 import subprocess
 
 from astropy.io import fits
@@ -55,31 +55,9 @@ class TestQuickgen(unittest.TestCase):
             log.critical("missing env vars; exiting without running pipeline")
             sys.exit(1)
 
-    #- Create test subdirectory
+    #- Locate quickgen script once for this test class
     @classmethod
     def setUpClass(cls):
-        global desi_templates_available
-        cls.testfile = 'test-{uuid}/test-{uuid}.fits'.format(uuid=uuid1())
-        cls.testDir = os.path.join(os.environ['HOME'],'desi_test_io')
-
-        cls.origEnv = dict(
-            PIXPROD = None,
-            SPECPROD = None,
-            DESI_SPECTRO_SIM = None,
-            DESI_SPECTRO_DATA = None,
-            DESI_SPECTRO_REDUX = None,
-        )
-        cls.testEnv = dict(
-            PIXPROD = 'test-quickgen',
-            SPECPROD = 'test-quickgen',
-            DESI_SPECTRO_SIM = os.path.join(cls.testDir,'spectro','sim'),
-            DESI_SPECTRO_DATA = os.path.join(cls.testDir,'spectro','sim', 'test-quickgen'),
-            DESI_SPECTRO_REDUX = os.path.join(cls.testDir,'spectro','redux'),
-            )
-        for e in cls.origEnv:
-            if e in os.environ:
-                cls.origEnv[e] = os.environ[e]
-            os.environ[e] = cls.testEnv[e]
         if desi_templates_available:
             cls.cosmics = (os.environ['DESI_ROOT'] +
                 '/spectro/templates/cosmics/v0.3/cosmics-bias-r.fits')
@@ -109,46 +87,39 @@ class TestQuickgen(unittest.TestCase):
             raise RuntimeError('Unable to auto-locate desisim/bin/quickgen from {}'.format(__file__))
 
     def setUp(self):
+        self._tempdir = tempfile.TemporaryDirectory(prefix='desi_test_quickgen-')
+        self.testDir = self._tempdir.name
+        pixprod = 'test-quickgen-{}'.format(uuid1().hex)
+
+        self.origEnv = dict(
+            PIXPROD = None,
+            SPECPROD = None,
+            DESI_SPECTRO_SIM = None,
+            DESI_SPECTRO_DATA = None,
+            DESI_SPECTRO_REDUX = None,
+        )
+        self.testEnv = dict(
+            PIXPROD = pixprod,
+            SPECPROD = pixprod,
+            DESI_SPECTRO_SIM = os.path.join(self.testDir, 'spectro', 'sim'),
+            DESI_SPECTRO_DATA = os.path.join(self.testDir, 'spectro', 'sim', pixprod),
+            DESI_SPECTRO_REDUX = os.path.join(self.testDir, 'spectro', 'redux'),
+        )
+        for e in self.origEnv:
+            if e in os.environ:
+                self.origEnv[e] = os.environ[e]
+            os.environ[e] = self.testEnv[e]
+
         self.night = '20150105'
         self.expid = 124
 
-    #- Cleanup test files if they exist
-    @classmethod
-    def tearDownClass(cls):
-        if os.path.exists(cls.testfile):
-            os.remove(cls.testfile)
-            testpath = os.path.normpath(os.path.dirname(cls.testfile))
-            if testpath != '.':
-                os.removedirs(testpath)
-        for e in cls.origEnv:
-            if cls.origEnv[e] is None:
-                del os.environ[e]
-            else:
-                os.environ[e] = cls.origEnv[e]
-        if os.path.exists(cls.testDir):
-            rmtree(cls.testDir)
-
     def tearDown(self):
-        for expid in [self.expid, 100, 101, 102]:
-            fibermap = io.findfile('simfibermap', self.night, expid)
-            if os.path.exists(fibermap):
-                os.remove(fibermap)
-            simspecfile = io.findfile('simspec', self.night, expid)
-            if os.path.exists(simspecfile):
-                os.remove(simspecfile)
-            for camera in ('b0', 'r0', 'z0'):
-                framefile = desispec.io.findfile('frame', self.night, expid, camera=camera)
-                if os.path.exists(framefile):
-                    os.remove(framefile)
-                cframefile = desispec.io.findfile('cframe', self.night, expid, camera=camera)
-                if os.path.exists(cframefile):
-                    os.remove(cframefile)
-                skyfile = desispec.io.findfile('sky', self.night, expid, camera=camera)
-                if os.path.exists(skyfile):
-                    os.remove(skyfile)
-                fluxcalibfile = desispec.io.findfile('calib', self.night, expid, camera=camera)
-                if os.path.exists(fluxcalibfile):
-                    os.remove(fluxcalibfile)
+        for e in self.origEnv:
+            if self.origEnv[e] is None:
+                os.environ.pop(e, None)
+            else:
+                os.environ[e] = self.origEnv[e]
+        self._tempdir.cleanup()
 
     def test_parse(self):
         night = self.night
