@@ -118,6 +118,8 @@ napoleon_include_private_with_doc = True
 # This value contains a list of modules to be mocked up. This is useful when
 # some external dependencies are not met at build time and break the
 # building process.
+# Note: desitarget 3.2.0 removed desitarget.mock.mockmaker but this has not yet
+# been removed from quickgalaxies and quicktransients, so we mock the submodules here for now.
 autodoc_mock_imports = []
 for missing in ('astropy', 'desimodel', 'desiutil', 'desispec', 'desisurvey',
                 'desitarget', 'desitarget.mock', 'desitarget.mock.mockmaker',
