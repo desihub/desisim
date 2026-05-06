@@ -763,8 +763,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             # separate transmission arrays (one for Lya and one for HCDs) in memory simultaneously, increasing memory consumption.
             metal_wave = trans_wave_hcd if args.no_transmission else trans_wave
             metal_trans = transmission_hcd if args.no_transmission else transmission
-            metal_wave = trans_wave_hcd if args.no_transmission else trans_wave
-            metal_trans = transmission_hcd if args.no_transmission else transmission
             lstMetals = ', '.join(args.metals)
             log.info("Applying metals: {}".format(lstMetals))
             if args.no_transmission:
