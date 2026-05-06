@@ -738,7 +738,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         tmp_qso_flux = apply_lya_transmission(
             tmp_qso_wave, tmp_qso_flux, trans_wave, transmission)
     elif args.dla is not None:
-        # HCD-only mock: skip Lya continuum but still apply DLA/HCD transmission
+        # HCD-only mock: skip Lya transmission but still apply DLA/HCD transmission
         log.info("Applying HCD-only transmission (--no-transmission mode)")
         tmp_qso_flux = apply_lya_transmission(
             tmp_qso_wave, tmp_qso_flux, trans_wave_hcd, transmission_hcd)
@@ -750,6 +750,19 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         if args.no_transmission and args.dla is None:
             log.warning("--metals requested with --no-transmission and no DLAs; skipping metals.")
         else:
+            # Notes from HKH — BUG WARNING: HCDs leak into metal transmission
+            # apply_metals_transmission derives the metal optical depth as tau = -ln(trans), then
+            # computes metal transmission as exp(-coef * tau) per absorber. If trans already contains
+            # HCD absorption (DLA damping wings), those features are folded into tau and therefore
+            # into every metal's transmission — even lines that should have no damping wings (e.g. SiII, SiIII).
+            # The HCD-only + metals mode (--no-transmission + --dla + --metals) was added to make
+            # this behaviour explicit and inspectable: it mimics the normal-mode coupling so the
+            # contamination can be measured in isolation.
+            # Fix requires passing a pure Lya-only transmission (no HCDs) as the base for apply_metals_transmission,
+            # but this is non-trivial given the current code structure: it would likely require keeping two
+            # separate transmission arrays (one for Lya and one for HCDs) in memory simultaneously, increasing memory consumption.
+            metal_wave = trans_wave_hcd if args.no_transmission else trans_wave
+            metal_trans = transmission_hcd if args.no_transmission else transmission
             metal_wave = trans_wave_hcd if args.no_transmission else trans_wave
             metal_trans = transmission_hcd if args.no_transmission else transmission
             lstMetals = ', '.join(args.metals)
