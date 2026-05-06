@@ -531,7 +531,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
     # if requested, add DLA to the transmission skewers
     if args.dla is not None :
-
+        # Initialize HCD-only transmission array (ones = no absorption by default)
+        transmission_hcd = np.ones_like(transmission)
         # if adding random DLAs, we will need a new random generator
         if args.dla=='random':
             log.info('Adding DLAs randomly')
@@ -575,7 +576,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
             # multiply transmissions and store information for the DLA file
             if len(dlas)>0:
-                transmission[ii] = transmission_dla * transmission[ii]
+                transmission_hcd[ii] = transmission_dla  # store DLA-only transmission
+                trans_wave_hcd = trans_wave.copy()
+                transmission[ii] = transmission_dla * transmission[ii]  # keep existing behavior
                 dla_z += [idla['z'] for idla in dlas]
                 dla_NHI += [idla['N'] for idla in dlas]
                 dla_id += [idla['dlaid'] for idla in dlas]
@@ -732,22 +735,34 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     if not args.no_transmission:
         tmp_qso_flux = apply_lya_transmission(tmp_qso_wave,tmp_qso_flux,
                             trans_wave,transmission)
-
+    elif args.dla is not None:
+        # Always apply HCD-only transmission if DLAs were added,
+        # even when --no-transmission is set (for HCD-only mocks)
+        log.info("Applying HCD-only transmission (--no-transmission mode)")
+        tmp_qso_flux = apply_lya_transmission(tmp_qso_wave, tmp_qso_flux,
+                            trans_wave_hcd, transmission_hcd)
+        
+        if args.metals is not None:
+            log.warning("Adding metals on top of HCD-only transmission.")
+            tmp_qso_flux = apply_metals_transmission(tmp_qso_wave,tmp_qso_flux,
+                                                     trans_wave_hcd,transmission_hcd,args.metals,mocktype=args.raw_mock,strengths=args.metal_strengths)
+            
     # if requested, compute metal transmission on the fly
     # (if not included already from the transmission file)
     if args.metals is not None:
         if args.metals_from_file :
             log.error('you cannot add metals twice')
             raise ValueError('you cannot add metals twice')
-        if args.no_transmission:
-            log.error('you cannot add metals if asking for no-transmission')
-            raise ValueError('can not add metals if using no-transmission')
-        lstMetals = ''
-        for m in args.metals: lstMetals += m+', '
-        log.info("Apply metals: {}".format(lstMetals[:-2]))
+        if not args.no_transmission:
+            #log.error('you cannot add metals if asking for no-transmission')
+            #raise ValueError('can not add metals if using no-transmission')
+            lstMetals = ''
+            for m in args.metals: lstMetals += m+', '
+            log.info("Apply metals: {}".format(lstMetals[:-2]))
 
-        tmp_qso_flux = apply_metals_transmission(tmp_qso_wave,tmp_qso_flux,
-                            trans_wave,transmission,args.metals,mocktype=args.raw_mock,strengths=args.metal_strengths)
+            tmp_qso_flux = apply_metals_transmission(tmp_qso_wave,tmp_qso_flux,
+                                trans_wave,transmission,args.metals,mocktype=args.raw_mock,strengths=args.metal_strengths)
+                
         
     # Attenuate the spectra for extinction
     if not sfdmap is None:
