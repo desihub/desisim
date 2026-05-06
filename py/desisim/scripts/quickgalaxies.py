@@ -2,7 +2,6 @@
 desisim.scripts.quickgalaxies
 =============================
 """
-from __future__ import absolute_import, division, print_function
 
 import healpy as hp
 import numpy as np
@@ -17,7 +16,8 @@ from astropy.table import Table, vstack
 
 from desisim.templates import BGS
 from desisim.scripts.quickspectra import sim_spectra
-from desitarget.mock.mockmaker import BGSMaker
+from desitarget.mock.mockmaker import BGSMaker  # requires desitarget<=3.2.0
+
 from desitarget.cuts import isBGS_colors
 from desiutil.log import get_logger, DEBUG
 

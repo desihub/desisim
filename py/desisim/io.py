@@ -5,8 +5,6 @@ desisim.io
 I/O routines for desisim
 """
 
-from __future__ import absolute_import, division, print_function
-
 import os
 import time
 from glob import glob
@@ -123,9 +121,10 @@ def write_simspec(sim, truth, fibermap, obs, expid, night, objmeta=None,
     from desiutil.log import get_logger
     log = get_logger()
 
-    import warnings
     warnings.filterwarnings("ignore", message=".*Dex.* did not parse as fits unit")
     warnings.filterwarnings("ignore", message=".*nanomaggies.* did not parse as fits unit")
+    warnings.filterwarnings("ignore", message=".*nmgy.* did not parse as fits unit")
+    warnings.filterwarnings("ignore", message=".*nmgy.* could not be saved")
     warnings.filterwarnings("ignore", message=r".*10\*\*6 arcsec.* did not parse as fits unit")
 
     if filename is None:
@@ -278,9 +277,10 @@ def write_simspec_arc(filename, wave, phot, header, fibermap, overwrite=False):
     import astropy.table
     import astropy.units as u
 
-    import warnings
     warnings.filterwarnings("ignore", message=".*Dex.* did not parse as fits unit")
     warnings.filterwarnings("ignore", message=".*nanomaggies.* did not parse as fits unit")
+    warnings.filterwarnings("ignore", message=".*nmgy.* did not parse as fits unit")
+    warnings.filterwarnings("ignore", message=".*nmgy.* could not be saved")
     warnings.filterwarnings("ignore", message=r".*10\*\*6 arcsec.* did not parse as fits unit")
                     
     hx = fits.HDUList()
@@ -430,7 +430,7 @@ def fibers2cameras(fibers):
     cameras = list()
     for spectrograph in range(10):
         ii = np.arange(500) + spectrograph*500
-        if np.any(np.in1d(ii, fibers)):
+        if np.any(np.isin(ii, fibers)):
             for channel in ['b', 'r', 'z']:
                 cameras.append(channel + str(spectrograph))
     return cameras
@@ -531,7 +531,7 @@ def read_simspec(filename, cameras=None, comm=None, readflux=True, readphot=True
     for camera in cameras:
         spectrograph = int(camera[1])   #- e.g. b0
         fibers = np.arange(500, dtype=int) + spectrograph*500
-        ii |= np.in1d(fibermap['FIBER'], fibers)
+        ii |= np.isin(fibermap['FIBER'], fibers)
 
     assert np.any(ii), "input simspec doesn't cover cameras {}".format(cameras)
 

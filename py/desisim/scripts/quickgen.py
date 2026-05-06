@@ -47,7 +47,6 @@ Quickgen quickly simulates pipeline outputs if given input files.
     zrange-qso, zrange-elg, zrange-lrg, zrange-bgs, sne-rfluxratiorange,
     add-SNeIa
 """
-from __future__ import absolute_import, division, print_function
 
 import argparse
 import astropy.units as u

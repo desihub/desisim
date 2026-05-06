@@ -4,7 +4,6 @@ desisim.obs
 
 Utility functions related to simulating observations for DESI
 """
-from __future__ import absolute_import, division, print_function
 
 import os, sys
 import numpy as np

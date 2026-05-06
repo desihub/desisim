@@ -6,7 +6,6 @@ Module to run high_level QA on a given DESI run
 
 Written by JXP on 3 Sep 2015
 """
-from __future__ import print_function, absolute_import, division
 
 import matplotlib
 # matplotlib.use('Agg')
@@ -323,8 +322,8 @@ def match_truth_z(simz_tab, zb_tab, mini_read=False, outfil=None):
     # Match up
     sim_id = np.array(simz_tab['TARGETID'])
     z_id = np.array(zb_tab['TARGETID'])
-    inz = np.in1d(z_id,sim_id,assume_unique=True)
-    ins = np.in1d(sim_id,z_id,assume_unique=True)
+    inz = np.isin(z_id,sim_id,assume_unique=True)
+    ins = np.isin(sim_id,z_id,assume_unique=True)
 
     z_idx = np.arange(z_id.shape[0])[inz]
     sim_idx = np.arange(sim_id.shape[0])[ins]
@@ -1126,7 +1125,7 @@ def dz_summ(simz_tab, outfile=None, pdict=None, min_count=20):
             if col > 0:
                 plt.setp([axis.get_yticklabels()], visible=False)
             else:
-                axis.set_ylabel('Redshift fit residual $\Delta v$ [km/s]')
+                axis.set_ylabel(r'Redshift fit residual $\Delta v$ [km/s]')
 
             #if row < nrows - 1:
             #    plt.setp([axis.get_xticklabels()], visible=False)

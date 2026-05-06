@@ -5,7 +5,6 @@ desisim.bal
 Functions and methods for inserting BALs into QSO spectra.
 
 """
-from __future__ import division, print_function
 
 import numpy as np
 

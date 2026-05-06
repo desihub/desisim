@@ -5,7 +5,6 @@ desisim.lya_spectra
 Function to simulate a QSO spectrum including Lyman-alpha absorption.
 
 """
-from __future__ import division, print_function
 
 import numpy as np
 from desisim.dla import insert_dlas
@@ -276,7 +275,7 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals,mocktype
         nolstMetals = ''
         for m in absorber_IGM.keys():
             lstMetals += m+', '
-        for m in np.array(metals)[~np.in1d(metals,[mm for mm in absorber_IGM.keys()])]:
+        for m in np.array(metals)[~np.isin(metals,[mm for mm in absorber_IGM.keys()])]:
             nolstMetals += m+', '
         raise Exception("Input metals {} are not in the list, available metals are {}".format(nolstMetals[:-2],lstMetals[:-2])) from e
     except TypeError as e:
@@ -422,15 +421,14 @@ def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss
                     dla_NHI += [idla['N'] for idla in dlas]
                     dla_id += [indx]*ndla
 
-        padflux, padwave = normfilt.pad_spectrum(flux1, wave, method='edge')
-        normmaggies = np.array(normfilt.get_ab_maggies(padflux, padwave,
-                                                       mask_invalid=True)[normfilter])
+        padflux, padwave = normfilt.pad_spectrum(flux1[0], wave, method='edge')
+        normmaggies = normfilt.get_ab_maggies(padflux, padwave, mask_invalid=True)[normfilter][0]
 
         factor = 10**(-0.4 * mag_g[ii]) / normmaggies
         flux1 *= factor
         for key in ('FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2'):
             meta[key][ii] *= factor
-        flux[ii, :] = flux1[:]
+        flux[ii, :] = flux1[0]
 
     h.close()
 

@@ -6,7 +6,6 @@ Module for generate QSO PCA templates
 
 24-Nov-2014 by JXP
 """
-from __future__ import print_function, absolute_import, division
 
 import numpy as np
 import os

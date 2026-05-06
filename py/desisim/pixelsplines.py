@@ -6,7 +6,6 @@ Pixel-integrated spline utilities.
 
 Written by A. Bolton, U. of Utah, 2010-2013.
 """
-from __future__ import absolute_import, division, print_function
 
 import numpy as n
 from scipy import linalg as la

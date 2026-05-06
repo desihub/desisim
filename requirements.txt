@@ -1,28 +1,30 @@
 pytz
 requests
 # Ensure scipy dependency does not bring in a recent version of numpy.
-scipy<1.9
+### scipy<1.9
+scipy
 # The version of astropy will be reset by GitHub Actions tests.
 astropy
 # Ensure compatibility with numpy <1.23.
-numba<0.60
+### numba<0.60
+numba
 # Ensure compatibility with numpy <1.23.
-matplotlib<3.9
+### matplotlib<3.9
+matplotlib
 healpy
 # It is becoming difficult to install speclite and specsim directly from
 # git+https, so installing from PyPI is definitely preferred here.
+# Update 2025-09-08: get specsim/main from github pending new tag
 speclite
-specsim
-# The version of fitsio will be reset by GitHub Actions tests.
 fitsio
 # Install desiutil separately since it is needed for the other installs.
 # git+https://github.com/desihub/desiutil.git@3.1.0#egg=desiutil
-git+https://github.com/desihub/specter.git@0.9.4#egg=specter
-git+https://github.com/desihub/desimodel.git@0.18.0#egg=desimodel
+git+https://github.com/desihub/specter.git@main#egg=specter
+git+https://github.com/desihub/desimodel.git@main#egg=desimodel
 # Don't forget to install desimodel test data.
-git+https://github.com/desihub/desispec.git@0.36.1#egg=desispec
+git+https://github.com/desihub/desispec.git@main#egg=desispec
 # git+https://github.com/desihub/desitarget.git@0.50.0#egg=desitarget
 git+https://github.com/desihub/desitarget.git@main#egg=desitarget
-# git+https://github.com/desihub/specsim.git@main#egg=specsim
+git+https://github.com/desihub/specsim.git@main#egg=specsim
 # simqso install script requires numpy, so install separately.
 # git+https://github.com/imcgreer/simqso.git@v1.2.4#egg=simqso

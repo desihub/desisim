@@ -6,7 +6,6 @@ Module for Fitting PCA to the BOSS QSOs
 
 01-Dec-2014 by JXP
 """
-from __future__ import print_function, absolute_import, division
 
 import numpy as np
 import os

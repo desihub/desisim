@@ -1,5 +1,3 @@
-from __future__ import absolute_import, division, print_function
-
 import sys
 import os.path
 import warnings
@@ -423,7 +421,6 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, redshift=Non
     # desi = specsim.simulator.Simulator(config, num_fibers=nspec)
     desi = desisim.specsim.get_simulator(config, num_fibers=nspec,
         camera_output=psfconvolve)
-
     if obsconditions is None:
         log.warning('Assuming DARK conditions')
         obsconditions = reference_conditions['DARK']
@@ -450,7 +447,7 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, redshift=Non
     #- Set fiber locations from meta Table or default fiberpos
     fiberpos = desimodel.io.load_fiberpos()
     if fibermap is not None and len(fiberpos) != len(fibermap):
-        ii = np.in1d(fiberpos['FIBER'], fibermap['FIBER'])
+        ii = np.isin(fiberpos['FIBER'], fibermap['FIBER'])
         fiberpos = fiberpos[ii]
 
     if fibermap is None:
@@ -614,7 +611,7 @@ def _specsim_config_for_wave(wave, dwave_out=None, specsim_config_file = "desi")
 
     config = specsim.config.load_config(specsim_config_file)
     config.wavelength_grid.min = wave[0]
-    config.wavelength_grid.max = wave[-1] + dwave/2.0
+    config.wavelength_grid.max = wave[-1] + dwave*1e-6
     config.wavelength_grid.step = dwave
 
     if dwave_out is None:
@@ -789,7 +786,7 @@ def get_mock_spectra(fiberassign, mockdir=None, nside=64, obscon=None):
                         obscon=obscon)):
 
         #- Sky fibers aren't in the truth files
-        ok = ~np.in1d(targetids, skyids)
+        ok = ~np.isin(targetids, skyids)
 
         tmpflux, tmpwave, tmpmeta, tmpobjmeta = read_mock_spectra(truthfile, targetids[ok])
 
@@ -803,7 +800,7 @@ def get_mock_spectra(fiberassign, mockdir=None, nside=64, obscon=None):
             for key in tmpobjmeta.keys():
                 objmeta[key] = list()
 
-        ii = np.in1d(fiberassign['TARGETID'], tmpmeta['TARGETID'])
+        ii = np.isin(fiberassign['TARGETID'], tmpmeta['TARGETID'])
         flux[ii] = tmpflux
         meta[ii] = tmpmeta
         assert np.all(wave == tmpwave)
@@ -879,18 +876,18 @@ def read_mock_spectra(truthfile, targetids, mockdir=None):
             if extname in fx:
                 objtruth[obj] = fx[extname].read()
 
-    missing = np.in1d(targetids, truth['TARGETID'], invert=True)
+    missing = np.isin(targetids, truth['TARGETID'], invert=True)
     if np.any(missing):
         missingids = targetids[missing]
         raise ValueError('Targets missing from {}: {}'.format(truthfile, missingids))
 
     #- Trim to just the spectra for these targetids
-    ii = np.in1d(truth['TARGETID'], targetids)
+    ii = np.isin(truth['TARGETID'], targetids)
     flux = flux[ii]
     truth = truth[ii]
     if bool(objtruth):
         for obj in objtruth.keys():
-            ii = np.in1d(objtruth[obj]['TARGETID'], targetids)
+            ii = np.isin(objtruth[obj]['TARGETID'], targetids)
             objtruth[obj] = objtruth[obj][ii]
 
     assert set(targetids) == set(truth['TARGETID'])

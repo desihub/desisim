@@ -6,12 +6,10 @@ Code for quickly generating an output zcatalog given fiber assignment tiles,
 a truth catalog, and optionally a previous zcatalog.
 '''
 
-from __future__ import absolute_import, division, print_function
-
 import os
 import yaml
 from collections import Counter
-from pkg_resources import resource_filename
+from importlib import resources
 from time import asctime
 
 import numpy as np
@@ -29,6 +27,8 @@ from desitarget.targetmask import desi_mask, bgs_mask, mws_mask
 
 from desiutil.log import get_logger
 log = get_logger()
+
+from desisim.util import hadec2airmass
 
 #- redshift errors, zwarn, cata fail rate fractions from
 #- /project/projectdirs/desi/datachallenge/redwood/spectro/redux/redwood/
@@ -188,10 +188,10 @@ def get_redshift_efficiency(simtype, targets, truth, targets_in_tile, obsconditi
     
     if (simtype == 'ELG'):
         # Read the model OII flux threshold (FDR fig 7.12 modified to fit redmonster efficiency on OAK)
-        # filename = resource_filename('desisim', 'data/quickcat_elg_oii_flux_threshold.txt')
+        # filename = str(resources.files('desisim').joinpath('data', 'quickcat_elg_oii_flux_threshold.txt'))
         
         # Read the model OII flux threshold (FDR fig 7.12)
-        filename = resource_filename('desisim', 'data/elg_oii_flux_threshold_fdr.txt')
+        filename = str(resources.files('desisim').joinpath('data', 'elg_oii_flux_threshold_fdr.txt'))
         fdr_z, modified_fdr_oii_flux_threshold = np.loadtxt(filename, unpack=True)
         
         # Compute OII flux thresholds for truez
@@ -360,7 +360,7 @@ def get_observed_redshifts(targets, truth, targets_in_tile, obsconditions, param
     
     if parameter_filename is None :
         # Load efficiency parameters yaml file
-        parameter_filename = resource_filename('desisim', 'data/quickcat.yaml')
+        parameter_filename = str(resources.files('desisim').joinpath('data', 'quickcat.yaml'))
     
     params=None
     with open(parameter_filename,"r") as file :
@@ -522,7 +522,7 @@ def get_median_obsconditions(tileids):
     import desimodel.io
     tiles = desimodel.io.load_tiles()
     tileids = np.asarray(tileids)
-    ii = np.in1d(tiles['TILEID'], tileids)
+    ii = np.isin(tiles['TILEID'], tileids)
 
     tiles = tiles[ii]
     assert len(tiles) == len(tileids)
@@ -535,33 +535,32 @@ def get_median_obsconditions(tileids):
     tiles = tiles[j[k]]
     assert np.all(tiles['TILEID'] == tileids)
 
-    #- fix type bug after reading desi-tiles.fits
-    if tiles['OBSCONDITIONS'].dtype == np.float64:
-        tiles = Table(tiles)
-        tiles.replace_column('OBSCONDITIONS', tiles['OBSCONDITIONS'].astype(int))
-
     n = len(tileids)
+
+    #- ensure UPPERCASE just in case
+    program = np.char.upper(tiles['PROGRAM'])
 
     obsconditions = Table()
     obsconditions['TILEID'] = tileids
-    obsconditions['AIRMASS'] = tiles['AIRMASS']
+    obsconditions['AIRMASS'] = hadec2airmass(tiles['DESIGNHA'], tiles['DEC'])
     obsconditions['EBMV'] = tiles['EBV_MED']
     obsconditions['LINTRANS'] = np.ones(n)
     obsconditions['SEEING'] = np.ones(n) * 1.1
 
     #- Add lunar conditions, defaulting to dark time
-    from desitarget.targetmask import obsconditions as obsbits
     obsconditions['MOONFRAC'] = np.zeros(n)
     obsconditions['MOONALT'] = -20.0 * np.ones(n)
     obsconditions['MOONSEP'] = 180.0 * np.ones(n)
 
-    ii = (tiles['OBSCONDITIONS'] & obsbits.GRAY) != 0
-    obsconditions['MOONFRAC'][ii] = 0.1
-    obsconditions['MOONALT'][ii] = 10.0
-    obsconditions['MOONSEP'][ii] = 60.0
-
-    ii = (tiles['OBSCONDITIONS'] & obsbits.BRIGHT) != 0
+    #- bright, bright1b programs
+    ii = np.char.startswith(program, 'BRIGHT')
     obsconditions['MOONFRAC'][ii] = 0.7
+    obsconditions['MOONALT'][ii] = 60.0
+    obsconditions['MOONSEP'][ii] = 50.0
+
+    #- backup program
+    ii = np.char.startswith(program, 'BACKUP')
+    obsconditions['MOONFRAC'][ii] = 1.0
     obsconditions['MOONALT'][ii] = 60.0
     obsconditions['MOONSEP'][ii] = 50.0
 
@@ -615,7 +614,7 @@ def quickcat(tilefiles, targets, truth, fassignhdu='FIBERASSIGN', zcat=None, obs
 
     #- Trim obsconditions to just the tiles that were observed
     if obsconditions is not None:
-        ii = np.in1d(obsconditions['TILEID'], tileids)
+        ii = np.isin(obsconditions['TILEID'], tileids)
         if np.any(ii == False):
             obsconditions = obsconditions[ii]
         assert len(obsconditions) > 0
@@ -635,7 +634,7 @@ def quickcat(tilefiles, targets, truth, fassignhdu='FIBERASSIGN', zcat=None, obs
     #- Trim truth down to just ones that have already been observed
     log.info('{} QC Trimming truth to just observed targets'.format(asctime()))
     obs_targetids = np.array(list(nobs.keys()))
-    iiobs = np.in1d(truth['TARGETID'], obs_targetids)
+    iiobs = np.isin(truth['TARGETID'], obs_targetids)
     truth = truth[iiobs]
     targets = targets[iiobs]
 
@@ -684,15 +683,15 @@ def quickcat(tilefiles, targets, truth, fassignhdu='FIBERASSIGN', zcat=None, obs
         zcat = zcat.copy()
 
         # needed to have the same ordering both in zcat and newzcat
-        # to ensure consistent use of masks from np.in1d()
+        # to ensure consistent use of masks from np.isin()
         zcat.sort(keys='TARGETID')
         newzcat.sort(keys='TARGETID') 
         
         #- targets that are in both zcat and newzcat
-        repeats = np.in1d(zcat['TARGETID'], newzcat['TARGETID'])
+        repeats = np.isin(zcat['TARGETID'], newzcat['TARGETID'])
 
         #- update numobs in both zcat and newzcat
-        ii = np.in1d(newzcat['TARGETID'], zcat['TARGETID'][repeats])
+        ii = np.isin(newzcat['TARGETID'], zcat['TARGETID'][repeats])
         orig_numobs = zcat['NUMOBS'][repeats].copy()
         new_numobs = newzcat['NUMOBS'][ii].copy()
         zcat['NUMOBS'][repeats] += new_numobs
@@ -701,15 +700,15 @@ def quickcat(tilefiles, targets, truth, fassignhdu='FIBERASSIGN', zcat=None, obs
         #- replace only repeats that had ZWARN flags in original zcat
         #- replace in new
         replace = repeats & (zcat['ZWARN'] != 0)
-        jj = np.in1d(newzcat['TARGETID'], zcat['TARGETID'][replace])
+        jj = np.isin(newzcat['TARGETID'], zcat['TARGETID'][replace])
         zcat[replace] = newzcat[jj]
 
         #- trim newzcat to ones that shouldn't override original zcat
-        discard = np.in1d(newzcat['TARGETID'], zcat['TARGETID'])
+        discard = np.isin(newzcat['TARGETID'], zcat['TARGETID'])
         newzcat = newzcat[~discard]
 
         #- Should be non-overlapping now
-        assert np.all(np.in1d(zcat['TARGETID'], newzcat['TARGETID']) == False)
+        assert np.all(np.isin(zcat['TARGETID'], newzcat['TARGETID']) == False)
 
         #- merge them
         newzcat = vstack([zcat, newzcat])

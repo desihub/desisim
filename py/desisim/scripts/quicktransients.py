@@ -11,7 +11,7 @@ from datetime import datetime
 from desisim.templates import BGS, ELG, LRG
 from desisim.transients import transients
 
-from desitarget.mock.mockmaker import BGSMaker, ELGMaker, LRGMaker
+from desitarget.mock.mockmaker import BGSMaker, ELGMaker, LRGMaker  # requires desitarget<=3.2.0
 from desitarget.cuts import isBGS_colors, isELG_colors, isLRG_colors
 
 from desisim.simexp import reference_conditions

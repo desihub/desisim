@@ -1,4 +1,3 @@
-from __future__ import absolute_import, division, print_function
 import sys, os
 import numpy as np
 from astropy.table import Table

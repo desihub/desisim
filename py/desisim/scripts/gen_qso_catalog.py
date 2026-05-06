@@ -31,7 +31,7 @@ def main():
     parser.add_argument("--zmax", type=float, default=10.0, required=False,
                         help='Maximum redshift')
                     
-    parser.add_argument("--release", type=str, default='jura', choices=['iron','jura','Y5'], required=False,
+    parser.add_argument("--release", type=str, default='loa', required=False,
                         help='DESI survey release to reproduce')
     
     parser.add_argument("--include-nonqso-targets", action='store_true', default=False, 

@@ -5,8 +5,6 @@ desisim.specsim
 DESI wrapper functions for external specsim classes.
 '''
 
-from __future__ import absolute_import, division, print_function
-
 #- Cached simulators, keyed by config string
 _simulators = dict()
 
