@@ -525,88 +525,6 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         np.random.set_state(rnd_state)
         assert not np.any(mags==0)
 
-    # In previous versions of the London mocks we needed to enforce F=1 for
-    # z > z_qso here, but this is not needed anymore. Moreover, now we also
-    # have metal absorption that implies F < 1 for z > z_qso
-    #for ii in range(len(metadata)):
-    #    transmission[ii][trans_wave>lambda_RF_LYA*(metadata[ii]['Z']+1)]=1.0
-
-    # if requested, add DLA to the transmission skewers
-    if args.dla is not None :
-        # Initialize HCD-only transmission array (ones = no absorption by default)
-        transmission_hcd = np.ones_like(transmission)
-        # if adding random DLAs, we will need a new random generator
-        if args.dla=='random':
-            log.info('Adding DLAs randomly')
-            random_state_just_for_dlas = np.random.RandomState(seed)
-        elif args.dla=='file':
-            log.info('Adding DLAs from transmission file')
-        else:
-            log.error("Wrong option for args.dla: "+args.dla)
-            sys.exit(1)
-
-        # if adding DLAs, the information will be printed here
-        dla_filename=os.path.join(pixdir,"dla-{}-{}.fits".format(nside,pixel))
-        dla_NHI, dla_z, dla_qid,dla_id = [], [], [],[]
-
-        # identify minimum Lya redshift in transmission files
-        min_lya_z = np.min(trans_wave/lambda_RF_LYA - 1)
-
-        # loop over quasars in pixel
-
-        for ii in range(len(metadata)):
-
-            # quasars with z < min_z will not have any DLA in spectrum
-            if min_lya_z>metadata['Z'][ii]: continue
-
-            # quasar ID
-            idd=metadata['MOCKID'][ii]
-            dlas=[]
-
-            if args.dla=='file':
-                for dla in dla_info[dla_info['MOCKID']==idd]:
-
-                    # Adding only DLAs with z < zqso
-                    if dla['Z_DLA_RSD']>=metadata['Z'][ii]: continue
-                    dlas.append(dict(z=dla['Z_DLA_RSD'],N=dla['N_HI_DLA'],dlaid=dla['DLAID']))
-                transmission_dla = dla_spec(trans_wave,dlas,dlaplus=args.dlaplus)
-
-            elif args.dla=='random':
-                dlas, transmission_dla = insert_dlas(trans_wave, metadata['Z'][ii], rstate=random_state_just_for_dlas, dlaplus=args.dlaplus)
-                for idla in dlas:
-                   idla['dlaid']+=idd*1000      #Added to have unique DLA ids. Same format as DLAs from file.
-
-            # multiply transmissions and store information for the DLA file
-            if len(dlas)>0:
-                transmission_hcd[ii] = transmission_dla  # store DLA-only transmission
-                trans_wave_hcd = trans_wave.copy()
-                transmission[ii] = transmission_dla * transmission[ii]  # keep existing behavior
-                dla_z += [idla['z'] for idla in dlas]
-                dla_NHI += [idla['N'] for idla in dlas]
-                dla_id += [idla['dlaid'] for idla in dlas]
-                dla_qid += [idd]*len(dlas)
-        log.info('Added {} DLAs'.format(len(dla_id)))
-        if args.dlaplus:
-            log.info('Added higher order lines to DLAs')
-        # write file with DLA information
-        if len(dla_id)>0:
-            dla_meta=Table()
-            dla_meta['NHI'] = dla_NHI
-            dla_meta['Z_DLA'] = dla_z  #This is Z_DLA_RSD in transmision.
-            dla_meta['TARGETID']=dla_qid
-            dla_meta['DLAID'] = dla_id
-            hdu_dla = pyfits.convenience.table_to_hdu(dla_meta)
-            hdu_dla.name="DLA_META"
-            del(dla_meta)
-            log.info("DLA metadata to be saved in {}".format(truth_filename))
-        else:
-            hdu_dla=pyfits.PrimaryHDU()
-            hdu_dla.name="DLA_META"
-        
-        # Add comment to DLA_META extension if dlaplus is enabled
-        if args.dlaplus:
-            hdu_dla.header['COMMENT'] = 'Added higher order lines to DLAs'
-
     # if requested, extend transmission skewers to cover full spectrum
     if args.target_selection or args.bbflux :
         wanted_min_wave = 3329. # needed to compute magnitudes for decam2014-r (one could have trimmed the transmission file ...)
@@ -736,49 +654,98 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             log.error("BAL probability is not between 0 and 1 : "+balstr)
             sys.exit(1)
 
-    # Validate metal options upfront
-    if args.metals is not None and args.metals_from_file:
-        raise ValueError('--metals and --metals-from-file options are mutually exclusive. Please choose one or the other.')
-
-    # Determine which transmission to apply
     if not args.no_transmission:
+        # Do not add Lya absorption 
         log.info("Applying Lya transmission")
         tmp_qso_flux = apply_lya_transmission(
             tmp_qso_wave, tmp_qso_flux, trans_wave, transmission)
-    elif args.dla is not None:
-        # HCD-only mock: skip Lya transmission but still apply DLA/HCD transmission
-        log.info("Applying HCD-only transmission (--no-transmission mode)")
-        tmp_qso_flux = apply_lya_transmission(
-            tmp_qso_wave, tmp_qso_flux, trans_wave_hcd, transmission_hcd)
     else:
-        log.info("Skipping transmission (--no-transmission, no DLAs)")
+        log.info("Skipping Lya transmission (--no-transmission mode)")
 
-    # Apply metals if requested (independent of which transmission branch was taken)
+    # Apply metals if requested
     if args.metals is not None:
-        if args.no_transmission and args.dla is None:
-            log.warning("--metals requested with --no-transmission and no DLAs; skipping metals.")
+        if args.metals_from_file is not None:
+            raise ValueError("Cannot use --metals and --metals-from-file at the same time.")
+        
+        if args.no_transmission:
+            log.warning("--metals with --no-transmission is not supported. Skipping metals.")
         else:
-            # Notes from HKH — BUG WARNING: HCDs leak into metal transmission
-            # apply_metals_transmission derives the metal optical depth as tau = -ln(trans), then
-            # computes metal transmission as exp(-coef * tau) per absorber. If trans already contains
-            # HCD absorption (DLA damping wings), those features are folded into tau and therefore
-            # into every metal's transmission — even lines that should have no damping wings (e.g. SiII, SiIII).
-            # The HCD-only + metals mode (--no-transmission + --dla + --metals) was added to make
-            # this behaviour explicit and inspectable: it mimics the normal-mode coupling so the
-            # contamination can be measured in isolation.
-            # Fix requires passing a pure Lya-only transmission (no HCDs) as the base for apply_metals_transmission,
-            # but this is non-trivial given the current code structure: it would likely require keeping two
-            # separate transmission arrays (one for Lya and one for HCDs) in memory simultaneously, increasing memory consumption.
-            metal_wave = trans_wave_hcd if args.no_transmission else trans_wave
-            metal_trans = transmission_hcd if args.no_transmission else transmission
             lstMetals = ', '.join(args.metals)
             log.info("Applying metals: {}".format(lstMetals))
-            if args.no_transmission:
-                log.warning("Adding metals on top of HCD-only transmission.")
             tmp_qso_flux = apply_metals_transmission(
                 tmp_qso_wave, tmp_qso_flux,
-                metal_wave, metal_trans,
+                trans_wave, transmission,
                 args.metals, mocktype=args.raw_mock, strengths=args.metal_strengths)
+            
+    # if requested, add DLA to the transmission skewers
+    if args.dla is not None :
+        # Initialize HCD-only transmission array (ones = no absorption by default)
+        transmission_hcds = np.ones_like(tmp_qso_flux)
+        # if adding random DLAs, we will need a new random generator
+        if args.dla=='random':
+            log.info('Adding DLAs randomly')
+            random_state_just_for_dlas = np.random.RandomState(seed)
+        elif args.dla=='file':
+            log.info('Adding DLAs from transmission file')
+        else:
+            log.error("Wrong option for args.dla: "+args.dla)
+            sys.exit(1)
+
+        # if adding DLAs, the information will be printed here
+        dla_filename=os.path.join(pixdir,"dla-{}-{}.fits".format(nside,pixel))
+        dla_NHI, dla_z, dla_qid,dla_id = [], [], [],[]
+
+        # Identify the minimum redshift at which a DLA can be detected in the spectrum, given the wavelength range of the spectrum.
+        min_lya_z = np.min(args.wmin/lambda_RF_LYA - 1)
+
+        # loop over quasars in pixel
+        for ii in range(len(metadata)):
+            # quasars with z < min_z will not have any DLA in spectrum
+            if min_lya_z>metadata['Z'][ii]: continue
+            # quasar ID
+            idd=metadata['MOCKID'][ii]
+            dlas=[]
+            if args.dla=='file':
+                for dla in dla_info[dla_info['MOCKID']==idd]:
+                    # Adding only DLAs with z < zqso
+                    if dla['Z_DLA_RSD']>=metadata['Z'][ii]: continue
+                    dlas.append(dict(z=dla['Z_DLA_RSD'],N=dla['N_HI_DLA'],dlaid=dla['DLAID']))
+                transmission_dla = dla_spec(tmp_qso_wave,dlas,dlaplus=args.dlaplus)
+
+            elif args.dla=='random':
+                dlas, transmission_dla = insert_dlas(tmp_qso_wave, metadata['Z'][ii], rstate=random_state_just_for_dlas, dlaplus=args.dlaplus)
+                for idla in dlas:
+                   idla['dlaid']+=idd*1000      #Added to have unique DLA ids. Same format as DLAs from file.
+
+            # multiply transmissions and store information for the DLA file
+            if len(dlas)>0:
+                transmission_hcds[ii] = transmission_dla  # store DLA-only transmission
+                dla_z += [idla['z'] for idla in dlas]
+                dla_NHI += [idla['N'] for idla in dlas]
+                dla_id += [idla['dlaid'] for idla in dlas]
+                dla_qid += [idd]*len(dlas)
+        tmp_qso_flux *= transmission_hcds  # apply DLA absorption to the flux
+        log.info('Added {} DLAs'.format(len(dla_id)))
+        if args.dlaplus:
+            log.info('Added higher order lines to DLAs')
+        # write file with DLA information
+        if len(dla_id)>0:
+            dla_meta=Table()
+            dla_meta['NHI'] = dla_NHI
+            dla_meta['Z_DLA'] = dla_z  #This is Z_DLA_RSD in transmision.
+            dla_meta['TARGETID']=dla_qid
+            dla_meta['DLAID'] = dla_id
+            hdu_dla = pyfits.convenience.table_to_hdu(dla_meta)
+            hdu_dla.name="DLA_META"
+            del(dla_meta)
+            log.info("DLA metadata to be saved in {}".format(truth_filename))
+        else:
+            hdu_dla=pyfits.PrimaryHDU()
+            hdu_dla.name="DLA_META"
+        
+        # Add comment to DLA_META extension if dlaplus is enabled
+        if args.dlaplus:
+            hdu_dla.header['COMMENT'] = 'Added higher order lines to DLAs'
                          
     # Attenuate the spectra for extinction
     if not sfdmap is None:
