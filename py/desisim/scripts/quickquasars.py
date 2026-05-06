@@ -728,42 +728,39 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             log.error("BAL probability is not between 0 and 1 : "+balstr)
             sys.exit(1)
 
-    # Multiply quasar continua by transmitted flux fraction
-    # (at this point transmission file might include Ly-beta, metals and DLAs)
-    log.info("Apply transmitted flux fraction")
-    
-    if not args.no_transmission:
-        tmp_qso_flux = apply_lya_transmission(tmp_qso_wave,tmp_qso_flux,
-                            trans_wave,transmission)
-    elif args.dla is not None:
-        # Always apply HCD-only transmission if DLAs were added,
-        # even when --no-transmission is set (for HCD-only mocks)
-        log.info("Applying HCD-only transmission (--no-transmission mode)")
-        tmp_qso_flux = apply_lya_transmission(tmp_qso_wave, tmp_qso_flux,
-                            trans_wave_hcd, transmission_hcd)
-        
-        if args.metals is not None:
-            log.warning("Adding metals on top of HCD-only transmission.")
-            tmp_qso_flux = apply_metals_transmission(tmp_qso_wave,tmp_qso_flux,
-                                                     trans_wave_hcd,transmission_hcd,args.metals,mocktype=args.raw_mock,strengths=args.metal_strengths)
-            
-    # if requested, compute metal transmission on the fly
-    # (if not included already from the transmission file)
-    if args.metals is not None:
-        if args.metals_from_file :
-            log.error('you cannot add metals twice')
-            raise ValueError('you cannot add metals twice')
-        if not args.no_transmission:
-            #log.error('you cannot add metals if asking for no-transmission')
-            #raise ValueError('can not add metals if using no-transmission')
-            lstMetals = ''
-            for m in args.metals: lstMetals += m+', '
-            log.info("Apply metals: {}".format(lstMetals[:-2]))
+    # Validate metal options upfront
+    if args.metals is not None and args.metals_from_file:
+        raise ValueError('--metals and --metals-from-file options are mutually exclusive. Please choose one or the other.')
 
-            tmp_qso_flux = apply_metals_transmission(tmp_qso_wave,tmp_qso_flux,
-                                trans_wave,transmission,args.metals,mocktype=args.raw_mock,strengths=args.metal_strengths)
-                
-        
+    # Determine which transmission to apply
+    if not args.no_transmission:
+        log.info("Applying Lya transmission")
+        tmp_qso_flux = apply_lya_transmission(
+            tmp_qso_wave, tmp_qso_flux, trans_wave, transmission)
+    elif args.dla is not None:
+        # HCD-only mock: skip Lya continuum but still apply DLA/HCD transmission
+        log.info("Applying HCD-only transmission (--no-transmission mode)")
+        tmp_qso_flux = apply_lya_transmission(
+            tmp_qso_wave, tmp_qso_flux, trans_wave_hcd, transmission_hcd)
+    else:
+        log.info("Skipping transmission (--no-transmission, no DLAs)")
+
+    # Apply metals if requested (independent of which transmission branch was taken)
+    if args.metals is not None:
+        if args.no_transmission and args.dla is None:
+            log.warning("--metals requested with --no-transmission and no DLAs; skipping metals.")
+        else:
+            metal_wave = trans_wave_hcd if args.no_transmission else trans_wave
+            metal_trans = transmission_hcd if args.no_transmission else transmission
+            lstMetals = ', '.join(args.metals)
+            log.info("Applying metals: {}".format(lstMetals))
+            if args.no_transmission:
+                log.warning("Adding metals on top of HCD-only transmission.")
+            tmp_qso_flux = apply_metals_transmission(
+                tmp_qso_wave, tmp_qso_flux,
+                metal_wave, metal_trans,
+                args.metals, mocktype=args.raw_mock, strengths=args.metal_strengths)
+                         
     # Attenuate the spectra for extinction
     if not sfdmap is None:
         Rv=3.1   #set by default
