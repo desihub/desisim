@@ -160,7 +160,7 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
     parser.add_argument('--raw-mock', type=str, default=None, choices=["lyacolore","saclay","ohio"], help="Input raw mock type (lyacolore, saclay or Ohio)")
         
     parser.add_argument('--year1-throughput', action='store_true', help="Use DESI-Y1 throughput including a dip at 440 nm.")
-    
+    parser.add_argument('--desi2-bccds', action='store_true', help="Use desi2 yaml file")    
     parser.add_argument('--from-catalog', type=str, default=None, help="Input catalog of mock objects to simulate")
     
     parser.add_argument('--metal-strengths', type=float, default=None, required=False, help = "list of strengths to appply\
@@ -856,6 +856,9 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         specsim_config_file = 'desiY1'
     else:
         specsim_config_file = 'desi'
+
+    if args.desi2_bccds:
+        specsim_config_file = 'desi-2'
 
     ### use Poisson = False to get reproducible results.
     ### use args.save_resolution = False to not save the matrix resolution per quasar in spectra files.
