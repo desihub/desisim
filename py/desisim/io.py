@@ -1046,6 +1046,9 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
         these = np.random.choice(np.arange(ntemplates),nspec)
         flux = flux[these,:]
         meta = meta[these]
+        ntemplates = nspec
+    else:
+        nspec = ntemplates
 
     # Optionally resample the templates at specific wavelengths.  Use
     # multiprocessing to speed this up.
