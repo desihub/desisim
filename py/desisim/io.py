@@ -1058,7 +1058,8 @@ def read_basis_templates(objtype, subtype='', outwave=None, nspec=None,
             args.append((outwave, wave, flux[jj,:]))
         import multiprocessing
         ncpu = multiprocessing.cpu_count() // 2   #- avoid hyperthreading
-        with multiprocessing.Pool(ncpu) as P:
+        #- Force 'fork' (see py/desisim/pixsim.py parallel_project for why)
+        with multiprocessing.get_context('fork').Pool(ncpu) as P:
             outflux = P.map(_resample_flux, args)
         outflux = np.array(outflux)
 
