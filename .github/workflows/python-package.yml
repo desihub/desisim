@@ -52,7 +52,9 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v4
             - name: Install System Packages
-              run: sudo apt install libbz2-dev subversion
+              run: |
+                  sudo apt-get -y update
+                  sudo apt install libbz2-dev subversion
             - name: Set up Python ${{ matrix.python-version }}
               uses: actions/setup-python@v5
               with:
@@ -116,7 +118,9 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v4
             - name: Install System Packages
-              run: sudo apt install libbz2-dev subversion
+              run: |
+                  sudo apt-get -y update
+                  sudo apt install libbz2-dev subversion
             - name: Set up Python ${{ matrix.python-version }}
               uses: actions/setup-python@v5
               with:
