@@ -18,22 +18,19 @@ jobs:
             matrix:
                 include:
                     - os: ubuntu-latest
+                      python-version: '3.14'
+                      # numba doesn't yet support numpy/2.3; could be relaxed in the future
+                      numpy-version: '<2.3'
+                      scipy-version: ''
+                      astropy-version: '<8'
+                    # similar to matterhorn environment
+                    - os: ubuntu-latest
                       python-version: '3.13'
                       # numba doesn't yet support numpy/2.3; could be relaxed in the future
                       numpy-version: '<2.3'
                       scipy-version: ''
                       astropy-version: '<8'
-                    - os: ubuntu-latest
-                      python-version: '3.12'
-                      numpy-version: '<2.3'
-                      scipy-version: '<2'
-                      astropy-version: '<7'
-                    - os: ubuntu-latest
-                      python-version: '3.11'
-                      numpy-version: '<2.1'
-                      scipy-version: '<2'
-                      astropy-version: '<7'
-                    # Similar to NERSC but with last NumPy < 2.
+                    # Similar to old NERSC environments but with last NumPy < 2.
                     - os: ubuntu-latest
                       python-version: '3.10'
                       numpy-version: '<2'
