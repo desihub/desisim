@@ -142,7 +142,13 @@ class TestObs(unittest.TestCase):
         a = obs.get_next_tileid(program='dark')
         b = obs.get_next_tileid(program='bright')
         self.assertNotEqual(a, b)
-        
+
+        #- and each tileid should actually belong to the requested program
+        import desimodel.io
+        tiles = desimodel.io.load_tiles()
+        self.assertEqual(tiles['PROGRAM'][tiles['TILEID'] == a][0], 'DARK')
+        self.assertEqual(tiles['PROGRAM'][tiles['TILEID'] == b][0], 'BRIGHT')
+
         #- program is case insensitive
         a = obs.get_next_tileid(program='dark')
         b = obs.get_next_tileid(program='DARK')

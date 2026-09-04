@@ -64,7 +64,7 @@ setup_keywords['test_suite']='{name}.test.test_suite'.format(**setup_keywords)
 #
 # Add internal data directories.
 #
-setup_keywords['package_data'] = {'desisim': ['data/*', 'test/data/*']}
+setup_keywords['package_data'] = {'desisim': ['data/*', 'test/data/*', 'test/data/surveyops/ops/*']}
 #
 # Run setup command.
 #

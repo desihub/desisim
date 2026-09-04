@@ -1,0 +1,34 @@
+# %ECSV 1.0
+# ---
+# datatype:
+# - {name: TILEID, datatype: int64}
+# - {name: PASS, datatype: int32, description: DESI layer}
+# - {name: RA, datatype: float64}
+# - {name: DEC, datatype: float64}
+# - {name: PROGRAM, datatype: string}
+# - {name: IN_DESI, datatype: bool}
+# - {name: PRIORITY, datatype: float64, format: '%10.3e', description: Tile observation priority}
+# - {name: STATUS, datatype: string, description: 'unobs, obsstart, obsend, done'}
+# - {name: EBV_MED, unit: mag, datatype: float32, format: '%6.3f', description: median E(B-V) on tile}
+# - {name: DESIGNHA, datatype: float64, format: '%7.2f', description: Design hour angles}
+# - {name: DONEFRAC, datatype: float32, format: '%7.4f', description: Tile completeness fraction}
+# - {name: AVAILABLE, datatype: bool, description: Fiberassign file is available}
+# - {name: PRIORITY_BOOSTFAC, datatype: float64, format: '%7.3f', description: Manual boost factor applied on top of computed priorities.}
+# meta: {EXTNAME: TILES}
+# schema: astropy-2.0
+TILEID PASS RA DEC PROGRAM IN_DESI PRIORITY STATUS EBV_MED DESIGNHA DONEFRAC AVAILABLE PRIORITY_BOOSTFAC
+1001 0 270.0 58.282 DARK True 1.0128854446058324 done 0.044 31.26 1.0142714 True 1.0
+1002 0 0.0 31.717 DARK True 1.1801910108851754 done 0.049 16.62 1.2018452 True 1.0
+1003 0 180.0 31.717 DARK True 1.195822679903522 done 0.02 -10.34 0.9854844 True 1.0
+1004 0 180.0 69.094 DARK True 0.9467010976365751 done 0.015 -8.02 1.3075409 True 1.0
+1005 0 200.905 0.0 DARK True 1.4580000000000002 done 0.026 2.82 0.8614661 True 1.0
+1006 0 20.905 0.0 DARK True 1.4580000000000002 done 0.033 12.0 0.963822 True 1.0
+1007 0 225.0 35.264 DARK True 1.169604472059635 done 0.014 11.94 1.119745 True 1.0
+1008 0 159.094 0.0 DARK True 1.4580000000000002 done 0.062 -10.78 0.99582785 True 1.0
+1009 0 134.996 35.266 DARK True 1.1695898520951094 done 0.03 -28.31 1.0798429 True 1.0
+1010 0 339.094 0.0 DARK True 1.4580000000000002 done 0.064 0.09 0.97461283 True 1.0
+25569 3 338.56 -0.694 BRIGHT True 1.451771280366865 done 0.061 1.2 1.1959013 True 1.0
+27114 4 313.691 -0.709 BRIGHT True 0.36290879579724633 done 0.091 -41.73 1.411825 True 0.25
+23837 2 39.137 7.529 BRIGHT True 1.3909811807947248 done 0.122 23.05 1.4836577 True 1.0
+28001 4 100.0 20.0 BRIGHT True 1.2 done 0.05 5.0 1.0 True 1.0
+28002 4 150.0 -10.0 BRIGHT True 1.2 done 0.05 5.0 1.0 True 1.0
