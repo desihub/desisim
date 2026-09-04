@@ -641,8 +641,12 @@ def parallel_project(psf, wave, phot, specmin=0, ncpu=None, comm=None):
 
             #- Create pool of workers to do the projection using _project
             #- xyrange, subimg = _project( [psf, wave, phot, specmin] )
-            pool = mp.Pool(ncpu)
-            xy_subimg = pool.map(_project, args)
+            #- Force 'fork' since this code relies on fork semantics (e.g.
+            #- workers inheriting already-initialized parent state); Python
+            #- 3.14+ defaults to 'forkserver' on Linux, which re-imports
+            #- everything fresh in each worker and hangs here.
+            with mp.get_context('fork').Pool(ncpu) as pool:
+                xy_subimg = pool.map(_project, args)
 
             #print("xy_subimg from pool")
             #print(xy_subimg)
@@ -652,10 +656,6 @@ def parallel_project(psf, wave, phot, specmin=0, ncpu=None, comm=None):
             for xyrange, subimg in xy_subimg:
                 xmin, xmax, ymin, ymax = xyrange
                 img[ymin:ymax, xmin:xmax] += subimg
-
-            #- Prevents hangs of Travis tests
-            pool.close()
-            pool.join()
 
     return img
 

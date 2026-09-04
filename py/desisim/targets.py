@@ -209,7 +209,8 @@ def get_targets_parallel(nspec, program, tileid=None, nproc=None, seed=None, spe
             else:
                 args.append( (nspec-i, program, tileid, seeds[i], specify_targets, i) )
 
-        with mp.Pool(nproc) as P:
+        #- Force 'fork' (see py/desisim/pixsim.py parallel_project for why)
+        with mp.get_context('fork').Pool(nproc) as P:
             results = P.map(_wrap_get_targets, args)
         fibermaps, targets = list(zip(*results))
         fibermap = np.concatenate(fibermaps)

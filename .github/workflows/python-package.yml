@@ -18,22 +18,17 @@ jobs:
             matrix:
                 include:
                     - os: ubuntu-latest
+                      python-version: '3.14'
+                      numpy-version: '<2.6'
+                      scipy-version: ''
+                      astropy-version: '<8'
+                    # similar to matterhorn environment
+                    - os: ubuntu-latest
                       python-version: '3.13'
-                      # numba doesn't yet support numpy/2.3; could be relaxed in the future
                       numpy-version: '<2.3'
                       scipy-version: ''
                       astropy-version: '<8'
-                    - os: ubuntu-latest
-                      python-version: '3.12'
-                      numpy-version: '<2.3'
-                      scipy-version: '<2'
-                      astropy-version: '<7'
-                    - os: ubuntu-latest
-                      python-version: '3.11'
-                      numpy-version: '<2.1'
-                      scipy-version: '<2'
-                      astropy-version: '<7'
-                    # Similar to NERSC but with last NumPy < 2.
+                    # Similar to old NERSC environments but with last NumPy < 2.
                     - os: ubuntu-latest
                       python-version: '3.10'
                       numpy-version: '<2'
@@ -55,7 +50,9 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v4
             - name: Install System Packages
-              run: sudo apt install libbz2-dev subversion
+              run: |
+                  sudo apt-get -y update
+                  sudo apt install libbz2-dev subversion
             - name: Set up Python ${{ matrix.python-version }}
               uses: actions/setup-python@v5
               with:
@@ -66,11 +63,7 @@ jobs:
               run: |
                 python -m pip install --upgrade pip 'setuptools<80' wheel
                 python -m pip install pytest
-                python -m pip install desiutil==${DESIUTIL_VERSION}
-                python -m pip install --no-build-isolation -r requirements.txt
-                python -m pip install --upgrade --upgrade-strategy only-if-needed 'numpy${{ matrix.numpy-version }}'
-                python -m pip install --upgrade --upgrade-strategy only-if-needed 'scipy${{ matrix.scipy-version }}'
-                python -m pip install --upgrade --upgrade-strategy only-if-needed 'astropy${{ matrix.astropy-version }}'
+                python -m pip install --no-build-isolation -r requirements.txt desiutil==${DESIUTIL_VERSION} 'numpy${{ matrix.numpy-version }}' 'scipy${{ matrix.scipy-version }}' 'astropy${{ matrix.astropy-version }}'
                 python -m pip install --no-build-isolation git+https://github.com/${SIMQSO_REPO}/simqso.git@${SIMQSO_VERSION}#egg=simqso
             - name: Verify Installation
               run: pip list
@@ -119,7 +112,9 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v4
             - name: Install System Packages
-              run: sudo apt install libbz2-dev subversion
+              run: |
+                  sudo apt-get -y update
+                  sudo apt install libbz2-dev subversion
             - name: Set up Python ${{ matrix.python-version }}
               uses: actions/setup-python@v5
               with:
@@ -128,11 +123,7 @@ jobs:
               run: |
                 python -m pip install --upgrade pip 'setuptools<80' wheel
                 python -m pip install pytest pytest-cov coveralls
-                python -m pip install desiutil==${DESIUTIL_VERSION}
-                python -m pip install --no-build-isolation -r requirements.txt
-                python -m pip install --upgrade --upgrade-strategy only-if-needed 'numpy${{ matrix.numpy-version }}'
-                python -m pip install --upgrade --upgrade-strategy only-if-needed 'scipy${{ matrix.scipy-version }}'
-                python -m pip install --upgrade --upgrade-strategy only-if-needed 'astropy${{ matrix.astropy-version }}'
+                python -m pip install --no-build-isolation -r requirements.txt desiutil==${DESIUTIL_VERSION} 'numpy${{ matrix.numpy-version }}' 'scipy${{ matrix.scipy-version }}' 'astropy${{ matrix.astropy-version }}'
                 python -m pip install --no-build-isolation git+https://github.com/${SIMQSO_REPO}/simqso.git@${SIMQSO_VERSION}#egg=simqso
                 python -m pip cache remove fitsio
                 python -m pip install --no-deps --force-reinstall --ignore-installed 'fitsio${{ matrix.fitsio-version }}'

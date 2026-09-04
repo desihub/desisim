@@ -2494,7 +2494,8 @@ class SIMQSO():
 
         # Initialize multiprocessing map object.
         if nproc > 1:
-            pool = multiprocessing.Pool(nproc)
+            #- Force 'fork' (see py/desisim/pixsim.py parallel_project for why)
+            pool = multiprocessing.get_context('fork').Pool(nproc)
             self.procMap = pool.map
         else:
             self.procMap = map
