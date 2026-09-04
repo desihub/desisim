@@ -5,7 +5,8 @@ desisim change log
 0.39.1 (unreleased)
 -------------------
 
-* No changes yet
+* Add a minimal tiles-main.ecsv fixture so the DESI_SURVEYOPS snapshot
+  isn't needed to run the test suite (cf. desihub/desitarget#897).
 
 0.39.0 (2026-03-18)
 -------------------
