@@ -4,7 +4,7 @@ import numpy as np
 import unittest
 from astropy.table import Table, Column
 from astropy.io import fits
-from desisim.quickcat import quickcat
+from desisim.quickcat import quickcat, get_median_obsconditions
 from desitarget.targetmask import desi_mask, bgs_mask, mws_mask
 import desimodel.io
 
@@ -175,6 +175,15 @@ class TestQuickCat(unittest.TestCase):
         self.assertTrue(np.all(z3['Z'][~ii] == z4['Z'][~ii]))
         self.assertTrue(np.all(z3['Z'][ii] != z4['Z'][ii]))
 
+
+    def test_get_median_obsconditions(self):
+        #- Mix of DARK (from setUpClass) and a BRIGHT tile so both programs
+        #- in the bundled tiles-main.ecsv fixture get exercised directly
+        tileids = list(self.tileids[0:2]) + [25569]
+        obsconditions = get_median_obsconditions(tileids)
+        for col in ('TILEID', 'AIRMASS', 'EBMV', 'LINTRANS', 'MOONFRAC', 'SEEING'):
+            self.assertIn(col, obsconditions.colnames)
+        self.assertTrue(np.all(obsconditions['TILEID'] == tileids))
 
     def test_multiobs(self):
         # Targets with more observations should have a better efficiency
