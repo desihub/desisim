@@ -11,12 +11,18 @@
 # installs below, so the GitHub Actions workflow installs it explicitly, pinned
 # to a known-good version, in the same pip invocation as this file.
 
-# specter is optional, and is deliberately absent from install_requires for two
-# reasons.  desisim imports it in exactly one place, inside a try/except
-# ImportError, only to stamp specter.__version__ into a FITS header (see
-# py/desisim/io.py); and the `specter` name on PyPI belongs to an unrelated BDD
-# testing library, while DESI's specter declares that same name.  It is listed
-# here so that CI exercises the version-stamping path.
+# specter is needed at runtime, but only indirectly, so don't remove this line:
+# desisim's pixsim path operates on a specter PSF object (see pixsim.simulate)
+# obtained from desimodel.io.load_psf(), and desimodel imports specter.psf
+# itself without declaring specter in its own install_requires.  This line is
+# therefore the only thing that puts specter in the environment; without it
+# py/desisim/test/test_pixsim.py fails in load_psf with an ImportError.
+#
+# desisim's own single `import specter` (py/desisim/io.py) is just a version
+# stamp inside a try/except ImportError, and is NOT the reason this is here.
+#
+# It cannot move to install_requires: the `specter` name on PyPI belongs to an
+# unrelated BDD testing library, while DESI's specter declares that same name.
 git+https://github.com/desihub/specter.git@main#egg=specter
 
 # Sibling DESI packages.  install_requires names these without a version so
