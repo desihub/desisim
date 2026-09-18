@@ -13,10 +13,15 @@
 
 # specter is needed at runtime, but only indirectly, so don't remove this line:
 # desisim's pixsim path operates on a specter PSF object (see pixsim.simulate)
-# obtained from desimodel.io.load_psf(), and desimodel imports specter.psf
-# itself without declaring specter in its own install_requires.  This line is
-# therefore the only thing that puts specter in the environment; without it
-# py/desisim/test/test_pixsim.py fails in load_psf with an ImportError.
+# obtained from desimodel.io.load_psf(), which imports specter.psf.
+#
+# specter is heavyweight, and most uses of desimodel are lightweight ones that
+# don't need it, so desimodel deliberately keeps specter an optional dependency
+# and does not declare it.  That is intentional, not an oversight in desimodel.
+# The consequence is that a consumer like desisim, which does use the PSF
+# loaders, has to supply specter itself, and this line is the only thing that
+# puts it in the environment: without it, test_pixsim.test_simulate and
+# test_project fail in load_psf with an ImportError.
 #
 # desisim's own single `import specter` (py/desisim/io.py) is just a version
 # stamp inside a try/except ImportError, and is NOT the reason this is here.
