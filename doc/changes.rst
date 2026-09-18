@@ -2,7 +2,12 @@
 desisim change log
 ==================
 
-0.39.1 (unreleased)
+0.39.2 (unreleased)
+-------------------
+
+* No chnages yet.
+
+0.39.1 (2026-09-17)
 -------------------
 
 * multiprocessing.Pool with fork instead of forkserver for python 3.14 (PR `#601`_).
