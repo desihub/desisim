@@ -61,7 +61,10 @@ jobs:
               # setuptools version restriction due to specsim ah_helpers needing setuptools.package_index
               # which was removed in setuptools/80.3.0
               run: |
-                python -m pip install --upgrade pip 'setuptools<80' wheel
+                # setuptools_scm is required because the git installs below use
+                # --no-build-isolation, and the desihub packages take their version
+                # from setuptools_scm; without it they all build as version 0.0.0.
+                python -m pip install --upgrade pip 'setuptools<80' wheel setuptools_scm
                 python -m pip install pytest
                 # requirements.txt covers only the git-only dependencies; the rest
                 # come from desisim's own install_requires via `-e .`
@@ -117,7 +120,10 @@ jobs:
                 python-version: ${{ matrix.python-version }}
             - name: Install Python dependencies
               run: |
-                python -m pip install --upgrade pip 'setuptools<80' wheel
+                # setuptools_scm is required because the git installs below use
+                # --no-build-isolation, and the desihub packages take their version
+                # from setuptools_scm; without it they all build as version 0.0.0.
+                python -m pip install --upgrade pip 'setuptools<80' wheel setuptools_scm
                 python -m pip install pytest pytest-cov coveralls
                 # requirements.txt covers only the git-only dependencies; the rest
                 # come from desisim's own install_requires via `-e .`
