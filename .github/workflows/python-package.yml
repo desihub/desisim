@@ -61,9 +61,12 @@ jobs:
               # setuptools version restriction due to specsim ah_helpers needing setuptools.package_index
               # which was removed in setuptools/80.3.0
               run: |
-                # setuptools_scm is required because the git installs below use
-                # --no-build-isolation, and the desihub packages take their version
-                # from setuptools_scm; without it they all build as version 0.0.0.
+                # setuptools_scm is needed by specsim specifically: it is installed
+                # from git below with --no-build-isolation, so pip does not supply
+                # its build requirements, and without setuptools_scm it builds as
+                # version 0.0.0 and fails the specsim>=1.0.0 floor in setup.cfg.
+                # The other desihub packages use version = attr: <pkg>.__version__
+                # from a committed _version.py and do not need this.
                 python -m pip install --upgrade pip 'setuptools<80' wheel setuptools_scm
                 python -m pip install pytest
                 # requirements.txt covers only the git-only dependencies; the rest
@@ -120,9 +123,12 @@ jobs:
                 python-version: ${{ matrix.python-version }}
             - name: Install Python dependencies
               run: |
-                # setuptools_scm is required because the git installs below use
-                # --no-build-isolation, and the desihub packages take their version
-                # from setuptools_scm; without it they all build as version 0.0.0.
+                # setuptools_scm is needed by specsim specifically: it is installed
+                # from git below with --no-build-isolation, so pip does not supply
+                # its build requirements, and without setuptools_scm it builds as
+                # version 0.0.0 and fails the specsim>=1.0.0 floor in setup.cfg.
+                # The other desihub packages use version = attr: <pkg>.__version__
+                # from a committed _version.py and do not need this.
                 python -m pip install --upgrade pip 'setuptools<80' wheel setuptools_scm
                 python -m pip install pytest pytest-cov coveralls
                 # requirements.txt covers only the git-only dependencies; the rest
