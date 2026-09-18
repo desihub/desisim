@@ -11,6 +11,10 @@ desisim change log
   cannot express, so the two files no longer duplicate each other.
 * Declare specsim in ``install_requires`` now that specsim 1.0.0 is on PyPI;
   CI continues to test against specsim/main.
+* Drop unused dependencies pytz, requests and numba, and declare numpy and
+  pyyaml, which were imported but never listed (issue `#583`_).
+
+.. _`#583`: https://github.com/desihub/desisim/issues/583
 
 0.39.1 (2026-09-17)
 -------------------
