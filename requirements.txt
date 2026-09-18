@@ -1,30 +1,47 @@
-pytz
-requests
-# Ensure scipy dependency does not bring in a recent version of numpy.
-### scipy<1.9
-scipy
-# The version of astropy will be reset by GitHub Actions tests.
-astropy
-# Ensure compatibility with numpy <1.23.
-### numba<0.60
-numba
-# Ensure compatibility with numpy <1.23.
-### matplotlib<3.9
-matplotlib
-healpy
-# It is becoming difficult to install speclite and specsim directly from
-# git+https, so installing from PyPI is definitely preferred here.
-# Update 2025-09-08: get specsim/main from github pending new tag
-speclite
-fitsio
-# Install desiutil separately since it is needed for the other installs.
-# git+https://github.com/desihub/desiutil.git@3.1.0#egg=desiutil
+# desisim's abstract dependencies are declared in setup.cfg (install_requires),
+# so they are deliberately NOT repeated here; install them with
+#
+#     pip install .
+#
+# This file lists only what install_requires cannot express: packages that are
+# not installable from PyPI, and sibling DESI packages that we deliberately test
+# against their development branch rather than their released version.
+#
+# desiutil is intentionally absent: it is needed at build time by several of the
+# installs below, so the GitHub Actions workflow installs it explicitly, pinned
+# to a known-good version, in the same pip invocation as this file.
+
+# specter is needed at runtime, but only indirectly, so don't remove this line:
+# desisim's pixsim path operates on a specter PSF object (see pixsim.simulate)
+# obtained from desimodel.io.load_psf(), which imports specter.psf.
+#
+# specter is heavyweight, and most uses of desimodel are lightweight ones that
+# don't need it, so desimodel deliberately keeps specter an optional dependency
+# and does not declare it.  That is intentional, not an oversight in desimodel.
+# The consequence is that a consumer like desisim, which does use the PSF
+# loaders, has to supply specter itself, and this line is the only thing that
+# puts it in the environment: without it, test_pixsim.test_simulate and
+# test_project fail in load_psf with an ImportError.
+#
+# desisim's own single `import specter` (py/desisim/io.py) is just a version
+# stamp inside a try/except ImportError, and is NOT the reason this is here.
+#
+# It cannot move to install_requires: the `specter` name on PyPI belongs to an
+# unrelated BDD testing library, while DESI's specter declares that same name.
 git+https://github.com/desihub/specter.git@main#egg=specter
+
+# Sibling DESI packages.  install_requires names these without a version so
+# that an ordinary `pip install desisim` gets their PyPI releases; here we
+# override that to test against main.
 git+https://github.com/desihub/desimodel.git@main#egg=desimodel
 # Don't forget to install desimodel test data.
 git+https://github.com/desihub/desispec.git@main#egg=desispec
-# git+https://github.com/desihub/desitarget.git@0.50.0#egg=desitarget
 git+https://github.com/desihub/desitarget.git@main#egg=desitarget
+# specsim 1.0.0 is on PyPI and is covered by install_requires; main is used
+# here only to stay ahead of the last tag.  Drop this line to test against the
+# release instead.
 git+https://github.com/desihub/specsim.git@main#egg=specsim
-# simqso install script requires numpy, so install separately.
+
+# simqso is not on PyPI, and its install script requires numpy, so the workflow
+# installs it in a separate step once numpy is present.
 # git+https://github.com/imcgreer/simqso.git@v1.2.4#egg=simqso

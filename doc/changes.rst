@@ -5,7 +5,18 @@ desisim change log
 0.39.2 (unreleased)
 -------------------
 
-* No chnages yet.
+* Move packaging metadata into ``pyproject.toml`` and ``setup.cfg``, following
+  the pattern used by desispec.
+* Trim ``requirements.txt`` to only the dependencies that ``install_requires``
+  cannot express, so the two files no longer duplicate each other.
+* Declare specsim in ``install_requires`` now that specsim 1.0.0 is on PyPI;
+  CI continues to test against specsim/main.
+* Drop unused dependencies pytz, requests and numba, and declare numpy and
+  pyyaml, which were imported but never listed (issue `#583`_).
+* Install setuptools_scm in the CI workflow, so that packages installed from
+  git with ``--no-build-isolation`` get their real version instead of 0.0.0.
+
+.. _`#583`: https://github.com/desihub/desisim/issues/583
 
 0.39.1 (2026-09-17)
 -------------------

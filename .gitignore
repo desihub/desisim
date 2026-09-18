@@ -2,6 +2,7 @@
 __pycache__/
 .ipynb_checkpoints                                                                                            
 *.pyc
+*.pyo
 # C extensions
 *.so
 
@@ -50,7 +51,14 @@ coverage.xml
 *.log
 
 # Sphinx documentation
-docs/_build/
+doc/_build/
 
 # PyBuilder
 target/
+
+# Editor and OS cruft
+.DS_Store
+.*.swp
+*~
+.vscode/
+.env
