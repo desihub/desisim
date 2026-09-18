@@ -5,7 +5,12 @@ desisim change log
 0.39.2 (unreleased)
 -------------------
 
-* No chnages yet.
+* Move packaging metadata into ``pyproject.toml`` and ``setup.cfg``, following
+  the pattern used by desispec.
+* Trim ``requirements.txt`` to only the dependencies that ``install_requires``
+  cannot express, so the two files no longer duplicate each other.
+* Declare specsim in ``install_requires`` now that specsim 1.0.0 is on PyPI;
+  CI continues to test against specsim/main.
 
 0.39.1 (2026-09-17)
 -------------------
