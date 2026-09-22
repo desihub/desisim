@@ -24,11 +24,12 @@ jobs:
                       scipy-version: ''
                       astropy-version: '<9'
                     # similar to matterhorn environment
-#                   - os: ubuntu-latest
-#                     python-version: '3.13'
-#                     numpy-version: '<2.3'
-#                     scipy-version: ''
-#                     astropy-version: '<8'
+                    - os: ubuntu-latest
+                      coverage: test
+                      python-version: '3.13'
+                      numpy-version: '<2.3'
+                      scipy-version: ''
+                      astropy-version: '<8'
                     # Similar to old NERSC environments but with last NumPy < 2.
                     - os: ubuntu-latest
                       coverage: test
@@ -98,48 +99,48 @@ jobs:
               run:
                 bash -c 'if [[ "${{ matrix.coverage }}" == "coverage" ]]; then pytest --cov; coveralls; else pytest; fi'
 
-#   docs:
-#       name: Doc test
-#       runs-on: ${{ matrix.os }}
-#       strategy:
-#           fail-fast: false
-#           matrix:
-#               os: [ubuntu-latest]
-#               python-version: ['3.10']
+    docs:
+        name: Doc test
+        runs-on: ${{ matrix.os }}
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-latest]
+                python-version: ['3.10']
 
-#       steps:
-#           - name: Checkout code
-#             uses: actions/checkout@v4
-#           - name: Set up Python ${{ matrix.python-version }}
-#             uses: actions/setup-python@v5
-#             with:
-#               python-version: ${{ matrix.python-version }}
-#           - name: Install Python dependencies
-#             run: python -m pip install --upgrade pip wheel setuptools Sphinx sphinx-rtd-theme
-#           - name: Test the documentation
-#             run: sphinx-build -W --keep-going -b html doc doc/_build/html
-#           - name: Test building the documentation with "make"
-#             run: cd doc && make html
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+            - name: Set up Python ${{ matrix.python-version }}
+              uses: actions/setup-python@v5
+              with:
+                python-version: ${{ matrix.python-version }}
+            - name: Install Python dependencies
+              run: python -m pip install --upgrade pip wheel setuptools Sphinx sphinx-rtd-theme
+            - name: Test the documentation
+              run: sphinx-build -W --keep-going -b html doc doc/_build/html
+            - name: Test building the documentation with "make"
+              run: cd doc && make html
 
-#   style:
-#       name: Style check
-#       runs-on: ${{ matrix.os }}
-#       strategy:
-#           fail-fast: false
-#           matrix:
-#               os: [ubuntu-latest]
-#               python-version: ['3.10']
+    style:
+        name: Style check
+        runs-on: ${{ matrix.os }}
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-latest]
+                python-version: ['3.10']
 
-#       steps:
-#           - name: Checkout code
-#             uses: actions/checkout@v4
-#           - name: Set up Python ${{ matrix.python-version }}
-#             uses: actions/setup-python@v5
-#             with:
-#               python-version: ${{ matrix.python-version }}
-#           - name: Install Python dependencies
-#             run: python -m pip install --upgrade pip setuptools wheel pycodestyle
-#           - name: Test the style; failures are allowed
-#             # This is equivalent to an allowed falure.
-#             continue-on-error: true
-#             run: pycodestyle --count py/desisim
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+            - name: Set up Python ${{ matrix.python-version }}
+              uses: actions/setup-python@v5
+              with:
+                python-version: ${{ matrix.python-version }}
+            - name: Install Python dependencies
+              run: python -m pip install --upgrade pip setuptools wheel pycodestyle
+            - name: Test the style; failures are allowed
+              # This is equivalent to an allowed falure.
+              continue-on-error: true
+              run: pycodestyle --count py/desisim
