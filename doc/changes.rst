@@ -5,7 +5,11 @@ desisim change log
 0.39.2 (unreleased)
 -------------------
 
-* No chnages yet.
+* Move packaging metadata into ``pyproject.toml`` and ``setup.cfg``,
+  dropping ``requirements.txt``. Cleanup required install dependencies.
+  Update testing workflow (PR `#603`_).
+
+.. _`#603`: https://github.com/desihub/desisim/pull/603
 
 0.39.1 (2026-09-17)
 -------------------

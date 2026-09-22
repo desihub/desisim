@@ -1,70 +1,26 @@
 #!/usr/bin/env python
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
-from __future__ import absolute_import, division, print_function
-#
-# Standard imports
-#
-import glob
+
+# NOTE: The configuration for the package, including the name, version, and
+# other information are set in the setup.cfg file.
+
 import os
-import sys
-#
-# setuptools' sdist command ignores MANIFEST.in
-#
-from distutils.command.sdist import sdist as DistutilsSdist
-from setuptools import setup, find_packages
-#
-# DESI support code.
-#
-from desiutil.setup import DesiVersion, get_version
+import glob
+from setuptools import setup
+
 #
 # Begin setup
 #
 setup_keywords = dict()
 #
-# THESE SETTINGS NEED TO BE CHANGED FOR EVERY PRODUCT.
-#
-setup_keywords['name'] = 'desisim'
-setup_keywords['description'] = 'DESI simulation package'
-setup_keywords['author'] = 'DESI Collaboration'
-setup_keywords['author_email'] = 'desi-data@desi.lbl.gov'
-setup_keywords['license'] = 'BSD'
-setup_keywords['url'] = 'https://github.com/desihub/desisim'
-#
-# END OF SETTINGS THAT NEED TO BE CHANGED.
-#
-setup_keywords['version'] = get_version(setup_keywords['name'])
-#
-# Use README.rst as long_description.
-#
-setup_keywords['long_description'] = ''
-if os.path.exists('README.rst'):
-    with open('README.rst') as readme:
-        setup_keywords['long_description'] = readme.read()
-#
 # Set other keywords for the setup function.  These are automated, & should
 # be left alone unless you are an expert.
 #
-# Treat everything in bin/ except *.rst as a script to be installed.
+# Treat everything executable in bin/ as a script to be installed.
 #
 if os.path.isdir('bin'):
     setup_keywords['scripts'] = [fname for fname in glob.glob(os.path.join('bin', '*'))
-        if not os.path.basename(fname).endswith('.rst')]
-setup_keywords['provides'] = [setup_keywords['name']]
-setup_keywords['requires'] = ['Python (>2.7.0)']
-# setup_keywords['install_requires'] = ['Python (>2.7.0)']
-setup_keywords['zip_safe'] = False
-setup_keywords['packages'] = find_packages('py')
-setup_keywords['package_dir'] = {'':'py'}
-setup_keywords['cmdclass'] = {'version': DesiVersion, 'sdist': DistutilsSdist}
-setup_keywords['test_suite']='{name}.test.test_suite'.format(**setup_keywords)
-#
-# Autogenerate command-line scripts.
-#
-# setup_keywords['entry_points'] = {'console_scripts':['desiInstall = desiutil.install.main:main']}
-#
-# Add internal data directories.
-#
-setup_keywords['package_data'] = {'desisim': ['data/*', 'test/data/*', 'test/data/surveyops/ops/*']}
+                                 if os.access(fname, os.X_OK)]
 #
 # Run setup command.
 #
