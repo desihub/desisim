@@ -90,12 +90,11 @@ jobs:
               env:
                 GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                 COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
-                PYTHONPATH=${GITHUB_WORKSPACE}/py
-                DESIMODEL=${GITHUB_WORKSPACE}/desimodel
-                DESISIM=${GITHUB_WORKSPACE}
-                DESI_ROOT=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi
-                DESI_BASIS_TEMPLATES=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi/spectro/templates/basis_templates/v3.2
-
+                PYTHONPATH: ${GITHUB_WORKSPACE}/py
+                DESIMODEL: ${GITHUB_WORKSPACE}/desimodel
+                DESISIM: ${GITHUB_WORKSPACE}
+                DESI_ROOT: ${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi
+                DESI_BASIS_TEMPLATES: ${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi/spectro/templates/basis_templates/v3.2
               run:
                 bash -c 'if [[ "${{ matrix.coverage }}" == "coverage" ]]; then pytest --cov; coveralls; else pytest; fi'
 
