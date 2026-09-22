@@ -18,6 +18,7 @@ jobs:
             matrix:
                 include:
                     - os: ubuntu-latest
+                      coverage: coverage
                       python-version: '3.14'
                       numpy-version: '<2.6'
                       scipy-version: ''
@@ -28,12 +29,13 @@ jobs:
 #                     numpy-version: '<2.3'
 #                     scipy-version: ''
 #                     astropy-version: '<8'
-#                   # Similar to old NERSC environments but with last NumPy < 2.
-#                   - os: ubuntu-latest
-#                     python-version: '3.10'
-#                     numpy-version: '<2'
-#                     scipy-version: '<1.9'
-#                     astropy-version: '<6.1'
+                    # Similar to old NERSC environments but with last NumPy < 2.
+                    - os: ubuntu-latest
+                      coverage: test
+                      python-version: '3.10'
+                      numpy-version: '<2'
+                      scipy-version: '<1.9'
+                      astropy-version: '<6.1'
         env:
             DESIUTIL_VERSION: 4.0.1
             # DESIMODEL: ${GITHUB_WORKSPACE}/desimodel
@@ -59,7 +61,9 @@ jobs:
             - name: Install Python dependencies
               run: |
                 # setuptools_scm is needed to identify specsim version
-                python -m pip install --upgrade pip setuptools setuptools_scm wheel pytest
+                python -m pip install --upgrade pip setuptools setuptools_scm wheel
+                # include pytest-cov and coveralls for coverage testing even though only one matrix entry will use it
+                python -m pip install pytest pytest-cov coveralls
                 python -m pip install --no-build-isolation -e . \
                     'numpy${{ matrix.numpy-version }}' \
                     'scipy${{ matrix.scipy-version }}' \
@@ -83,71 +87,17 @@ jobs:
                 wget https://github.com/desihub/desisim-testdata/archive/${DESISIM_TESTDATA_VERSION}.zip
                 unzip ${DESISIM_TESTDATA_VERSION}.zip
             - name: Run the test
-              run: PYTHONPATH=${GITHUB_WORKSPACE}/py DESIMODEL=${GITHUB_WORKSPACE}/desimodel DESISIM=${GITHUB_WORKSPACE} DESI_ROOT=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi DESI_BASIS_TEMPLATES=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi/spectro/templates/basis_templates/v3.2 pytest
-
-    coverage:
-        name: Test coverage
-        runs-on: ${{ matrix.os }}
-        strategy:
-            fail-fast: true
-            matrix:
-                os: [ubuntu-22.04]
-                python-version: ['3.10']
-                astropy-version: ['<6.1']  # Compatibilty with desiconda 20240425-2.2.0.
-                fitsio-version: ['<2']
-                numpy-version: ['<2']
-                scipy-version: ['<1.9']
-        env:
-            DESIUTIL_VERSION: 3.6.0
-            # DESIMODEL: ${GITHUB_WORKSPACE}/desimodel
-            # desisim -> specsim needs data/specpsf/psf-quicksim-rebin.fits which isn't in trimmed down test data
-            DESIMODEL_DATA: trunk
-            # DESISIM: ${GITHUB_WORKSPACE}/desisim
-            DESISIM_TESTDATA_VERSION: main
-            # DESI_ROOT: ${DESISIM}/desi
-            # DESI_BASIS_TEMPLATES: ${DESI_ROOT}/spectro/templates/basis_templates/v3.2
-            SIMQSO_REPO: desihub
-            SIMQSO_VERSION: main
-
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
-            - name: Install System Packages
-              run: |
-                  sudo apt-get -y update
-                  sudo apt install libbz2-dev subversion
-            - name: Set up Python ${{ matrix.python-version }}
-              uses: actions/setup-python@v5
-              with:
-                python-version: ${{ matrix.python-version }}
-            - name: Install Python dependencies
-              run: |
-                # setuptools_scm is needed to identify specsim version
-                python -m pip install --upgrade pip 'setuptools<80' wheel setuptools_scm
-                python -m pip install pytest pytest-cov coveralls
-                # requirements.txt covers only the git-only dependencies; the rest
-                # come from desisim's own install_requires via `-e .`
-                python -m pip install --no-build-isolation -r requirements.txt -e . desiutil==${DESIUTIL_VERSION} 'numpy${{ matrix.numpy-version }}' 'scipy${{ matrix.scipy-version }}' 'astropy${{ matrix.astropy-version }}'
-                python -m pip install --no-build-isolation git+https://github.com/${SIMQSO_REPO}/simqso.git@${SIMQSO_VERSION}#egg=simqso
-                python -m pip cache remove fitsio
-                python -m pip install --no-deps --force-reinstall --ignore-installed 'fitsio${{ matrix.fitsio-version }}'
-            - name: Verify Installation
-              run: pip list
-            - name: Install desimodel Data
-              run: |
-                mkdir -p ${GITHUB_WORKSPACE}/desimodel
-                svn export https://desi.lbl.gov/svn/code/desimodel/${DESIMODEL_DATA}/data ${GITHUB_WORKSPACE}/desimodel/data
-            - name: Install desisim Data
-              run: |
-                wget https://github.com/desihub/desisim-testdata/archive/${DESISIM_TESTDATA_VERSION}.zip
-                unzip ${DESISIM_TESTDATA_VERSION}.zip
-            - name: Run the test
-              run: PYTHONPATH=${GITHUB_WORKSPACE}/py DESIMODEL=${GITHUB_WORKSPACE}/desimodel DESISIM=${GITHUB_WORKSPACE} DESI_ROOT=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi DESI_BASIS_TEMPLATES=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi/spectro/templates/basis_templates/v3.2 pytest --cov
-            - name: Coveralls
               env:
-                COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
                 GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              run: coveralls
+                COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
+                PYTHONPATH=${GITHUB_WORKSPACE}/py
+                DESIMODEL=${GITHUB_WORKSPACE}/desimodel
+                DESISIM=${GITHUB_WORKSPACE}
+                DESI_ROOT=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi
+                DESI_BASIS_TEMPLATES=${GITHUB_WORKSPACE}/desisim-testdata-${DESISIM_TESTDATA_VERSION}/desi/spectro/templates/basis_templates/v3.2
+
+              run:
+                bash -c 'if [[ "${{ matrix.coverage }}" == "coverage" ]]; then pytest --cov; coveralls; else pytest; fi'
 
     docs:
         name: Doc test
