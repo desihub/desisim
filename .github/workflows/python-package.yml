@@ -44,7 +44,6 @@ jobs:
             # DESI_ROOT: ${DESISIM}/desi
             # DESI_BASIS_TEMPLATES: ${DESI_ROOT}/spectro/templates/basis_templates/v3.2
             SIMQSO_REPO: desihub
-            SIMQSO_VERSION: main
 
         steps:
             - name: Checkout code
@@ -66,12 +65,13 @@ jobs:
                     'scipy${{ matrix.scipy-version }}' \
                     'astropy${{ matrix.astropy-version }}' \
                     desiutil==${DESIUTIL_VERSION} \
-                    git+https://github.com/${SIMQSO_REPO}/simqso.git@${SIMQSO_VERSION}#egg=simqso \
-                    git+https://github.com/desihub/specter.git@main#egg=specter \
-                    git+https://github.com/desihub/desimodel.git@main#egg=desimodel \
-                    git+https://github.com/desihub/desispec.git@main#egg=desispec \
-                    git+https://github.com/desihub/desitarget.git@main#egg=desitarget \
-                    git+https://github.com/${SIMQSO_REPO}/simqso.git@${SIMQSO_VERSION}#egg=simqso \
+                    git+https://github.com/desihub/specter.git@main \
+                    git+https://github.com/desihub/desimodel.git@main \
+                    git+https://github.com/desihub/desispec.git@main \
+                    git+https://github.com/desihub/desitarget.git@main
+                # simqso installation needs numpy pre-installed, so install it separately
+                python -m pip install --no-build-isolation \
+                    git+https://github.com/${SIMQSO_REPO}/simqso.git@main
             - name: Verify Installation
               run: pip list
             - name: Install desimodel Data
