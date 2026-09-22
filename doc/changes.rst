@@ -2,7 +2,12 @@
 desisim change log
 ==================
 
-0.39.2 (unreleased)
+0.39.3 (unreleased)
+-------------------
+
+* No changes yet.
+
+0.39.2 (2026-09-22)
 -------------------
 
 * Move packaging metadata into ``pyproject.toml`` and ``setup.cfg``,
