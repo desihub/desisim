@@ -6,4 +6,5 @@ Generate a spectra file
 
 import sys
 from desisim.scripts.quickquasars import main
-sys.exit(main())
+if __name__ == '__main__':
+    sys.exit(main())

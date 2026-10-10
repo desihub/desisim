@@ -8,7 +8,8 @@ from scipy.constants import speed_of_light
 from scipy.stats import cauchy
 from astropy.table import Table,Column
 import astropy.io.fits as pyfits
-import multiprocessing
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures.process import BrokenProcessPool
 import healpy
 
 import desisim
@@ -963,7 +964,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         hdulist.close() # see if this helps with memory issue
 
 def _func(arg) :
-    """ Used for multiprocessing.Pool """
+    """ Used for the ProcessPoolExecutor in main() """
     return simulate_one_healpix(**arg)
 
 def main(args=None):
@@ -1068,8 +1069,25 @@ def main(args=None):
                        "footprint_healpix_nside": footprint_healpix_nside , \
                        "bal":bal,"sfdmap":sfdmap,"eboss":eboss \
                    } for i,filename in enumerate(args.infile) ]
-        with multiprocessing.Pool(args.nproc) as pool:
-            pool.map(_func, func_args)
+        # ProcessPoolExecutor rather than multiprocessing.Pool.map: if a worker dies
+        # (e.g. killed by the OOM killer) Pool.map waits forever for the lost task,
+        # whereas the executor raises BrokenProcessPool. One task per healpix keeps
+        # the workers balanced.
+        executor = ProcessPoolExecutor(max_workers=args.nproc)
+        futures = {executor.submit(_func, fa): fa["ifilename"] for fa in func_args}
+        try:
+            for ndone, future in enumerate(as_completed(futures), 1):
+                future.result()
+                log.debug("Finished {}/{} healpix".format(ndone, len(futures)))
+        except BrokenProcessPool:
+            unfinished = [f for fut, f in futures.items()
+                          if not (fut.done() and not fut.cancelled() and fut.exception() is None)]
+            log.error("A worker process died (possibly killed for exceeding the node "
+                      "memory); {} of {} healpix did not finish. Consider fewer --nproc. "
+                      "Unfinished inputs:\n{}".format(len(unfinished), len(futures), "\n".join(unfinished)))
+            raise
+        finally:
+            executor.shutdown(wait=True, cancel_futures=True)
     else:
         for i,ifilename in enumerate(args.infile) :
             simulate_one_healpix(ifilename,args,model,obsconditions,
