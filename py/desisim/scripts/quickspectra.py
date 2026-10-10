@@ -280,6 +280,9 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
                 specdata.update(spec)
 
     else:
+        # Build all bands in one Spectra: merging per-camera Spectra with
+        # Spectra.update() costs O(nspec^2) in pure Python (EXPID/FIBER matching).
+        bands, waves, fluxes, ivars, masks = [], {}, {}, {}, {}
         for table in sim.camera_output :
             wave = table['wavelength'].astype(float)
             flux = (table['observed_flux']+table['random_noise_electrons']*table['flux_calibration']).T.astype(float)
@@ -292,27 +295,19 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
 
             flux = flux * scale
             ivar = ivar / scale**2
-            mask  = np.zeros(flux.shape).astype(int)
 
-            if not save_resolution :
-                spec = Spectra([band], {band : wave}, {band : flux}, {band : ivar},
-                        resolution_data=None,
-                        mask={band : mask},
+            bands.append(band)
+            waves[band] = wave
+            fluxes[band] = flux
+            ivars[band] = ivar
+            masks[band] = np.zeros(flux.shape).astype(int)
+
+        specdata = Spectra(bands, waves, fluxes, ivars,
+                        resolution_data=resolution if save_resolution else None,
+                        mask=masks,
                         fibermap=spectra_fibermap,
                         meta=meta,
                         single=True)
-            else :
-                spec = Spectra([band], {band : wave}, {band : flux}, {band : ivar},
-                        resolution_data={band : resolution[band]},
-                        mask={band : mask},
-                        fibermap=spectra_fibermap,
-                        meta=meta,
-                        single=True)
-
-            if specdata is None :
-                specdata = spec
-            else :
-                specdata.update(spec)
 
     desispec.io.write_spectra(spectra_filename, specdata)
     log.info('Wrote '+spectra_filename)
