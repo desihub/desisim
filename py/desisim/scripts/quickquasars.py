@@ -26,6 +26,7 @@ from desisim.io import empty_metatable
 from desisim.eboss import FootprintEBOSS, sdss_subsample, RedshiftDistributionEBOSS, sdss_subsample_redshift
 from desisim.survey_release import SurveyRelease
 from desispec.interpolation import resample_flux
+from desisim.resample import interp_many, resample_flux_many
 
 from desimodel.io import load_pixweight
 from desimodel import footprint
@@ -680,17 +681,15 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         for q in range(tmp_qso_flux.shape[0]) :
             qso_flux[q]=np.interp(trans_wave,tmp_qso_wave[q],tmp_qso_flux[q])
     else:
-        for q in range(tmp_qso_flux.shape[0]) :
-            qso_flux[q]=np.interp(trans_wave,tmp_qso_wave,tmp_qso_flux[q])
+        # one wavelength grid for all the QSOs
+        qso_flux = interp_many(trans_wave, tmp_qso_wave, tmp_qso_flux)
 
     tmp_qso_flux = qso_flux
     tmp_qso_wave = trans_wave
 
     if args.save_continuum :
         true_wave=np.linspace(args.wmin,args.wmax,int((args.wmax-args.wmin)/args.save_continuum_dwave)+1)
-        true_flux=np.zeros((tmp_qso_flux.shape[0],true_wave.size))
-        for q in range(tmp_qso_flux.shape[0]) :
-            true_flux[q]=resample_flux(true_wave,tmp_qso_wave,tmp_qso_flux[q])
+        true_flux=resample_flux_many(true_wave,tmp_qso_wave,tmp_qso_flux)
         continum_meta=Table()
         continum_meta['TARGETID'] = qsometa['TARGETID']
         continum_meta['TRUE_CONT'] = true_flux
@@ -820,9 +819,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     log.info("Resample to a linear wavelength grid (needed by DESI sim.)")
     # careful integration of bins, not just a simple interpolation
     qso_wave=np.linspace(args.wmin,args.wmax,int((args.wmax-args.wmin)/args.dwave)+1)
-    qso_flux=np.zeros((tmp_qso_flux.shape[0],qso_wave.size))
-    for q in range(tmp_qso_flux.shape[0]) :
-        qso_flux[q]=resample_flux(qso_wave,tmp_qso_wave,tmp_qso_flux[q])
+    qso_flux=resample_flux_many(qso_wave,tmp_qso_wave,tmp_qso_flux)
 
     log.info("Simulate DESI observation and write output file")
     if "MOCKID" in metadata.dtype.names :

@@ -7,6 +7,7 @@ Function to simulate a QSO spectrum including Lyman-alpha absorption.
 """
 
 import numpy as np
+import numba
 from desisim.dla import insert_dlas
 from desiutil.log import get_logger
 
@@ -218,6 +219,22 @@ def apply_lya_transmission(qso_wave,qso_flux,trans_wave,trans) :
 
     return output_flux
 
+@numba.njit(cache=True)
+def _multiply_interpolated(output_flux, fp, j, dx, dwave, inside, last):
+    """output_flux[q,:] *= linear interpolation of fp[q,:] (positions j, steps dx, offsets dwave),
+    1 outside the sampled range; the same arithmetic as np.interp(..., left=1., right=1.)."""
+    nq, nx = output_flux.shape
+    for q in range(nq):
+        for i in range(nx):
+            if not inside[i]:
+                continue                       # multiplying by 1.
+            if last[i]:
+                output_flux[q, i] *= fp[q, fp.shape[1] - 1]
+            else:
+                k = j[i]
+                output_flux[q, i] *= ((fp[q, k + 1] - fp[q, k]) / dx[i]) * dwave[i] + fp[q, k]
+
+
 def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals,mocktype,strengths=None) :
     '''
     Apply metal transmission to input flux, interpolating if needed.
@@ -246,12 +263,10 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals,mocktype
     if 'all' in metals:
         metals = [m for m in list(absorber_IGM.keys()) ]
 
-    zPix = trans_wave*np.ones(qso_flux.shape[0])[:,None]/lambda_RF_LYA-1.
-
-    tau = np.zeros(zPix.shape)
-    w = trans>1.e-100
-    tau[w] = -np.log(trans[w])
-    tau[~w] = -np.log(1.e-100)
+    # The Lya-only optical depth is computed block by block of QSOs, and the metal absorption
+    # one metal at a time, so that the temporary arrays are [nblock, ntranswave] instead of
+    # 2 * len(metals) arrays of [nqso, ntranswave] (about 8 GB for 4000 QSOs and 8 metals).
+    zPix = trans_wave/lambda_RF_LYA-1.   # the same for every QSO
 
     try:
         if strengths is None:
@@ -268,8 +283,10 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals,mocktype
             for m in metals:
                 absorber_IGM[m]['COEF']=strengths[metals.index(m)]
                 log.info(f"Applying metal strength for {m} with value {strengths[metals.index(m)]}.")
-        mtrans = { m:np.exp(-absorber_IGM[m]['COEF']*tau) for m in metals }
+        coefs = { m:absorber_IGM[m]['COEF'] for m in metals }
         mtrans_wave = { m:(zPix+1.)*absorber_IGM[m]['LRF'] for m in metals }
+        for m in metals:
+            -coefs[m]*1.  # raises TypeError if COEF is None
     except KeyError as e:
         lstMetals = ''
         nolstMetals = ''
@@ -285,9 +302,25 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals,mocktype
         raise Exception("Input metals {} have no values for COEF".format(lstMetals[:-2])) from e
 
     output_flux = qso_flux.copy()
-    for q in range(qso_flux.shape[0]):
+    # The wavelength samples of each metal are the same for every QSO, so the interpolation
+    # positions are found once per metal and applied to all QSOs in one loop. Same arithmetic
+    # as np.interp(qso_wave, xp, fp, left=1., right=1.) for each QSO.
+    interp_setup = {}
+    for m in metals:
+        xp = mtrans_wave[m]
+        j = np.clip(np.searchsorted(xp, qso_wave, side='right') - 1, 0, xp.size - 2)
+        interp_setup[m] = (j, xp[j+1] - xp[j], qso_wave - xp[j],
+                           (qso_wave >= xp[0]) & (qso_wave <= xp[-1]), qso_wave == xp[-1])
+    nblock = 512  # QSOs per block
+    for lo in range(0, qso_flux.shape[0], nblock):
+        trans_block = trans[lo:lo+nblock]
+        tau = np.zeros(trans_block.shape)
+        w = trans_block>1.e-100
+        tau[w] = -np.log(trans_block[w])
+        tau[~w] = -np.log(1.e-100)
+        block_flux = output_flux[lo:lo+nblock]   # a view
         for m in metals:
-            output_flux[q,:] *= np.interp(qso_wave,mtrans_wave[m][q,:],mtrans[m][q,:],left=1.,right=1.)
+            _multiply_interpolated(block_flux, np.exp(-coefs[m]*tau), *interp_setup[m])
     return output_flux
 
 def get_spectra(lyafile, nqso=None, wave=None, templateid=None, normfilter='sdss2010-g',
