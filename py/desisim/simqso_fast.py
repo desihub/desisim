@@ -6,8 +6,8 @@ Profile of quickquasars (3 healpixes, 12.6k quasars): of the 45 s spent in simqs
 quasar) and 3.3 s in ``_Mtoflam`` (an astropy unit conversion of the same constant for every quasar).
 
 ``install()`` replaces them in ``simqso.sqgrids`` by versions that do the same arithmetic in compiled loops
-(``numba``) and cache the constant. The results agree with the originals to rounding (the exponential and
-the power are computed by the compiled code instead of numpy: a few units in the last place).
+(``numba``), compute the power law of the continuum as an exponential of logarithms, and cache the constant.
+The results agree with the originals to rounding (~1e-15 relative; render_gaussians is identical bit for bit).
 """
 import numba
 import numpy as np
@@ -44,16 +44,24 @@ def _render_gaussians(wave, z, lines):
     return emspec
 
 
-@numba.njit(cache=True)
+_LOG_WAVE = {}
+
+
 def _broken_power_law(wave, bins, f0, breakpts, alpha_lams):
-    """``f0[ii] * (wave / breakpts[ii]) ** alpha_lams[ii]`` with ``ii = np.digitize(wave, bins)``."""
+    """``f0[ii] * (wave / breakpts[ii]) ** alpha_lams[ii]`` with ``ii = np.digitize(wave, bins)``, as
+    ``f0[i] * exp(alpha[i] * (log(wave) - log(breakpts[i])))`` on each of the (few) segments between breaks.
+    log(wave) is the same for all quasars and is computed once; the exponential is vectorised by numpy,
+    which is about five times faster than a power. Agrees with the original to ~1e-15 (relative)."""
+    key = (wave.size, wave[0], wave[-1])
+    log_wave = _LOG_WAVE.get(key)
+    if log_wave is None:
+        log_wave = _LOG_WAVE[key] = np.log(wave)
+    cuts = np.concatenate([[0], np.searchsorted(wave, bins, side='left'), [wave.size]])
     spec = np.empty(wave.size)
-    for k in range(wave.size):
-        ii = 0
-        for b in range(bins.size):
-            if bins[b] <= wave[k]:
-                ii = b + 1
-        spec[k] = f0[ii] * (wave[k] / breakpts[ii]) ** alpha_lams[ii]
+    for i in range(cuts.size - 1):
+        lo, hi = cuts[i], cuts[i + 1]
+        if hi > lo:
+            spec[lo:hi] = f0[i] * np.exp(alpha_lams[i] * (log_wave[lo:hi] - np.log(breakpts[i])))
     return spec
 
 
