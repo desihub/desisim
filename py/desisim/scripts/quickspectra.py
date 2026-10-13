@@ -59,6 +59,36 @@ def _smooth_source_variance(camera_output, sigma_A, dwave_out):
             arm_output['flux_calibration'] ** -2 *
             arm_output['variance_electrons'] ** -1)
 
+# The output resolution matrix of a camera does not depend on the spectra, the number of fibers or the
+# observing conditions, only on the instrument model and the output wavelengths, but specsim computes it
+# again at each call (about 1.6 s per healpix in quickquasars). Keep the last result for each camera and
+# reuse it when the inputs are identical.
+_resolution_cache = {}
+
+def _fingerprint(camera):
+    """What the output resolution matrix of a camera is computed from (the full resolution matrix, which
+    may be a scipy sparse matrix, the output wavelengths and the layout of the grids)."""
+    full = camera._resolution_matrix
+    if hasattr(full, 'tocsr'):
+        full = full.tocsr()
+        parts = [full.data, full.indices, full.indptr, np.array(full.shape)]
+    else:
+        parts = [np.asarray(full)]
+    parts.append(np.asarray(camera.output_wavelength))
+    layout = repr((camera._downsampling, camera.ccd_slice, camera.response_slice))
+    return [p.copy() for p in parts], layout
+
+def _output_resolution_array(camera):
+    """Resolution(camera.get_output_resolution_matrix()).to_fits_array(), cached for identical inputs."""
+    parts, layout = _fingerprint(camera)
+    cached = _resolution_cache.get(camera.name)
+    if (cached is not None and cached[1] == layout and len(cached[0]) == len(parts)
+            and all(np.array_equal(a, b) for a, b in zip(cached[0], parts))):
+        return cached[2]
+    array = Resolution(camera.get_output_resolution_matrix()).to_fits_array()
+    _resolution_cache[camera.name] = (parts, layout, array)
+    return array
+
 def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
                 sourcetype=None, targetid=None, redshift=None, expid=0, seed=0, skyerr=0.0, ra=None,
                 dec=None, meta=None, fibermap_columns=None, fullsim=False, use_poisson=True, specsim_config_file="desi", dwave_out=None, save_resolution=True, source_contribution_smoothing=0):
@@ -238,10 +268,10 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
 
     resolution={}
     for camera in sim.instrument.cameras:
-        R = Resolution(camera.get_output_resolution_matrix())
-        resolution[camera.name] = np.tile(R.to_fits_array(), [nspec, 1, 1])
+        R_array = _output_resolution_array(camera)
+        resolution[camera.name] = np.tile(R_array, [nspec, 1, 1])
         if not save_resolution :
-            resolution[camera.name] = R.to_fits_array()
+            resolution[camera.name] = R_array
 
     skyscale = skyerr * random_state.normal(size=sim.num_fibers)
 
