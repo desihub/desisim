@@ -2605,6 +2605,8 @@ class SIMQSO():
 
         else:
             from simqso.sqrun import buildSpectraBulk
+            from desisim import simqso_fast
+            simqso_fast.install()  # faster render_gaussians, broken power law and flux normalisation
             from simqso.sqgrids import generateQlfPoints, QsoSimPoints
 
             # Sample from the QLF, using the input redshifts.
