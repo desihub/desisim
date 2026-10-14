@@ -143,6 +143,11 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
 
     parser.add_argument('--nproc', type=int, default=1,help="number of processors to run faster")
 
+    parser.add_argument('--mem-per-worker', type=float, default=None, help="Memory in GiB that one worker "
+        "can use at its peak (about 8 for the DR2 mocks with the production arguments). If given, --nproc is "
+        "lowered to what fits in the memory available to the job (the SLURM allocation if set, else the free "
+        "memory of the node), so that the node is not run out of memory.")
+
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
 
     parser.add_argument('--nmax', type=int, default=None, help="Max number of QSO per input file, for debugging")
@@ -964,6 +969,30 @@ def _func(arg) :
     """ Used for the ProcessPoolExecutor in main() """
     return simulate_one_healpix(**arg)
 
+def _memory_limited_nproc(nproc, mem_per_worker_gib):
+    """Lower ``nproc`` to what fits in the memory available to this job.
+
+    The memory is the SLURM allocation of the node (``SLURM_MEM_PER_NODE``, in MiB) if it is set,
+    else the available memory of the node, whichever is smaller."""
+    log = get_logger()
+    try:
+        import psutil
+        available = psutil.virtual_memory().available
+    except ImportError:
+        log.warning("psutil is not available, --mem-per-worker is ignored")
+        return nproc
+    if os.environ.get("SLURM_MEM_PER_NODE", "").isdigit():
+        available = min(available, int(os.environ["SLURM_MEM_PER_NODE"]) * 2**20)
+    fit = max(1, int(available / (mem_per_worker_gib * 2**30)))
+    if fit < nproc:
+        log.warning("--nproc lowered from {} to {}: {:.0f} GiB available for {} GiB per worker".format(
+            nproc, fit, available / 2**30, mem_per_worker_gib))
+    else:
+        log.info("--nproc {} fits in the {:.0f} GiB available ({} GiB per worker)".format(
+            nproc, available / 2**30, mem_per_worker_gib))
+    return min(nproc, fit)
+
+
 def main(args=None):
 
     log = get_logger()
@@ -1056,6 +1085,9 @@ def main(args=None):
     else:
         eboss = None
         
+    if args.mem_per_worker is not None and args.nproc > 1:
+        args.nproc = _memory_limited_nproc(args.nproc, args.mem_per_worker)
+
     if args.nproc > 1:
         func_args = [ {"ifilename":filename , \
                        "args":args, "model":model , \
