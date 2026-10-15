@@ -148,6 +148,11 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
         "lowered to what fits in the memory available to the job (the SLURM allocation if set, else the free "
         "memory of the node), so that the node is not run out of memory.")
 
+    parser.add_argument('--fiber-chunk', type=int, default=None, help="Simulate the spectra of a healpix in chunks "
+        "of this many fibres to limit the memory of the specsim simulator (about 7 GiB for 1500 quasars; a chunk "
+        "of 200 needs a fraction of it). The random noise is drawn for all the fibres at once as without this "
+        "option, so the output is the same.")
+
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
 
     parser.add_argument('--nmax', type=int, default=None, help="Max number of QSO per input file, for debugging")
@@ -865,7 +870,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     resolution=sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
                            sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
                            meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False,
-                           specsim_config_file=specsim_config_file, dwave_out=dwave_out, save_resolution=args.save_resolution, source_contribution_smoothing=args.source_contr_smoothing)
+                           specsim_config_file=specsim_config_file, dwave_out=dwave_out, save_resolution=args.save_resolution, source_contribution_smoothing=args.source_contr_smoothing, fiber_chunk=args.fiber_chunk)
 
     ### Keep input redshift
     Z_spec = metadata['Z'].copy()

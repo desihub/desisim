@@ -89,9 +89,86 @@ def _output_resolution_array(camera):
     _resolution_cache[camera.name] = (parts, layout, array)
     return array
 
+def _simulate_in_chunks(wave, flux, frame_fibermap, obsconditions, redshift, seed, skyerr, specsim_config_file,
+                        dwave_out, source_contribution_smoothing, fiber_chunk):
+    """Same result as simulating all the fibers at once with use_poisson=False, with the specsim simulator
+    (whose size is proportional to the number of fibers) limited to fiber_chunk fibers.
+
+    The unchunked code draws the noise of each camera with one call random_state.normal(scale=...) on an array
+    (wavelengths, fibers), then the sky error of the fibers from the same random state. Drawing standard normals of
+    the same shapes in the same order and multiplying by the scale of each chunk gives the same numbers.
+
+    Returns bands, waves, fluxes, ivars (dicts by band) and the output resolution array of each band."""
+    nspec = flux.shape[0]
+    random_state = np.random.RandomState(seed)
+    normals = None
+    skyscale = None
+    scale = 1e17
+    pieces = {}
+    waves = {}
+    R_arrays = {}
+    bands = []
+    last_size = None
+    # specsim draws a random offset of every fiber (hence its fiber loss) from a generator of the simulator: the
+    # fraction of light entering the fibers is computed once for all of them, as one simulation does
+    acceptance = desisim.simexp.simulate_spectra(wave, flux, fibermap=frame_fibermap,
+        obsconditions=obsconditions, redshift=redshift, seed=seed, psfconvolve=True,
+        specsim_config_file=specsim_config_file, dwave_out=dwave_out, acceptance_only=True)
+    desisim.specsim._simulators.clear()
+    desisim.specsim._simdefaults.clear()
+    for a in range(0, nspec, fiber_chunk):
+        b = min(a + fiber_chunk, nspec)
+        if last_size is not None and last_size != b - a:
+            # the simulators are cached by number of fibers: do not keep two
+            desisim.specsim._simulators.clear()
+            desisim.specsim._simdefaults.clear()
+        last_size = b - a
+        if isinstance(obsconditions, dict):
+            # per-spectrum conditions (arrays with one value per fiber) follow the chunk
+            obs = {k: (v[a:b] if np.ndim(v) > 0 and len(v) == nspec else v) for k, v in obsconditions.items()}
+        else:
+            obs = obsconditions
+        sim = desisim.simexp.simulate_spectra(wave, flux[a:b], fibermap=frame_fibermap[a:b],
+            obsconditions=obs, redshift=None if redshift is None else redshift[a:b], seed=seed,
+            psfconvolve=True, specsim_config_file=specsim_config_file, dwave_out=dwave_out,
+            fiber_acceptance_fraction=acceptance[a:b])
+        if normals is None:
+            normals = {}
+            for table in sim.camera_output:
+                nwave_cam, nf = table['num_source_electrons'].shape
+                assert nf == b - a
+                normals[table.meta['name']] = random_state.standard_normal((nwave_cam, nspec))
+            skyscale = skyerr * random_state.normal(size=nspec)
+        for table in sim.camera_output:
+            mean_electrons = (table['num_source_electrons'] + table['num_sky_electrons']
+                              + table['num_dark_electrons'])
+            noise_scale = np.sqrt(mean_electrons + table['read_noise_electrons']**2)
+            table['random_noise_electrons'] = noise_scale * normals[table.meta['name']][:, a:b]
+        if source_contribution_smoothing > 0:
+            _smooth_source_variance(sim.camera_output, source_contribution_smoothing, dwave_out)
+        for table in sim.camera_output:
+            band = table.meta['name'].strip()[0]
+            fl = (table['observed_flux'] + table['random_noise_electrons'] * table['flux_calibration']).T.astype(float)
+            if np.any(skyscale):
+                fl += ((table['num_sky_electrons'] * skyscale[a:b]) * table['flux_calibration']).T.astype(float)
+            iv = table['flux_inverse_variance'].T.astype(float)
+            if band not in pieces:
+                bands.append(band)
+                pieces[band] = ([], [])
+                waves[band] = table['wavelength'].astype(float)
+            pieces[band][0].append(fl * scale)
+            pieces[band][1].append(iv / scale**2)
+        for camera in sim.instrument.cameras:
+            R_arrays[camera.name] = _output_resolution_array(camera)
+        del sim
+    fluxes = {band: np.concatenate(pieces[band][0]) for band in bands}
+    ivars = {band: np.concatenate(pieces[band][1]) for band in bands}
+    return bands, waves, fluxes, ivars, R_arrays
+
+
 def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
                 sourcetype=None, targetid=None, redshift=None, expid=0, seed=0, skyerr=0.0, ra=None,
-                dec=None, meta=None, fibermap_columns=None, fullsim=False, use_poisson=True, specsim_config_file="desi", dwave_out=None, save_resolution=True, source_contribution_smoothing=0):
+                dec=None, meta=None, fibermap_columns=None, fullsim=False, use_poisson=True, specsim_config_file="desi", dwave_out=None, save_resolution=True, source_contribution_smoothing=0, fiber_chunk=None):
     """
     Simulate spectra from an input set of wavelength and flux and writes a FITS file in the Spectra format that can
     be used as input to the redshift fitter.
@@ -123,6 +200,9 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
         If False returns a resolution matrix (useful for mocks to save disk space).
         source_contribution_smoothing : If > 0, contribution of source electrons to the noise and variance is
         Gaussian smoothed by this value. This reduces signal-noise coupling especially for Lya forest.
+        fiber_chunk : if set (and use_poisson is False) the fibers are simulated in chunks of this many, which
+        limits the memory of the specsim simulator. The random noise is drawn for all fibers at once, in the same
+        order as the unchunked code, so the output is identical to the output with fiber_chunk=None.
     """
     log = get_logger()
 
@@ -250,6 +330,26 @@ def sim_spectra(wave, flux, program, spectra_filename, obsconditions=None,
 
     wave = wave[ii]*u.Angstrom
     flux = flux[:,ii]*flux_unit
+
+    if (fiber_chunk is not None and 0 < fiber_chunk < nspec and not use_poisson and not fullsim
+            and specsim_config_file != "eboss"):
+        bands, waves, fluxes, ivars, R_arrays = _simulate_in_chunks(
+            wave, flux, frame_fibermap, obsconditions, redshift, seed, skyerr, specsim_config_file, dwave_out,
+            source_contribution_smoothing, fiber_chunk)
+        resolution = {}
+        for band in bands:
+            resolution[band] = np.tile(R_arrays[band], [nspec, 1, 1]) if save_resolution else R_arrays[band]
+        masks = {band: np.zeros(fluxes[band].shape).astype(int) for band in bands}
+        specdata = Spectra(bands, waves, fluxes, ivars,
+                        resolution_data=resolution if save_resolution else None,
+                        mask=masks, fibermap=spectra_fibermap, meta=meta, single=True)
+        desispec.io.write_spectra(spectra_filename, specdata)
+        log.info('Wrote '+spectra_filename)
+        desisim.specsim._simulators.clear()
+        desisim.specsim._simdefaults.clear()
+        if not save_resolution :
+            return resolution
+        return
 
     sim = desisim.simexp.simulate_spectra(wave, flux, fibermap=frame_fibermap,
         obsconditions=obsconditions, redshift=redshift, seed=seed,
