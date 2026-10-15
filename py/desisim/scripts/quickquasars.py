@@ -970,9 +970,23 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         hdulist.writeto(zbest_filename, overwrite=True)
         hdulist.close() # see if this helps with memory issue
 
+def _release_freed_memory():
+    """Give the memory freed by the last healpix back to the OS (glibc keeps much of it in the heap of the
+    process, so the workers grew healpix after healpix)."""
+    import gc
+    gc.collect()
+    try:
+        import ctypes
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except (OSError, AttributeError):
+        pass
+
 def _func(arg) :
     """ Used for the ProcessPoolExecutor in main() """
-    return simulate_one_healpix(**arg)
+    try:
+        return simulate_one_healpix(**arg)
+    finally:
+        _release_freed_memory()
 
 def _memory_limited_nproc(nproc, mem_per_worker_gib):
     """Lower ``nproc`` to what fits in the memory available to this job.
