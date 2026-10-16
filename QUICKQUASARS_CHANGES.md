@@ -58,9 +58,16 @@ option is ignored.
   the last step are identical bit for bit), and the pool change gives the same files apart from the date stamp
   `FIBERMAP.NIGHT`.
 - The existing tests of the package pass (66 passed with the integration script excluded, DESI 26.9).
-- A whole-mock test on one CPU node (1151 healpixes, 1.21M quasars): the stock script and this branch produce
-  spectra that agree to 1.5e-4 of the noise in the flux and 3e-6 relative in `IVAR`; the difference includes the
-  Python and library versions of the two environments (DESI 26.3 and 26.9), which I did not separate.
+- A whole-mock test on one CPU node (1151 healpixes, 1.21M quasars): the stock script (DESI 26.3) and this branch
+  (DESI 26.9) produce spectra that differ, over 226 million pixels of 25 healpixes, by a median of 1e-7, a 99th
+  percentile of 7e-6 and a maximum of 1.5e-4 of the noise of the pixel (`|dFLUX| * sqrt(IVAR)`); `IVAR` differs by at
+  most 3e-6 relative, no pixel has `IVAR` = 0. The difference comes from the environment, not from these changes: on
+  one healpix, this branch run in DESI 26.3 differs from the stock code in 26.3 by a median of 0, a 99th percentile
+  of 0 and a maximum of 2.3e-6 of the noise, while the same code in 26.3 and in 26.9 differs by a median of 1.1e-7, a
+  99th percentile of 5.3e-6 and a maximum of 8.2e-5 of the noise. For |flux| above 5 sigma the relative difference
+  has a median of 8e-8 (about the float32 resolution, 6e-8) and a maximum of 6e-6; the largest differences in units of
+  the noise are the highest signal-to-noise pixels (up to 140 sigma). I have not found which library causes the
+  1e-6-level difference between the two environments.
 
 ## Timings and memory
 
