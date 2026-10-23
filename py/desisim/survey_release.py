@@ -16,13 +16,174 @@ from scipy.stats import rv_discrete
 from desitarget.targetmask import desi_mask
 from desimodel.io import load_tiles
 from desimodel.footprint import tiles2pix, is_point_in_desi, radec2pix
+from scipy.spatial import cKDTree
 
 
 log = get_logger()
 
+NSIDE_DENSITY, NSIDE_POS = 256, 128                 # healpix nside of the footprint weight and of the NTILE / exposure-time histograms
+POOL_MARGIN = 1.1                               # extra oversizing of the non QSO candidate pool, against its Poisson noise
+SECONDS_PER_PASS = 1000.                        # one nominal pass: quickquasars simulates perfect dark conditions
+NTILE_MAX = 9                                   # NTILE histogram columns 0..9 (values above are clipped)
+EXPTIME_BIN_WIDTH = 500.                            # exposure-time histogram bin width [s]
+N_EXPTIME_BINS = 24                                 # 0 - 12000 s
 # exposure time [s] = factor * TSNR2 column; every TSNR2 type has its own factor (in order of preference)
 TSNR_EXPTIME_FACTORS = {'TSNR2_LRG': 12.15, 'TSNR2_LYA': 11.8, 'TSNR2_QSO': 33.61}
 TSNR_COLUMN, EXPTIME_FACTOR = next(iter(TSNR_EXPTIME_FACTORS.items()))
+
+
+def round_to_passes(exptime, seconds_per_pass=SECONDS_PER_PASS):
+    """Round an exposure time [s] to the nearest whole multiple of ``seconds_per_pass`` (minimum one multiple)."""
+    exptime = np.asarray(exptime, dtype=float)
+    if not seconds_per_pass:
+        return exptime
+    return seconds_per_pass * np.maximum(1., np.floor(exptime / seconds_per_pass + 0.5))
+
+
+
+class LyaCoverage(object):
+    """The Lya coverage of a data release: what ``gen_qso_catalog`` needs to give the mock Lya quasar targets the footprint, completeness
+    and exposure times of the data. Built once per release by ``build_lya_coverage`` from the LSS randoms and stored as
+    ``lya_<release>_coverage.fits``.
+
+    Dense healpix arrays (footprint weight, histogram of the number of available tiles NTILE, exposure histograms) plus a few numbers fitted
+    once to the data catalog: q and N_DATA (QSO targets), q_nonqso and n_data_nonqso (non-QSO targets: quasars selected as ELG or other
+    classes), p_reobs (header only) and the pass time. No sky position of the data enters it.
+
+    Mock selection: keep probability = kappa * w_pix * P_obs(pix; q), with w_pix the footprint weight from the number of randoms per pixel
+    (``nside_density``) and P_obs = sum_n h_n [1 - (1 - q)^n] / sum_n h_n from the NTILE histogram h_n of the pixel (``nside_pos``); kappa is
+    solved per target class so that the expected number of kept mock targets equals the number of data targets of that class.
+    Exposures are drawn from the exposure histogram of the pixel and rounded to whole nominal passes (``seconds_per_pass`` = 1000 s, minimum one pass:
+    quickquasars simulates perfect dark conditions, so one nominal exposure is 1000 s and the data effective time 12.15 * TSNR2_LRG is its
+    nominal-dark equivalent).
+    """
+
+    def __init__(self, acc, nside_density=NSIDE_DENSITY, nside_pos=NSIDE_POS, q=0.5, n_data=None, meta=None,
+                 interior_threshold=0.75, min_footprint=0.1, seconds_per_pass=0., q_nonqso=None, n_data_nonqso=None):
+        self.nside_density, self.nside_pos = nside_density, nside_pos
+        self.seconds_per_pass, self.q_nonqso, self.n_data_nonqso = seconds_per_pass, q_nonqso, n_data_nonqso
+        self.acc = acc; self.q, self.n_data = q, n_data
+        self.meta = dict(meta or {})
+        self.interior_threshold, self.min_footprint = interior_threshold, min_footprint
+        nr = acc['nr_density'].astype(float)
+        occupied = nr[nr > 0]
+        self.n_full = np.percentile(occupied, 95)          # randoms in a fully covered pixel
+        w = np.clip(nr / self.n_full, 0, 1)
+        w[nr >= interior_threshold * self.n_full] = 1.0    # no noise in the interior
+        w[nr < min_footprint * self.n_full] = 0.0
+        self.weight = w
+        self._pobs_q = None
+
+    def pobs(self, q=None):
+        """Probability of being observed at least once, per nside_pos pixel, from the NTILE histogram."""
+        q = self.q if q is None else q
+        if self._pobs_q != q:
+            h = self.acc['h_ntile'].astype(float); n = np.arange(h.shape[1])
+            tot = h.sum(1)
+            self._pobs = np.divide(h @ (1 - (1 - q) ** n), tot, out=np.zeros(len(tot)), where=tot > 0)
+            self._pobs_q = q
+        return self._pobs
+
+    def nonqso_pool_factor(self):
+        """Oversizing of the pool of non QSO candidates (relative to the data density) that the selection of non QSO targets needs.
+
+        Candidates have the data density times this factor, so kappa = 1 / (factor * <P_obs>) with <P_obs> the footprint-weighted mean of P_obs.
+        No pixel saturates (kappa * w * P_obs <= 1) when factor >= max(P_obs) / <P_obs>; the value returned is that ratio (at least 1) times POOL_MARGIN,
+        and 1 without non QSO targets.
+        """
+        if self.q_nonqso is None:
+            return 1.0
+        ratio = (self.nside_density // self.nside_pos) ** 2
+        area = self.weight.reshape(-1, ratio).sum(1)            # footprint weight inside each nside_pos pixel
+        pobs = self.pobs(self.q_nonqso)
+        return POOL_MARGIN * max(1.0, float(pobs[area >= 0.5 * ratio].max() / (np.sum(area * pobs) / np.sum(area))))
+
+    def pixels(self, ra, dec):
+        p_d = hp.ang2pix(self.nside_density, np.radians(90 - np.asarray(dec)), np.radians(ra), nest=True)
+        return p_d, p_d // (self.nside_density // self.nside_pos) ** 2
+
+    def keep_probability(self, ra, dec, kappa=1.0, q=None):
+        p_d, p_p = self.pixels(ra, dec)
+        return np.minimum(1.0, kappa * self.weight[p_d] * self.pobs(q)[p_p])
+
+    def solve_kappa(self, ra, dec, n_target, q=None):
+        """kappa such that the expected number of kept targets equals n_target (completeness slope q, default the QSO-target one)."""
+        p_d, p_p = self.pixels(ra, dec); x = self.weight[p_d] * self.pobs(q)[p_p]
+        if np.sum(np.minimum(1.0, 1e6 * x)) < n_target:
+            log.warning(f"Not enough mock targets ({np.sum(x > 0)}) to reach the requested {n_target}; keeping all of them.")
+            return 1e6
+        lo, hi = 0.0, 1.0
+        while np.sum(np.minimum(1.0, hi * x)) < n_target:
+            hi *= 2
+        for _ in range(50):
+            mid = 0.5 * (lo + hi)
+            if np.sum(np.minimum(1.0, mid * x)) < n_target: lo = mid
+            else: hi = mid
+        return 0.5 * (lo + hi)
+
+    def exptime_cdf(self):
+        if not hasattr(self, '_cdf'):
+            h = self.acc['h_exp'].astype(float); tot = h.sum(1)
+            self._cdf = np.cumsum(h, axis=1) / np.where(tot > 0, tot, 1)[:, None]
+            self._filled = tot > 0
+            if not np.any(self._filled):
+                raise RuntimeError("Lya coverage without any exposure histogram")
+            # pixels with randoms but no observed target (edges) use the nearest filled pixel
+            # nearest filled pixel for lookups that land on an empty one
+            centers = np.array(hp.pix2vec(self.nside_pos, np.arange(len(tot)), nest=True)).T
+            tree = cKDTree(centers[self._filled]); idx_filled = np.flatnonzero(self._filled)
+            self._source = np.arange(len(tot))
+            empty = np.flatnonzero(~self._filled)
+            if len(empty): self._source[empty] = idx_filled[tree.query(centers[empty])[1]]
+        return self._cdf
+
+    def draw_exptimes(self, ra, dec, rng, chunk=300_000, seconds_per_pass=None):
+        """Draw one exposure [s] per position from its pixel histogram (uniform jitter inside the bin),
+        rounded to whole multiples of ``seconds_per_pass`` (default: the seconds per pass of the map; 0 = continuous)."""
+        seconds_per_pass = self.seconds_per_pass if seconds_per_pass is None else seconds_per_pass
+        cdf = self.exptime_cdf()
+        p_p = self.pixels(ra, dec)[1]; p_p = self._source[p_p]
+        out = np.zeros(len(p_p))
+        for a in range(0, len(p_p), chunk):
+            sl = slice(a, a + chunk)
+            u = rng.uniform(size=len(p_p[sl]))
+            b = np.minimum((cdf[p_p[sl]] < u[:, None]).sum(1), N_EXPTIME_BINS - 1)
+            out[sl] = (b + rng.uniform(size=len(b))) * EXPTIME_BIN_WIDTH
+        return round_to_passes(out, seconds_per_pass)
+
+    # ---- IO
+    def write(self, filename):
+        a = self.acc
+        hdr = dict(NSIDED=self.nside_density, NSIDEP=self.nside_pos, Q=self.q, NDATA=self.n_data if self.n_data else -1,
+                   NFULL=self.n_full, INTERIOR=self.interior_threshold, MINFOOT=self.min_footprint, EXPBIN=EXPTIME_BIN_WIDTH,
+                   SECPPASS=self.seconds_per_pass, QNQ=self.q_nonqso if self.q_nonqso is not None else -1.,
+                   NDATANQ=self.n_data_nonqso if self.n_data_nonqso else -1, **self.meta)
+        import fitsio
+        sel_d = np.flatnonzero(a['nr_density'] > 0); sel_p = np.flatnonzero(a['nr_pos'] > 0)
+        with fitsio.FITS(filename, 'rw', clobber=True) as f:
+            f.write(dict(PIXEL=sel_d.astype('i8'), NR=a['nr_density'][sel_d].astype('i4')), extname='DENSITY', header=hdr)
+            f.write(dict(PIXEL=sel_p.astype('i8'), NR=a['nr_pos'][sel_p].astype('i4'),
+                         H_NTILE=a['h_ntile'][sel_p].astype('i4'), H_EXP=a['h_exp'][sel_p].astype('i4')), extname='POSITION', header=hdr)
+
+    @classmethod
+    def read(cls, filename):
+        import fitsio
+        with fitsio.FITS(filename) as f:
+            hdr = f['DENSITY'].read_header(); dd = f['DENSITY'].read(); pp = f['POSITION'].read()
+        nd, npos = int(hdr['NSIDED']), int(hdr['NSIDEP'])
+        acc = dict(nr_density=np.zeros(12 * nd ** 2, np.int64), nr_pos=np.zeros(12 * npos ** 2, np.int64),
+                   h_ntile=np.zeros((12 * npos ** 2, NTILE_MAX + 1), np.int64), h_exp=np.zeros((12 * npos ** 2, N_EXPTIME_BINS), np.int64))
+        acc['nr_density'][dd['PIXEL']] = dd['NR']; acc['nr_pos'][pp['PIXEL']] = pp['NR']
+        acc['h_ntile'][pp['PIXEL']] = pp['H_NTILE']; acc['h_exp'][pp['PIXEL']] = pp['H_EXP']
+        n_data = int(hdr['NDATA']); n_data = None if n_data < 0 else n_data
+        get = lambda key, default: hdr[key] if key in hdr else default
+        qnq = float(get('QNQ', -1.)); nnq = int(get('NDATANQ', -1))
+        meta = {key: hdr[key] for key in ('RELEASE', 'ZMIN', 'ZMAX') if key in hdr}        # release and redshift range of the counted data targets (absent in older files)
+        return cls(acc, nd, npos, q=float(hdr['Q']), n_data=n_data, meta=meta,
+                   interior_threshold=float(hdr['INTERIOR']), min_footprint=float(hdr['MINFOOT']),
+                   seconds_per_pass=float(get('SECPPASS', 0.)), q_nonqso=None if qnq < 0 else qnq, n_data_nonqso=None if nnq < 0 else nnq)
+
+
 
 
 class SurveyRelease(object):
@@ -34,8 +195,11 @@ class SurveyRelease(object):
         include_nonqso_targets (bool): if True, will keep non QSO targets on data catalog and generate them in mock catalog.
         seed (int): seed for random number generation.
         invert (bool): if True, will invert the random number generation for redshift and magnitude distributions.
+        nonqso_pool_factor (float): multiplies the number of non QSO candidates drawn from the master (default 1: as many as the data has per area).
+            The Lya coverage selection keeps only a fraction of them (completeness proportional to the number of available tiles), so it needs a larger pool
+            (gen_qso_catalog uses LyaCoverage.nonqso_pool_factor()).
     """
-    def __init__(self,mastercatalog,data_file=None,include_nonqso_targets=False,seed=None,invert=False):
+    def __init__(self,mastercatalog,data_file=None,include_nonqso_targets=False,seed=None,invert=False,nonqso_pool_factor=1.0):
         self.mockcatalog=Table.read(mastercatalog,hdu=1) # Assumes master catalog is in HDU1
         log.info(f"There are {len(self.mockcatalog)} targets in {mastercatalog} master catalog.")
         if 'Z' not in self.mockcatalog.colnames:
@@ -45,9 +209,11 @@ class SurveyRelease(object):
                 raise Exception("Mock catalog Z column not found")
         self.invert=invert
         self.include_nonqso_targets = include_nonqso_targets
+        self.nonqso_pool_factor = nonqso_pool_factor
         np.random.seed(seed)
 
         self.data = None
+        self.footprint_method = None     # 'tiles' or 'coverage' once apply_data_geometry / apply_lya_coverage has been applied; assign_exposures follows it
         if data_file is not None:
             self.data = self.prepare_data_catalog(data_file,zmin=min(self.mockcatalog['Z']),zmax=max(self.mockcatalog['Z']),
                                                   include_nonqso_targets=self.include_nonqso_targets)
@@ -137,7 +303,7 @@ class SurveyRelease(object):
         log.info(f"Selecting {sum(selection)} mock QSO targets following the distribution: {distribution}")
         if self.include_nonqso_targets:
             avail_ids = self.mockcatalog['MOCKID'][~selection]
-            dndz_data_nonqso = self.get_nonqso_dndz(expected_dist=dist,zbins=zbins) 
+            dndz_data_nonqso = self.nonqso_pool_factor*self.get_nonqso_dndz(expected_dist=dist,zbins=zbins) 
             selected_nonqso = self.sample_redshift(dndz_data_nonqso,zbins=zbins,mask=~selection)
             selected_nonqso_ids = avail_ids[selected_nonqso]
             log.info(f"Selecting {sum(selected_nonqso)} mock non QSO targets following the distribution of data.")
@@ -237,6 +403,48 @@ class SurveyRelease(object):
             log.info(f"Keeping {len(mock[selection])} mock targets out of {len(mock)}.")
             mock = mock[selection]
         self.mockcatalog=mock
+        self.footprint_method = 'tiles'
+
+    def apply_lya_coverage(self, lya_coverage):
+        """Footprint and downsampling from the Lya coverage of the release (see LyaCoverage and the build_lya_coverage script).
+
+        Replaces apply_data_geometry: mock targets are kept with probability kappa*w*P_obs, with kappa solved per target class so that the
+        expected number of kept targets inside the redshift range of the map (ZMIN, ZMAX in its header; all targets if the map does not record
+        it) equals the number of data targets of that class stored in the map. QSO targets and non QSO targets (quasars selected as other
+        target classes) have their own completeness slope and count.
+
+        Args:
+            lya_coverage (str or LyaCoverage): path to lya_<release>_coverage.fits or an already loaded LyaCoverage.
+        """
+        lmap = LyaCoverage.read(lya_coverage) if isinstance(lya_coverage,str) else lya_coverage
+        if lmap.n_data is None:
+            raise ValueError("The Lya coverage has no N_DATA scalar; build it with build_lya_coverage and the data catalog.")
+        self.lya_coverage = lmap
+        mock = self.mockcatalog
+        rand = self._uniform(len(mock))
+        selection = np.zeros(len(mock),dtype=bool)
+        is_qso = np.asarray(mock['IS_QSO_TARGET']) if 'IS_QSO_TARGET' in mock.colnames else np.ones(len(mock),dtype=bool)
+        classes = [('QSO',is_qso,lmap.q,lmap.n_data)]
+        if np.any(~is_qso):
+            if lmap.q_nonqso is None or lmap.n_data_nonqso is None:
+                raise ValueError("The mock catalog has non QSO targets but the Lya coverage has no q_nonqso / N_DATA_nonqso; rebuild the map with a recent build_lya_coverage.")
+            classes.append(('non QSO',~is_qso,lmap.q_nonqso,lmap.n_data_nonqso))
+        # The data counted in the map (N_DATA) are those inside its redshift range [ZMIN, ZMAX] (header of the map; older maps do not record it).
+        # Mock redshifts are moved a little outside that range by the FoG, so kappa is solved on the mock targets inside it: the number of kept
+        # targets inside the range then equals the data's. The targets outside it get the same kappa.
+        zmin, zmax = lmap.meta.get('ZMIN'), lmap.meta.get('ZMAX')
+        in_range = np.ones(len(mock),dtype=bool) if zmin is None or zmax is None else (mock['Z']>=zmin)&(mock['Z']<=zmax)
+        for name,sel,q,n_data in classes:
+            fit = sel&in_range
+            kappa = lmap.solve_kappa(mock['RA'][fit],mock['DEC'][fit],n_data,q=q)
+            keep = lmap.keep_probability(mock['RA'][sel],mock['DEC'][sel],kappa=kappa,q=q)
+            selection[sel] = rand[sel]<keep
+            solved_on = f"solved on {np.sum(fit)} of the {np.sum(sel)} mock targets inside the redshift range {zmin}-{zmax}" if zmin is not None and zmax is not None \
+                else "solved on all of them: the map does not record a redshift range"
+            log.info(f"Lya coverage selection of {name} targets (q={q:.3f}, kappa={kappa:.4g}, {solved_on}): keeping {np.sum(selection[sel])} of {np.sum(sel)} "
+                     f"mock targets (data: {n_data}).")
+        self.mockcatalog = mock[selection]
+        self.footprint_method = 'coverage'
 
     def assign_rband_magnitude(self,from_data=False):
         """Assign r-band magnitude and include FLUX_R to the catalog according to the distribution.
@@ -287,19 +495,45 @@ class SurveyRelease(object):
                 return factor*self.data[column]
         raise ValueError(f"Can't compute effective exposure time. Data catalog columns should include {', '.join(TSNR_EXPTIME_FACTORS)}.")
 
-    def assign_exposures(self,exptime=None):
+    def assign_exposures(self,exptime=None,method=None,lya_coverage=None):
         """ Assign exposures to the catalog according to the distribution in the data release.
 
         Args:
             exptime (float, optional): if not None, will assign the given exposure time in seconds to all objects in the mock catalog.
-                Otherwise the exposure times of the Lya QSO targets (z>2.1) follow the data distribution of each NPASS class (needs apply_data_geometry)
-                and the other targets get 1000 s.
+            method (str, optional): 'tiles' draws from the data exposure distribution of each NPASS class (needs apply_data_geometry).
+                'coverage' draws from the exposure histogram of the pixel in the Lya coverage: whole nominal passes (multiples of 1000 s) for the Lya QSO
+                targets (z>2.1), 1000 s for the other targets. By default the method of the footprint step already applied (apply_lya_coverage: 'coverage';
+                apply_data_geometry: 'tiles'), or 'tiles' if none was applied. A method that differs from that of the footprint step raises ValueError.
+            lya_coverage (str or LyaCoverage): Lya coverage for method='coverage'. Defaults to the one used in apply_lya_coverage. The exposures are rounded to the
+                pass time stored in the map (whole nominal passes of 1000 s, set when the map is built).
         """
+        if method not in (None,'tiles','coverage'):
+            raise ValueError(f"method must be 'tiles' or 'coverage', got {method}")
+        if exptime is None and self.footprint_method is not None and method not in (None,self.footprint_method):
+            raise ValueError(f"method='{method}' does not match the footprint step already applied ('{self.footprint_method}').")
+        if method is None:
+            method = self.footprint_method or 'tiles'
         if exptime is not None:
             log.info(f"Assigning uniform exposures {exptime} seconds")
             self.mockcatalog['EXPTIME']=exptime
+        elif method=='coverage':
+            self._assign_exposures_from_coverage(lya_coverage)
         else:
             self._assign_exposures_from_tiles()
+
+    def _assign_exposures_from_coverage(self,lya_coverage=None):
+        """ Whole nominal passes drawn from the exposure-time histogram of the Lya coverage for the Lya QSO targets, 1000 s for the rest. """
+        lmap = lya_coverage if lya_coverage is not None else getattr(self,'lya_coverage',None)
+        if lmap is None:
+            raise ValueError("method='coverage' requires a lya_coverage (or a previous apply_lya_coverage call).")
+        if isinstance(lmap,str):
+            lmap = LyaCoverage.read(lmap)
+        log.info("Assigning exposures from the Lya coverage.")
+        mock = self.mockcatalog
+        is_lya = (mock['Z']>2.1)&mock['IS_QSO_TARGET']
+        exptime_mock = np.full(len(mock),1000.)
+        exptime_mock[is_lya] = lmap.draw_exptimes(mock['RA'][is_lya],mock['DEC'][is_lya],np.random.default_rng(np.random.randint(2**31)))
+        self.mockcatalog['EXPTIME'] = exptime_mock
 
     def _assign_exposures_from_tiles(self):
         """ Exposure times of the Lya QSO targets drawn from the data distribution of each NPASS class, 1000 s for the rest. """
