@@ -19,6 +19,12 @@ from desimodel.footprint import tiles2pix, is_point_in_desi, radec2pix
 
 
 log = get_logger()
+
+# exposure time [s] = factor * TSNR2 column; every TSNR2 type has its own factor (in order of preference)
+TSNR_EXPTIME_FACTORS = {'TSNR2_LRG': 12.15, 'TSNR2_LYA': 11.8, 'TSNR2_QSO': 33.61}
+TSNR_COLUMN, EXPTIME_FACTOR = next(iter(TSNR_EXPTIME_FACTORS.items()))
+
+
 class SurveyRelease(object):
     """ Class object to preprocess a master catalog to mimic a DESI release footprint and object density with adequate exposure times.
 
@@ -48,6 +54,20 @@ class SurveyRelease(object):
         elif self.include_nonqso_targets:
             raise ValueError("The include_nonqso_targets option was set to True. This requires an input data catalog to extract distributions.")
             
+    def _uniform(self,size):
+        """ Uniform random numbers in [0,1), flipped when the selection is inverted. """
+        rand = np.random.uniform(size=size)
+        return 1-rand if self.invert else rand
+
+    def _data_radec(self):
+        """ Positions (ra, dec) of the data catalog: TARGET_RA, TARGET_DEC if present, otherwise RA, DEC. """
+        colnames = self.data.colnames
+        if 'TARGET_RA' in colnames and 'TARGET_DEC' in colnames:
+            return self.data['TARGET_RA'], self.data['TARGET_DEC']
+        if 'RA' in colnames and 'DEC' in colnames:
+            return self.data['RA'], self.data['DEC']
+        raise ValueError("No RA,DEC or TARGET_RA,TARGET_DEC columns in data catalog")
+
     @staticmethod
     def prepare_data_catalog(cat_filename,zmin=None,zmax=None,include_nonqso_targets=False):
         """Prepare the data catalog for the quickquasars pipeline.
@@ -172,10 +192,7 @@ class SurveyRelease(object):
         fractions[fractions>1]=1
 
         bin_index = np.digitize(mockz, zbins) - 1
-        rand = np.random.uniform(size=mockz.size)
-        if self.invert:
-            rand = 1-rand
-        selection = rand < fractions[bin_index]
+        selection = self._uniform(mockz.size) < fractions[bin_index]
         return selection
         
     def apply_data_geometry(self, release='Y5',tilefile=None):
@@ -206,12 +223,8 @@ class SurveyRelease(object):
             mock_pixels = radec2pix(ra=mock['RA'], dec=mock['DEC'], nside=1024)
             if self.data is None:
                 raise ValueError("No data catalog was provided.")
-            if 'TARGET_DEC' in self.data.colnames and 'TARGET_RA' in self.data.colnames:
-                data_pixels = radec2pix(dec=self.data['TARGET_DEC'], ra=self.data['TARGET_RA'], nside=1024)
-            elif 'DEC' in self.data.colnames and 'RA' in self.data.colnames: 
-                data_pixels = radec2pix(dec=self.data['TARGET_DEC'], ra=self.data['TARGET_RA'], nside=1024)
-            else:
-                raise ValueError("No RA,DEC or TARGET_RA,TARGET_DEC columns in data catalog.")
+            data_ra, data_dec = self._data_radec()
+            data_pixels = radec2pix(ra=data_ra, dec=data_dec, nside=1024)
 
             data_passes = self.npass_pixmap[data_pixels]['NPASS']
             mock_passes = self.npass_pixmap[mock_pixels]['NPASS']
@@ -219,13 +232,11 @@ class SurveyRelease(object):
             mock_pass_counts = np.bincount(mock_passes,minlength=8)
             mock['NPASS'] = mock_passes
             downsampling=np.divide(data_pass_counts,mock_pass_counts,out=np.zeros(8),where=mock_pass_counts>0)
-            rand = np.random.uniform(size=len(mock))
-            if self.invert:
-                rand = 1-rand
+            rand = self._uniform(len(mock))
             selection = rand<downsampling[mock_passes]
             log.info(f"Keeping {len(mock[selection])} mock targets out of {len(mock)}.")
             mock = mock[selection]
-        self.mockcatalog=mock  
+        self.mockcatalog=mock
 
     def assign_rband_magnitude(self,from_data=False):
         """Assign r-band magnitude and include FLUX_R to the catalog according to the distribution.
@@ -265,56 +276,51 @@ class SurveyRelease(object):
         self.mockcatalog['FLUX_R'][mock_mask] = generate_random_fluxes(dn_dzdm, self.mockcatalog['Z'][mock_mask], zcenters, rmagcenters, self.invert)
         assert np.all(self.mockcatalog['FLUX_R']!=0)
             
+    def get_data_exptime(self):
+        """ Effective exposure time [s] of the data catalog: factor * TSNR2 column, the first of TSNR_EXPTIME_FACTORS found. """
+        for k, (column, factor) in enumerate(TSNR_EXPTIME_FACTORS.items()):
+            if column in self.data.colnames:
+                if k > 0:
+                    log.warning(f'Effective exposure time {TSNR_COLUMN} column not found in observed data catalog.')
+                    log.warning('Will compute effective exposure time from alternative templates.')
+                log.info(f'Getting effective exposure time in data catalog by {factor}*{column}.')
+                return factor*self.data[column]
+        raise ValueError(f"Can't compute effective exposure time. Data catalog columns should include {', '.join(TSNR_EXPTIME_FACTORS)}.")
+
     def assign_exposures(self,exptime=None):
         """ Assign exposures to the catalog according to the distribution in the data release.
-        
+
         Args:
             exptime (float, optional): if not None, will assign the given exposure time in seconds to all objects in the mock catalog.
+                Otherwise the exposure times of the Lya QSO targets (z>2.1) follow the data distribution of each NPASS class (needs apply_data_geometry)
+                and the other targets get 1000 s.
         """
         if exptime is not None:
             log.info(f"Assigning uniform exposures {exptime} seconds")
             self.mockcatalog['EXPTIME']=exptime
         else:
-            if self.data is None:
-                raise ValueError("No data catalog nor exptime was provided. Please provide one of them")
-            log.info("Assigning exposures")
-            mock=self.mockcatalog
-            if 'TARGET_DEC' in self.data.colnames and 'TARGET_RA' in self.data.colnames:
-                data_pixels = radec2pix(ra=self.data['TARGET_RA'], dec=self.data['TARGET_DEC'], nside=1024)
-            elif 'DEC' in self.data.colnames and 'RA' in self.data.colnames: 
-                data_pixels = radec2pix(ra=self.data['RA'], dec=self.data['DEC'], nside=1024)
-            else:
-                raise ValueError("No RA,DEC or TARGET_RA,TARGET_DEC columns in data catalog")
-                
-            is_lya_data=self.data['Z']>2.1
-            is_data_qsotgt=get_qsotarget_mask(self.data)
-            data_mask = is_lya_data&is_data_qsotgt
-            if 'TSNR2_LRG' in self.data.colnames:
-                log.info('Getting effective exposure time in data catalog by 12.15*TSNR2_LRG.')
-                exptime_data = 12.15*self.data['TSNR2_LRG']
-            else:
-                log.warning('Effective exposure time TSNR2_LRG column not found in observed data catalog.') 
-                log.warning('Will compute effective exposure time from alternative templates.')
-                if 'TSNR2_LYA' in self.data.colnames:
-                    log.info('Getting effective exposure time in data catalog by 11.8*TSNR2_LYA.')
-                    exptime_data = 11.8*self.data['TSNR2_LYA']
-                elif 'TSNR2_QSO' in self.data.colnames:
-                    log.info('Getting effective exposure time in data catalog by 33.61*TSNR2_QSO.')
-                    exptime_data = 33.61*self.data['TSNR2_QSO']
-                else: 
-                    raise ValueError("Can't compute effective exposure time. Data catalog columns should include TSNR2_LRG, TSNR2_LYA or TSNR2_QSO.")
-            exptime_mock = np.zeros(len(mock))
-            is_mock_qsotgt = mock['IS_QSO_TARGET']
-            is_lya_mock = mock['Z']>2.1
-            mock_mask = is_lya_mock&is_mock_qsotgt
-            exptime_mock[~mock_mask]=1000
-            for tile_pass in range(1,8):
-                w=self.npass_pixmap[data_pixels]['NPASS'][data_mask] == tile_pass
-                pdf=np.histogram(exptime_data[data_mask][w]/1000,bins=np.arange(.5,9.5,1),density=True)[0]
-                random_variable = rv_discrete(values=(np.arange(1,len(pdf)+1),pdf))
-                is_pass = mock['NPASS'] == tile_pass
-                exptime_mock[mock_mask&is_pass]=1000*random_variable.rvs(size=np.sum(is_pass&mock_mask))
-            self.mockcatalog['EXPTIME']=exptime_mock
+            self._assign_exposures_from_tiles()
+
+    def _assign_exposures_from_tiles(self):
+        """ Exposure times of the Lya QSO targets drawn from the data distribution of each NPASS class, 1000 s for the rest. """
+        if self.data is None:
+            raise ValueError("No data catalog nor exptime was provided. Please provide one of them")
+        log.info("Assigning exposures")
+        mock=self.mockcatalog
+        data_ra, data_dec = self._data_radec()
+        data_pixels = radec2pix(ra=data_ra, dec=data_dec, nside=1024)
+        data_mask = (self.data['Z']>2.1)&get_qsotarget_mask(self.data)
+        exptime_data = self.get_data_exptime()[data_mask]
+        data_passes = self.npass_pixmap[data_pixels]['NPASS'][data_mask]
+        mock_mask = (mock['Z']>2.1)&mock['IS_QSO_TARGET']
+        exptime_mock = np.zeros(len(mock))
+        exptime_mock[~mock_mask]=1000
+        for tile_pass in range(1,8):
+            pdf=np.histogram(exptime_data[data_passes == tile_pass]/1000,bins=np.arange(.5,9.5,1),density=True)[0]
+            random_variable = rv_discrete(values=(np.arange(1,len(pdf)+1),pdf))
+            is_pass = mock_mask&(mock['NPASS'] == tile_pass)
+            exptime_mock[is_pass]=1000*random_variable.rvs(size=np.sum(is_pass))
+        self.mockcatalog['EXPTIME']=exptime_mock
 
 def get_qsotarget_mask(cat):
     """Get boolean mask for QSO and non QSO targets in the data catalog.
