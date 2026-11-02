@@ -5,7 +5,13 @@ desisim change log
 0.39.3 (unreleased)
 -------------------
 
-* No changes yet.
+* Faster and lower-memory ``quickquasars``: batched metals and resampling,
+  compiled SIMQSO template pieces, a single multi-band ``Spectra`` per healpix,
+  and new optional ``--fiber-chunk`` and ``--mem-per-worker`` controls. Worker
+  failures now stop the run at once, and ``numba`` is declared as a dependency
+  (PR `#604`_).
+
+.. _`#604`: https://github.com/desihub/desisim/pull/604
 
 0.39.2 (2026-09-22)
 -------------------
