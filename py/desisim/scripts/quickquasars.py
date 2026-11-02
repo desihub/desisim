@@ -1002,6 +1002,8 @@ def _memory_limited_nproc(nproc, mem_per_worker_gib):
     The memory is the SLURM allocation of the node (``SLURM_MEM_PER_NODE``, in MiB) if it is set,
     else the available memory of the node, whichever is smaller."""
     log = get_logger()
+    if not (np.isfinite(mem_per_worker_gib) and mem_per_worker_gib > 0):
+        raise ValueError("mem_per_worker_gib must be a finite number larger than zero, got {!r}".format(mem_per_worker_gib))
     try:
         import psutil
         available = psutil.virtual_memory().available
@@ -1010,8 +1012,6 @@ def _memory_limited_nproc(nproc, mem_per_worker_gib):
         return nproc
     if os.environ.get("SLURM_MEM_PER_NODE", "").isdigit():
         available = min(available, int(os.environ["SLURM_MEM_PER_NODE"]) * 2**20)
-    if not (np.isfinite(mem_per_worker_gib) and mem_per_worker_gib > 0):
-        raise ValueError("mem_per_worker_gib must be a finite number larger than zero, got {!r}".format(mem_per_worker_gib))
     fit = max(1, int(available / (mem_per_worker_gib * 2**30)))
     if fit < nproc:
         log.warning("--nproc lowered from {} to {}: {:.0f} GiB available for {} GiB per worker".format(

@@ -7,7 +7,16 @@ Function to simulate a QSO spectrum including Lyman-alpha absorption.
 """
 
 import numpy as np
-import numba
+try:
+    import numba
+except ImportError:
+    class _NumbaCompat:
+        @staticmethod
+        def njit(*args, **kwargs):
+            def _decorator(func):
+                return func
+            return _decorator
+    numba = _NumbaCompat()
 from desisim.dla import insert_dlas
 from desiutil.log import get_logger
 
@@ -221,8 +230,12 @@ def apply_lya_transmission(qso_wave,qso_flux,trans_wave,trans) :
 
 @numba.njit(cache=True)
 def _multiply_interpolated(output_flux, fp, j, dx, dwave, inside, last):
-    """output_flux[q,:] *= linear interpolation of fp[q,:] (positions j, steps dx, offsets dwave),
-    1 outside the sampled range; the same arithmetic as np.interp(..., left=1., right=1.)."""
+    """Multiply ``output_flux[q,:]`` by a linear interpolation of ``fp[q,:]``.
+
+    Positions come from ``j``, with interval widths ``dx`` and offsets ``dwave``;
+    outside the sampled range the factor is 1, as in
+    ``np.interp(..., left=1., right=1.)``.
+    """
     nq, nx = output_flux.shape
     for q in range(nq):
         for i in range(nx):

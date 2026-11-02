@@ -7,7 +7,16 @@ step by step, and ``resample_flux_many`` applies it to a 2D array of spectra in 
 one Python call per spectrum.  The result agrees with the per-spectrum function to rounding
 (a few units in the last place), not bit for bit, because the sums are made in a different order.
 """
-import numba
+try:
+    import numba
+except ImportError:
+    class _NumbaCompat:
+        @staticmethod
+        def njit(*args, **kwargs):
+            def _decorator(func):
+                return func
+            return _decorator
+    numba = _NumbaCompat()
 import numpy as np
 import scipy.sparse as sp
 
