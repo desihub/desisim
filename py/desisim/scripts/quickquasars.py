@@ -42,6 +42,14 @@ except TypeError:
     #
     c = 299792458.0/1000.0
 
+def _positive_float(value):
+    """argparse type: a finite number larger than zero."""
+    number = float(value)
+    if not np.isfinite(number) or number <= 0:
+        raise argparse.ArgumentTypeError("{!r} is not a finite number larger than zero".format(value))
+    return number
+
+
 def parse(options=None):
     parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description="Fast simulation of QSO Lya spectra into the final DESI format\
@@ -143,7 +151,7 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
 
     parser.add_argument('--nproc', type=int, default=1,help="number of processors to run faster")
 
-    parser.add_argument('--mem-per-worker', type=float, default=None, help="Memory in GiB that one worker "
+    parser.add_argument('--mem-per-worker', type=_positive_float, default=None, help="Memory in GiB that one worker "
         "can use at its peak (about 8 for the DR2 mocks with the production arguments). If given, --nproc is "
         "lowered to what fits in the memory available to the job (the SLURM allocation if set, else the free "
         "memory of the node), so that the node is not run out of memory.")
@@ -1002,6 +1010,8 @@ def _memory_limited_nproc(nproc, mem_per_worker_gib):
         return nproc
     if os.environ.get("SLURM_MEM_PER_NODE", "").isdigit():
         available = min(available, int(os.environ["SLURM_MEM_PER_NODE"]) * 2**20)
+    if not (np.isfinite(mem_per_worker_gib) and mem_per_worker_gib > 0):
+        raise ValueError("mem_per_worker_gib must be a finite number larger than zero, got {!r}".format(mem_per_worker_gib))
     fit = max(1, int(available / (mem_per_worker_gib * 2**30)))
     if fit < nproc:
         log.warning("--nproc lowered from {} to {}: {:.0f} GiB available for {} GiB per worker".format(
