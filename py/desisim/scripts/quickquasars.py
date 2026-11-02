@@ -8,7 +8,8 @@ from scipy.constants import speed_of_light
 from scipy.stats import cauchy
 from astropy.table import Table,Column
 import astropy.io.fits as pyfits
-import multiprocessing
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures.process import BrokenProcessPool
 import healpy
 
 import desisim
@@ -25,6 +26,7 @@ from desisim.io import empty_metatable
 from desisim.eboss import FootprintEBOSS, sdss_subsample, RedshiftDistributionEBOSS, sdss_subsample_redshift
 from desisim.survey_release import SurveyRelease
 from desispec.interpolation import resample_flux
+from desisim.resample import interp_many, resample_flux_many
 
 from desimodel.io import load_pixweight
 from desimodel import footprint
@@ -39,6 +41,14 @@ except TypeError:
     # This can happen in documentation builds.
     #
     c = 299792458.0/1000.0
+
+def _positive_float(value):
+    """argparse type: a finite number larger than zero."""
+    number = float(value)
+    if not np.isfinite(number) or number <= 0:
+        raise argparse.ArgumentTypeError("{!r} is not a finite number larger than zero".format(value))
+    return number
+
 
 def parse(options=None):
     parser=argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -140,6 +150,16 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
         by transmission, use F=1 everywhere')
 
     parser.add_argument('--nproc', type=int, default=1,help="number of processors to run faster")
+
+    parser.add_argument('--mem-per-worker', type=_positive_float, default=None, help="Memory in GiB that one worker "
+        "can use at its peak (about 8 for the DR2 mocks with the production arguments). If given, --nproc is "
+        "lowered to what fits in the memory available to the job (the SLURM allocation if set, else the free "
+        "memory of the node), so that the node is not run out of memory.")
+
+    parser.add_argument('--fiber-chunk', type=int, default=None, help="Simulate the spectra of a healpix in chunks "
+        "of this many fibres to limit the memory of the specsim simulator (about 7 GiB for 1500 quasars; a chunk "
+        "of 200 needs a fraction of it). The random noise is drawn for all the fibres at once as without this "
+        "option, so the output is the same.")
 
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
 
@@ -679,17 +699,15 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         for q in range(tmp_qso_flux.shape[0]) :
             qso_flux[q]=np.interp(trans_wave,tmp_qso_wave[q],tmp_qso_flux[q])
     else:
-        for q in range(tmp_qso_flux.shape[0]) :
-            qso_flux[q]=np.interp(trans_wave,tmp_qso_wave,tmp_qso_flux[q])
+        # one wavelength grid for all the QSOs
+        qso_flux = interp_many(trans_wave, tmp_qso_wave, tmp_qso_flux)
 
     tmp_qso_flux = qso_flux
     tmp_qso_wave = trans_wave
 
     if args.save_continuum :
         true_wave=np.linspace(args.wmin,args.wmax,int((args.wmax-args.wmin)/args.save_continuum_dwave)+1)
-        true_flux=np.zeros((tmp_qso_flux.shape[0],true_wave.size))
-        for q in range(tmp_qso_flux.shape[0]) :
-            true_flux[q]=resample_flux(true_wave,tmp_qso_wave,tmp_qso_flux[q])
+        true_flux=resample_flux_many(true_wave,tmp_qso_wave,tmp_qso_flux)
         continum_meta=Table()
         continum_meta['TARGETID'] = qsometa['TARGETID']
         continum_meta['TRUE_CONT'] = true_flux
@@ -819,9 +837,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     log.info("Resample to a linear wavelength grid (needed by DESI sim.)")
     # careful integration of bins, not just a simple interpolation
     qso_wave=np.linspace(args.wmin,args.wmax,int((args.wmax-args.wmin)/args.dwave)+1)
-    qso_flux=np.zeros((tmp_qso_flux.shape[0],qso_wave.size))
-    for q in range(tmp_qso_flux.shape[0]) :
-        qso_flux[q]=resample_flux(qso_wave,tmp_qso_wave,tmp_qso_flux[q])
+    qso_flux=resample_flux_many(qso_wave,tmp_qso_wave,tmp_qso_flux)
 
     log.info("Simulate DESI observation and write output file")
     if "MOCKID" in metadata.dtype.names :
@@ -862,7 +878,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
     resolution=sim_spectra(qso_wave,qso_flux, args.program, obsconditions=obsconditions,spectra_filename=ofilename,
                            sourcetype="qso", skyerr=args.skyerr,ra=metadata["RA"],dec=metadata["DEC"],targetid=targetid,
                            meta=specmeta,seed=seed,fibermap_columns=fibermap_columns,use_poisson=False,
-                           specsim_config_file=specsim_config_file, dwave_out=dwave_out, save_resolution=args.save_resolution, source_contribution_smoothing=args.source_contr_smoothing)
+                           specsim_config_file=specsim_config_file, dwave_out=dwave_out, save_resolution=args.save_resolution, source_contribution_smoothing=args.source_contr_smoothing, fiber_chunk=args.fiber_chunk)
 
     ### Keep input redshift
     Z_spec = metadata['Z'].copy()
@@ -962,9 +978,49 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
         hdulist.writeto(zbest_filename, overwrite=True)
         hdulist.close() # see if this helps with memory issue
 
+def _release_freed_memory():
+    """Give the memory freed by the last healpix back to the OS (glibc keeps much of it in the heap of the
+    process, so the workers grew healpix after healpix)."""
+    import gc
+    gc.collect()
+    try:
+        import ctypes
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except (OSError, AttributeError):
+        pass
+
 def _func(arg) :
-    """ Used for multiprocessing.Pool """
-    return simulate_one_healpix(**arg)
+    """ Used for the ProcessPoolExecutor in main() """
+    try:
+        return simulate_one_healpix(**arg)
+    finally:
+        _release_freed_memory()
+
+def _memory_limited_nproc(nproc, mem_per_worker_gib):
+    """Lower ``nproc`` to what fits in the memory available to this job.
+
+    The memory is the SLURM allocation of the node (``SLURM_MEM_PER_NODE``, in MiB) if it is set,
+    else the available memory of the node, whichever is smaller."""
+    log = get_logger()
+    if not (np.isfinite(mem_per_worker_gib) and mem_per_worker_gib > 0):
+        raise ValueError("mem_per_worker_gib must be a finite number larger than zero, got {!r}".format(mem_per_worker_gib))
+    try:
+        import psutil
+        available = psutil.virtual_memory().available
+    except ImportError:
+        log.warning("psutil is not available, --mem-per-worker is ignored")
+        return nproc
+    if os.environ.get("SLURM_MEM_PER_NODE", "").isdigit():
+        available = min(available, int(os.environ["SLURM_MEM_PER_NODE"]) * 2**20)
+    fit = max(1, int(available / (mem_per_worker_gib * 2**30)))
+    if fit < nproc:
+        log.warning("--nproc lowered from {} to {}: {:.0f} GiB available for {} GiB per worker".format(
+            nproc, fit, available / 2**30, mem_per_worker_gib))
+    else:
+        log.info("--nproc {} fits in the {:.0f} GiB available ({} GiB per worker)".format(
+            nproc, available / 2**30, mem_per_worker_gib))
+    return min(nproc, fit)
+
 
 def main(args=None):
 
@@ -1058,6 +1114,9 @@ def main(args=None):
     else:
         eboss = None
         
+    if args.mem_per_worker is not None and args.nproc > 1:
+        args.nproc = _memory_limited_nproc(args.nproc, args.mem_per_worker)
+
     if args.nproc > 1:
         func_args = [ {"ifilename":filename , \
                        "args":args, "model":model , \
@@ -1068,8 +1127,25 @@ def main(args=None):
                        "footprint_healpix_nside": footprint_healpix_nside , \
                        "bal":bal,"sfdmap":sfdmap,"eboss":eboss \
                    } for i,filename in enumerate(args.infile) ]
-        with multiprocessing.Pool(args.nproc) as pool:
-            pool.map(_func, func_args)
+        # ProcessPoolExecutor rather than multiprocessing.Pool.map: if a worker dies
+        # (e.g. killed by the OOM killer) Pool.map waits forever for the lost task,
+        # whereas the executor raises BrokenProcessPool. One task per healpix keeps
+        # the workers balanced.
+        executor = ProcessPoolExecutor(max_workers=args.nproc)
+        futures = {executor.submit(_func, fa): fa["ifilename"] for fa in func_args}
+        try:
+            for ndone, future in enumerate(as_completed(futures), 1):
+                future.result()
+                log.debug("Finished {}/{} healpix".format(ndone, len(futures)))
+        except BrokenProcessPool:
+            unfinished = [f for fut, f in futures.items()
+                          if not (fut.done() and not fut.cancelled() and fut.exception() is None)]
+            log.error("A worker process died (possibly killed for exceeding the node "
+                      "memory); {} of {} healpix did not finish. Consider fewer --nproc. "
+                      "Unfinished inputs:\n{}".format(len(unfinished), len(futures), "\n".join(unfinished)))
+            raise
+        finally:
+            executor.shutdown(wait=True, cancel_futures=True)
     else:
         for i,ifilename in enumerate(args.infile) :
             simulate_one_healpix(ifilename,args,model,obsconditions,

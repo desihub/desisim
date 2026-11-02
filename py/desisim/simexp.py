@@ -361,7 +361,8 @@ def fibermeta2fibermap(fiberassign, meta):
 
 def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, redshift=None,
                      dwave_out=None, seed=None, psfconvolve=True,
-                     specsim_config_file = "desi"):
+                     specsim_config_file = "desi", fiber_acceptance_fraction=None,
+                     acceptance_only=False):
     '''
     Simulates an exposure without reading/writing data files
 
@@ -419,7 +420,7 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, redshift=Non
     #- Create simulator
     log.debug('creating specsim desi simulator')
     # desi = specsim.simulator.Simulator(config, num_fibers=nspec)
-    desi = desisim.specsim.get_simulator(config, num_fibers=nspec,
+    desi = desisim.specsim.get_simulator(config, num_fibers=1 if acceptance_only else nspec,
         camera_output=psfconvolve)
     if obsconditions is None:
         log.warning('Assuming DARK conditions')
@@ -580,7 +581,21 @@ def simulate_spectra(wave, flux, fibermap=None, obsconditions=None, redshift=Non
     #- See https://github.com/desihub/specsim/issues/83
     randstate = np.random.get_state()
     np.random.seed(seed)
-    desi.simulate(source_fluxes=flux, focal_positions=xy, source_types=source_types,
+    if acceptance_only:
+        #- Only the fraction of the light entering each fiber, for all the fibers, from a simulator of one
+        #- fiber (the memory of the simulator is proportional to the number of fibers). specsim draws a random
+        #- offset of every fiber from a generator of the simulator, so this is the number to pass as
+        #- fiber_acceptance_fraction to simulations of parts of the fibers to get what one simulation gives.
+        import specsim.fiberloss
+        xy_mm = xy.to('mm')
+        acceptance = specsim.fiberloss.calculate_fiber_acceptance_fraction(
+            xy_mm[:, 0], xy_mm[:, 1], desi.simulated['wavelength'].quantity, desi.source, desi.atmosphere,
+            desi.instrument, source_types, source_fraction, source_half_light_radius,
+            source_minor_major_axis_ratio, source_position_angle)
+        np.random.set_state(randstate)
+        return np.asarray(acceptance)
+    desi.simulate(source_fluxes=flux, focal_positions=xy, fiber_acceptance_fraction=fiber_acceptance_fraction,
+                  source_types=source_types,
                   source_fraction=source_fraction,
                   source_half_light_radius=source_half_light_radius,
                   source_minor_major_axis_ratio=source_minor_major_axis_ratio,

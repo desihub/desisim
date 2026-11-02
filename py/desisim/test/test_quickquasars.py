@@ -46,6 +46,17 @@ class Testquickquasars(unittest.TestCase):
                 self.assertTrue(np.allclose(sp1.ivar[x], sp2.ivar[x]))
             
 
+    def test_mem_per_worker_validation(self):
+        """--mem-per-worker must be a finite number larger than zero"""
+        base = ['--infile', self.infile, '--outfile', self.outspec1]
+        for bad in ['0', '-1', 'nan', 'inf']:
+            with self.assertRaises(SystemExit, msg=bad):
+                quickquasars.parse(base + ['--mem-per-worker', bad])
+        args = quickquasars.parse(base + ['--mem-per-worker', '8'])
+        self.assertEqual(args.mem_per_worker, 8.0)
+        with self.assertRaises(ValueError):
+            quickquasars._memory_limited_nproc(4, 0)
+
     def test_quickquasars(self):
         cmd = 'quickquasars -i {} -o {} --exptime 4000 --nmax 5 --overwrite --seed 1'.format(self.infile, self.outspec1)
         opts = quickquasars.parse(cmd.split()[1:])
