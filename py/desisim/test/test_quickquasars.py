@@ -4,6 +4,7 @@ import numpy as np
 from desisim.scripts import quickquasars
 import desispec.io
 from astropy.io import fits
+from astropy.table import Table
 
 
 class Testquickquasars(unittest.TestCase):
@@ -46,6 +47,18 @@ class Testquickquasars(unittest.TestCase):
                 self.assertTrue(np.allclose(sp1.ivar[x], sp2.ivar[x]))
             
 
+    def _seed_catalog(self, infile, n=5):
+        """Seed catalog (as made by gen_qso_catalog) with the first n quasars of a transmission file."""
+        meta = Table.read(infile, hdu='METADATA')[:n]
+        n = len(meta)
+        catalog = Table()
+        catalog['MOCKID'] = meta['MOCKID']
+        catalog['FLUX_R'] = np.full(n, 10**((22.5-21.)/2.5))
+        catalog['EXPTIME'] = np.full(n, 4000.)
+        filename = os.path.join(self.testdir, 'seed_zcat_{}.fits'.format(os.path.basename(infile).split('.')[0]))
+        catalog.write(filename, overwrite=True)
+        return filename
+
     def test_mem_per_worker_validation(self):
         """--mem-per-worker must be a finite number larger than zero"""
         base = ['--infile', self.infile, '--outfile', self.outspec1]
@@ -59,8 +72,7 @@ class Testquickquasars(unittest.TestCase):
 
     def test_dla_and_metals_options(self):
         """DLAs (random, with and without the higher-order lines) and metals run together, and change the spectra."""
-        import desispec.io
-        base = 'quickquasars -i {} -o {} --exptime 4000 --nmax 5 --overwrite --seed 1'.format(self.infile, self.outspec1)
+        base = 'quickquasars -i {} -o {} --from-catalog {} --overwrite --seed 1'.format(self.infile, self.outspec1, self._seed_catalog(self.infile))
         quickquasars.main(quickquasars.parse(base.split()[1:]))
         sp0 = desispec.io.read_spectra(self.outspec1)
         quickquasars.main(quickquasars.parse((base + ' --dla random --metals LYB LY3 LY4 LY5 SiII(1260) SiIII(1207) SiII(1193) SiII(1190) --metal-strengths 0.1901 0.0697 0.0335 0.0187 1.8e-03 3.66e-03 1.83e-03 1.89e-03').split()[1:]))
@@ -75,8 +87,7 @@ class Testquickquasars(unittest.TestCase):
 
     def test_no_lya_transmission(self):
         """--no-lya-transmission gives F=1 for the Lya forest; metals and DLAs can still be added on their own."""
-        import desispec.io
-        base = 'quickquasars -i {} -o {} --exptime 4000 --nmax 5 --overwrite --seed 1'.format(self.infile, self.outspec1)
+        base = 'quickquasars -i {} -o {} --from-catalog {} --overwrite --seed 1'.format(self.infile, self.outspec1, self._seed_catalog(self.infile))
         metals = '--metals LYB LY3 LY4 LY5 SiII(1260) SiIII(1207) SiII(1193) SiII(1190) --metal-strengths 0.1901 0.0697 0.0335 0.0187 1.8e-03 3.66e-03 1.83e-03 1.89e-03'
         spectra = {}
         for name, extra in (('forest', ''), ('nolya', ' --no-lya-transmission'),
@@ -88,31 +99,24 @@ class Testquickquasars(unittest.TestCase):
         self.assertFalse(np.allclose(spectra['nolya'].flux['b'], spectra['dla'].flux['b']))      # DLA-only spectra
 
     def test_quickquasars(self):
-        cmd = 'quickquasars -i {} -o {} --exptime 4000 --nmax 5 --overwrite --seed 1'.format(self.infile, self.outspec1)
-        opts = quickquasars.parse(cmd.split()[1:])
-        quickquasars.main(opts)
-        self.assertTrue(os.path.exists(self.outspec1))
-      
-
-        cmd = 'quickquasars -i {} -o {} --exptime 4000 --bbflux --nmax 5 --overwrite --seed 1 --extinction'.format(self.infile, self.outspec1)
-        opts = quickquasars.parse(cmd.split()[1:])
-        quickquasars.main(opts)
-        self.assertTrue(os.path.exists(self.outspec1))
-
-        cmd = 'quickquasars -i {} -o {} --exptime 4000 --zbest --nmax 5 --overwrite --seed 1'.format(self.infile, self.outspec1)
+        catalog = self._seed_catalog(self.infile)
+        cmd = 'quickquasars -i {} -o {} --from-catalog {} --overwrite --seed 1'.format(self.infile, self.outspec1, catalog)
         opts = quickquasars.parse(cmd.split()[1:])
         quickquasars.main(opts)
         self.assertTrue(os.path.exists(self.outspec1))
         self.assertTrue(os.path.exists(self.outzbest))
-   
 
-        cmd = 'quickquasars -i {} -o {} --exptime 4000 --zbest --nmax 5 --overwrite --seed 1'.format(self.infile2, self.outspec1_s)
+        cmd = 'quickquasars -i {} -o {} --from-catalog {} --overwrite --seed 1 --save-continuum'.format(self.infile, self.outspec1, catalog)
+        opts = quickquasars.parse(cmd.split()[1:])
+        quickquasars.main(opts)
+        self.assertTrue(os.path.exists(self.outspec1))
+
+        catalog_s = self._seed_catalog(self.infile2)
+        cmd = 'quickquasars -i {} -o {} --from-catalog {} --overwrite --seed 1'.format(self.infile2, self.outspec1_s, catalog_s)
         opts = quickquasars.parse(cmd.split()[1:])
         quickquasars.main(opts)
         self.assertTrue(os.path.exists(self.outspec1_s))
         self.assertTrue(os.path.exists(self.outzbest_s))
-
-
 
 if __name__ == '__main__':
     unittest.main()
