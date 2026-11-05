@@ -144,15 +144,6 @@ def get_truth_filename(pixdir,nside,pixel):
     return os.path.join(pixdir,"truth-{}-{}.fits".format(nside,pixel))
 
 
-def is_south(dec):
-    """Identify which QSOs are in the south vs the north, since these are on
-    different photometric systems.  See
-    https://github.com/desihub/desitarget/issues/353 for details.
-
-    """
-    return dec <= 32.125 # constant-declination cut!
-
-
 def get_healpix_info(ifilename):
     """Read the header of the tranmission file to find the healpix pixel, nside
     and if we are lucky the scheme. If it fails, try to guess it from the
@@ -355,47 +346,22 @@ def simulate_one_healpix(ifilename, args, model, bal=None):
         trans_wave   = new_trans_wave
         transmission = new_transmission
 
-    # whether to use QSO or SIMQSO to generate quasar continua.  Simulate
-    # spectra in the north vs south separately because they're on different
-    # photometric systems.
-    south = np.where( is_south(metadata['DEC']) )[0]
-    north = np.where( ~is_south(metadata['DEC']) )[0]
-    meta, qsometa = empty_metatable(nqso, objtype='QSO', simqso=not args.no_simqso)
-    if args.no_simqso:
-        log.info("Simulate {} QSOs with QSO templates".format(nqso))
-        tmp_qso_flux = np.zeros([nqso, len(model.eigenwave)], dtype='f4')
-        tmp_qso_wave = np.zeros_like(tmp_qso_flux)
-    else:
-        log.info("Simulate {} QSOs with SIMQSO templates".format(nqso))
-        tmp_qso_flux = np.zeros([nqso, len(model.basewave)], dtype='f4')
-        tmp_qso_wave = model.basewave
+    # Generate quasar continua with QSO or SIMQSO
+    log.info("Simulate {} quasar continua".format(nqso))
+    tmp_qso_flux, tmp_qso_wave, meta, qsometa = model.make_templates(
+            nmodel=nqso,
+            redshift=metadata['Z'],
+            mag=mags,
+            lyaforest=False,
+            nocolorcuts=True,
+            noresample=True,
+            seed=seed,
+            south=True
+    )
+    meta['TARGETID'] = metadata['MOCKID']
+    qsometa['TARGETID'] = metadata['MOCKID']
 
-    for these, issouth in zip( (north, south), (False, True) ):
-
-        # number of quasars in these
-        nt = len(these)
-        if nt<=0: continue
-
-        _tmp_qso_flux, _tmp_qso_wave, _meta, _qsometa = model.make_templates(
-                nmodel=nt,
-                redshift=metadata['Z'][these],
-                mag=mags[these],
-                lyaforest=False,
-                nocolorcuts=True,
-                noresample=True,
-                seed=seed,
-                south=issouth
-        )
-
-        _meta['TARGETID'] = metadata['MOCKID'][these]
-        _qsometa['TARGETID'] = metadata['MOCKID'][these]
-        meta[these] = _meta
-        qsometa[these] = _qsometa
-        tmp_qso_flux[these, :] = _tmp_qso_flux
-
-        if args.no_simqso:
-            tmp_qso_wave[these, :] = _tmp_qso_wave
-
+    # resample continua into Lya transmission skewers
     log.info("Resample to transmission wavelength grid")
     qso_flux=np.zeros((tmp_qso_flux.shape[0],trans_wave.size))
     if args.no_simqso:
