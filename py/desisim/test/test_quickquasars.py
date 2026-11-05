@@ -4,6 +4,7 @@ import numpy as np
 from desisim.scripts import quickquasars
 import desispec.io
 from astropy.io import fits
+from astropy.table import Table
 
 
 class Testquickquasars(unittest.TestCase):
@@ -46,6 +47,18 @@ class Testquickquasars(unittest.TestCase):
                 self.assertTrue(np.allclose(sp1.ivar[x], sp2.ivar[x]))
             
 
+    def _seed_catalog(self, infile, n=5):
+        """Seed catalog (as made by gen_qso_catalog) with the first n quasars of a transmission file."""
+        meta = Table.read(infile, hdu='METADATA')[:n]
+        n = len(meta)
+        catalog = Table()
+        catalog['MOCKID'] = meta['MOCKID']
+        catalog['FLUX_R'] = np.full(n, 10**((22.5-21.)/2.5))
+        catalog['EXPTIME'] = np.full(n, 4000.)
+        filename = os.path.join(self.testdir, 'seed_zcat_{}.fits'.format(os.path.basename(infile).split('.')[0]))
+        catalog.write(filename, overwrite=True)
+        return filename
+
     def test_mem_per_worker_validation(self):
         """--mem-per-worker must be a finite number larger than zero"""
         base = ['--infile', self.infile, '--outfile', self.outspec1]
@@ -59,8 +72,7 @@ class Testquickquasars(unittest.TestCase):
 
     def test_dla_and_metals_options(self):
         """DLAs (random, with and without the higher-order lines) and metals run together, and change the spectra."""
-        import desispec.io
-        base = 'quickquasars -i {} -o {} --exptime 4000 --nmax 5 --overwrite --seed 1'.format(self.infile, self.outspec1)
+        base = 'quickquasars -i {} -o {} --from-catalog {} --overwrite --seed 1'.format(self.infile, self.outspec1, self._seed_catalog(self.infile))
         quickquasars.main(quickquasars.parse(base.split()[1:]))
         sp0 = desispec.io.read_spectra(self.outspec1)
         quickquasars.main(quickquasars.parse((base + ' --dla random --metals LYB LY3 LY4 LY5 SiII(1260) SiIII(1207) SiII(1193) SiII(1190) --metal-strengths 0.1901 0.0697 0.0335 0.0187 1.8e-03 3.66e-03 1.83e-03 1.89e-03').split()[1:]))
@@ -75,8 +87,7 @@ class Testquickquasars(unittest.TestCase):
 
     def test_no_lya_transmission(self):
         """--no-lya-transmission gives F=1 for the Lya forest; metals and DLAs can still be added on their own."""
-        import desispec.io
-        base = 'quickquasars -i {} -o {} --exptime 4000 --nmax 5 --overwrite --seed 1'.format(self.infile, self.outspec1)
+        base = 'quickquasars -i {} -o {} --from-catalog {} --overwrite --seed 1'.format(self.infile, self.outspec1, self._seed_catalog(self.infile))
         metals = '--metals LYB LY3 LY4 LY5 SiII(1260) SiIII(1207) SiII(1193) SiII(1190) --metal-strengths 0.1901 0.0697 0.0335 0.0187 1.8e-03 3.66e-03 1.83e-03 1.89e-03'
         spectra = {}
         for name, extra in (('forest', ''), ('nolya', ' --no-lya-transmission'),
@@ -87,32 +98,55 @@ class Testquickquasars(unittest.TestCase):
         self.assertFalse(np.allclose(spectra['nolya'].flux['b'], spectra['metals'].flux['b']))   # metal-only spectra
         self.assertFalse(np.allclose(spectra['nolya'].flux['b'], spectra['dla'].flux['b']))      # DLA-only spectra
 
+    def test_specsim_config(self):
+        """--specsim-config: the default is unchanged and a yaml pointing to other throughput files is used."""
+        import re
+        import specsim
+        from desimodel.io import findfile
+        cam_files = {x: findfile('throughput/thru-{}_y1measured.fits'.format(x)) for x in 'brz'}
+        if not all(os.path.exists(f) for f in cam_files.values()):
+            self.skipTest('the DESIMODEL throughput files are not available')
+        # a copy of desi.yaml (the name must contain "desi") whose throughput files are scaled by 0.5
+        yaml_text = open(os.path.join(os.path.dirname(specsim.__file__), 'data', 'config', 'desi.yaml')).read()
+        for x, f in cam_files.items():
+            tab = Table.read(f, hdu='THROUGHPUT')
+            tab['throughput'] = 0.5 * tab['throughput']
+            half = os.path.join(self.testdir, 'thru-{}_half.fits'.format(x))
+            tab.write(half, overwrite=True, format='fits')
+            fits.setval(half, 'EXTNAME', value='THROUGHPUT', ext=1)
+            yaml_text = re.sub(r'path: throughput/thru-{}_y1measured.fits'.format(x), 'path: ' + half, yaml_text)
+        yaml_file = os.path.join(self.testdir, 'desi_half_throughput.yaml')
+        open(yaml_file, 'w').write(yaml_text)
+
+        catalog = self._seed_catalog(self.infile)
+        base = 'quickquasars -i {} -o {} --from-catalog {} --overwrite --seed 1'.format(self.infile, self.outspec1, catalog)
+        spectra = {}
+        for name, extra in (('default', ''), ('desi', ' --specsim-config desi'), ('half', ' --specsim-config ' + yaml_file)):
+            quickquasars.main(quickquasars.parse((base + extra).split()[1:]))
+            spectra[name] = desispec.io.read_spectra(self.outspec1)
+        self._check_spectra_match(spectra['default'], spectra['desi'])
+        ok = (spectra['default'].ivar['b'] > 0) & (spectra['half'].ivar['b'] > 0)
+        self.assertLess(np.median(spectra['half'].ivar['b'][ok] / spectra['default'].ivar['b'][ok]), 0.8)    # a lower throughput gives a noisier spectrum
+
     def test_quickquasars(self):
-        cmd = 'quickquasars -i {} -o {} --exptime 4000 --nmax 5 --overwrite --seed 1'.format(self.infile, self.outspec1)
-        opts = quickquasars.parse(cmd.split()[1:])
-        quickquasars.main(opts)
-        self.assertTrue(os.path.exists(self.outspec1))
-      
-
-        cmd = 'quickquasars -i {} -o {} --exptime 4000 --bbflux --nmax 5 --overwrite --seed 1 --extinction'.format(self.infile, self.outspec1)
-        opts = quickquasars.parse(cmd.split()[1:])
-        quickquasars.main(opts)
-        self.assertTrue(os.path.exists(self.outspec1))
-
-        cmd = 'quickquasars -i {} -o {} --exptime 4000 --zbest --nmax 5 --overwrite --seed 1'.format(self.infile, self.outspec1)
+        catalog = self._seed_catalog(self.infile)
+        cmd = 'quickquasars -i {} -o {} --from-catalog {} --overwrite --seed 1'.format(self.infile, self.outspec1, catalog)
         opts = quickquasars.parse(cmd.split()[1:])
         quickquasars.main(opts)
         self.assertTrue(os.path.exists(self.outspec1))
         self.assertTrue(os.path.exists(self.outzbest))
-   
 
-        cmd = 'quickquasars -i {} -o {} --exptime 4000 --zbest --nmax 5 --overwrite --seed 1'.format(self.infile2, self.outspec1_s)
+        cmd = 'quickquasars -i {} -o {} --from-catalog {} --overwrite --seed 1 --save-continuum'.format(self.infile, self.outspec1, catalog)
+        opts = quickquasars.parse(cmd.split()[1:])
+        quickquasars.main(opts)
+        self.assertTrue(os.path.exists(self.outspec1))
+
+        catalog_s = self._seed_catalog(self.infile2)
+        cmd = 'quickquasars -i {} -o {} --from-catalog {} --overwrite --seed 1'.format(self.infile2, self.outspec1_s, catalog_s)
         opts = quickquasars.parse(cmd.split()[1:])
         quickquasars.main(opts)
         self.assertTrue(os.path.exists(self.outspec1_s))
         self.assertTrue(os.path.exists(self.outzbest_s))
-
-
 
 if __name__ == '__main__':
     unittest.main()

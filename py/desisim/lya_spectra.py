@@ -69,7 +69,15 @@ metal_coefs = {'lyacolore':     {'SiII(1260)': 4.2504e-4,
                                 'SiIII(1207)': 9.4595e-4,
                                 'SiII(1193)' : 6.3540e-4,
                                 'SiII(1190)' : 4.4960e-4},
-                    'saclay':   {'SiII(1260)': 4.2504e-4, # DR14
+               'lyacolore-2lpt':{'LYB': 0.1901,
+                                 'LY3': 0.0697,
+                                 'LY4': 0.0335,
+                                 'LY5': 0.0187,
+                                 'SiII(1260)': 1.80e-03,
+                                 'SiIII(1207)': 3.66e-03,
+                                 'SiII(1193)': 1.83e-03,
+                                 'SiII(1190)': 1.89e-03},
+                'saclay':       {'SiII(1260)': 4.2504e-4, # DR14
                                 #'SiII(1260)': 6.537e-4, # DR16
                                 'SiIII(1207)': 9.4595e-4, #DR14
                                 #'SiIII(1207)': 2.739e-3, #DR16
@@ -77,7 +85,7 @@ metal_coefs = {'lyacolore':     {'SiII(1260)': 4.2504e-4,
                                 #'SiII(1193)':7.488e-4 , #DR16
                                 'SiII(1190)' : 4.496e-4} #DR14
                                 #'SiII(1190)':9.215e-4, #DR16
-                    }
+}
 
 def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False,add_lyb=False) :
     '''
@@ -248,7 +256,8 @@ def _multiply_interpolated(output_flux, fp, j, dx, dwave, inside, last):
                 output_flux[q, i] *= ((fp[q, k + 1] - fp[q, k]) / dx[i]) * dwave[i] + fp[q, k]
 
 
-def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals,mocktype,strengths=None) :
+def apply_metals_transmission(qso_wave, qso_flux, trans_wave, trans, metals,
+                              strengths_label=None, strengths=None):
     '''
     Apply metal transmission to input flux, interpolating if needed.
     The input transmission should be only due to lya, if not has no meaning.
@@ -262,6 +271,8 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals,mocktype
         trans_wave: 1D[ntranswave ] array of lya transmission wavelength samples
         trans: 2D[nqso, ntranswave] transmissions [0-1]
         metals: list of metal names to use
+        strengths_label: label for metal tuning (lyacolore, saclay, lyacolore-2lpt)
+        strengths: list of floats with metal strengths (will ignore strengths_label)
 
     Returns:
         output_flux[nqso, nwave]
@@ -283,12 +294,12 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals,mocktype
 
     try:
         if strengths is None:
-            log.info(f"Using metal coeffients for {mocktype} mocks")
+            log.info(f"Using metal coeffients from {strengths_label}")
             for m in metals:
-                if m not in metal_coefs[mocktype].keys(): 
+                if m not in metal_coefs[strengths_label].keys(): 
                     continue # use default value
-                log.info(f"Applying metal strength for {m} with value {metal_coefs[mocktype][m]}.")
-                absorber_IGM[m]['COEF']=metal_coefs[mocktype][m]
+                log.info(f"Applying metal strength for {m} with value {metal_coefs[strengths_label][m]}.")
+                absorber_IGM[m]['COEF']=metal_coefs[strengths_label][m]
         else: 
             if len(metals)!=len(strengths):
                 raise ValueError("List in --metals should be the same size as --metal-strengths")
