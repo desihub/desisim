@@ -114,7 +114,8 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
     
     parser.add_argument('--from-catalog', type=str, default=None, help="Input catalog of mock objects to simulate")
     
-    parser.add_argument('--raw-mock', type=str, default=None, choices=["lyacolore","saclay","ohio"], help="Input raw mock type (lyacolore, saclay or Ohio): default metal strengths")
+    parser.add_argument('--metal-strengths-label', type=str, default=None, choices=["lyacolore", "saclay", "lyacolore-2lpt"],
+                        help="Use specific metal tuning (ignored if --metal-strengths is provided)")
 
     parser.add_argument('--metal-strengths', type=float, default=None, required=False, help = "list of strengths to appply\
         to metals. Should correspond to the --metals flag", nargs='*')
@@ -466,7 +467,10 @@ def simulate_one_healpix(ifilename, args, model, bal=None):
         tmp_qso_flux = apply_metals_transmission(
             tmp_qso_wave, tmp_qso_flux,
             trans_wave, transmission,
-            args.metals, mocktype=args.raw_mock, strengths=args.metal_strengths)
+            args.metals,
+            strengths_label=args.metal_strengths_label,
+            strengths=args.metal_strengths
+        )
     # the Lya and metal absorption are applied: the skewers are no longer needed
     del transmission
 
