@@ -73,6 +73,20 @@ class Testquickquasars(unittest.TestCase):
             self.assertTrue(np.all(sp2.flux[x] - sp1.flux[x] <= 1e-6))     # the higher-order lines can only remove flux
         self.assertLess(np.min(sp2.flux['b'] - sp1.flux['b']), -1e-2)    # and they do remove some
 
+    def test_no_lya_transmission(self):
+        """--no-lya-transmission gives F=1 for the Lya forest; metals and DLAs can still be added on their own."""
+        import desispec.io
+        base = 'quickquasars -i {} -o {} --exptime 4000 --nmax 5 --overwrite --seed 1'.format(self.infile, self.outspec1)
+        metals = '--metals LYB LY3 LY4 LY5 SiII(1260) SiIII(1207) SiII(1193) SiII(1190) --metal-strengths 0.1901 0.0697 0.0335 0.0187 1.8e-03 3.66e-03 1.83e-03 1.89e-03'
+        spectra = {}
+        for name, extra in (('forest', ''), ('nolya', ' --no-lya-transmission'),
+                            ('metals', ' --no-lya-transmission ' + metals), ('dla', ' --no-lya-transmission --dla random')):
+            quickquasars.main(quickquasars.parse((base + extra).split()[1:]))
+            spectra[name] = desispec.io.read_spectra(self.outspec1)
+        self.assertFalse(np.allclose(spectra['forest'].flux['b'], spectra['nolya'].flux['b']))   # the Lya forest is gone
+        self.assertFalse(np.allclose(spectra['nolya'].flux['b'], spectra['metals'].flux['b']))   # metal-only spectra
+        self.assertFalse(np.allclose(spectra['nolya'].flux['b'], spectra['dla'].flux['b']))      # DLA-only spectra
+
     def test_quickquasars(self):
         cmd = 'quickquasars -i {} -o {} --exptime 4000 --nmax 5 --overwrite --seed 1'.format(self.infile, self.outspec1)
         opts = quickquasars.parse(cmd.split()[1:])

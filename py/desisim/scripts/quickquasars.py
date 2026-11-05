@@ -148,8 +148,10 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
 
     parser.add_argument('--extinction',action='store_true',help='Adds Galactic extinction')
 
-    parser.add_argument('--no-transmission',action = 'store_true', help='Do not multiply continuum\
-        by transmission, use F=1 everywhere')
+    parser.add_argument('--no-lya-transmission',action = 'store_true', help='Do not apply the Lya absorption\
+        (F=1). The other absorbers are still added if requested: with --metals, metal-only spectra; with --dla,\
+        DLA-only spectra; with both, metals and DLAs without Lya. Not with --metals-from-file')
+
 
     parser.add_argument('--nproc', type=int, default=1,help="number of processors to run faster")
 
@@ -672,33 +674,31 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             log.error("BAL probability is not between 0 and 1 : "+balstr)
             sys.exit(1)
 
-    if not args.no_transmission:
-        # Do not add Lya absorption 
+    if not args.no_lya_transmission:
         log.info("Applying Lya transmission")
         tmp_qso_flux = apply_lya_transmission(
             tmp_qso_wave, tmp_qso_flux, trans_wave, transmission)
     else:
-        log.info("Skipping Lya transmission (--no-transmission mode)")
+        log.info("Skipping Lya transmission (--no-lya-transmission mode)")
 
     # Apply metals if requested
     if args.metals is not None:
         if args.metals_from_file is not None:
             raise ValueError("Cannot use --metals and --metals-from-file at the same time.")
-        
-        if args.no_transmission:
-            log.warning("--metals with --no-transmission is not supported. Skipping metals.")
-        else:
-            lstMetals = ', '.join(args.metals)
-            log.info("Applying metals: {}".format(lstMetals))
-            tmp_qso_flux = apply_metals_transmission(
-                tmp_qso_wave, tmp_qso_flux,
-                trans_wave, transmission,
-                args.metals, mocktype=args.raw_mock, strengths=args.metal_strengths)
-            
-    # if requested, add DLA to the transmission skewers
+        # the metal absorption is computed from the Lya skewers (tau_metal = coef * tau_Lya) and multiplies the
+        # flux on its own, so it is also added without the Lya absorption (metal-only spectra)
+        lstMetals = ', '.join(args.metals)
+        log.info("Applying metals: {}".format(lstMetals))
+        tmp_qso_flux = apply_metals_transmission(
+            tmp_qso_wave, tmp_qso_flux,
+            trans_wave, transmission,
+            args.metals, mocktype=args.raw_mock, strengths=args.metal_strengths)
+    # the Lya and metal absorption are applied: the skewers are no longer needed
+    del transmission
+
+    # if requested, add DLA to the transmission skewers. They multiply the flux after the Lya and metal
+    # absorption, so the metals are computed from the Lya skewers alone (HCDs decoupled from metals).
     if args.dla is not None :
-        # Initialize HCD-only transmission array (ones = no absorption by default)
-        transmission_hcds = np.ones_like(tmp_qso_flux)
         # if adding random DLAs, we will need a new random generator
         if args.dla=='random':
             log.info('Adding DLAs randomly')
@@ -728,7 +728,8 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                     # Adding only DLAs with z < zqso
                     if dla['Z_DLA_RSD']>=metadata['Z'][ii]: continue
                     dlas.append(dict(z=dla['Z_DLA_RSD'],N=dla['N_HI_DLA'],dlaid=dla['DLAID']))
-                transmission_dla = dla_spec(tmp_qso_wave,dlas,dlaplus=args.dlaplus)
+                if len(dlas)>0:
+                    transmission_dla = dla_spec(tmp_qso_wave,dlas,dlaplus=args.dlaplus)
 
             elif args.dla=='random':
                 dlas, transmission_dla = insert_dlas(tmp_qso_wave, metadata['Z'][ii], rstate=random_state_just_for_dlas, dlaplus=args.dlaplus)
@@ -737,12 +738,11 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
 
             # multiply transmissions and store information for the DLA file
             if len(dlas)>0:
-                transmission_hcds[ii] = transmission_dla  # store DLA-only transmission
+                tmp_qso_flux[ii] *= transmission_dla.astype(tmp_qso_flux.dtype, copy=False)  # DLA absorption of this quasar
                 dla_z += [idla['z'] for idla in dlas]
                 dla_NHI += [idla['N'] for idla in dlas]
                 dla_id += [idla['dlaid'] for idla in dlas]
                 dla_qid += [idd]*len(dlas)
-        tmp_qso_flux *= transmission_hcds  # apply DLA absorption to the flux
         log.info('Added {} DLAs'.format(len(dla_id)))
         if args.dlaplus:
             log.info('Added higher order lines to DLAs')
@@ -1025,6 +1025,10 @@ def main(args=None):
     log = get_logger()
     if isinstance(args, (list, tuple, type(None))):
         args = parse(args)
+
+    if args.no_lya_transmission and args.metals_from_file is not None:
+        log.error("--metals-from-file cannot be used with --no-lya-transmission (the metals of the file are part of its skewers); use --metals")
+        return 1
 
     if args.outfile is not None and len(args.infile)>1 :
         log.error("Cannot specify single output file with multiple inputs, use --outdir option instead")
