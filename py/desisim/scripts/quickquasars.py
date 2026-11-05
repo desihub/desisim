@@ -103,6 +103,10 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
         "of 200 needs a fraction of it). The random noise is drawn for all the fibres at once as without this "
         "option, so the output is the same.")
 
+    parser.add_argument('--specsim-config', type=str, default='desi', help="specsim configuration of the instrument: the name of one "
+        "of the specsim configurations or the path of a yaml file (for example a copy of desi.yaml that points to other throughput files). "
+        "The fast fibre loss method and the pixel size of the z camera are only set if the string contains 'desi'.")
+
     parser.add_argument('--overwrite', action = "store_true" ,help="rerun if spectra exists (default is skip)")
 
     parser.add_argument('--nmax', type=int, default=None, help="Max number of QSO per input file, for debugging")
@@ -533,7 +537,7 @@ def simulate_one_healpix(ifilename, args, model, bal=None):
     resolution=sim_spectra(qso_wave, qso_flux, program="DARK", obsconditions=obsconditions, spectra_filename=ofilename,
                            sourcetype="qso", ra=metadata["RA"], dec=metadata["DEC"], targetid=targetid,
                            meta=specmeta, seed=seed, fibermap_columns=None, use_poisson=False,
-                           specsim_config_file='desi', dwave_out=0.8,
+                           specsim_config_file=args.specsim_config, dwave_out=0.8,
                            save_resolution=False, source_contribution_smoothing=args.source_contr_smoothing, fiber_chunk=args.fiber_chunk)
 
     ### Keep input redshift

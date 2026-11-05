@@ -98,6 +98,36 @@ class Testquickquasars(unittest.TestCase):
         self.assertFalse(np.allclose(spectra['nolya'].flux['b'], spectra['metals'].flux['b']))   # metal-only spectra
         self.assertFalse(np.allclose(spectra['nolya'].flux['b'], spectra['dla'].flux['b']))      # DLA-only spectra
 
+    def test_specsim_config(self):
+        """--specsim-config: the default is unchanged and a yaml pointing to other throughput files is used."""
+        import re
+        import specsim
+        from desimodel.io import findfile
+        cam_files = {x: findfile('throughput/thru-{}_y1measured.fits'.format(x)) for x in 'brz'}
+        if not all(os.path.exists(f) for f in cam_files.values()):
+            self.skipTest('the DESIMODEL throughput files are not available')
+        # a copy of desi.yaml (the name must contain "desi") whose throughput files are scaled by 0.5
+        yaml_text = open(os.path.join(os.path.dirname(specsim.__file__), 'data', 'config', 'desi.yaml')).read()
+        for x, f in cam_files.items():
+            tab = Table.read(f, hdu='THROUGHPUT')
+            tab['throughput'] = 0.5 * tab['throughput']
+            half = os.path.join(self.testdir, 'thru-{}_half.fits'.format(x))
+            tab.write(half, overwrite=True, format='fits')
+            fits.setval(half, 'EXTNAME', value='THROUGHPUT', ext=1)
+            yaml_text = re.sub(r'path: throughput/thru-{}_y1measured.fits'.format(x), 'path: ' + half, yaml_text)
+        yaml_file = os.path.join(self.testdir, 'desi_half_throughput.yaml')
+        open(yaml_file, 'w').write(yaml_text)
+
+        catalog = self._seed_catalog(self.infile)
+        base = 'quickquasars -i {} -o {} --from-catalog {} --overwrite --seed 1'.format(self.infile, self.outspec1, catalog)
+        spectra = {}
+        for name, extra in (('default', ''), ('desi', ' --specsim-config desi'), ('half', ' --specsim-config ' + yaml_file)):
+            quickquasars.main(quickquasars.parse((base + extra).split()[1:]))
+            spectra[name] = desispec.io.read_spectra(self.outspec1)
+        self._check_spectra_match(spectra['default'], spectra['desi'])
+        ok = (spectra['default'].ivar['b'] > 0) & (spectra['half'].ivar['b'] > 0)
+        self.assertLess(np.median(spectra['half'].ivar['b'][ok] / spectra['default'].ivar['b'][ok]), 0.8)    # a lower throughput gives a noisier spectrum
+
     def test_quickquasars(self):
         catalog = self._seed_catalog(self.infile)
         cmd = 'quickquasars -i {} -o {} --from-catalog {} --overwrite --seed 1'.format(self.infile, self.outspec1, catalog)
