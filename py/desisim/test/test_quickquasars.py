@@ -57,20 +57,47 @@ class Testquickquasars(unittest.TestCase):
         with self.assertRaises(ValueError):
             quickquasars._memory_limited_nproc(4, 0)
 
+    def test_dlaplus_options(self):
+        """DLA+ is the default; --no-dlaplus turns it off; --dlaplus is accepted; both together are refused."""
+        base = ['--infile', self.infile, '--outfile', self.outspec1, '--dla', 'random']
+        self.assertTrue(quickquasars.parse(base).dlaplus)
+        self.assertTrue(quickquasars.parse(base + ['--dlaplus']).dlaplus)
+        self.assertFalse(quickquasars.parse(base + ['--no-dlaplus']).dlaplus)
+        with self.assertRaises(SystemExit):
+            quickquasars.parse(base + ['--dlaplus', '--no-dlaplus'])
+
+    def test_no_dlaplus_lyman_metals_warning(self):
+        """--dla --no-dlaplus with Lyman-series metals logs a warning (the HCDs have no Lyb absorption)."""
+        from unittest import mock
+        # -o with two input files makes main() return early, after the option checks
+        base = ['-i', self.infile, self.infile, '-o', self.outspec1, '--dla', 'random']
+        for extra, warn in ((['--no-dlaplus', '--metals', 'LYB', 'SiII(1260)'], True),
+                            (['--no-dlaplus', '--metals', 'all'], True),
+                            (['--no-dlaplus', '--metals', 'SiII(1260)'], False),
+                            (['--metals', 'LYB'], False)):
+            with mock.patch.object(quickquasars, 'get_logger') as get_logger:
+                self.assertEqual(quickquasars.main(quickquasars.parse(base + extra)), 1)
+                warnings = [c.args[0] for c in get_logger.return_value.warning.call_args_list]
+                self.assertEqual(any('no Lyb' in w for w in warnings), warn, msg=' '.join(extra))
+
     def test_dla_and_metals_options(self):
         """DLAs (random, with and without the higher-order lines) and metals run together, and change the spectra."""
         import desispec.io
         base = 'quickquasars -i {} -o {} --exptime 4000 --nmax 5 --overwrite --seed 1'.format(self.infile, self.outspec1)
+        metals = ' --metals LYB LY3 LY4 LY5 SiII(1260) SiIII(1207) SiII(1193) SiII(1190) --metal-strengths 0.1901 0.0697 0.0335 0.0187 1.8e-03 3.66e-03 1.83e-03 1.89e-03'
         quickquasars.main(quickquasars.parse(base.split()[1:]))
         sp0 = desispec.io.read_spectra(self.outspec1)
-        quickquasars.main(quickquasars.parse((base + ' --dla random --metals LYB LY3 LY4 LY5 SiII(1260) SiIII(1207) SiII(1193) SiII(1190) --metal-strengths 0.1901 0.0697 0.0335 0.0187 1.8e-03 3.66e-03 1.83e-03 1.89e-03').split()[1:]))
+        quickquasars.main(quickquasars.parse((base + ' --dla random --no-dlaplus' + metals).split()[1:]))
         sp1 = desispec.io.read_spectra(self.outspec1)
-        quickquasars.main(quickquasars.parse((base + ' --dla random --dlaplus --metals LYB LY3 LY4 LY5 SiII(1260) SiIII(1207) SiII(1193) SiII(1190) --metal-strengths 0.1901 0.0697 0.0335 0.0187 1.8e-03 3.66e-03 1.83e-03 1.89e-03').split()[1:]))
+        quickquasars.main(quickquasars.parse((base + ' --dla random' + metals).split()[1:]))
         sp2 = desispec.io.read_spectra(self.outspec1)
+        quickquasars.main(quickquasars.parse((base + ' --dla random --dlaplus' + metals).split()[1:]))
+        sp3 = desispec.io.read_spectra(self.outspec1)
         # same seed, so the noise is identical; the forest and the DLAs only affect the blue arm here
         self.assertFalse(np.allclose(sp0.flux['b'], sp1.flux['b']))     # DLAs and metals change the flux
         for x in ['b', 'r', 'z']:
             self.assertTrue(np.all(sp2.flux[x] - sp1.flux[x] <= 1e-6))     # the higher-order lines can only remove flux
+            self.assertTrue(np.array_equal(sp2.flux[x], sp3.flux[x]))      # --dlaplus is the default
         self.assertLess(np.min(sp2.flux['b'] - sp1.flux['b']), -1e-2)    # and they do remove some
 
     def test_no_lya_transmission(self):
