@@ -1,4 +1,4 @@
-"""Tests of the DLA absorption (desisim.dla), in particular the optional higher-order Lyman lines (dlaplus)."""
+"""Tests of the DLA absorption (desisim.dla), in particular the higher-order Lyman lines (dlaplus; always on in quickquasars)."""
 import unittest
 import numpy as np
 from desisim.dla import dla_spec, insert_dlas, voigt_tau

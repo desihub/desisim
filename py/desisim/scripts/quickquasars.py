@@ -128,13 +128,8 @@ def parse(options=None):
 Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?')
 
     parser.add_argument('--dla',type=str,required=False, help="Add DLA to simulated spectra either randonmly\
-        (--dla random) or from transmision file (--dla file)")
-
-    dlaplus_group = parser.add_mutually_exclusive_group()
-    dlaplus_group.add_argument('--dlaplus',action='store_true', help="Kept for compatibility: the higher order\
-        Lyman lines (Lyb to Ly20) and the Lyman continuum of the DLAs are now added by default with --dla")
-    dlaplus_group.add_argument('--no-dlaplus',action='store_true', help="With --dla, add only the Lya absorption of\
-        the DLAs, without the higher order Lyman lines and the Lyman continuum")
+        (--dla random) or from transmision file (--dla file). The DLAs absorb in Lya, in the higher order Lyman\
+        lines (Lyb to Ly20) and in the Lyman continuum (use desisim 0.39.2 or earlier for the former Lya-only DLAs)")
 
     parser.add_argument('--balprob',type=float,required=False, help="To add BAL features with the specified probability\
         (e.g --balprob 0.5). Expect a number between 0 and 1 ")
@@ -201,10 +196,6 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
         args = parser.parse_args()
     else:
         args = parser.parse_args(options)
-
-    # DLA+ (higher order Lyman lines and Lyman continuum of the DLAs) is the default;
-    # --dlaplus is accepted for compatibility and has no effect
-    args.dlaplus = not args.no_dlaplus
 
     return args
 
@@ -738,10 +729,10 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                     if dla['Z_DLA_RSD']>=metadata['Z'][ii]: continue
                     dlas.append(dict(z=dla['Z_DLA_RSD'],N=dla['N_HI_DLA'],dlaid=dla['DLAID']))
                 if len(dlas)>0:
-                    transmission_dla = dla_spec(tmp_qso_wave,dlas,dlaplus=args.dlaplus)
+                    transmission_dla = dla_spec(tmp_qso_wave,dlas,dlaplus=True)
 
             elif args.dla=='random':
-                dlas, transmission_dla = insert_dlas(tmp_qso_wave, metadata['Z'][ii], rstate=random_state_just_for_dlas, dlaplus=args.dlaplus)
+                dlas, transmission_dla = insert_dlas(tmp_qso_wave, metadata['Z'][ii], rstate=random_state_just_for_dlas, dlaplus=True)
                 for idla in dlas:
                    idla['dlaid']+=idd*1000      #Added to have unique DLA ids. Same format as DLAs from file.
 
@@ -752,11 +743,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
                 dla_NHI += [idla['N'] for idla in dlas]
                 dla_id += [idla['dlaid'] for idla in dlas]
                 dla_qid += [idd]*len(dlas)
-        log.info('Added {} DLAs'.format(len(dla_id)))
-        if args.dlaplus:
-            log.info('Added higher order Lyman lines and Lyman continuum to DLAs')
-        else:
-            log.info('Added only the Lya absorption of DLAs (--no-dlaplus)')
+        log.info('Added {} DLAs, with the higher order Lyman lines and the Lyman continuum'.format(len(dla_id)))
         # write file with DLA information
         if len(dla_id)>0:
             dla_meta=Table()
@@ -772,9 +759,7 @@ def simulate_one_healpix(ifilename,args,model,obsconditions,decam_and_wise_filte
             hdu_dla=pyfits.PrimaryHDU()
             hdu_dla.name="DLA_META"
         
-        # Add comment to DLA_META extension if dlaplus is enabled
-        if args.dlaplus:
-            hdu_dla.header['COMMENT'] = 'Added higher order lines to DLAs'
+        hdu_dla.header['COMMENT'] = 'Added higher order lines to DLAs'
                          
     # Attenuate the spectra for extinction
     if not sfdmap is None:
@@ -1046,14 +1031,6 @@ def main(args=None):
         # absorption, and --metals would be computed from tau_Lya + tau_Lyb
         log.error("--add-LYB cannot be used with --no-lya-transmission (the Lyb absorption of the file is part of the transmission); use --metals LYB")
         return 1
-
-    # The metals are computed from the Lya skewers before the DLAs are applied, so the Lyman series
-    # "metals" never contain the absorption of the DLAs: without DLA+ the DLAs have no Lyb absorption
-    if args.dla is not None and not args.dlaplus and args.metals is not None:
-        lyman_metals = [m for m in ['LYB', 'LY3', 'LY4', 'LY5'] if m in args.metals or 'all' in args.metals]
-        if len(lyman_metals) > 0:
-            log.warning("--no-dlaplus: HCDs will have no Lyb or higher-order Lyman absorption; "
-                        "{} in --metals only add the forest absorption".format('/'.join(lyman_metals)))
 
     if args.outfile is not None and len(args.infile)>1 :
         log.error("Cannot specify single output file with multiple inputs, use --outdir option instead")

@@ -11,14 +11,10 @@ desisim change log
   failures now stop the run at once, and ``numba`` is declared as a dependency
   (PR `#604`_).
 
-* ``quickquasars --dla`` adds the higher-order Lyman lines and Lyman
-  continuum of the DLAs by default; ``--no-dlaplus`` gives Lya only
-  (PR `#606`_).
-* HCDs are decoupled from the metals. **Output of** ``--dla`` **with**
-  ``--metals`` **changes**; use tag ``0.39.0`` to reproduce the DESI DR2 mocks
-  (PR `#606`_).
-* DLA profiles are computed on the quasar wavelength grid, so ``--dla`` output
-  changes slightly even without metals (PR `#606`_).
+* ``quickquasars --dla`` always adds the higher-order Lyman lines and Lyman
+  continuum of the DLAs; use 0.39.2 or earlier for Lya-only DLAs (PR `#606`_).
+* HCDs are decoupled from the metals. **Output of** ``--dla`` **changes**; use
+  tag ``0.39.0`` to reproduce the DESI DR2 mocks (PR `#606`_).
 * ``--no-lya-transmission`` replaces ``--no-transmission``; not allowed with
   ``--metals-from-file`` or ``--add-LYB`` (PR `#606`_).
 
