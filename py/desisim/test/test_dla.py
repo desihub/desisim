@@ -1,7 +1,7 @@
 """Tests of the DLA absorption (desisim.dla), in particular the optional higher-order Lyman lines (dlaplus)."""
 import unittest
 import numpy as np
-from desisim.dla import dla_spec, insert_dlas
+from desisim.dla import dla_spec, insert_dlas, voigt_tau
 
 
 class TestDLA(unittest.TestCase):
@@ -25,6 +25,47 @@ class TestDLA(unittest.TestCase):
         lyb = 1025.72 * (1. + self.z_dla)
         self.assertLess(float(t1[np.argmin(np.abs(self.wave - lyb))]), 0.5)
         self.assertTrue(np.all(t1 <= t0 + 1e-12))
+
+    def test_default_unchanged(self):
+        """Without dlaplus the output is bit-identical to the original Lya-only dla_spec."""
+        par = [21.0, self.z_dla, 30*1e5, 1215.6700 / 1e8, 0.4164, 626500000.0]
+        expected = np.exp(-1.0 * voigt_tau(self.wave / 1e8, par))
+        self.assertTrue(np.array_equal(dla_spec(self.wave, self.dlas), expected))
+
+    def test_lyman_continuum_lls(self):
+        """For an LLS the Lyman continuum opacity is sigma_0 N (lambda / 911.75 A)^3 below the
+        Lyman limit, and the untabulated lines just redward of the limit are a flat
+        quasi-continuum sigma_0 N, so there is no transmission spike at the limit."""
+        z, logN = 3.5, 17.5
+        wave = np.linspace(3600., 5500., 20000)
+        t = dla_spec(wave, [dict(z=z, N=logN, dlaid=0)], dlaplus=True)
+        with np.errstate(divide='ignore'): # t = 0 in the saturated Lya core
+            tau = -np.log(t)
+        wave_ll = 911.7536 * (1. + z)
+        far = (wave > 800. * (1. + z)) & (wave < 900. * (1. + z))
+        expected = 6.304e-18 * 10**logN * (wave[far] / wave_ll)**3
+        self.assertTrue(np.allclose(tau[far], expected, rtol=1e-4))
+        # between the Lyman limit and the last tabulated line (913.83 A): quasi-continuum
+        # sigma_0 N (~2 here), plus the wings of the tabulated lines
+        sigma_n = 6.304e-18 * 10**logN
+        quasi = (wave > 911.9 * (1. + z)) & (wave < 913.6 * (1. + z))
+        self.assertTrue(np.all(tau[quasi] >= sigma_n * (1. - 1e-6)))
+        self.assertTrue(np.all(tau[quasi] < 1.1 * sigma_n))
+        # no spike: around the Lyman limit, up to the quasi-continuum cutoff (913.73 A), the
+        # transmission does not exceed its value just below the limit (blueward of 911 A it
+        # rises slowly as lambda^3; redward of the cutoff there are the gaps between lines)
+        edge = (wave > 911.0 * (1. + z)) & (wave < 913.7 * (1. + z))
+        i_ll = np.argmin(np.abs(wave - 911.7 * (1. + z)))
+        self.assertTrue(np.all(t[edge] <= 1.01 * t[i_ll]))
+
+    def test_dlaplus_lya_wing_outside_range(self):
+        """The Lya damping wing is included with dlaplus even when the Lya centre is bluer than
+        the spectrum, as in the default."""
+        dlas = [dict(z=1.9, N=21.0, dlaid=0)] # Lya at 3525 A < 3600 A
+        t0 = dla_spec(self.wave, dlas)
+        t1 = dla_spec(self.wave, dlas, dlaplus=True)
+        self.assertLess(float(t0[0]), 0.999)
+        self.assertLessEqual(float(t1[0]), float(t0[0]) + 1e-12)
 
     def test_insert_dlas_accepts_dlaplus(self):
         rstate = np.random.RandomState(1)
