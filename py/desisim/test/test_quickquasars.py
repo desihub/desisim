@@ -80,6 +80,13 @@ class Testquickquasars(unittest.TestCase):
                 warnings = [c.args[0] for c in get_logger.return_value.warning.call_args_list]
                 self.assertEqual(any('no Lyb' in w for w in warnings), warn, msg=' '.join(extra))
 
+    def test_no_lya_transmission_refused_combinations(self):
+        """--no-lya-transmission is refused with --add-LYB and with --metals-from-file."""
+        base = ['-i', self.infile, '-o', self.outspec1, '--no-lya-transmission']
+        for extra in (['--add-LYB'], ['--metals-from-file']):
+            self.assertEqual(quickquasars.main(quickquasars.parse(base + extra)), 1, msg=' '.join(extra))
+        self.assertFalse(os.path.exists(self.outspec1))
+
     def test_dla_and_metals_options(self):
         """DLAs (random, with and without the higher-order lines) and metals run together, and change the spectra."""
         import desispec.io

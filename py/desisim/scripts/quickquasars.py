@@ -117,7 +117,8 @@ def parse(options=None):
 
     parser.add_argument('--bbflux', action = "store_true", help="compute and write the QSO broad-band fluxes in the fibermap")
 
-    parser.add_argument('--add-LYB', action='store_true', help = "Add LYB absorption from transmision file")
+    parser.add_argument('--add-LYB', action='store_true', help = "Add LYB absorption from transmision file\
+        (multiplied into the Lya transmission). Not with --no-lya-transmission")
 
     parser.add_argument('--metals', type=str, default=None, required=False, help = "list of metals to get the\
         transmission from, if 'all' runs on all metals", nargs='*')
@@ -154,7 +155,7 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
 
     parser.add_argument('--no-lya-transmission',action = 'store_true', help='Do not apply the Lya absorption\
         (F=1). The other absorbers are still added if requested: with --metals, metal-only spectra; with --dla,\
-        DLA-only spectra; with both, metals and DLAs without Lya. Not with --metals-from-file')
+        DLA-only spectra; with both, metals and DLAs without Lya. Not with --metals-from-file or --add-LYB')
 
 
     parser.add_argument('--nproc', type=int, default=1,help="number of processors to run faster")
@@ -1038,6 +1039,12 @@ def main(args=None):
 
     if args.no_lya_transmission and args.metals_from_file is not None:
         log.error("--metals-from-file cannot be used with --no-lya-transmission (the metals of the file are part of its skewers); use --metals")
+        return 1
+
+    if args.no_lya_transmission and args.add_LYB:
+        # read_lya_skewers multiplies F_LYB into the transmission: it would be removed with the Lya
+        # absorption, and --metals would be computed from tau_Lya + tau_Lyb
+        log.error("--add-LYB cannot be used with --no-lya-transmission (the Lyb absorption of the file is part of the transmission); use --metals LYB")
         return 1
 
     # The metals are computed from the Lya skewers before the DLAs are applied, so the Lyman series
