@@ -65,7 +65,8 @@ def parse(options=None):
     parser.add_argument('--sigma_kms_fog',type=float,default=150, help="Adds a gaussian error to the quasar \
         redshift that simulate the fingers of god effect")
 
-    parser.add_argument('--add-LYB', action='store_true', help = "Add LYB absorption from transmision file")
+    parser.add_argument('--add-LYB', action='store_true', help = "Add LYB absorption from transmision file\
+        (multiplied into the Lya transmission). Not with --no-lya-transmission")
 
     parser.add_argument('--metals', type=str, default=None, required=False, help = "list of metals to get the\
         transmission from, if 'all' runs on all metals", nargs='*')
@@ -74,9 +75,8 @@ def parse(options=None):
 Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?')
 
     parser.add_argument('--dla',type=str,required=False, help="Add DLA to simulated spectra either randonmly\
-        (--dla random) or from transmision file (--dla file)")
-
-    parser.add_argument('--dlaplus',action='store_true', help="Add absorption in higher order Lyman lines for DLAs")
+        (--dla random) or from transmision file (--dla file). The DLAs absorb in Lya, in the higher order Lyman\
+        lines (Lyb to Ly20) and in the Lyman continuum (use desisim 0.39.2 or earlier for the former Lya-only DLAs)")
 
     parser.add_argument('--balprob',type=float,required=False, help="To add BAL features with the specified probability\
         (e.g --balprob 0.5). Expect a number between 0 and 1 ")
@@ -88,7 +88,7 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
 
     parser.add_argument('--no-lya-transmission',action = 'store_true', help='Do not apply the Lya absorption\
         (F=1). The other absorbers are still added if requested: with --metals, metal-only spectra; with --dla,\
-        DLA-only spectra; with both, metals and DLAs without Lya. Not with --metals-from-file')
+        DLA-only spectra; with both, metals and DLAs without Lya. Not with --metals-from-file or --add-LYB')
 
 
     parser.add_argument('--nproc', type=int, default=1,help="number of processors to run faster")
@@ -476,10 +476,10 @@ def simulate_one_healpix(ifilename, args, model, bal=None):
                     if dla['Z_DLA_RSD']>=metadata['Z'][ii]: continue
                     dlas.append(dict(z=dla['Z_DLA_RSD'],N=dla['N_HI_DLA'],dlaid=dla['DLAID']))
                 if len(dlas)>0:
-                    transmission_dla = dla_spec(tmp_qso_wave,dlas,dlaplus=args.dlaplus)
+                    transmission_dla = dla_spec(tmp_qso_wave,dlas,dlaplus=True)
 
             elif args.dla=='random':
-                dlas, transmission_dla = insert_dlas(tmp_qso_wave, metadata['Z'][ii], rstate=random_state_just_for_dlas, dlaplus=args.dlaplus)
+                dlas, transmission_dla = insert_dlas(tmp_qso_wave, metadata['Z'][ii], rstate=random_state_just_for_dlas, dlaplus=True)
                 for idla in dlas:
                    idla['dlaid']+=idd*1000      #Added to have unique DLA ids. Same format as DLAs from file.
 
@@ -490,9 +490,7 @@ def simulate_one_healpix(ifilename, args, model, bal=None):
                 dla_NHI += [idla['N'] for idla in dlas]
                 dla_id += [idla['dlaid'] for idla in dlas]
                 dla_qid += [idd]*len(dlas)
-        log.info('Added {} DLAs'.format(len(dla_id)))
-        if args.dlaplus:
-            log.info('Added higher order lines to DLAs')
+        log.info('Added {} DLAs, with the higher order Lyman lines and the Lyman continuum'.format(len(dla_id)))
         # write file with DLA information
         if len(dla_id)>0:
             dla_meta=Table()
@@ -508,9 +506,7 @@ def simulate_one_healpix(ifilename, args, model, bal=None):
             hdu_dla=pyfits.PrimaryHDU()
             hdu_dla.name="DLA_META"
         
-        # Add comment to DLA_META extension if dlaplus is enabled
-        if args.dlaplus:
-            hdu_dla.header['COMMENT'] = 'Added higher order lines to DLAs'
+        hdu_dla.header['COMMENT'] = 'Added higher order lines to DLAs'
                          
     log.info("Simulate DESI observation and write output file")
     if "MOCKID" in metadata.dtype.names :
@@ -667,6 +663,12 @@ def main(args=None):
 
     if args.no_lya_transmission and args.metals_from_file is not None:
         log.error("--metals-from-file cannot be used with --no-lya-transmission (the metals of the file are part of its skewers); use --metals")
+        return 1
+
+    if args.no_lya_transmission and args.add_LYB:
+        # read_lya_skewers multiplies F_LYB into the transmission: it would be removed with the Lya
+        # absorption, and --metals would be computed from tau_Lya + tau_Lyb
+        log.error("--add-LYB cannot be used with --no-lya-transmission (the Lyb absorption of the file is part of the transmission); use --metals LYB")
         return 1
 
     if args.outfile is not None and len(args.infile)>1 :

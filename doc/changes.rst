@@ -11,7 +11,15 @@ desisim change log
   failures now stop the run at once, and ``numba`` is declared as a dependency
   (PR `#604`_).
 
+* ``quickquasars --dla`` always adds the higher-order Lyman lines and Lyman
+  continuum of the DLAs; use 0.39.2 or earlier for Lya-only DLAs (PR `#606`_).
+* HCDs are decoupled from the metals. **Output of** ``--dla`` **changes**; use
+  tag ``0.39.0`` to reproduce the DESI DR2 mocks (PR `#606`_).
+* ``--no-lya-transmission`` replaces ``--no-transmission``; not allowed with
+  ``--metals-from-file`` or ``--add-LYB`` (PR `#606`_).
+
 .. _`#604`: https://github.com/desihub/desisim/pull/604
+.. _`#606`: https://github.com/desihub/desisim/pull/606
 
 0.39.2 (2026-09-22)
 -------------------
