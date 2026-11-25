@@ -5,9 +5,10 @@ The redshifts of the QSO targets follow the target-selection distribution of Cha
 The observed data catalog (--input-data) gives the r-band magnitude distribution (dN/dz dM), the redshift distribution of the
 non-QSO targets (--include-nonqso-targets) and, with --selection-method tiles, the number of targets and the exposure times per NPASS class.
 
-Footprint, downsampling and exposure times come from the Lya coverage of the release (--selection-method randoms, the default; the
-coverage is built once per release with build_lya_coverage) or from the tiles of the release (--selection-method tiles, the previous
-method and the default for --release Y5, which has no data).
+Footprint, downsampling and exposure times come from the Lya coverage of the release
+(--selection-method randoms, the default when --lya-coverage is given; the coverage is built
+once per release with build_lya_coverage) or from the tiles of the release (--selection-method
+tiles, the previous method and the default otherwise, so existing command lines are unchanged).
 """
 import argparse
 
@@ -43,8 +44,10 @@ def parse(options=None):
     parser.add_argument("--zmax", type=float, default=10.0, required=False,
                         help='Maximum redshift of the QSO targets')
 
-    parser.add_argument("--release", type=str, default='loa', required=False,
-                        help='DESI survey release to reproduce (tile file of --selection-method tiles)')
+    parser.add_argument("--release", type=str, default=None, required=False,
+                        help='DESI survey release to reproduce. Default: the release of '
+                             '--lya-coverage with --selection-method randoms (an error if '
+                             'both are given and differ), loa with --selection-method tiles')
 
     parser.add_argument("--include-nonqso-targets", action='store_true', default=False,
                         help='Also select non-QSO targets (quasars targeted as other classes, e.g. ELG), with the redshift and magnitude '
@@ -55,7 +58,8 @@ def parse(options=None):
 
     parser.add_argument("--selection-method", type=str, default=None, choices=['randoms', 'tiles'], required=False,
                         help="randoms: footprint, downsampling and exposure times from the Lya coverage of the release (--lya-coverage). "
-                             "tiles: previous method, NPASS classes from the tiles of the release. Default: tiles for --release Y5, randoms otherwise")
+                             "tiles: previous method, NPASS classes from the tiles of the release. "
+                             "Default: randoms if --lya-coverage is given, tiles otherwise")
 
     parser.add_argument("--lya-coverage", type=str, default=None, required=False,
                         help='Lya coverage of the release, lya_<release>_coverage.fits, made with build_lya_coverage (for --selection-method randoms)')
@@ -65,11 +69,29 @@ def parse(options=None):
 
     args = parser.parse_args(options)
     if args.selection_method is None:
-        args.selection_method = 'tiles' if args.release=='Y5' else 'randoms'
+        args.selection_method = 'randoms' if args.lya_coverage is not None else 'tiles'
     if args.selection_method=='randoms' and args.lya_coverage is None:
         parser.error("--selection-method randoms needs --lya-coverage (build it once per release with build_lya_coverage), "
                      "or use --selection-method tiles for the previous method")
+    if args.selection_method=='tiles' and args.release is None:
+        args.release = 'loa'
     return args
+
+
+def resolve_release(release, lya_coverage):
+    """Release of the mock with --selection-method randoms: the one of the Lya coverage.
+
+    Raises ValueError if --release is given and differs from it, or if neither is known.
+    """
+    coverage_release = lya_coverage.meta.get('RELEASE')
+    if release is None:
+        if coverage_release is None:
+            raise ValueError("The Lya coverage has no RELEASE in its header: give --release")
+        return coverage_release
+    if coverage_release is not None and coverage_release != release:
+        raise ValueError(f"--release {release} differs from the release of the Lya coverage "
+                         f"({coverage_release})")
+    return release
 
 
 def main(args=None):
@@ -81,6 +103,7 @@ def main(args=None):
     nonqso_pool_factor = 1.
     if args.selection_method=='randoms':
         lya_coverage = LyaCoverage.read(args.lya_coverage)
+        args.release = resolve_release(args.release, lya_coverage)
         # The coverage keeps only a fraction of the non-QSO candidates, so it needs more of them than the data has per area.
         nonqso_pool_factor = lya_coverage.nonqso_pool_factor()
 
