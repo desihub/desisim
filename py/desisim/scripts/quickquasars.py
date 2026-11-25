@@ -118,8 +118,10 @@ Use 'all' or no argument for mock version < 7.3 or final metal runs. ",nargs='?'
     
     parser.add_argument('--from-catalog', type=str, default=None, help="Input catalog of mock objects to simulate")
     
-    parser.add_argument('--metal-strengths', type=float, default=None, required=False, help = "list of strengths to appply\
-        to metals. Should correspond to the --metals flag", nargs='*')
+    parser.add_argument('--metal-strengths', type=float, default=None, required=False, nargs='*',
+                        help="Strengths of the metals, one per entry of --metals, in the same "
+                             "order. Default: the COEF of absorber_IGM (SiII and SiIII have none). "
+                             "Tunings used for DESI mocks: doc/quickquasars_metal_strengths.rst")
 
 
     if options is None:

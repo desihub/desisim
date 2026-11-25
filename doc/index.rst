@@ -19,6 +19,7 @@ directory and even display their sections.  See `the toctree documentation`_.
     :maxdepth: 1
 
     qa
+    quickquasars_metal_strengths
     changes
     api
 
