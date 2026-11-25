@@ -17,9 +17,21 @@ desisim change log
   tag ``0.39.0`` to reproduce the DESI DR2 mocks (PR `#606`_).
 * ``--no-lya-transmission`` replaces ``--no-transmission``; not allowed with
   ``--metals-from-file`` or ``--add-LYB`` (PR `#606`_).
+* ``quickquasars`` cleanup, following Andreu Font: a seed catalog
+  (``--from-catalog``) is required, the continua are no longer split
+  north/south (all normalised in DECam r), new ``--specsim-config`` option, and
+  the metal-strength tunings of the DESI mocks are listed in
+  ``doc/quickquasars_metal_strengths.rst`` (PR `#607`_).
+* API change: removed ``--zbest --bbflux --zmin --zmax --exptime
+  --downsampling --desi-footprint --dn_dzdm --eboss --extinction
+  --year1-throughput --target-selection --mags --airmass --seeing --moonfrac
+  --moonalt --moonsep --program --skyerr --dwave --dwave_desi --wmin --wmax
+  --gamma_kms_zfit --shift_kms_los --save-resolution --save-continuum-dwave
+  --raw-mock``; command lines that use them now fail (PR `#607`_).
 
 .. _`#604`: https://github.com/desihub/desisim/pull/604
 .. _`#606`: https://github.com/desihub/desisim/pull/606
+.. _`#607`: https://github.com/desihub/desisim/pull/607
 
 0.39.2 (2026-09-22)
 -------------------

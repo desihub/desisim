@@ -64,20 +64,8 @@ absorber_IGM = {
     'LY5'         : { 'LRF':937.8035,       'COEF':0.0187 },
 }
 
-# Coefficients are different for each raw mock type.
-metal_coefs = {'lyacolore':     {'SiII(1260)': 4.2504e-4,
-                                'SiIII(1207)': 9.4595e-4,
-                                'SiII(1193)' : 6.3540e-4,
-                                'SiII(1190)' : 4.4960e-4},
-                    'saclay':   {'SiII(1260)': 4.2504e-4, # DR14
-                                #'SiII(1260)': 6.537e-4, # DR16
-                                'SiIII(1207)': 9.4595e-4, #DR14
-                                #'SiIII(1207)': 2.739e-3, #DR16
-                                'SiII(1193)' : 6.354e-4, #DR14
-                                #'SiII(1193)':7.488e-4 , #DR16
-                                'SiII(1190)' : 4.496e-4} #DR14
-                                #'SiII(1190)':9.215e-4, #DR16
-                    }
+# Metal strengths tuned for a given mock suite are kept with the mock-production
+# configurations (lyatools) and passed with --metal-strengths.
 
 def read_lya_skewers(lyafile,indices=None,read_dlas=False,add_metals=False,add_lyb=False) :
     '''
@@ -248,7 +236,7 @@ def _multiply_interpolated(output_flux, fp, j, dx, dwave, inside, last):
                 output_flux[q, i] *= ((fp[q, k + 1] - fp[q, k]) / dx[i]) * dwave[i] + fp[q, k]
 
 
-def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals,mocktype,strengths=None) :
+def apply_metals_transmission(qso_wave, qso_flux, trans_wave, trans, metals, strengths=None):
     '''
     Apply metal transmission to input flux, interpolating if needed.
     The input transmission should be only due to lya, if not has no meaning.
@@ -262,6 +250,8 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals,mocktype
         trans_wave: 1D[ntranswave ] array of lya transmission wavelength samples
         trans: 2D[nqso, ntranswave] transmissions [0-1]
         metals: list of metal names to use
+        strengths: list of floats with the strengths of the metals, in the order of metals
+            (default: the COEF of absorber_IGM; metals without one need a strength)
 
     Returns:
         output_flux[nqso, nwave]
@@ -283,13 +273,8 @@ def apply_metals_transmission(qso_wave,qso_flux,trans_wave,trans,metals,mocktype
 
     try:
         if strengths is None:
-            log.info(f"Using metal coeffients for {mocktype} mocks")
-            for m in metals:
-                if m not in metal_coefs[mocktype].keys(): 
-                    continue # use default value
-                log.info(f"Applying metal strength for {m} with value {metal_coefs[mocktype][m]}.")
-                absorber_IGM[m]['COEF']=metal_coefs[mocktype][m]
-        else: 
+            log.info("Using the default metal strengths of absorber_IGM")
+        else:
             if len(metals)!=len(strengths):
                 raise ValueError("List in --metals should be the same size as --metal-strengths")
             log.info(f"Applying metal strengths from arguments")
