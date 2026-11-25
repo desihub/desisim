@@ -15,7 +15,7 @@ from desiutil.log import get_logger
 
 c_cgs = const.c.to('cm/s').value
 
-def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, debug=False, **kwargs):
+def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, debug=False, dlaplus=False, **kwargs):
     """ Insert zero, one or more DLAs into a given spectrum towards a source
     with a given redshift
     Args:
@@ -24,6 +24,7 @@ def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, debug=False, **kwa
         rstate (numpy.random.rstate, optional): for random numberes
         seed (int, optional):
         fNHI (spline): f_NHI object
+        dlaplus (bool): if True, include higher order Lyman lines
         **kwargs: Passed to init_fNHI()
 
     Returns:
@@ -71,35 +72,161 @@ def insert_dlas(wave, zem, rstate=None, seed=None, fNHI=None, debug=False, **kwa
         dlas.append(dla)
 
     # Generate model of DLAs
-    dla_model = dla_spec(wave, dlas)
+    dla_model = dla_spec(wave, dlas, dlaplus=dlaplus)
 
     # Return
     return dlas, dla_model
 
 
-def dla_spec(wave, dlas):
+def dla_spec(wave, dlas, dlaplus=False):
     """ Generate spectrum absorbed by dlas
     Args:
         wave (ndarray):  observed wavelengths
         dlas (list):  DLA dicts
+        dlaplus (bool): if True, include higher order Lyman lines
 
     Returns:
         abs_flux: ndarray of absorbed flux
 
     """
+    
+    # Lyman series (Ly1 = Lya ... Ly20) laboratory vacuum wavelengths in Angstroms,
+    #   from Morton (2003, ApJS 149, 205), the same values as Appendix D of
+    #   Lee, Webb, and Carswell (2020) and NIST
+    lya_wave = np.array([1215.6701,
+        1025.7223,
+        972.5368,
+        949.7431,
+        937.8035,
+        930.7483,
+        926.2257,
+        923.1504,
+        920.9631,
+        919.3514,
+        918.1294,
+        917.1806,
+        916.4291,
+        915.8238,
+        915.3290,
+        914.9192,
+        914.5762,
+        914.2861,
+        914.0385,
+        913.8256])
+
+    # Oscillator Strengths
+    #   Values from Baker (2008) NIST report
+    #   These also match Appendix D of Lee, Webb, and Carswell (2020) 
+    lya_f = np.array([0.41641,
+        0.079142,
+        0.029006,
+        0.013945,
+        0.0078035,
+        0.0048164,
+        0.0031850,
+        0.0022172,
+        0.0016062,
+        0.0012011,
+        0.00092190,
+        0.00072310, 
+        0.00057769, 
+        0.00046886,
+        0.00038577,
+        0.00032124,
+        0.00027035,
+        0.00022967,
+        0.00019677,
+        0.00016987])
+
+    # Damping constants from Lee et al. (2020)
+    # These have units of s^-1
+    lya_gamma = np.array([
+        6.265e8,
+        1.897e8,
+        8.127e7,
+        4.204e7,
+        2.450e7,
+        1.551e7,
+        1.043e7,
+        7.344e6,
+        5.366e6,
+        4.038e6,
+        3.115e6,
+        2.453e6,
+        1.966e6,
+        1.600e6,
+        1.319e6,
+        1.100e6,
+        9.275e5,
+        7.890e5,
+        6.767e5,
+        5.848e5]) 
+    
+    # Lya parameters, used with and without dlaplus: identical to the original dla_spec,
+    # so that the output without dlaplus is unchanged and the Lya profile of a DLA is the
+    # same with dlaplus (which then only adds absorption). 1215.67 A is the laboratory
+    # value (1215.6701 A, entry 0 of lya_wave) to the precision of lambda_RF_LYA, which
+    # quickquasars uses for the forest and the DLA redshifts.
+    lyacm = 1215.6700 / 1e8 # cm
     flya = 0.4164
-    gamma_lya = 626500000.0
-    lyacm = 1215.6700 / 1e8
-    wavecm = wave / 1e8
+    gamma_lya = 626500000.0 # s^-1
+
     tau = np.zeros(wave.size)
+    wavecm = wave / 1e8
+    b_value = 30*1e5 # cm/s
+    # Lyman limit (series limit of the lines above), Morton (2003)
+    lyman_limit = 911.7536 # Angstrom
+    # HI photoionization cross-section at the Lyman limit (e.g. Osterbrock & Ferland 2006);
+    # below the limit it falls as sigma(lambda) = sigma_0 (lambda / lambda_LL)^3
+    sigma_0_cont = 6.304e-18  # cm^2
+
     for dla in dlas:
-        par = [dla['N'],
-               dla['z'],
-               30*1e5,  # b value
+        # Cache DLA properties to avoid repeated dictionary lookups
+        dla_z = dla['z']
+        dla_N = dla['N']
+
+        # Lya, always included (with dlaplus too), because its damping wings can reach
+        # the spectrum even when the line centre is outside it
+        par = [dla_N,
+               dla_z,
+               b_value,
                lyacm,
                flya,
                gamma_lya]
         tau += voigt_tau(wavecm, par)
+
+        if dlaplus: # add higher order Lyman series
+            # The higher-order lines (Lyb to Ly20) are only computed when their centre
+            # is in the wavelength range.
+            relevant_lines = []
+            for n in range(1, lya_wave.size):
+                line_wave_obs = lya_wave[n] * (1 + dla_z)  # observed wavelength
+                if line_wave_obs >= wave[0] and line_wave_obs <= wave[-1]:
+                    relevant_lines.append(n)
+
+            for n in relevant_lines:
+                par = [dla_N, dla_z, b_value, lya_wave[n] / 1e8, lya_f[n], lya_gamma[n]]
+                tau += voigt_tau(wavecm, par)
+
+            # Lyman continuum (bound-free) absorption, tau = sigma_0 N (lambda / lambda_LL)^3,
+            # below the Lyman limit.
+            # The lines above the last tabulated one (upper level n = 22, 23, ...,
+            # 913.64 A to the limit) are replaced by a flat quasi-continuum tau = sigma_0 N
+            # between the Lyman limit and the midpoint between the last tabulated line and
+            # the next one. The mean oscillator-strength density of the series,
+            # df/dlambda ~ 0.8 / lambda_LL for large n (f_n ~ 1.6 n^-3, line spacing
+            # 2 lambda_LL n^-3), corresponds to sigma ~ 6.4e-18 cm^2, i.e. it joins on to
+            # the photoionization cross-section at the limit. The lines blend into a
+            # continuum for n >~ 28, where the spacing is smaller than the Doppler width;
+            # between n = 22 and 28 the gaps between the line cores (~0.1-0.2 A) are not
+            # resolved by DESI.
+            n_next = lya_wave.size + 2 # upper level of the first line not tabulated
+            wave_next = lyman_limit / (1. - 1. / n_next**2)
+            wave_cut_obs = 0.5 * (lya_wave[-1] + wave_next) * (1 + dla_z)
+            wave_ll_obs = lyman_limit * (1 + dla_z)
+            if wave[0] < wave_cut_obs:
+                below = wave < wave_cut_obs
+                tau[below] += sigma_0_cont * 10**dla_N * np.minimum(wave[below] / wave_ll_obs, 1.)**3
     # Flux
     flux = np.exp(-1.0*tau)
     # Return

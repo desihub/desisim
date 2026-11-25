@@ -57,6 +57,44 @@ class Testquickquasars(unittest.TestCase):
         with self.assertRaises(ValueError):
             quickquasars._memory_limited_nproc(4, 0)
 
+    def test_no_lya_transmission_refused_combinations(self):
+        """--no-lya-transmission is refused with --add-LYB and with --metals-from-file."""
+        base = ['-i', self.infile, '-o', self.outspec1, '--no-lya-transmission']
+        for extra in (['--add-LYB'], ['--metals-from-file']):
+            self.assertEqual(quickquasars.main(quickquasars.parse(base + extra)), 1, msg=' '.join(extra))
+        self.assertFalse(os.path.exists(self.outspec1))
+
+    def test_dla_and_metals_options(self):
+        """DLAs (random, with the higher-order Lyman lines) and metals run together, and change the spectra."""
+        import desispec.io
+        from unittest import mock
+        base = 'quickquasars -i {} -o {} --exptime 4000 --nmax 5 --overwrite --seed 1'.format(self.infile, self.outspec1)
+        metals = ' --metals LYB LY3 LY4 LY5 SiII(1260) SiIII(1207) SiII(1193) SiII(1190) --metal-strengths 0.1901 0.0697 0.0335 0.0187 1.8e-03 3.66e-03 1.83e-03 1.89e-03'
+        quickquasars.main(quickquasars.parse(base.split()[1:]))
+        sp0 = desispec.io.read_spectra(self.outspec1)
+        with mock.patch.object(quickquasars, 'insert_dlas', wraps=quickquasars.insert_dlas) as insert_dlas:
+            quickquasars.main(quickquasars.parse((base + ' --dla random' + metals).split()[1:]))
+        sp1 = desispec.io.read_spectra(self.outspec1)
+        # same seed, so the noise is identical; the forest and the DLAs only affect the blue arm here
+        self.assertFalse(np.allclose(sp0.flux['b'], sp1.flux['b']))     # DLAs and metals change the flux
+        # the DLAs always include the higher-order Lyman lines and the Lyman continuum
+        self.assertGreater(insert_dlas.call_count, 0)
+        self.assertTrue(all(c.kwargs.get('dlaplus') is True for c in insert_dlas.call_args_list))
+
+    def test_no_lya_transmission(self):
+        """--no-lya-transmission gives F=1 for the Lya forest; metals and DLAs can still be added on their own."""
+        import desispec.io
+        base = 'quickquasars -i {} -o {} --exptime 4000 --nmax 5 --overwrite --seed 1'.format(self.infile, self.outspec1)
+        metals = '--metals LYB LY3 LY4 LY5 SiII(1260) SiIII(1207) SiII(1193) SiII(1190) --metal-strengths 0.1901 0.0697 0.0335 0.0187 1.8e-03 3.66e-03 1.83e-03 1.89e-03'
+        spectra = {}
+        for name, extra in (('forest', ''), ('nolya', ' --no-lya-transmission'),
+                            ('metals', ' --no-lya-transmission ' + metals), ('dla', ' --no-lya-transmission --dla random')):
+            quickquasars.main(quickquasars.parse((base + extra).split()[1:]))
+            spectra[name] = desispec.io.read_spectra(self.outspec1)
+        self.assertFalse(np.allclose(spectra['forest'].flux['b'], spectra['nolya'].flux['b']))   # the Lya forest is gone
+        self.assertFalse(np.allclose(spectra['nolya'].flux['b'], spectra['metals'].flux['b']))   # metal-only spectra
+        self.assertFalse(np.allclose(spectra['nolya'].flux['b'], spectra['dla'].flux['b']))      # DLA-only spectra
+
     def test_quickquasars(self):
         cmd = 'quickquasars -i {} -o {} --exptime 4000 --nmax 5 --overwrite --seed 1'.format(self.infile, self.outspec1)
         opts = quickquasars.parse(cmd.split()[1:])
