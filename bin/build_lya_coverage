@@ -1,0 +1,10 @@
+#!/usr/bin/env python
+
+"""
+Build the Lya coverage of a data release (footprint, completeness and Lya exposure times) from the LSS random catalogs. Run once per release.
+"""
+
+import sys
+from desisim.scripts.build_lya_coverage import main
+if __name__ == '__main__':
+    sys.exit(main())
