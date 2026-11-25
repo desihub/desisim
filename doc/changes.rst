@@ -5,6 +5,13 @@ desisim change log
 0.39.3 (unreleased)
 -------------------
 
+* Lya coverage of a data release: ``build_lya_coverage`` and
+  ``gen_qso_catalog --lya-coverage`` give the mock Lya quasar targets the
+  footprint, completeness and exposure times of the data; without a coverage
+  file the previous tiles method is still the default (PR `#605`_).
+
+.. _`#605`: https://github.com/desihub/desisim/pull/605
+
 * Faster and lower-memory ``quickquasars``: batched metals and resampling,
   compiled SIMQSO template pieces, a single multi-band ``Spectra`` per healpix,
   and new optional ``--fiber-chunk`` and ``--mem-per-worker`` controls. Worker
